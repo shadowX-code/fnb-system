@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   learningMediaUrl: vi.fn(),
   sopLibrary: vi.fn(),
   sopVersion: vi.fn(),
+  acknowledgeSop: vi.fn(),
   saveOnboardingDraft: vi.fn(),
   newJourneyVersion: vi.fn(),
   createDefaultOnboarding: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock("../../../../services/crewService.js", () => ({
     learningMediaUrl: mocks.learningMediaUrl,
     sopLibrary: mocks.sopLibrary,
     sopVersion: mocks.sopVersion,
+    acknowledgeSop: mocks.acknowledgeSop,
     saveOnboardingDraft: mocks.saveOnboardingDraft,
     newJourneyVersion: mocks.newJourneyVersion,
     createDefaultOnboarding: mocks.createDefaultOnboarding,
@@ -336,17 +338,66 @@ describe("Crew mobile Learn reset", () => {
       ],
     });
     mocks.learningMediaUrl.mockReset().mockResolvedValue({ signed_url: "https://signed.test/lesson.webp" });
+    mocks.sopVersion.mockReset().mockResolvedValue({
+      id: "version-1",
+      title: "Welcome & Goodbye Standard",
+      version: 1,
+      category: "Service",
+      acknowledgement_required: true,
+      acknowledged: false,
+      sections: [{ id: "section-1", title: "Greeting", body: "<p>Welcome every guest warmly.</p>" }],
+    });
+    mocks.acknowledgeSop.mockReset().mockResolvedValue({ acknowledged: true });
   });
 
   it("keeps completed onboarding visible for review and exposes the outlet SOP knowledge base", async () => {
     render(<CrewLearningMobile token="crew-token" />);
     await screen.findByRole("heading", { name: "Learn" });
     expect(screen.getByRole("button", { name: /Onboarding Completed/ })).not.toBeNull();
-    expect(screen.getByText("Required for you")).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "View all" }).at(-1));
-    expect(screen.getByPlaceholderText("Search SOP")).not.toBeNull();
+    expect(screen.getByPlaceholderText("Search SOP, topic or keyword")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Browse by category" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "SOPs (1)" })).not.toBeNull();
     expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
+    expect(screen.getByText("Required")).not.toBeNull();
+    expect(screen.getByText("Acknowledge")).not.toBeNull();
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
+  });
+
+  it("synchronizes search, categories, counts and acknowledgement states", async () => {
+    mocks.sopLibrary.mockResolvedValue({
+      categories: [
+        { id: "cat-service", name: "Service" },
+        { id: "cat-cleaning", name: "Cleaning" },
+      ],
+      sops: [
+        { id: "sop-1", version_id: "version-1", title: "Greeting Standard", category: "Service", category_id: "cat-service", version: 2, acknowledgement_required: true, acknowledged: false },
+        { id: "sop-2", version_id: "version-2", title: "Table Service", category: "Service", category_id: "cat-service", version: 1, acknowledgement_required: false, acknowledged: false },
+        { id: "sop-3", version_id: "version-3", title: "Kitchen Cleanliness", category: "Cleaning", category_id: "cat-cleaning", version: 1, acknowledgement_required: true, acknowledged: true, acknowledged_at: "2026-08-12T00:00:00Z" },
+      ],
+    });
+
+    render(<CrewLearningMobile token="crew-token" />);
+    expect(await screen.findByRole("heading", { name: "SOPs (3)" })).not.toBeNull();
+    expect(screen.getByText("Optional")).not.toBeNull();
+    expect(screen.getByText("Acknowledged")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Cleaning, 1 SOP/ }));
+    expect(screen.getByRole("heading", { name: "SOPs (1)" })).not.toBeNull();
+    expect(screen.queryByText("Greeting Standard")).toBeNull();
+    expect(screen.getByText("Kitchen Cleanliness")).not.toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("Search SOP, topic or keyword"), { target: { value: "missing" } });
+    expect(screen.getByRole("heading", { name: "SOPs (0)" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /View all/ }));
+    expect(screen.getByRole("heading", { name: "SOPs (3)" })).not.toBeNull();
+  });
+
+  it("opens an SOP from the compact library row and preserves the controlled acknowledgement flow", async () => {
+    render(<CrewLearningMobile token="crew-token" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Welcome & Goodbye Standard" }));
+    expect(await screen.findByRole("heading", { name: "Welcome & Goodbye Standard" })).not.toBeNull();
+    expect(screen.getByText("Welcome every guest warmly.")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "I acknowledge this SOP" }));
+    await waitFor(() => expect(mocks.acknowledgeSop).toHaveBeenCalledWith("crew-token", "version-1", "direct_library"));
+    expect(await screen.findByText("Acknowledged")).not.toBeNull();
   });
 
   it("renders safe rich lesson content and token-bound published media on mobile", async () => {

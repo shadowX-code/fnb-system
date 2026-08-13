@@ -5202,6 +5202,7 @@ Service rules:
 - Onboarding versions, assignment snapshots, progress, quiz attempts, pinned SOP acknowledgements, and correct-answer secrecy remain immutable and server-authoritative. A later version never rewrites an existing employee assignment.
 - Learning setup is outlet-scoped end to end. Clone Learning Setup creates independent target drafts for onboarding, SOP categories, SOPs, versions, sections, quizzes, and SOP references; later edits do not cross outlet boundaries.
 - SOP content uses one hierarchy: Category → SOP → Version → ordered Sections. Published versions are read-only; edits require a new draft version. Crew can search every published SOP for their outlet and acknowledge required versions through token-bound authorities.
+- The finalized Crew Mobile Learn home uses the approved knowledge-library composition: a locally generated book/search hero, real SOP search, server-derived onboarding progress, a horizontally swipeable category carousel with live category counts, and one category-linked SOP list. Required, Optional, and Acknowledged states stay compact in each row; acknowledgement still enters the existing token-bound SOP-version flow. The five-item Home/Learn/Reward/Growth/Me navigation remains unchanged, and the former help card is intentionally absent.
 - Admin Learning uses one visible outlet context with `Onboarding` and `SOP Library`. Onboarding contains Overview, Modules, and Crew Progress tabs; no manager action is required to assign mandatory onboarding.
 
 ### Crew Daily Operations v1

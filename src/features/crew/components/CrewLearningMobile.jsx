@@ -8,12 +8,11 @@ import {
   FileText,
   LockKeyhole,
   PlayCircle,
-  Search,
 } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewRichContent from "./CrewRichContent.jsx";
 import CrewLearningImage from "./CrewLearningImage.jsx";
-import { CrewActionRow, CrewProgressBar, CrewSearchBar, CrewSectionHeader } from "./CrewMobileUI.jsx";
+import CrewLearnHome from "./CrewLearnHome.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 
 function Progress({ value = 0 }) {
@@ -208,7 +207,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
         sop={sop}
         saving={saving}
         error={error}
-        onBack={() => setScreen(screen === "lesson-sop" ? "lesson" : "library")}
+        onBack={() => setScreen(screen === "lesson-sop" ? "lesson" : "home")}
         onAcknowledge={acknowledge}
       />
     );
@@ -245,68 +244,15 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
     );
   }
 
-  if (screen === "library") {
-    return (
-      <SopLibraryMobile
-        library={library}
-        error={error}
-        onBack={() => setScreen("home")}
-        onOpen={(versionId) => openSop(versionId, "library")}
-      />
-    );
-  }
-
   return (
-    <LearnHome
+    <CrewLearnHome
       home={home}
       assignment={assignment}
       library={library}
       error={error}
       onOpenOnboarding={() => setScreen("onboarding")}
-      onOpenLibrary={() => setScreen("library")}
-      onOpenSop={(versionId) => openSop(versionId, "library")}
+      onOpenSop={(versionId) => openSop(versionId, "home")}
     />
-  );
-}
-
-function LearnHome({
-  home,
-  assignment,
-  library,
-  error,
-  onOpenOnboarding,
-  onOpenLibrary,
-  onOpenSop,
-}) {
-  const [query, setQuery] = useState("");
-  const onboarding = home?.assignment;
-  const complete = onboarding?.status === "completed";
-  const required = library.sops.filter(
-    (item) => item.acknowledgement_required && !item.acknowledged,
-  );
-  const searchResults = query.trim().length > 1 ? library.sops.filter((item) => `${item.title} ${item.summary || ""} ${item.category || ""}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 5) : [];
-  const categories = library.categories.slice(0, 4);
-  return (
-    <section className="crew-learn-reset-home">
-      <header className="crew-v2-page-header"><div><h1>Learn</h1></div></header>
-      {error && <p className="crew-mobile-error">{error}</p>}
-      <section className="crew-v3-knowledge-search"><strong>Search knowledge</strong><CrewSearchBar value={query} onChange={setQuery} onSubmit={() => query.trim() && onOpenLibrary()} placeholder="Search SOP, topic or keyword" /></section>
-      {query.trim().length > 1 && <section className="crew-v3-search-results"><CrewSectionHeader title="Search results" action="View all" onAction={onOpenLibrary} /><div className="crew-v3-row-group">{searchResults.map((item) => <CrewActionRow key={item.version_id} icon={FileText} title={item.title} subtitle={`${item.category} · v${item.version}`} meta={item.acknowledged ? "Acknowledged" : item.acknowledgement_required ? "Required" : "View"} onClick={() => onOpenSop(item.version_id)} />)}{!searchResults.length && <p>No matching SOPs.</p>}</div></section>}
-
-      {onboarding && <button type="button" className={`crew-v3-onboarding-card ${complete ? "is-complete" : ""}`} onClick={onOpenOnboarding}><span className="crew-ui-row-icon is-mint">{complete ? <CheckCircle2 size={20} /> : <ClipboardCheck size={20} />}</span><span><strong>{complete ? "Onboarding Completed" : assignment?.journey?.name || "New Crew Onboarding"}</strong><span className="crew-v3-onboarding-meta">{complete ? `${assignment?.modules?.length || 8} / ${assignment?.modules?.length || 8} modules · Review anytime` : `${onboarding.lessons_completed || 0} of ${onboarding.lessons_total || 0} lessons`}{!complete && <CrewProgressBar value={onboarding.progress_percentage} />}</span></span><ChevronRight size={17} /></button>}
-
-      {required.length > 0 && (
-        <section className="crew-mobile-required-sops">
-          <CrewSectionHeader title="Required for you" />
-          <div className="crew-v3-row-group">
-            {required.slice(0, 3).map((item) => (
-              <CrewActionRow key={item.version_id} icon={FileText} title={item.title} subtitle={`${item.category} · v${item.version}`} meta="Acknowledge" onClick={() => onOpenSop(item.version_id)} />
-            ))}
-          </div>
-        </section>
-      )}
-      <section className="crew-v3-categories"><CrewSectionHeader title="Browse by category" action="View all" onAction={onOpenLibrary} /><div>{categories.map((item) => <button type="button" key={item.id} onClick={onOpenLibrary}><strong>{item.name}</strong><small>{library.sops.filter((sop) => sop.category_id === item.id).length} SOPs</small></button>)}{!categories.length && <button type="button" onClick={onOpenLibrary}><strong>All knowledge</strong><small>{library.sops.length} SOPs</small></button>}</div></section>
-    </section>
   );
 }
 
@@ -356,37 +302,6 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
   );
 }
 
-function SopLibraryMobile({ library, error, onBack, onOpen }) {
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("all");
-  const visible = library.sops.filter(
-    (sop) =>
-      (category === "all" || sop.category_id === category) &&
-      `${sop.title} ${sop.summary || ""}`.toLowerCase().includes(query.toLowerCase()),
-  );
-  return (
-    <section className="crew-mobile-sop-library">
-      <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> Learn</button>
-      <header><h2>SOP Library</h2><p>Search your outlet knowledge base.</p></header>
-      {error && <p className="crew-mobile-error">{error}</p>}
-      <label className="crew-mobile-sop-search"><Search size={17} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP" /></label>
-      <div className="crew-mobile-sop-categories">
-        <button className={category === "all" ? "active" : ""} onClick={() => setCategory("all")}>All</button>
-        {library.categories.map((item) => <button key={item.id} className={category === item.id ? "active" : ""} onClick={() => setCategory(item.id)}>{item.name}</button>)}
-      </div>
-      <div className="crew-mobile-sop-list">
-        {visible.map((item) => (
-          <button key={item.id} onClick={() => onOpen(item.version_id)}>
-            <FileText size={19} />
-            <span><strong>{item.title}</strong><small>{item.category} · v{item.version}{item.acknowledgement_required ? item.acknowledged ? " · Acknowledged" : " · Acknowledgement required" : ""}</small></span>
-            <ChevronRight size={17} />
-          </button>
-        ))}
-      </div>
-      {!visible.length && <p className="crew-learning-empty-copy">No SOPs match this search.</p>}
-    </section>
-  );
-}
 
 function SopReader({ sop, saving, error, onBack, onAcknowledge }) {
   if (!sop) return null;
