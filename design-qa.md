@@ -29,3 +29,41 @@ Viewports reviewed: 375 × 812 and 390 × 844. The reference was normalized to t
 - Browser console was clean during the final authenticated Staging smoke pass.
 
 Result: **PASS** — no P0, P1, or P2 visual findings remain.
+# Crew Mobile Me — Design QA (2026-08-14)
+
+- Source visual truth: `/Users/deron/Downloads/ChatGPT Image Aug 13, 2026, 11_38_25 PM.png`
+- Implementation: `https://fnb-system-staging.vercel.app/#crew`, commit `800ae51670108366d34babaea44383054f396acf`
+- State: authenticated QA Crew, Me main view with real Attendance and Annual Leave payload
+- Viewports: 375 × 812 and 390 × 844 CSS px, browser device scale 1
+- Source pixels: 995 × 1577; implementation viewport normalized by matching mobile content width rather than source canvas scale
+- Browser-rendered evidence: in-app Browser full-page Staging capture at 390px; DOM and geometry inspection at 375px and 390px
+
+**Full-view comparison**
+
+- The implementation matches the approved hierarchy: Me header, green employee hero, exactly two quick statuses, grouped Work/Account/Support lists, separate red logout, and fixed five-item bottom navigation.
+- Intentional constraints: no notification bell because no real employee notification capability exists; no photo/camera affordance because no upload flow exists; Employment Documents has no badge because no safe action-state payload is available.
+
+**Focused comparison**
+
+- Profile hero: initial avatar, name, role, outlet, active status and profile navigation remain readable at 375px; long-name/outlet truncation is covered by tests.
+- Quick status: two equal columns fit without overflow; real QA data displays `Good / 15 shifts this month` and `7.5 days available`.
+- Lists and logout: icon weight, row heights, amber pending badge, section rhythm and independent logout treatment align with the reference. Logout confirmation is centered and does not collide with bottom navigation.
+
+**Findings**
+
+- No actionable P0/P1/P2 differences remain.
+- P3: the reference includes a decorative camera badge; intentionally omitted because the product has no profile-photo upload capability.
+
+**Comparison history**
+
+- Initial implementation used one undifferentiated settings list and had no real quick-status layer.
+- Revised implementation added the employee hero, real data-derived statuses, grouped navigation, edge states, and logout confirmation. Post-fix Staging evidence showed no horizontal overflow at 375/390 and preserved bottom padding for the fixed nav.
+
+**Interaction checks**
+
+- Profile Information opened and returned successfully.
+- Attendance and Leave routes passed automated navigation regression.
+- Logout confirmation opened, cancelled, and remained centered.
+- No FeedX console warnings/errors were recorded during the Staging Me smoke.
+
+final result: passed
