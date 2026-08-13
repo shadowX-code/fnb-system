@@ -29,6 +29,7 @@ import CrewGrowthAdminPage from "../features/crew/pages/CrewGrowthAdminPage.jsx"
 import CrewPerformanceAdminPage from "../features/crew/pages/CrewPerformanceAdminPage.jsx";
 import CrewRewardAdminPage from "../features/crew/pages/CrewRewardAdminPage.jsx";
 import CrewOperationsAdminPage from "../features/crew/pages/CrewOperationsAdminPage.jsx";
+import CrewLeaveAdminPage from "../features/crew/pages/CrewLeaveAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -365,6 +366,11 @@ export const routeDetails = {
     component: SharedDutyRosterPage,
     permission: "crew_roster.view",
     props: { ownership: "crew" },
+  },
+  crew_leave: {
+    description: "Review employee leave requests with roster context and controlled approval projections.",
+    component: CrewLeaveAdminPage,
+    permission: "crew_leave.view",
   },
   crew_operations: {
     description: "Monitor outlet Opening, Closing, Daily Tasks and Store Health execution.",

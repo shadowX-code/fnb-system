@@ -68,6 +68,7 @@ const iconMap = {
   "crew-employees": Users,
   "crew-attendance": Clock3,
   "crew-roster": CalendarDays,
+  "crew-leave": CalendarDays,
   "crew-growth": BarChart3,
   "crew-growth-skills": ClipboardList,
   "crew-growth-people": Users,

@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   rewardMobile: vi.fn(),
   operationsToday: vi.fn(),
   myRoster: vi.fn(),
+  myLeave: vi.fn(),
   operationDetail: vi.fn(),
   updateOperationItem: vi.fn(),
   completeOperationChecklist: vi.fn(),
@@ -55,6 +56,7 @@ beforeEach(() => {
   mocks.rewardMobile.mockReset().mockResolvedValue(reward);
   mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, checklists: [{ id: "ops-1", name: "Opening Checklist", type: "opening", status: "not_started", item_count: 2, completed_count: 0 }], daily_tasks: [{ id: "task-1", title: "Check reservation board", status: "pending", priority: "normal" }] });
   mocks.myRoster.mockReset().mockResolvedValue({ from: "2026-08-13", to: "2026-08-26", today: { entry_id: "roster-1", date: "2026-08-13", outlet_id: "outlet-1", outlet_name: "Friends Corner", start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew" }, entries: [{ id: "roster-1", date: "2026-08-13", outlet: { id: "outlet-1", name: "Friends Corner" }, start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew", template: { code: "MORNING", name: "Morning" } }, { id: "roster-2", date: "2026-08-14", outlet: { id: "outlet-2", name: "Hola Hola" }, entry_type: "off", template: { code: "OFF", name: "OFF" } }] });
+  mocks.myLeave.mockReset().mockResolvedValue({ requests: [], upcoming: [] });
   mocks.operationDetail.mockReset().mockResolvedValue({ id: "ops-1", name: "Opening Checklist", type: "opening", status: "not_started", items: [{ id: "item-1", title: "Unlock guest entrance", required: true, status: "pending" }] });
   mocks.updateOperationItem.mockReset().mockResolvedValue({});
   mocks.completeOperationChecklist.mockReset().mockResolvedValue({});

@@ -138,6 +138,36 @@ export const crewService = {
     return data || { from, to: end, today: null, entries: [] };
   },
 
+  async myLeave(token) {
+    const { data, error } = await supabase.rpc("crew_leave_mobile", { p_token: token });
+    throwSupabaseError("crew.myLeave", error);
+    return data || { requests: [], upcoming: [] };
+  },
+
+  async submitLeave(token, payload) {
+    const { data, error } = await supabase.rpc("crew_leave_submit", { p_token: token, p_payload: payload });
+    throwSupabaseError("crew.submitLeave", error);
+    return data;
+  },
+
+  async cancelLeave(token, requestId) {
+    const { data, error } = await supabase.rpc("crew_leave_cancel", { p_token: token, p_request_id: requestId });
+    throwSupabaseError("crew.cancelLeave", error);
+    return data;
+  },
+
+  async leaveAdminData(outletId, from = null, to = null) {
+    const { data, error } = await supabase.rpc("crew_leave_admin_data", { p_outlet_id: outletId, p_from: from || null, p_to: to || null });
+    throwSupabaseError("crew.leaveAdminData", error);
+    return data || { requests: [] };
+  },
+
+  async reviewLeave(requestId, decision, rejectionReason = null) {
+    const { data, error } = await supabase.rpc("crew_leave_review", { p_request_id: requestId, p_decision: decision, p_rejection_reason: rejectionReason || null });
+    throwSupabaseError("crew.reviewLeave", error);
+    return data;
+  },
+
   async operationDetail(token, instanceId) {
     const { data, error } = await supabase.rpc("crew_operations_detail", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.operationDetail", error);

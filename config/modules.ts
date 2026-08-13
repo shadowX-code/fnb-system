@@ -698,6 +698,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, manage: true, publish: true },
   },
   {
+    id: "crew_leave",
+    section: "Workforce",
+    label: "Leave Requests",
+    route: "/crew/leave",
+    icon: "crew-leave",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, review: true, manage: true },
+  },
+  {
     id: "crew_operations",
     section: "Operations",
     label: "Daily Operations",
