@@ -151,6 +151,7 @@ function GrowthPerformanceCard({ performance, onOpen }) {
 export default function CrewGrowthMobile({ data, performance, loading, error, onRetry, initialView = "overview" }) {
   const [view, setView] = useState(initialView);
   const [selectedSkill, setSelectedSkill] = useState(null);
+  const [skillReturnView, setSkillReturnView] = useState("overview");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [helpOpen, setHelpOpen] = useState(false);
@@ -168,6 +169,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   const readySkills = skills.filter((skill) => ["ready_for_review", "needs_renewal"].includes(skill.status));
 
   function openSkill(skill) {
+    setSkillReturnView(view === "skill" ? "overview" : view);
     setSelectedSkill(skill);
     setView("skill");
   }
@@ -178,7 +180,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   if (view === "skill" && selectedSkill) {
     const progress = percentFor(selectedSkill);
     return <section className="crew-v2-growth">
-      <PageHeader title="Skill Detail" onBack={() => { setView("skills"); setSelectedSkill(null); }} />
+      <PageHeader title="Skill Detail" onBack={() => { setView(skillReturnView); setSelectedSkill(null); }} />
       <article className="crew-v2-skill-hero">
         <div className="crew-v2-icon-token"><BadgeCheck size={23} /></div>
         <div><h2>{selectedSkill.name}</h2><p>{selectedSkill.category}</p></div>

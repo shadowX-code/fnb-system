@@ -63,4 +63,16 @@ describe("Crew Growth mobile final IA", () => {
     fireEvent.click(screen.getByRole("button", { name: "View my performance" }));
     expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
   });
+
+  it("returns from Skill Detail to the surface that opened it", () => {
+    render(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
+    fireEvent.click(screen.getByRole("button", { name: /View skill/ }));
+    expect(screen.getByRole("heading", { name: "Skill Detail" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Growth" })).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: /View all skills/ })[0]);
+    fireEvent.click(screen.getByRole("button", { name: /Closing Responsibilities/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Skills" })).not.toBeNull();
+  });
 });
