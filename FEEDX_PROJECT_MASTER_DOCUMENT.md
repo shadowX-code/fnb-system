@@ -1088,6 +1088,13 @@ Manage lightweight outlet employee scheduling as a Crew Workforce capability. Cr
 
 This is not a full HR, payroll, attendance, shift swap, or staff request system yet.
 
+Availability + Shift Swap status:
+
+- **Deferred / not currently required.**
+- Availability, temporary availability exceptions, specific-Crew replacement, open cover and Shift Requests were intentionally withdrawn before Production on 13 Aug 2026.
+- Duty Roster remains the single scheduling authority. Crew My Schedule remains a read-only view of the latest Published roster.
+- Leave Request and Approved Leave projection remain active and are not part of this withdrawal.
+
 Crew Workforce Duty Roster is the scheduling and editing workspace:
 
 - Weekly and monthly employee-by-date roster grid.

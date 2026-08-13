@@ -708,16 +708,6 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, review: true, manage: true },
   },
   {
-    id: "crew_shift_requests",
-    section: "Workforce",
-    label: "Shift Requests",
-    route: "/crew/shift-requests",
-    icon: "crew-shift-requests",
-    sidebar: true,
-    workspace: "crew",
-    permissions: { view: true, review: true },
-  },
-  {
     id: "crew_operations",
     section: "Operations",
     label: "Daily Operations",

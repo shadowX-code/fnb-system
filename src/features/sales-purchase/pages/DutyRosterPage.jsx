@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, CalendarDays, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Share2, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
+import { CalendarDays, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Share2, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -226,17 +226,15 @@ function ShiftBlock({ roster }) {
             {isNonWorking ? template.code : formatShiftTimeRange(roster.start_time, roster.end_time)}
           </div>
           <div className="mt-1 text-xs font-semibold opacity-80">{template.name}</div>
-          {roster.availability_conflict ? <div className="mt-1 flex items-center gap-1 text-[10px] font-black text-amber-800"><AlertTriangle size={11} /> Outside availability</div> : null}
         </div>
       </div>
     </div>
   );
 }
 
-function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplateId, availabilityWarning, onSelectTemplate, onClose, onSave, onDelete, saving, canDeleteShift }) {
+function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplateId, onSelectTemplate, onClose, onSave, onDelete, saving, canDeleteShift }) {
   const [templateId, setTemplateId] = useState(roster?.shift_template_id || selectedTemplateId || "");
   const [remark, setRemark] = useState(roster?.remark || "");
-  const [overrideReason, setOverrideReason] = useState("");
   const selected = templates.find((item) => item.id === templateId);
   const team = groupLabels[employee.rosterGroup] ?? "OTHER";
   const dateObject = new Date(`${date}T00:00:00`);
@@ -306,15 +304,6 @@ function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplate
               />
             </section>
           ) : null}
-          {availabilityWarning ? (
-            <section className="mt-4 rounded-3xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-800">Outside employee availability</div>
-              <p className="mt-2 text-sm font-semibold text-amber-900">Available: {availabilityWarning.summary || "Employee marked unavailable"}</p>
-              {availabilityWarning.pending_leave ? <p className="mt-1 text-xs font-semibold text-amber-800">A pending leave request also overlaps this date.</p> : null}
-              <label className="mt-3 block text-xs font-bold text-amber-900" htmlFor="availability-override-reason">Override reason</label>
-              <textarea id="availability-override-reason" className="control mt-2 min-h-20 w-full resize-none bg-white" value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Explain why this assignment should continue" />
-            </section>
-          ) : null}
         </div>
 
         <footer className="shrink-0 border-t border-border bg-background p-4">
@@ -325,7 +314,7 @@ function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplate
               </button>
               <div className="flex gap-2">
                 <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-                <button className="btn-primary" type="button" disabled={!selected || saving || (availabilityWarning && overrideReason.trim().length < 2)} onClick={() => onSave(selected, remark, overrideReason)}>
+                <button className="btn-primary" type="button" disabled={!selected || saving} onClick={() => onSave(selected, remark)}>
                   {saving ? "Saving..." : "Save Shift"}
                 </button>
               </div>
@@ -333,7 +322,6 @@ function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplate
           ) : (
             <div className="flex justify-end gap-2">
               <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-              {availabilityWarning ? <button className="btn-primary" type="button" disabled={saving || !selected || overrideReason.trim().length < 2} onClick={() => onSave(selected, remark, overrideReason)}>Continue Anyway</button> : null}
             </div>
           )}
         </footer>
@@ -1739,7 +1727,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     };
   }, [rosters]);
 
-  async function saveShift(employee, date, templateOverride = selectedTemplate, remark = "", availabilityOverrideReason = "") {
+  async function saveShift(employee, date, templateOverride = selectedTemplate, remark = "") {
     if (locked) {
       ui.notify({ title: "Roster is locked", message: "Unlock this roster before editing.", tone: "warning" });
       return;
@@ -1759,30 +1747,13 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       setSelectedTemplateId("");
       return;
     }
-    if (templateOverride.shift_type === "working" && templateOverride.start_time && templateOverride.end_time) {
-      try {
-        const planning = await dutyRosterService.checkAvailability({ outletId, employeeId: employee.id, rosterDate: date, startTime: templateOverride.start_time, endTime: templateOverride.end_time });
-        if (planning?.hard_block) {
-          ui.notify({ title: "Approved leave blocks this shift", message: "Choose another employee or date. Approved leave cannot be overridden.", tone: "error" });
-          return;
-        }
-        if (planning?.availability?.compatible === false && availabilityOverrideReason.trim().length < 2) {
-          setSelectedTemplateId(templateOverride.id);
-          setShiftDrawer({ mode: existing ? "edit" : "add", employee, date, roster: existing || null, availabilityWarning: { summary: planning.availability.summary, pending_leave: planning.pending_leave } });
-          return;
-        }
-      } catch (availabilityError) {
-        ui.notify({ title: "Unable to verify availability", message: availabilityError.message || "Please try again.", tone: "error" });
-        return;
-      }
-    }
     if (period?.status === "published") {
       setSaving(true);
       try {
         const nextRows = rosters
           .filter((row) => row.roster_date >= weekDateValues[0] && row.roster_date <= weekEnd)
           .filter((row) => row.id !== existing?.id);
-        nextRows.push({ employee_id: employee.id, roster_date: date, shift_template_id: templateOverride.id, template: templateOverride, remark, availability_override_reason: availabilityOverrideReason || null });
+        nextRows.push({ employee_id: employee.id, roster_date: date, shift_template_id: templateOverride.id, template: templateOverride, remark });
         const requestId = publishedWeekRequestIdRef.current || createRosterRequestId();
         publishedWeekRequestIdRef.current = requestId;
         const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId, outletId, weekStartDate: weekDateValues[0], rows: nextRows });
@@ -1810,7 +1781,6 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         template: templateOverride,
         status: "draft",
         remark,
-        availabilityOverrideReason: availabilityOverrideReason || null,
       });
       if (shouldResetPublishedWeek) {
         const [nextPeriod, nextRows] = await Promise.all([
@@ -2522,14 +2492,13 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
           employee={shiftDrawer.employee}
           date={shiftDrawer.date}
           roster={shiftDrawer.roster}
-          availabilityWarning={shiftDrawer.availabilityWarning}
           templates={templates}
           selectedTemplateId={selectedTemplateId}
           onSelectTemplate={setSelectedTemplateId}
           saving={saving}
           canDeleteShift={canDeleteShift}
           onClose={() => setShiftDrawer(null)}
-          onSave={(template, remark, overrideReason) => saveShift(shiftDrawer.employee, shiftDrawer.date, template, remark, overrideReason)}
+          onSave={(template, remark) => saveShift(shiftDrawer.employee, shiftDrawer.date, template, remark)}
           onDelete={deleteShift}
         />
       ) : null}
