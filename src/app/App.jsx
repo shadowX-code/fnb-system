@@ -575,8 +575,13 @@ export default function App() {
     return <CrewGuestFeedback />;
   }
 
+  // Crew Mobile is an explicit employee entry point and must not be shadowed
+  // by an unrelated Admin session in the same browser.
+  if (window.location.hash === "#crew") {
+    return <CrewMobileApp />;
+  }
+
   if (!auth.session) {
-    if (window.location.hash === "#crew") return <CrewMobileApp />;
     return <LoginPage />;
   }
 
