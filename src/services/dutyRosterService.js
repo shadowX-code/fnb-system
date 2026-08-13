@@ -3,7 +3,7 @@ import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
 const selectFields = `
-  id,outlet_id,employee_id,roster_date,shift_template_id,start_time,end_time,break_minutes,status,remark,created_by,updated_by,created_at,updated_at,
+  id,outlet_id,employee_id,roster_date,shift_template_id,start_time,end_time,break_minutes,status,remark,availability_conflict,availability_override_reason,created_by,updated_by,created_at,updated_at,
   employee_name_snapshot,position_snapshot,department_snapshot,outlet_snapshot,shift_snapshot,publish_timestamp,
   shift_template:shift_templates(id,outlet_id,name,code,start_time,end_time,break_minutes,shift_type,color),
   employee:employees(id,full_name,nickname,position,department,workplace,employee_code,employment_status,is_active)
@@ -38,6 +38,8 @@ function mapRoster(row) {
     break_minutes: Number(row.break_minutes ?? template?.break_minutes ?? 0),
     status: row.status ?? "draft",
     remark: row.remark ?? "",
+    availability_conflict: Boolean(row.availability_conflict),
+    availability_override_reason: row.availability_override_reason ?? "",
     template: template ? {
       id: template.id,
       name: template.name,
@@ -159,7 +161,19 @@ export const dutyRosterService = {
     return (data ?? []).map(mapRoster);
   },
 
-  async saveDutyRoster({ outletId, employeeId, rosterDate, template, status = "draft", remark = "" }) {
+  async checkAvailability({ outletId, employeeId, rosterDate, startTime, endTime }) {
+    const { data, error } = await supabase.rpc("crew_roster_availability_check", {
+      p_outlet_id: outletId,
+      p_employee_id: employeeId,
+      p_date: rosterDate,
+      p_start: startTime,
+      p_end: endTime,
+    });
+    throwSupabaseError("duty_rosters.availability_check", error);
+    return data;
+  },
+
+  async saveDutyRoster({ outletId, employeeId, rosterDate, template, status = "draft", remark = "", availabilityOverrideReason = null }) {
     if (template?.outlet_id !== outletId) {
       throw new Error("This shift template is not available for the selected outlet.");
     }
@@ -175,6 +189,7 @@ export const dutyRosterService = {
       break_minutes: Number(template?.break_minutes || 0),
       status,
       remark,
+      availability_override_reason: availabilityOverrideReason,
       updated_by: userData?.user?.id ?? null,
       updated_at: new Date().toISOString(),
     };

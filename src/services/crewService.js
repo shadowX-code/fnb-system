@@ -167,6 +167,51 @@ export const crewService = {
     throwSupabaseError("crew.reviewLeave", error);
     return data;
   },
+  async availability(token) {
+    const { data, error } = await supabase.rpc("crew_availability_mobile", { p_token: token });
+    if (error) throwSupabaseError("crew.availability", error);
+    return data || { weekly: [], exceptions: [] };
+  },
+  async saveAvailability(token, payload) {
+    const { data, error } = await supabase.rpc("crew_availability_save", { p_token: token, p_payload: payload });
+    if (error) throwSupabaseError("crew.saveAvailability", error);
+    return data;
+  },
+  async shiftCandidates(token, entryId) {
+    const { data, error } = await supabase.rpc("crew_shift_candidates", { p_token: token, p_entry_id: entryId });
+    if (error) throwSupabaseError("crew.shiftCandidates", error);
+    return data;
+  },
+  async submitShiftRequest(token, payload) {
+    const { data, error } = await supabase.rpc("crew_shift_request_submit", { p_token: token, p_payload: payload });
+    if (error) throwSupabaseError("crew.submitShiftRequest", error);
+    return data;
+  },
+  async shiftRequests(token) {
+    const { data, error } = await supabase.rpc("crew_shift_requests_mobile", { p_token: token });
+    if (error) throwSupabaseError("crew.shiftRequests", error);
+    return data || { requests: [], incoming: [], available_shifts: [] };
+  },
+  async respondShiftRequest(token, requestId, decision) {
+    const { data, error } = await supabase.rpc("crew_shift_request_respond", { p_token: token, p_request_id: requestId, p_decision: decision });
+    if (error) throwSupabaseError("crew.respondShiftRequest", error);
+    return data;
+  },
+  async cancelShiftRequest(token, requestId) {
+    const { data, error } = await supabase.rpc("crew_shift_request_cancel", { p_token: token, p_request_id: requestId });
+    if (error) throwSupabaseError("crew.cancelShiftRequest", error);
+    return data;
+  },
+  async shiftRequestsAdmin(outletId, from = null, to = null) {
+    const { data, error } = await supabase.rpc("crew_shift_requests_admin", { p_outlet_id: outletId, p_from: from, p_to: to });
+    if (error) throwSupabaseError("crew.shiftRequestsAdmin", error);
+    return data || { requests: [] };
+  },
+  async reviewShiftRequest(requestId, decision, reason = null) {
+    const { data, error } = await supabase.rpc("crew_shift_request_review", { p_request_id: requestId, p_decision: decision, p_reason: reason });
+    if (error) throwSupabaseError("crew.reviewShiftRequest", error);
+    return data;
+  },
 
   async operationDetail(token, instanceId) {
     const { data, error } = await supabase.rpc("crew_operations_detail", { p_token: token, p_instance_id: instanceId });

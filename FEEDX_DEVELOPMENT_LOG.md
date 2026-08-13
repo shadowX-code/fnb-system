@@ -4,6 +4,14 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-08-13
 
+### Crew Availability + Shift Swap v1
+- Added token-bound Crew weekly availability and temporary exceptions, including available, preferred, unavailable and multiple time-window planning evidence. Availability never creates a roster shift.
+- Integrated Availability into Duty Roster as a warning with an explicit manager override reason, while approved leave remains a hard block. Draft and Published roster entries retain an availability-conflict flag.
+- Added specific-Crew swap and open-cover flows with server-derived requester identity, position/outlet/roster/leave/availability eligibility, Crew accept/decline/cancel, manager approve/reject and immutable audit history.
+- Shift approval now publishes a new roster revision instead of rewriting history. Attendance, Daily Operations and Performance continue reading the shared latest-published roster authority and therefore follow the replacement automatically.
+- Applied Staging-only migration `20260813061304_crew_availability_shift_swap_v1.sql` to `fnb-system-staging`; real rollback-only behavior/security verification passed 13/13.
+- Added guarded Staging QA seed and verification scripts at `scripts/seedCrewAvailabilityShiftSwapQaData.*` and `scripts/verifyCrewAvailabilityShiftSwap*.sql`; no Production data or schema was touched.
+
 ### Crew Duty Roster Ownership & Integration
 - Moved Duty Roster product ownership to Crew → Workforce while retaining the Restaurant route as a compatibility entry into the same page, services, tables and trusted lifecycle authorities.
 - Added canonical `crew_roster.view/manage/publish` permissions with legacy permission compatibility and outlet-scoped authenticated policies; Admin roster RPCs are no longer anon-executable.
