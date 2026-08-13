@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 const mocks = vi.hoisted(() => ({
   list: vi.fn(), saveSop: vi.fn(), saveCategory: vi.fn(), newVersion: vi.fn(), saveDraft: vi.fn(),
   saveSections: vi.fn(), deleteDraft: vi.fn(), swap: vi.fn(), publish: vi.fn(), usage: vi.fn(), clone: vi.fn(),
+  uploadMedia: vi.fn(), deleteMedia: vi.fn(), mediaUrl: vi.fn(),
 }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   listOutletSopsAdmin: mocks.list,
@@ -17,6 +18,9 @@ vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   publishSopVersion: mocks.publish,
   sopUsageAdmin: mocks.usage,
   cloneSelectedSops: mocks.clone,
+  uploadSopMedia: mocks.uploadMedia,
+  deleteSopMedia: mocks.deleteMedia,
+  sopMediaAdminUrl: mocks.mediaUrl,
 } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 
@@ -62,6 +66,9 @@ beforeEach(() => {
   mocks.publish.mockReset().mockResolvedValue();
   mocks.usage.mockReset().mockResolvedValue({ current: [], historical: [] });
   mocks.clone.mockReset().mockResolvedValue({ sops_cloned: 1, categories_created: 1 });
+  mocks.uploadMedia.mockReset().mockResolvedValue({ media: { id: "media-1", mime_type: "image/webp", width: 900, height: 600 }, previewUrl: "blob:sop-signed" });
+  mocks.deleteMedia.mockReset().mockResolvedValue({ deleted: true });
+  mocks.mediaUrl.mockReset().mockResolvedValue("https://signed.test/sop-image");
   ui.notify.mockReset();
   ui.confirm.mockReset().mockResolvedValue(true);
 });
@@ -188,7 +195,7 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getByRole("heading", { name: "Welcome & Goodbye Standard" })).not.toBeNull();
   });
 
-  it("exposes lightweight formatting and keeps unsupported images out of the save payload", async () => {
+  it("uploads a validated image and persists only durable media metadata", async () => {
     document.execCommand = vi.fn();
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:sop-preview") });
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
@@ -201,9 +208,15 @@ describe("Crew SOP Library Admin", () => {
     expect(document.execCommand).toHaveBeenCalledWith("insertUnorderedList", false, null);
     const file = new File(["safe"], "guide.png", { type: "image/png" });
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
-    expect(await screen.findByText(/SOP media storage is not configured/)).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Save Draft" }).disabled).toBe(true);
-    expect(mocks.saveSections).not.toHaveBeenCalled();
+    await screen.findByText(/Stored privately for this Outlet/);
+    expect(mocks.uploadMedia).toHaveBeenCalledWith(file, "v2");
+    fireEvent.change(screen.getByLabelText("Image caption"), { target: { value: "Greeting posture" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(mocks.saveSections).toHaveBeenCalledTimes(1));
+    const [, saved] = mocks.saveSections.mock.calls[0];
+    expect(saved[0].media).toMatchObject({ id: "media-1", caption: "Greeting posture" });
+    expect(JSON.stringify(saved)).not.toContain("blob:sop-signed");
+    expect(JSON.stringify(saved)).not.toContain("data:image");
   });
 
   it("switches historical versions from the header popover and keeps usage auxiliary", async () => {

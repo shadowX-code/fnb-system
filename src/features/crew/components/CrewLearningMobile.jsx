@@ -12,6 +12,7 @@ import {
 import { crewService } from "../../../services/crewService.js";
 import CrewRichContent from "./CrewRichContent.jsx";
 import CrewLearningImage from "./CrewLearningImage.jsx";
+import CrewSopImage from "./CrewSopImage.jsx";
 import CrewLearnHome from "./CrewLearnHome.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 
@@ -204,6 +205,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
   if (screen === "lesson-sop" || screen === "sop") {
     return (
       <SopReader
+        token={token}
         sop={sop}
         saving={saving}
         error={error}
@@ -303,7 +305,7 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
 }
 
 
-function SopReader({ sop, saving, error, onBack, onAcknowledge }) {
+function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
   if (!sop) return null;
   return (
     <section className="crew-learning-reader">
@@ -313,7 +315,7 @@ function SopReader({ sop, saving, error, onBack, onAcknowledge }) {
       <p className="crew-learning-summary">{sop.summary || sop.change_summary}</p>
       {sop.sections?.map((section) => (
         <article key={section.id} className={section.key_point ? "crew-sop-section is-key" : "crew-sop-section"}>
-          <h3>{section.title}</h3><CrewRichContent html={section.body} />{section.key_point && <span>Key point</span>}
+          <h3>{section.title}</h3><CrewRichContent html={section.body} /><CrewSopImage media={section.media} token={token} sopVersionId={sop.id} />{section.key_point && <span>Key point</span>}
         </article>
       ))}
       {error && <p className="crew-mobile-error">{error}</p>}

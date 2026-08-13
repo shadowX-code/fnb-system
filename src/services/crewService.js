@@ -67,6 +67,17 @@ function durableLearningMedia(media) {
   };
 }
 
+function durableSopMedia(media, caption = "") {
+  if (!media?.id) return null;
+  return {
+    id: media.id,
+    mime_type: media.mime_type || "image/webp",
+    width: media.width || null,
+    height: media.height || null,
+    caption: String(caption ?? media.caption ?? "").trim() || null,
+  };
+}
+
 async function prepareCrewDraftOrder(table, rows) {
   for (const [index, row] of rows.filter((item) => !isTemporaryCrewId(item.id)).entries()) {
     const { error } = await supabase.from(table).update({ sort_order: -1000000 - index }).eq("id", row.id);
@@ -351,6 +362,80 @@ export const crewService = {
     return data?.signedUrl || "";
   },
 
+  async sopMediaUrl(token, sopVersionId, mediaId) {
+    if (!token || !sopVersionId || !mediaId) throw new Error("SOP image is unavailable.");
+    const { data, error } = await supabase.functions.invoke("crew-sop-media-url", {
+      body: { token, sop_version_id: sopVersionId, media_id: mediaId },
+    });
+    throwSupabaseError("crew.sopMediaUrl", error);
+    if (!data?.signed_url) throw new Error(data?.error || "SOP image is unavailable.");
+    return data;
+  },
+
+  async sopMediaAdminUrl(mediaId) {
+    const { data: media, error: mediaError } = await supabase
+      .from("crew_sop_media")
+      .select("id,bucket_id,object_path,status")
+      .eq("id", mediaId)
+      .single();
+    throwSupabaseError("crew.sopMediaAdminUrl.media", mediaError);
+    if (media.status !== "ready") throw new Error("SOP image is not ready.");
+    const { data, error } = await supabase.storage.from(media.bucket_id).createSignedUrl(media.object_path, 600);
+    throwSupabaseError("crew.sopMediaAdminUrl.sign", error);
+    return data?.signedUrl || "";
+  },
+
+  async uploadSopMedia(file, sopVersionId) {
+    validateLearningImageFile(file);
+    const optimized = await optimizeImageBlob(file);
+    if (optimized.blob.size > IMAGE_UPLOAD_MAX_BYTES) throw new Error("Image exceeds 5MB limit.");
+    const { data: prepared, error: prepareError } = await supabase.rpc("crew_prepare_sop_media_upload", {
+      p_sop_version_id: sopVersionId,
+      p_original_filename: file.name,
+      p_mime_type: optimized.contentType,
+      p_file_size_bytes: optimized.blob.size,
+      p_width: optimized.width,
+      p_height: optimized.height,
+    });
+    throwSupabaseError("crew.uploadSopMedia.prepare", prepareError);
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(prepared.bucket)
+        .upload(prepared.object_path, optimized.blob, {
+          contentType: optimized.contentType,
+          upsert: false,
+          cacheControl: "3600",
+        });
+      throwSupabaseError("crew.uploadSopMedia.upload", uploadError);
+      const { data: finalized, error: finalizeError } = await supabase.rpc("crew_finalize_sop_media_upload", {
+        p_media_id: prepared.id,
+      });
+      throwSupabaseError("crew.uploadSopMedia.finalize", finalizeError);
+      const { data: signed, error: signedError } = await supabase.storage
+        .from(finalized.bucket)
+        .createSignedUrl(finalized.object_path, 600);
+      throwSupabaseError("crew.uploadSopMedia.preview", signedError);
+      return { media: durableSopMedia(finalized), previewUrl: signed?.signedUrl || "" };
+    } catch (cause) {
+      try { await this.deleteSopMedia(prepared.id); } catch { /* Retain for safe retry/cleanup. */ }
+      throw cause;
+    }
+  },
+
+  async deleteSopMedia(mediaId) {
+    if (!mediaId) return { deleted: false, reason: "missing" };
+    const { data: request, error: requestError } = await supabase.rpc("crew_request_sop_media_delete", {
+      p_media_id: mediaId,
+    });
+    throwSupabaseError("crew.deleteSopMedia.request", requestError);
+    if (!request?.can_delete) return { deleted: false, reason: request?.reason || "referenced" };
+    const { error: removeError } = await supabase.storage.from(request.bucket).remove([request.object_path]);
+    throwSupabaseError("crew.deleteSopMedia.remove", removeError);
+    const { error: finalizeError } = await supabase.rpc("crew_finalize_sop_media_delete", { p_media_id: mediaId });
+    throwSupabaseError("crew.deleteSopMedia.finalize", finalizeError);
+    return { deleted: true };
+  },
+
   async uploadLearningMedia(file, outletId) {
     validateLearningImageFile(file);
     const optimized = await optimizeImageBlob(file);
@@ -499,6 +584,20 @@ export const crewService = {
       p_copy_categories: Boolean(copyCategories),
     });
     throwSupabaseError("crew.cloneSelectedSops", error);
+    for (const copy of data?.media_copies || []) {
+      const { error: copyError } = await supabase.storage
+        .from(copy.source_bucket)
+        .copy(copy.source_path, copy.target_path);
+      throwSupabaseError("crew.cloneSelectedSops.copyMedia", copyError);
+      const { error: finalizeError } = await supabase.rpc("crew_finalize_sop_media_upload", { p_media_id: copy.target_id });
+      throwSupabaseError("crew.cloneSelectedSops.finalizeMedia", finalizeError);
+      const { error: attachError } = await supabase.rpc("crew_attach_sop_media", {
+        p_section_id: copy.target_section_id,
+        p_media_id: copy.target_id,
+        p_caption: null,
+      });
+      throwSupabaseError("crew.cloneSelectedSops.attachMedia", attachError);
+    }
     return data;
   },
 
@@ -511,7 +610,7 @@ export const crewService = {
   },
 
   async listSopsAdmin() {
-    const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point,media_url))").order("updated_at", { ascending: false });
+    const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point,media_url,media_id,media_caption))").order("updated_at", { ascending: false });
     throwSupabaseError("crew.listSopsAdmin", error);
     return data || [];
   },
@@ -522,7 +621,7 @@ export const crewService = {
         supabase
           .from("crew_sops")
           .select(
-            "*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point,media_url))",
+            "*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point,media_url,media_id,media_caption))",
           )
           .eq("outlet_id", outletId)
           .order("updated_at", { ascending: false }),
@@ -573,8 +672,27 @@ export const crewService = {
   },
 
   async deleteDraftRecord(table, id) {
+    if (table === "crew_sop_versions") await this.cleanupSopDraftMedia(id);
+    if (table === "crew_sops") {
+      const { data: versions, error: versionError } = await supabase
+        .from("crew_sop_versions").select("id").eq("sop_id", id).eq("status", "draft");
+      throwSupabaseError("crew.deleteDraftRecord.sopVersions", versionError);
+      for (const version of versions || []) await this.cleanupSopDraftMedia(version.id);
+    }
     const { error } = await supabase.from(table).delete().eq("id", id);
     throwSupabaseError(`crew.deleteDraftRecord.${table}`, error);
+  },
+
+  async cleanupSopDraftMedia(sopVersionId) {
+    const { data, error } = await supabase.rpc("crew_prepare_sop_draft_media_cleanup", { p_sop_version_id: sopVersionId });
+    throwSupabaseError("crew.cleanupSopDraftMedia.prepare", error);
+    for (const asset of data?.assets || []) {
+      const { error: removeError } = await supabase.storage.from(asset.bucket).remove([asset.object_path]);
+      throwSupabaseError("crew.cleanupSopDraftMedia.remove", removeError);
+      const { error: finalizeError } = await supabase.rpc("crew_finalize_sop_media_delete", { p_media_id: asset.id });
+      throwSupabaseError("crew.cleanupSopDraftMedia.finalize", finalizeError);
+    }
+    return true;
   },
 
   async swapDraftOrder(table, first, second) {
@@ -593,7 +711,7 @@ export const crewService = {
     }
   },
 
-  async saveSopDraftSections(sopVersionId, sections, originalIds = []) {
+  async saveSopDraftSections(sopVersionId, sections, originalIds = [], originalMediaIds = []) {
     const retainedIds = new Set(sections.map((section) => section.id).filter((id) => id && !String(id).startsWith("temp:")));
     const removedIds = originalIds.filter((id) => !retainedIds.has(id));
     const existing = sections.filter((section) => retainedIds.has(section.id));
@@ -621,7 +739,9 @@ export const crewService = {
         body: section.body || null,
         sort_order: index + 1,
         key_point: Boolean(section.key_point),
-        media_url: section.media_url || null,
+        media_url: null,
+        media_id: section.media?.id || section.media_id || null,
+        media_caption: String(section.media?.caption ?? section.media_caption ?? "").trim() || null,
       };
       const query = retainedIds.has(section.id)
         ? supabase.from("crew_sop_sections").update(payload).eq("id", section.id).eq("sop_version_id", sopVersionId)
@@ -629,6 +749,10 @@ export const crewService = {
       const { data, error } = await query.select().single();
       throwSupabaseError("crew.saveSopDraftSections.save", error);
       saved.push(data);
+    }
+    const retainedMedia = new Set(saved.map((section) => section.media_id).filter(Boolean));
+    for (const mediaId of originalMediaIds.filter(Boolean)) {
+      if (!retainedMedia.has(mediaId)) await this.deleteSopMedia(mediaId);
     }
     return saved;
   },

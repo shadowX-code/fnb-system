@@ -23,6 +23,16 @@ describe("Crew learning mobile service boundaries", () => {
     expect(result.signed_url).toBe("https://signed.test/image");
   });
 
+  it("uses a token and exact SOP version for private SOP media URLs", async () => {
+    const result = await crewService.sopMediaUrl("crew-token", "00000000-0000-4000-8000-000000000002", "00000000-0000-4000-8000-000000000003");
+    expect(mocks.invoke).toHaveBeenCalledWith("crew-sop-media-url", { body: {
+      token: "crew-token",
+      sop_version_id: "00000000-0000-4000-8000-000000000002",
+      media_id: "00000000-0000-4000-8000-000000000003",
+    } });
+    expect(result.signed_url).toBe("https://signed.test/image");
+  });
+
   it("uses token-bound Crew RPCs for all Crew learning actions", async () => {
     await crewService.learningHome("crew-token");
     await crewService.growthMobile("crew-token");

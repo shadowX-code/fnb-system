@@ -31,6 +31,7 @@ import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
+import CrewSopImage from "../components/CrewSopImage.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
 import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
@@ -380,19 +381,20 @@ function PublishedDocument({ version, showOutline = true }) {
   if (!version) return <div className="crew-sop-compact-empty"><EmptyState title="No SOP version" description="Create a draft version to start writing this SOP." /></div>;
   return <div className={`crew-sop-document-shell ${showOutline ? "" : "is-reader"}`}>
     {showOutline ? <aside><div><strong>Section navigation</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} onClick={() => refs.current[section.id]?.scrollIntoView({ behavior: "smooth", block: "start" })}><span>{String(index + 1).padStart(2, "0")}</span>{section.title}</button>)}</aside> : null}
-    <main className={showOutline ? "" : "crew-sop-document-scroll"}><div className="crew-sop-document-meta"><div><Badge tone={version.status === "published" ? "success" : "warning"}>{version.status === "published" ? "Published" : "Draft preview"}</Badge><span>v{version.version}</span></div></div>{sections.length ? <article className="crew-sop-document">{sections.map((section, index) => { const content = parseSopBody(section.body, section.key_point); return <section key={section.id} ref={(node) => { refs.current[section.id] = node; }} tabIndex="-1"><div className="crew-sop-section-number">{String(index + 1).padStart(2, "0")}</div><h2>{section.title}</h2>{content.html ? <div className="crew-sop-rich-content" dangerouslySetInnerHTML={{ __html: content.html }} /> : null}{section.media_url ? <figure><img src={section.media_url} alt="" /></figure> : null}{content.keyPointContent ? <div className="crew-sop-key-point"><strong>Key Point</strong><p>{content.keyPointContent}</p></div> : null}</section>; })}</article> : <EmptyState title="No sections yet" description="This draft has no document content." />}</main>
+    <main className={showOutline ? "" : "crew-sop-document-scroll"}><div className="crew-sop-document-meta"><div><Badge tone={version.status === "published" ? "success" : "warning"}>{version.status === "published" ? "Published" : "Draft preview"}</Badge><span>v{version.version}</span></div></div>{sections.length ? <article className="crew-sop-document">{sections.map((section, index) => { const content = parseSopBody(section.body, section.key_point); const media = section.media || (section.media_id ? { id: section.media_id, caption: section.media_caption } : null); return <section key={section.id} ref={(node) => { refs.current[section.id] = node; }} tabIndex="-1"><div className="crew-sop-section-number">{String(index + 1).padStart(2, "0")}</div><h2>{section.title}</h2>{content.html ? <div className="crew-sop-rich-content" dangerouslySetInnerHTML={{ __html: content.html }} /> : null}<CrewSopImage media={media} admin />{content.keyPointContent ? <div className="crew-sop-key-point"><strong>Key Point</strong><p>{content.keyPointContent}</p></div> : null}</section>; })}</article> : <EmptyState title="No sections yet" description="This draft has no document content." />}</main>
   </div>;
 }
 
 const temporarySectionId = () => `temp:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`}`;
 const hydrateSection = (section) => {
   const content = parseSopBody(section.body, section.key_point);
-  return { ...section, editorHtml: content.html, keyPointContent: content.keyPointContent, pendingImage: null };
+  return { ...section, editorHtml: content.html, keyPointContent: content.keyPointContent, media: section.media || (section.media_id ? { id: section.media_id, caption: section.media_caption } : null), pendingImage: null };
 };
 
 function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm, onPublish, onDeleteDraft }) {
   const initialSections = useMemo(() => byOrder(version?.sections).map(hydrateSection), [version?.id]);
   const originalIds = useRef(initialSections.map((section) => section.id));
+  const originalMediaIds = useRef(initialSections.map((section) => section.media?.id).filter(Boolean));
   const [sections, setSections] = useState(initialSections);
   const [selectedId, setSelectedId] = useState(initialSections[0]?.id || "");
   const [dirty, setDirty] = useState(false);
@@ -400,14 +402,17 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
   const [pane, setPane] = useState("edit");
   const [imageError, setImageError] = useState("");
   const selected = sections.find((section) => section.id === selectedId) || sections[0];
-  const hasPendingImage = sections.some((section) => section.pendingImage);
+  const hasPendingImage = sections.some((section) => section.pendingImage || section.uploadingImage);
   const valid = sections.length > 0 && sections.every((section) => section.title?.trim());
   useEffect(() => () => sections.forEach((section) => section.pendingImage?.url && URL.revokeObjectURL?.(section.pendingImage.url)), []);
   if (!version) return null;
 
   function updateSelected(next) {
     if (!selected) return;
-    setSections((current) => current.map((section) => section.id === selected.id ? { ...section, ...next } : section));
+    updateSection(selected.id, next);
+  }
+  function updateSection(sectionId, next) {
+    setSections((current) => current.map((section) => section.id === sectionId ? { ...section, ...next } : section));
     setDirty(true);
   }
   function addSection() {
@@ -425,24 +430,44 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
     setSections(next);
     setDirty(true);
   }
-  function remove() {
+  async function remove() {
     if (!selected) return;
     const index = sections.findIndex((section) => section.id === selected.id);
     const next = sections.filter((section) => section.id !== selected.id);
     selected.pendingImage?.url && URL.revokeObjectURL?.(selected.pendingImage.url);
+    if (selected.media?.id && !originalMediaIds.current.includes(selected.media.id)) {
+      try { await crewService.deleteSopMedia(selected.media.id); } catch (cause) { setImageError(cause.message); }
+    }
     setSections(next);
     setSelectedId(next[Math.min(index, next.length - 1)]?.id || "");
     setDirty(true);
   }
-  function chooseImage(file) {
+  async function chooseImage(file) {
+    const sectionId = selected?.id;
+    const caption = selected?.media?.caption || "";
+    if (!sectionId) return;
     try {
       validateImageFile(file);
       setImageError("");
       const url = URL.createObjectURL?.(file) || "";
       selected?.pendingImage?.url && URL.revokeObjectURL?.(selected.pendingImage.url);
-      updateSelected({ pendingImage: { file, url, caption: "" } });
+      updateSection(sectionId, { pendingImage: { file, url, caption }, uploadingImage: true });
+      const uploaded = await crewService.uploadSopMedia(file, version.id);
+      URL.revokeObjectURL?.(url);
+      const previousMediaId = selected?.media?.id;
+      updateSection(sectionId, { media: { ...uploaded.media, previewUrl: uploaded.previewUrl, caption }, pendingImage: null, uploadingImage: false });
+      if (previousMediaId && !originalMediaIds.current.includes(previousMediaId)) await crewService.deleteSopMedia(previousMediaId);
     } catch (cause) {
       setImageError(cause.message);
+      updateSection(sectionId, { pendingImage: null, uploadingImage: false });
+    }
+  }
+  async function removeSelectedImage() {
+    if (!selected?.media?.id) return;
+    const mediaId = selected.media.id;
+    updateSelected({ media: null, pendingImage: null });
+    if (!originalMediaIds.current.includes(mediaId)) {
+      try { await crewService.deleteSopMedia(mediaId); } catch (cause) { setImageError(cause.message); }
     }
   }
   async function save() {
@@ -451,13 +476,21 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
     try {
       const payload = sections.map((section) => ({
         ...section,
+        media: section.media?.id ? {
+          id: section.media.id,
+          mime_type: section.media.mime_type,
+          width: section.media.width || null,
+          height: section.media.height || null,
+          caption: section.media.caption || null,
+        } : null,
         body: serializeSopBody(section.editorHtml, section.keyPointContent),
         key_point: Boolean(section.keyPointContent?.trim()),
       }));
-      const saved = await crewService.saveSopDraftSections(version.id, payload, originalIds.current);
+      const saved = await crewService.saveSopDraftSections(version.id, payload, originalIds.current, originalMediaIds.current);
       const hydrated = byOrder(saved).map(hydrateSection);
       const selectedIndex = Math.max(0, sections.findIndex((section) => section.id === selectedId));
       originalIds.current = hydrated.map((section) => section.id);
+      originalMediaIds.current = hydrated.map((section) => section.media?.id).filter(Boolean);
       setSections(hydrated);
       setSelectedId(hydrated[selectedIndex]?.id || hydrated[0]?.id || "");
       setDirty(false);
@@ -468,7 +501,15 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
   async function requestClose() {
     if (!dirty) return onBack();
     const discard = await onConfirm({ title: "You have unsaved changes.", message: "Discard this draft session or continue editing?", confirmLabel: "Discard", cancelLabel: "Continue Editing", tone: "danger" });
-    if (discard) onBack();
+    if (discard) {
+      const originalMedia = new Set(originalMediaIds.current);
+      for (const section of sections) {
+        if (section.media?.id && !originalMedia.has(section.media.id)) {
+          try { await crewService.deleteSopMedia(section.media.id); } catch { /* Server cleanup remains reference safe. */ }
+        }
+      }
+      onBack();
+    }
   }
   async function publish() {
     if (dirty && !(await save())) return;
@@ -482,12 +523,12 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
   return <Modal title={sop.title} description={`Draft v${version.version} · ${outlet?.name}`} size="2xl" panelClassName="crew-sop-editor-popout" bodyClassName="crew-sop-editor-popout-body" onClose={requestClose} headerActions={<span className={`crew-sop-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved changes" : <><Check size={13} /> Saved</>}</span>} footer={footer} footerClassName="block">
     {pane === "edit" ? <div className="crew-sop-draft-workspace">
       <aside><div><strong>Section Outline</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} className={selected?.id === section.id ? "is-active" : ""} onClick={() => setSelectedId(section.id)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title || "Untitled Section"}</strong><ChevronRight size={15} /></button>)}<button className="crew-sop-add-section" onClick={addSection}><Plus size={15} /> Add Section</button></aside>
-      <main>{selected ? <><div className="crew-sop-editor-form-head"><div><span>Section {sections.findIndex((item) => item.id === selected.id) + 1}</span><h2>{selected.title || "Untitled Section"}</h2></div><div><button className="icon-btn" disabled={sections[0]?.id === selected.id} onClick={() => move(-1)} aria-label="Move section up"><ArrowUp size={16} /></button><button className="icon-btn" disabled={sections.at(-1)?.id === selected.id} onClick={() => move(1)} aria-label="Move section down"><ArrowDown size={16} /></button><button className="icon-btn is-danger" disabled={sections.length === 1} onClick={remove} aria-label="Delete section"><Trash2 size={16} /></button></div></div><label>Section Title *<input className="control w-full" value={selected.title || ""} onChange={(event) => updateSelected({ title: event.target.value })} /></label><div className="crew-sop-editor-field"><span>Content</span><RichTextEditor value={selected.editorHtml} onChange={(editorHtml) => updateSelected({ editorHtml })} onImage={chooseImage} />{imageError ? <small role="alert" className="crew-sop-editor-error">{imageError}</small> : null}</div>{selected.pendingImage ? <div className="crew-sop-image-placeholder"><div>{selected.pendingImage.url ? <img src={selected.pendingImage.url} alt="Preview" /> : <ImagePlus size={28} />}</div><label>Image caption<input className="control w-full" value={selected.pendingImage.caption} onChange={(event) => updateSelected({ pendingImage: { ...selected.pendingImage, caption: event.target.value } })} /></label><button className="btn-secondary is-danger" type="button" onClick={() => { URL.revokeObjectURL?.(selected.pendingImage.url); updateSelected({ pendingImage: null }); }}>Remove Image</button><p>SOP media storage is not configured. This preview cannot be saved and no base64 data will be written.</p></div> : null}<label className="crew-sop-key-toggle"><input aria-label="Key Point" type="checkbox" checked={Boolean(selected.keyPointContent)} onChange={(event) => updateSelected({ keyPointContent: event.target.checked ? selected.keyPointContent || "Add the key point…" : "" })} /><span><strong>Key Point</strong><small>Add an optional callout below the normal section content.</small></span></label>{selected.keyPointContent ? <label>Key Point Content<textarea className="control min-h-24 w-full py-3" value={selected.keyPointContent} onChange={(event) => updateSelected({ keyPointContent: event.target.value })} /></label> : null}</> : <EmptyState title="Add the first section" description="Create a section to start this SOP draft." />}</main>
+      <main>{selected ? <><div className="crew-sop-editor-form-head"><div><span>Section {sections.findIndex((item) => item.id === selected.id) + 1}</span><h2>{selected.title || "Untitled Section"}</h2></div><div><button className="icon-btn" disabled={sections[0]?.id === selected.id} onClick={() => move(-1)} aria-label="Move section up"><ArrowUp size={16} /></button><button className="icon-btn" disabled={sections.at(-1)?.id === selected.id} onClick={() => move(1)} aria-label="Move section down"><ArrowDown size={16} /></button><button className="icon-btn is-danger" disabled={sections.length === 1} onClick={remove} aria-label="Delete section"><Trash2 size={16} /></button></div></div><label>Section Title *<input className="control w-full" value={selected.title || ""} onChange={(event) => updateSelected({ title: event.target.value })} /></label><div className="crew-sop-editor-field"><span>Content</span><RichTextEditor value={selected.editorHtml} onChange={(editorHtml) => updateSelected({ editorHtml })} onImage={chooseImage} disabled={selected.uploadingImage} />{imageError ? <small role="alert" className="crew-sop-editor-error">{imageError}</small> : null}</div>{selected.pendingImage || selected.media ? <div className="crew-sop-image-placeholder"><div>{selected.pendingImage?.url ? <img src={selected.pendingImage.url} alt="Uploading preview" /> : <CrewSopImage media={selected.media} admin />}</div><label>Image caption<input className="control w-full" disabled={selected.uploadingImage} value={selected.pendingImage?.caption ?? selected.media?.caption ?? ""} onChange={(event) => selected.pendingImage ? updateSelected({ pendingImage: { ...selected.pendingImage, caption: event.target.value } }) : updateSelected({ media: { ...selected.media, caption: event.target.value } })} /></label><button className="btn-secondary is-danger" type="button" disabled={selected.uploadingImage} onClick={removeSelectedImage}>Remove Image</button>{selected.uploadingImage ? <p role="status">Uploading and securing image…</p> : <p>Stored privately for this Outlet, SOP, and version.</p>}</div> : null}<label className="crew-sop-key-toggle"><input aria-label="Key Point" type="checkbox" checked={Boolean(selected.keyPointContent)} onChange={(event) => updateSelected({ keyPointContent: event.target.checked ? selected.keyPointContent || "Add the key point…" : "" })} /><span><strong>Key Point</strong><small>Add an optional callout below the normal section content.</small></span></label>{selected.keyPointContent ? <label>Key Point Content<textarea className="control min-h-24 w-full py-3" value={selected.keyPointContent} onChange={(event) => updateSelected({ keyPointContent: event.target.value })} /></label> : null}</> : <EmptyState title="Add the first section" description="Create a section to start this SOP draft." />}</main>
     </div> : <SecondaryView title={`Preview · v${version.version}`} description="Review every unsaved section before publishing." backLabel="Back to Editor" onBack={() => setPane("edit")}><PublishedDocument version={{ ...version, sections: previewSections }} showOutline={false} /></SecondaryView>}
   </Modal>;
 }
 
-function RichTextEditor({ value, onChange, onImage }) {
+function RichTextEditor({ value, onChange, onImage, disabled = false }) {
   const editorRef = useRef(null);
   const imageRef = useRef(null);
   const rangeRef = useRef(null);
@@ -517,9 +558,9 @@ function RichTextEditor({ value, onChange, onImage }) {
   const tools = [
     ["Bold", Bold, () => command("bold")], ["Italic", Italic, () => command("italic")], ["Highlight", Highlighter, () => command("hiliteColor", "#fff1a8")],
     ["Bullet List", List, () => command("insertUnorderedList")], ["Numbered List", ListOrdered, () => command("insertOrderedList")], ["Link", Link2, () => { rememberSelection(); setLinkOpen((open) => !open); }],
-    ["Image", ImagePlus, () => imageRef.current?.click()], ["Undo", Undo2, () => command("undo")], ["Redo", Redo2, () => command("redo")],
+    ["Image", ImagePlus, () => !disabled && imageRef.current?.click()], ["Undo", Undo2, () => command("undo")], ["Redo", Redo2, () => command("redo")],
   ];
-  return <div className="crew-sop-rich-editor"><div className="crew-sop-rich-toolbar" role="toolbar" aria-label="Content formatting">{tools.map(([label, Icon, action]) => <button key={label} type="button" aria-label={label} title={label} onMouseDown={(event) => event.preventDefault()} onClick={action}><Icon size={15} /></button>)}<input ref={imageRef} className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImage(file); event.target.value = ""; }} /></div>{linkOpen ? <div className="crew-sop-link-editor"><input className="control" aria-label="Link URL" placeholder="https://example.com" value={linkValue} onChange={(event) => setLinkValue(event.target.value)} /><button className="btn-secondary crew-sop-compact-action" type="button" onClick={addLink}>Apply Link</button><button className="btn-ghost" type="button" onClick={() => setLinkOpen(false)}>Cancel</button></div> : null}<div ref={editorRef} className="crew-sop-rich-surface" contentEditable role="textbox" aria-label="Content" aria-multiline="true" data-placeholder="Write the section content…" onInput={emit} onBlur={emit} onMouseUp={rememberSelection} onKeyUp={rememberSelection} suppressContentEditableWarning /></div>;
+  return <div className="crew-sop-rich-editor"><div className="crew-sop-rich-toolbar" role="toolbar" aria-label="Content formatting">{tools.map(([label, Icon, action]) => <button key={label} type="button" disabled={disabled} aria-label={label} title={label} onMouseDown={(event) => event.preventDefault()} onClick={action}><Icon size={15} /></button>)}<input ref={imageRef} className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImage(file); event.target.value = ""; }} /></div>{linkOpen ? <div className="crew-sop-link-editor"><input className="control" aria-label="Link URL" placeholder="https://example.com" value={linkValue} onChange={(event) => setLinkValue(event.target.value)} /><button className="btn-secondary crew-sop-compact-action" type="button" onClick={addLink}>Apply Link</button><button className="btn-ghost" type="button" onClick={() => setLinkOpen(false)}>Cancel</button></div> : null}<div ref={editorRef} className="crew-sop-rich-surface" contentEditable={!disabled} role="textbox" aria-label="Content" aria-multiline="true" data-placeholder="Write the section content…" onInput={emit} onBlur={emit} onMouseUp={rememberSelection} onKeyUp={rememberSelection} suppressContentEditableWarning /></div>;
 }
 
 function UsageView({ sopId }) {
