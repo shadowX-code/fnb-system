@@ -155,11 +155,11 @@ function GrowthPerformanceCard({ performance, onOpen }) {
 }
 
 const performanceComponents = [
-  { key: "attendance", label: "Attendance", max: 30, weight: 30, icon: CalendarCheck2 },
-  { key: "service", label: "Service Standards", max: 30, weight: 30, icon: ShieldCheck },
-  { key: "customer", label: "Customer Experience", max: 15, weight: 15, icon: SmilePlus },
-  { key: "knowledge", label: "Knowledge & SOP", max: 15, weight: 15, icon: BookOpenCheck },
-  { key: "conduct", label: "Conduct", max: 10, weight: 10, icon: Star },
+  { key: "attendance", label: "Attendance", max: 30, weight: 30, icon: CalendarCheck2, strength: "Full verified attendance score this month." },
+  { key: "service", label: "Service Standards", max: 30, weight: 30, icon: ShieldCheck, strength: "Full verified service standards score." },
+  { key: "customer", label: "Customer Experience", max: 15, weight: 15, icon: SmilePlus, strength: "Full verified customer experience score." },
+  { key: "knowledge", label: "Knowledge & SOP", max: 15, weight: 15, icon: BookOpenCheck, strength: "Full verified learning evidence score." },
+  { key: "conduct", label: "Conduct", max: 10, weight: 10, icon: Star, strength: "Full verified conduct score." },
 ];
 
 const performanceStatus = (status) => status === "finalized" ? "Finalized" : status === "draft" ? "Draft" : "In Review";
@@ -242,7 +242,7 @@ function PerformanceStrengths({ performance }) {
   const strengths = performanceComponents.map((definition) => {
     const item = performance.breakdown?.[definition.key] || {};
     const score = item.score == null ? null : Number(item.score);
-    return score === definition.max && item.status !== "review_required" ? { ...definition, body: item.explanation || `Full verified ${definition.label.toLowerCase()} score this month.` } : null;
+    return score === definition.max && item.status !== "review_required" ? { ...definition, body: definition.strength } : null;
   }).filter(Boolean).slice(0, 3);
   if (!strengths.length) return null;
   return <section className="crew-performance-final-strengths"><h2>Your Strengths</h2><div>{strengths.map(({ key, label, icon: Icon, body }) => <article key={key}><i><Icon size={18} /></i><span><strong>{label}</strong><p>{body}</p></span></article>)}</div></section>;
@@ -285,6 +285,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }, [view]);
   const skills = data?.skills || [];
   const summary = data?.summary || { certified: 0, in_progress: 0, ready_for_review: 0, not_started: 0, total: 0 };
   const categories = useMemo(() => ["All", ...new Set(skills.map((skill) => skill.category).filter(Boolean))], [skills]);
