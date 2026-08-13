@@ -3,6 +3,7 @@ import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
 import scheduleCalendar from "../../../assets/crew/schedule-calendar.png";
 
 const ENTRY_LABELS = {
+  working: "Working Shift",
   off: "OFF",
   leave: "Annual Leave",
   medical: "MC",
