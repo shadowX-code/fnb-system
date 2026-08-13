@@ -12,7 +12,7 @@ vi.mock("../../../../services/shiftTemplateService.js", () => ({ shiftTemplateSe
 vi.mock("../../../../services/dutyRosterService.js", () => ({ dutyRosterService: { listDutyRosters: mocks.rosters, saveRosterWeekSnapshot: mocks.snapshot } }));
 vi.mock("../../../../services/rosterPeriodService.js", () => ({ rosterPeriodService: { getOrCreateRosterPeriod: mocks.period } }));
 
-import DutyRosterPage from "../DutyRosterPage.jsx";
+import DutyRosterPage, { rosterPermission } from "../DutyRosterPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Main Outlet", status: "active" };
 const employee = { id: "employee-1", full_name: "Aina", nickname: "Aina", position: "Cook", department: "Kitchen", workplace: "outlet-1", employment_status: "active", is_active: true };
@@ -34,6 +34,18 @@ beforeEach(() => {
 afterEach(() => cleanup());
 
 describe("Duty Roster trusted week snapshot integration", () => {
+  it("accepts only canonical Crew roster permissions", () => {
+    const legacyAuth = { hasPermission: (code) => ["duty_roster.view", "duty_roster.manage"].includes(code) };
+    const crewAuth = { hasPermission: (code) => ["crew_roster.view", "crew_roster.manage", "crew_roster.publish"].includes(code) };
+
+    expect(rosterPermission(legacyAuth, "view")).toBe(false);
+    expect(rosterPermission(legacyAuth, "manage")).toBe(false);
+    expect(rosterPermission(legacyAuth, "publish")).toBe(false);
+    expect(rosterPermission(crewAuth, "view")).toBe(true);
+    expect(rosterPermission(crewAuth, "manage")).toBe(true);
+    expect(rosterPermission(crewAuth, "publish")).toBe(true);
+  });
+
   it("routes bulk assignment through one complete-week snapshot and prevents a duplicate submit while saving", async () => {
     let resolveSnapshot;
     mocks.snapshot.mockImplementationOnce(() => new Promise((resolve) => { resolveSnapshot = resolve; }));

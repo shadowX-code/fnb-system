@@ -4,6 +4,7 @@ import ToastViewport from "../components/feedback/ToastViewport.jsx";
 import AppShell from "../layouts/AppShell.jsx";
 import { operationsService } from "../features/sales-purchase/services/operationsService.js";
 import { salesPurchaseRoutes } from "./routes.jsx";
+import { canonicalRouteId } from "./routeOwnership.js";
 import { outletService } from "../services/outletService.js";
 import { supplierService } from "../services/supplierService.js";
 import { purchaseCategoryService } from "../services/purchaseCategoryService.js";
@@ -147,7 +148,7 @@ function routePermissionAllowed(auth, permission) {
 }
 
 const BOOTSTRAP_LOADS = [
-  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view OR outlet_pnl.view OR outlet_duty_roster.view OR operating_expenses.view OR duty_roster.view OR crew_roster.view OR employees.view OR employees.create OR employees.edit OR inventory_dashboard.view OR inventory_master.view OR inventory_par_levels.view OR inventory_groups.view OR inventory_stock_check.view OR inventory_orders.view OR inventory_movements.view OR inventory_waste.view OR inventory_recipes.view" },
+  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view OR outlet_pnl.view OR operating_expenses.view OR crew_roster.view OR employees.view OR employees.create OR employees.edit OR inventory_dashboard.view OR inventory_master.view OR inventory_par_levels.view OR inventory_groups.view OR inventory_stock_check.view OR inventory_orders.view OR inventory_movements.view OR inventory_waste.view OR inventory_recipes.view" },
   { key: "suppliers", label: "Suppliers", table: "suppliers", operation: "SELECT", permission: "suppliers.view OR purchase_input.view OR purchase_comparison.view OR inventory_master.view OR inventory_par_levels.view OR inventory_orders.view" },
   { key: "purchaseCategories", label: "Supplier Categories", table: "purchase_categories", operation: "SELECT", permission: "purchase_categories.view OR purchase_input.view OR purchase_comparison.view" },
   { key: "salesChannels", label: "Sales Channels", table: "sales_channels", operation: "SELECT", permission: "sales_channels.view OR sales_input.view OR sales_comparison.view OR outlet_pnl.view" },
@@ -178,18 +179,13 @@ function RbacDiagnosticsPanel({ auth, loads }) {
     "purchase_comparison.view",
     "outlet_pnl.view",
     "outlet_pnl.export",
-    "outlet_duty_roster.view",
-    "outlet_duty_roster.export",
     "operating_expenses.view",
     "operating_expenses.create",
     "operating_expenses.edit",
     "operating_expenses.delete",
-    "duty_roster.view",
-    "duty_roster.create",
-    "duty_roster.edit",
-    "duty_roster.delete",
-    "duty_roster.manage",
-    "duty_roster.export",
+    "crew_roster.view",
+    "crew_roster.manage",
+    "crew_roster.publish",
     "suppliers.view",
     "purchase_categories.view",
     "sales_channels.view",
@@ -277,13 +273,13 @@ export default function App() {
     () => `${auth.profile?.role_outlet_access_type ?? auth.profile?.role?.outlet_access_type ?? ""}|${(auth.profile?.role_outlet_ids ?? auth.profile?.roleOutletIds ?? []).join("|")}`,
     [auth.profile?.role?.outlet_access_type, auth.profile?.roleOutletIds, auth.profile?.role_outlet_access_type, auth.profile?.role_outlet_ids],
   );
-  const initialRoute = window.location.hash?.replace("#", "") || "dashboard";
-  const initialRouteId = initialRoute.split("/")[0] || "dashboard";
+  const requestedInitialRoute = window.location.hash?.replace("#", "") || "dashboard";
+  const initialRouteId = canonicalRouteId(requestedInitialRoute) || "dashboard";
   const [activeRouteId, setActiveRouteId] = useState(
     salesPurchaseRoutes.some((route) => route.id === initialRouteId) ? initialRouteId : "dashboard",
   );
   const [workspace, setWorkspace] = useState(() => {
-    const routeWorkspace = workspaceForRoute(initialRoute);
+    const routeWorkspace = workspaceForRoute(initialRouteId);
     if (routeWorkspace === "factory") return "factory";
     try {
       const saved = localStorage.getItem("feedx.workspace");
@@ -327,6 +323,14 @@ export default function App() {
       outlets: accessibleOutlets,
     };
   }, [auth, store]);
+
+  useEffect(() => {
+    const requestedRouteId = String(window.location.hash || "").replace(/^#/, "").split("/")[0];
+    const canonicalId = canonicalRouteId(requestedRouteId);
+    if (requestedRouteId && canonicalId !== requestedRouteId) {
+      window.history.replaceState(null, "", `#${canonicalId}`);
+    }
+  }, []);
 
   useEffect(() => {
     if (!import.meta.env.DEV || auth.contextLoading || auth.loading || !auth.profile) return;
@@ -526,8 +530,9 @@ export default function App() {
   }, [workspace]);
 
   function navigate(routeId) {
-    setActiveRouteId(routeId);
-    window.history.replaceState(null, "", `#${routeId}`);
+    const canonicalId = canonicalRouteId(routeId);
+    setActiveRouteId(canonicalId);
+    window.history.replaceState(null, "", `#${canonicalId}`);
   }
 
   function handleWorkspaceChange(nextWorkspace) {

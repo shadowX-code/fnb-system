@@ -277,11 +277,11 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "duty-roster",
     section: "Operations",
-    label: "Duty Roster",
+    label: "Duty Roster (Legacy Route)",
     route: "/operations/duty-roster",
     icon: "duty-roster",
-    sidebar: true,
-    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+    sidebar: false,
+    permissions: {},
   },
   {
     id: "asset_tracking",
@@ -423,11 +423,11 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "outlet_duty_roster",
     section: "Overview",
-    label: "Outlet Duty Roster",
+    label: "Outlet Duty Roster (Legacy Route)",
     route: "/outlet-duty-roster",
     icon: "duty-roster",
-    sidebar: true,
-    permissions: { view: true, export: true },
+    sidebar: false,
+    permissions: {},
   },
   {
     id: "data-health",

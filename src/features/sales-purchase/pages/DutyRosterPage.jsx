@@ -1522,18 +1522,12 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
   );
 }
 
-function rosterPermission(auth, action) {
+export function rosterPermission(auth, action) {
   if (auth?.isProtectedRole) return true;
-  const legacy = {
-    view: ["duty_roster.view", "outlet_duty_roster.view"],
-    manage: ["duty_roster.create", "duty_roster.edit", "duty_roster.delete", "duty_roster.manage"],
-    publish: ["duty_roster.manage"],
-    export: ["duty_roster.export", "outlet_duty_roster.export"],
-  };
-  return auth?.hasPermission?.(`crew_roster.${action}`) || (legacy[action] || []).some((code) => auth?.hasPermission?.(code));
+  return auth?.hasPermission?.(`crew_roster.${action}`) ?? false;
 }
 
-export default function DutyRosterPage({ store, ui, auth, ownership = "restaurant" }) {
+export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const outletIdRef = useRef(outletId);
@@ -1571,7 +1565,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "restauran
   const canAddShift = rosterPermission(auth, "manage");
   const canEditShift = rosterPermission(auth, "manage");
   const canDeleteShift = rosterPermission(auth, "manage");
-  const canExportRoster = rosterPermission(auth, "view") || rosterPermission(auth, "export");
+  const canExportRoster = rosterPermission(auth, "view");
   const canManageRoster = rosterPermission(auth, "manage");
   const canPublishRoster = rosterPermission(auth, "publish");
   const canWriteShift = canAddShift || canEditShift;

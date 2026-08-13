@@ -46,7 +46,7 @@ function getRolePermissionCategory(module) {
   if (registeredModule?.workspace === "factory") return "Factory";
   if (registeredModule?.workspace === "crew") return "Workforce";
   if (registeredModule?.id === "roles" || registeredModule?.id === "audit-logs" || registeredModule?.section === "System") return "System";
-  if (registeredModule?.section === "People" || registeredModule?.id === "duty-roster" || registeredModule?.id === "outlet_duty_roster") return "People & HR";
+  if (registeredModule?.section === "People") return "People & HR";
   return "Restaurant";
 }
 

@@ -608,7 +608,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
 
   function openScheduleForDate(date) {
     localStorage.setItem("feedx:dutyRosterFocus", JSON.stringify({ outletId, date: toDateInputValue(date) }));
-    window.location.hash = "duty-roster";
+    window.location.hash = "crew_roster";
   }
 
   return (

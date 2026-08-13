@@ -9,7 +9,6 @@ import SalesInputPage from "../features/sales-purchase/pages/SalesInputPage.jsx"
 import SalesComparisonPage from "../features/sales-purchase/pages/SalesComparisonPage.jsx";
 import OutletPnlPage from "../features/sales-purchase/pages/OutletPnlPage.jsx";
 import ProductAnalyticsPage from "../features/sales-purchase/pages/ProductAnalyticsPage.jsx";
-import OutletDutyRosterPage from "../features/sales-purchase/pages/OutletDutyRosterPage.jsx";
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
 import SharedDutyRosterPage from "../features/roster/pages/SharedDutyRosterPage.jsx";
 import AssetTrackingPage from "../features/sales-purchase/pages/AssetTrackingPage.jsx";
@@ -126,18 +125,20 @@ export const routeDetails = {
     component: ProductAnalyticsPage,
   },
   outlet_duty_roster: {
-    description: "Monthly outlet duty coverage overview.",
-    component: OutletDutyRosterPage,
+    description: "Legacy Restaurant roster link resolved to the Crew-owned Duty Roster.",
+    component: SharedDutyRosterPage,
+    permission: "crew_roster.view",
+    props: { ownership: "crew" },
   },
   "operating-expenses": {
     description: "Monthly operating expense input for management P&L.",
     component: OperatingExpensesPage,
   },
   "duty-roster": {
-    description: "Restaurant compatibility entry for the shared Crew Duty Roster.",
+    description: "Legacy Restaurant roster link resolved to the Crew-owned Duty Roster.",
     component: SharedDutyRosterPage,
-    permission: "duty_roster.view OR crew_roster.view",
-    props: { ownership: "restaurant" },
+    permission: "crew_roster.view",
+    props: { ownership: "crew" },
   },
   asset_tracking: {
     description: "Track outlet assets, quantities, inspections and movement logs.",
@@ -362,7 +363,7 @@ export const routeDetails = {
   crew_roster: {
     description: "Plan and publish the shared outlet Duty Roster from Crew Workforce.",
     component: SharedDutyRosterPage,
-    permission: "crew_roster.view OR duty_roster.view",
+    permission: "crew_roster.view",
     props: { ownership: "crew" },
   },
   crew_operations: {

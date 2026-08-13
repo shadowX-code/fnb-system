@@ -507,7 +507,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     { label: "Alerts unresolved", count: allAlerts.length, route: "alerts" },
     { label: "Supplier not categorized", count: (store.suppliers ?? []).filter((supplier) => !supplier.default_category_id && !supplier.category).length, route: "suppliers" },
     { label: "Low stock items", count: lowQuantityAssets.length, route: "asset_tracking" },
-    { label: "Roster not published", count: rosterIssueOutlets.length, route: "duty-roster" },
+    { label: "Roster not published", count: rosterIssueOutlets.length, route: "crew_roster" },
   ];
 
   const statusCounts = outletMonthlyRows.reduce((counts, row) => {
@@ -797,7 +797,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
             <MiniTile icon={PackageSearch} count={lowQuantityAssets.length} label="Low Quantity Assets" tone={lowQuantityAssets.length ? "warning" : "success"} route="asset_tracking" ui={ui} />
             <MiniTile icon={AlertTriangle} count={missingAssets.length} label="Missing Stock Items" tone={missingAssets.length ? "danger" : "success"} route="asset_tracking" ui={ui} />
             <MiniTile icon={Bell} count={allAlerts.length} label="Unresolved Alerts" tone={allAlerts.length ? "warning" : "success"} route="alerts" ui={ui} />
-            <MiniTile icon={Users} count={rosterIssueOutlets.length} label="Duty Roster Issues" tone={rosterIssueOutlets.length ? "warning" : "success"} route="outlet_duty_roster" ui={ui} />
+            <MiniTile icon={Users} count={rosterIssueOutlets.length} label="Duty Roster Issues" tone={rosterIssueOutlets.length ? "warning" : "success"} route="crew_roster" ui={ui} />
           </div>
         </Card>
 
