@@ -15,9 +15,9 @@ describe("Crew Leave v1 UI contracts", () => {
     expect(app).not.toContain('{ id: "leave", label: "Leave"');
   });
 
-  it("implements the four-step application without fake balances or required uploads", () => {
+  it("implements the four-step application with authoritative balances and no required uploads", () => {
     for (const copy of ["Leave Type", "Dates", "Reason", "Review Request", "Submit Request"]) expect(mobile).toContain(copy);
-    expect(mobile).toContain("No balance is shown until a Leave Entitlement source is available.");
+    for (const copy of ["Available", "Requested", "After", "Insufficient leave balance"]) expect(mobile).toContain(copy);
     expect(mobile).toContain("Supporting document not uploaded");
     expect(mobile).not.toContain("Balance 8.5");
   });
@@ -30,12 +30,18 @@ describe("Crew Leave v1 UI contracts", () => {
 
   it("shows manager roster context and requires a rejection reason", () => {
     expect(admin).toContain("Roster Context");
-    expect(admin).toContain("Approval supersedes the working projection while retaining its audit snapshot.");
+    expect(admin).toContain("Approval preserves the superseded roster evidence.");
     expect(admin).toContain("reason.trim().length < 2");
   });
 
   it("uses only controlled leave RPCs from the frontend", () => {
-    for (const rpc of ["crew_leave_mobile", "crew_leave_submit", "crew_leave_cancel", "crew_leave_admin_data", "crew_leave_review"]) expect(service).toContain(`rpc("${rpc}"`);
+    for (const rpc of ["crew_leave_mobile", "crew_leave_submit", "crew_leave_cancel", "crew_leave_admin_data", "crew_leave_review", "crew_leave_policy_save", "crew_leave_adjust"]) expect(service).toContain(`rpc("${rpc}"`);
     expect(service).not.toContain('from("crew_leave_requests")');
+  });
+
+  it("adds manager balance, adjustment and policy contexts without a second sidebar route", () => {
+    for (const copy of ["Balances", "Settings", "Balance Context", "Adjust Leave Balance", "Leave Policy"]) expect(admin).toContain(copy);
+    expect(admin).toContain('auth.hasPermission("crew_leave_balance.adjust")');
+    expect(admin).toContain('auth.hasPermission("crew_leave_settings.manage")');
   });
 });

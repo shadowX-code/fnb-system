@@ -1095,6 +1095,20 @@ Availability + Shift Swap status:
 - Duty Roster remains the single scheduling authority. Crew My Schedule remains a read-only view of the latest Published roster.
 - Leave Request and Approved Leave projection remain active and are not part of this withdrawal.
 
+### Crew Leave Entitlement / Balance v1
+
+Leave entitlement is calendar-year, employee + leave-type + outlet scoped. The current v1 types are Annual Leave, Medical Leave, Unpaid Leave and configurable Other Leave.
+
+- Annual Leave defaults to 12 days and is prorated from `employees.joined_date` by eligible calendar days, rounded to the nearest 0.5 day. Medical Leave defaults to 14 days and is configurable. Unpaid Leave is balance-unlimited.
+- Full-day ranges count all inclusive calendar dates. Half day is exactly 0.5. V1 does not infer weekend, rest-day or public-holiday exclusions.
+- Policies and generated entitlement grants are durable historical records. Used days come from `crew_approved_leaves`; pending days come from pending `crew_leave_requests`; available is derived server-side from entitlement + active carry forward + immutable adjustments − used − pending.
+- A pending request reserves balance immediately. Approval moves the same evidence from pending to used without double deduction. Rejection or Crew cancellation releases the reservation. Both submit and approve run under the employee Leave advisory lock and reject insufficient enforced balance.
+- Carry forward is outlet-policy controlled, capped and expiry-dated. Expired carry remains in history but no longer contributes to current available balance.
+- Manager adjustments are append-only, actor/time/reason attributed and cannot be edited or deleted. The browser never writes balance tables directly.
+- New entitlements stop for resigned/terminated or inactive employees; already generated historical grants remain readable for audit.
+- Crew Mobile reads only its own balance through the opaque-token authority. Admin policy, balance and adjustment RPCs require explicit `crew_leave_balance.*` / `crew_leave_settings.manage` permissions plus existing outlet scope. Raw policy, entitlement and adjustment tables have RLS enabled and no anon/authenticated table grants.
+- Approved Leave projection, immutable published Roster revisions, Attendance, Performance and existing Leave history remain unchanged.
+
 Crew Workforce Duty Roster is the scheduling and editing workspace:
 
 - Weekly and monthly employee-by-date roster grid.

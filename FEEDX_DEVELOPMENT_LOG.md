@@ -4,6 +4,14 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-08-13
 
+### Crew Leave Entitlement / Balance v1
+- Added outlet-scoped calendar-year Leave policies, durable employee/type entitlements, join-date proration, capped/expiring carry forward and immutable Manager adjustments.
+- Used, pending and available days are server-derived from existing approved and pending Leave evidence. Pending requests reserve balance; approval converts that reservation to used leave; rejection/cancellation releases it. Full days use inclusive calendar dates and half days use 0.5 without inferred weekend/public-holiday exclusions.
+- Rebuilt Crew Mobile My Leave with Annual/Medical/Unpaid balance cards plus Available / Requested / After validation, and extended Admin Leave with Requests, Balances and Settings while preserving the existing controlled approval and Duty Roster projection lifecycle.
+- Applied Staging-only migrations `20260813132950_crew_leave_entitlement_balance_v1.sql` and `20260813135311_crew_leave_entitlement_lifecycle_guard.sql`. The forward guard preserves historical grants while preventing new grants for resigned/terminated employees.
+- Real rollback-only Staging verification passed 15/15 for proration, pending reservation/release, approval consumption, insufficient balance, adjustment audit, carry-forward cap/expiry, lifecycle retention, own-data isolation and direct-table denial. Existing Leave/Roster regression remained 15/15.
+- Added an idempotent Staging-only five-Crew QA seed with full, near-exhausted, pending, approved-used and unlimited scenarios. No Production resource was touched.
+
 ### Crew Availability + Shift Swap v1 — intentionally withdrawn
 - Availability, temporary exceptions, specific-Crew swaps, open cover, manager Shift Requests and Roster availability warnings were intentionally withdrawn before Production.
 - The applied Staging migration `20260813061304_crew_availability_shift_swap_v1.sql` remains immutable in migration history. Forward-only migrations `20260813071558_remove_crew_availability_shift_swap_v1.sql` and `20260813072908_remove_crew_availability_shift_swap_qa_sessions.sql` remove its feature-specific authorities, tables, grants, permissions, Roster metadata and deterministic QA seed sessions.

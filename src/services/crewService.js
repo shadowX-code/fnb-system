@@ -168,6 +168,18 @@ export const crewService = {
     return data;
   },
 
+  async saveLeavePolicy(outletId, leaveType, payload) {
+    const { data, error } = await supabase.rpc("crew_leave_policy_save", { p_outlet_id: outletId, p_leave_type: leaveType, p_payload: payload });
+    throwSupabaseError("crew.saveLeavePolicy", error);
+    return data;
+  },
+
+  async adjustLeaveBalance(entitlementId, amount, reason) {
+    const { data, error } = await supabase.rpc("crew_leave_adjust", { p_entitlement_id: entitlementId, p_amount: amount, p_reason: reason });
+    throwSupabaseError("crew.adjustLeaveBalance", error);
+    return data;
+  },
+
   async operationDetail(token, instanceId) {
     const { data, error } = await supabase.rpc("crew_operations_detail", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.operationDetail", error);

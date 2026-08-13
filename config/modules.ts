@@ -10,6 +10,7 @@ export type ModuleAction =
   | "upload"
   | "manage"
   | "review"
+  | "adjust"
   | "finalize"
   | "publish"
   | "moderate"
@@ -47,6 +48,7 @@ export const permissionActionOrder: ModuleAction[] = [
   "reset_password",
   "approve",
   "review",
+  "adjust",
   "finalize",
   "publish",
   "moderate",
@@ -74,6 +76,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   reset_password: "Reset Password",
   approve: "Approve",
   review: "Review",
+  adjust: "Adjust",
   finalize: "Finalize",
   publish: "Publish",
   moderate: "Moderate",
@@ -706,6 +709,26 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "crew",
     permissions: { view: true, review: true, manage: true },
+  },
+  {
+    id: "crew_leave_balance",
+    section: "Workforce",
+    label: "Leave Balance",
+    route: "/crew/leave/balances",
+    sidebar: false,
+    routable: false,
+    workspace: "crew",
+    permissions: { view: true, manage: true, adjust: true },
+  },
+  {
+    id: "crew_leave_settings",
+    section: "Workforce",
+    label: "Leave Settings",
+    route: "/crew/leave/settings",
+    sidebar: false,
+    routable: false,
+    workspace: "crew",
+    permissions: { manage: true },
   },
   {
     id: "crew_operations",
