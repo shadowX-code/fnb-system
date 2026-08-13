@@ -4,19 +4,25 @@ import {
   Award,
   BadgeCheck,
   BookOpenCheck,
+  CalendarCheck2,
   CheckCircle2,
   ChevronRight,
   Circle,
   CircleHelp,
   Clock3,
+  Gift,
   Search,
+  ShieldCheck,
+  SmilePlus,
   Sparkles,
   Star,
   Target,
+  TrendingUp,
   X,
 } from "lucide-react";
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import milestoneArtwork from "../../../assets/crew/growth-milestone-target.png";
+import performanceArtwork from "../../../assets/crew/performance-trophy-hero.png";
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 const statusCopy = {
@@ -148,7 +154,131 @@ function GrowthPerformanceCard({ performance, onOpen }) {
   </button>;
 }
 
-export default function CrewGrowthMobile({ data, performance, loading, error, onRetry, initialView = "overview" }) {
+const performanceComponents = [
+  { key: "attendance", label: "Attendance", max: 30, weight: 30, icon: CalendarCheck2 },
+  { key: "service", label: "Service Standards", max: 30, weight: 30, icon: ShieldCheck },
+  { key: "customer", label: "Customer Experience", max: 15, weight: 15, icon: SmilePlus },
+  { key: "knowledge", label: "Knowledge & SOP", max: 15, weight: 15, icon: BookOpenCheck },
+  { key: "conduct", label: "Conduct", max: 10, weight: 10, icon: Star },
+];
+
+const performanceStatus = (status) => status === "finalized" ? "Finalized" : status === "draft" ? "Draft" : "In Review";
+const performanceMessage = (score) => score >= 95 ? "Excellent work this month!" : score >= 85 ? "Strong performance this month." : score >= 75 ? "You are meeting the standard." : score >= 70 ? "Keep building on your progress." : "Focus on the next improvement step.";
+const rewardEarnRate = (score) => score >= 95 ? 100 : score >= 90 ? 90 : score >= 85 ? 80 : score >= 80 ? 65 : score >= 75 ? 45 : score >= 70 ? 20 : 0;
+const monthLabel = (value, style = "long") => value ? new Date(`${value}T00:00:00`).toLocaleDateString("en-MY", { month: style, year: "numeric" }) : "This month";
+
+function PerformanceModal({ title, onClose, children }) {
+  const modalRef = useRef(null);
+  const closeRef = useRef(null);
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const handleKeyDown = (event) => {
+      if (event.key === "Escape") return onClose();
+      if (event.key !== "Tab") return;
+      const focusable = [...modalRef.current.querySelectorAll("button, [href], [tabindex]:not([tabindex='-1'])")];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [onClose]);
+  return <div className="crew-performance-final-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section ref={modalRef} className="crew-performance-final-modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+      <header><h2>{title}</h2><button ref={closeRef} type="button" aria-label={`Close ${title}`} onClick={onClose}><X size={19} /></button></header>
+      <div>{children}</div>
+    </section>
+  </div>;
+}
+
+function PerformanceHero({ performance }) {
+  const score = performance.score == null ? null : Math.round(Number(performance.score));
+  const finalizedTrend = (performance.trend || []).filter((item) => item.status === "finalized" && item.score != null).sort((a, b) => String(a.period_start).localeCompare(String(b.period_start)));
+  const previous = [...finalizedTrend].reverse().find((item) => item.period_start !== performance.period_start);
+  const delta = score != null && previous ? score - Math.round(Number(previous.score)) : null;
+  return <article className="crew-performance-final-hero">
+    <img src={performanceArtwork} alt="" />
+    <div className="crew-performance-final-hero-copy">
+      <div className="crew-performance-final-period"><strong>{monthLabel(performance.period_start)}</strong><span className={`is-${performance.status}`}>{performanceStatus(performance.status)}</span></div>
+      <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong><span>/100</span></div>
+      <h2>{score == null ? "Review in progress" : performanceLevel(score)}</h2>
+      <p>{score == null ? "Your verified evidence is still being reviewed." : performanceMessage(score)}</p>
+      {delta != null ? <small className={delta < 0 ? "is-down" : ""}><TrendingUp size={13} /> {delta > 0 ? "+" : ""}{delta} vs {monthLabel(previous.period_start)}</small> : null}
+    </div>
+  </article>;
+}
+
+function PerformanceBreakdown({ performance, onSelect, onExplain }) {
+  const total = performance.score == null ? null : Math.round(Number(performance.score));
+  return <section className="crew-performance-final-breakdown">
+    <header><h2>Score Breakdown</h2><strong>{total == null ? "—" : total} / 100</strong></header>
+    <div className="crew-performance-final-breakdown-card">
+      {performanceComponents.map(({ key, label, max, weight, icon: Icon }) => {
+        const item = performance.breakdown?.[key] || {};
+        const value = item.score == null ? null : Math.round(Number(item.score));
+        const progress = value == null ? 0 : Math.min(100, value * 100 / max);
+        return <button type="button" key={key} onClick={() => onSelect({ key, label, max, weight, icon: Icon, item, value })} aria-label={`View ${label} evidence`}>
+          <i><Icon size={19} /></i>
+          <span><strong>{label}</strong><small>Weight {weight}%</small></span>
+          <div className="crew-performance-final-meter" aria-label={`${label} ${value ?? 0} of ${max}`}><span style={{ width: `${progress}%` }} /></div>
+          <b>{value == null ? "—" : value} / {max}</b><ChevronRight size={17} />
+        </button>;
+      })}
+      <button type="button" className="crew-performance-final-evidence" onClick={onExplain}><i><ShieldCheck size={19} /></i><span><strong>Scores are calculated from verified FeedX evidence.</strong><small>Learn how performance is calculated</small></span><ChevronRight size={17} /></button>
+    </div>
+  </section>;
+}
+
+function PerformanceStrengths({ performance }) {
+  const strengths = performanceComponents.map((definition) => {
+    const item = performance.breakdown?.[definition.key] || {};
+    const score = item.score == null ? null : Number(item.score);
+    return score === definition.max && item.status !== "review_required" ? { ...definition, body: item.explanation || `Full verified ${definition.label.toLowerCase()} score this month.` } : null;
+  }).filter(Boolean).slice(0, 3);
+  if (!strengths.length) return null;
+  return <section className="crew-performance-final-strengths"><h2>Your Strengths</h2><div>{strengths.map(({ key, label, icon: Icon, body }) => <article key={key}><i><Icon size={18} /></i><span><strong>{label}</strong><p>{body}</p></span></article>)}</div></section>;
+}
+
+function PerformanceTrend({ performance }) {
+  const trend = (performance.trend || []).filter((item) => item.status === "finalized" && item.score != null).sort((a, b) => String(a.period_start).localeCompare(String(b.period_start))).slice(-4).map((item) => ({ ...item, score: Math.round(Number(item.score)), month: new Date(`${item.period_start}T00:00:00`).toLocaleDateString("en-MY", { month: "short", year: "numeric" }) }));
+  if (!trend.length) return null;
+  return <section className="crew-performance-final-trend-section"><header><h2>Performance Trend</h2><span>Last 4 months</span></header>
+    {trend.length > 1 ? <div className="crew-performance-final-chart" aria-label="Finalized monthly performance trend"><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend} margin={{ top: 20, right: 12, bottom: 2, left: 12 }}><defs><linearGradient id="performanceTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#14a873" stopOpacity=".24"/><stop offset="100%" stopColor="#14a873" stopOpacity=".02"/></linearGradient></defs><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#52627a", fontSize: 9 }} /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Area type="monotone" dataKey="score" stroke="#0aa875" strokeWidth={2.5} fill="url(#performanceTrendFill)" dot={{ r: 3.5, fill: "#0aa875", strokeWidth: 0 }} activeDot={false} label={{ position: "top", fill: "#1d2a44", fontSize: 9, fontWeight: 800 }} /></AreaChart></ResponsiveContainer></div> : <article className="crew-performance-final-single-trend"><strong>{trend[0].score} · {monthLabel(trend[0].period_start)}</strong><p>Your monthly trend will appear as more results are finalized.</p></article>}
+  </section>;
+}
+
+function PerformanceRewardImpact({ performance, onViewReward }) {
+  const score = performance.score == null ? null : Math.round(Number(performance.score));
+  const finalized = performance.status === "finalized";
+  const rate = score == null ? null : rewardEarnRate(score);
+  return <section className="crew-performance-final-reward"><i><Gift size={21} /></i><span><strong>Reward Impact</strong><small>{finalized ? "Finalized performance" : "Estimated · not finalized"}</small></span><div><small>Performance</small><strong>{score ?? "—"} / 100</strong></div><div><small>Reward Earn Rate</small><strong>{rate == null ? "—" : `${rate}%`}</strong></div><button type="button" onClick={onViewReward}>View Reward <ChevronRight size={17} /></button></section>;
+}
+
+function CrewPerformanceDetail({ performance, onBack, onViewReward }) {
+  const [modal, setModal] = useState(null);
+  return <section className="crew-v2-growth crew-performance-final">
+    <PageHeader title="My Performance" onBack={onBack} action={<button type="button" className="crew-performance-final-help" aria-label="Performance help" onClick={() => setModal({ type: "help" })}><CircleHelp size={22} /></button>} />
+    <PerformanceHero performance={performance} />
+    <PerformanceBreakdown performance={performance} onSelect={(component) => setModal({ type: "component", component })} onExplain={() => setModal({ type: "calculation" })} />
+    <PerformanceStrengths performance={performance} />
+    <PerformanceTrend performance={performance} />
+    <PerformanceRewardImpact performance={performance} onViewReward={onViewReward} />
+    {modal?.type === "component" ? <PerformanceModal title={modal.component.label} onClose={() => setModal(null)}><div className="crew-performance-final-modal-score"><strong>{modal.component.value ?? "—"}</strong><span>/ {modal.component.max}</span></div><p>{modal.component.item.explanation || "This component is calculated from verified FeedX evidence."}</p>{Array.isArray(modal.component.item.evidence) && modal.component.item.evidence.length ? <ul>{modal.component.item.evidence.map((item, index) => <li key={`${item.label || item}-${index}`}>{item.label || item.summary || String(item)}</li>)}</ul> : null}<aside>Only evidence that is safe for you to view is shown here.</aside></PerformanceModal> : null}
+    {modal?.type === "calculation" ? <PerformanceModal title="How performance is calculated" onClose={() => setModal(null)}>{performanceComponents.map(({ key, label, weight }) => <section key={key}><strong>{label} · {weight}%</strong><p>{performance.breakdown?.[key]?.explanation || "Calculated from verified FeedX evidence for this component."}</p></section>)}</PerformanceModal> : null}
+    {modal?.type === "help" ? <PerformanceModal title="About My Performance" onClose={() => setModal(null)}><section><strong>Monthly Score</strong><p>Your finalized monthly score is calculated from verified FeedX evidence.</p></section><section><strong>Score Breakdown</strong><p>Each component contributes a fixed weight to the total 100 points.</p></section><section><strong>Reward Impact</strong><p>Your finalized Performance Score determines the percentage of your Maximum Reward Share you earn.</p></section></PerformanceModal> : null}
+  </section>;
+}
+
+export default function CrewGrowthMobile({ data, performance, loading, error, onRetry, onViewReward, initialView = "overview" }) {
   const [view, setView] = useState(initialView);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [skillReturnView, setSkillReturnView] = useState("overview");
@@ -243,18 +373,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   }
 
   if (view === "performance") {
-    const breakdown = [
-      ["attendance", "Attendance", 30], ["service", "Service Standards", 30], ["customer", "Customer Experience", 15],
-      ["knowledge", "Knowledge & SOP", 15], ["conduct", "Conduct", 10],
-    ];
-    return <section className="crew-v2-growth crew-v2-performance">
-      <PageHeader title="My Performance" onBack={() => setView("overview")} />
-      {!performance ? <section className="crew-v2-performance-empty"><Target size={28} /><h2>Performance is not available yet</h2><p>Your monthly score will appear after the outlet has enough verified evidence.</p></section> : <>
-        <article className="crew-v2-performance-hero"><small>{new Date(performance.period_start).toLocaleDateString("en-MY", { month: "long", year: "numeric" })}</small><div><strong>{performance.score == null ? "—" : Math.round(performance.score)}</strong><span>out of 100</span></div><h2>{performance.score == null ? "Review in progress" : performance.score >= 85 ? "Great work!" : performance.score >= 70 ? "Good progress" : "Keep improving"}</h2><p>{performance.status === "finalized" ? "Finalized monthly result" : "Evidence is still being reviewed"}</p></article>
-        <section className="crew-v2-section-block"><div className="crew-v2-section-title"><h2>Score breakdown</h2><span>{performance.calculation_version}</span></div><div className="crew-v2-performance-list">{breakdown.map(([key, label, max]) => { const item = performance.breakdown?.[key] || {}; const value = item.score; return <details key={key}><summary><span><strong>{label}</strong><small>{item.confidence ? `${String(item.confidence).replaceAll("_", " ")} confidence` : item.status === "review_required" ? "Manager review required" : "Evidence based"}</small></span><b>{value == null ? "—" : Math.round(value)} / {max}</b></summary><div className="crew-v2-performance-meter"><i style={{ width: `${value == null ? 0 : Math.min(100, Number(value) * 100 / max)}%` }} /></div><p>{item.explanation || "This component is calculated from verified FeedX evidence."}</p></details>; })}</div></section>
-        <section className="crew-v2-section-block"><div className="crew-v2-section-title"><h2>Recent months</h2></div><div className="crew-v2-performance-trend">{(performance.trend || []).map((item) => <span key={item.period_start}><small>{new Date(item.period_start).toLocaleDateString("en-MY", { month: "short" })}</small><strong>{item.score == null ? "—" : Math.round(item.score)}</strong></span>)}</div></section>
-      </>}
-    </section>;
+    return performance ? <CrewPerformanceDetail performance={performance} onBack={() => setView("overview")} onViewReward={onViewReward} /> : <section className="crew-v2-growth crew-v2-performance"><PageHeader title="My Performance" onBack={() => setView("overview")} /><section className="crew-v2-performance-empty"><Target size={28} /><h2>Performance is not available yet</h2><p>Your monthly score will appear after the outlet has enough verified evidence.</p></section></section>;
   }
 
   return <section className="crew-v2-growth crew-growth-final">
