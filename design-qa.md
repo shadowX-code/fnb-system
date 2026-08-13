@@ -60,3 +60,28 @@ Reference: `ChatGPT Image Aug 13, 2026, 09_54_35 AM.png`
 ## Result
 
 Passed for local implementation. No backend, route, session, acknowledgement authority, or deployment behavior was changed.
+
+## Crew Mobile My Schedule final-reference QA
+
+## Source and implementation
+
+- Approved source: `/Users/deron/Downloads/ChatGPT Image Aug 13, 2026, 06_24_28 PM.png`
+- Final local implementation capture: `/Users/deron/Dev/feedx/tmp/schedule-css-430.png`
+- Side-by-side comparison input: `/Users/deron/Dev/feedx/tmp/schedule-comparison.png`
+- QA state: 430 px mobile surface with Unpaid Leave, OFF, MC, Annual Leave and Working Shift entries from representative `crew_my_roster` data.
+
+## Visual and interaction result
+
+- Header, seven-day selector, selected-day hero, 14-day list and fixed five-item bottom navigation follow the approved hierarchy.
+- The selected-day card and corresponding list row share one roster source and update together when a date is selected.
+- Working shifts receive the green timeline treatment; non-working and leave entries remain visually quieter with distinct badges and date-dot colors.
+- The calendar action returns to today. A month CTA is deliberately omitted because the product has no real month view.
+- The locally generated calendar artwork is decorative only and never replaces schedule information.
+- Compact behavior is defined through 320 px; the standard composition remains bounded at 375, 390 and 430 px without page-level horizontal overflow.
+
+## Product constraints preserved
+
+- Only the employee's token-bound latest Published roster projection is rendered.
+- Approved Leave projections remain distinguishable from manually scheduled OFF, MC and Annual Leave entries.
+- No roster mutation, shift-swap, open-cover or availability action was introduced.
+- Bottom navigation remains Home, Learn, Reward, Growth and Me.

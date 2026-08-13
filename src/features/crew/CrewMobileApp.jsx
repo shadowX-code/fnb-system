@@ -34,6 +34,7 @@ import CrewLearningMobile from "./components/CrewLearningMobile.jsx";
 import CrewRewardMobile from "./components/CrewRewardMobile.jsx";
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
 import CrewLeaveMobile from "./components/CrewLeaveMobile.jsx";
+import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewMetric, CrewProgressBar, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
 import "./CrewMobileApp.css";
 
@@ -282,11 +283,6 @@ export default function CrewMobileApp() {
   const options = clockDraft?.action === "out" ? clockOutOptions : clockInOptions;
   const todayRoster = roster?.today;
   const upcomingRoster = (roster?.entries || []).filter((entry) => entry.date > roster?.from).slice(0, 3);
-  const scheduleDays = Array.from({ length: 7 }, (_, index) => {
-    const date = new Date(`${roster?.from || new Date().toISOString().slice(0, 10)}T00:00:00`);
-    date.setDate(date.getDate() + index);
-    return { key: date.toISOString().slice(0, 10), weekday: date.toLocaleDateString("en-MY", { weekday: "short" }).slice(0, 2), day: date.getDate() };
-  });
   const operationsCount = (operations?.checklists?.filter((item) => item.status !== "completed").length || 0) + (operations?.daily_tasks?.filter((item) => item.status !== "completed").length || 0);
   const onboardingActive = Boolean(learningHome?.assignment && learningHome.assignment.status !== "completed" && learningProgress < 100);
 
@@ -314,7 +310,7 @@ export default function CrewMobileApp() {
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} onRefresh={() => refresh()} onBack={() => setScreen("home")} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => setScreen("me")} onChanged={() => refresh()} />}
 
-    {screen === "schedule" && <section className="crew-v2-schedule"><header className="crew-v2-page-header"><div><button type="button" onClick={() => setScreen("home")} aria-label="Back"><ArrowLeft size={19} /></button><h1>My Schedule</h1></div><CalendarDays size={18} /></header><div className="crew-v3-week-strip" aria-label="Schedule week">{scheduleDays.map((day, index) => <span key={day.key} className={index === 0 ? "is-active" : ""}><small>{day.weekday}</small><strong>{day.day}</strong></span>)}</div><section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>Published Schedule</h2><span>Next 14 days</span></div><div className="crew-v2-schedule-list">{(roster?.entries || []).length ? roster.entries.map((entry) => <article key={entry.id} className={entry.entry_type === "working" ? "is-working" : "is-away"}><time dateTime={entry.date}><strong>{new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-MY", { weekday: "short" })}</strong><small>{new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}</small></time><span><strong>{entry.entry_type === "working" ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : rosterEntryLabel(entry)}</strong><small>{entry.outlet?.name} · {entry.position || rosterEntryLabel(entry)}</small></span><em>{entry.date === roster?.from && openShift ? "On Shift" : entry.entry_type === "working" ? "Upcoming" : rosterEntryLabel(entry)}</em></article>) : <EmptyState title="No published shifts" body="There is no published roster in this date range yet." />}</div></section></section>}
+    {screen === "schedule" && <CrewScheduleMobile roster={roster} employee={employee} onBack={() => setScreen("home")} />}
 
     {screen === "attendance" && <section className="crew-v2-attendance">
       <header className="crew-v2-page-header"><div><button type="button" onClick={() => setScreen("home")} aria-label="Back"><ArrowLeft size={19} /></button><h1>Attendance</h1></div></header>
@@ -330,6 +326,6 @@ export default function CrewMobileApp() {
       {passcodeChangeOpen && <form className="crew-v2-passcode-form" onSubmit={changePasscode}><div className="crew-v2-section-title"><h2>Change Passcode</h2><button type="button" onClick={() => setPasscodeChangeOpen(false)}>Close</button></div><label>Current passcode<input inputMode="numeric" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>New passcode<input inputMode="numeric" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-v2-primary" disabled={loading}>Save Passcode</button></form>}
     </section>}
 
-    <CrewBottomNav items={navItems} active={screen === "operations" || screen === "attendance" ? "home" : screen === "leave" ? "me" : screen} onChange={(next) => { setScreen(next); if (next === "me") setMeView("main"); }} />
+    <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : screen === "leave" ? "me" : screen} onChange={(next) => { setScreen(next); if (next === "me") setMeView("main"); }} />
   </section></main>;
 }

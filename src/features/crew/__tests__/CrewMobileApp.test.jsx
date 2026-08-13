@@ -117,6 +117,35 @@ describe("Crew Mobile redesign", () => {
     expect(mocks.myRoster).toHaveBeenCalledWith("crew-token");
   });
 
+  it("synchronizes the seven-day selector with working, OFF, MC and approved-leave schedule states", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myRoster.mockResolvedValueOnce({
+      from: "2026-08-13",
+      to: "2026-08-26",
+      today: { entry_id: "roster-today", date: "2026-08-13", outlet_id: "outlet-1", outlet_name: "Friends Corner", entry_type: "unpaid_leave", position: "Service Crew", source: "approved_leave" },
+      entries: [
+        { id: "roster-today", date: "2026-08-13", outlet: { name: "Friends Corner" }, entry_type: "unpaid_leave", position: "Service Crew", source: "approved_leave" },
+        { id: "roster-off", date: "2026-08-14", outlet: { name: "Friends Corner" }, entry_type: "off", position: "Service Crew" },
+        { id: "roster-mc", date: "2026-08-15", outlet: { name: "Friends Corner" }, entry_type: "medical", position: "Service Crew" },
+        { id: "roster-leave", date: "2026-08-16", outlet: { name: "Friends Corner" }, entry_type: "annual_leave", position: "Service Crew", source: "approved_leave" },
+        { id: "roster-work", date: "2026-08-17", outlet: { name: "Friends Corner" }, entry_type: "working", start_time: "10:00", end_time: "17:00", break_minutes: 0, position: "Service Crew" },
+      ],
+    });
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    expect(screen.getByRole("heading", { name: "My Schedule" })).not.toBeNull();
+    expect(document.querySelector(".crew-schedule-final-day h2").textContent).toBe("Unpaid Leave");
+    expect(screen.getAllByText("Annual Leave").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("MC").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Monday, 17 August, Working/ }));
+    expect(document.querySelector(".crew-schedule-final-day h2").textContent).toMatch(/10:00\s?(AM|am) – 5:00\s?(PM|pm)/);
+    expect(document.querySelector(".crew-schedule-final-day").textContent).toContain("7 hrs");
+    expect(document.querySelector(".crew-schedule-final-week .is-selected").textContent).toContain("17");
+    expect(screen.getByRole("navigation", { name: "Crew navigation" }).querySelector("button.active").textContent).toBe("Home");
+    fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
+    expect(document.querySelector(".crew-schedule-final-day h2").textContent).toBe("Unpaid Leave");
+  });
+
   it("opens Today’s Tasks without changing the five-item bottom navigation", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
