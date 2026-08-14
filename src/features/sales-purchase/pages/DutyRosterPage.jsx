@@ -2180,69 +2180,14 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         description={crewOwned ? "Plan, publish, and share the official outlet schedule." : "Shared Crew roster workspace. All changes use the same roster authority."}
       />
 
-      <CrewAdminToolbar secondary={<><button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}><Download size={16} /> Export</button>{canExportRoster ? <button className="btn-secondary" type="button" onClick={prepareShareRoster}><Share2 size={16} /> Share Roster</button> : null}{canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}</>} primary={canPublishRoster ? <button className="btn-primary" type="button" disabled={viewMode !== "week" || !period || period.status === "published" || period.status === "locked"} onClick={() => setStatus("published")} title={viewMode !== "week" ? "Switch to Week view to publish a roster week." : undefined}><Send size={16} /> Publish Roster</button> : null}>
-        <div className="grid gap-3 lg:grid-cols-[1.15fr_1.15fr_0.9fr_1fr_auto_auto] lg:items-end">
-          <FieldLabel label="Outlet">
-            <SelectField
-              value={outletId}
-              options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
-              onChange={setOutletId}
-            />
-          </FieldLabel>
-          <FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}>
-            <RosterDateSelector
-              mode={viewMode}
-              weekStart={weekStart}
-              weekDates={weekDates}
-              visibleDates={visibleDates}
-              onSelectDate={selectRosterDate}
-              onPrevious={() => navigateRoster(-1)}
-              onNext={() => navigateRoster(1)}
-            />
-          </FieldLabel>
-          <FieldLabel label="Group">
-            <SelectField
-              value={groupFilter}
-              options={[
-                { value: "all", label: "All Groups" },
-                { value: "floor", label: "Floor" },
-                { value: "kitchen", label: "Kitchen" },
-                { value: "other", label: "Other" },
-              ]}
-              onChange={setGroupFilter}
-            />
-          </FieldLabel>
-          <FieldLabel label="Employee">
-            <input className="control h-10 w-full" value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="Search name..." />
-          </FieldLabel>
-          <div className="flex rounded-2xl border border-border bg-background p-1">
-            {["week", "month"].map((mode) => (
-              <button
-                key={mode}
-                className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${viewMode === mode ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary"}`}
-                type="button"
-                onClick={() => {
-                  setViewMode(mode);
-                  const current = new Date(`${weekStart}T00:00:00`);
-                  setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current)));
-                }}
-              >
-                {mode}
-              </button>
-            ))}
-          </div>
-          <div />
-        </div>
-        <div className="mt-3 max-w-sm">
-          <FieldLabel label="Position">
-            <SelectField
-              value={positionFilter}
-              options={[{ value: "all", label: "All Positions" }, ...employeePositions.map((position) => ({ value: position, label: position }))]}
-              onChange={setPositionFilter}
-            />
-          </FieldLabel>
-        </div>
-      </CrewAdminToolbar>
+      <CrewAdminToolbar
+        outlet={<FieldLabel label="Outlet"><SelectField ariaLabel="Outlet" value={outletId} options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} /></FieldLabel>}
+        time={<FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}><RosterDateSelector mode={viewMode} weekStart={weekStart} weekDates={weekDates} visibleDates={visibleDates} onSelectDate={selectRosterDate} onPrevious={() => navigateRoster(-1)} onNext={() => navigateRoster(1)} /></FieldLabel>}
+        search={<FieldLabel label="Employee"><input className="control h-10 w-full" value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="Search name..." /></FieldLabel>}
+        filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel><div className="flex rounded-2xl border border-border bg-background p-1">{["week", "month"].map((mode) => <button key={mode} className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${viewMode === mode ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary"}`} type="button" onClick={() => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }}>{mode}</button>)}</div></>}
+        secondary={<><button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}><Download size={16} /> Export</button>{canExportRoster ? <button className="btn-secondary" type="button" onClick={prepareShareRoster}><Share2 size={16} /> Share Roster</button> : null}{canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}</>}
+        primary={canPublishRoster ? <button className="btn-primary" type="button" disabled={viewMode !== "week" || !period || period.status === "published" || period.status === "locked"} onClick={() => setStatus("published")} title={viewMode !== "week" ? "Switch to Week view to publish a roster week." : undefined}><Send size={16} /> Publish Roster</button> : null}
+      />
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}

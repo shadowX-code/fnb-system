@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Children, useEffect, useMemo, useRef, useState } from "react";
 import { Award, CheckCircle2, ChevronRight, ClipboardCheck, Plus, RotateCcw, Search, ShieldCheck, Sparkles, UserRoundCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -79,7 +79,7 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
 
   const outlet = outlets.find((item) => item.id === outletId);
   const header = tabMeta(activeTab);
-  const outletSelect = <CrewAdminOutletField ariaLabel="Growth outlet" value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />;
+  const outletSelect = <CrewAdminOutletField ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />;
   return <div className="crew-growth-page">
     <PageHeader section="Crew · Growth" title={header.title} description={header.description} />
     {loading ? <><CrewAdminToolbar outlet={outletSelect} /><GrowthSkeleton /></> : error ? <><CrewAdminToolbar outlet={outletSelect} /><GrowthError message={error} onRetry={refresh} /></> : activeTab === "overview" ? <GrowthOverview data={data} outletSelect={outletSelect} onOpenReview={setReview} onOpenEmployee={setEmployeeProfile} onNavigate={ui.navigate} /> : activeTab === "skills" ? <SkillsLibrary data={data} canManage={canManage} onView={setSkillEditor} outletSelect={outletSelect} onCreate={() => setSkillEditor({})} /> : <CertificationQueue data={data} onReview={setReview} outletSelect={outletSelect} />}
@@ -195,7 +195,11 @@ function InitialAvatar({ name, size = "sm" }) { const initials = String(name || 
 function NameCell({ title, detail }) { return <span className="crew-growth-name"><InitialAvatar name={title} /><span><strong>{title}</strong><small>{detail || "—"}</small></span></span>; }
 function Metric({ icon: Icon = Sparkles, label, value, detail, tone = "neutral" }) { return <article className={`crew-growth-metric is-${tone}`}><div className="crew-growth-metric-icon">{Icon ? <Icon size={16} /> : null}</div><span><small>{label}</small><strong>{value}</strong>{detail ? <em>{detail}</em> : null}</span></article>; }
 function SectionHead({ title, detail, action = null }) { return <header className="crew-growth-section-head"><div><h2>{title}</h2><p>{detail}</p></div>{action}</header>; }
-function FilterBar({ children, outlet = null, primary = null }) { return <CrewAdminToolbar outlet={outlet} primary={primary}>{children}</CrewAdminToolbar>; }
+function FilterBar({ children, outlet = null, primary = null }) {
+  const controls = Children.toArray(children);
+  const embeddedOutlet = controls.find((child) => child?.type === CrewAdminOutletField);
+  return <CrewAdminToolbar outlet={outlet || embeddedOutlet || null} primary={primary}>{controls.filter((child) => child !== embeddedOutlet)}</CrewAdminToolbar>;
+}
 function SearchField({ label, value, onChange, placeholder }) { return <label className="crew-growth-search"><span>{label}</span><div><Search size={15} /><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} /></div></label>; }
 function Empty({ title, detail }) { return <div className="crew-growth-empty"><ShieldCheck size={22} /><strong>{title}</strong><span>{detail}</span></div>; }
 function GrowthError({ message, onRetry }) { return <section className="crew-growth-error" role="alert"><ShieldCheck size={24} /><div><strong>Unable to load Growth</strong><span>{message}</span></div><button className="btn-secondary" onClick={onRetry}>Retry</button></section>; }
