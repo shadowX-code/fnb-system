@@ -436,6 +436,25 @@ export const crewService = {
     return { deleted: true };
   },
 
+  async resumeSopMediaCleanup(outletId) {
+    if (!outletId) return { deleted: 0 };
+    const { data: assets, error } = await supabase
+      .from("crew_sop_media")
+      .select("id,bucket_id,object_path")
+      .eq("outlet_id", outletId)
+      .eq("status", "deleting");
+    throwSupabaseError("crew.resumeSopMediaCleanup.list", error);
+    let deleted = 0;
+    for (const asset of assets || []) {
+      const { error: removeError } = await supabase.storage.from(asset.bucket_id).remove([asset.object_path]);
+      throwSupabaseError("crew.resumeSopMediaCleanup.remove", removeError);
+      const { error: finalizeError } = await supabase.rpc("crew_finalize_sop_media_delete", { p_media_id: asset.id });
+      throwSupabaseError("crew.resumeSopMediaCleanup.finalize", finalizeError);
+      deleted += 1;
+    }
+    return { deleted };
+  },
+
   async uploadLearningMedia(file, outletId) {
     validateLearningImageFile(file);
     const optimized = await optimizeImageBlob(file);

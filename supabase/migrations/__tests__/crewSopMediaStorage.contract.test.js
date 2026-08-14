@@ -3,6 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 const migration = fs.readFileSync(path.resolve("supabase/migrations/20260813183402_crew_sop_media_storage.sql"), "utf8");
+const deletePolicyFix = fs.readFileSync(path.resolve("supabase/migrations/20260814030159_crew_sop_media_delete_policy_fix.sql"), "utf8");
 const edge = fs.readFileSync(path.resolve("supabase/functions/crew-sop-media-url/index.ts"), "utf8");
 
 describe("Crew SOP private media contract", () => {
@@ -33,6 +34,12 @@ describe("Crew SOP private media contract", () => {
     expect(migration).toContain("'media_copies',media_manifest");
     expect(migration).toContain("target_path := p_target_outlet_id::text");
     expect(migration).toContain("crew_attach_sop_media");
+  });
+
+  it("lets the controlled Storage delete resolve only deleting SOP media", () => {
+    expect(deletePolicyFix).toContain("media.status in ('pending', 'ready', 'deleting')");
+    expect(deletePolicyFix).toContain("current_user_has_permission('crew_sop.manage')");
+    expect(deletePolicyFix).toContain("current_user_can_access_outlet(media.outlet_id)");
   });
 
   it("fixes search paths and explicitly grants authorities", () => {

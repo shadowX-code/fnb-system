@@ -81,6 +81,11 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
     if (!targetOutletId) return;
     setLoading(true);
     try {
+      try {
+        await crewService.resumeSopMediaCleanup(targetOutletId);
+      } catch (cleanupError) {
+        ui.notify({ title: "SOP image cleanup needs attention", message: cleanupError.message, tone: "warning" });
+      }
       const result = await crewService.listOutletSopsAdmin(targetOutletId);
       setSops(result.sops || []);
       setCategories(result.categories || []);
