@@ -3,12 +3,12 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 
-const storageLocationTypes = ["Dry Store", "Chiller", "Freezer", "Production Area", "Finished Goods Area", "Packaging Area"];
+const newStorageLocationTypes = ["Room Temperature", "Chiller", "Freezer"];
 export default function StorageLocationModal({ initialValue, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     location_name: "",
     location_code: "",
-    location_type: storageLocationTypes[0],
+    location_type: newStorageLocationTypes[0],
     status: "active",
     remarks: "",
     ...initialValue,
@@ -57,7 +57,7 @@ export default function StorageLocationModal({ initialValue, onClose, onSave }) 
             <Field label="Location Type">
               <SearchableSelect
                 value={form.location_type || ""}
-                options={storageLocationTypes.map((type) => ({ value: type, label: type }))}
+                options={[...new Set([...(initialValue?.location_type ? [initialValue.location_type] : []), ...newStorageLocationTypes])].map((type) => ({ value: type, label: type, helper: !newStorageLocationTypes.includes(type) ? "Legacy type retained for this existing location" : "" }))}
                 placeholder="Select Location Type"
                 searchPlaceholder="Search location types"
                 onChange={(locationType) => setForm((current) => ({ ...current, location_type: locationType }))}
@@ -84,4 +84,3 @@ export default function StorageLocationModal({ initialValue, onClose, onSave }) 
     </Modal>
   );
 }
-

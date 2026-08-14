@@ -5,6 +5,7 @@ import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FactoryPagination, { useFactoryClientPagination } from "../components/FactoryPagination.jsx";
+import FactoryMasterTableToolbar from "../components/FactoryMasterTableToolbar.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
 import useFactoryNavigation from "../hooks/useFactoryNavigation.js";
@@ -25,7 +26,7 @@ export default function FactoryStorageLocationsPage() {
     <PageHeader section="System" title="Storage Locations" description="Manage Factory warehouse and production storage locations used by raw material and finished goods master records." actions={can("factory_storage_locations.create") || can("factory_storage_locations.manage") ? <button className="btn-primary" type="button" onClick={nav.openCreateStorageLocation}><Warehouse size={15} /> Storage Location</button> : null} />
     <div className="grid gap-3 md:grid-cols-4"><MetricCard icon={Warehouse} label="Total Locations" value={storageLocations.length} helper="Active and archived" /><MetricCard icon={CheckCircle2} label="Active" value={active.length} helper="Available for selection" tone="success" /><MetricCard icon={Clock3} label="Archived" value={storageLocations.length - active.length} helper="Historical locations" /><MetricCard icon={Tag} label="Location Types" value={new Set(active.map((location) => location.location_type).filter(Boolean)).size} helper="Active type coverage" /></div>
     <Card title="Storage Location Master">
-      <input className="field-input mb-4 w-full md:max-w-sm" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search storage locations" />
+      <FactoryMasterTableToolbar value={search} onChange={setSearch} placeholder="Search storage locations" />
       <FactoryTable rows={rows.slice(pager.from, pager.to)} columns={[
         { key: "location", label: "Location", className: "w-[40%]", render: (row) => <div><div className="font-bold">{row.location_name || "—"}</div>{row.location_code ? <div className="text-xs text-text-secondary">{row.location_code}</div> : null}</div> },
         { key: "type", label: "Type", className: "w-[30%]", render: (row) => titleCase(row.location_type) },
