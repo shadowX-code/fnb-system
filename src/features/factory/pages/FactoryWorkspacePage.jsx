@@ -1611,6 +1611,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     await refreshFactoryAfterMutation();
   }
 
+  async function importRawMaterials(materials = []) {
+    const result = { created: 0, skipped: 0, failed: 0, failures: [] };
+    for (const material of materials) {
+      try {
+        await factoryService.saveRawMaterial(material, auth?.profile?.id);
+        result.created += 1;
+      } catch (error) {
+        result.failed += 1;
+        result.failures.push({ code: material.material_code, reason: error.message || "Unable to create raw material." });
+      }
+    }
+    if (result.created) await refreshFactoryAfterMutation();
+    ui?.notify?.({ title: "Raw material import complete", message: `Created ${result.created}. Failed ${result.failed}.`, tone: result.failed ? "warning" : "success" });
+    return { ...result, skipped: materials.length - result.created - result.failed };
+  }
+
   async function archiveRawMaterial(material) {
     if (Number(material.current_balance || 0) > 0) {
       ui?.notify?.({ title: "Cannot archive raw material", message: "Cannot archive while stock balance is greater than zero.", tone: "error" });
@@ -3396,6 +3412,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openFinishedGoodCategory={() => setModal({ type: "finished-good-category" })}
           openCreateRawMaterial={() => setModal({ type: "raw-material" })}
           openEditRawMaterial={(material) => setModal({ type: "raw-material", value: material })}
+          importRawMaterials={importRawMaterials}
           openRawMaterialCost={(material) => setModal({ type: "raw-material-cost", material })}
           openRawMaterialImage={(material) => setModal({ type: "raw-material-image", material })}
           openRawMaterialCategory={() => setModal({ type: "raw-material-category" })}
