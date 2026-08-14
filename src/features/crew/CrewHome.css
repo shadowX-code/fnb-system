@@ -153,3 +153,280 @@
   .crew-home-clock-action{transition:box-shadow 1ms linear,transform 1ms linear}
   .crew-home-clock-zone.is-confirmed .crew-home-clock-action{transform:none}
 }
+
+/* Attendance hero — 14 Aug 2026 final Clock In reference. */
+.crew-v2-home .crew-home-attendance{
+  border:1px solid rgb(213 225 227/.76);
+  border-radius:22px;
+  box-shadow:0 10px 26px rgb(18 47 61/.11),0 2px 5px rgb(18 47 61/.04);
+}
+.crew-v2-home .crew-home-attendance-main{
+  min-height:194px;
+  grid-template-columns:minmax(0,58%) minmax(0,42%);
+  isolation:isolate;
+  background:
+    linear-gradient(90deg,rgb(255 255 255/.48) 0%,rgb(250 253 251/.62) 49%,rgb(247 253 250/.93) 64%,#f7fcfa 100%),
+    url("../../assets/crew/attendance-interior.png") left center/cover no-repeat;
+  color:#0a1c3c;
+}
+.crew-v2-home .crew-home-attendance-main::before{
+  z-index:1;
+  inset:0 auto 0 0;
+  width:61%;
+  height:auto;
+  border:0;
+  border-radius:0;
+  background:linear-gradient(90deg,rgb(255 255 255/.08),rgb(255 255 255/.34) 62%,rgb(255 255 255/.78));
+  box-shadow:none;
+}
+.crew-v2-home .crew-home-attendance-main::after{
+  z-index:1;
+  right:39%;
+  bottom:auto;
+  width:52px;
+  height:100%;
+  border:0;
+  border-radius:50% 0 0 50%/50% 0 0 50%;
+  background:linear-gradient(90deg,rgb(244 251 248/.25),rgb(244 251 248/.96));
+  box-shadow:none;
+}
+.crew-v2-home .crew-home-attendance-copy{
+  z-index:3;
+  justify-content:flex-start;
+  gap:0;
+  padding:15px 7px 13px 17px;
+  color:#0a1c3c;
+}
+.crew-v2-home .crew-home-attendance-copy>.crew-ui-status{
+  min-height:25px;
+  border:1px solid rgb(201 232 221/.72);
+  background:rgb(255 255 255/.82);
+  padding:0 10px;
+  color:#078d63;
+  font-size:8.5px;
+  box-shadow:0 5px 12px rgb(19 86 64/.08);
+  backdrop-filter:blur(8px);
+}
+.crew-home-attendance-kicker{
+  display:block;
+  margin-top:13px;
+  color:#0a1c3c;
+  font-size:11.5px;
+  font-weight:820;
+  line-height:1.15;
+  letter-spacing:-.015em;
+}
+.crew-home-ready-row{
+  display:grid;
+  width:100%;
+  min-width:0;
+  grid-template-columns:minmax(0,1fr) 70px;
+  align-items:center;
+  margin-top:7px;
+}
+.crew-v2-home .crew-home-current-time,
+.crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>.crew-home-worked{
+  display:flex;
+  min-width:0;
+  align-items:baseline;
+  gap:3px;
+  margin:0;
+  color:#071c3f;
+  font-size:37px;
+  font-weight:820;
+  line-height:.96;
+  letter-spacing:-.055em;
+  white-space:nowrap;
+}
+.crew-v2-home .crew-home-current-time>b{
+  color:#0a1c3c;
+  font-size:12px;
+  font-weight:820;
+  letter-spacing:-.01em;
+  text-transform:lowercase;
+}
+.crew-home-ready-context{
+  display:grid;
+  min-width:0;
+  align-self:stretch;
+  align-content:center;
+  gap:5px;
+  border-left:1px solid rgb(14 43 72/.15);
+  padding-left:9px;
+}
+.crew-home-ready-context>b{
+  color:#0b1d3e;
+  font-size:9px;
+  font-weight:820;
+  line-height:1.1;
+  white-space:nowrap;
+}
+.crew-home-ready-context>small{
+  display:flex!important;
+  align-items:center;
+  gap:3px;
+  color:#078d63!important;
+  font-size:7.5px!important;
+  font-weight:790!important;
+  line-height:1.1!important;
+  white-space:nowrap;
+}
+.crew-home-ready-context svg{width:11px;height:11px;flex:0 0 auto;stroke-width:2.8}
+.crew-home-attendance-metric{display:grid;gap:3px;margin-top:8px}
+.crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>small{
+  color:#68788f;
+  font-size:8px;
+  font-weight:720;
+}
+.crew-v2-home .crew-home-attendance-copy>p{
+  width:calc(100% - 10px);
+  margin:8px 0 0;
+  border-top:1px solid rgb(13 47 73/.12);
+  padding-top:8px;
+  color:#078d63;
+  font-size:9px;
+}
+.crew-v2-home .crew-home-attendance-copy>em{
+  max-width:100%;
+  margin-top:auto;
+  background:rgb(232 248 242/.9);
+  padding:5px 7px;
+  color:#078d63;
+  font-size:7.5px;
+  box-shadow:inset 0 0 0 1px rgb(115 206 173/.12);
+  backdrop-filter:blur(6px);
+}
+.crew-v2-home .crew-home-attendance-copy dl{margin-top:7px;gap:11px}
+.crew-v2-home .crew-home-attendance-copy dt{color:#718096;font-size:7px}
+.crew-v2-home .crew-home-attendance-copy dd{color:#0b1d3e;font-size:9px}
+
+.crew-v2-home .crew-home-clock-zone{
+  z-index:5;
+  width:calc(100% + 29px);
+  margin-left:-29px;
+  contain:layout;
+  border-radius:54% 0 0 54%/50% 0 0 50%;
+  background:
+    radial-gradient(circle at 55% 50%,rgb(255 255 255/.98) 0 43%,rgb(235 249 243/.78) 68%,rgb(250 253 252/.98) 84%),
+    linear-gradient(90deg,#f7fbf9,#fff);
+  padding-left:28px;
+}
+.crew-v2-home .crew-home-clock-zone::before{
+  position:absolute;
+  inset:13% -10% 13% 4%;
+  border-radius:50%;
+  background:radial-gradient(circle,rgb(37 197 144/.13),transparent 68%);
+  content:"";
+  filter:blur(8px);
+  pointer-events:none;
+}
+.crew-v2-home .crew-home-radar-orbit{
+  width:151px;
+  height:151px;
+  border-color:rgb(9 157 108/.34);
+  box-shadow:0 0 22px rgb(13 170 116/.04);
+}
+.crew-v2-home .crew-home-radar-orbit::before{inset:9px;border-color:rgb(9 156 108/.13)}
+.crew-v2-home .crew-home-radar-orbit::after{inset:18px;border-color:rgb(9 156 108/.1)}
+.crew-v2-home .crew-home-clock-action,
+.crew-v2-home .crew-home-complete-ring{
+  width:128px;
+  max-width:none;
+  border:0;
+  background:transparent;
+  padding:15px;
+  color:#fff;
+  box-shadow:0 0 0 7px rgb(255 255 255/.9),0 0 0 13px rgb(17 174 120/.08),0 12px 24px rgb(3 111 76/.16);
+}
+.crew-v2-home .crew-home-clock-action::before,
+.crew-v2-home .crew-home-complete-ring::before{
+  inset:-2px;
+  background:conic-gradient(from -3deg,#079966 0 24%,#a9e1cd 24% 50%,#22ad7e 50% 77%,#d9f1e8 77% 88%,#078f61 88% 100%);
+  box-shadow:0 0 18px rgb(13 171 116/.1);
+}
+.crew-v2-home .crew-home-clock-action::after,
+.crew-v2-home .crew-home-complete-ring::after{
+  inset:13px;
+  background:radial-gradient(circle at 36% 28%,#13ae79 0%,#079a69 48%,#07885f 100%);
+  box-shadow:inset 0 1px 1px rgb(255 255 255/.22),inset 0 -12px 25px rgb(0 91 63/.13),0 0 24px rgb(13 169 116/.16);
+}
+.crew-v2-home .crew-home-clock-rings{
+  inset:7px;
+  border-color:rgb(255 255 255/.38);
+}
+.crew-v2-home .crew-home-clock-rings::before{inset:7px;border-color:rgb(255 255 255/.24)}
+.crew-v2-home .crew-home-clock-rings::after{inset:-5px;border-color:rgb(255 255 255/.58);box-shadow:0 0 12px rgb(8 151 103/.16)}
+.crew-v2-home .crew-home-clock-action>span,
+.crew-v2-home .crew-home-complete-ring>span{gap:5px;color:#fff}
+.crew-v2-home .crew-home-clock-action svg,
+.crew-v2-home .crew-home-complete-ring svg{
+  width:30px;
+  height:30px;
+  color:#fff;
+  filter:drop-shadow(0 0 5px rgb(255 255 255/.22));
+}
+.crew-v2-home .crew-home-clock-action strong,
+.crew-v2-home .crew-home-complete-ring strong{
+  color:#fff;
+  font-size:12px;
+  letter-spacing:.01em;
+}
+.crew-v2-home .crew-home-clock-action small,
+.crew-v2-home .crew-home-complete-ring small{color:rgb(255 255 255/.8);font-size:8px}
+.crew-v2-home .crew-home-clock-action:hover{
+  transform:scale(1.03);
+  box-shadow:0 0 0 8px rgb(255 255 255/.93),0 0 0 15px rgb(17 174 120/.1),0 14px 26px rgb(3 111 76/.2);
+}
+.crew-v2-home .crew-home-clock-action:active{transform:scale(.975)}
+.crew-v2-home .crew-home-clock-zone.is-on .crew-home-clock-action,
+.crew-v2-home .crew-home-clock-zone.is-confirmed .crew-home-clock-action{
+  box-shadow:0 0 0 8px rgb(255 255 255/.92),0 0 0 15px rgb(13 177 120/.12),0 14px 25px rgb(0 88 61/.2);
+}
+.crew-v2-home .crew-home-complete-ring::before{background:conic-gradient(from -25deg,#0ba673 0 97%,#cdeadd 97% 100%)}
+.crew-v2-home .crew-home-complete-ring strong{font-size:9px}
+
+.crew-v2-home .crew-home-attendance-footer{
+  min-height:58px;
+  border-top:1px solid #e5eceb;
+  padding:7px 13px 7px 15px;
+  background:rgb(255 255 255/.98);
+}
+.crew-v2-home .crew-home-attendance-footer>span{grid-template-columns:40px minmax(0,1fr);gap:2px 9px}
+.crew-v2-home .crew-home-attendance-footer>span>svg{padding:9px;background:#e3f6ef;color:#078f63}
+.crew-v2-home .crew-home-attendance-footer small{font-size:9px}
+.crew-v2-home .crew-home-attendance-footer strong{font-size:11px}
+.crew-v2-home .crew-home-attendance-footer em{gap:3px;font-size:9.5px}
+
+@media(max-width:390px){
+  .crew-v2-home .crew-home-attendance-main{min-height:190px;grid-template-columns:minmax(0,59%) minmax(0,41%)}
+  .crew-v2-home .crew-home-attendance-copy{padding-left:15px}
+  .crew-v2-home .crew-home-current-time,
+  .crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>.crew-home-worked{font-size:35px}
+  .crew-v2-home .crew-home-radar-orbit{width:145px;height:145px}
+  .crew-v2-home .crew-home-clock-action,
+  .crew-v2-home .crew-home-complete-ring{width:122px}
+}
+@media(max-width:374px){
+  .crew-v2-home .crew-home-attendance-main{min-height:186px;grid-template-columns:minmax(0,60%) minmax(0,40%)}
+  .crew-v2-home .crew-home-attendance-copy{padding:14px 5px 12px 14px}
+  .crew-home-attendance-kicker{margin-top:11px;font-size:10.5px}
+  .crew-home-ready-row{grid-template-columns:minmax(0,1fr) 65px}
+  .crew-v2-home .crew-home-current-time,
+  .crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>.crew-home-worked{font-size:32px}
+  .crew-v2-home .crew-home-current-time>b{font-size:10px}
+  .crew-home-ready-context{padding-left:7px}
+  .crew-home-ready-context>b{font-size:8.2px}
+  .crew-home-ready-context>small{font-size:7px!important}
+  .crew-v2-home .crew-home-radar-orbit{width:138px;height:138px}
+  .crew-v2-home .crew-home-clock-action,
+  .crew-v2-home .crew-home-complete-ring{width:116px}
+  .crew-v2-home .crew-home-clock-action strong{font-size:10.5px}
+  .crew-v2-home .crew-home-attendance-footer{padding-inline:12px}
+  .crew-v2-home .crew-home-attendance-footer>span{grid-template-columns:36px minmax(0,1fr);gap:2px 7px}
+  .crew-v2-home .crew-home-attendance-footer>span>svg{padding:7px}
+  .crew-v2-home .crew-home-attendance-footer em{font-size:8.7px}
+}
+
+@media(prefers-reduced-motion:reduce){
+  .crew-v2-home .crew-home-clock-zone::before{filter:none}
+}
