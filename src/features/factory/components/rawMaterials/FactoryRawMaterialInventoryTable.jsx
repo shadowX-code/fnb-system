@@ -1,4 +1,4 @@
-import { Package } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, Package } from "lucide-react";
 import Badge from "../../../../components/ui/Badge.jsx";
 import { FactoryTable } from "../FactoryDataDisplay.jsx";
 
@@ -8,7 +8,7 @@ function rawMaterialStatusTone(stockStatus) {
   return "success";
 }
 
-export default function FactoryRawMaterialInventoryTable({ rows, canEdit, materialLabel, formatQuantity, formatDate, formatCost, normalizedCostUnit, onPreviewImage, onOpenCost, onOpenDetail, onEdit }) {
+export default function FactoryRawMaterialInventoryTable({ rows, canEdit, categorySort = "", onCategorySort, materialLabel, formatQuantity, formatDate, formatCost, normalizedCostUnit, onPreviewImage, onOpenCost, onOpenDetail, onEdit }) {
   const columns = [
     { key: "name", label: "Raw Material", render: (row) => {
       const secondaryNames = [row.name_cn, row.name_bm].filter(Boolean).join(" · ");
@@ -29,7 +29,7 @@ export default function FactoryRawMaterialInventoryTable({ rows, canEdit, materi
       );
     } },
     { key: "material_code", label: "Code", render: (row) => row.material_code || "—" },
-    { key: "category", label: "Category", render: (row) => row.category || "No category" },
+    { key: "category", label: <button className="inline-flex items-center gap-1.5 transition hover:text-text-primary focus:outline-none focus:text-text-primary" type="button" onClick={onCategorySort} aria-label={`Sort Category ${categorySort === "asc" ? "descending" : categorySort === "desc" ? "default" : "ascending"}`}><span>Category</span>{categorySort === "asc" ? <ArrowUp size={13} /> : categorySort === "desc" ? <ArrowDown size={13} /> : <ArrowUpDown className="text-text-secondary" size={13} />}</button>, render: (row) => row.category || "No category" },
     { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
     { key: "current_balance", label: "Current Balance", render: (row) => formatQuantity(row.current_balance, row.uom) },
     { key: "latest_cost", label: "Latest Cost", render: (row) => (
