@@ -37,6 +37,7 @@ import CrewLeaveMobile from "./components/CrewLeaveMobile.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
 import "./CrewMobileApp.css";
+import "./CrewHome.css";
 
 const storageKey = "feedx.crew.session";
 const clockInOptions = ["Outlet GPS location seems inaccurate", "Working off-site", "Assigned to another location", "Location accuracy issue", "Location permission unavailable", "Device location unavailable", "Other"];
@@ -61,6 +62,13 @@ const formatTime = (value) => value ? new Date(value).toLocaleTimeString("en-MY"
 const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—";
 const malaysiaDateKey = (value = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
 const formatHomeDate = (value = new Date()) => new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", weekday: "short", day: "numeric", month: "short" }).format(new Date(value));
+const formatHomeClock = (value = new Date()) => {
+  const parts = new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "numeric", minute: "2-digit", hour12: true }).formatToParts(new Date(value));
+  return {
+    time: `${parts.find((part) => part.type === "hour")?.value || "—"}:${parts.find((part) => part.type === "minute")?.value || "—"}`,
+    period: (parts.find((part) => part.type === "dayPeriod")?.value || "").toUpperCase(),
+  };
+};
 const formatDuration = (start, end = new Date()) => {
   const milliseconds = Math.max(0, new Date(end).getTime() - new Date(start).getTime());
   const hours = Math.floor(milliseconds / 3600000);
@@ -152,8 +160,10 @@ function HomeScheduleRow({ entry, label, onClick }) {
   const away = entry.entry_type !== "working";
   const outlet = entry.outlet_name || entry.outlet?.name || "Your outlet";
   const dateLabel = label || new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-MY", { weekday: "short", day: "numeric", month: "short" });
-  const title = away ? rosterEntryLabel(entry) : `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}`;
-  return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${title}`}><i><CalendarDays size={19} /></i><span><strong>{title}</strong><small>{outlet}{entry.position ? ` · ${entry.position}` : ""}</small></span><em>{dateLabel}</em><ChevronRight size={18} /></button>;
+  const scheduleLabel = away ? rosterEntryLabel(entry) : `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}`;
+  const title = label === "Today" ? scheduleLabel : dateLabel;
+  const meta = label === "Today" ? "Today" : scheduleLabel;
+  return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${scheduleLabel}`}><i><CalendarDays size={19} /></i><span><strong>{title}</strong><small>{outlet}{entry.position ? ` · ${entry.position}` : ""}</small></span><em>{meta}</em><ChevronRight size={18} /></button>;
 }
 
 export default function CrewMobileApp() {
@@ -330,6 +340,9 @@ export default function CrewMobileApp() {
   const annualLeaveBalance = leave?.balances?.find((item) => item.leave_type === "annual");
   const annualLeaveAvailable = annualLeaveBalance?.balance_enforced === false ? null : annualLeaveBalance?.available;
   const pendingLeaveCount = (leave?.requests || []).filter((item) => item.status === "pending").length;
+  const homeClock = formatHomeClock(nowTick);
+  const attendanceOutlet = context?.outlet_name || todayRoster?.outlet_name || "Your outlet";
+  const shiftLabel = todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : todayRoster ? rosterEntryLabel(todayRoster) : "Not published";
 
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     {screen === "home" && <section className="crew-v2-home">
@@ -338,13 +351,15 @@ export default function CrewMobileApp() {
         <div className="crew-home-attendance-main">
           <div className="crew-home-attendance-copy">
             <CrewStatusBadge tone={attendanceMode === "completed" ? "neutral" : "success"}>{attendanceMode === "on" ? "On Shift" : attendanceMode === "completed" ? "Shift Completed" : "Ready"}</CrewStatusBadge>
-            {attendanceMode === "completed" ? <><strong className="crew-home-worked">{formatDuration(completedToday.clock_in_at, completedToday.clock_out_at)}</strong><small>Worked duration</small><dl><div><dt>Clock In</dt><dd>{formatTime(completedToday.clock_in_at)}</dd></div><div><dt>Clock Out</dt><dd>{formatTime(completedToday.clock_out_at)}</dd></div></dl></> : attendanceMode === "on" ? <><strong className="crew-home-worked">{formatDuration(openShift.clock_in_at, nowTick)}</strong><small>Elapsed time · Clocked in {formatTime(openShift.clock_in_at)}</small></> : <><strong>{new Date(nowTick).toLocaleTimeString("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit" })}</strong><small>{formatHomeDate(nowTick)}</small></>}
-            <p><MapPin size={16} /> {context?.outlet_name || todayRoster?.outlet_name || "Your outlet"}</p>
+            {attendanceMode === "completed" ? <><strong className="crew-home-worked">{formatDuration(completedToday.clock_in_at, completedToday.clock_out_at)}</strong><small>Worked duration</small><dl><div><dt>Clock In</dt><dd>{formatTime(completedToday.clock_in_at)}</dd></div><div><dt>Clock Out</dt><dd>{formatTime(completedToday.clock_out_at)}</dd></div></dl></> : attendanceMode === "on" ? <><strong className="crew-home-worked">{formatDuration(openShift.clock_in_at, nowTick)}</strong><small>Clocked in at {formatTime(openShift.clock_in_at)}</small></> : <><strong className="crew-home-current-time"><span>{homeClock.time}</span><b>{homeClock.period}</b></strong><small>{formatHomeDate(nowTick)}</small></>}
+            <p><MapPin size={15} /> {attendanceOutlet}</p>
             {attendanceMode !== "completed" && <em className={context?.location_enabled ? "is-verified" : ""}><ShieldCheck size={15} /> {context?.location_enabled ? "Within area · GPS Verified" : "Location verification at clock time"}</em>}
           </div>
-          {attendanceMode !== "completed" ? <button type="button" className="crew-home-clock-action" onClick={() => prepareClock(attendanceMode === "on" ? "out" : "in")} disabled={loading} aria-label={attendanceMode === "on" ? "Clock Out" : "Clock In"}><span><Fingerprint size={29} /><strong>{loading ? "Locating…" : attendanceMode === "on" ? "Clock Out" : "Clock In"}</strong><small>{attendanceMode === "on" ? "Tap to finish" : "Tap to start"}</small></span></button> : <span className="crew-home-complete-mark"><Check size={30} /></span>}
+          <div className="crew-home-clock-zone">
+            {attendanceMode !== "completed" ? <button type="button" className="crew-home-clock-action" onClick={() => prepareClock(attendanceMode === "on" ? "out" : "in")} disabled={loading} aria-label={attendanceMode === "on" ? "Clock Out" : "Clock In"}><span><Fingerprint size={28} /><strong>{loading ? "Locating…" : attendanceMode === "on" ? "Clock Out" : "Clock In"}</strong><small>{attendanceMode === "on" ? "Tap to finish" : "Tap to start"}</small></span></button> : <div className="crew-home-complete-ring" aria-label="Shift completed"><span><Check size={27} /><strong>Completed</strong><small>Today’s shift</small></span></div>}
+          </div>
         </div>
-        <button type="button" className="crew-home-attendance-footer" onClick={() => setScreen("attendance")}><span><CalendarCheck size={19} /><small>Today’s shift</small><strong>{todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : todayRoster ? rosterEntryLabel(todayRoster) : "Not published"}</strong></span><em>View Attendance <ChevronRight size={17} /></em></button>
+        <button type="button" className="crew-home-attendance-footer" onClick={() => setScreen("attendance")}><span><CalendarCheck size={18} /><small>Today’s shift</small><strong>{shiftLabel}</strong></span><em>View Attendance <ChevronRight size={16} /></em></button>
       </section>
       <section className="crew-v2-home-section crew-home-tasks"><CrewSectionHeader title="Today’s Tasks" meta={homeTasks.length} /><div className="crew-home-list">
         {visibleHomeTasks.length ? visibleHomeTasks.map((task) => <button type="button" key={task.id} className={`crew-home-task is-${task.status}`} onClick={() => { setOperationTarget({ kind: task.kind, row: task.row }); setScreen("operations"); }} aria-label={`Open ${task.title}`}><i>{task.status === "completed" ? <Check size={19} /> : <ClipboardCheck size={18} />}</i><span><strong>{task.title}</strong><small>{task.context}</small></span><em>{task.status.replaceAll("_", " ")}</em><ChevronRight size={18} /></button>) : <div className="crew-home-empty"><Check size={20} /><span><strong>All clear today</strong><small>No tasks assigned for today.</small></span></div>}
