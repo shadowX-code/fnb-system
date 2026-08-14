@@ -2,13 +2,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
-  list: vi.fn(), saveSop: vi.fn(), saveCategory: vi.fn(), newVersion: vi.fn(), saveDraft: vi.fn(),
+  list: vi.fn(), detail: vi.fn(), saveSop: vi.fn(), saveCategory: vi.fn(), newVersion: vi.fn(), saveDraft: vi.fn(),
   saveSections: vi.fn(), deleteDraft: vi.fn(), swap: vi.fn(), publish: vi.fn(), usage: vi.fn(), clone: vi.fn(),
   uploadMedia: vi.fn(), deleteMedia: vi.fn(), mediaUrl: vi.fn(),
   resumeMediaCleanup: vi.fn(),
 }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   listOutletSopsAdmin: mocks.list,
+  getSopAdmin: mocks.detail,
   saveSop: mocks.saveSop,
   saveSopCategory: mocks.saveCategory,
   newSopVersion: mocks.newVersion,
@@ -58,6 +59,7 @@ const selectOption = (label, option) => {
 
 beforeEach(() => {
   mocks.list.mockReset().mockResolvedValue({ categories, sops });
+  mocks.detail.mockReset().mockImplementation(async (sopId) => structuredClone(sops.find((sop) => sop.id === sopId)));
   mocks.saveSop.mockReset().mockResolvedValue({ id: "new-sop" });
   mocks.saveCategory.mockReset();
   mocks.newVersion.mockReset().mockResolvedValue("new-version");
@@ -101,6 +103,16 @@ describe("Crew SOP Library Admin", () => {
     await screen.findByText("No SOPs yet");
     expect(screen.getAllByRole("button", { name: /Create SOP|New SOP/ }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Clone From Outlet" }).length).toBeGreaterThan(0);
+  });
+
+  it("separates a failed SOP request from a successful empty library and retries", async () => {
+    mocks.list.mockRejectedValueOnce(new Error("statement timeout"));
+    renderPage();
+    expect(await screen.findByText("Unable to load SOP Library")).not.toBeNull();
+    expect(screen.queryByText("No SOPs yet")).toBeNull();
+    mocks.list.mockResolvedValueOnce({ categories, sops });
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Welcome & Goodbye Standard")).not.toBeNull();
   });
 
   it("keeps row actions lifecycle-specific and never edits published content directly", async () => {
@@ -153,7 +165,7 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
-    const title = screen.getByLabelText("Section Title *");
+    const title = await screen.findByLabelText("Section Title *");
     fireEvent.change(title, { target: { value: "Welcome promptly" } });
     fireEvent.click(screen.getByRole("button", { name: /02.*Warm presence/ }));
     fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Warm and attentive" } });
@@ -179,7 +191,7 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
-    fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Unsaved greeting title" } });
+    fireEvent.change(await screen.findByLabelText("Section Title *"), { target: { value: "Unsaved greeting title" } });
     const editor = screen.getByRole("textbox", { name: "Content" });
     editor.innerHTML = "<p><strong>Unsaved rich greeting.</strong></p>";
     fireEvent.input(editor);
@@ -199,7 +211,7 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
-    fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Unsaved title" } });
+    fireEvent.change(await screen.findByLabelText("Section Title *"), { target: { value: "Unsaved title" } });
     fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
     await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "You have unsaved changes.", confirmLabel: "Discard", cancelLabel: "Continue Editing" })));
     expect(screen.getByRole("heading", { name: "Welcome & Goodbye Standard" })).not.toBeNull();
@@ -212,6 +224,7 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    await screen.findByLabelText("Section Title *");
     fireEvent.click(screen.getByRole("button", { name: "Bold" }));
     fireEvent.click(screen.getByRole("button", { name: "Bullet List" }));
     expect(document.execCommand).toHaveBeenCalledWith("bold", false, null);
@@ -233,7 +246,7 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
-    expect(screen.getByText("Welcome within five seconds.")).not.toBeNull();
+    expect(await screen.findByText("Welcome within five seconds.")).not.toBeNull();
     expect(screen.queryByLabelText("Section Title *")).toBeNull();
     expect(screen.queryByRole("navigation", { name: "SOP detail tabs" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "SOP version" }));
@@ -265,10 +278,11 @@ describe("Crew SOP Library Admin", () => {
       sort_order: index + 1,
     }));
     mocks.list.mockResolvedValue({ categories, sops: [{ ...sops[1], versions: [{ ...sops[1].versions[0], sections: longSections }] }] });
+    mocks.detail.mockResolvedValue({ ...sops[1], versions: [{ ...sops[1].versions[0], sections: longSections }] });
     renderPage();
     await screen.findByText("Kitchen Safety");
     fireEvent.click(screen.getByRole("button", { name: "View" }));
-    expect(screen.getByRole("heading", { name: `Long Section ${sectionCount}` })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: `Long Section ${sectionCount}` })).not.toBeNull();
     const scrollRegion = document.querySelector(".crew-sop-document-scroll");
     expect(scrollRegion).not.toBeNull();
     expect(scrollRegion.closest(".crew-sop-popout-body")).not.toBeNull();
@@ -281,7 +295,7 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
-    const versionButton = screen.getByRole("button", { name: "SOP version" });
+    const versionButton = await screen.findByRole("button", { name: "SOP version" });
     versionButton.getBoundingClientRect = () => ({ top: 650, bottom: 680, left: 1200, right: 1260, width: 60, height: 30, x: 1200, y: 650, toJSON: () => ({}) });
     fireEvent.click(versionButton);
     await waitFor(() => {
@@ -297,7 +311,7 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
-    fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Saved before publish" } });
+    fireEvent.change(await screen.findByLabelText("Section Title *"), { target: { value: "Saved before publish" } });
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
     await waitFor(() => expect(mocks.saveSections).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Publish SOP v2?" })));

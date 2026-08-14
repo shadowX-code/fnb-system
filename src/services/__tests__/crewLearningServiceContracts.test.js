@@ -133,15 +133,9 @@ describe("Crew learning mobile service boundaries", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_certify", expect.objectContaining({ p_employee_id: "employee-1", p_skill_id: "skill-1" }));
   });
 
-  it("normalizes PostgREST one-to-one quiz relations for the Admin editor", async () => {
-    const query = {
-      select: vi.fn(),
-      eq: vi.fn(),
-      order: vi.fn(),
-    };
-    query.select.mockReturnValue(query);
-    query.eq.mockReturnValue(query);
-    query.order.mockResolvedValue({
+  it("uses lightweight and deferred Admin read models while normalizing one-to-one quiz relations", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({
         data: [
           {
             id: "journey-1",
@@ -162,14 +156,24 @@ describe("Crew learning mobile service boundaries", () => {
           },
         ],
         error: null,
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: "journey-1",
+          modules: { id: "module-1", lessons: { id: "lesson-1", blocks: null, quizzes: null } },
+        },
+        error: null,
       });
-    mocks.from.mockReturnValue(query);
 
     const [journey] = await crewService.listOnboardingAdmin("outlet-1");
+    const detail = await crewService.getOnboardingAdmin("journey-1");
 
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, "crew_admin_onboarding_list", { p_outlet_id: "outlet-1" });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, "crew_admin_onboarding_detail", { p_journey_id: "journey-1" });
     expect(journey.modules).toHaveLength(1);
     expect(journey.modules[0].lessons).toHaveLength(1);
     expect(journey.modules[0].lessons[0].quizzes).toHaveLength(1);
     expect(journey.modules[0].lessons[0].quizzes[0].questions[0].options).toHaveLength(1);
+    expect(detail.modules).toHaveLength(1);
   });
 });

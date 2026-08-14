@@ -51,14 +51,20 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
   const [outletId, setOutletId] = useState("");
   const [sops, setSops] = useState([]);
   const [categories, setCategories] = useState([]);
+  const [selectedSopDetail, setSelectedSopDetail] = useState(null);
   const [view, setView] = useState("library");
   const [selectedId, setSelectedId] = useState("");
   const [activeVersionId, setActiveVersionId] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [cloneOpen, setCloneOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const selectedSop = sops.find((sop) => sop.id === selectedId);
+  const refreshSequence = useRef(0);
+  const detailSequence = useRef(0);
+  const selectedSopSummary = sops.find((sop) => sop.id === selectedId);
+  const selectedSop = selectedSopDetail?.id === selectedId ? selectedSopDetail : selectedSopSummary;
   const outlet = outlets.find((item) => item.id === outletId);
 
   useEffect(() => {
@@ -81,37 +87,59 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
 
   async function refresh(targetOutletId = outletId) {
     if (!targetOutletId) return;
+    const sequence = ++refreshSequence.current;
     setLoading(true);
+    setLoadError("");
     try {
-      try {
-        await crewService.resumeSopMediaCleanup(targetOutletId);
-      } catch (cleanupError) {
-        ui.notify({ title: "SOP image cleanup needs attention", message: cleanupError.message, tone: "warning" });
-      }
       const result = await crewService.listOutletSopsAdmin(targetOutletId);
+      if (sequence !== refreshSequence.current) return;
       setSops(result.sops || []);
       setCategories(result.categories || []);
       setSelectedId((current) => result.sops?.some((sop) => sop.id === current) ? current : "");
+      void crewService.resumeSopMediaCleanup(targetOutletId).catch((cleanupError) => {
+        ui.notify({ title: "SOP image cleanup needs attention", message: cleanupError.message, tone: "warning" });
+      });
     } catch (cause) {
+      if (sequence !== refreshSequence.current) return;
+      setSops([]);
+      setCategories([]);
+      setLoadError(cause.message || "The SOP Library request failed.");
       ui.notify({ title: "Unable to load SOP Library", message: cause.message, tone: "error" });
     } finally {
-      setLoading(false);
+      if (sequence === refreshSequence.current) setLoading(false);
     }
   }
 
-  useEffect(() => { refresh(outletId); }, [outletId]);
+  useEffect(() => {
+    setSelectedSopDetail(null);
+    setSelectedId("");
+    setView("library");
+    setLoadError("");
+    refresh(outletId);
+  }, [outletId]);
 
-  function openDetail(sopId, tabVersionId = "") {
-    setSelectedId(sopId);
-    setActiveVersionId(tabVersionId);
-    setView("detail");
-  }
-
-  function openEditor(sopId, versionId) {
+  async function openSop(sopId, nextView, versionId = "") {
+    const sequence = ++detailSequence.current;
     setSelectedId(sopId);
     setActiveVersionId(versionId);
-    setView("editor");
+    setDetailLoading(true);
+    setView(nextView);
+    try {
+      const detail = await crewService.getSopAdmin(sopId);
+      if (sequence !== detailSequence.current) return;
+      setSelectedSopDetail(detail);
+      if (!versionId && nextView === "editor") setActiveVersionId(draftVersion(detail)?.id || "");
+    } catch (cause) {
+      if (sequence !== detailSequence.current) return;
+      setView("library");
+      ui.notify({ title: "Unable to load SOP content", message: cause.message, tone: "error" });
+    } finally {
+      if (sequence === detailSequence.current) setDetailLoading(false);
+    }
   }
+
+  const openDetail = (sopId, versionId = "") => openSop(sopId, "detail", versionId);
+  const openEditor = (sopId, versionId = "") => openSop(sopId, "editor", versionId);
 
   async function createSop(values) {
     setSaving(true);
@@ -133,7 +161,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
       await crewService.saveDraftRecord("crew_sop_versions", { id: versionId, require_acknowledgement: values.requireAcknowledgement });
       await refresh();
       setCreateOpen(false);
-      openEditor(sop.id, versionId);
+      await openEditor(sop.id, versionId);
       ui.notify({ title: "SOP draft created", message: "Draft v1 is ready for sections." });
     } catch (cause) {
       ui.notify({ title: "Unable to create SOP", message: cause.message, tone: "error" });
@@ -147,7 +175,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
     try {
       const versionId = await crewService.newSopVersion(sop.id);
       await refresh();
-      openEditor(sop.id, versionId);
+      await openEditor(sop.id, versionId);
       ui.notify({ title: "New SOP version created", message: "The published version remains unchanged." });
     } catch (cause) {
       ui.notify({ title: "Unable to create version", message: cause.message, tone: "error" });
@@ -191,8 +219,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
     try {
       await crewService.publishSopVersion(version.id);
       await refresh();
-      setView("detail");
-      setActiveVersionId(version.id);
+      await openDetail(sop.id, version.id);
       ui.notify({ title: `SOP v${version.version} published`, message: "Future changes now require a new version." });
     } catch (cause) {
       ui.notify({ title: "Unable to publish SOP", message: cause.message, tone: "error" });
@@ -218,6 +245,8 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
         sops={sops}
         categories={categories}
         loading={loading}
+        error={loadError}
+        onRetry={() => refresh(outletId)}
         canManage={canManage}
         onOpen={openDetail}
         onEdit={(sop) => openEditor(sop.id, draftVersion(sop)?.id)}
@@ -226,7 +255,8 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
         onNewVersion={createVersion}
         onDeleteDraft={deleteDraft}
       />
-      {view === "editor" && selectedSop ? (
+      {detailLoading && selectedSopSummary ? <SopDetailLoading sop={selectedSopSummary} onClose={() => setView("library")} /> : null}
+      {!detailLoading && view === "editor" && selectedSop ? (
         <SopEditor
           sop={selectedSop}
           outlet={outlet}
@@ -241,7 +271,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
             if (deleted) setView("library");
           }}
         />
-      ) : view === "detail" && selectedSop ? (
+      ) : !detailLoading && view === "detail" && selectedSop ? (
         <SopDetail
           sop={selectedSop}
           outlet={outlet}
@@ -259,7 +289,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
   );
 }
 
-function SopLibrary({ outlet, sops, categories, loading, canManage, onOpen, onEdit, onCreate, onClone, onNewVersion, onDeleteDraft }) {
+function SopLibrary({ outlet, sops, categories, loading, error, onRetry, canManage, onOpen, onEdit, onCreate, onClone, onNewVersion, onDeleteDraft }) {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [status, setStatus] = useState("");
@@ -276,6 +306,7 @@ function SopLibrary({ outlet, sops, categories, loading, canManage, onOpen, onEd
   }), [sops, query, categoryId, status, acknowledgement]);
 
   if (loading) return <LibrarySkeleton />;
+  if (error) return <section className="crew-sop-table-card" role="alert"><div className="crew-sop-compact-empty"><EmptyState title="Unable to load SOP Library" description="The SOP list request failed. Retry to load the outlet library." /><button className="btn-primary" type="button" onClick={onRetry}>Retry</button></div></section>;
   return <div className="crew-sop-library-sections">
     <section className="crew-sop-filter-card" aria-label="SOP filters"><div className="crew-sop-filterbar">
       <label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>
@@ -601,3 +632,7 @@ function CloneSopsModal({ targetOutlet, outlets, saving, onClose, onCloned }) {
 }
 
 function LibrarySkeleton() { return <div className="crew-sop-library-skeleton" aria-live="polite"><span /><span /><span /><p>Loading SOP Library…</p></div>; }
+
+function SopDetailLoading({ sop, onClose }) {
+  return <Modal title={sop.title} description="Loading SOP content…" size="2xl" onClose={onClose}><div className="crew-sop-library-skeleton" aria-live="polite"><span /><span /><span /><p>Loading the selected SOP version and sections…</p></div></Modal>;
+}

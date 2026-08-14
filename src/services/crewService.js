@@ -603,16 +603,19 @@ export const crewService = {
   },
 
   async listOnboardingAdmin(outletId) {
-    const { data, error } = await supabase
-      .from("crew_journeys")
-      .select(
-        "*, modules:crew_journey_modules(id,title,description,sort_order,estimated_minutes,required,status,lessons:crew_lessons(id,title,sort_order,content_type,required,estimated_minutes,blocks:crew_lesson_blocks(id,block_type,payload,sort_order),quizzes:crew_quizzes(id,title,passing_score,required,status,questions:crew_quiz_questions(id,prompt,question_type,explanation,sort_order,options:crew_quiz_options(id,label,is_correct,sort_order)))))",
-      )
-      .eq("outlet_id", outletId)
-      .eq("is_mandatory_onboarding", true)
-      .order("version", { ascending: false });
+    const { data, error } = await supabase.rpc("crew_admin_onboarding_list", {
+      p_outlet_id: outletId,
+    });
     throwSupabaseError("crew.listOnboardingAdmin", error);
     return (data || []).map(normalizeAdminJourney);
+  },
+
+  async getOnboardingAdmin(journeyId) {
+    const { data, error } = await supabase.rpc("crew_admin_onboarding_detail", {
+      p_journey_id: journeyId,
+    });
+    throwSupabaseError("crew.getOnboardingAdmin", error);
+    return data ? normalizeAdminJourney(data) : null;
   },
 
   async onboardingProgress(outletId) {
@@ -683,25 +686,19 @@ export const crewService = {
   },
 
   async listOutletSopsAdmin(outletId) {
-    const [{ data: sops, error: sopError }, { data: categories, error: categoryError }] =
-      await Promise.all([
-        supabase
-          .from("crew_sops")
-          .select(
-            "*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point,media_url,media_id,media_caption))",
-          )
-          .eq("outlet_id", outletId)
-          .order("updated_at", { ascending: false }),
-        supabase
-          .from("crew_sop_categories")
-          .select("id,outlet_id,name,sort_order,created_at,updated_at")
-          .eq("outlet_id", outletId)
-          .order("sort_order", { ascending: true })
-          .order("name", { ascending: true }),
-      ]);
-    throwSupabaseError("crew.listOutletSopsAdmin.sops", sopError);
-    throwSupabaseError("crew.listOutletSopsAdmin.categories", categoryError);
-    return { sops: sops || [], categories: categories || [] };
+    const { data, error } = await supabase.rpc("crew_sop_admin_library", {
+      p_outlet_id: outletId,
+    });
+    throwSupabaseError("crew.listOutletSopsAdmin", error);
+    return data || { sops: [], categories: [] };
+  },
+
+  async getSopAdmin(sopId) {
+    const { data, error } = await supabase.rpc("crew_sop_admin_detail", {
+      p_sop_id: sopId,
+    });
+    throwSupabaseError("crew.getSopAdmin", error);
+    return data || null;
   },
 
   async saveSopCategory(values) {

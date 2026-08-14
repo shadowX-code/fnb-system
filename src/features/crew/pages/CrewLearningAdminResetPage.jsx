@@ -24,9 +24,10 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
   const [section, setSection] = useState("modules");
   const [viewModuleId, setViewModuleId] = useState("");
   const [viewEmployeeId, setViewEmployeeId] = useState("");
-  const [editorId, setEditorId] = useState("");
+  const [editorJourney, setEditorJourney] = useState(null);
   const [cloneOpen, setCloneOpen] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const refreshSequence = useRef(0);
   const canManage = auth.hasPermission("crew_learning.manage");
@@ -35,7 +36,6 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
   const published = versions.find((item) => item.status === "published");
   const draft = versions.find((item) => item.status === "draft");
   const journey = published || draft;
-  const editorJourney = versions.find((item) => item.id === editorId);
 
   useEffect(() => {
     let active = true;
@@ -57,6 +57,7 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
     if (!targetOutletId) return { versions: [], progress: [], sops: [] };
     const requestId = ++refreshSequence.current;
     setLoading(true);
+    setLoadError("");
     try {
       const [versionResult, progressResult, sopResult] = await Promise.allSettled([
         crewService.listOnboardingAdmin(targetOutletId),
@@ -71,7 +72,7 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
       setVersions(nextVersions);
       setProgress(nextProgress);
       setSops(nextSops);
-      setEditorId((current) => nextVersions.some((item) => item.id === current) ? current : "");
+      setEditorJourney((current) => current && nextVersions.some((item) => item.id === current.id) ? current : null);
       if (progressResult.status === "rejected") ui.notify({ title: "Crew Progress is temporarily unavailable", message: progressResult.reason?.message || "Please try again.", tone: "warning" });
       if (sopResult.status === "rejected") ui.notify({ title: "SOP references are temporarily unavailable", message: sopResult.reason?.message || "Please try again before editing content.", tone: "warning" });
       return { versions: nextVersions, progress: nextProgress, sops: nextSops };
@@ -80,7 +81,8 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
       setVersions([]);
       setProgress([]);
       setSops([]);
-      setEditorId("");
+      setEditorJourney(null);
+      setLoadError(cause.message || "The Onboarding read could not be completed.");
       ui.notify({ title: "Unable to load Onboarding", message: cause.message, tone: "error" });
       return { versions: [], progress: [], sops: [] };
     } finally { if (requestId === refreshSequence.current) setLoading(false); }
@@ -89,7 +91,8 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
     setVersions([]);
     setProgress([]);
     setSops([]);
-    setEditorId("");
+    setEditorJourney(null);
+    setLoadError("");
     refresh(outletId);
   }, [outletId]);
 
@@ -101,21 +104,24 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
       if (!journeyId && published) journeyId = await crewService.newJourneyVersion(published.id);
       if (!journeyId) journeyId = await crewService.createDefaultOnboarding(outletId);
       const result = await refresh();
-      setEditorId(journeyId);
       if (!result.versions.some((item) => item.id === journeyId)) throw new Error("The onboarding draft could not be loaded.");
+      const detail = await crewService.getOnboardingAdmin(journeyId);
+      if (!detail) throw new Error("The onboarding draft detail could not be loaded.");
+      setEditorJourney(detail);
     } catch (cause) {
       ui.notify({ title: "Unable to open Onboarding editor", message: cause.message, tone: "error" });
     } finally { setSaving(false); }
   }
 
   async function saveDraft(nextDraft) {
-    const original = versions.find((item) => item.id === nextDraft.id);
+    const original = editorJourney;
     setSaving(true);
     try {
       const saved = await crewService.saveOnboardingDraft(original, nextDraft);
       const result = await refresh();
-      const current = result.versions.find((item) => item.id === saved.id) || saved;
-      setEditorId(current.id);
+      if (!result.versions.some((item) => item.id === saved.id)) throw new Error("The saved Onboarding version is unavailable.");
+      const current = await crewService.getOnboardingAdmin(saved.id);
+      setEditorJourney(current || saved);
       ui.notify({ title: "Onboarding draft saved", message: "All module, lesson and content changes were saved together." });
       return current;
     } catch (cause) {
@@ -135,7 +141,7 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
     setSaving(true);
     try {
       await crewService.publishJourney(nextDraft.id);
-      setEditorId("");
+      setEditorJourney(null);
       await refresh();
       ui.notify({ title: "Onboarding published", message: "Eligible Crew are enrolled automatically for this outlet." });
     } catch (cause) {
@@ -159,10 +165,10 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
 
   return <div className="crew-onboarding-admin-page">
     <PageHeader section="Crew · Learning" title="New Crew Onboarding" description="Mandatory for all eligible Crew" actions={<><SelectField className="crew-learning-outlet-context" label="Outlet" ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={accessibleOutlets.map((item) => ({ value: item.id, label: item.name }))} />{canManage ? <button className="btn-secondary" onClick={() => setCloneOpen(true)}><Copy size={15} /> Clone From Outlet</button> : null}{canManage ? <button className="btn-primary" disabled={saving} onClick={openEditor}>{draft ? "Continue Editing Draft" : "Edit Onboarding"}</button> : null}</>} />
-    {loading ? <LearningSkeleton /> : journey ? <OnboardingWorkspace outlet={outlet} journey={journey} draft={draft} progress={progress} section={section} setSection={setSection} onViewModule={setViewModuleId} onViewEmployee={setViewEmployeeId} /> : <EmptyState icon={GraduationCap} title={`No onboarding setup for ${outlet?.name || "this outlet"}`} description="Create the standard eight-module onboarding or clone an independent setup from another outlet." actions={canManage ? <><button className="btn-primary" onClick={openEditor}>Create Onboarding</button><button className="btn-secondary" onClick={() => setCloneOpen(true)}>Clone From Outlet</button></> : null} />}
+    {loading ? <LearningSkeleton /> : loadError ? <LearningLoadError message={loadError} onRetry={() => refresh(outletId)} /> : journey ? <OnboardingWorkspace outlet={outlet} journey={journey} draft={draft} progress={progress} section={section} setSection={setSection} onViewModule={setViewModuleId} onViewEmployee={setViewEmployeeId} /> : <EmptyState icon={GraduationCap} title={`No onboarding setup for ${outlet?.name || "this outlet"}`} description="Create the standard eight-module onboarding or clone an independent setup from another outlet." actions={canManage ? <><button className="btn-primary" onClick={openEditor}>Create Onboarding</button><button className="btn-secondary" onClick={() => setCloneOpen(true)}>Clone From Outlet</button></> : null} />}
     {viewModuleId && journey ? <ModuleViewModal module={journey.modules.find((item) => item.id === viewModuleId)} progress={progress} onClose={() => setViewModuleId("")} /> : null}
     {viewEmployeeId ? <ProgressDetailModal row={progress.find((item) => item.employee?.id === viewEmployeeId)} journey={journey} onClose={() => setViewEmployeeId("")} /> : null}
-    {editorJourney ? <CrewOnboardingEditor journey={editorJourney} outlet={outlet} sops={sops} saving={saving} confirm={ui.confirm} onClose={() => setEditorId("")} onSave={saveDraft} onPublish={publishOnboarding} /> : null}
+    {editorJourney ? <CrewOnboardingEditor journey={editorJourney} outlet={outlet} sops={sops} saving={saving} confirm={ui.confirm} onClose={() => setEditorJourney(null)} onSave={saveDraft} onPublish={publishOnboarding} /> : null}
     {cloneOpen ? <CloneOnboardingModal outlet={outlet} outlets={accessibleOutlets.filter((item) => item.id !== outletId)} saving={saving} onClose={() => setCloneOpen(false)} onClone={cloneOnboarding} /> : null}
   </div>;
 }
@@ -204,4 +210,5 @@ function CloneOnboardingModal({ outlet, outlets, saving, onClose, onClone }) {
 }
 
 function EmptyState({ icon: Icon, title, description, actions }) { return <section className="crew-learning-empty-state"><Icon size={24} /><h2>{title}</h2><p>{description}</p>{actions ? <div>{actions}</div> : null}</section>; }
+function LearningLoadError({ message, onRetry }) { return <section className="crew-learning-empty-state" role="alert"><CircleAlert size={24} /><h2>Unable to load onboarding</h2><p>{message}</p><div><button className="btn-primary" type="button" onClick={onRetry}>Retry</button></div></section>; }
 function LearningSkeleton() { return <div className="crew-learning-skeleton" aria-live="polite"><span /><span /><span /><p>Loading Onboarding…</p></div>; }

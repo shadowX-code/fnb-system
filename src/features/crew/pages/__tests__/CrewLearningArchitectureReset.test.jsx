@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 const mocks = vi.hoisted(() => ({
   listOnboarding: vi.fn(),
+  getOnboarding: vi.fn(),
   progress: vi.fn(),
   listSops: vi.fn(),
   learningHome: vi.fn(),
@@ -24,6 +25,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../../services/crewService.js", () => ({
   crewService: {
     listOnboardingAdmin: mocks.listOnboarding,
+    getOnboardingAdmin: mocks.getOnboarding,
     onboardingProgress: mocks.progress,
     listOutletSopsAdmin: mocks.listSops,
     learningHome: mocks.learningHome,
@@ -113,6 +115,7 @@ const ui = { notify: vi.fn(), confirm: vi.fn() };
 
 beforeEach(() => {
   mocks.listOnboarding.mockReset().mockResolvedValue([journey, draftJourney]);
+  mocks.getOnboarding.mockReset().mockImplementation(async (journeyId) => structuredClone(journeyId === draftJourney.id ? draftJourney : journey));
   mocks.progress.mockReset().mockResolvedValue([
     {
       employee: { id: "employee-1", full_name: "Alex Tan", position: "Crew" },
@@ -268,6 +271,16 @@ describe("Crew Learning architecture reset UI", () => {
     expect(await screen.findByText("Welcome & Workplace")).not.toBeNull();
     expect(screen.getAllByText("Hola Hola Kopitiam Ipoh").length).toBeGreaterThan(0);
     expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "SOP references are temporarily unavailable" }));
+  });
+
+  it("renders a retryable error instead of a false empty state when Onboarding times out", async () => {
+    mocks.listOnboarding.mockRejectedValueOnce(new Error("canceling statement due to statement timeout"));
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    expect(await screen.findByText("Unable to load onboarding")).not.toBeNull();
+    expect(screen.queryByText(/No onboarding setup for/)).toBeNull();
+    mocks.listOnboarding.mockResolvedValueOnce([journey]);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Welcome & Workplace")).not.toBeNull();
   });
 
   it("uses the App-scoped outlet store without requiring duplicate role outlet metadata", async () => {
