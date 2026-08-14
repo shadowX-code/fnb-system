@@ -220,7 +220,7 @@
   display:grid;
   width:100%;
   min-width:0;
-  grid-template-columns:minmax(0,1fr) 70px;
+  grid-template-columns:minmax(0,1fr) 80px;
   align-items:center;
   margin-top:7px;
 }
@@ -323,7 +323,7 @@
 }
 .crew-v2-home .crew-home-radar-orbit{
   top:50%;
-  left:calc(50% + 6px);
+  left:calc(50% + 12px);
   width:151px;
   height:151px;
   margin:-75.5px 0 0 -75.5px;
@@ -362,6 +362,8 @@
 }
 .crew-v2-home .crew-home-clock-rings::before,
 .crew-v2-home .crew-home-clock-rings::after{display:none}
+.crew-v2-home .crew-home-clock-rings>span,
+.crew-v2-home .crew-home-clock-rings>b{display:none}
 .crew-v2-home .crew-home-clock-action>span,
 .crew-v2-home .crew-home-complete-ring>span{gap:3px;color:#fff}
 .crew-v2-home .crew-home-clock-action svg,
@@ -416,7 +418,7 @@
   .crew-v2-home .crew-home-attendance-main{min-height:186px;grid-template-columns:minmax(0,58%) minmax(0,42%)}
   .crew-v2-home .crew-home-attendance-copy{padding:14px 5px 12px 14px}
   .crew-v2-home .crew-home-attendance .crew-home-attendance-kicker{margin-top:11px;font-size:10.5px}
-  .crew-home-ready-row{grid-template-columns:minmax(0,1fr) 65px}
+  .crew-home-ready-row{grid-template-columns:minmax(0,1fr) 76px}
   .crew-v2-home .crew-home-current-time,
   .crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>.crew-home-worked{font-size:32px}
   .crew-v2-home .crew-home-current-time>b{font-size:10px}
