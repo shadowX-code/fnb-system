@@ -249,6 +249,8 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
     expect(await screen.findByRole("dialog", { name: "Confirm Clock In" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText("Confirmed")).not.toBeNull();
+    expect(document.querySelector(".crew-home-clock-zone.is-confirmed")).not.toBeNull();
     expect(await screen.findByRole("dialog", { name: "Clocked In Successfully" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Go to Home" }));
     expect(await screen.findByText("On Shift")).not.toBeNull();

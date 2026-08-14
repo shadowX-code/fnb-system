@@ -185,6 +185,7 @@ export default function CrewMobileApp() {
   const [error, setError] = useState("");
   const [clockDraft, setClockDraft] = useState(null);
   const [clockSuccess, setClockSuccess] = useState(null);
+  const [clockTransition, setClockTransition] = useState("");
   const [operationTarget, setOperationTarget] = useState(null);
   const [tasksExpanded, setTasksExpanded] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
@@ -251,6 +252,7 @@ export default function CrewMobileApp() {
   async function prepareClock(action) {
     setError("");
     setLoading(true);
+    setClockTransition("locating");
     setClockDraft(null);
     setException("");
     setOtherReason("");
@@ -262,6 +264,7 @@ export default function CrewMobileApp() {
       setClockDraft({ action, location: null, locationError: cause.message });
     } finally {
       setLoading(false);
+      setClockTransition("");
     }
   }
 
@@ -270,18 +273,26 @@ export default function CrewMobileApp() {
     const requiresException = context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters));
     if (requiresException && !reason) return setError(`Choose an exception reason to clock ${clockDraft.action === "out" ? "out" : "in"}.`);
     setLoading(true);
+    setClockTransition("scanning");
     setError("");
     try {
       const action = clockDraft.action;
       const result = await crewService.clock(session.token, action, clockDraft.location || null, reason);
       setClockDraft(null);
+      setClockTransition("confirmed");
       await refresh();
-      if (action === "in") setClockSuccess({
-        time: result?.record?.clock_in_at || new Date().toISOString(),
-        outlet: result?.outlet?.name || context?.outlet_name || "Your outlet",
-        role: todayRoster?.position || employee.position || "Crew Member",
-      });
+      const transitionDelay = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches ? 0 : 520;
+      await new Promise((resolve) => window.setTimeout(resolve, transitionDelay));
+      setClockTransition("");
+      if (action === "in") {
+        setClockSuccess({
+          time: result?.record?.clock_in_at || new Date().toISOString(),
+          outlet: result?.outlet?.name || context?.outlet_name || "Your outlet",
+          role: todayRoster?.position || employee.position || "Crew Member",
+        });
+      }
     } catch (cause) {
+      setClockTransition("");
       setError(cause.message || "Unable to update attendance.");
     } finally {
       setLoading(false);
@@ -355,8 +366,9 @@ export default function CrewMobileApp() {
             <p><MapPin size={15} /> {attendanceOutlet}</p>
             {attendanceMode !== "completed" && <em className={context?.location_enabled ? "is-verified" : ""}><ShieldCheck size={15} /> {context?.location_enabled ? "Within area · GPS Verified" : "Location verification at clock time"}</em>}
           </div>
-          <div className="crew-home-clock-zone">
-            {attendanceMode !== "completed" ? <button type="button" className="crew-home-clock-action" onClick={() => prepareClock(attendanceMode === "on" ? "out" : "in")} disabled={loading} aria-label={attendanceMode === "on" ? "Clock Out" : "Clock In"}><span><Fingerprint size={28} /><strong>{loading ? "Locating…" : attendanceMode === "on" ? "Clock Out" : "Clock In"}</strong><small>{attendanceMode === "on" ? "Tap to finish" : "Tap to start"}</small></span></button> : <div className="crew-home-complete-ring" aria-label="Shift completed"><span><Check size={27} /><strong>Completed</strong><small>Today’s shift</small></span></div>}
+          <div className={`crew-home-clock-zone is-${attendanceMode}${clockTransition ? ` is-${clockTransition}` : ""}`}>
+            <span className="crew-home-radar-orbit" aria-hidden="true"><i /><b /></span>
+            {attendanceMode !== "completed" ? <button type="button" className="crew-home-clock-action" onClick={() => prepareClock(attendanceMode === "on" ? "out" : "in")} disabled={loading || Boolean(clockTransition)} aria-label={attendanceMode === "on" ? "Clock Out" : "Clock In"}><i className="crew-home-clock-rings" aria-hidden="true"><span /><b /></i><span>{clockTransition === "confirmed" ? <Check size={28} /> : <Fingerprint size={28} />}<strong>{clockTransition === "confirmed" ? "Confirmed" : loading ? "Locating…" : attendanceMode === "on" ? "Clock Out" : "Clock In"}</strong><small>{clockTransition === "confirmed" ? "Attendance secured" : attendanceMode === "on" ? "Tap to finish" : "Tap to start"}</small></span></button> : <div className="crew-home-complete-ring" aria-label="Shift completed"><i className="crew-home-clock-rings" aria-hidden="true"><span /><b /></i><span><Check size={27} /><strong>Completed</strong><small>{formatDuration(completedToday.clock_in_at, completedToday.clock_out_at)}</small></span></div>}
           </div>
         </div>
         <button type="button" className="crew-home-attendance-footer" onClick={() => setScreen("attendance")}><span><CalendarCheck size={18} /><small>Today’s shift</small><strong>{shiftLabel}</strong></span><em>View Attendance <ChevronRight size={16} /></em></button>
