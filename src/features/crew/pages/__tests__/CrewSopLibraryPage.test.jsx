@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(), detail: vi.fn(), saveSop: vi.fn(), saveCategory: vi.fn(), newVersion: vi.fn(), saveDraft: vi.fn(),
   saveSections: vi.fn(), deleteDraft: vi.fn(), swap: vi.fn(), publish: vi.fn(), usage: vi.fn(), clone: vi.fn(),
   uploadMedia: vi.fn(), deleteMedia: vi.fn(), mediaUrl: vi.fn(),
+  manageCategory: vi.fn(),
   resumeMediaCleanup: vi.fn(),
 }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
@@ -12,6 +13,7 @@ vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   getSopAdmin: mocks.detail,
   saveSop: mocks.saveSop,
   saveSopCategory: mocks.saveCategory,
+  manageSopCategory: mocks.manageCategory,
   newSopVersion: mocks.newVersion,
   saveDraftRecord: mocks.saveDraft,
   saveSopDraftSections: mocks.saveSections,
@@ -62,6 +64,7 @@ beforeEach(() => {
   mocks.detail.mockReset().mockImplementation(async (sopId) => structuredClone(sops.find((sop) => sop.id === sopId)));
   mocks.saveSop.mockReset().mockResolvedValue({ id: "new-sop" });
   mocks.saveCategory.mockReset();
+  mocks.manageCategory.mockReset().mockResolvedValue({ id: "cat-new", name: "New Category", sop_count: 0 });
   mocks.newVersion.mockReset().mockResolvedValue("new-version");
   mocks.saveDraft.mockReset().mockImplementation(async (_table, values) => ({ id: values.id || "new-section", ...values }));
   mocks.saveSections.mockReset().mockImplementation(async (_versionId, sections) => sections.map((section, index) => ({ ...section, id: String(section.id).startsWith("temp:") ? `saved-${index}` : section.id, sort_order: index + 1 })));
@@ -86,8 +89,8 @@ describe("Crew SOP Library Admin", () => {
   it("uses outlet-scoped table filters and shows draft state", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "SOP Library" });
-    expect(document.querySelector("table").className).toContain("min-w-[980px]");
-    expect(screen.getByText("Draft v2")).not.toBeNull();
+    expect(document.querySelector("table").className).toContain("min-w-[1040px]");
+    expect(screen.getByText("Draft changes")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Search SOP"), { target: { value: "Kitchen" } });
     expect(screen.queryByText("Welcome & Goodbye Standard")).toBeNull();
     expect(screen.getByText("Kitchen Safety")).not.toBeNull();
@@ -97,12 +100,12 @@ describe("Crew SOP Library Admin", () => {
     await waitFor(() => expect(mocks.list).toHaveBeenCalledWith("outlet-2"));
   });
 
-  it("shows a compact empty state with create and clone actions", async () => {
+  it("shows a compact empty state with one Create SOP entry point", async () => {
     mocks.list.mockResolvedValue({ categories: [], sops: [] });
     renderPage();
     await screen.findByText("No SOPs yet");
-    expect(screen.getAllByRole("button", { name: /Create SOP|New SOP/ }).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: "Clone From Outlet" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Create SOP" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Clone From Outlet" })).toBeNull();
   });
 
   it("separates a failed SOP request from a successful empty library and retries", async () => {
@@ -142,22 +145,24 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getAllByText(/Draft v1/).length).toBeGreaterThan(0);
   });
 
-  it("validates the create modal, creates acknowledgement metadata and enters draft editor", async () => {
+  it("creates a complete SOP draft from one editor without an intermediate metadata modal", async () => {
     const created = { id: "new-sop", title: "Cash Handling", summary: "Cash control", category: "Service", category_id: "cat-service", status: "draft", versions: [{ id: "new-version", version: 1, status: "draft", require_acknowledgement: true, sections: [] }] };
     mocks.list.mockResolvedValueOnce({ categories, sops }).mockResolvedValue({ categories, sops: [...sops, created] });
     renderPage();
     await screen.findByRole("heading", { name: "SOP Library" });
-    fireEvent.click(screen.getByRole("button", { name: "New SOP" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create SOP" }));
     const modal = screen.getByRole("heading", { name: "Create SOP" }).closest("div.fixed");
-    const createButton = within(modal).getByRole("button", { name: "Create Draft" });
+    const createButton = within(modal).getByRole("button", { name: "Save Draft" });
     expect(createButton.disabled).toBe(true);
     fireEvent.change(within(modal).getByLabelText("Title *"), { target: { value: "Cash Handling" } });
     fireEvent.change(within(modal).getByLabelText("Summary"), { target: { value: "Cash control" } });
+    fireEvent.change(within(modal).getByLabelText("Section Title *"), { target: { value: "Cash security" } });
     fireEvent.click(within(modal).getByLabelText("Acknowledgement Required"));
     fireEvent.click(createButton);
     await screen.findByText("Draft v1");
     expect(mocks.newVersion).toHaveBeenCalledWith("new-sop");
     expect(mocks.saveDraft).toHaveBeenCalledWith("crew_sop_versions", { id: "new-version", require_acknowledgement: true });
+    expect(mocks.saveSections).toHaveBeenCalledWith("new-version", expect.arrayContaining([expect.objectContaining({ title: "Cash security" })]), [], []);
     expect(screen.getByRole("heading", { name: "Cash Handling" })).not.toBeNull();
   });
 
@@ -242,7 +247,7 @@ describe("Crew SOP Library Admin", () => {
     expect(JSON.stringify(saved)).not.toContain("data:image");
   });
 
-  it("switches historical versions from the header popover and keeps usage auxiliary", async () => {
+  it("switches historical versions and opens dependency usage directly from the list", async () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
@@ -260,12 +265,15 @@ describe("Crew SOP Library Admin", () => {
     const versionHistory = screen.getByRole("menu", { name: "Version History" });
     fireEvent.click(within(versionHistory).getAllByRole("button", { name: "View" })[0]);
     expect(screen.getByRole("button", { name: "SOP version" }).textContent).toContain("Published v1");
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
     mocks.usage.mockResolvedValue({ current: [{ journey_id: "j1", journey_name: "New Crew Onboarding", journey_version: 2, module_title: "Greeting", lesson_title: "Welcome guests" }], historical: [{ journey_name: "New Crew Onboarding", journey_version: 1, assignment_count: 3 }] });
-    fireEvent.click(screen.getByRole("button", { name: "View Usage" }));
-    await screen.findByText("Used in Onboarding");
+    const welcomeRow = screen.getByText("Welcome & Goodbye Standard").closest("tr");
+    fireEvent.click(within(welcomeRow).getByRole("button", { name: /Onboarding/ }));
+    await screen.findByRole("heading", { name: "SOP Usage" });
+    expect(screen.getByText("Current Onboarding References")).not.toBeNull();
     expect(screen.getByText("Welcome guests")).not.toBeNull();
     expect(screen.getByText("New Crew Onboarding · Greeting")).not.toBeNull();
-    expect(screen.getByText("Historical snapshot · unchanged by future SOP versions")).not.toBeNull();
+    expect(screen.getByText("Frozen snapshot · future SOP changes do not affect it")).not.toBeNull();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
@@ -318,15 +326,29 @@ describe("Crew SOP Library Admin", () => {
     expect(mocks.publish).toHaveBeenCalledWith("v2");
   });
 
-  it("clones only selected published SOPs from an accessible outlet", async () => {
+  it("clones one selected published SOP from inside Create SOP", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "SOP Library" });
-    fireEvent.click(screen.getByRole("button", { name: "Clone From Outlet" }));
-    await screen.findByRole("heading", { name: "Clone SOP Library" });
+    fireEvent.click(screen.getByRole("button", { name: "Create SOP" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Clone existing SOP" }));
     expect(screen.getByLabelText("Source Outlet").textContent).toContain("Friends Corner");
     await waitFor(() => expect(screen.getByLabelText("Kitchen Safety")).not.toBeNull());
     fireEvent.click(screen.getByLabelText("Kitchen Safety"));
-    fireEvent.click(screen.getByRole("button", { name: "Clone SOPs" }));
-    await waitFor(() => expect(mocks.clone).toHaveBeenCalledWith(expect.objectContaining({ sourceOutletId: "outlet-2", targetOutletId: "outlet-1", sopIds: ["sop-1"] })));
+    fireEvent.click(screen.getByRole("button", { name: "Clone as Draft" }));
+    await waitFor(() => expect(mocks.clone).toHaveBeenCalledWith(expect.objectContaining({ sourceOutletId: "outlet-2", targetOutletId: "outlet-1", sopIds: ["sop-2"] })));
+  });
+
+  it("manages outlet categories and blocks deleting an in-use category", async () => {
+    mocks.list.mockResolvedValue({ categories: categories.map((row, index) => ({ ...row, sop_count: index + 1 })), sops });
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getByRole("button", { name: "Manage Categories" }));
+    expect(screen.getByRole("heading", { name: "Manage Categories" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Delete Service" }));
+    expect(await screen.findByText(/Category is used by 1 SOP/)).not.toBeNull();
+    expect(mocks.manageCategory).not.toHaveBeenCalledWith(expect.objectContaining({ action: "delete" }));
+    fireEvent.change(screen.getByLabelText("New Category"), { target: { value: "Beverage" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Category" }));
+    await waitFor(() => expect(mocks.manageCategory).toHaveBeenCalledWith(expect.objectContaining({ action: "create", name: "Beverage" })));
   });
 });

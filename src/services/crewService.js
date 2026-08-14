@@ -717,6 +717,18 @@ export const crewService = {
     return data;
   },
 
+  async manageSopCategory({ outletId, action, categoryId = null, name = null, sortOrder = null }) {
+    const { data, error } = await supabase.rpc("crew_manage_sop_category", {
+      p_outlet_id: outletId,
+      p_action: action,
+      p_category_id: categoryId,
+      p_name: name,
+      p_sort_order: sortOrder,
+    });
+    throwSupabaseError("crew.manageSopCategory", error);
+    return data;
+  },
+
   async saveJourney(values) {
     const { id, ...payload } = values;
     const query = id ? supabase.from("crew_journeys").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id) : supabase.from("crew_journeys").insert(payload);
