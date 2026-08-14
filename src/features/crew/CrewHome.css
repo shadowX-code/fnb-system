@@ -271,7 +271,7 @@
   line-height:1.1!important;
   white-space:nowrap;
 }
-.crew-home-ready-context>small>span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.crew-home-ready-context>small>span{display:block;min-width:0;overflow:hidden;font-size:7.5px!important;text-overflow:ellipsis;white-space:nowrap}
 .crew-home-ready-context svg{width:11px;height:11px;flex:0 0 auto;stroke-width:2.8}
 .crew-home-attendance-metric{display:grid;gap:3px;margin-top:8px}
 .crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>small{
@@ -323,7 +323,7 @@
 }
 .crew-v2-home .crew-home-radar-orbit{
   top:50%;
-  left:calc(50% + 12px);
+  left:calc(50% + 9px);
   width:151px;
   height:151px;
   margin:-75.5px 0 0 -75.5px;
