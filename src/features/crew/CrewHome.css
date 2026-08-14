@@ -191,7 +191,7 @@
   box-shadow:none;
 }
 .crew-v2-home .crew-home-attendance-copy{
-  z-index:3;
+  z-index:6;
   justify-content:flex-start;
   gap:0;
   padding:15px 7px 13px 17px;
