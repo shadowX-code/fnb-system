@@ -5217,6 +5217,13 @@ Service rules:
 - Permissions are `crew_growth.view`, `crew_growth.manage`, `crew_growth.assess`, and `crew_growth.certify`. All mutations use fixed-search-path, permission- and outlet-checking authorities. Internal evidence/state helpers remain non-executable by `PUBLIC`, `anon`, and ordinary `authenticated` callers; Growth tables expose scoped reads only and no direct client DML.
 - Staging QA data is recreated only through `scripts/seedCrewGrowthQaData.sh`, which hard-checks Supabase ref `ujkzdaaadnvcfayuldmh`, reuses designated QA Crew and the scoped Crew Admin QA identity, and never runs automatically or targets Production.
 
+### Crew Reward Overview
+
+- Admin navigation has one canonical Reward destination: **Reward Overview**. The former Reward Cycles route is compatibility-only and resolves to Reward Overview, where Campaign History is part of the same operational page.
+- Reward operates as a monthly Campaign: choose month and pool, freeze the participating Crew snapshot, calculate from canonical finalized Performance and eligible Attendance evidence, review audited adjustments, finalize immutable payouts, and retain Campaign history.
+- `crew_reward_participants` is the server-authoritative Campaign membership snapshot. Later hires, transfers, terminations, or outlet changes never silently rewrite historical participation. Calculation reads this snapshot and does not trust a browser-supplied employee identity after Campaign creation.
+- Canonical Reward formulas, calculation version, pool cap, adjustment audit, outlet scope, RLS, finalization immutability, and Crew Mobile safe-read authority remain unchanged. The Admin UI displays server-returned hours, contribution, Performance factor, calculated reward, adjustment, and final payout; it does not reproduce the calculation in the browser.
+
 ### Crew Learning Product Architecture
 
 - Crew Learn has two primary product surfaces only: mandatory **New Crew Onboarding** and the outlet **SOP Library**. Generic Journey Library, manual assignment, and standalone Crew Progress concepts remain historical compatibility data rather than primary navigation.

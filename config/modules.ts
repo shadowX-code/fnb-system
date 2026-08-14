@@ -876,7 +876,7 @@ export const moduleRegistry: AppModule[] = [
     label: "Reward Cycles",
     route: "/crew/reward/cycles",
     icon: "crew-reward-cycles",
-    sidebar: true,
+    sidebar: false,
     workspace: "crew",
     permissions: {},
   },

@@ -305,9 +305,15 @@ export const crewService = {
     return data || { cycles: [], cycle: null, entries: [], adjustments: [] };
   },
 
-  async createRewardCycle({ outletId, period, configuredPool, minimumPerformance }) {
-    const { data, error } = await supabase.rpc("crew_reward_create_cycle", { p_outlet_id: outletId, p_period: period, p_configured_pool: configuredPool, p_minimum_performance: minimumPerformance });
-    throwSupabaseError("crew.createRewardCycle", error);
+  async createRewardCampaign({ outletId, period, configuredPool, employeeIds = null, minimumPerformance = 60 }) {
+    const { data, error } = await supabase.rpc("crew_reward_create_campaign", {
+      p_outlet_id: outletId,
+      p_period: period,
+      p_configured_pool: configuredPool,
+      p_employee_ids: employeeIds,
+      p_minimum_performance: minimumPerformance,
+    });
+    throwSupabaseError("crew.createRewardCampaign", error);
     return data;
   },
 

@@ -456,10 +456,10 @@ export const routeDetails = {
     props: { initialTab: "overview" },
   },
   crew_reward_cycles: {
-    description: "Review Reward cycle history, calculations and immutable payout snapshots.",
+    description: "Compatibility route for unified Reward Overview Campaign history.",
     component: CrewRewardAdminPage,
     permission: "crew_reward.view",
-    props: { initialTab: "cycles" },
+    props: {},
   },
 };
 
