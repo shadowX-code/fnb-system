@@ -1011,12 +1011,14 @@ export const crewService = {
     return data || [];
   },
 
-  async listAttendance() {
+  async listAttendance({ from: requestedFrom, to: requestedTo, outletId = null } = {}) {
     const today = localBusinessDate();
-    const from = new Date(`${today}T00:00:00`);
-    from.setDate(from.getDate() - 90);
+    const fallbackFrom = new Date(`${today}T00:00:00`);
+    fallbackFrom.setDate(fallbackFrom.getDate() - 90);
     const { data, error } = await supabase.rpc("crew_attendance_admin_with_roster", {
-      p_from: localBusinessDate(from), p_to: today, p_outlet_id: null,
+      p_from: requestedFrom || localBusinessDate(fallbackFrom),
+      p_to: requestedTo || today,
+      p_outlet_id: outletId || null,
     });
     throwSupabaseError("crew.listAttendance", error);
     return data || [];
