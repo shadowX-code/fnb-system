@@ -175,14 +175,21 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getByText("Saved")).not.toBeNull();
   });
 
-  it("previews the current draft without turning the document into an editable form", async () => {
+  it("previews unsaved draft state in the shared scrollable Crew document", async () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Unsaved greeting title" } });
+    const editor = screen.getByRole("textbox", { name: "Content" });
+    editor.innerHTML = "<p><strong>Unsaved rich greeting.</strong></p>";
+    fireEvent.input(editor);
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
-    expect(screen.getByRole("heading", { name: "Preview · v2" })).not.toBeNull();
+    expect(screen.getByLabelText("Preview v2")).not.toBeNull();
     expect(screen.getByRole("button", { name: "← Back to Editor" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Unsaved greeting title" })).not.toBeNull();
+    expect(screen.getByText("Unsaved rich greeting.").closest("strong")).not.toBeNull();
     expect(screen.getByText("Smile and make eye contact.")).not.toBeNull();
+    expect(screen.getByTestId("sop-preview-scroll").className).toContain("crew-sop-preview-scroll");
     expect(screen.queryByLabelText("Document version")).toBeNull();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });

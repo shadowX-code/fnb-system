@@ -12,7 +12,7 @@ import {
 import { crewService } from "../../../services/crewService.js";
 import CrewRichContent from "./CrewRichContent.jsx";
 import CrewLearningImage from "./CrewLearningImage.jsx";
-import CrewSopImage from "./CrewSopImage.jsx";
+import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewLearnHome from "./CrewLearnHome.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 
@@ -313,11 +313,7 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
       <span className="crew-learning-kicker">{sop.category} · v{sop.version}</span>
       <h2>{sop.title}</h2>
       <p className="crew-learning-summary">{sop.summary || sop.change_summary}</p>
-      {sop.sections?.map((section) => (
-        <article key={section.id} className={section.key_point ? "crew-sop-section is-key" : "crew-sop-section"}>
-          <h3>{section.title}</h3><CrewRichContent html={section.body} /><CrewSopImage media={section.media} token={token} sopVersionId={sop.id} />{section.key_point && <span>Key point</span>}
-        </article>
-      ))}
+      <CrewSopDocument sections={sop.sections} token={token} sopVersionId={sop.id} className="is-mobile" />
       {error && <p className="crew-mobile-error">{error}</p>}
       {sop.acknowledgement_required && (
         sop.acknowledged
