@@ -1599,16 +1599,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  async function saveRawMaterial(form) {
+  async function saveRawMaterial(form, { refresh = true, closeModal = true } = {}) {
+    let saved;
     try {
-      await factoryService.saveRawMaterial(form, auth?.profile?.id);
+      saved = await factoryService.saveRawMaterial(form, auth?.profile?.id);
     } catch (error) {
       ui?.notify?.({ title: "Failed to save raw material", message: error.message, tone: "error" });
       throw error;
     }
     ui?.notify?.({ title: form.id ? "Raw material updated" : "Raw material created", tone: "success" });
-    setModal(null);
-    await refreshFactoryAfterMutation();
+    if (closeModal) setModal(null);
+    if (refresh) await refreshFactoryAfterMutation();
+    return saved;
   }
 
   async function importRawMaterials(materials = []) {
@@ -3412,6 +3414,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openFinishedGoodCategory={() => setModal({ type: "finished-good-category" })}
           openCreateRawMaterial={() => setModal({ type: "raw-material" })}
           openEditRawMaterial={(material) => setModal({ type: "raw-material", value: material })}
+          saveRawMaterial={saveRawMaterial}
           importRawMaterials={importRawMaterials}
           openRawMaterialCost={(material) => setModal({ type: "raw-material-cost", material })}
           openRawMaterialImage={(material) => setModal({ type: "raw-material-image", material })}
