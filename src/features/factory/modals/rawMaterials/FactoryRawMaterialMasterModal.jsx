@@ -30,6 +30,7 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
     category: "",
     uom: "kg",
     min_stock_level: 0,
+    par_level: "",
     manual_unit_cost: "",
     manual_cost_uom: "kg",
     expiry_tracking_mode: "optional",
@@ -60,6 +61,7 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
       material_code: !String(form.material_code || "").trim() ? "SKU Code is required." : "",
       name_en: !String(form.name_en || "").trim() ? "Raw Material Name (EN) is required." : "",
       uom: !String(form.uom || "").trim() ? "Default UOM is required." : "",
+      par_level: form.par_level !== "" && (!Number.isFinite(Number(form.par_level)) || Number(form.par_level) < 0) ? "Par Level must be zero or greater." : "",
       status: !String(form.status || "").trim() ? "Status is required." : "",
       shelf_life_days: form.shelf_life_days !== "" && (!Number.isInteger(Number(form.shelf_life_days)) || Number(form.shelf_life_days) <= 0) ? "Shelf Life must be a whole number greater than zero." : "",
     };
@@ -174,6 +176,10 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
               setForm((current) => ({ ...current, uom }));
             }}
           />
+        </Field>
+        <Field label={`Par Level${form.uom ? ` (${form.uom})` : ""}`}>
+          <input className={inputClass()} type="number" min="0" step="0.0001" placeholder="Optional target stock level" value={form.par_level ?? ""} onChange={(event) => setForm((current) => ({ ...current, par_level: event.target.value }))} />
+          <div className="mt-1 text-xs font-semibold text-text-secondary">Target / ideal stock level. Minimum Stock remains the low-stock threshold.</div>
         </Field>
         <section className="space-y-3 rounded-xl border border-border bg-slate-50 p-3">
           <div>

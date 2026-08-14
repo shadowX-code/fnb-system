@@ -19,4 +19,9 @@ describe("Factory raw material import preview", () => {
     const preview = buildRawMaterialImportPreview([{ __row: 2, "Raw Material Name": "A", Code: "RAW-1", Category: "Spices", UOM: "kg" }, { __row: 3, "Raw Material Name": "B", Code: "raw-1", Category: "Spices", UOM: "kg" }], masters);
     expect(preview.every((row) => row.errors.includes("Duplicate Code in file."))).toBe(true);
   });
+
+  it("keeps Par Level optional, forwards a valid value, and rejects invalid values", () => {
+    const [blank, valid, invalid] = buildRawMaterialImportPreview([{ __row: 2, "Raw Material Name": "Blank", Code: "RAW-2", Category: "Spices", UOM: "kg" }, { __row: 3, "Raw Material Name": "Target", Code: "RAW-3", Category: "Spices", UOM: "kg", "Par Level": "20" }, { __row: 4, "Raw Material Name": "Invalid", Code: "RAW-4", Category: "Spices", UOM: "kg", "Par Level": "-1" }], masters);
+    expect(blank.material.par_level).toBeNull(); expect(valid.material.par_level).toBe(20); expect(invalid.errors).toContain("Par Level must be a valid non-negative number.");
+  });
 });

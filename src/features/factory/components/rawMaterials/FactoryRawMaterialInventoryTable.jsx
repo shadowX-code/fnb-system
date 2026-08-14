@@ -7,6 +7,7 @@ function rawMaterialStatusTone(stockStatus) {
   if (stockStatus === "Low Stock") return "warning";
   return "success";
 }
+function coverage(row) { const par = Number(row.par_level); if (!(par > 0)) return null; const percent = (Number(row.current_balance || 0) / par) * 100; return { percent, label: percent >= 100 ? "Healthy" : percent >= 50 ? "Low" : "Critical", tone: percent >= 100 ? "bg-emerald-500" : percent >= 50 ? "bg-amber-500" : "bg-rose-500" }; }
 
 export default function FactoryRawMaterialInventoryTable({ rows, canEdit, categorySort = "", onCategorySort, materialLabel, formatQuantity, formatDate, formatCost, normalizedCostUnit, onPreviewImage, onOpenCost, onOpenDetail, onEdit }) {
   const columns = [
@@ -32,6 +33,8 @@ export default function FactoryRawMaterialInventoryTable({ rows, canEdit, catego
     { key: "category", label: <button className="inline-flex items-center gap-1.5 transition hover:text-text-primary focus:outline-none focus:text-text-primary" type="button" onClick={onCategorySort} aria-label={`Sort Category ${categorySort === "asc" ? "descending" : categorySort === "desc" ? "default" : "ascending"}`}><span>Category</span>{categorySort === "asc" ? <ArrowUp size={13} /> : categorySort === "desc" ? <ArrowDown size={13} /> : <ArrowUpDown className="text-text-secondary" size={13} />}</button>, render: (row) => row.category || "No category" },
     { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
     { key: "current_balance", label: "Current Balance", render: (row) => formatQuantity(row.current_balance, row.uom) },
+    { key: "par_level", label: "Par Level", render: (row) => Number(row.par_level) > 0 ? formatQuantity(row.par_level, row.uom) : "Not Set" },
+    { key: "coverage", label: "Coverage", render: (row) => { const value = coverage(row); return !value ? "Not Set" : <div className="min-w-[100px]"><div className="flex justify-between text-xs font-semibold"><span>{value.label}</span><span>{value.percent.toFixed(0)}%</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100"><div className={`h-full ${value.tone}`} style={{ width: `${Math.min(value.percent, 100)}%` }} /></div></div>; } },
     { key: "latest_cost", label: "Latest Cost", render: (row) => (
       <button className="font-semibold text-primary underline-offset-2 hover:underline" type="button" onClick={() => onOpenCost(row)}>
         {row.latest_cost_missing ? "Missing Cost" : row.latest_cost_uom ? `${formatCost(row.latest_cost)}/${normalizedCostUnit(row.latest_cost_uom)?.display || row.latest_cost_uom}` : "Unsupported UOM"}
