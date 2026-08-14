@@ -138,6 +138,17 @@ describe("Factory master-data modal contracts", () => {
     await waitFor(() => expect(savePar).toHaveBeenCalledWith({ sku: expect.objectContaining({ id: sku.id }), par_level: "12" }));
   });
 
+  it("renders both Factory category empty states without a runtime reference error", () => {
+    const finishedView = render(<FinishedGoodCategoryModal categories={[]} onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("No categories")).not.toBeNull();
+    expect(screen.getByText("Create a category before saving finished good products.")).not.toBeNull();
+    finishedView.unmount();
+
+    render(<RawMaterialCategoryModal categories={[]} onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("No categories")).not.toBeNull();
+    expect(screen.getByText("Create a category before saving raw material master records.")).not.toBeNull();
+  });
+
   it("renders the read-only Raw Material image preview from the exact material image", () => {
     render(<RawMaterialImagePreviewModal material={material} onClose={vi.fn()} />);
     expect(screen.getByRole("img", { name: "Chili" }).getAttribute("src")).toBe(material.image_url);
