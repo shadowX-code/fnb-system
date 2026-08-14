@@ -44,6 +44,9 @@ describe("Crew Performance Admin", () => {
     expect(screen.getAllByText("Mina Lee").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /Clear/ }));
     expect(screen.getAllByText("Alex Tan").length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByPlaceholderText("Name or employee code"), { target: { value: "Nobody matches" } });
+    expect(screen.getByText("No reviews match these filters")).not.toBeNull();
+    expect(screen.getByText("No Crew match these filters")).not.toBeNull();
   });
 
   it("keeps unfavorable feedback and records an audited exclusion", async () => {

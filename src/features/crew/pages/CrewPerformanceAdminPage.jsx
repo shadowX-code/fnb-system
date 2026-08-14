@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, BarChart3, CheckCircle2, ChevronRight, CircleHelp, ClipboardCheck, MessageSquareText, RotateCcw, Search, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -80,19 +81,20 @@ function PerformanceOverview({ data, filters, onFiltersChange, onOpen, onReview,
   const framework = performanceFramework(rows);
   return <div className="crew-performance-overview"><section className="crew-growth-metrics"><Metric icon={BarChart3} label="Average Score" value={s.average_score == null ? "—" : `${Math.round(s.average_score)} / 100`} detail={`${rows.length} Crew this period`} /><Metric icon={CheckCircle2} label="Reviewed" value={`${reviewed} / ${rows.length}`} detail="Service and Conduct complete" tone="success" /><button type="button" className="crew-performance-metric-action" onClick={() => onFiltersChange((current) => ({ ...current, status: "awaiting" }))}><Metric icon={ClipboardCheck} label="Awaiting Review" value={awaiting} detail="Service or Conduct pending" tone="warning" /></button><button type="button" className="crew-performance-metric-action" onClick={() => onFiltersChange((current) => ({ ...current, status: "attention" }))}><Metric icon={AlertTriangle} label="Needs Attention" value={s.needs_attention || 0} detail="Calculated score below 70" tone="danger" /></button></section>
     <PerformanceSection title="Review Queue" description="Complete Service Standards and Conduct reviews before finalization."><ReviewQueue rows={reviewRows} onReview={onReview} canReview={canReview} /></PerformanceSection>
-    <PerformanceSection title="Team Performance" description={`${filteredRows.length} of ${rows.length} Crew shown for this period.`}><section className="crew-growth-table is-embedded"><DataTable rows={filteredRows} getRowKey={(row) => row.employee.id} onRowClick={onOpen} tableClassName="min-w-[960px]" columns={[
+    <PerformanceSection title="Team Performance" description={`${filteredRows.length} of ${rows.length} Crew shown for this period.`}>{filteredRows.length ? <section className="crew-growth-table is-embedded"><DataTable rows={filteredRows} getRowKey={(row) => row.employee.id} onRowClick={onOpen} tableClassName="min-w-[960px]" columns={[
       { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
       { key: "performance", header: "Performance", render: (row) => <strong>{row.result.total_score == null ? "—" : Math.round(row.result.total_score)}</strong> },
       { key: "attendance", header: "Attendance", render: (row) => score(row.result.attendance_score, 30) }, { key: "service", header: "Service", render: (row) => score(row.result.service_score, 30) },
       { key: "customer", header: "Customer", render: (row) => score(row.result.customer_score, 15) }, { key: "knowledge", header: "Knowledge", render: (row) => score(row.result.knowledge_score, 15) }, { key: "conduct", header: "Conduct", render: (row) => score(row.result.conduct_score, 10) },
       { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.result.status)}>{statusLabel(row.result.status)}</Badge> }, { key: "open", header: "", align: "right", render: () => <ChevronRight size={15} /> },
-    ]} /></section></PerformanceSection>
+    ]} /></section> : <EmptyState title={rows.length ? "No Crew match these filters" : "No performance records yet"} description={rows.length ? "Clear or adjust the filters to review the full team." : "Performance records will appear after monthly evidence is available."} />}</PerformanceSection>
     <div className="crew-performance-lower"><PerformanceSection title="Needs Attention" description={attentionRows.length ? `${attentionRows.length} Crew may need manager support.` : "No Crew currently fall below the attention threshold."}><NeedsAttention rows={attentionRows} onOpen={onOpen} /></PerformanceSection><PerformanceSection title="Performance Framework · 100 pts" description="Server-derived component weights used by performance-v1."><PerformanceFramework items={framework} /></PerformanceSection></div>
   </div>;
 }
 
 function ReviewQueue({ rows, onReview, canReview }) {
-  return <section className="crew-growth-table is-embedded"><DataTable rows={rows || []} getRowKey={(row) => row.employee.id} tableClassName="min-w-[850px]" columns={[
+  if (!rows?.length) return <EmptyState title="No reviews match these filters" description="Clear or adjust the filters to see the manager review queue." />;
+  return <section className="crew-growth-table is-embedded"><DataTable rows={rows} getRowKey={(row) => row.employee.id} tableClassName="min-w-[850px]" columns={[
     { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
     { key: "service", header: "Service Standards", render: (row) => <ReviewCell row={row} component="service" onReview={onReview} canReview={canReview} /> },
     { key: "conduct", header: "Conduct", render: (row) => <ReviewCell row={row} component="conduct" onReview={onReview} canReview={canReview} /> },
