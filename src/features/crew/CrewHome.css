@@ -271,6 +271,7 @@
   line-height:1.1!important;
   white-space:nowrap;
 }
+.crew-home-ready-context>small>span{display:block;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .crew-home-ready-context svg{width:11px;height:11px;flex:0 0 auto;stroke-width:2.8}
 .crew-home-attendance-metric{display:grid;gap:3px;margin-top:8px}
 .crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>small{
@@ -309,7 +310,7 @@
   background:
     radial-gradient(circle at 55% 50%,rgb(255 255 255/.98) 0 43%,rgb(235 249 243/.78) 68%,rgb(250 253 252/.98) 84%),
     linear-gradient(90deg,#f7fbf9,#fff);
-  padding-left:12px;
+  padding-left:0;
 }
 .crew-v2-home .crew-home-clock-zone::before{
   position:absolute;
@@ -321,13 +322,16 @@
   pointer-events:none;
 }
 .crew-v2-home .crew-home-radar-orbit{
+  top:50%;
+  left:calc(50% + 6px);
   width:151px;
   height:151px;
+  margin:-75.5px 0 0 -75.5px;
   border-color:rgb(9 157 108/.34);
   box-shadow:0 0 22px rgb(13 170 116/.04);
 }
-.crew-v2-home .crew-home-radar-orbit::before{inset:9px;border-color:rgb(9 156 108/.13)}
-.crew-v2-home .crew-home-radar-orbit::after{inset:18px;border-color:rgb(9 156 108/.1)}
+.crew-v2-home .crew-home-radar-orbit::before,
+.crew-v2-home .crew-home-radar-orbit::after{display:none}
 .crew-v2-home .crew-home-clock-action,
 .crew-v2-home .crew-home-complete-ring{
   width:128px;
@@ -336,28 +340,30 @@
   background:transparent;
   padding:15px;
   color:#fff;
-  box-shadow:0 0 0 7px rgb(255 255 255/.9),0 0 0 13px rgb(17 174 120/.08),0 12px 24px rgb(3 111 76/.16);
+  box-shadow:0 0 0 6px rgb(255 255 255/.94),0 0 0 11px rgb(17 174 120/.09),0 12px 24px rgb(3 111 76/.16);
+  translate:6px 0;
 }
 .crew-v2-home .crew-home-clock-action::before,
 .crew-v2-home .crew-home-complete-ring::before{
   inset:-2px;
-  background:conic-gradient(from -3deg,#079966 0 24%,#a9e1cd 24% 50%,#22ad7e 50% 77%,#d9f1e8 77% 88%,#078f61 88% 100%);
+  background:conic-gradient(from -18deg,#079966 0 72%,#bfe8d8 72% 100%);
   box-shadow:0 0 18px rgb(13 171 116/.1);
 }
 .crew-v2-home .crew-home-clock-action::after,
 .crew-v2-home .crew-home-complete-ring::after{
-  inset:13px;
+  inset:10px;
+  border:5px solid #fff;
   background:radial-gradient(circle at 36% 28%,#13ae79 0%,#079a69 48%,#07885f 100%);
   box-shadow:inset 0 1px 1px rgb(255 255 255/.22),inset 0 -12px 25px rgb(0 91 63/.13),0 0 24px rgb(13 169 116/.16);
 }
 .crew-v2-home .crew-home-clock-rings{
-  inset:7px;
-  border-color:rgb(255 255 255/.38);
+  inset:16px;
+  border:0;
 }
-.crew-v2-home .crew-home-clock-rings::before{inset:7px;border-color:rgb(255 255 255/.24)}
-.crew-v2-home .crew-home-clock-rings::after{inset:-5px;border-color:rgb(255 255 255/.58);box-shadow:0 0 12px rgb(8 151 103/.16)}
+.crew-v2-home .crew-home-clock-rings::before,
+.crew-v2-home .crew-home-clock-rings::after{display:none}
 .crew-v2-home .crew-home-clock-action>span,
-.crew-v2-home .crew-home-complete-ring>span{gap:5px;color:#fff}
+.crew-v2-home .crew-home-complete-ring>span{gap:3px;color:#fff}
 .crew-v2-home .crew-home-clock-action svg,
 .crew-v2-home .crew-home-complete-ring svg{
   width:30px;
@@ -372,7 +378,7 @@
   letter-spacing:.01em;
 }
 .crew-v2-home .crew-home-clock-action small,
-.crew-v2-home .crew-home-complete-ring small{color:rgb(255 255 255/.8);font-size:8px}
+.crew-v2-home .crew-home-complete-ring small{color:rgb(255 255 255/.82);font-size:7.5px;font-weight:760;letter-spacing:.02em}
 .crew-v2-home .crew-home-clock-action:hover{
   transform:scale(1.03);
   box-shadow:0 0 0 8px rgb(255 255 255/.93),0 0 0 15px rgb(17 174 120/.1),0 14px 26px rgb(3 111 76/.2);
