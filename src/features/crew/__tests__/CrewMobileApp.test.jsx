@@ -227,6 +227,7 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("region", { name: "Attendance status" }).classList.contains("is-ready")).toBe(true);
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Clock Out" })).toBeNull();
+    expect(screen.queryByText("Within area · GPS Verified")).toBeNull();
     unmount();
 
     mocks.myAttendance.mockResolvedValue([{ id: "open-1", status: "open", clock_in_at: new Date(Date.now() - 65 * 60000).toISOString() }]);
@@ -250,8 +251,10 @@ describe("Crew Mobile redesign", () => {
     mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100 });
     Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 8 } }) } });
     mocks.clock.mockResolvedValue({ record: { clock_in_at: "2026-08-14T02:00:00Z" }, outlet: { name: "Friends Corner" } });
-    mocks.myAttendance.mockResolvedValueOnce([]).mockResolvedValue([{ id: "open-1", status: "open", clock_in_at: "2026-08-14T02:00:00Z" }]);
+    mocks.myAttendance.mockResolvedValueOnce([]).mockResolvedValue([{ id: "open-1", status: "open", clock_in_at: "2026-08-14T02:00:00Z", clock_in_location_verified: true }]);
     render(<CrewMobileApp />);
+    expect(await screen.findByText("GPS check at clock-in")).not.toBeNull();
+    expect(screen.queryByText("Within area · GPS Verified")).toBeNull();
     fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
     expect(await screen.findByRole("dialog", { name: "Confirm Clock In" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
@@ -260,7 +263,17 @@ describe("Crew Mobile redesign", () => {
     expect(await screen.findByRole("dialog", { name: "Clocked In Successfully" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Go to Home" }));
     expect(await screen.findByText("On Shift")).not.toBeNull();
+    expect(screen.getByText("Within area · GPS Verified")).not.toBeNull();
     expect(mocks.clock).toHaveBeenCalledWith("crew-token", "in", expect.objectContaining({ latitude: 3.1 }), "");
+  });
+
+  it("shows a persisted geofence exception instead of claiming GPS verification", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100 });
+    mocks.myAttendance.mockResolvedValue([{ id: "open-exception", status: "open", clock_in_at: "2026-08-14T02:00:00Z", clock_in_location_verified: false, clock_in_location_exception: true }]);
+    render(<CrewMobileApp />);
+    expect(await screen.findByText("Location exception recorded")).not.toBeNull();
+    expect(screen.queryByText("Within area · GPS Verified")).toBeNull();
   });
 
   it("requires a reason outside the geofence before calling the clock authority", async () => {

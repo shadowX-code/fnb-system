@@ -351,6 +351,15 @@ export default function CrewMobileApp() {
   const homeClock = formatHomeClock(nowTick);
   const attendanceOutlet = context?.outlet_name || todayRoster?.outlet_name || "Your outlet";
   const shiftLabel = todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : todayRoster ? rosterEntryLabel(todayRoster) : "Not published";
+  const locationEvidence = attendanceMode === "on"
+    ? openShift?.clock_in_location_verified
+      ? { tone: "is-verified", label: "Within area · GPS Verified", title: "Verified by the attendance server when you clocked in." }
+      : openShift?.clock_in_location_exception
+        ? { tone: "is-exception", label: "Location exception recorded", title: "A location exception was recorded when you clocked in." }
+        : { tone: "is-pending", label: "Location unavailable at clock-in", title: "No verified GPS evidence was recorded for this clock-in." }
+    : context?.location_enabled
+      ? { tone: "is-pending", label: "GPS check at clock-in", title: "Your location will be checked when you tap Clock In." }
+      : { tone: "is-pending", label: "Location check not configured", title: "This outlet does not currently require geofence verification." };
 
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     {screen === "home" && <section className="crew-v2-home">
@@ -362,7 +371,7 @@ export default function CrewMobileApp() {
             <span className="crew-home-attendance-kicker">{attendanceMode === "on" ? "Your shift is in progress" : attendanceMode === "completed" ? "Today’s shift is complete" : "Ready to clock in"}</span>
             {attendanceMode === "completed" ? <><div className="crew-home-attendance-metric"><strong className="crew-home-worked">{formatDuration(completedToday.clock_in_at, completedToday.clock_out_at)}</strong><small>Worked duration</small></div><dl><div><dt>Clock In</dt><dd>{formatTime(completedToday.clock_in_at)}</dd></div><div><dt>Clock Out</dt><dd>{formatTime(completedToday.clock_out_at)}</dd></div></dl></> : attendanceMode === "on" ? <div className="crew-home-attendance-metric"><strong className="crew-home-worked">{formatDuration(openShift.clock_in_at, nowTick)}</strong><small>Clocked in at {formatTime(openShift.clock_in_at)}</small></div> : <div className="crew-home-ready-row"><strong className="crew-home-current-time"><span>{homeClock.time}</span><b>{homeClock.period.toLowerCase()}</b></strong><span className="crew-home-ready-context"><b>{formatHomeDate(nowTick)}</b><small title={attendanceOutlet}><MapPin size={12} /><span>{attendanceOutlet}</span></small></span></div>}
             {attendanceMode !== "ready" && <p title={attendanceOutlet}><MapPin size={15} /> {attendanceOutlet}</p>}
-            {attendanceMode !== "completed" && <em className={context?.location_enabled ? "is-verified" : ""}><ShieldCheck size={15} /> {context?.location_enabled ? "Within area · GPS Verified" : "Location verification at clock time"}</em>}
+            {attendanceMode !== "completed" && <em className={locationEvidence.tone} title={locationEvidence.title}><ShieldCheck size={15} /> {locationEvidence.label}</em>}
           </div>
           <div className={`crew-home-clock-zone is-${attendanceMode}${clockTransition ? ` is-${clockTransition}` : ""}`}>
             <span className="crew-home-radar-orbit" aria-hidden="true"><i /><b /></span>
