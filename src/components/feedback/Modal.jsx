@@ -4,6 +4,7 @@ const sizeClasses = {
   lg: "max-w-3xl",
   xl: "max-w-[960px]",
   "2xl": "max-w-[1080px]",
+  "3xl": "max-w-[1240px]",
 };
 
 export default function Modal({
