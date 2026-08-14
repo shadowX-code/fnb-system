@@ -252,7 +252,7 @@
   align-content:center;
   gap:5px;
   border-left:1px solid rgb(14 43 72/.15);
-  padding-left:9px;
+  padding-left:6px;
 }
 .crew-home-ready-context>b{
   color:#0b1d3e;
@@ -271,7 +271,7 @@
   line-height:1.1!important;
   white-space:nowrap;
 }
-.crew-home-ready-context>small>span{display:block;min-width:0;overflow:hidden;color:#07513f;font-size:7.6px!important;letter-spacing:-.005em;text-overflow:ellipsis;white-space:nowrap}
+.crew-home-ready-context>small>span{display:block;min-width:0;overflow:hidden;color:#07513f;font-size:7.6px!important;font-weight:820!important;letter-spacing:-.005em;text-overflow:ellipsis;white-space:nowrap}
 .crew-home-ready-context svg{width:11px;height:11px;flex:0 0 auto;stroke-width:2.8}
 .crew-home-attendance-metric{display:grid;gap:3px;margin-top:8px}
 .crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>small{
@@ -425,7 +425,7 @@
   .crew-v2-home .crew-home-current-time,
   .crew-v2-home .crew-home-attendance-copy>.crew-home-attendance-metric>.crew-home-worked{font-size:32px}
   .crew-v2-home .crew-home-current-time>b{font-size:10px}
-  .crew-home-ready-context{padding-left:7px}
+  .crew-home-ready-context{padding-left:5px}
   .crew-home-ready-context>b{font-size:8.2px}
   .crew-home-ready-context>small{font-size:7px!important}
   .crew-v2-home .crew-home-radar-orbit{width:138px;height:138px}
