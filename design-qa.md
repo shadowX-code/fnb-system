@@ -1,41 +1,49 @@
-# Crew Mobile Home — Design QA
+# Crew Mobile Clock In Hero — Design QA
 
-## Source and capture
+## Visual truth and rendered evidence
 
-- Reference: `/Users/deron/Downloads/ChatGPT Image Aug 14, 2026, 02_05_09 AM.png`
-- 375px Ready capture: `/Users/deron/.codex/visualizations/2026/08/11/019ff0eb-626d-7b53-b9b2-55432ababd5b/feedx-home-qa/home-375-ready.png`
-- 390px Completed capture: `/Users/deron/.codex/visualizations/2026/08/11/019ff0eb-626d-7b53-b9b2-55432ababd5b/feedx-home-qa/home-390-completed.png`
-- Side-by-side comparison: `/Users/deron/.codex/visualizations/2026/08/11/019ff0eb-626d-7b53-b9b2-55432ababd5b/feedx-home-qa/reference-vs-home-375.png`
+- Source visual truth: `/Users/deron/Downloads/ChatGPT Image Aug 14, 2026, 06_17_44 PM.png`
+- Source pixels: 1536 × 1024; focused Attendance card crop: 1376 × 710.
+- Staging implementation: `https://fnb-system-staging.vercel.app/#crew`
+- 390px screenshot: `/private/tmp/feedx-clockin-qa/final-390.png`
+- 375px screenshot: `/private/tmp/feedx-clockin-qa/final-375.png`
+- Focused same-input comparison: `/private/tmp/feedx-clockin-qa/reference-vs-staging-390.png`
+- CSS viewports: 390 × 844 and 375 × 812; browser `devicePixelRatio` 1.6. Screenshots were compared at equal displayed width after aspect-preserving normalization.
+- State: READY / CLOCK IN, using the authenticated Staging QA Crew identity and real Attendance/geofence read authorities.
 
-## Comparison state
+## Full-view comparison evidence
 
-- Viewports: 375 × 812 and 390 × 844.
-- The reference uses a Ready attendance state. The implementation was compared in both Ready and Shift Completed states so that the shared Hero family could be verified.
-- Live QA data remains authoritative. Differences in employee name, current time, task completion, and published roster state are intentional data differences rather than visual deviations.
+- The Home hierarchy remains unchanged outside the requested Attendance Hero.
+- The Hero uses the reference two-part card structure: pale café/workstation scene on the left, mint radial action surface on the right, and one full-width shift footer.
+- At both widths the document `scrollWidth` equals the viewport width; the ring, time, footer action, Tasks, and persistent navigation remain unclipped.
 
-## Iteration findings
+## Focused comparison evidence
 
-1. **P1 — legacy Home styles overrode the split Hero.** Fixed by isolating Home-specific selectors and stacking contexts.
-2. **P1 — Ready time inherited the legacy 10px nested-span rule.** Fixed with scoped clock typography so the primary time returns to the reference scale.
-3. **P2 — initial vertical rhythm was too loose.** Tightened the Header, Attendance Hero, shift strip, task rows, schedule rows, and Home-only bottom navigation.
-4. **P2 — schedule information order differed from the reference.** Today now leads with the schedule state; upcoming rows lead with date and place the roster state/time on the right.
-5. **P2 — old Completed state used a separate visual card.** Ready, On Shift, and Shift Completed now share one Hero structure.
+- The combined comparison opens the source crop and Staging Hero in one image. The implementation matches the reference hierarchy, left/right seam, READY placement, time/date pairing, GPS pill, concentric ring, fingerprint treatment, and footer alignment.
+- Typography: the existing FeedX Inter/system stack is retained; the time remains the strongest anchor and labels use the same navy/green hierarchy.
+- Spacing: the 390px Hero measures 360 × 250 and the 375px Hero measures 345 × 250; the footer is 58px at both widths.
+- Colors: navy copy, FeedX green, pale mint glass layers, white surface, and low-contrast environmental image match the source direction while preserving WCAG-readable primary text.
+- Image quality: a project-local 900px generated café asset is used; no hotlink, placeholder, inline SVG illustration, or base64 content is present.
+- Copy: READY, Ready to clock in, Current Outlet, Within area · GPS Verified, CLOCK IN, Tap to start, Today’s shift, and View Attendance are present. The shift value remains truthful Staging data.
+
+## Comparison history
+
+1. **P2 — Copy was covered by the curved ring seam at 390px.** The initial implementation used a 29px negative overlap. Reduced it to 12px, widened the action track, and rebalanced the responsive columns. Post-fix evidence shows the date and Current Outlet fully visible at 375px and 390px.
+2. **P2 — Kicker inherited a legacy low-contrast nested-span color.** Increased selector scoping to the Home Attendance Hero. Post-fix computed color is `rgb(10, 28, 60)` and the label is clearly legible over the scene.
+3. **P3 — Live shift copy differs from the mock.** The reference shows `2:00 pm – 10:00 pm`; the authenticated QA Crew currently has no published shift, so Staging correctly shows `Not published`. This is intentional business-truth behavior, not visual drift.
 
 ## Final checks
 
-- Header hierarchy and action placement: passed.
-- Split green/white Attendance Hero and circular scan control: passed.
-- Ready, On Shift, and Shift Completed component family: passed.
-- Shift footer alignment: passed.
-- Task row density, state color, and chevron alignment: passed.
-- Schedule row density and roster/leave labels: passed.
-- Home-only bottom navigation sizing: passed.
-- 375px horizontal overflow: none.
-- 390px horizontal overflow: none.
-- Other Crew screens are not affected by the Home-only navigation/style selectors.
+- Fonts and typography: passed.
+- Spacing and layout rhythm: passed.
+- Colors and visual tokens: passed.
+- Image quality and crop: passed.
+- Copy and content hierarchy: passed.
+- Keyboard-accessible Clock In button and aria label: passed.
+- Slow orbit/sweep/glow animation: passed.
+- `prefers-reduced-motion` animation stop rules: passed.
+- Console warnings/errors: none.
+- Broken image assets: none.
+- Remaining P0/P1/P2 findings: none.
 
-## Remaining P3 notes
-
-- The reference contains different live task and roster content. Production-truth labels are intentionally not mocked to force a pixel-identical data state.
-
-**final result: passed**
+final result: passed
