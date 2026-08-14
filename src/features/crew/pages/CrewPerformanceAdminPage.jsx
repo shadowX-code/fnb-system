@@ -67,7 +67,7 @@ function matchesPerformanceFilters(row, filters) {
   if (filters.position !== "all" && row.employee.position !== filters.position) return false;
   if (filters.status === "awaiting" && rowReviewStatus(row) !== "awaiting") return false;
   if (filters.status === "reviewed" && rowReviewStatus(row) !== "reviewed") return false;
-  if (filters.status === "attention" && !(Number(row.result.total_score) < 70)) return false;
+  if (filters.status === "attention" && !(row.result.total_score != null && Number(row.result.total_score) < 70)) return false;
   if (filters.status === "finalized" && row.result.status !== "finalized") return false;
   return true;
 }
@@ -77,7 +77,7 @@ function PerformanceOverview({ data, filters, onFiltersChange, onOpen, onReview,
   const reviewed = rows.filter((row) => rowReviewStatus(row) === "reviewed").length; const awaiting = rows.length - reviewed;
   const filteredRows = rows.filter((row) => matchesPerformanceFilters(row, filters));
   const reviewRows = [...filteredRows].sort((a, b) => Number(rowReviewStatus(a) === "reviewed") - Number(rowReviewStatus(b) === "reviewed") || a.employee.full_name.localeCompare(b.employee.full_name));
-  const attentionRows = filteredRows.filter((row) => Number(row.result.total_score) < 70).sort((a, b) => Number(a.result.total_score) - Number(b.result.total_score));
+  const attentionRows = filteredRows.filter((row) => row.result.total_score != null && Number(row.result.total_score) < 70).sort((a, b) => Number(a.result.total_score) - Number(b.result.total_score));
   const framework = performanceFramework(rows);
   return <div className="crew-performance-overview"><section className="crew-growth-metrics"><Metric icon={BarChart3} label="Average Score" value={s.average_score == null ? "—" : `${Math.round(s.average_score)} / 100`} detail={`${rows.length} Crew this period`} /><Metric icon={CheckCircle2} label="Reviewed" value={`${reviewed} / ${rows.length}`} detail="Service and Conduct complete" tone="success" /><button type="button" className="crew-performance-metric-action" onClick={() => onFiltersChange((current) => ({ ...current, status: "awaiting" }))}><Metric icon={ClipboardCheck} label="Awaiting Review" value={awaiting} detail="Service or Conduct pending" tone="warning" /></button><button type="button" className="crew-performance-metric-action" onClick={() => onFiltersChange((current) => ({ ...current, status: "attention" }))}><Metric icon={AlertTriangle} label="Needs Attention" value={s.needs_attention || 0} detail="Calculated score below 70" tone="danger" /></button></section>
     <PerformanceSection title="Review Queue" description="Complete Service Standards and Conduct reviews before finalization."><ReviewQueue rows={reviewRows} onReview={onReview} canReview={canReview} /></PerformanceSection>
