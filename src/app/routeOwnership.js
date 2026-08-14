@@ -3,6 +3,7 @@ export const legacyRouteRedirects = Object.freeze({
   outlet_duty_roster: "crew_roster",
   crew_operation_templates: "crew_operations",
   crew_growth_people: "crew_growth",
+  crew_performance_reviews: "crew_performance",
   crew_reward_cycles: "crew_reward",
 });
 

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, ChevronRight, ClipboardCheck, MessageSquareText, Search, UsersRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, BarChart3, CheckCircle2, ChevronRight, CircleHelp, ClipboardCheck, MessageSquareText, RotateCcw, Search, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -23,44 +23,94 @@ const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-MY"
 export default function CrewPerformanceAdminPage({ auth, ui, store, initialTab = "overview" }) {
   const [outlets, setOutlets] = useState([]); const [outletId, setOutletId] = useState(""); const [period, setPeriod] = useState(periodValue());
   const [data, setData] = useState({ summary: {}, crew: [], reviews: [], feedback: [] }); const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(""); const requestSequence = useRef(0);
+  const [filters, setFilters] = useState({ query: "", position: "all", status: "all" });
   const [detail, setDetail] = useState(null); const [review, setReview] = useState(null); const [moderation, setModeration] = useState(null);
   const canReview = auth.hasPermission("crew_performance.review"); const canFinalize = auth.hasPermission("crew_performance.finalize"); const canModerate = auth.hasPermission("crew_feedback.moderate");
   useEffect(() => { let active = true; (async () => { try { const rows = store?.outlets?.length ? store.outlets : await outletService.listActiveOutlets(); if (active) setOutlets((rows || []).filter((row) => row.is_active !== false)); } catch (cause) { ui.notify({ title: "Unable to load outlets", message: cause.message, tone: "error" }); } })(); return () => { active = false; }; }, [store?.outlets, ui]);
   useEffect(() => { if (!outletId && outlets.length) setOutletId(outlets[0].id); }, [outletId, outlets]);
-  async function refresh() { if (!outletId) return; setLoading(true); try { setData(await crewService.performanceAdminData(outletId, period)); } catch (cause) { ui.notify({ title: "Unable to load Performance", message: cause.message, tone: "error" }); } finally { setLoading(false); } }
+  async function refresh() { if (!outletId) return; const sequence = ++requestSequence.current; setLoading(true); setError(""); try { const next = await crewService.performanceAdminData(outletId, period); if (sequence === requestSequence.current) setData(next); } catch (cause) { if (sequence === requestSequence.current) { setError(cause.message || "Performance evidence could not be loaded."); ui.notify({ title: "Unable to load Performance", message: cause.message, tone: "error" }); } } finally { if (sequence === requestSequence.current) setLoading(false); } }
   useEffect(() => { refresh(); }, [outletId, period]);
   async function submitReview(values) { await crewService.submitPerformanceReview(values); setReview(null); await refresh(); ui.notify({ title: "Review submitted", message: "The server recalculated this performance component." }); }
   async function finalize(employeeId) { await crewService.finalizePerformance(employeeId, period); setDetail(null); await refresh(); ui.notify({ title: "Performance finalized", message: "This monthly result is now immutable." }); }
   async function moderate(values) { await crewService.moderateFeedback(values.id, true, values.reason); setModeration(null); await refresh(); ui.notify({ title: "Feedback excluded", message: "The reason was retained in the moderation audit." }); }
-  const meta = initialTab === "reviews" ? ["Reviews", "Complete Service Standards and Conduct reviews from one queue."] : initialTab === "feedback" ? ["Customer Feedback", "Understand guest sentiment without deleting unfavorable feedback."] : ["Performance Overview", "Explainable monthly performance from Attendance, Reviews, Feedback and Learning evidence."];
-  return <div className="crew-performance-page"><PageHeader section="Crew · Performance" title={meta[0]} description={meta[1]} actions={<><SelectField className="crew-growth-outlet" label="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((row) => ({ value: row.id, label: row.name }))} /><label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label></>} />
-    {loading ? <div className="crew-growth-skeleton"><span /><span /><span /><p>Loading performance evidence…</p></div> : initialTab === "reviews" ? <ReviewQueue rows={data.crew} onReview={setReview} canReview={canReview} /> : initialTab === "feedback" ? <FeedbackAdmin data={data.feedback} onModerate={setModeration} canModerate={canModerate} /> : <PerformanceOverview data={data} onOpen={setDetail} />}
+  const isFeedback = initialTab === "feedback";
+  const positions = useMemo(() => [...new Set((data.crew || []).map((row) => row.employee.position).filter(Boolean))].sort(), [data.crew]);
+  const meta = isFeedback ? ["Customer Feedback", "Understand guest sentiment without deleting unfavorable feedback."] : ["Performance Overview", "Explainable monthly performance from Attendance, Reviews, Feedback and Learning evidence."];
+  return <div className="crew-performance-page"><PageHeader section="Crew · Performance" title={meta[0]} description={meta[1]} />
+    <PerformanceToolbar outlets={outlets} outletId={outletId} setOutletId={setOutletId} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} positions={positions} feedbackOnly={isFeedback} />
+    {loading ? <div className="crew-growth-skeleton"><span /><span /><span /><p>Loading performance evidence…</p></div> : error ? <PerformanceError message={error} onRetry={refresh} /> : isFeedback ? <FeedbackAdmin data={data.feedback} onModerate={setModeration} canModerate={canModerate} /> : <PerformanceOverview data={data} filters={filters} onFiltersChange={setFilters} onOpen={setDetail} onReview={setReview} canReview={canReview} />}
     {detail ? <PerformanceDetail item={detail} canFinalize={canFinalize} onClose={() => setDetail(null)} onFinalize={() => finalize(detail.employee.id)} /> : null}
     {review ? <PerformanceReview item={review} period={period} onClose={() => setReview(null)} onSubmit={submitReview} /> : null}
     {moderation ? <ModerationDialog item={moderation} onClose={() => setModeration(null)} onSubmit={moderate} /> : null}
   </div>;
 }
 
-function PerformanceOverview({ data, onOpen }) {
-  const s = data.summary || {};
-  return <div className="crew-growth-stack"><section className="crew-growth-metrics"><Metric icon={BarChart3} label="Average Score" value={s.average_score == null ? "—" : Math.round(s.average_score)} detail="Out of 100" /><Metric icon={CheckCircle2} label="Crew Reviewed" value={s.crew_reviewed || 0} detail="Finalized this period" tone="success" /><Metric icon={ClipboardCheck} label="Awaiting Review" value={s.awaiting_review || 0} detail="Service or Conduct pending" tone="warning" /><Metric icon={AlertTriangle} label="Needs Attention" value={s.needs_attention || 0} detail="Calculated score below 70" tone="danger" /></section>
-    <section className="crew-growth-table"><DataTable rows={data.crew || []} getRowKey={(row) => row.employee.id} onRowClick={onOpen} tableClassName="min-w-[1080px]" columns={[
-      { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> }, { key: "position", header: "Position", render: (row) => row.employee.position || "—" },
+function PerformanceToolbar({ outlets, outletId, setOutletId, period, setPeriod, filters, setFilters, positions, feedbackOnly }) {
+  const active = !feedbackOnly && (filters.query || filters.position !== "all" || filters.status !== "all");
+  return <section className={`crew-performance-toolbar${feedbackOnly ? " is-feedback" : ""}`} aria-label="Performance filters">
+    <SelectField label="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((row) => ({ value: row.id, label: row.name }))} />
+    <label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label>
+    {!feedbackOnly ? <><label className="crew-growth-search"><span>Search Crew</span><div><Search size={15} /><input value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Name or employee code" /></div></label>
+      <SelectField label="Position" value={filters.position} onChange={(value) => setFilters((current) => ({ ...current, position: value }))} options={[{ value: "all", label: "All" }, ...positions.map((value) => ({ value, label: value }))]} />
+      <SelectField label="Status" value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={[{ value: "all", label: "All" }, { value: "awaiting", label: "Awaiting Review" }, { value: "reviewed", label: "Reviewed" }, { value: "attention", label: "Needs Attention" }, { value: "finalized", label: "Finalized" }]} />
+      {active ? <button type="button" className="btn-secondary crew-performance-clear" onClick={() => setFilters({ query: "", position: "all", status: "all" })}><RotateCcw size={14} /> Clear</button> : null}</> : null}
+  </section>;
+}
+
+function reviewDone(row, component) { const value = row.result.components?.[component]; return value?.status === "reviewed" || value?.score != null; }
+function rowReviewStatus(row) { return reviewDone(row, "service") && reviewDone(row, "conduct") ? "reviewed" : "awaiting"; }
+function matchesPerformanceFilters(row, filters) {
+  const haystack = `${row.employee.full_name} ${row.employee.employee_code || ""} ${row.employee.position || ""}`.toLowerCase();
+  if (filters.query && !haystack.includes(filters.query.toLowerCase())) return false;
+  if (filters.position !== "all" && row.employee.position !== filters.position) return false;
+  if (filters.status === "awaiting" && rowReviewStatus(row) !== "awaiting") return false;
+  if (filters.status === "reviewed" && rowReviewStatus(row) !== "reviewed") return false;
+  if (filters.status === "attention" && !(Number(row.result.total_score) < 70)) return false;
+  if (filters.status === "finalized" && row.result.status !== "finalized") return false;
+  return true;
+}
+
+function PerformanceOverview({ data, filters, onFiltersChange, onOpen, onReview, canReview }) {
+  const s = data.summary || {}; const rows = data.crew || [];
+  const reviewed = rows.filter((row) => rowReviewStatus(row) === "reviewed").length; const awaiting = rows.length - reviewed;
+  const filteredRows = rows.filter((row) => matchesPerformanceFilters(row, filters));
+  const reviewRows = [...filteredRows].sort((a, b) => Number(rowReviewStatus(a) === "reviewed") - Number(rowReviewStatus(b) === "reviewed") || a.employee.full_name.localeCompare(b.employee.full_name));
+  const attentionRows = filteredRows.filter((row) => Number(row.result.total_score) < 70).sort((a, b) => Number(a.result.total_score) - Number(b.result.total_score));
+  const framework = performanceFramework(rows);
+  return <div className="crew-performance-overview"><section className="crew-growth-metrics"><Metric icon={BarChart3} label="Average Score" value={s.average_score == null ? "—" : `${Math.round(s.average_score)} / 100`} detail={`${rows.length} Crew this period`} /><Metric icon={CheckCircle2} label="Reviewed" value={`${reviewed} / ${rows.length}`} detail="Service and Conduct complete" tone="success" /><button type="button" className="crew-performance-metric-action" onClick={() => onFiltersChange((current) => ({ ...current, status: "awaiting" }))}><Metric icon={ClipboardCheck} label="Awaiting Review" value={awaiting} detail="Service or Conduct pending" tone="warning" /></button><button type="button" className="crew-performance-metric-action" onClick={() => onFiltersChange((current) => ({ ...current, status: "attention" }))}><Metric icon={AlertTriangle} label="Needs Attention" value={s.needs_attention || 0} detail="Calculated score below 70" tone="danger" /></button></section>
+    <PerformanceSection title="Review Queue" description="Complete Service Standards and Conduct reviews before finalization."><ReviewQueue rows={reviewRows} onReview={onReview} canReview={canReview} /></PerformanceSection>
+    <PerformanceSection title="Team Performance" description={`${filteredRows.length} of ${rows.length} Crew shown for this period.`}><section className="crew-growth-table is-embedded"><DataTable rows={filteredRows} getRowKey={(row) => row.employee.id} onRowClick={onOpen} tableClassName="min-w-[960px]" columns={[
+      { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
       { key: "performance", header: "Performance", render: (row) => <strong>{row.result.total_score == null ? "—" : Math.round(row.result.total_score)}</strong> },
       { key: "attendance", header: "Attendance", render: (row) => score(row.result.attendance_score, 30) }, { key: "service", header: "Service", render: (row) => score(row.result.service_score, 30) },
       { key: "customer", header: "Customer", render: (row) => score(row.result.customer_score, 15) }, { key: "knowledge", header: "Knowledge", render: (row) => score(row.result.knowledge_score, 15) }, { key: "conduct", header: "Conduct", render: (row) => score(row.result.conduct_score, 10) },
       { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.result.status)}>{statusLabel(row.result.status)}</Badge> }, { key: "open", header: "", align: "right", render: () => <ChevronRight size={15} /> },
-    ]} /></section></div>;
+    ]} /></section></PerformanceSection>
+    <div className="crew-performance-lower"><PerformanceSection title="Needs Attention" description={attentionRows.length ? `${attentionRows.length} Crew may need manager support.` : "No Crew currently fall below the attention threshold."}><NeedsAttention rows={attentionRows} onOpen={onOpen} /></PerformanceSection><PerformanceSection title="Performance Framework · 100 pts" description="Server-derived component weights used by performance-v1."><PerformanceFramework items={framework} /></PerformanceSection></div>
+  </div>;
 }
 
 function ReviewQueue({ rows, onReview, canReview }) {
-  const queue = (rows || []).flatMap((row) => ["service", "conduct"].map((component) => ({ ...row, component, reviewed: row.result.components?.[component]?.status === "reviewed" })));
-  return <section className="crew-growth-table"><DataTable rows={queue} getRowKey={(row) => `${row.employee.id}:${row.component}`} tableClassName="min-w-[760px]" columns={[
-    { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> }, { key: "period", header: "Period", render: (row) => new Date(row.result.period_start).toLocaleDateString("en-MY", { month: "long", year: "numeric" }) },
-    { key: "component", header: "Review", render: (row) => row.component === "service" ? "Service Standards" : "Conduct" }, { key: "status", header: "Status", render: (row) => <Badge tone={row.reviewed ? "success" : "warning"}>{row.reviewed ? "Completed" : "Pending"}</Badge> },
-    { key: "action", header: "Action", align: "right", render: (row) => <button className={row.reviewed ? "btn-secondary" : "btn-primary"} disabled={!canReview} onClick={() => onReview(row)}>{row.reviewed ? "Review Again" : "Review"}</button> },
+  return <section className="crew-growth-table is-embedded"><DataTable rows={rows || []} getRowKey={(row) => row.employee.id} tableClassName="min-w-[850px]" columns={[
+    { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
+    { key: "service", header: "Service Standards", render: (row) => <ReviewCell row={row} component="service" onReview={onReview} canReview={canReview} /> },
+    { key: "conduct", header: "Conduct", render: (row) => <ReviewCell row={row} component="conduct" onReview={onReview} canReview={canReview} /> },
+    { key: "status", header: "Review Status", render: (row) => <Badge tone={rowReviewStatus(row) === "reviewed" ? "success" : "warning"}>{rowReviewStatus(row) === "reviewed" ? "Reviewed" : "Review Required"}</Badge> },
   ]} /></section>;
 }
+
+function ReviewCell({ row, component, onReview, canReview }) { const done = reviewDone(row, component); return <span className="crew-performance-review-cell"><Badge tone={done ? "success" : "warning"}>{done ? "Completed" : "Pending"}</Badge><button type="button" className={done ? "btn-secondary" : "btn-primary"} disabled={!canReview} onClick={() => onReview({ ...row, component })}>{done ? "Review again" : "Review"}</button></span>; }
+function PerformanceSection({ title, description, children }) { return <section className="crew-performance-section"><header><div><h2>{title}</h2><p>{description}</p></div></header>{children}</section>; }
+function PerformanceError({ message, onRetry }) { return <section className="crew-performance-error"><AlertTriangle size={22} /><strong>Unable to load Performance</strong><p>{message}</p><button type="button" className="btn-secondary" onClick={onRetry}>Retry</button></section>; }
+
+function NeedsAttention({ rows, onOpen }) {
+  if (!rows.length) return <div className="crew-performance-positive"><CheckCircle2 size={18} /><span><strong>No Crew need immediate attention</strong><small>Scores and review evidence are within the current threshold.</small></span></div>;
+  return <div className="crew-performance-attention-list">{rows.map((row) => { const weak = [["service_score", "Service", 30], ["customer_score", "Customer", 15], ["knowledge_score", "Knowledge", 15], ["conduct_score", "Conduct", 10]].filter(([key,,max]) => row.result[key] != null && Number(row.result[key]) / max < .7).slice(0, 3); return <button type="button" key={row.employee.id} onClick={() => onOpen(row)}><span><strong>{row.employee.full_name}</strong><small>{row.employee.position || "Crew"} · Score {Math.round(Number(row.result.total_score))}</small></span><em>{weak.map(([key, label, max]) => <span key={key}>{label}<b>{score(row.result[key], max)}</b></span>)}</em><ChevronRight size={16} /></button>; })}</div>;
+}
+
+function performanceFramework(rows) { const first = rows.find((row) => row.result.components); const definitions = [["attendance", "Attendance", 30], ["service", "Service", 30], ["customer", "Customer", 15], ["knowledge", "Knowledge", 15], ["conduct", "Conduct", 10]]; return definitions.map(([key, label, fallback]) => ({ key, label, points: Number(first?.result.components?.[key]?.max_score ?? fallback) })); }
+function PerformanceFramework({ items }) { return <div className="crew-performance-framework">{items.map((item) => <div key={item.key}><span>{item.label}</span><strong>{item.points} pts</strong></div>)}<aside><CircleHelp size={15} /><span>Attendance, Feedback and Learning evidence are calculated by the server. Service and Conduct require manager reviews.</span></aside></div>; }
 
 function FeedbackAdmin({ data, onModerate, canModerate }) {
   const [query, setQuery] = useState(""); const [experience, setExperience] = useState("all");
@@ -87,4 +137,4 @@ function PerformanceReview({ item, period, onClose, onSubmit }) {
 
 function ModerationDialog({ item, onClose, onSubmit }) { const [reason, setReason] = useState(""); return <Modal title="Exclude From Scoring" description="The feedback remains visible and the reason is audited." onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-danger" disabled={reason.trim().length < 5} onClick={() => onSubmit({ id: item.id, reason })}>Exclude</button></>}><label className="crew-performance-moderation">Reason<textarea className="control" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain why this submission should not affect scoring" /></label></Modal>; }
 function Metric({ icon: Icon, label, value, detail, tone = "neutral" }) { return <article className={`crew-growth-metric is-${tone}`}><div className="crew-growth-metric-icon"><Icon size={16} /></div><span><small>{label}</small><strong>{value}</strong><em>{detail}</em></span></article>; }
-function NameCell({ row }) { return <span className="crew-growth-name"><span className="crew-growth-avatar">{row.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span><span><strong>{row.full_name}</strong><small>{row.employee_code || row.position || "Crew"}</small></span></span>; }
+function NameCell({ row }) { return <span className="crew-growth-name"><span className="crew-growth-avatar">{row.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span><span><strong>{row.full_name}</strong><small>{[row.position, row.employee_code].filter(Boolean).join(" · ") || "Crew"}</small></span></span>; }

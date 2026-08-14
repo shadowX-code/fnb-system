@@ -5224,6 +5224,13 @@ Service rules:
 - `crew_reward_participants` is the server-authoritative Campaign membership snapshot. Later hires, transfers, terminations, or outlet changes never silently rewrite historical participation. Calculation reads this snapshot and does not trust a browser-supplied employee identity after Campaign creation.
 - Canonical Reward formulas, calculation version, pool cap, adjustment audit, outlet scope, RLS, finalization immutability, and Crew Mobile safe-read authority remain unchanged. The Admin UI displays server-returned hours, contribution, Performance factor, calculated reward, adjustment, and final payout; it does not reproduce the calculation in the browser.
 
+### Crew Performance Overview
+
+- Admin navigation has two Performance destinations: **Performance Overview** and **Customer Feedback**. The former standalone Reviews route is compatibility-only and resolves to Performance Overview.
+- Performance Overview is the single manager command center for server-derived monthly KPIs, a one-employee-per-row Service Standards and Conduct Review Queue, Team Performance, Needs Attention, and the versioned 100-point Performance Framework.
+- Service Standards and Conduct remain separate, auditable backend review objects. The UI groups their state and entry points without merging authorities, changing score calculation, or trusting browser-derived scores.
+- Attendance, Customer Feedback, Learning evidence, monthly isolation, outlet scope, permissions, RLS, review history, and finalized-result immutability remain canonical backend responsibilities.
+
 ### Crew Learning Product Architecture
 
 - Crew Learn has two primary product surfaces only: mandatory **New Crew Onboarding** and the outlet **SOP Library**. Generic Journey Library, manual assignment, and standalone Crew Progress concepts remain historical compatibility data rather than primary navigation.

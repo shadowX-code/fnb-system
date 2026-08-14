@@ -438,10 +438,10 @@ export const routeDetails = {
     props: { initialTab: "overview" },
   },
   crew_performance_reviews: {
-    description: "Complete Service Standards and Conduct reviews.",
+    description: "Compatibility route for the unified Performance Overview Review Queue.",
     component: CrewPerformanceAdminPage,
     permission: "crew_performance.review",
-    props: { initialTab: "reviews" },
+    props: { initialTab: "overview" },
   },
   crew_customer_feedback: {
     description: "Review outlet-bound guest feedback and audited scoring exclusions.",
