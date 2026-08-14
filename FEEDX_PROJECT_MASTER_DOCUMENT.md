@@ -1109,6 +1109,14 @@ Leave entitlement is calendar-year, employee + leave-type + outlet scoped. The c
 - Crew Mobile reads only its own balance through the opaque-token authority. Admin policy, balance and adjustment RPCs require explicit `crew_leave_balance.*` / `crew_leave_settings.manage` permissions plus existing outlet scope. Raw policy, entitlement and adjustment tables have RLS enabled and no anon/authenticated table grants.
 - Approved Leave projection, immutable published Roster revisions, Attendance, Performance and existing Leave history remain unchanged.
 
+#### Crew Workforce Leave admin UI
+
+- `Crew → Workforce → Leave` is one workspace with three tabs: **Requests**, **Balances** and **Settings**. The selected Outlet and tab-specific filters live in one shared toolbar below the tabs; Outlet is not isolated as a floating page-header action.
+- Requests use a compact review table. The review modal separates request summary, entitlement context, employee reason and published-roster conflicts; approval/rejection remains governed by the existing trusted Leave authorities and rejection requires an explicit reason.
+- Balances group all leave types into one employee row. **Manage** opens the employee’s complete period balance, while an adjustment remains an append-only, reason-attributed record rather than an editable balance value.
+- Settings describe the business policy in readable terms: entitlement, balance enforcement, join-date proration and carry-forward expiry. Unlimited leave hides entitlement/proration/carry-forward inputs that do not apply.
+- Leave Admin presentation uses the shared FeedX PageHeader, filter card, Select, DataTable, Badge, Modal and empty/loading/error patterns used by Restaurant and Factory. Browser-native select styling and Crew-specific list patterns are not permitted.
+
 Crew Workforce Duty Roster is the scheduling and editing workspace:
 
 - Weekly and monthly employee-by-date roster grid.

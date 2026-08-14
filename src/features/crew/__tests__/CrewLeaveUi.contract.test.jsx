@@ -31,7 +31,7 @@ describe("Crew Leave v1 UI contracts", () => {
   it("shows manager roster context and requires a rejection reason", () => {
     expect(admin).toContain("Roster Context");
     expect(admin).toContain("Approval preserves the superseded roster evidence.");
-    expect(admin).toContain("reason.trim().length < 2");
+    expect(admin).toContain("!reason.trim()");
   });
 
   it("uses only controlled leave RPCs from the frontend", () => {
@@ -40,7 +40,7 @@ describe("Crew Leave v1 UI contracts", () => {
   });
 
   it("adds manager balance, adjustment and policy contexts without a second sidebar route", () => {
-    for (const copy of ["Balances", "Settings", "Balance Context", "Adjust Leave Balance", "Leave Policy"]) expect(admin).toContain(copy);
+    for (const copy of ["Balances", "Settings", "Balance Context", "Adjust Leave Balance", "Leave Policy", "One employee per row", "Expiry month"]) expect(admin).toContain(copy);
     expect(admin).toContain('auth.hasPermission("crew_leave_balance.adjust")');
     expect(admin).toContain('auth.hasPermission("crew_leave_settings.manage")');
   });
