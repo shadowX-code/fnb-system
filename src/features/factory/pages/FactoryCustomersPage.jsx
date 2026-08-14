@@ -5,6 +5,7 @@ import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FactoryPagination, { useFactoryClientPagination } from "../components/FactoryPagination.jsx";
+import FactoryMasterTableToolbar from "../components/FactoryMasterTableToolbar.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
 import useFactoryNavigation from "../hooks/useFactoryNavigation.js";
@@ -25,7 +26,7 @@ export default function FactoryCustomersPage() {
     <PageHeader section="System" title="Customers" description="Manage Factory customers and destinations used by finished goods dispatch documents." actions={can("factory_customers.create") ? <button className="btn-primary" type="button" onClick={nav.openCreateCustomer}><Truck size={15} /> Create Customer</button> : null} />
     <div className="grid gap-3 md:grid-cols-4"><MetricCard icon={Truck} label="Total Customers" value={customers.length} helper="Active and archived" /><MetricCard icon={CheckCircle2} label="Active" value={active} helper="Available for dispatch" tone="success" /><MetricCard icon={Clock3} label="Archived" value={customers.length - active} helper="Historical customers" /><MetricCard icon={Tag} label="Customer Types" value={new Set(customers.map((customer) => customer.customer_type).filter(Boolean)).size} helper={`${customers.filter((customer) => customer.contact_person || customer.phone || customer.email).length} with contact details`} /></div>
     <Card title="Factory Customer Master">
-      <input className="field-input mb-4 w-full md:max-w-sm" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search customers" />
+      <FactoryMasterTableToolbar value={search} onChange={setSearch} placeholder="Search customers" />
       <FactoryTable rows={rows.slice(pager.from, pager.to)} columns={[
         { key: "customer", label: "Customer", className: "w-[29%]", render: (row) => <div><div className="font-bold">{row.customer_name || "—"}</div>{row.customer_code ? <div className="text-xs text-text-secondary">{row.customer_code}</div> : null}</div> },
         { key: "type", label: "Type", className: "w-[15%]", render: (row) => titleCase(row.customer_type) },
