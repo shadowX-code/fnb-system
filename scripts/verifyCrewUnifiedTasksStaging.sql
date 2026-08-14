@@ -125,6 +125,7 @@ begin
   execute 'reset role';
   if (select template_snapshot->>'name' from public.crew_operation_instances where id=v_instance_id)<>'Rollback Unified Task QA' or (select revision from public.crew_operation_templates where id=next_revision)<>2 then raise exception 'FAIL historical snapshot/new revision'; end if; pass:=pass+1;
   execute 'set local role authenticated';
+  perform public.crew_tasks_manage_schedule(team_task,'end',null);
   perform public.crew_operations_archive_template(team_task);
   execute 'reset role';
   if (select status from public.crew_operation_templates where id=team_task)<>'archived' then raise exception 'FAIL archive'; end if; pass:=pass+1;

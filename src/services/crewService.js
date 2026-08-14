@@ -245,6 +245,24 @@ export const crewService = {
     return data;
   },
 
+  async manageTaskSchedule(templateId, action, endDate = null) {
+    const { data, error } = await supabase.rpc("crew_tasks_manage_schedule", { p_template_id: templateId, p_action: action, p_end_date: endDate || null });
+    throwSupabaseError("crew.manageTaskSchedule", error);
+    return data;
+  },
+
+  async taskAdminDetail(templateId) {
+    const { data, error } = await supabase.rpc("crew_tasks_admin_detail", { p_template_id: templateId });
+    throwSupabaseError("crew.taskAdminDetail", error);
+    return data;
+  },
+
+  async taskAdminResult(instanceId) {
+    const { data, error } = await supabase.rpc("crew_tasks_admin_result", { p_instance_id: instanceId });
+    throwSupabaseError("crew.taskAdminResult", error);
+    return data;
+  },
+
   async reviewTask(instanceId, employeeId, decision, note = null) {
     const { data, error } = await supabase.rpc("crew_tasks_review", { p_instance_id: instanceId, p_employee_id: employeeId, p_decision: decision, p_note: note });
     throwSupabaseError("crew.reviewTask", error);

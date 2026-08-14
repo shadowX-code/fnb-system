@@ -1,15 +1,15 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), save: vi.fn(), activate: vi.fn(), archive: vi.fn(), duplicate: vi.fn(), review: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { tasksAdminData: mocks.data, saveTask: mocks.save, activateOperationTemplate: mocks.activate, archiveOperationTemplate: mocks.archive, duplicateTask: mocks.duplicate, reviewTask: mocks.review } }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), save: vi.fn(), activate: vi.fn(), duplicate: vi.fn(), review: vi.fn(), manage: vi.fn(), detail: vi.fn(), result: vi.fn() }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { tasksAdminData: mocks.data, saveTask: mocks.save, activateOperationTemplate: mocks.activate, duplicateTask: mocks.duplicate, reviewTask: mocks.review, manageTaskSchedule: mocks.manage, taskAdminDetail: mocks.detail, taskAdminResult: mocks.result } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 import CrewOperationsAdminPage from "../CrewOperationsAdminPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
-const fixture = { definitions: [{ id: "task-1", series_id: "series-1", name: "Opening Checklist", task_type: "checklist", schedule_type: "recurring", schedule_config: { frequency: "every_day" }, assignment_type: "all_crew", priority: "important", revision: 2, status: "active", blocks: [{ id: "block-1", block_type: "checklist_item", title: "Unlock entrance", is_required: true }] }], instances: [{ id: "instance-1", template_id: "task-1", name: "Opening Checklist", status: "in_progress" }], employees: [], published_sops: [], review_queue: [{ instance_id: "instance-2", employee_id: "employee-1", task_name: "Closing Check", employee_name: "QA Crew", business_date: "2026-08-14", status: "review_required" }] };
+const fixture = { definitions: [{ id: "task-1", series_id: "series-1", name: "Opening Checklist", task_type: "checklist", schedule_type: "recurring", schedule_config: { frequency: "every_day" }, assignment_type: "all_crew", completion_rule: "one_for_team", priority: "important", revision: 2, status: "active", created_date: "2026-08-01", next_run: { state: "scheduled", date: "2026-08-15", at: "2026-08-15T01:30:00Z" }, blocks: [{ id: "block-1", block_type: "checklist_item", title: "Unlock entrance", is_required: true }] }], instances: [{ id: "instance-1", template_id: "task-1", name: "Opening Checklist", status: "in_progress" }], employees: [], published_sops: [], review_queue: [{ instance_id: "instance-2", employee_id: "employee-1", task_name: "Closing Check", employee_name: "QA Crew", business_date: "2026-08-14", status: "review_required" }] };
 const auth = { hasPermission: () => true }; const ui = { notify: vi.fn(), confirm: vi.fn().mockResolvedValue(true) };
-beforeEach(() => { Object.values(mocks).forEach((mock) => mock.mockReset()); mocks.data.mockResolvedValue(fixture); mocks.save.mockResolvedValue("task-2"); mocks.activate.mockResolvedValue({}); mocks.archive.mockResolvedValue({}); mocks.duplicate.mockResolvedValue("task-copy"); mocks.review.mockResolvedValue({ status: "completed" }); });
+beforeEach(() => { Object.values(mocks).forEach((mock) => mock.mockReset()); mocks.data.mockResolvedValue(fixture); mocks.save.mockResolvedValue("task-2"); mocks.activate.mockResolvedValue({}); mocks.duplicate.mockResolvedValue("task-copy"); mocks.review.mockResolvedValue({ status: "completed" }); mocks.manage.mockResolvedValue({ status: "paused" }); mocks.detail.mockResolvedValue({ definition: { ...fixture.definitions[0], block_count: 1 }, progress: { instances: 1, in_progress: 1 }, history: [{ instance_id: "instance-1", date: "2026-08-14", status: "in_progress", actors: [] }] }); mocks.result.mockResolvedValue({ instance: { business_date: "2026-08-14", template_revision: 2 }, status: "in_progress", assignees: [], blocks: [] }); });
 afterEach(cleanup);
 
 describe("Crew unified Tasks Admin", () => {
@@ -73,9 +73,9 @@ describe("Crew unified Tasks Admin", () => {
 
   it("keeps a 16-block checklist compact and revision-safe", async () => {
     const blocks = Array.from({ length: 16 }, (_, index) => ({ id: `block-${index}`, block_type: "checklist_item", title: `Checklist item ${index + 1}`, is_required: true }));
-    mocks.data.mockResolvedValue({ ...fixture, definitions: [{ ...fixture.definitions[0], status: "draft", blocks }] });
+    mocks.data.mockResolvedValue({ ...fixture, definitions: [{ ...fixture.definitions[0], blocks }] });
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.click(await screen.findByRole("button", { name: "New Revision" }));
     expect(screen.getAllByLabelText(/More actions for block/)).toHaveLength(16);
     expect(screen.getByText("16 blocks · order freezes into each daily instance")).not.toBeNull();
   });
@@ -84,7 +84,26 @@ describe("Crew unified Tasks Admin", () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("button", { name: "New Revision" }));
     expect(screen.getByRole("heading", { name: /Create New Revision/ })).not.toBeNull();
-    expect(screen.getByText(/active version remains unchanged/i)).not.toBeNull();
+    expect(screen.getByText(/existing task instances remain frozen/i)).not.toBeNull();
+  });
+
+  it("separates definition lifecycle from execution progress and exposes history", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("01 Aug 2026")).not.toBeNull();
+    expect(screen.getByText(/15 Aug 2026/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(await screen.findByText("Execution Progress")).not.toBeNull();
+    expect(screen.getByText("Recent Executions")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View Result" }));
+    await waitFor(() => expect(mocks.result).toHaveBeenCalledWith("instance-1"));
+  });
+
+  it("routes pause and end-date changes through the controlled lifecycle authority", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "More actions for Opening Checklist" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage Schedule" }));
+    fireEvent.click(screen.getByRole("button", { name: /Pause future/ }));
+    await waitFor(() => expect(mocks.manage).toHaveBeenCalledWith("task-1", "pause", null));
   });
 
   it("keeps manager-review finalization in the controlled review authority", async () => {
