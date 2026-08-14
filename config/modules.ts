@@ -733,7 +733,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "crew_operations",
     section: "Operations",
-    label: "Daily Operations",
+    label: "Tasks",
     route: "/crew/operations",
     icon: "crew-operations",
     sidebar: true,
@@ -743,10 +743,10 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "crew_operation_templates",
     section: "Operations",
-    label: "Checklist Templates",
+    label: "Tasks",
     route: "/crew/operations/templates",
     icon: "crew-operation-templates",
-    sidebar: true,
+    sidebar: false,
     workspace: "crew",
     permissions: {},
   },

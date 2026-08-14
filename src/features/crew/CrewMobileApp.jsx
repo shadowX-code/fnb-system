@@ -235,7 +235,7 @@ export default function CrewMobileApp() {
     }
     setPerformance(performanceResult.status === "fulfilled" ? performanceResult.value : null);
     setReward(rewardResult.status === "fulfilled" ? rewardResult.value : null);
-    setOperations(operationsResult.status === "fulfilled" ? operationsResult.value : { checklists: [], daily_tasks: [] });
+    setOperations(operationsResult.status === "fulfilled" ? operationsResult.value : { tasks: [] });
     setRoster(rosterResult.status === "fulfilled" ? rosterResult.value : { today: null, entries: [] });
     setLeave(leaveResult.status === "fulfilled" ? leaveResult.value : { requests: [], upcoming: [] });
     setPageLoading(false);
@@ -333,10 +333,7 @@ export default function CrewMobileApp() {
   const options = clockDraft?.action === "out" ? clockOutOptions : clockInOptions;
   const todayRoster = roster?.today;
   const upcomingRoster = (roster?.entries || []).filter((entry) => entry.date > (todayRoster?.date || roster?.from)).slice(0, 2);
-  const homeTasks = [
-    ...(operations?.checklists || []).map((row) => ({ kind: "checklist", row, id: `checklist-${row.id}`, title: row.name, context: `${row.completed_count || 0} / ${row.item_count || 0} completed`, status: row.status || "pending" })),
-    ...(operations?.daily_tasks || []).map((row) => ({ kind: "task", row, id: `task-${row.id}`, title: row.title, context: row.due_at ? `Due ${formatTime(row.due_at)}${row.description ? ` · ${row.description}` : ""}` : row.description || "Today", status: row.status || "pending" })),
-  ];
+  const homeTasks = (operations?.tasks || []).map((row) => ({ kind: row.source === "legacy_daily" ? "legacy_task" : "task", row, id: `${row.source || "task"}-${row.id}`, title: row.name || row.title, context: row.source === "legacy_daily" ? row.description || (row.due_at ? `Due ${formatTime(row.due_at)}` : "Today") : `${row.completed_count || 0} / ${row.block_count || 0} completed${row.due_at ? ` · Due ${formatTime(row.due_at)}` : ""}`, status: row.status || "pending" }));
   const visibleHomeTasks = tasksExpanded ? homeTasks : homeTasks.slice(0, 3);
   const completedToday = attendance.find((item) => item.clock_out_at && malaysiaDateKey(item.clock_in_at) === malaysiaDateKey());
   const attendanceMode = openShift ? "on" : completedToday ? "completed" : "ready";

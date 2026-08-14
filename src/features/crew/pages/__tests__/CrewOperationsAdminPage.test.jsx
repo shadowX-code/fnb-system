@@ -1,32 +1,39 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), detail: vi.fn(), save: vi.fn(), activate: vi.fn(), archive: vi.fn(), task: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { operationsAdminData: mocks.data, operationAdminDetail: mocks.detail, saveOperationTemplate: mocks.save, activateOperationTemplate: mocks.activate, archiveOperationTemplate: mocks.archive, saveDailyOperationTask: mocks.task } }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), save: vi.fn(), activate: vi.fn(), archive: vi.fn(), duplicate: vi.fn(), review: vi.fn() }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { tasksAdminData: mocks.data, saveTask: mocks.save, activateOperationTemplate: mocks.activate, archiveOperationTemplate: mocks.archive, duplicateTask: mocks.duplicate, reviewTask: mocks.review } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 import CrewOperationsAdminPage from "../CrewOperationsAdminPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
-const fixture = { date: "2026-08-13", summary: { total: 2, completed: 1, in_progress: 1, overdue: 0, needs_attention: 1, with_exceptions: 0 }, templates: [{ id: "template-1", series_id: "series-1", name: "Opening Checklist", operation_type: "opening", revision: 1, status: "active", applicable_positions: [], items: [{ id: "item-1", title: "Unlock entrance", is_required: true, evidence_requirement: "none" }] }], instances: [{ id: "instance-1", name: "Opening Checklist", operation_type: "opening", template_revision: 1, status: "in_progress", available_from: "2026-08-13T06:00:00+08:00", available_until: "2026-08-13T11:00:00+08:00" }], daily_tasks: [{ id: "task-1", title: "Check reservation board", priority: "normal", status: "pending" }], activity: [{ item_id: "action-1", checklist: "Opening Checklist", item: "Coffee machine", status: "needs_attention", note: "Needs service", employee: "Alex Tan" }], published_sops: [] };
+const fixture = { definitions: [{ id: "task-1", series_id: "series-1", name: "Opening Checklist", task_type: "checklist", schedule_type: "recurring", schedule_config: { frequency: "every_day" }, assignment_type: "all_crew", priority: "important", revision: 2, status: "active", blocks: [{ id: "block-1", block_type: "checklist_item", title: "Unlock entrance", is_required: true }] }], instances: [{ id: "instance-1", template_id: "task-1", name: "Opening Checklist", status: "in_progress" }], employees: [], published_sops: [], review_queue: [{ instance_id: "instance-2", employee_id: "employee-1", task_name: "Closing Check", employee_name: "QA Crew", business_date: "2026-08-14", status: "review_required" }] };
 const auth = { hasPermission: () => true }; const ui = { notify: vi.fn() };
-beforeEach(() => { Object.values(mocks).forEach((mock) => mock.mockReset()); mocks.data.mockResolvedValue(fixture); mocks.detail.mockResolvedValue({ instance: fixture.instances[0], items: [] }); mocks.save.mockResolvedValue("template-2"); mocks.activate.mockResolvedValue({}); mocks.archive.mockResolvedValue({}); mocks.task.mockResolvedValue("task-2"); });
+beforeEach(() => { Object.values(mocks).forEach((mock) => mock.mockReset()); mocks.data.mockResolvedValue(fixture); mocks.save.mockResolvedValue("task-2"); mocks.activate.mockResolvedValue({}); mocks.archive.mockResolvedValue({}); mocks.duplicate.mockResolvedValue("task-copy"); mocks.review.mockResolvedValue({ status: "completed" }); });
 afterEach(cleanup);
 
-describe("Crew Daily Operations Admin", () => {
-  it("renders server-derived status, exceptions and Daily Tasks", async () => {
+describe("Crew unified Tasks Admin", () => {
+  it("renders one Tasks workspace with status filters and actions", async () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    expect(await screen.findByRole("heading", { name: "Daily Operations" })).not.toBeNull();
-    expect(screen.getAllByText("Opening Checklist").length).toBeGreaterThan(0);
-    expect(screen.getByText("Needs service")).not.toBeNull();
-    expect(screen.getByText("Check reservation board")).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Tasks" })).not.toBeNull();
+    expect(screen.getByText("Opening Checklist")).not.toBeNull();
+    expect(screen.getByLabelText("Status")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Create Task/ })).not.toBeNull();
   });
 
-  it("saves a complete Draft template through one authority", async () => {
-    render(<CrewOperationsAdminPage initialTab="templates" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    fireEvent.click(await screen.findByRole("button", { name: /New Template/ }));
-    fireEvent.change(screen.getByLabelText("Template Name"), { target: { value: "Closing Checklist" } });
-    fireEvent.change(screen.getByLabelText("Item Title"), { target: { value: "Lock guest entrance" } });
+  it("saves schedule, assignment and content through one Task authority", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Create Task/ }));
+    fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Closing Readiness" } });
+    fireEvent.click(screen.getByRole("button", { name: "Content" }));
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Lock guest entrance" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
-    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ name: "Closing Checklist", items: [expect.objectContaining({ title: "Lock guest entrance" })] })));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ name: "Closing Readiness", schedule_type: "one_time", blocks: [expect.objectContaining({ title: "Lock guest entrance" })] })));
+  });
+
+  it("keeps manager-review finalization in the controlled review authority", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("instance-2", "employee-1", "approved"));
   });
 });

@@ -54,10 +54,10 @@ describe("Crew learning mobile service boundaries", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_mobile", { p_token: "crew-token" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_reward_mobile", { p_token: "crew-token", p_period: "2026-08-01" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_my_roster", { p_token: "crew-token", p_from: "2026-08-13", p_to: "2026-08-26" });
-    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_today", { p_token: "crew-token", p_business_date: "2026-08-13" });
-    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_detail", { p_token: "crew-token", p_instance_id: "instance-1" });
-    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_update_item", expect.objectContaining({ p_token: "crew-token", p_item_id: "item-1", p_action: "exception" }));
-    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_complete_checklist", { p_token: "crew-token", p_instance_id: "instance-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_tasks_today", { p_token: "crew-token", p_business_date: "2026-08-13" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_tasks_detail", { p_token: "crew-token", p_instance_id: "instance-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_tasks_update_block", expect.objectContaining({ p_token: "crew-token", p_block_id: "item-1", p_action: "exception" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_tasks_complete", { p_token: "crew-token", p_instance_id: "instance-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_update_daily_task", expect.objectContaining({ p_token: "crew-token", p_task_id: "task-1", p_action: "completed" }));
     expect(mocks.rpc).toHaveBeenCalledWith("crew_learning_assignment", { p_token: "crew-token", p_assignment_id: "assignment-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_sop_library", { p_token: "crew-token" });

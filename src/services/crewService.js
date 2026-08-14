@@ -133,9 +133,9 @@ export const crewService = {
   },
 
   async operationsToday(token, date = localBusinessDate()) {
-    const { data, error } = await supabase.rpc("crew_operations_today", { p_token: token, p_business_date: date });
+    const { data, error } = await supabase.rpc("crew_tasks_today", { p_token: token, p_business_date: date });
     throwSupabaseError("crew.operationsToday", error);
-    return data || { checklists: [], daily_tasks: [], attendance_context: null };
+    return data || { tasks: [], attendance_context: null };
   },
 
   async myRoster(token, from = localBusinessDate(), to = null) {
@@ -192,19 +192,25 @@ export const crewService = {
   },
 
   async operationDetail(token, instanceId) {
-    const { data, error } = await supabase.rpc("crew_operations_detail", { p_token: token, p_instance_id: instanceId });
+    const { data, error } = await supabase.rpc("crew_tasks_detail", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.operationDetail", error);
     return data;
   },
 
   async updateOperationItem(token, itemId, action, reason = null, note = null) {
-    const { data, error } = await supabase.rpc("crew_operations_update_item", { p_token: token, p_item_id: itemId, p_action: action, p_reason: reason, p_note: note, p_evidence: null });
+    const { data, error } = await supabase.rpc("crew_tasks_update_block", { p_token: token, p_block_id: itemId, p_action: action, p_response: {}, p_reason: reason, p_note: note });
     throwSupabaseError("crew.updateOperationItem", error);
     return data;
   },
 
+  async updateTaskBlock(token, blockId, action, response = {}, reason = null, note = null) {
+    const { data, error } = await supabase.rpc("crew_tasks_update_block", { p_token: token, p_block_id: blockId, p_action: action, p_response: response, p_reason: reason, p_note: note });
+    throwSupabaseError("crew.updateTaskBlock", error);
+    return data;
+  },
+
   async completeOperationChecklist(token, instanceId) {
-    const { data, error } = await supabase.rpc("crew_operations_complete_checklist", { p_token: token, p_instance_id: instanceId });
+    const { data, error } = await supabase.rpc("crew_tasks_complete", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.completeOperationChecklist", error);
     return data;
   },
@@ -219,6 +225,30 @@ export const crewService = {
     const { data, error } = await supabase.rpc("crew_operations_admin_data", { p_outlet_id: outletId, p_business_date: date });
     throwSupabaseError("crew.operationsAdminData", error);
     return data || { summary: {}, templates: [], instances: [], daily_tasks: [], activity: [], published_sops: [] };
+  },
+
+  async tasksAdminData(outletId, from = localBusinessDate(), to = from) {
+    const { data, error } = await supabase.rpc("crew_tasks_admin_data", { p_outlet_id: outletId, p_from: from, p_to: to });
+    throwSupabaseError("crew.tasksAdminData", error);
+    return data || { definitions: [], instances: [], published_sops: [], employees: [] };
+  },
+
+  async saveTask(outletId, task) {
+    const { data, error } = await supabase.rpc("crew_tasks_save", { p_outlet_id: outletId, p_task: task });
+    throwSupabaseError("crew.saveTask", error);
+    return data;
+  },
+
+  async duplicateTask(templateId) {
+    const { data, error } = await supabase.rpc("crew_tasks_duplicate", { p_template_id: templateId });
+    throwSupabaseError("crew.duplicateTask", error);
+    return data;
+  },
+
+  async reviewTask(instanceId, employeeId, decision, note = null) {
+    const { data, error } = await supabase.rpc("crew_tasks_review", { p_instance_id: instanceId, p_employee_id: employeeId, p_decision: decision, p_note: note });
+    throwSupabaseError("crew.reviewTask", error);
+    return data;
   },
 
   async operationAdminDetail(instanceId) {

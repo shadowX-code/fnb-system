@@ -373,16 +373,16 @@ export const routeDetails = {
     permission: "crew_leave.view",
   },
   crew_operations: {
-    description: "Monitor outlet Opening, Closing, Daily Tasks and Store Health execution.",
+    description: "Create, schedule, assign and review unified outlet Tasks.",
     component: CrewOperationsAdminPage,
     permission: "crew_operations.view",
-    props: { initialTab: "overview" },
+    props: {},
   },
   crew_operation_templates: {
-    description: "Manage versioned outlet checklist templates and immutable revisions.",
+    description: "Compatibility route for the unified Crew Tasks workspace.",
     component: CrewOperationsAdminPage,
     permission: "crew_operations.view",
-    props: { initialTab: "templates" },
+    props: {},
   },
   crew_learning: {
     description: "Configure mandatory outlet onboarding and review Crew progress.",

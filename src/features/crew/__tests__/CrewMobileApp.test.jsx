@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   myLeave: vi.fn(),
   operationDetail: vi.fn(),
   updateOperationItem: vi.fn(),
+  updateTaskBlock: vi.fn(),
   completeOperationChecklist: vi.fn(),
   updateDailyTask: vi.fn(),
   sopLibrary: vi.fn(),
@@ -54,11 +55,12 @@ beforeEach(() => {
   mocks.growthMobile.mockReset().mockResolvedValue(growth);
   mocks.performanceMobile.mockReset().mockResolvedValue(performance);
   mocks.rewardMobile.mockReset().mockResolvedValue(reward);
-  mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, checklists: [{ id: "ops-1", name: "Opening Checklist", type: "opening", status: "not_started", item_count: 2, completed_count: 0 }], daily_tasks: [{ id: "task-1", title: "Check reservation board", status: "pending", priority: "normal" }] });
+  mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, tasks: [{ id: "ops-1", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", block_count: 2, completed_count: 0 }, { id: "task-1", source: "legacy_daily", name: "Check reservation board", status: "pending", priority: "normal" }] });
   mocks.myRoster.mockReset().mockResolvedValue({ from: "2026-08-13", to: "2026-08-26", today: { entry_id: "roster-1", date: "2026-08-13", outlet_id: "outlet-1", outlet_name: "Friends Corner", start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew" }, entries: [{ id: "roster-1", date: "2026-08-13", outlet: { id: "outlet-1", name: "Friends Corner" }, start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew", template: { code: "MORNING", name: "Morning" } }, { id: "roster-2", date: "2026-08-14", outlet: { id: "outlet-2", name: "Hola Hola" }, entry_type: "off", template: { code: "OFF", name: "OFF" } }] });
   mocks.myLeave.mockReset().mockResolvedValue({ requests: [], upcoming: [] });
-  mocks.operationDetail.mockReset().mockResolvedValue({ id: "ops-1", name: "Opening Checklist", type: "opening", status: "not_started", items: [{ id: "item-1", title: "Unlock guest entrance", required: true, status: "pending" }] });
+  mocks.operationDetail.mockReset().mockResolvedValue({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "checklist_item", required: true, status: "pending" }] });
   mocks.updateOperationItem.mockReset().mockResolvedValue({});
+  mocks.updateTaskBlock.mockReset().mockResolvedValue({});
   mocks.completeOperationChecklist.mockReset().mockResolvedValue({});
   mocks.updateDailyTask.mockReset().mockResolvedValue({});
   mocks.sopLibrary.mockReset().mockResolvedValue({ categories: [], sops: [] });
@@ -271,7 +273,7 @@ describe("Crew Mobile redesign", () => {
 
   it("shows true tasks inline, expands locally, and keeps an honest empty state", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    mocks.operationsToday.mockResolvedValueOnce({ checklists: [{ id: "a", name: "Opening", status: "completed", item_count: 1, completed_count: 1 }, { id: "b", name: "Cleaning", status: "in_progress", item_count: 3, completed_count: 1 }], daily_tasks: [{ id: "c", title: "Stock shelves", status: "pending" }, { id: "d", title: "Late check", status: "overdue" }] });
+    mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1 }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1 }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue" }] });
     const first = render(<CrewMobileApp />);
     expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Open Stock shelves" })).not.toBeNull();
@@ -279,7 +281,7 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(screen.getByRole("button", { name: "Show remaining 1 tasks" }));
     expect(screen.getByRole("button", { name: "Open Late check" })).not.toBeNull();
     first.unmount();
-    mocks.operationsToday.mockResolvedValue({ checklists: [], daily_tasks: [] });
+    mocks.operationsToday.mockResolvedValue({ tasks: [] });
     render(<CrewMobileApp />);
     expect(await screen.findByText("All clear today")).not.toBeNull();
     expect(screen.queryByText("Keep Growing")).toBeNull();
