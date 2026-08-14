@@ -420,10 +420,10 @@ export const routeDetails = {
     props: { initialTab: "skills" },
   },
   crew_growth_people: {
-    description: "Review employee capability profiles and certification history.",
+    description: "Compatibility route for the unified Growth Overview.",
     component: CrewGrowthAdminPage,
     permission: "crew_growth.view",
-    props: { initialTab: "crew" },
+    props: { initialTab: "overview" },
   },
   crew_growth_reviews: {
     description: "Review practical assessments and issue controlled certifications.",

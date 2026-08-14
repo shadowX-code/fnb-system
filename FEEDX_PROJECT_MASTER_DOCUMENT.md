@@ -5209,7 +5209,7 @@ Service rules:
 ### Crew Growth Admin Foundation
 
 - Growth is the long-term Crew capability and certification workspace. It is separate from Reward and is not a replacement for Performance scoring.
-- Admin IA is fixed to four routes: Growth Overview, Skills, Crew Growth, and Certification Review. These surfaces reuse the shared FeedX Restaurant/Factory page header, filters, tables, badges, modal, spacing, and action hierarchy.
+- Admin IA is fixed to three routes: Growth Overview, Skills, and Certification Review. Growth Overview is the single team capability workspace and includes the filterable Crew Growth table, coverage, attention, certification status, and recent-certification context. The legacy Crew Growth route resolves to Growth Overview and is no longer advertised in navigation. These surfaces reuse the shared FeedX Restaurant/Factory page header, filters, tables, badges, modal, spacing, and action hierarchy.
 - `employees.id` remains the only Crew employee identity. Skills are scoped by owning outlet plus optional applicable outlets and positions.
 - Certification states are authoritative and shared across Growth surfaces: Not Started, In Progress, Ready for Review, Certified, Needs Renewal, Expired, and Not Applicable.
 - Requirements may reference a Published Onboarding module, lesson, SOP version, or Knowledge Check, plus practical, manual, and future performance evidence. Published references must belong to the Skill outlet. The Skill editor loads these references from the lightweight, outlet-scoped `crew_growth_admin_evidence` authority; completion is read from existing Learning authorities and is never duplicated or inferred by the browser.

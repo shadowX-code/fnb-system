@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Award, CheckCircle2, ChevronRight, ClipboardCheck, Plus, Search, ShieldCheck, Sparkles, UserRoundCheck, UsersRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Award, CheckCircle2, ChevronRight, ClipboardCheck, Plus, RotateCcw, Search, ShieldCheck, Sparkles, UserRoundCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -19,14 +19,17 @@ const statusText = (value) => STATES[value] || String(value || "").replaceAll("_
 const allOption = { value: "all", label: "All" };
 
 export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "overview" }) {
+  const activeTab = initialTab === "crew" ? "overview" : initialTab;
   const [outlets, setOutlets] = useState([]);
   const [outletId, setOutletId] = useState("");
   const [data, setData] = useState({ skills: [], crew: [], reviews: [], recent_certifications: [] });
   const [evidence, setEvidence] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [skillEditor, setSkillEditor] = useState(null);
   const [employeeProfile, setEmployeeProfile] = useState(null);
   const [review, setReview] = useState(null);
+  const requestId = useRef(0);
   const canManage = auth.hasPermission("crew_growth.manage");
   const canAssess = auth.hasPermission("crew_growth.assess");
   const canCertify = auth.hasPermission("crew_growth.certify");
@@ -45,19 +48,25 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
 
   async function refresh() {
     if (!outletId) return;
+    const currentRequest = ++requestId.current;
     setLoading(true);
+    setError("");
     try {
-      const growth = await crewService.growthAdminData(outletId);
+      const [growth, growthEvidence] = await Promise.all([
+        crewService.growthAdminData(outletId),
+        activeTab === "skills" ? crewService.growthAdminEvidence(outletId) : Promise.resolve([]),
+      ]);
+      if (currentRequest !== requestId.current) return;
       setData(growth);
-      if (initialTab === "skills") {
-        setEvidence(await crewService.growthAdminEvidence(outletId));
-      } else {
-        setEvidence([]);
-      }
-    } catch (cause) { ui.notify({ title: "Unable to load Crew Growth", message: cause.message, tone: "error" }); }
-    finally { setLoading(false); }
+      setEvidence(growthEvidence);
+    } catch (cause) {
+      if (currentRequest !== requestId.current) return;
+      setError(cause.message || "Growth data could not be loaded.");
+      ui.notify({ title: "Unable to load Crew Growth", message: cause.message, tone: "error" });
+    }
+    finally { if (currentRequest === requestId.current) setLoading(false); }
   }
-  useEffect(() => { refresh(); }, [initialTab, outletId]);
+  useEffect(() => { refresh(); }, [activeTab, outletId]);
 
   async function saveSkill(payload) {
     try {
@@ -81,11 +90,11 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
   }
 
   const outlet = outlets.find((item) => item.id === outletId);
-  const header = tabMeta(initialTab);
+  const header = tabMeta(activeTab);
   const outletSelect = <SelectField className="crew-growth-outlet" label="Outlet" ariaLabel="Growth outlet" value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />;
   return <div className="crew-growth-page">
-    <PageHeader section="Crew · Growth" title={header.title} description={header.description} actions={<>{outletSelect}{initialTab === "skills" && canManage ? <button className="btn-primary" onClick={() => setSkillEditor({})}><Plus size={15} /> New Skill</button> : null}</>} />
-    {loading ? <GrowthSkeleton /> : initialTab === "overview" ? <GrowthOverview data={data} onOpenReview={setReview} /> : initialTab === "skills" ? <SkillsLibrary data={data} canManage={canManage} onView={setSkillEditor} /> : initialTab === "crew" ? <CrewGrowth data={data} onView={setEmployeeProfile} /> : <CertificationQueue data={data} onReview={setReview} />}
+    <PageHeader section="Crew · Growth" title={header.title} description={header.description} actions={activeTab === "overview" ? null : <>{outletSelect}{activeTab === "skills" && canManage ? <button className="btn-primary" onClick={() => setSkillEditor({})}><Plus size={15} /> New Skill</button> : null}</>} />
+    {loading ? <GrowthSkeleton /> : error ? <GrowthError message={error} onRetry={refresh} /> : activeTab === "overview" ? <GrowthOverview data={data} outletSelect={outletSelect} onOpenReview={setReview} onOpenEmployee={setEmployeeProfile} onNavigate={ui.navigate} /> : activeTab === "skills" ? <SkillsLibrary data={data} canManage={canManage} onView={setSkillEditor} /> : <CertificationQueue data={data} onReview={setReview} />}
     {skillEditor ? <SkillEditor skill={skillEditor} evidence={evidence} outlet={outlet} saving={loading} onClose={() => setSkillEditor(null)} onSave={saveSkill} /> : null}
     {employeeProfile ? <CrewGrowthProfile row={employeeProfile} onClose={() => setEmployeeProfile(null)} onReview={(item) => { setEmployeeProfile(null); setReview(item); }} /> : null}
     {review ? <CertificationReview item={review} canAssess={canAssess} canCertify={canCertify} onClose={() => setReview(null)} onAssess={submitAssessment} onCertify={certify} /> : null}
@@ -94,25 +103,39 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
 
 function tabMeta(tab) {
   if (tab === "skills") return { title: "Skills", description: "Define outlet and position-specific capabilities with server-derived certification requirements." };
-  if (tab === "crew") return { title: "Crew Growth", description: "Review each Crew member’s durable capability profile and certification history." };
   if (tab === "reviews") return { title: "Certification Review", description: "Complete practical reviews only after authoritative learning evidence is ready." };
-  return { title: "Growth Overview", description: "Team skill coverage, certification readiness and renewal attention in one view." };
+  return { title: "Growth Overview", description: "Team capability, certification progress and Crew development in one view." };
 }
 
 function flattenStates(data) { return (data.crew || []).flatMap((row) => (row.skills || []).map((state) => ({ ...state, employee: row.employee, skill: data.skills.find((skill) => skill.id === state.skill_id) }))); }
 function dataFor(employeeId, skillId, data) { return flattenStates(data).find((state) => state.employee_id === employeeId && state.skill_id === skillId); }
 
-function GrowthOverview({ data, onOpenReview }) {
+function GrowthOverview({ data, outletSelect, onOpenReview, onOpenEmployee, onNavigate }) {
+  const [query, setQuery] = useState("");
+  const [position, setPosition] = useState("all");
+  const [status, setStatus] = useState("all");
   const states = flattenStates(data).filter((row) => row.applicable);
   const activeCrew = data.crew.length;
-  const certified = states.filter((row) => row.status === "certified").length;
-  const pending = states.filter((row) => row.status === "ready_for_review").length;
+  const certified = new Set(states.filter((row) => row.status === "certified").map((row) => row.employee_id)).size;
+  const pending = new Set(states.filter((row) => row.status === "ready_for_review").map((row) => row.employee_id)).size;
   const attention = new Set(states.filter((row) => ["ready_for_review", "needs_renewal", "expired"].includes(row.status)).map((row) => row.employee_id)).size;
-  return <div className="crew-growth-stack"><section className="crew-growth-metrics" aria-label="Growth metrics"><Metric icon={UsersRound} label="Active Crew" value={activeCrew} detail="In selected outlet" /><Metric icon={Award} label="Certified Skills" value={certified} detail="Current certifications" tone="success" /><Metric icon={ClipboardCheck} label="Certifications Pending" value={pending} detail="Ready for manager review" tone={pending ? "warning" : "neutral"} /><Metric icon={UserRoundCheck} label="Crew Need Attention" value={attention} detail="Review or renewal needed" tone={attention ? "danger" : "success"} /></section><div className="crew-growth-overview-grid"><div className="crew-growth-overview-column"><section className="crew-growth-section"><SectionHead title="Skill Coverage" detail="Certified active Crew by applicable skill" /><div className="crew-growth-coverage"><div className="crew-growth-coverage-head"><span>Skill</span><span>Certified</span><span>Coverage</span></div>{data.skills.filter((skill) => skill.status === "active").map((skill) => { const eligible = states.filter((row) => row.skill_id === skill.id); const count = eligible.filter((row) => row.status === "certified").length; const percent = eligible.length ? Math.round(count * 100 / eligible.length) : 0; return <article key={skill.id}><strong>{skill.name}</strong><span>{count} / {eligible.length}</span><div className="crew-growth-progress"><i style={{ width: `${percent}%` }} /><b>{percent}%</b></div></article>; })}{!data.skills.length ? <Empty title="No skills configured" detail="Create the first outlet skill in Skills." /> : null}</div></section><section className="crew-growth-section"><SectionHead title="Recent Certifications" detail="Immutable certification history" />{data.recent_certifications.length ? <DataTable density="compact" rows={data.recent_certifications.slice(0, 6)} getRowKey={(row) => row.id} tableClassName="min-w-[620px]" columns={[{ key: "employee", header: "Employee", render: (row) => <NameCell title={row.employee_name} /> }, { key: "skill", header: "Skill", render: (row) => row.skill_name }, { key: "date", header: "Certified Date", render: (row) => formatDate(row.certified_at) }, { key: "by", header: "Certified By", render: (row) => row.certified_by }]} /> : <Empty title="No certifications yet" detail="Completed certifications will form the permanent activity record." />}</section></div><div className="crew-growth-overview-column"><section className="crew-growth-section"><SectionHead title="Needs Attention" detail="Ready reviews and renewal risks" />{data.reviews.length ? <DataTable density="compact" rows={data.reviews.slice(0, 8)} getRowKey={(row) => `${row.employee_id}:${row.skill_id}`} onRowClick={onOpenReview} tableClassName="min-w-[620px]" columns={[{ key: "employee", header: "Employee", render: (row) => <NameCell title={row.employee_name} detail={row.position} /> }, { key: "skill", header: "Skill", render: (row) => row.skill_name }, { key: "issue", header: "Issue", render: (row) => <span className="crew-growth-issue">{attentionIssue(row.state.status)}</span> }, { key: "status", header: "Status", render: (row) => <StateBadge state={row.state.status} /> }, { key: "open", header: "", align: "right", render: () => <ChevronRight size={15} /> }]} /> : <Empty title="No Crew need attention" detail="Ready reviews and renewal risks will appear here." />}</section><StatusDistribution states={states} /></div></div></div>;
+  const positions = [...new Set(data.crew.map((row) => row.employee.position).filter(Boolean))].sort();
+  const crewRows = data.crew.map((row) => ({ ...row, skills: row.skills.map((state) => ({ ...state, skill: data.skills.find((skill) => skill.id === state.skill_id) })), summary: summarize(row.skills) })).filter((row) => `${row.employee.full_name} ${row.employee.employee_code || ""}`.toLowerCase().includes(query.toLowerCase()) && (position === "all" || row.employee.position === position) && (status === "all" || growthStatus(row.summary) === status));
+  const coverageRows = data.skills.filter((skill) => skill.status === "active").map((skill) => { const eligible = states.filter((row) => row.skill_id === skill.id); const count = eligible.filter((row) => row.status === "certified").length; return { skill, eligible: eligible.length, count, percent: eligible.length ? Math.round(count * 100 / eligible.length) : 0 }; }).sort((a, b) => a.percent - b.percent || b.eligible - a.eligible || a.skill.name.localeCompare(b.skill.name)).slice(0, 5);
+  const clearFilters = () => { setQuery(""); setPosition("all"); setStatus("all"); };
+  return <div className="crew-growth-stack">
+    <FilterBar>{outletSelect}<SearchField label="Search Crew" value={query} onChange={setQuery} placeholder="Search by name or employee code" /><SelectField label="Position" value={position} onChange={setPosition} options={[allOption, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Growth Status" value={status} onChange={setStatus} options={[allOption, { value: "on_track", label: "On Track" }, { value: "attention", label: "Needs Attention" }, { value: "not_started", label: "Not Started" }]} /><button className="btn-secondary crew-growth-clear" type="button" disabled={!query && position === "all" && status === "all"} onClick={clearFilters}><RotateCcw size={14} /> Clear</button></FilterBar>
+    <section className="crew-growth-metrics" aria-label="Growth metrics"><Metric icon={UsersRound} label="Active Crew" value={activeCrew} detail="In selected outlet" /><Metric icon={Award} label="Certified Crew" value={certified} detail="At least one current certification" tone="success" /><Metric icon={ClipboardCheck} label="Ready for Review" value={pending} detail="Crew awaiting manager review" tone={pending ? "warning" : "neutral"} /><Metric icon={UserRoundCheck} label="Need Attention" value={attention} detail="Review or renewal needed" tone={attention ? "danger" : "success"} /></section>
+    <section className="crew-growth-table crew-growth-crew-table"><SectionHead title="Crew Growth" detail={`${crewRows.length} of ${activeCrew} active Crew`} />{crewRows.length ? <DataTable rows={crewRows} getRowKey={(row) => row.employee.id} onRowClick={onOpenEmployee} tableClassName="min-w-[920px]" columns={crewColumns(onOpenEmployee)} /> : <Empty title={data.crew.length ? "No Crew match these filters" : "No active Crew in this outlet"} detail={data.crew.length ? "Clear or adjust the filters to see more Crew." : "Active Crew capability profiles will appear here."} />}</section>
+    <div className="crew-growth-overview-grid"><section className="crew-growth-section"><SectionHead title="Skill Coverage" detail="Lowest coverage among active applicable skills" action={<button type="button" className="btn-ghost" onClick={() => onNavigate?.("crew_growth_skills")}>View all skills <ChevronRight size={14} /></button>} /><div className="crew-growth-coverage"><div className="crew-growth-coverage-head"><span>Skill</span><span>Certified</span><span>Coverage</span></div>{coverageRows.map(({ skill, count, eligible, percent }) => <article key={skill.id}><strong>{skill.name}</strong><span>{count} / {eligible}</span><div className="crew-growth-progress"><i style={{ width: `${percent}%` }} /><b>{percent}%</b></div></article>)}{!coverageRows.length ? <Empty title="No skills configured" detail="Create the first outlet skill in Skills." /> : null}</div></section><section className="crew-growth-section"><SectionHead title="Needs Attention" detail="Actionable reviews and renewal risks" action={<button type="button" className="btn-ghost" onClick={() => onNavigate?.("crew_growth_reviews")}>View all reviews <ChevronRight size={14} /></button>} />{data.reviews.length ? <DataTable density="compact" rows={data.reviews.slice(0, 5)} getRowKey={(row) => `${row.employee_id}:${row.skill_id}`} tableClassName="min-w-[620px]" columns={[{ key: "employee", header: "Employee", render: (row) => <NameCell title={row.employee_name} detail={row.position} /> }, { key: "skill", header: "Skill", render: (row) => row.skill_name }, { key: "issue", header: "Issue", render: (row) => <span className="crew-growth-issue">{attentionIssue(row.state.status)}</span> }, { key: "action", header: "Action", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => onOpenReview(row)}>Review</button> }]} /> : <Empty title="No Crew need attention" detail="Ready reviews and renewal risks will appear here." />}</section></div>
+    <div className="crew-growth-overview-grid is-lower"><StatusDistribution states={states} /><section className="crew-growth-section"><SectionHead title="Recent Certifications" detail="Latest immutable certification records" />{data.recent_certifications.length ? <DataTable density="compact" rows={data.recent_certifications.slice(0, 5)} getRowKey={(row) => row.id} tableClassName="min-w-[620px]" columns={[{ key: "employee", header: "Employee", render: (row) => <NameCell title={row.employee_name} /> }, { key: "skill", header: "Skill", render: (row) => row.skill_name }, { key: "date", header: "Certified", render: (row) => formatDate(row.certified_at) }, { key: "by", header: "By", render: (row) => row.certified_by }]} /> : <Empty title="No certifications yet" detail="Completed certifications will appear here." />}</section></div>
+  </div>;
 }
 
+function crewColumns(onOpenEmployee) { return [{ key: "employee", header: "Employee", render: (row) => <NameCell title={row.employee.full_name} detail={row.employee.employee_code || row.employee.position} /> }, { key: "position", header: "Position", render: (row) => row.employee.position || "—" }, { key: "certified", header: "Certified", render: (row) => row.summary.certified }, { key: "progress", header: "In Progress", render: (row) => row.summary.inProgress }, { key: "ready", header: "Ready for Review", render: (row) => row.summary.ready }, { key: "last", header: "Last Certification", render: (row) => formatDate(latestCertification(row.skills)) }, { key: "status", header: "Growth Status", render: (row) => <Badge tone={growthStatus(row.summary) === "attention" ? "warning" : growthStatus(row.summary) === "on_track" ? "success" : "neutral"}>{growthStatus(row.summary) === "attention" ? "Needs Attention" : growthStatus(row.summary) === "on_track" ? "On Track" : "Not Started"}</Badge> }, { key: "open", header: "", align: "right", render: (row) => <button className="icon-btn" aria-label={`View ${row.employee.full_name} growth`} onClick={() => onOpenEmployee(row)}><ChevronRight size={16} /></button> }]; }
+
 function StatusDistribution({ states }) {
-  const rows = ["certified", "in_progress", "ready_for_review", "needs_renewal", "expired", "not_applicable"].map((state) => ({ state, count: states.filter((row) => row.status === state).length }));
+  const rows = ["certified", "in_progress", "ready_for_review", "not_started", "needs_renewal", "expired"].map((state) => ({ state, count: states.filter((row) => row.status === state).length }));
   const total = Math.max(states.length, 1);
   return <section className="crew-growth-section"><SectionHead title="Certification Status" detail={`${states.length} applicable Crew skill records`} /><div className="crew-growth-status-distribution">{rows.map((row) => <div key={row.state}><StateBadge state={row.state} /><div className="crew-growth-status-bar"><i data-state={row.state} style={{ width: `${Math.round(row.count * 100 / total)}%` }} /></div><strong>{row.count}</strong><span>{Math.round(row.count * 100 / total)}%</span></div>)}</div></section>;
 }
@@ -123,13 +146,6 @@ function SkillsLibrary({ data, canManage, onView }) {
   const rows = data.skills.filter((skill) => `${skill.name} ${skill.description || ""}`.toLowerCase().includes(query.toLowerCase()) && (category === "all" || skill.category === category) && (position === "all" || skill.positions.includes(position)) && (status === "all" || skill.status === status));
   const states = flattenStates(data);
   return <div className="crew-growth-stack"><FilterBar><SearchField label="Search" value={query} onChange={setQuery} placeholder="Search skills" /><SelectField label="Category" value={category} onChange={setCategory} options={[allOption, ...CATEGORIES.map((value) => ({ value, label: value }))]} /><SelectField label="Role / Position" value={position} onChange={setPosition} options={[allOption, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Status" value={status} onChange={setStatus} options={[allOption, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} /></FilterBar><section className="crew-growth-table"><DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onView} columns={[{ key: "skill", header: "Skill", render: (row) => <NameCell title={row.name} detail={row.description || "No description"} /> }, { key: "category", header: "Category" }, { key: "positions", header: "Applicable Roles", render: (row) => row.positions.length ? row.positions.join(", ") : "All active Crew" }, { key: "method", header: "Certification Method", render: (row) => methodLabel(row.certification_method) }, { key: "certified", header: "Certified Crew", render: (row) => { const eligible = states.filter((state) => state.skill_id === row.id && state.applicable); return `${eligible.filter((state) => state.status === "certified").length} / ${eligible.length}`; } }, { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</Badge> }, { key: "actions", header: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => onView(row)}>{canManage ? "View / Edit" : "View"}</button> }]} /></section></div>;
-}
-
-function CrewGrowth({ data, onView }) {
-  const [query, setQuery] = useState(""); const [position, setPosition] = useState("all"); const [status, setStatus] = useState("all");
-  const positions = [...new Set(data.crew.map((row) => row.employee.position).filter(Boolean))].sort();
-  const rows = data.crew.map((row) => ({ ...row, skills: row.skills.map((state) => ({ ...state, skill: data.skills.find((skill) => skill.id === state.skill_id) })), summary: summarize(row.skills) })).filter((row) => `${row.employee.full_name} ${row.employee.employee_code || ""}`.toLowerCase().includes(query.toLowerCase()) && (position === "all" || row.employee.position === position) && (status === "all" || growthStatus(row.summary) === status));
-  return <div className="crew-growth-stack"><FilterBar><SearchField label="Search Crew" value={query} onChange={setQuery} placeholder="Search Crew" /><SelectField label="Position" value={position} onChange={setPosition} options={[allOption, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Growth Status" value={status} onChange={setStatus} options={[allOption, { value: "on_track", label: "On Track" }, { value: "attention", label: "Needs Attention" }, { value: "not_started", label: "Not Started" }]} /></FilterBar><section className="crew-growth-table"><DataTable rows={rows} getRowKey={(row) => row.employee.id} onRowClick={onView} columns={[{ key: "employee", header: "Employee", render: (row) => <NameCell title={row.employee.full_name} detail={row.employee.employee_code || row.employee.position} /> }, { key: "position", header: "Position", render: (row) => row.employee.position || "—" }, { key: "certified", header: "Certified Skills", render: (row) => row.summary.certified }, { key: "progress", header: "In Progress", render: (row) => row.summary.inProgress }, { key: "ready", header: "Ready for Review", render: (row) => row.summary.ready }, { key: "last", header: "Last Certification", render: (row) => formatDate(latestCertification(row.skills)) }, { key: "status", header: "Growth Status", render: (row) => <Badge tone={growthStatus(row.summary) === "attention" ? "warning" : growthStatus(row.summary) === "on_track" ? "success" : "neutral"}>{growthStatus(row.summary) === "attention" ? "Needs Attention" : growthStatus(row.summary) === "on_track" ? "On Track" : "Not Started"}</Badge> }, { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> }]} /></section></div>;
 }
 
 function CertificationQueue({ data, onReview }) {
@@ -175,8 +191,9 @@ function StateBadge({ state }) { return <Badge tone={stateTone(state)}>{statusTe
 function InitialAvatar({ name, size = "sm" }) { const initials = String(name || "Crew").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase(); return <span className={`crew-growth-avatar is-${size}`} aria-hidden="true">{initials}</span>; }
 function NameCell({ title, detail }) { return <span className="crew-growth-name"><InitialAvatar name={title} /><span><strong>{title}</strong><small>{detail || "—"}</small></span></span>; }
 function Metric({ icon: Icon = Sparkles, label, value, detail, tone = "neutral" }) { return <article className={`crew-growth-metric is-${tone}`}><div className="crew-growth-metric-icon">{Icon ? <Icon size={16} /> : null}</div><span><small>{label}</small><strong>{value}</strong>{detail ? <em>{detail}</em> : null}</span></article>; }
-function SectionHead({ title, detail }) { return <header className="crew-growth-section-head"><div><h2>{title}</h2><p>{detail}</p></div></header>; }
+function SectionHead({ title, detail, action = null }) { return <header className="crew-growth-section-head"><div><h2>{title}</h2><p>{detail}</p></div>{action}</header>; }
 function FilterBar({ children }) { return <section className="crew-growth-filterbar">{children}</section>; }
 function SearchField({ label, value, onChange, placeholder }) { return <label className="crew-growth-search"><span>{label}</span><div><Search size={15} /><input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} /></div></label>; }
 function Empty({ title, detail }) { return <div className="crew-growth-empty"><ShieldCheck size={22} /><strong>{title}</strong><span>{detail}</span></div>; }
+function GrowthError({ message, onRetry }) { return <section className="crew-growth-error" role="alert"><ShieldCheck size={24} /><div><strong>Unable to load Growth</strong><span>{message}</span></div><button className="btn-secondary" onClick={onRetry}>Retry</button></section>; }
 function GrowthSkeleton() { return <div className="crew-growth-skeleton"><span /><span /><span /><p>Loading Growth…</p></div>; }

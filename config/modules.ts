@@ -816,7 +816,7 @@ export const moduleRegistry: AppModule[] = [
     label: "Crew Growth",
     route: "/crew/growth/crew",
     icon: "crew-growth-people",
-    sidebar: true,
+    sidebar: false,
     workspace: "crew",
     permissions: {},
   },
