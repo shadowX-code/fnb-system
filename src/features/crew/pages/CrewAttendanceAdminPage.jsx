@@ -7,6 +7,8 @@ import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
 import "./CrewAttendanceAdminPage.css";
@@ -126,11 +128,12 @@ function issueClass(row) {
 }
 
 export default function CrewAttendanceAdminPage({ ui, store }) {
+  const sharedOutlet = useCrewAdminOutlet(store?.outlets || []);
   const today = useMemo(() => businessDate(), []);
   const [mode, setMode] = useState("today");
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
-  const [outletId, setOutletId] = useState(ALL);
+  const [outletId, setOutletIdState] = useState("");
   const [employeeId, setEmployeeId] = useState(ALL);
   const [position, setPosition] = useState(ALL);
   const [status, setStatus] = useState(ALL);
@@ -138,6 +141,9 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
   const [outlets, setOutlets] = useState(() => (store?.outlets || []).filter((row) => row.is_active !== false));
   const [loading, setLoading] = useState(true);
   const [detail, setDetail] = useState(null);
+
+  useEffect(() => { if (!outletId && sharedOutlet.outletId) setOutletIdState(sharedOutlet.outletId); }, [outletId, sharedOutlet.outletId]);
+  const setOutletId = (value) => { setOutletIdState(value); if (value !== ALL) sharedOutlet.setOutletId(value); };
 
   useEffect(() => {
     if (store?.outlets?.length) return undefined;
@@ -147,6 +153,7 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
   }, [store?.outlets, ui]);
 
   useEffect(() => {
+    if (!outletId) return undefined;
     let live = true;
     setLoading(true);
     crewService.listAttendance({ from, to, outletId: outletId === ALL ? null : outletId })
@@ -198,8 +205,9 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
       section="Crew · Workforce"
       title="Attendance"
       description="Review actual attendance against published roster and verified location evidence."
-      actions={<><div className="inline-flex rounded-xl border border-border bg-white p-1"><button className={mode === "today" ? "btn-primary" : "btn-ghost"} type="button" onClick={() => changeMode("today")}>Today</button><button className={mode === "history" ? "btn-primary" : "btn-ghost"} type="button" onClick={() => changeMode("history")}>History</button></div><button className="icon-btn" type="button" aria-label="About attendance evidence" title="Roster variance is explainable evidence only; it does not directly alter Performance scores."><HelpCircle size={17} /></button></>}
     />
+
+    <CrewAdminToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} allowAll allValue={ALL} />} time={<><div className="inline-flex rounded-xl border border-border bg-white p-1"><button className={mode === "today" ? "btn-primary" : "btn-ghost"} type="button" onClick={() => changeMode("today")}>Today</button><button className={mode === "history" ? "btn-primary" : "btn-ghost"} type="button" onClick={() => changeMode("history")}>History</button></div>{mode === "history" ? <div className="flex gap-2"><label className="field-label">From<input className="control mt-1 w-full" type="date" value={from} max={to} onChange={(event) => { setMode("history"); setFrom(event.target.value); }} /></label><label className="field-label">To<input className="control mt-1 w-full" type="date" value={to} min={from} onChange={(event) => { setMode("history"); setTo(event.target.value); }} /></label></div> : null}</>} filters={<><SelectField label="Employee" ariaLabel="Employee" value={employeeId} onChange={setEmployeeId} searchable options={[{ value: ALL, label: "All" }, ...employees.map((employee) => ({ value: employee.id, label: employee.nickname || employee.full_name }))]} /><SelectField label="Position" ariaLabel="Position" value={position} onChange={setPosition} options={[{ value: ALL, label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Attendance Status" ariaLabel="Attendance Status" value={status} onChange={setStatus} options={[{ value: ALL, label: "All" }, { value: "verified", label: "Verified" }, { value: "variance", label: "Late / Variance" }, { value: "location_exception", label: "Location Exception" }, { value: "incomplete", label: "Incomplete" }, { value: "no_roster", label: "No Published Roster" }]} /></>} secondary={<button className="icon-btn" type="button" aria-label="About attendance evidence" title="Roster variance is explainable evidence only; it does not directly alter Performance scores."><HelpCircle size={17} /></button>} />
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Attendance summary">
       <MetricCard icon={UsersRound} label={mode === "today" ? "Present Today" : "Present in Range"} value={summary.present} helper="Crew with attendance evidence" size="compact" />
@@ -209,19 +217,6 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
     </section>
 
     {summary.nonWorking ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-text-secondary"><CalendarDays size={16} /><strong className="text-text-primary">{summary.nonWorking}</strong> attendance record{summary.nonWorking === 1 ? "" : "s"} occurred on OFF or approved leave days. Attendance was not required.</div> : null}
-
-    <section className="card p-4" aria-label="Attendance filters">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <SelectField label="Outlet" ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={[{ value: ALL, label: "All" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} />
-        <div className="grid grid-cols-2 gap-2">
-          <label className="field-label">From<input className="control mt-1 w-full" type="date" value={from} max={to} onChange={(event) => { setMode("history"); setFrom(event.target.value); }} /></label>
-          <label className="field-label">To<input className="control mt-1 w-full" type="date" value={to} min={from} onChange={(event) => { setMode("history"); setTo(event.target.value); }} /></label>
-        </div>
-        <SelectField label="Employee" ariaLabel="Employee" value={employeeId} onChange={setEmployeeId} searchable options={[{ value: ALL, label: "All" }, ...employees.map((employee) => ({ value: employee.id, label: employee.nickname || employee.full_name }))]} />
-        <SelectField label="Position" ariaLabel="Position" value={position} onChange={setPosition} options={[{ value: ALL, label: "All" }, ...positions.map((value) => ({ value, label: value }))]} />
-        <SelectField label="Attendance Status" ariaLabel="Attendance Status" value={status} onChange={setStatus} options={[{ value: ALL, label: "All" }, { value: "verified", label: "Verified" }, { value: "variance", label: "Late / Variance" }, { value: "location_exception", label: "Location Exception" }, { value: "incomplete", label: "Incomplete" }, { value: "no_roster", label: "No Published Roster" }]} />
-      </div>
-    </section>
 
     {attentionCount ? <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3" aria-label="Needs Attention"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2 font-bold text-text-primary"><AlertTriangle className="text-amber-600" size={17} />{attentionCount} attendance record signal{attentionCount === 1 ? "" : "s"} need review</div><p className="mt-1 text-xs text-text-secondary">Signals remain separate: location, session completion, roster matching, and large clock-in variance.</p></div><div className="flex flex-wrap gap-2">{summary.exceptions ? <button className="btn-secondary" type="button" onClick={() => setStatus("location_exception")}>{summary.exceptions} Location Exception{summary.exceptions === 1 ? "" : "s"}</button> : null}{summary.incomplete ? <button className="btn-secondary" type="button" onClick={() => setStatus("incomplete")}>{summary.incomplete} Incomplete</button> : null}{summary.noRoster ? <button className="btn-secondary" type="button" onClick={() => setStatus("no_roster")}>{summary.noRoster} No Roster</button> : null}{summary.largeVariance ? <button className="btn-secondary" type="button" onClick={() => setStatus("variance")}>{summary.largeVariance} Large Variance</button> : null}</div></div></section> : null}
 

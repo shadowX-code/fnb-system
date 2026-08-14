@@ -2690,3 +2690,11 @@
 /* Unified Performance Overview interactive KPI boundaries. */
 .crew-performance-metric-action{border-right:1px solid var(--theme-border,#e3e9ed)}
 .crew-performance-metric-action:last-child{border-right:0}
+
+/* Canonical Crew Admin page controls: Outlet -> time -> search -> filters -> actions. */
+.crew-admin-toolbar{display:flex;width:100%;align-items:flex-end;gap:12px;border:1px solid var(--theme-border,#dbe3e8);border-radius:12px;background:#fff;padding:14px 16px}
+.crew-admin-toolbar-controls,.crew-admin-toolbar-filter-group,.crew-admin-toolbar-actions{display:flex;min-width:0;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.crew-admin-toolbar-controls{flex:1 1 auto}.crew-admin-toolbar-actions{margin-left:auto;flex:0 0 auto}.crew-admin-toolbar-outlet{width:210px}.crew-admin-toolbar [data-toolbar-slot=time]{min-width:170px}.crew-admin-toolbar [data-toolbar-slot=search]{min-width:min(260px,100%);flex:1 1 240px}
+.crew-admin-toolbar .control,.crew-admin-toolbar button[aria-haspopup=listbox]{height:40px}.crew-admin-toolbar-actions>.btn-primary,.crew-admin-toolbar-actions>.btn-secondary,.crew-admin-toolbar-actions>.btn-ghost{min-height:40px}
+@media(max-width:1024px){.crew-admin-toolbar{align-items:stretch;flex-wrap:wrap}.crew-admin-toolbar-controls{width:100%}.crew-admin-toolbar-actions{width:100%;justify-content:flex-end}}
+@media(max-width:640px){.crew-admin-toolbar-controls>div,.crew-admin-toolbar-filter-group,.crew-admin-toolbar-filter-group>*,.crew-admin-toolbar-outlet{width:100%}.crew-admin-toolbar-actions>*{flex:1 1 auto;justify-content:center}}

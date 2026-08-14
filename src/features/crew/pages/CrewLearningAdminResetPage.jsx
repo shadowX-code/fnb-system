@@ -6,8 +6,9 @@ import Badge from "../../../components/ui/Badge.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import { crewService } from "../../../services/crewService.js";
-import { outletService } from "../../../services/outletService.js";
 import CrewOnboardingEditor from "../components/CrewOnboardingEditor.jsx";
+import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 
 const byOrder = (rows = []) => [...rows].sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
 const lessonCount = (journey) => (journey?.modules || []).reduce((total, module) => total + (module.lessons?.length || 0), 0);
@@ -16,8 +17,7 @@ const statusTone = (status) => status === "published" || status === "completed" 
 const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
 export default function CrewLearningAdminResetPage({ auth, ui, store }) {
-  const [outlets, setOutlets] = useState([]);
-  const [outletId, setOutletId] = useState("");
+  const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
   const [versions, setVersions] = useState([]);
   const [progress, setProgress] = useState([]);
   const [sops, setSops] = useState([]);
@@ -36,22 +36,6 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
   const published = versions.find((item) => item.status === "published");
   const draft = versions.find((item) => item.status === "draft");
   const journey = published || draft;
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const rows = store?.outlets?.length ? store.outlets : await outletService.listActiveOutlets();
-        if (active) setOutlets(rows || []);
-      } catch (cause) {
-        ui.notify({ title: "Unable to load Onboarding outlets", message: cause.message, tone: "error" });
-        setLoading(false);
-      }
-    })();
-    return () => { active = false; };
-  }, [store?.outlets, ui]);
-
-  useEffect(() => { if (!outletId && accessibleOutlets.length) setOutletId(accessibleOutlets[0].id); }, [accessibleOutlets, outletId]);
 
   async function refresh(targetOutletId = outletId) {
     if (!targetOutletId) return { versions: [], progress: [], sops: [] };
@@ -164,7 +148,8 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
   if (!accessibleOutlets.length && !loading) return <div className="crew-onboarding-admin-page"><PageHeader section="Crew · Learning" title="New Crew Onboarding" description="Mandatory for all eligible Crew" /><EmptyState icon={CircleAlert} title="No accessible outlet" description="Ask an administrator to grant the required outlet visibility." /></div>;
 
   return <div className="crew-onboarding-admin-page">
-    <PageHeader section="Crew · Learning" title="New Crew Onboarding" description="Mandatory for all eligible Crew" actions={<><SelectField className="crew-learning-outlet-context" label="Outlet" ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={accessibleOutlets.map((item) => ({ value: item.id, label: item.name }))} />{canManage ? <button className="btn-secondary" onClick={() => setCloneOpen(true)}><Copy size={15} /> Clone From Outlet</button> : null}{canManage ? <button className="btn-primary" disabled={saving} onClick={openEditor}>{draft ? "Continue Editing Draft" : "Edit Onboarding"}</button> : null}</>} />
+    <PageHeader section="Crew · Learning" title="New Crew Onboarding" description="Mandatory for all eligible Crew" />
+    <CrewAdminToolbar outlet={<CrewAdminOutletField />} secondary={canManage ? <button className="btn-secondary" onClick={() => setCloneOpen(true)}><Copy size={15} /> Clone From Outlet</button> : null} primary={canManage ? <button className="btn-primary" disabled={saving} onClick={openEditor}>{draft ? "Continue Editing Draft" : "Edit Onboarding"}</button> : null} />
     {loading ? <LearningSkeleton /> : loadError ? <LearningLoadError message={loadError} onRetry={() => refresh(outletId)} /> : journey ? <OnboardingWorkspace outlet={outlet} journey={journey} draft={draft} progress={progress} section={section} setSection={setSection} onViewModule={setViewModuleId} onViewEmployee={setViewEmployeeId} /> : <EmptyState icon={GraduationCap} title={`No onboarding setup for ${outlet?.name || "this outlet"}`} description="Create the standard eight-module onboarding or clone an independent setup from another outlet." actions={canManage ? <><button className="btn-primary" onClick={openEditor}>Create Onboarding</button><button className="btn-secondary" onClick={() => setCloneOpen(true)}>Clone From Outlet</button></> : null} />}
     {viewModuleId && journey ? <ModuleViewModal module={journey.modules.find((item) => item.id === viewModuleId)} progress={progress} onClose={() => setViewModuleId("")} /> : null}
     {viewEmployeeId ? <ProgressDetailModal row={progress.find((item) => item.employee?.id === viewEmployeeId)} journey={journey} onClose={() => setViewEmployeeId("")} /> : null}

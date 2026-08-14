@@ -35,9 +35,10 @@ import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import CrewSopImage from "../components/CrewSopImage.jsx";
 import CrewSopDocument from "../components/CrewSopDocument.jsx";
 import { crewService } from "../../../services/crewService.js";
-import { outletService } from "../../../services/outletService.js";
 import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
 import { parseSopBody, sanitizeSopHtml, serializeSopBody } from "../utils/sopDocumentContent.js";
+import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 
 const byOrder = (rows = []) => [...rows].sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
 const byVersion = (rows = []) => [...rows].sort((a, b) => Number(b.version) - Number(a.version));
@@ -47,8 +48,7 @@ const draftVersion = (sop) => byVersion(sop?.versions).find((version) => version
 
 export default function CrewSopLibraryPage({ auth, ui, store }) {
   const canManage = auth.hasPermission("crew_sop.manage");
-  const [outlets, setOutlets] = useState([]);
-  const [outletId, setOutletId] = useState("");
+  const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
   const [sops, setSops] = useState([]);
   const [categories, setCategories] = useState([]);
   const [selectedSopDetail, setSelectedSopDetail] = useState(null);
@@ -66,24 +66,6 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
   const selectedSopSummary = sops.find((sop) => sop.id === selectedId);
   const selectedSop = selectedSopDetail?.id === selectedId ? selectedSopDetail : selectedSopSummary;
   const outlet = outlets.find((item) => item.id === outletId);
-
-  useEffect(() => {
-    let active = true;
-    async function loadOutlets() {
-      try {
-        const rows = store?.outlets?.length ? store.outlets : await outletService.listActiveOutlets();
-        if (!active) return;
-        const available = (rows || []).filter((item) => item.is_active !== false);
-        setOutlets(available);
-        setOutletId((current) => current || available[0]?.id || "");
-      } catch (cause) {
-        ui.notify({ title: "Unable to load SOP outlets", message: cause.message, tone: "error" });
-        setLoading(false);
-      }
-    }
-    loadOutlets();
-    return () => { active = false; };
-  }, [store?.outlets, ui]);
 
   async function refresh(targetOutletId = outletId) {
     if (!targetOutletId) return;
@@ -230,17 +212,9 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
 
   return (
     <div className="crew-sop-admin-shell crew-admin-page">
-      <PageHeader
-        section="Crew · Knowledge"
-        title="SOP Library"
-        description="Manage outlet procedures and employee knowledge."
-        actions={<>
-          <SelectField className="crew-sop-outlet-select" label="Outlet" ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />
-          {canManage ? <button className="btn-secondary" type="button" onClick={() => setCloneOpen(true)}><Copy size={15} /> Clone From Outlet</button> : null}
-          {canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}><Plus size={15} /> New SOP</button> : null}
-        </>}
-      />
+      <PageHeader section="Crew · Knowledge" title="SOP Library" description="Manage outlet procedures and employee knowledge." />
       <SopLibrary
+        outletControl={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
         outlet={outlet}
         sops={sops}
         categories={categories}
@@ -289,7 +263,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
   );
 }
 
-function SopLibrary({ outlet, sops, categories, loading, error, onRetry, canManage, onOpen, onEdit, onCreate, onClone, onNewVersion, onDeleteDraft }) {
+function SopLibrary({ outletControl, outlet, sops, categories, loading, error, onRetry, canManage, onOpen, onEdit, onCreate, onClone, onNewVersion, onDeleteDraft }) {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [status, setStatus] = useState("");
@@ -308,12 +282,7 @@ function SopLibrary({ outlet, sops, categories, loading, error, onRetry, canMana
   if (loading) return <LibrarySkeleton />;
   if (error) return <section className="crew-sop-table-card" role="alert"><div className="crew-sop-compact-empty"><EmptyState title="Unable to load SOP Library" description="The SOP list request failed. Retry to load the outlet library." /><button className="btn-primary" type="button" onClick={onRetry}>Retry</button></div></section>;
   return <div className="crew-sop-library-sections">
-    <section className="crew-sop-filter-card" aria-label="SOP filters"><div className="crew-sop-filterbar">
-      <label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>
-      <SelectField label="Category" ariaLabel="Category" value={categoryId} onChange={setCategoryId} options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} />
-      <SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "", label: "All" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" }]} />
-      <SelectField label="Acknowledgement" ariaLabel="Acknowledgement" value={acknowledgement} onChange={setAcknowledgement} options={[{ value: "", label: "All" }, { value: "required", label: "Required" }, { value: "not_required", label: "Not required" }]} />
-    </div></section>
+    <CrewAdminToolbar ariaLabel="SOP filters" outlet={outletControl} search={<label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>} filters={<><SelectField label="Category" ariaLabel="Category" value={categoryId} onChange={setCategoryId} options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "", label: "All" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" }]} /><SelectField label="Acknowledgement" ariaLabel="Acknowledgement" value={acknowledgement} onChange={setAcknowledgement} options={[{ value: "", label: "All" }, { value: "required", label: "Required" }, { value: "not_required", label: "Not required" }]} /></>} secondary={canManage ? <button className="btn-secondary" type="button" onClick={onClone}><Copy size={15} /> Clone From Outlet</button> : null} primary={canManage ? <button className="btn-primary" type="button" onClick={onCreate}><Plus size={15} /> New SOP</button> : null} />
     <section className="crew-sop-table-card" aria-label="SOP list">
     {rows.length ? <DataTable
       density="normal"

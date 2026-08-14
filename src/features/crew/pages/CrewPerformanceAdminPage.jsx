@@ -7,7 +7,8 @@ import Badge from "../../../components/ui/Badge.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import { crewService } from "../../../services/crewService.js";
-import { outletService } from "../../../services/outletService.js";
+import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 
 const serviceCriteria = [
   ["welcome_greeting", "Welcome / Greeting"], ["thank_you_goodbye", "Thank You / Goodbye"], ["grooming", "Grooming"],
@@ -22,14 +23,12 @@ const statusTone = (value) => value === "finalized" ? "success" : value === "rev
 const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—";
 
 export default function CrewPerformanceAdminPage({ auth, ui, store, initialTab = "overview" }) {
-  const [outlets, setOutlets] = useState([]); const [outletId, setOutletId] = useState(""); const [period, setPeriod] = useState(periodValue());
+  const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []); const [period, setPeriod] = useState(periodValue());
   const [data, setData] = useState({ summary: {}, crew: [], reviews: [], feedback: [] }); const [loading, setLoading] = useState(true);
   const [error, setError] = useState(""); const requestSequence = useRef(0);
   const [filters, setFilters] = useState({ query: "", position: "all", status: "all" });
   const [detail, setDetail] = useState(null); const [review, setReview] = useState(null); const [moderation, setModeration] = useState(null);
   const canReview = auth.hasPermission("crew_performance.review"); const canFinalize = auth.hasPermission("crew_performance.finalize"); const canModerate = auth.hasPermission("crew_feedback.moderate");
-  useEffect(() => { let active = true; (async () => { try { const rows = store?.outlets?.length ? store.outlets : await outletService.listActiveOutlets(); if (active) setOutlets((rows || []).filter((row) => row.is_active !== false)); } catch (cause) { ui.notify({ title: "Unable to load outlets", message: cause.message, tone: "error" }); } })(); return () => { active = false; }; }, [store?.outlets, ui]);
-  useEffect(() => { if (!outletId && outlets.length) setOutletId(outlets[0].id); }, [outletId, outlets]);
   async function refresh() { if (!outletId) return; const sequence = ++requestSequence.current; setLoading(true); setError(""); try { const next = await crewService.performanceAdminData(outletId, period); if (sequence === requestSequence.current) setData(next); } catch (cause) { if (sequence === requestSequence.current) { setError(cause.message || "Performance evidence could not be loaded."); ui.notify({ title: "Unable to load Performance", message: cause.message, tone: "error" }); } } finally { if (sequence === requestSequence.current) setLoading(false); } }
   useEffect(() => { refresh(); }, [outletId, period]);
   async function submitReview(values) { await crewService.submitPerformanceReview(values); setReview(null); await refresh(); ui.notify({ title: "Review submitted", message: "The server recalculated this performance component." }); }
@@ -49,14 +48,7 @@ export default function CrewPerformanceAdminPage({ auth, ui, store, initialTab =
 
 function PerformanceToolbar({ outlets, outletId, setOutletId, period, setPeriod, filters, setFilters, positions, feedbackOnly }) {
   const active = !feedbackOnly && (filters.query || filters.position !== "all" || filters.status !== "all");
-  return <section className={`crew-performance-toolbar${feedbackOnly ? " is-feedback" : ""}`} aria-label="Performance filters">
-    <SelectField label="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((row) => ({ value: row.id, label: row.name }))} />
-    <label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label>
-    {!feedbackOnly ? <><label className="crew-growth-search"><span>Search Crew</span><div><Search size={15} /><input value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Name or employee code" /></div></label>
-      <SelectField label="Position" value={filters.position} onChange={(value) => setFilters((current) => ({ ...current, position: value }))} options={[{ value: "all", label: "All" }, ...positions.map((value) => ({ value, label: value }))]} />
-      <SelectField label="Status" value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={[{ value: "all", label: "All" }, { value: "awaiting", label: "Awaiting Review" }, { value: "reviewed", label: "Reviewed" }, { value: "attention", label: "Needs Attention" }, { value: "finalized", label: "Finalized" }]} />
-      {active ? <button type="button" className="btn-secondary crew-performance-clear" onClick={() => setFilters({ query: "", position: "all", status: "all" })}><RotateCcw size={14} /> Clear</button> : null}</> : null}
-  </section>;
+  return <CrewAdminToolbar ariaLabel="Performance filters" outlet={<CrewAdminOutletField />} time={<label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label>} search={!feedbackOnly ? <label className="crew-growth-search"><span>Search Crew</span><div><Search size={15} /><input value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Name or employee code" /></div></label> : null} filters={!feedbackOnly ? <><SelectField label="Position" value={filters.position} onChange={(value) => setFilters((current) => ({ ...current, position: value }))} options={[{ value: "all", label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Status" value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={[{ value: "all", label: "All" }, { value: "awaiting", label: "Awaiting Review" }, { value: "reviewed", label: "Reviewed" }, { value: "attention", label: "Needs Attention" }, { value: "finalized", label: "Finalized" }]} /></> : null} secondary={active ? <button type="button" className="btn-secondary crew-performance-clear" onClick={() => setFilters({ query: "", position: "all", status: "all" })}><RotateCcw size={14} /> Clear</button> : null} />;
 }
 
 function reviewDone(row, component) { const value = row.result.components?.[component]; return value?.status === "reviewed" || value?.score != null; }

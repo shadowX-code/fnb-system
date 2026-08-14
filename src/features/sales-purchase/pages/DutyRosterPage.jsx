@@ -16,6 +16,8 @@ import { jobPositionService } from "../../../services/jobPositionService.js";
 import { rosterPositionGroupService } from "../../../services/rosterPositionGroupService.js";
 import { notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { SHIFT_TIME_INPUT_ERROR, buildShiftTimeOptions, formatShiftTimeInput, formatShiftTimeRange, normalizeShiftTimeInput } from "../utils/shiftTime.js";
+import CrewAdminToolbar from "../../crew/components/CrewAdminToolbar.jsx";
+import { useCrewAdminOutlet } from "../../crew/context/CrewAdminOutletContext.jsx";
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const nonWorkingCodes = new Set(["OFF", "AL", "MC"]);
@@ -1528,8 +1530,10 @@ export function rosterPermission(auth, action) {
 }
 
 export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) {
-  const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
-  const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
+  const activeOutlets = useMemo(() => store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active), [store.outlets]);
+  const sharedOutlet = useCrewAdminOutlet(activeOutlets);
+  const [outletId, setOutletIdState] = useState(sharedOutlet.outletId || activeOutlets[0]?.id || "");
+  const setOutletId = (value) => { setOutletIdState(value); if (ownership === "crew") sharedOutlet.setOutletId(value); };
   const outletIdRef = useRef(outletId);
   const bulkSnapshotRequestIdRef = useRef("");
   const publishedWeekRequestIdRef = useRef("");
@@ -1588,6 +1592,10 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const visibleEnd = visibleDateValues[visibleDateValues.length - 1];
   const locked = period?.status === "locked";
   const readOnly = locked || !canWriteShift;
+
+  useEffect(() => {
+    if (crewOwned && sharedOutlet.outletId && sharedOutlet.outletId !== outletId) setOutletIdState(sharedOutlet.outletId);
+  }, [crewOwned, outletId, sharedOutlet.outletId]);
 
   useEffect(() => {
     if (!outletId && activeOutlets[0]?.id) setOutletId(activeOutlets[0].id);
@@ -2170,37 +2178,9 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         section={crewOwned ? "Crew · Workforce" : "Operations · Crew compatibility"}
         title="Duty Roster"
         description={crewOwned ? "Plan, publish, and share the official outlet schedule." : "Shared Crew roster workspace. All changes use the same roster authority."}
-        actions={(
-          <div className="flex flex-wrap items-center gap-2">
-            <button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}>
-              <Download size={16} /> Export
-            </button>
-            {canExportRoster ? (
-              <button className="btn-secondary" type="button" onClick={prepareShareRoster}>
-                <Share2 size={16} /> Share Roster
-              </button>
-            ) : null}
-            {canPublishRoster ? (
-              <button
-                className="btn-primary"
-                type="button"
-                disabled={viewMode !== "week" || !period || period.status === "published" || period.status === "locked"}
-                onClick={() => setStatus("published")}
-                title={viewMode !== "week" ? "Switch to Week view to publish a roster week." : undefined}
-              >
-                <Send size={16} /> Publish Roster
-              </button>
-            ) : null}
-            {canManageRoster ? (
-              <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>
-                Settings
-              </button>
-            ) : null}
-          </div>
-        )}
       />
 
-      <Card className="p-4">
+      <CrewAdminToolbar secondary={<><button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}><Download size={16} /> Export</button>{canExportRoster ? <button className="btn-secondary" type="button" onClick={prepareShareRoster}><Share2 size={16} /> Share Roster</button> : null}{canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}</>} primary={canPublishRoster ? <button className="btn-primary" type="button" disabled={viewMode !== "week" || !period || period.status === "published" || period.status === "locked"} onClick={() => setStatus("published")} title={viewMode !== "week" ? "Switch to Week view to publish a roster week." : undefined}><Send size={16} /> Publish Roster</button> : null}>
         <div className="grid gap-3 lg:grid-cols-[1.15fr_1.15fr_0.9fr_1fr_auto_auto] lg:items-end">
           <FieldLabel label="Outlet">
             <SelectField
@@ -2262,7 +2242,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
             />
           </FieldLabel>
         </div>
-      </Card>
+      </CrewAdminToolbar>
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}

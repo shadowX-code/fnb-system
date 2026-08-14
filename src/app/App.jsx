@@ -18,6 +18,7 @@ import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import CrewMobileApp from "../features/crew/CrewMobileApp.jsx";
 import CrewGuestFeedback from "../features/crew/CrewGuestFeedback.jsx";
+import { CrewAdminOutletProvider } from "../features/crew/context/CrewAdminOutletContext.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
 import { getSidebarSections } from "../../config/modules.ts";
 
@@ -634,7 +635,9 @@ export default function App() {
           </div>
         ) : null}
         <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
-        <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />
+        <CrewAdminOutletProvider outlets={effectiveStore.outlets}>
+          <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />
+        </CrewAdminOutletProvider>
       </AppShell>
       <ToastViewport
         toasts={toasts}

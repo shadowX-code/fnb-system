@@ -8,6 +8,8 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { crewService } from "../../../services/crewService.js";
+import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 
 const typeLabel = { annual: "Annual Leave", medical: "Medical Leave / MC", unpaid: "Unpaid Leave", other: "Other Leave" };
 const statusTone = { pending: "warning", approved: "success", rejected: "danger", cancelled: "neutral" };
@@ -35,7 +37,7 @@ function groupBalances(rows) {
 
 export default function CrewLeaveAdminPage({ auth, store, ui }) {
   const outlets = (store?.outlets || []).filter((outlet) => auth.canAccessOutlet?.(outlet.id) ?? true);
-  const [outletId, setOutletId] = useState(outlets[0]?.id || "");
+  const { outletId, setOutletId } = useCrewAdminOutlet(outlets);
   const [data, setData] = useState({ requests: [], balances: [], policies: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -87,12 +89,7 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
 
 function LeaveToolbar({ tab, outlets, outletId, setOutletId, filters, setFilters, hasActiveFilters, clearFilters }) {
   const searchable = tab !== "settings";
-  return <Card className="overflow-visible"><div className={`grid items-end gap-3 p-3 ${tab === "requests" ? "md:grid-cols-2 xl:grid-cols-[220px_minmax(260px,1fr)_190px_180px_auto]" : searchable ? "md:grid-cols-[220px_minmax(280px,1fr)_auto]" : "md:grid-cols-[220px_1fr]"}`}>
-    <SelectField label="Outlet" ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />
-    {searchable ? <label className="field"><span>Search Employee</span><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} /><input className="control w-full pl-9" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Search employee name or position" /></div></label> : <p className="self-center text-sm text-text-secondary">Policies apply to the selected outlet and future entitlement generation.</p>}
-    {tab === "requests" ? <><SelectField label="Leave Type" value={filters.type} onChange={(type) => setFilters({ ...filters, type })} options={[{ value: "all", label: "All" }, ...Object.entries(typeLabel).map(([value, label]) => ({ value, label }))]} /><SelectField label="Status" value={filters.status} onChange={(status) => setFilters({ ...filters, status })} options={[{ value: "all", label: "All" }, ...["pending", "approved", "rejected", "cancelled"].map((value) => ({ value, label: statusLabel(value) }))]} /></> : null}
-    {searchable && hasActiveFilters ? <button className="btn-ghost mb-0.5 justify-self-start whitespace-nowrap" type="button" onClick={clearFilters}><RotateCcw size={14} /> Clear filters</button> : null}
-  </div></Card>;
+  return <CrewAdminToolbar outlet={<CrewAdminOutletField />} search={searchable ? <label className="field"><span>Search Employee</span><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} /><input className="control w-full pl-9" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Search employee name or position" /></div></label> : null} filters={tab === "requests" ? <><SelectField label="Leave Type" value={filters.type} onChange={(type) => setFilters({ ...filters, type })} options={[{ value: "all", label: "All" }, ...Object.entries(typeLabel).map(([value, label]) => ({ value, label }))]} /><SelectField label="Status" value={filters.status} onChange={(status) => setFilters({ ...filters, status })} options={[{ value: "all", label: "All" }, ...["pending", "approved", "rejected", "cancelled"].map((value) => ({ value, label: statusLabel(value) }))]} /></> : !searchable ? <p className="self-center text-sm text-text-secondary">Policies apply to the selected outlet and future entitlement generation.</p> : null} secondary={searchable && hasActiveFilters ? <button className="btn-ghost mb-0.5 whitespace-nowrap" type="button" onClick={clearFilters}><RotateCcw size={14} /> Clear filters</button> : null} />;
 }
 
 function RequestsPanel({ allRows, rows, loading, filtered, canReview, setReview }) {

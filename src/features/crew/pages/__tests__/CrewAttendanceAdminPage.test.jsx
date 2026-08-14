@@ -68,14 +68,14 @@ describe("Crew Attendance Admin", () => {
   it("uses the server-filtered date/outlet query and filters issue states", async () => {
     render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByText("Verified Crew");
-    expect(mocks.attendance).toHaveBeenCalledWith(expect.objectContaining({ outletId: null }));
+    expect(mocks.attendance).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1" }));
     fireEvent.click(screen.getByRole("button", { name: "Attendance Status" }));
     fireEvent.click(screen.getByRole("button", { name: "Location Exception" }));
     expect(screen.getByText("Exception Crew")).not.toBeNull();
     expect(screen.queryByText("Verified Crew")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
-    fireEvent.click(screen.getByRole("button", { name: "Friends Corner" }));
-    await waitFor(() => expect(mocks.attendance).toHaveBeenLastCalledWith(expect.objectContaining({ outletId: "outlet-1" })));
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    await waitFor(() => expect(mocks.attendance).toHaveBeenLastCalledWith(expect.objectContaining({ outletId: null })));
   });
 
   it("opens an operational detail view for no-roster and exception evidence", async () => {

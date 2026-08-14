@@ -5261,6 +5261,9 @@ Service rules:
 
 ### Crew Admin UI Foundation Rules
 
+- Every Crew Admin route uses the same three-layer page structure: (1) `PageHeader` with section, title and short description only; (2) one canonical context/filter toolbar; and (3) page content. Outlet, period/date, search, filters and business actions never float in the title row.
+- The canonical toolbar order is `Outlet → Time Context → Search → Filters → Secondary Action → Primary Action`. Outlet is the first control for every outlet-scoped page, and the primary CTA is the final far-right action. Responsive wrapping preserves this semantic and DOM order.
+- Crew Admin Outlet selection is a workspace preference shared across compatible routes. It is persisted locally, constrained to the authenticated user's already-scoped Outlet list, and falls back to the first allowed Outlet when the stored selection is missing, inactive or outside the current scope. Page components must not create a competing default-Outlet authority.
 - Crew dropdowns and selects must never use the browser-native grey control. Reuse the established Restaurant / Factory FeedX select pattern: white surface, shared border and radius, shared control height, explicit chevron, consistent typography, and visible hover/focus states.
 - Every filter's unscoped option is labelled exactly `All`. The field label already communicates the dimension, so labels such as `All Categories`, `All Status`, `All Frequency`, and `All Outlet` are not used.
 - All Crew list, table, filter, badge, modal, and action UI must follow the mature Restaurant / Factory patterns. Crew must not introduce or maintain a separate visual vocabulary for the same interaction.

@@ -6,7 +6,8 @@ import Badge from "../../../components/ui/Badge.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import { crewService } from "../../../services/crewService.js";
-import { outletService } from "../../../services/outletService.js";
+import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 
 const currentPeriod = () => `${new Date().toISOString().slice(0, 7)}-01`;
 const money = (value) => `RM ${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -18,8 +19,7 @@ const statusTone = (value) => ["paid", "finalized", "qualified"].includes(value)
 const emptyData = { cycles: [], cycle: null, entries: [], adjustments: [], participants: [], eligible_crew: [] };
 
 export default function CrewRewardAdminPage({ auth, ui, store }) {
-  const [outlets, setOutlets] = useState([]);
-  const [outletId, setOutletId] = useState("");
+  const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
   const [period, setPeriod] = useState(currentPeriod());
   const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
@@ -32,21 +32,6 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
   const canManage = auth.hasPermission("crew_reward.manage");
   const canFinalize = auth.hasPermission("crew_reward.finalize");
   const canPaid = auth.hasPermission("crew_reward.mark_paid");
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const rows = store?.outlets?.length ? store.outlets : await outletService.listActiveOutlets();
-        if (active) setOutlets((rows || []).filter((row) => row.is_active !== false));
-      } catch (cause) {
-        ui.notify({ title: "Unable to load outlets", message: cause.message, tone: "error" });
-      }
-    })();
-    return () => { active = false; };
-  }, [store?.outlets, ui]);
-
-  useEffect(() => { if (!outletId && outlets.length) setOutletId(outlets[0].id); }, [outletId, outlets]);
 
   async function refresh(cycleId = null, nextPeriod = period) {
     if (!outletId) return;
@@ -82,13 +67,7 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
   const outlet = outlets.find((row) => row.id === outletId);
   return <div className="crew-reward-page">
     <PageHeader section="Crew · Reward" title="Reward Overview" description="Plan monthly Reward Campaigns, monitor projected payouts and finalize transparent Crew rewards." />
-    <section className="crew-reward-toolbar">
-      <div>
-        <SelectField label="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((row) => ({ value: row.id, label: row.name }))} />
-        <label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label>
-      </div>
-      {canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null}
-    </section>
+    <CrewAdminToolbar outlet={<CrewAdminOutletField />} time={<label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label>} primary={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
 
     {loading ? <div className="crew-growth-skeleton"><span /><span /><span /><p>Loading Reward Campaign…</p></div> : error ? <section className="crew-reward-empty is-error"><AlertTriangle size={28} /><h2>Unable to load Rewards</h2><p>{error}</p><button className="btn-secondary" type="button" onClick={() => refresh()}>Retry</button></section> : <RewardOverview data={data} canManage={canManage} onOpenCampaign={() => setCampaignOpen(true)} onOpenEmployee={setEmployeeOpen} onOpenCycle={openCycle} />}
 
