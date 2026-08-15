@@ -2486,16 +2486,43 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                             {group.employees.map((employee) => {
                               const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
                               const ineligibleEmployee = employee.roster_eligible === false;
+                              const cellSelected = selectedCells.has(rosterKey(employee.id, dateValue));
                               return (
                                 <div
                                   key={`${dateValue}-${employee.id}`}
-                                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left ${ineligibleEmployee ? "border-amber-200 bg-amber-50/50" : "border-border bg-surface"}`}
+                                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left ${ineligibleEmployee ? "border-amber-200 bg-amber-50/50" : "border-border bg-surface"} ${cellSelected ? "border-primary bg-primary/10 ring-2 ring-primary/30" : ""}`}
                                   role="button"
                                   tabIndex={readOnly || ineligibleEmployee ? -1 : 0}
                                   aria-disabled={readOnly || ineligibleEmployee}
-                                  onClick={() => handleCellClick(employee, dateValue)}
+                                  aria-label={`${employee.nickname || employee.full_name}, ${dateValue}${roster?.template ? `, ${roster.template.name}` : ", unassigned"}${isLeaveRoster(roster) ? ", protected leave" : ""}${ineligibleEmployee ? ", not eligible for this outlet" : ""}`}
+                                  onClick={() => {
+                                    if (readOnly || ineligibleEmployee) return;
+                                    if (selectionMode) {
+                                      const key = rosterKey(employee.id, dateValue);
+                                      setSelectedCells((current) => {
+                                        const next = new Set(current);
+                                        if (next.has(key)) next.delete(key); else next.add(key);
+                                        return next;
+                                      });
+                                    } else {
+                                      handleCellClick(employee, dateValue);
+                                    }
+                                  }}
                                   onKeyDown={(event) => {
-                                    if (!readOnly && (event.key === "Enter" || event.key === " ")) handleCellClick(employee, dateValue);
+                                    if (!readOnly && (event.key === "Enter" || event.key === " ")) {
+                                      event.preventDefault();
+                                      if (ineligibleEmployee) return;
+                                      if (selectionMode) {
+                                        const key = rosterKey(employee.id, dateValue);
+                                        setSelectedCells((current) => {
+                                          const next = new Set(current);
+                                          if (next.has(key)) next.delete(key); else next.add(key);
+                                          return next;
+                                        });
+                                      } else {
+                                        handleCellClick(employee, dateValue);
+                                      }
+                                    }
                                   }}
                                 >
                                   <div>

@@ -69,6 +69,17 @@ describe("Duty Roster trusted week snapshot integration", () => {
     expect(screen.getByText("0 cells selected")).toBeTruthy();
   });
 
+  it("uses the same Bulk selection state in the narrow card layout instead of opening the shift drawer", async () => {
+    const auth = { isProtectedRole: true, hasPermission: () => true };
+    const { container } = render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Bulk Assign/ }));
+    const mobileCell = container.querySelector('div.lg\\:hidden div[role="button"][aria-label="Aina, 2026-08-10, unassigned"]');
+    expect(mobileCell).toBeTruthy();
+    fireEvent.click(mobileCell);
+    expect(screen.getByText("1 cell selected")).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Aina" })).toBeNull();
+  });
+
   it("preserves selection after a failed bulk save and prevents duplicate submissions", async () => {
     let rejectSnapshot;
     mocks.snapshot.mockImplementationOnce(() => new Promise((resolve, reject) => { rejectSnapshot = reject; }));
@@ -96,7 +107,7 @@ describe("Duty Roster trusted week snapshot integration", () => {
     const auth = { isProtectedRole: true, hasPermission: () => true };
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm }} auth={auth} />);
     fireEvent.click(await screen.findByRole("button", { name: /Bulk Assign/ }));
-    fireEvent.pointerDown(screen.getByRole("button", { name: /Aina, 2026-08-10, Morning/ }));
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-10, Morning/ })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Bulk shift template" }));
     fireEvent.click(screen.getByRole("button", { name: /Evening ·/ }));
     expect(screen.getByText(/1 existing shifts/)).toBeTruthy();
@@ -127,7 +138,7 @@ describe("Duty Roster trusted week snapshot integration", () => {
     const auth = { isProtectedRole: true, hasPermission: () => true };
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
     fireEvent.click(await screen.findByRole("button", { name: /Bulk Assign/ }));
-    const staleCell = screen.getByRole("button", { name: /Former Crew, 2026-08-10, Morning, not eligible for this outlet/ });
+    const staleCell = screen.getAllByRole("button", { name: /Former Crew, 2026-08-10, Morning, not eligible for this outlet/ })[0];
     expect(staleCell.getAttribute("aria-disabled")).toBe("true");
     fireEvent.pointerDown(staleCell);
     expect(screen.getByText("0 cells selected")).toBeTruthy();
@@ -139,7 +150,7 @@ describe("Duty Roster trusted week snapshot integration", () => {
     mocks.allTemplates.mockResolvedValue([template, leaveTemplate]);
     const auth = { isProtectedRole: true, hasPermission: () => true };
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn().mockResolvedValue(true) }} auth={auth} />);
-    const leaveCell = await screen.findByRole("button", { name: /Aina, 2026-08-10, Annual Leave, protected leave/ });
+    const leaveCell = (await screen.findAllByRole("button", { name: /Aina, 2026-08-10, Annual Leave, protected leave/ }))[0];
     expect(screen.getAllByText("Approved leave").length).toBeGreaterThan(0);
     fireEvent.click(leaveCell);
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Approved leave" }));
