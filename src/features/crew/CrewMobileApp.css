@@ -20,35 +20,61 @@ button, input, select { font: inherit; }
 .crew-v2-app button, .crew-v2-login button { -webkit-tap-highlight-color: transparent; }
 .crew-v2-app button:focus-visible, .crew-v2-login button:focus-visible, .crew-v2-login input:focus-visible, .crew-v2-search input:focus-visible { outline: 3px solid rgb(10 168 117 / .26); outline-offset: 2px; }
 
-.crew-v2-login { position: relative; display: flex; flex-direction: column; padding: max(38px, env(safe-area-inset-top)) 24px 30px; }
-.crew-v2-brand { display: flex; align-items: center; gap: 9px; color: var(--crew-v2-navy); font-size: 20px; }
-.crew-v2-brand > span { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 10px; background: var(--crew-v2-green); color: white; font-size: 16px; font-weight: 850; }
-.crew-v2-brand strong { font-weight: 850; letter-spacing: -.02em; }
-.crew-v2-login-copy { margin-top: min(20vh, 148px); }
-.crew-v2-login-copy h1 { margin: 0; color: var(--crew-v2-navy); font-size: 30px; line-height: 1.12; letter-spacing: -.035em; }
-.crew-v2-login-copy p { margin: 8px 0 0; color: var(--crew-v2-muted); font-size: 14px; line-height: 1.5; }
-.crew-v2-login form { display: grid; gap: 10px; margin-top: 31px; }
-.crew-v2-login form > label { color: #33435c; font-size: 12px; font-weight: 760; }
-.crew-v2-mobile-field { display: grid; grid-template-columns: 84px 1fr; min-height: 52px; overflow: hidden; border: 1px solid #ccd6e1; border-radius: 12px; background: #fff; }
-.crew-v2-mobile-field select, .crew-v2-mobile-field input { min-width: 0; border: 0; background: transparent; color: var(--crew-v2-ink); font-size: 16px; outline: 0; }
-.crew-v2-mobile-field select { border-right: 1px solid var(--crew-v2-border); padding: 0 10px; font-weight: 750; }
-.crew-v2-mobile-field input { padding: 0 14px; }
-.crew-v2-primary { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; border: 0; border-radius: 12px; background: var(--crew-v2-navy); color: #fff; font-size: 13px; font-weight: 780; }
-.crew-v2-primary:disabled { opacity: .58; }
-.crew-v2-login .crew-v2-primary { margin-top: 12px; }
-.crew-v2-admin-link { margin: auto auto 0; color: #52627a; font-size: 12px; font-weight: 680; text-decoration: none; }
-.crew-v2-login-back { position: absolute; top: max(36px, env(safe-area-inset-top)); left: 20px; display: grid; width: 38px; height: 38px; place-items: center; border: 0; border-radius: 50%; background: #f1f5f8; color: var(--crew-v2-navy); }
-.crew-v2-login.is-passcode .crew-v2-brand { justify-content: center; }
-.crew-v2-login.is-passcode .crew-v2-login-copy { margin-top: 80px; text-align: center; }
-.crew-v2-passcode-dots { display: flex; justify-content: center; gap: 20px; margin-top: 30px; }
-.crew-v2-passcode-dots span { width: 13px; height: 13px; border: 2px solid #aeb9c7; border-radius: 50%; background: #fff; }
-.crew-v2-passcode-dots span.filled { border-color: var(--crew-v2-green); background: var(--crew-v2-green); }
-.crew-v2-keypad { display: grid; grid-template-columns: repeat(3, 66px); justify-content: center; gap: 14px 24px; margin-top: auto; padding: 36px 0 8px; }
-.crew-v2-keypad button { width: 66px; height: 52px; border: 0; border-radius: 14px; background: #f3f6f8; color: var(--crew-v2-navy); font-size: 21px; font-weight: 720; }
-.crew-v2-keypad button:active { background: var(--crew-v2-mint); color: var(--crew-v2-green-dark); }
-.crew-v2-login-loading { display: flex; min-height: 35px; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; color: var(--crew-v2-muted); font-size: 12px; font-weight: 700; }
+.crew-v2-login { position: relative; display: flex; min-height: 100dvh; flex-direction: column; overflow: hidden; background: #fff; padding: max(30px, env(safe-area-inset-top)) 28px max(24px, env(safe-area-inset-bottom)); }
+.crew-v2-login::before { position: absolute; top: -80px; right: -92px; width: 230px; height: 230px; border-radius: 50%; background: #f0faf6; content: ""; pointer-events: none; }
+.crew-v2-login:not(.is-passcode)::after { position: absolute; right: -5%; bottom: 0; left: -5%; height: min(24vh, 202px); background: url("/crew-auth-restaurant-line-art.png") center bottom / contain no-repeat; content: ""; opacity: .88; pointer-events: none; }
+.crew-auth-brand { position: relative; z-index: 1; display: flex; width: fit-content; align-items: center; gap: 11px; color: var(--crew-v2-navy); }
+.crew-auth-logo-mark { position: relative; display: block; width: 43px; height: 43px; flex: 0 0 43px; overflow: hidden; }
+.crew-auth-logo-mark img { position: absolute; top: -71px; left: -68px; width: 252px; max-width: none; height: auto; }
+.crew-auth-brand strong { font-size: 25px; font-weight: 850; letter-spacing: -.035em; }
+.crew-v2-login-copy { position: relative; z-index: 1; margin-top: clamp(54px, 10vh, 88px); }
+.crew-v2-login-copy h1 { margin: 0; color: var(--crew-v2-navy); font-size: clamp(32px, 9vw, 38px); line-height: 1.08; letter-spacing: -.04em; text-wrap: balance; }
+.crew-v2-login-copy h1 span { color: #22ad61; }
+.crew-v2-login-copy p { margin: 24px 0 0; color: #52627d; font-size: 15px; line-height: 1.55; }
+.crew-v2-login-copy .crew-auth-lead { margin-top: 18px; font-size: 16px; }
+.crew-v2-login form { position: relative; z-index: 2; display: grid; gap: 10px; margin-top: 32px; }
+.crew-v2-login form > label { color: #1c2b48; font-size: 13px; font-weight: 780; }
+.crew-v2-mobile-field { display: grid; grid-template-columns: 92px 1fr; min-height: 58px; overflow: hidden; border: 1px solid #cbd5e1; border-radius: 14px; background: #fff; transition: border-color .18s ease, box-shadow .18s ease; }
+.crew-v2-mobile-field:focus-within { border-color: #24af66; box-shadow: 0 0 0 4px rgb(36 175 102 / .13); }
+.crew-v2-mobile-field select, .crew-v2-mobile-field input { min-width: 0; border: 0; background: transparent; color: var(--crew-v2-ink); font-size: 17px; outline: 0; }
+.crew-auth-country { position: relative; display: grid; grid-template-columns: 1fr auto; align-items: center; border-right: 1px solid var(--crew-v2-border); padding-right: 10px; }
+.crew-auth-country select { width: 100%; height: 100%; appearance: none; padding: 0 0 0 14px; font-weight: 790; cursor: pointer; }
+.crew-auth-country svg { color: var(--crew-v2-navy); pointer-events: none; }
+.crew-v2-mobile-field input { padding: 0 16px; font-weight: 620; }
+.crew-v2-mobile-field input::placeholder { color: #7a879a; opacity: 1; font-weight: 520; }
+.crew-v2-primary { display: inline-flex; min-height: 52px; align-items: center; justify-content: center; border: 0; border-radius: 14px; background: #20b75e; color: #fff; box-shadow: 0 8px 18px rgb(32 183 94 / .19); font-size: 14px; font-weight: 800; transition: background .18s ease, box-shadow .18s ease, transform .18s ease; }
+.crew-v2-primary:hover { background: #18a953; box-shadow: 0 10px 22px rgb(32 183 94 / .24); }
+.crew-v2-primary:active { transform: scale(.985); background: #119c49; box-shadow: 0 4px 10px rgb(32 183 94 / .18); }
+.crew-v2-primary:disabled { opacity: .58; box-shadow: none; }
+.crew-v2-login .crew-v2-primary { margin-top: 13px; }
+.crew-auth-passcode-header { position: relative; z-index: 2; display: flex; min-height: 46px; align-items: center; justify-content: center; }
+.crew-v2-login-back { position: absolute; top: 0; left: 0; display: grid; width: 42px; height: 42px; place-items: center; border: 0; border-radius: 50%; background: #f1f4f7; color: var(--crew-v2-navy); transition: background .18s ease, transform .18s ease; }
+.crew-v2-login-back:hover { background: #e9eef2; }
+.crew-v2-login-back:active { transform: scale(.94); }
+.crew-v2-login.is-passcode { background: #fff; }
+.crew-v2-login.is-passcode::before { display: none; }
+.crew-v2-login.is-passcode .crew-auth-logo-mark { width: 40px; height: 40px; flex-basis: 40px; }
+.crew-v2-login.is-passcode .crew-auth-logo-mark img { top: -66px; left: -63px; width: 234px; }
+.crew-v2-login.is-passcode .crew-auth-brand strong { font-size: 24px; }
+.crew-v2-login.is-passcode .crew-v2-login-copy { margin-top: clamp(45px, 8vh, 72px); text-align: center; }
+.crew-v2-login.is-passcode .crew-v2-login-copy h1 { font-size: clamp(30px, 8vw, 35px); }
+.crew-v2-login.is-passcode .crew-v2-login-copy p { margin-top: 12px; font-size: 15px; }
+.crew-auth-masked-mobile { display: block; margin-top: 12px; color: #52617a; font-size: 18px; letter-spacing: .02em; }
+.crew-auth-masked-mobile::first-letter { color: #20b75e; }
+.crew-v2-passcode-dots { display: flex; justify-content: center; gap: 26px; margin-top: 26px; }
+.crew-v2-passcode-dots span { width: 18px; height: 18px; border: 2px solid #a6b2c3; border-radius: 50%; background: #fff; box-shadow: inset 0 0 0 4px white; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+.crew-v2-passcode-dots span.filled { border-color: #20b75e; background: #20b75e; transform: scale(1.06); }
+.crew-auth-feedback { display: grid; min-height: 47px; align-items: center; margin: 7px 0 -2px; }
+.crew-v2-keypad { display: grid; grid-template-columns: repeat(3, minmax(0, 76px)); justify-content: center; gap: 12px 18px; padding: 3px 0 0; }
+.crew-v2-keypad button { width: 76px; height: 58px; border: 1px solid #e0e6ec; border-radius: 14px; background: #fbfcfd; color: var(--crew-v2-navy); box-shadow: 0 3px 8px rgb(17 29 61 / .035); font-size: 23px; font-weight: 760; transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease; }
+.crew-v2-keypad button:hover { border-color: #cfe4da; background: #f6fbf8; box-shadow: 0 5px 12px rgb(17 29 61 / .055); }
+.crew-v2-keypad button:active { transform: scale(.95); border-color: #9ed9bf; background: var(--crew-v2-mint); color: var(--crew-v2-green-dark); }
+.crew-v2-keypad button:disabled { cursor: default; opacity: .46; }
+.crew-auth-security { display: flex; align-items: center; justify-content: center; gap: 8px; margin: auto 0 0!important; padding-top: 18px; color: #53647e!important; font-size: 11px!important; }
+.crew-auth-security svg { flex: 0 0 auto; color: #20b75e; }
+.crew-v2-login-loading { display: flex; min-height: 35px; align-items: center; justify-content: center; gap: 8px; color: var(--crew-v2-muted); font-size: 12px; font-weight: 700; }
 .crew-v2-error { border-radius: 10px; background: #fff0f2; padding: 10px 12px; color: #a9233b; font-size: 12px; font-weight: 680; }
-.crew-v2-login .crew-v2-error { margin-top: 18px; text-align: center; }
+.crew-v2-login .crew-v2-error { text-align: center; }
 .crew-v2-spinner { width: 17px; height: 17px; border: 2px solid #d2dde4; border-top-color: var(--crew-v2-green); border-radius: 50%; animation: crew-v2-spin .8s linear infinite; }
 
 .crew-v2-home-header { display: flex; align-items: flex-start; justify-content: space-between; padding: 6px 2px 15px; }
@@ -241,8 +267,23 @@ button, input, select { font: inherit; }
   .crew-v2-app { padding-right: 14px; padding-left: 14px; }
   .crew-v2-growth-stats { gap: 4px; }
   .crew-v2-growth-stats button { padding-inline: 1px; }
-  .crew-v2-keypad { gap-inline: 19px; }
+  .crew-v2-login { padding-right: 22px; padding-left: 22px; }
+  .crew-v2-keypad { gap-inline: 12px; }
+  .crew-v2-keypad button { width: 74px; }
   .crew-v2-chips { margin-inline: -14px; padding-inline: 14px; }
+}
+@media (max-height: 680px) {
+  .crew-v2-login-copy { margin-top: 30px; }
+  .crew-v2-login-copy p { margin-top: 14px; }
+  .crew-v2-login-copy .crew-auth-lead { margin-top: 12px; }
+  .crew-v2-login form { margin-top: 20px; }
+  .crew-v2-login:not(.is-passcode)::after { height: 145px; }
+  .crew-v2-login.is-passcode .crew-v2-login-copy { margin-top: 24px; }
+  .crew-v2-passcode-dots { margin-top: 18px; }
+  .crew-auth-feedback { min-height: 36px; margin-top: 2px; }
+  .crew-v2-keypad { gap-block: 8px; }
+  .crew-v2-keypad button { height: 48px; }
+  .crew-auth-security { padding-top: 10px; }
 }
 @media (min-width: 640px) {
   .crew-v2-app, .crew-v2-login { min-height: 820px; margin-top: 20px; margin-bottom: 20px; border: 1px solid #dfe6ed; border-radius: 16px; }

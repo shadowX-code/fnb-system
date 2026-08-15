@@ -7,6 +7,7 @@ import {
   CalendarCheck,
   CalendarDays,
   Check,
+  ChevronDown,
   ChevronRight,
   ClipboardCheck,
   Clock3,
@@ -130,25 +131,40 @@ function CrewLogin({ onSignedIn }) {
     if (next.length === 4) submitLogin(next);
   };
 
+  const normalizedDigits = mobile.replace(/\D/g, "");
+  const mobileNumberValid = normalizedDigits.length >= 8 && normalizedDigits.length <= 12;
+  const mobileSuffix = normalizedDigits.slice(-4).padStart(4, "•");
+  const maskedMobile = `${countryCode} •••• ${mobileSuffix}`;
+
+  const brand = <div className="crew-auth-brand" aria-label="FeedX">
+    <span className="crew-auth-logo-mark"><img src="/design-homepage/logo.png" alt="" draggable="false" /></span>
+    <strong>FeedX</strong>
+  </div>;
+
   if (step === "passcode") return <main className="crew-v2-shell"><section className="crew-v2-login is-passcode">
-    <button className="crew-v2-login-back" type="button" onClick={() => { setStep("mobile"); setPasscode(""); setError(""); }} aria-label="Back"><ArrowLeft size={20} /></button>
-    <div className="crew-v2-brand"><span>F</span><strong>FeedX</strong></div>
-    <div className="crew-v2-login-copy"><h1>Enter Passcode</h1><p>Use your 4-digit Crew passcode.</p></div>
+    <header className="crew-auth-passcode-header">
+      <button className="crew-v2-login-back" type="button" onClick={() => { setStep("mobile"); setPasscode(""); setError(""); }} aria-label="Back"><ArrowLeft size={21} /></button>
+      {brand}
+    </header>
+    <div className="crew-v2-login-copy"><h1>Welcome back</h1><p>Enter your 4-digit Crew passcode</p><strong className="crew-auth-masked-mobile">{maskedMobile}</strong></div>
     <div className="crew-v2-passcode-dots" aria-label={`${passcode.length} of 4 digits entered`}>{[0, 1, 2, 3].map((index) => <span key={index} className={index < passcode.length ? "filled" : ""} />)}</div>
-    {error && <div className="crew-v2-error" role="alert">{error}</div>}
-    {loading && <div className="crew-v2-login-loading"><span className="crew-v2-spinner" /> Signing in…</div>}
-    <div className="crew-v2-keypad" aria-label="Passcode keypad">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => <button type="button" key={digit} onClick={() => addDigit(String(digit))}>{digit}</button>)}<span /><button type="button" onClick={() => addDigit("0")}>0</button><button type="button" aria-label="Backspace" onClick={() => setPasscode((current) => current.slice(0, -1))}><Delete size={20} /></button></div>
+    <div className="crew-auth-feedback" aria-live="polite">
+      {error && <div className="crew-v2-error" role="alert">{error}</div>}
+      {loading && <div className="crew-v2-login-loading"><span className="crew-v2-spinner" /> Signing in…</div>}
+    </div>
+    <div className="crew-v2-keypad" aria-label="Passcode keypad">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => <button type="button" key={digit} disabled={loading} onClick={() => addDigit(String(digit))}>{digit}</button>)}<span aria-hidden="true" /><button type="button" disabled={loading} onClick={() => addDigit("0")}>0</button><button type="button" disabled={loading || !passcode.length} aria-label="Backspace" onClick={() => setPasscode((current) => current.slice(0, -1))}><Delete size={21} /></button></div>
+    <p className="crew-auth-security"><ShieldCheck size={17} /> Your passcode is private and secure.</p>
   </section></main>;
 
   return <main className="crew-v2-shell"><section className="crew-v2-login">
-    <div className="crew-v2-brand"><span>F</span><strong>FeedX</strong></div>
-    <div className="crew-v2-login-copy"><h1>Welcome</h1><p>Enter your mobile number to continue.</p></div>
-    <form onSubmit={(event) => { event.preventDefault(); setError(""); setStep("passcode"); }}>
+    {brand}
+    <div className="crew-v2-login-copy"><h1>Welcome to<br />FeedX <span>Crew</span></h1><p className="crew-auth-lead">Your workday starts here.</p><p>Sign in with your registered mobile number.</p></div>
+    <form onSubmit={(event) => { event.preventDefault(); if (!mobileNumberValid) { setError("Enter a valid mobile number."); return; } setError(""); setStep("passcode"); }}>
       <label>Mobile Number</label>
-      <div className="crew-v2-mobile-field"><select aria-label="Country code" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}><option value="+60">+60</option><option value="+65">+65</option></select><input aria-label="Mobile Number" inputMode="tel" autoComplete="tel" value={mobile} onChange={(event) => setMobile(event.target.value.replace(/[^\d\s-]/g, ""))} placeholder="12 345 6789" required /></div>
+      <div className="crew-v2-mobile-field"><span className="crew-auth-country"><select aria-label="Country code" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}><option value="+60">+60</option><option value="+65">+65</option></select><ChevronDown size={17} aria-hidden="true" /></span><input aria-label="Mobile Number" aria-invalid={Boolean(error)} inputMode="tel" autoComplete="tel" value={mobile} onChange={(event) => { setMobile(event.target.value.replace(/[^\d\s-]/g, "")); if (error) setError(""); }} placeholder="12 345 6789" required /></div>
+      {error && <div className="crew-v2-error crew-auth-mobile-error" role="alert">{error}</div>}
       <button className="crew-v2-primary" type="submit">Continue</button>
     </form>
-    <a href="#dashboard" className="crew-v2-admin-link">FeedX Admin sign in</a>
   </section></main>;
 }
 

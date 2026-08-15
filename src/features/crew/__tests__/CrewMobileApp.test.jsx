@@ -132,12 +132,39 @@ describe("Crew Mobile redesign", () => {
   it("uses a two-step mobile and custom passcode login that auto-submits four digits", async () => {
     render(<CrewMobileApp />);
     expect(screen.queryByText("Passcode")).toBeNull();
+    expect(screen.getByLabelText("FeedX").querySelector("img").getAttribute("src")).toBe("/design-homepage/logo.png");
+    expect(screen.queryByText("FeedX Admin sign in")).toBeNull();
     fireEvent.change(screen.getByLabelText("Mobile Number"), { target: { value: "12 345 6789" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByRole("heading", { name: "Enter Passcode" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Welcome back" })).not.toBeNull();
+    expect(screen.getByText("+60 •••• 6789")).not.toBeNull();
     for (const digit of [1, 2, 3, 4]) fireEvent.click(screen.getByRole("button", { name: String(digit) }));
     await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith("+6012 345 6789", "1234"));
     expect(await screen.findByText("Alex", { selector: "h1" })).not.toBeNull();
+  });
+
+  it("keeps invalid mobile numbers on the first step with a nearby error", () => {
+    render(<CrewMobileApp />);
+    fireEvent.change(screen.getByLabelText("Mobile Number"), { target: { value: "123" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(screen.getByRole("alert").textContent).toBe("Enter a valid mobile number.");
+    expect(screen.getByLabelText("Mobile Number").getAttribute("aria-invalid")).toBe("true");
+    expect(screen.queryByRole("heading", { name: "Welcome back" })).toBeNull();
+    expect(mocks.signIn).not.toHaveBeenCalled();
+  });
+
+  it("keeps authentication errors beside the passcode and supports returning to mobile entry", async () => {
+    mocks.signIn.mockRejectedValueOnce(new Error("Incorrect passcode. 2 attempts remaining."));
+    render(<CrewMobileApp />);
+    fireEvent.change(screen.getByLabelText("Mobile Number"), { target: { value: "12 345 6789" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    for (const digit of [9, 9, 9, 9]) fireEvent.click(screen.getByRole("button", { name: String(digit) }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Incorrect passcode. 2 attempts remaining.");
+    expect(screen.getByLabelText("0 of 4 digits entered")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: /Welcome to/ })).not.toBeNull();
+    expect(screen.getByLabelText("Mobile Number").value).toBe("12 345 6789");
   });
 
   it("has exactly Home, Learn, Reward, Growth and Me in bottom navigation", async () => {
