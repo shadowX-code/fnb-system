@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
-  employees: vi.fn(), positions: vi.fn(), mappings: vi.fn(), templates: vi.fn(), allTemplates: vi.fn(), rosters: vi.fn(), period: vi.fn(), snapshot: vi.fn(), notify: vi.fn(),
+  employees: vi.fn(), positions: vi.fn(), mappings: vi.fn(), templates: vi.fn(), allTemplates: vi.fn(), rosters: vi.fn(), period: vi.fn(), snapshot: vi.fn(), remove: vi.fn(), notify: vi.fn(),
 }));
 
 vi.mock("../../../../services/jobPositionService.js", () => ({ jobPositionService: { listJobPositions: mocks.positions } }));
 vi.mock("../../../../services/rosterPositionGroupService.js", () => ({ rosterPositionGroupService: { listMappings: mocks.mappings } }));
 vi.mock("../../../../services/shiftTemplateService.js", () => ({ shiftTemplateService: { listShiftTemplates: mocks.templates, listAllShiftTemplates: mocks.allTemplates } }));
-vi.mock("../../../../services/dutyRosterService.js", () => ({ dutyRosterService: { listRosterEligibleEmployees: mocks.employees, listDutyRosters: mocks.rosters, saveRosterWeekSnapshot: mocks.snapshot } }));
+vi.mock("../../../../services/dutyRosterService.js", () => ({ dutyRosterService: { listRosterEligibleEmployees: mocks.employees, listDutyRosters: mocks.rosters, saveRosterWeekSnapshot: mocks.snapshot, deleteDutyRoster: mocks.remove } }));
 vi.mock("../../../../services/rosterPeriodService.js", () => ({ rosterPeriodService: { getOrCreateRosterPeriod: mocks.period } }));
 
 import DutyRosterPage, { rosterPermission } from "../DutyRosterPage.jsx";
@@ -30,6 +30,7 @@ beforeEach(() => {
   mocks.rosters.mockResolvedValue([]);
   mocks.period.mockResolvedValue(period);
   mocks.snapshot.mockResolvedValue({ period, rows: [] });
+  mocks.remove.mockResolvedValue(undefined);
   mocks.notify.mockReset();
 });
 
@@ -110,7 +111,7 @@ describe("Duty Roster trusted week snapshot integration", () => {
     fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-10, Morning/ })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Bulk shift template" }));
     fireEvent.click(screen.getByRole("button", { name: /Evening ·/ }));
-    expect(screen.getByText(/1 existing shifts/)).toBeTruthy();
+    expect(screen.getByText(/1 working/)).toBeTruthy();
     const apply = screen.getByRole("button", { name: /Apply to 1/ });
     expect(apply.disabled).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Allow overwrite (1)" }));
@@ -156,9 +157,53 @@ describe("Duty Roster trusted week snapshot integration", () => {
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Approved leave" }));
     fireEvent.click(screen.getByRole("button", { name: /Bulk Assign/ }));
     fireEvent.pointerDown(leaveCell);
-    expect(screen.getByText("0 empty · 0 existing shifts · 1 protected leave")).toBeTruthy();
+    expect(screen.getByText("0 empty · 0 working · 0 removable · 1 protected leave")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Apply to 0" }).disabled).toBe(true);
     expect(mocks.snapshot).not.toHaveBeenCalled();
+  });
+
+  it("bulk removes working and OFF cells while preserving selected approved Leave", async () => {
+    const offTemplate = { id: "off-1", outlet_id: "outlet-1", name: "OFF", code: "OFF", shift_type: "off", color: "gray" };
+    const rows = [
+      { id: "shift-1", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-10", shift_template_id: template.id, template, status: "draft" },
+      { id: "leave-row", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-11", shift_template_id: leaveTemplate.id, template: leaveTemplate, source: "approved_leave", approved_leave_id: "approved-1", status: "draft" },
+      { id: "off-row", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-12", shift_template_id: offTemplate.id, template: offTemplate, status: "draft" },
+    ];
+    mocks.rosters.mockResolvedValue(rows);
+    mocks.snapshot.mockResolvedValue({ period, rows: [rows[1]] });
+    mocks.allTemplates.mockResolvedValue([template, offTemplate, leaveTemplate]);
+    const auth = { isProtectedRole: true, hasPermission: () => true };
+    render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: /Bulk Assign/ }));
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-10, Morning/ })[0]);
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-11, Annual Leave, protected leave/ })[0], { ctrlKey: true });
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-12, OFF/ })[0], { ctrlKey: true });
+
+    expect(screen.getByText("0 empty · 1 working · 2 removable · 1 protected leave")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Remove 2" }));
+    await waitFor(() => expect(mocks.snapshot).toHaveBeenCalledTimes(1));
+    expect(mocks.snapshot).toHaveBeenCalledWith(expect.objectContaining({
+      outletId: "outlet-1",
+      rows: [expect.objectContaining({ id: "leave-row", approved_leave_id: "approved-1" })],
+    }));
+    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Shifts removed", message: expect.stringContaining("approved leave cell was protected") }));
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-08-10, unassigned/ })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-08-12, unassigned/ })).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Aina, 2026-08-11, Annual Leave, protected leave/ }).length).toBeGreaterThan(0);
+  });
+
+  it("removes one editable shift and updates the cell to empty immediately", async () => {
+    mocks.rosters.mockResolvedValue([{ id: "shift-1", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-10", shift_template_id: template.id, template, status: "draft" }]);
+    const auth = { isProtectedRole: true, hasPermission: () => true };
+    render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
+
+    fireEvent.click((await screen.findAllByRole("button", { name: /Aina, 2026-08-10, Morning/ }))[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Remove Shift" }));
+
+    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith("shift-1", expect.objectContaining({ outletId: "outlet-1", rosterDate: "2026-08-10" })));
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-08-10, unassigned/ })).length).toBeGreaterThan(0);
+    expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Shift removed" }));
   });
 
   it("keeps Leave-owned templates out of roster template selection and settings", async () => {

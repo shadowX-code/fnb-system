@@ -335,7 +335,7 @@ function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplate
           {mode === "edit" ? (
             <div className="flex items-center justify-between gap-2">
               <button className="btn-secondary text-rose-700 hover:bg-rose-50" type="button" disabled={!canDeleteShift || saving} onClick={() => onDelete(roster)}>
-                <Trash2 size={16} /> Delete
+                <Trash2 size={16} /> Remove Shift
               </button>
               <div className="flex gap-2">
                 <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
@@ -1891,6 +1891,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const editableSelectionCount = selectedCellDetails.length - protectedSelectionCount - ineligibleSelectionCount;
   const emptySelectionCount = selectedCellDetails.filter((cell) => !cell.roster && cell.employee?.roster_eligible !== false).length;
   const existingWorkingSelectionCount = selectedCellDetails.filter((cell) => isWorkingRoster(cell.roster) && cell.employee?.roster_eligible !== false).length;
+  const removableSelectionCount = selectedCellDetails.filter((cell) => cell.roster && !isLeaveRoster(cell.roster) && cell.employee?.roster_eligible !== false).length;
   const overwriteConflictCount = selectedTemplate
     ? selectedCellDetails.filter((cell) => (
       isWorkingRoster(cell.roster)
@@ -1965,6 +1966,59 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       return;
     }
     await applyTemplateToSelection(source.roster.template);
+  }
+
+  async function clearSelectedShifts() {
+    if (!canDeleteShift) {
+      notifyPermissionDenied(ui, "remove duty roster shifts");
+      return;
+    }
+    if (locked || saving || bulkSavingRef.current || !removableSelectionCount) return;
+    if (ineligibleSelectionCount) {
+      ui.notify({
+        title: "Remove ineligible employees",
+        message: `${ineligibleSelectionCount} selected ${ineligibleSelectionCount === 1 ? "cell belongs" : "cells belong"} to an employee who is not eligible for this outlet.`,
+        tone: "error",
+      });
+      return;
+    }
+
+    bulkSavingRef.current = true;
+    setSaving(true);
+    try {
+      const removable = selectedCellDetails.filter((cell) => cell.roster && !isLeaveRoster(cell.roster) && cell.employee?.roster_eligible !== false);
+      const byWeek = new Map();
+      removable.forEach((cell) => {
+        const week = toDateInputValue(startOfWeek(`${cell.date}T00:00:00`));
+        if (!byWeek.has(week)) byWeek.set(week, []);
+        byWeek.get(week).push(cell);
+      });
+
+      for (const [targetWeek, cells] of byWeek) {
+        const targetEnd = toDateInputValue(addDays(`${targetWeek}T00:00:00`, 6));
+        const weekRows = await dutyRosterService.listDutyRosters(outletId, targetWeek, targetEnd);
+        const removedKeys = new Set(cells.map((cell) => cell.key));
+        const nextRows = weekRows.filter((row) => !removedKeys.has(selectionKey(row.employee_id, row.roster_date)) || isLeaveRoster(row));
+        const result = await dutyRosterService.saveRosterWeekSnapshot({
+          requestId: createRosterRequestId(), outletId, weekStartDate: targetWeek, rows: nextRows,
+        });
+        setRosters((current) => [...current.filter((row) => row.roster_date < targetWeek || row.roster_date > targetEnd), ...result.rows]);
+        if (targetWeek === weekDateValues[0]) setPeriod(result.period);
+      }
+
+      setSelectedCells(new Set());
+      setOverwriteExisting(false);
+      ui.notify({
+        title: "Shifts removed",
+        message: `${removable.length} ${removable.length === 1 ? "shift" : "shifts"} removed${protectedSelectionCount ? ` · ${protectedSelectionCount} approved leave ${protectedSelectionCount === 1 ? "cell was" : "cells were"} protected` : ""}.`,
+      });
+    } catch (clearError) {
+      console.error("Unable to remove selected duty roster shifts", clearError);
+      ui.notify({ title: "Unable to remove shifts", message: clearError.message || "Please try again.", tone: "error" });
+    } finally {
+      bulkSavingRef.current = false;
+      setSaving(false);
+    }
   }
 
   async function deleteShift(roster) {
@@ -2551,10 +2605,11 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       {selectionMode ? <div className="sticky bottom-4 z-40 mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-surface/95 px-4 py-2.5 shadow-lg backdrop-blur">
         <div>
           <div className="text-sm font-bold text-text-primary">{selectedCells.size} {selectedCells.size === 1 ? "cell" : "cells"} selected</div>
-          <div className="mt-0.5 text-xs font-semibold text-text-secondary">{emptySelectionCount} empty · {existingWorkingSelectionCount} existing shifts · {protectedSelectionCount} protected leave{ineligibleSelectionCount ? ` · ${ineligibleSelectionCount} ineligible` : ""}</div>
+          <div className="mt-0.5 text-xs font-semibold text-text-secondary">{emptySelectionCount} empty · {existingWorkingSelectionCount} working · {removableSelectionCount} removable · {protectedSelectionCount} protected leave{ineligibleSelectionCount ? ` · ${ineligibleSelectionCount} ineligible` : ""}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => { setSelectedCells(new Set()); setOverwriteExisting(false); }}>Clear</button>
+          <button className="btn-secondary h-9 px-3 text-xs text-rose-700 hover:bg-rose-50" type="button" disabled={!removableSelectionCount || Boolean(ineligibleSelectionCount) || saving} onClick={clearSelectedShifts}><Trash2 size={14} /> Remove {removableSelectionCount}</button>
           <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!editableSelectionCount || saving} onClick={repeatSelectedShifts}><Repeat2 size={14} /> Repeat Selected Shifts</button>
           <SelectField ariaLabel="Bulk shift template" value={selectedTemplateId} options={assignableTemplates.map((template) => ({ value: template.id, label: `${template.name} · ${shiftTimeLabel(template)}` }))} onChange={setSelectedTemplateId} placeholder="Choose template" buttonClassName="h-9 min-w-[190px] text-xs" />
           {overwriteConflictCount ? (

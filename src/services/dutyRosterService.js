@@ -155,12 +155,14 @@ export const dutyRosterService = {
       row,
     ]));
     const mappedRows = (data?.rows ?? []).map(mapRoster).map((row) => {
-      if (row.template) return row;
       const requested = requestedRows.get(`${row.employee_id}|${row.roster_date}`);
       const requestedTemplate = requested?.template;
       if (!requestedTemplate || requestedTemplate.id !== row.shift_template_id) return row;
       return {
         ...row,
+        start_time: requested?.start_time ?? requestedTemplate.start_time ?? row.start_time,
+        end_time: requested?.end_time ?? requestedTemplate.end_time ?? row.end_time,
+        break_minutes: Number(requested?.break_minutes ?? requestedTemplate.break_minutes ?? row.break_minutes ?? 0),
         template: {
           id: requestedTemplate.id,
           name: requestedTemplate.name,
@@ -177,16 +179,14 @@ export const dutyRosterService = {
   },
 
   async listDutyRosters(outletId, startDate, endDate) {
-    const { data, error } = await supabase
-      .from("duty_rosters")
-      .select(selectFields)
-      .eq("outlet_id", outletId)
-      .gte("roster_date", startDate)
-      .lte("roster_date", endDate)
-      .order("roster_date", { ascending: true });
+    const { data, error } = await supabase.rpc("list_duty_roster_read_model", {
+      p_outlet_id: outletId,
+      p_start_date: startDate,
+      p_end_date: endDate,
+    });
 
     throwSupabaseError("duty_rosters.list", error);
-    return (data ?? []).map(mapRoster);
+    return (Array.isArray(data) ? data : []).map(mapRoster);
   },
 
   async saveDutyRoster({ outletId, employeeId, rosterDate, template, status = "draft", remark = "" }) {
