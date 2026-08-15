@@ -14,6 +14,7 @@ import CrewRichContent from "./CrewRichContent.jsx";
 import CrewLearningImage from "./CrewLearningImage.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewLearnHome from "./CrewLearnHome.jsx";
+import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 
 function Progress({ value = 0 }) {
@@ -307,12 +308,21 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
 
 function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
   if (!sop) return null;
+  const acknowledgement = sop.acknowledgement_required
+    ? sop.acknowledged ? "Acknowledged" : "Acknowledgement required"
+    : "No acknowledgement required";
   return (
     <section className="crew-learning-reader">
-      <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> Back</button>
-      <span className="crew-learning-kicker">{sop.category} · v{sop.version}</span>
-      <h2>{sop.title}</h2>
-      <p className="crew-learning-summary">{sop.summary || sop.change_summary}</p>
+      <CrewMobileDetailHeader title={sop.title} onBack={onBack} className="crew-sop-mobile-nav" />
+      <header className="crew-sop-mobile-intro">
+        <div className="crew-sop-mobile-meta" aria-label="SOP metadata">
+          <span>{sop.category || "Other"}</span>
+          <span>v{sop.version}</span>
+          <span className={sop.acknowledged ? "is-acknowledged" : ""}>{acknowledgement}</span>
+        </div>
+        <h2>{sop.title}</h2>
+        {(sop.summary || sop.change_summary) && <p className="crew-learning-summary">{sop.summary || sop.change_summary}</p>}
+      </header>
       <CrewSopDocument sections={sop.sections} token={token} sopVersionId={sop.id} className="is-mobile" />
       {error && <p className="crew-mobile-error">{error}</p>}
       {sop.acknowledgement_required && (

@@ -18,6 +18,8 @@ const mocks = vi.hoisted(() => ({
   completeOperationChecklist: vi.fn(),
   updateDailyTask: vi.fn(),
   sopLibrary: vi.fn(),
+  sopVersion: vi.fn(),
+  acknowledgeSop: vi.fn(),
   learningAssignment: vi.fn(),
   clock: vi.fn(),
   changePasscode: vi.fn(),
@@ -64,6 +66,8 @@ beforeEach(() => {
   mocks.completeOperationChecklist.mockReset().mockResolvedValue({});
   mocks.updateDailyTask.mockReset().mockResolvedValue({});
   mocks.sopLibrary.mockReset().mockResolvedValue({ categories: [], sops: [] });
+  mocks.sopVersion.mockReset().mockResolvedValue({ id: "sop-version-1", title: "Welcome Standard", category: "Service", version: 2, acknowledgement_required: true, acknowledged: false, summary: "Welcome every guest consistently.", sections: [] });
+  mocks.acknowledgeSop.mockReset().mockResolvedValue({ acknowledged: true });
   mocks.learningAssignment.mockReset().mockResolvedValue({ id: "assignment-1", journey: { name: "New Crew Onboarding" }, modules: [] });
   mocks.clock.mockReset().mockResolvedValue({});
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
@@ -242,6 +246,29 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByRole("heading", { name: "Today’s Tasks" })).toBeNull();
     expect(mocks.operationDetail).toHaveBeenCalledWith("crew-token", "ops-1");
     expect(mocks.operationsToday).toHaveBeenCalledWith("crew-token");
+  });
+
+  it("uses the shared detail header for long SOP titles while keeping the full title and metadata in the reader", async () => {
+    const title = "Customer Complaint Handling & Service Recovery Standard for International Guest Experience";
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.sopLibrary.mockResolvedValueOnce({
+      categories: [{ id: "service", name: "Service" }],
+      sops: [{ id: "sop-1", version_id: "sop-version-1", title, category: "Service", category_id: "service", version: 3, acknowledgement_required: true, acknowledged: false }],
+    });
+    mocks.sopVersion.mockResolvedValueOnce({ id: "sop-version-1", title, category: "Service", version: 3, acknowledgement_required: true, acknowledged: false, summary: "Resolve concerns with care.", sections: [] });
+
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[1]);
+    fireEvent.click(await screen.findByRole("button", { name: `Open ${title}` }));
+
+    const nav = await screen.findByRole("heading", { name: title, level: 1 });
+    expect(nav.closest(".crew-mobile-detail-header")).not.toBeNull();
+    expect(nav.getAttribute("title")).toBe(title);
+    expect(screen.getByRole("button", { name: "Back" }).closest(".crew-mobile-detail-header")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: title, level: 2 }).textContent).toBe(title);
+    expect(screen.getByLabelText("SOP metadata").textContent).toContain("Service");
+    expect(screen.getByLabelText("SOP metadata").textContent).toContain("v3");
+    expect(screen.getByLabelText("SOP metadata").textContent).toContain("Acknowledgement required");
   });
 
   it("renders ready, on-shift and completed Home attendance from the existing attendance authority", async () => {

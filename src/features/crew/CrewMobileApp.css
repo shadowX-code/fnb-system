@@ -129,6 +129,17 @@ button, input, select { font: inherit; }
 .crew-v2-page-header > div { display: flex; align-items: center; gap: 7px; }
 .crew-v2-page-header button { display: grid; width: 34px; height: 34px; place-items: center; border: 0; border-radius: 50%; background: #f3f6f8; color: var(--crew-v2-navy); }
 .crew-v2-page-header h1 { margin: 0; color: var(--crew-v2-navy); font-size: 19px; letter-spacing: -.025em; }
+.crew-mobile-detail-header { align-items: flex-start; }
+.crew-mobile-detail-header > div { width: 100%; min-width: 0; align-items: flex-start; gap: 10px; }
+.crew-mobile-detail-header button { flex: 0 0 34px; }
+.crew-mobile-detail-header h1 { display: -webkit-box; min-width: 0; overflow: hidden; flex: 1; padding-top: 4px; font-size: 19px; line-height: 1.24; text-wrap: pretty; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.crew-sop-mobile-nav { margin-bottom: 13px; }
+.crew-sop-mobile-intro { display: grid; gap: 8px; margin-bottom: 4px; }
+.crew-sop-mobile-meta { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 6px; }
+.crew-sop-mobile-meta span { display: inline-flex; min-height: 22px; align-items: center; border-radius: 999px; background: #f1f5f7; padding: 4px 8px; color: #53667d; font-size: 9px; font-weight: 750; line-height: 1.2; }
+.crew-sop-mobile-meta span:first-child, .crew-sop-mobile-meta span.is-acknowledged { background: var(--crew-v2-mint); color: var(--crew-v2-green-dark); }
+.crew-sop-mobile-intro h2 { overflow-wrap: anywhere; margin: 0 !important; color: var(--crew-v2-navy); font-size: 22px !important; line-height: 1.2; letter-spacing: -.025em; text-wrap: pretty; }
+.crew-sop-mobile-intro .crew-learning-summary { margin: 0 0 4px; }
 .crew-v2-state { display: grid; min-height: 55dvh; place-content: center; justify-items: center; gap: 9px; text-align: center; }
 .crew-v2-state strong { font-size: 14px; }.crew-v2-state p { max-width: 280px; margin: 0; color: var(--crew-v2-muted); font-size: 11px; line-height: 1.5; }.crew-v2-state button { border: 0; border-radius: 9px; background: var(--crew-v2-navy); padding: 9px 13px; color: #fff; font-size: 11px; font-weight: 750; }
 .crew-v2-growth-tabs { display: flex; border-bottom: 1px solid var(--crew-v2-border); }
@@ -309,7 +320,7 @@ button, input, select { font: inherit; }
 .crew-ops-sop-meta { width: fit-content; border-radius: 999px; background: var(--crew-v2-mint); padding: 5px 8px; color: var(--crew-v2-green-dark); font-size: 8px; font-weight: 750; }.crew-ops-document { margin-top: 18px; }.crew-ops-document article { padding: 0 1px 23px; }.crew-ops-document article>small { color: var(--crew-v2-green); font-size: 8px; font-weight: 800; }.crew-ops-document h2 { margin: 5px 0 8px; color: var(--crew-v2-navy); font-size: 14px; }.crew-ops-key { margin-top: 12px; border-radius: 11px; background: var(--crew-v2-mint); padding: 11px; color: var(--crew-v2-green-dark); }.crew-ops-key strong { font-size: 9px; }.crew-ops-key p { margin: 4px 0 0; font-size: 9px; line-height: 1.5; }
 
 /* Crew Mobile 2026 shared visual foundation. */
-.crew-v2-app{padding:18px 16px 96px}.crew-v2-home-header{padding:5px 0 18px}.crew-v2-home-header p{font-size:13px}.crew-v2-home-header h1{margin:4px 0 7px;font-size:25px}.crew-v2-home-header small{margin:0;font-size:11px}.crew-v2-avatar{width:42px;height:42px;border-width:2px;font-size:16px}.crew-v2-home-section,.crew-v2-section-block{margin-top:24px}.crew-v2-page-header{min-height:52px;margin:0 0 10px}.crew-v2-page-header h1{font-size:21px}
+.crew-v2-app{padding:18px 16px 96px}.crew-v2-home-header{padding:5px 0 18px}.crew-v2-home-header p{font-size:13px}.crew-v2-home-header h1{margin:4px 0 7px;font-size:25px}.crew-v2-home-header small{margin:0;font-size:11px}.crew-v2-avatar{width:42px;height:42px;border-width:2px;font-size:16px}.crew-v2-home-section,.crew-v2-section-block{margin-top:24px}.crew-v2-page-header{min-height:52px;margin:0 0 10px}.crew-v2-page-header h1{font-size:21px}.crew-mobile-detail-header h1{font-size:19px}
 
 /* Reward final — reference-matched, server-derived monthly reward story. */
 .crew-reward-final{display:grid;gap:12px;margin:-2px -1px 10px;color:#0b1b3d}.crew-reward-page-header{display:flex;min-height:54px;align-items:center;justify-content:space-between}.crew-reward-page-header h1{margin:0;font-size:25px;letter-spacing:-.04em}.crew-reward-page-header button{display:grid;width:38px;height:38px;place-items:center;border:0;border-radius:50%;background:transparent;color:#0b1b3d}
