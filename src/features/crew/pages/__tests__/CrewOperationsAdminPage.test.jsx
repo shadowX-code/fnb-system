@@ -19,6 +19,11 @@ describe("Crew unified Tasks Admin", () => {
     expect(screen.getByText("Opening Checklist")).not.toBeNull();
     expect(screen.getByLabelText("Status")).not.toBeNull();
     expect(screen.getByRole("button", { name: /Create Task/ })).not.toBeNull();
+    expect(screen.getByText("Daily")).not.toBeNull();
+    expect(screen.getByText("Important")).not.toBeNull();
+    expect(screen.getByText("15/08/2026")).not.toBeNull();
+    expect(screen.getByText("9:30 am")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "View Opening Checklist" })).not.toBeNull();
   });
 
   it("saves schedule, assignment and content through one Task authority", async () => {
@@ -102,10 +107,13 @@ describe("Crew unified Tasks Admin", () => {
 
   it("separates definition lifecycle from execution progress and exposes history", async () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View" }));
-    expect(await screen.findByText("01 Aug 2026")).not.toBeNull();
-    expect(screen.getAllByText(/15 Aug 2026/).length).toBeGreaterThan(0);
+    fireEvent.click(await screen.findByRole("button", { name: "View Opening Checklist" }));
+    expect(await screen.findByText("01/08/2026")).not.toBeNull();
+    expect(screen.getAllByText("15/08/2026").length).toBeGreaterThan(0);
     expect(await screen.findByText("Execution Progress")).not.toBeNull();
+    expect(screen.getByText("Task Content")).not.toBeNull();
+    expect(screen.getByText("Unlock entrance")).not.toBeNull();
+    expect(screen.getByText("Checklist Item")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Executions" }));
     expect(screen.getByText("Execution History")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "View Result" }));
@@ -114,7 +122,7 @@ describe("Crew unified Tasks Admin", () => {
 
   it("shows canonical version history and result views", async () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View" }));
+    fireEvent.click(await screen.findByRole("button", { name: "View Opening Checklist" }));
     fireEvent.click(await screen.findByRole("tab", { name: "Versions" }));
     expect(screen.getByText("Version History")).not.toBeNull();
     expect(screen.getByText("Editable Draft")).not.toBeNull();
