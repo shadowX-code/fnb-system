@@ -274,6 +274,24 @@ describe("Crew Mobile redesign", () => {
     expect(document.body.scrollTop).toBe(0);
   });
 
+  it("presents an acknowledged SOP as a complete, version-specific status", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.sopLibrary.mockResolvedValueOnce({
+      categories: [{ id: "service", name: "Service" }],
+      sops: [{ id: "sop-1", version_id: "sop-version-1", title: "Personal Grooming Standard", category: "Service", category_id: "service", version: 2, acknowledgement_required: true, acknowledged: true }],
+    });
+    mocks.sopVersion.mockResolvedValueOnce({ id: "sop-version-1", title: "Personal Grooming Standard", category: "Service", version: 2, acknowledgement_required: true, acknowledged: true, sections: [] });
+
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[1]);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Personal Grooming Standard" }));
+
+    const status = await screen.findByRole("status", { name: "SOP acknowledged" });
+    expect(status.textContent).toContain("SOP acknowledged");
+    expect(status.textContent).toContain("confirmed version 2");
+    expect(screen.queryByRole("button", { name: "I acknowledge this SOP" })).toBeNull();
+  });
+
   it("renders ready, on-shift and completed Home attendance from the existing attendance authority", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     const { unmount } = render(<CrewMobileApp />);

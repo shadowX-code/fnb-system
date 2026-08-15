@@ -333,7 +333,15 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
       {error && <p className="crew-mobile-error">{error}</p>}
       {sop.acknowledgement_required && (
         sop.acknowledged
-          ? <p className="crew-learning-success"><CheckCircle2 size={17} /> Acknowledged</p>
+          ? (
+            <div className="crew-sop-acknowledged" role="status" aria-label="SOP acknowledged">
+              <span className="crew-sop-acknowledged-icon" aria-hidden="true"><CheckCircle2 size={20} /></span>
+              <span>
+                <strong>SOP acknowledged</strong>
+                <small>You’ve confirmed version {sop.version}. You can review it anytime.</small>
+              </span>
+            </div>
+          )
           : <button className="crew-mobile-primary" disabled={saving} onClick={onAcknowledge}>{saving ? "Saving…" : "I acknowledge this SOP"}</button>
       )}
     </section>
