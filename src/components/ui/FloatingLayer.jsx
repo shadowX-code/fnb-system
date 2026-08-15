@@ -47,7 +47,8 @@ export default function FloatingLayer({
     const viewportHeight = window.innerHeight;
     const viewportWidth = window.innerWidth;
     const measuredHeight = layerRef.current?.offsetHeight || estimatedHeight;
-    const layerWidth = Math.max(width || rect.width || minWidth, minWidth);
+    const requestedWidth = Math.max(width || rect.width || minWidth, minWidth);
+    const layerWidth = Math.min(requestedWidth, Math.max(240, viewportWidth - margin * 2));
     const availableMaxHeight = Math.max(160, viewportHeight - margin * 2);
     const nextMaxHeight = maxHeight ? Math.min(maxHeight, availableMaxHeight) : availableMaxHeight;
     const effectiveHeight = Math.min(measuredHeight, nextMaxHeight);

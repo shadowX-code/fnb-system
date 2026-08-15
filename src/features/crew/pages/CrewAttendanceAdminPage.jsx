@@ -8,6 +8,7 @@ import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import CrewAttendanceDateRangePicker from "../components/CrewAttendanceDateRangePicker.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
@@ -26,12 +27,6 @@ const rosterLabels = {
 
 function businessDate(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-}
-
-function shiftDate(value) {
-  const date = new Date(`${value}T00:00:00`);
-  date.setDate(date.getDate() - 30);
-  return businessDate(date);
 }
 
 function locationState(row) {
@@ -130,7 +125,6 @@ function issueClass(row) {
 export default function CrewAttendanceAdminPage({ ui, store }) {
   const sharedOutlet = useCrewAdminOutlet(store?.outlets || []);
   const today = useMemo(() => businessDate(), []);
-  const [mode, setMode] = useState("today");
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [outletId, setOutletIdState] = useState("");
@@ -182,12 +176,7 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
   }), [rows]);
   const attentionCount = summary.exceptions + summary.incomplete + summary.noRoster + summary.largeVariance;
 
-  function changeMode(nextMode) {
-    setMode(nextMode);
-    setStatus(ALL);
-    if (nextMode === "today") { setFrom(today); setTo(today); }
-    else { setFrom(shiftDate(today)); setTo(today); }
-  }
+  const isToday = from === today && to === today;
 
   const columns = [
     { key: "employee", header: "Employee", width: "210px", render: (row) => <div><div className="font-bold text-text-primary">{row.employee?.nickname || row.employee?.full_name || "Employee"}</div><div className="mt-0.5 text-xs text-text-secondary">{row.employee?.position || "Crew"} · {row.outlet?.name || row.employee?.workplace || "Outlet"}</div>{row.schedule?.outlet_name && row.outlet?.name && row.schedule.outlet_name !== row.outlet.name ? <div className="mt-1 text-xs font-semibold text-amber-700">Worked at {row.outlet.name}</div> : null}</div> },
@@ -207,10 +196,10 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
       description="Review actual attendance against published roster and verified location evidence."
     />
 
-    <CrewAdminToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} allowAll allValue={ALL} />} time={<><div className="inline-flex rounded-xl border border-border bg-white p-1"><button className={mode === "today" ? "btn-primary" : "btn-ghost"} type="button" onClick={() => changeMode("today")}>Today</button><button className={mode === "history" ? "btn-primary" : "btn-ghost"} type="button" onClick={() => changeMode("history")}>History</button></div>{mode === "history" ? <div className="flex gap-2"><label className="field-label">From<input className="control mt-1 w-full" type="date" value={from} max={to} onChange={(event) => { setMode("history"); setFrom(event.target.value); }} /></label><label className="field-label">To<input className="control mt-1 w-full" type="date" value={to} min={from} onChange={(event) => { setMode("history"); setTo(event.target.value); }} /></label></div> : null}</>} filters={<><SelectField label="Employee" ariaLabel="Employee" value={employeeId} onChange={setEmployeeId} searchable options={[{ value: ALL, label: "All" }, ...employees.map((employee) => ({ value: employee.id, label: employee.nickname || employee.full_name }))]} /><SelectField label="Position" ariaLabel="Position" value={position} onChange={setPosition} options={[{ value: ALL, label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Attendance Status" ariaLabel="Attendance Status" value={status} onChange={setStatus} options={[{ value: ALL, label: "All" }, { value: "verified", label: "Verified" }, { value: "variance", label: "Late / Variance" }, { value: "location_exception", label: "Location Exception" }, { value: "incomplete", label: "Incomplete" }, { value: "no_roster", label: "No Published Roster" }]} /></>} secondary={<button className="icon-btn" type="button" aria-label="About attendance evidence" title="Roster variance is explainable evidence only; it does not directly alter Performance scores."><HelpCircle size={17} /></button>} />
+    <CrewAdminToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} allowAll allValue={ALL} />} time={<CrewAttendanceDateRangePicker from={from} to={to} today={today} onApply={(range) => { setFrom(range.from); setTo(range.to); }} />} filters={<><SelectField label="Employee" ariaLabel="Employee" value={employeeId} onChange={setEmployeeId} searchable options={[{ value: ALL, label: "All" }, ...employees.map((employee) => ({ value: employee.id, label: employee.nickname || employee.full_name }))]} /><SelectField label="Position" ariaLabel="Position" value={position} onChange={setPosition} options={[{ value: ALL, label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Attendance Status" ariaLabel="Attendance Status" value={status} onChange={setStatus} options={[{ value: ALL, label: "All" }, { value: "verified", label: "Verified" }, { value: "variance", label: "Late / Variance" }, { value: "location_exception", label: "Location Exception" }, { value: "incomplete", label: "Incomplete" }, { value: "no_roster", label: "No Published Roster" }]} /></>} secondary={<button className="icon-btn" type="button" aria-label="About attendance evidence" title="Roster variance is explainable evidence only; it does not directly alter Performance scores."><HelpCircle size={17} /></button>} />
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Attendance summary">
-      <MetricCard icon={UsersRound} label={mode === "today" ? "Present Today" : "Present in Range"} value={summary.present} helper="Crew with attendance evidence" size="compact" />
+      <MetricCard icon={UsersRound} label={isToday ? "Present Today" : "Present in Range"} value={summary.present} helper="Crew with attendance evidence" size="compact" />
       <MetricCard icon={Clock3} label="Late / Schedule Variance" value={summary.variance} helper="Server-calculated clock-in variance" tone={summary.variance ? "warning" : "neutral"} size="compact" />
       <MetricCard icon={MapPin} label="Location Exceptions" value={summary.exceptions} helper="Location evidence needs review" tone={summary.exceptions ? "warning" : "neutral"} size="compact" />
       <MetricCard icon={AlertTriangle} label="Incomplete Sessions" value={summary.incomplete} helper="Missing a completed session" tone={summary.incomplete ? "danger" : "neutral"} size="compact" />
@@ -220,7 +209,7 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
 
     {attentionCount ? <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3" aria-label="Needs Attention"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2 font-bold text-text-primary"><AlertTriangle className="text-amber-600" size={17} />{attentionCount} attendance record signal{attentionCount === 1 ? "" : "s"} need review</div><p className="mt-1 text-xs text-text-secondary">Signals remain separate: location, session completion, roster matching, and large clock-in variance.</p></div><div className="flex flex-wrap gap-2">{summary.exceptions ? <button className="btn-secondary" type="button" onClick={() => setStatus("location_exception")}>{summary.exceptions} Location Exception{summary.exceptions === 1 ? "" : "s"}</button> : null}{summary.incomplete ? <button className="btn-secondary" type="button" onClick={() => setStatus("incomplete")}>{summary.incomplete} Incomplete</button> : null}{summary.noRoster ? <button className="btn-secondary" type="button" onClick={() => setStatus("no_roster")}>{summary.noRoster} No Roster</button> : null}{summary.largeVariance ? <button className="btn-secondary" type="button" onClick={() => setStatus("variance")}>{summary.largeVariance} Large Variance</button> : null}</div></div></section> : null}
 
-    <Card title={mode === "today" ? "Today’s Attendance" : "Attendance History"} description={`${visibleRows.length} record${visibleRows.length === 1 ? "" : "s"} shown · Execution and location states are reported separately.`}>
+    <Card title={isToday ? "Today’s Attendance" : "Attendance History"} description={`${visibleRows.length} record${visibleRows.length === 1 ? "" : "s"} shown · Execution and location states are reported separately.`}>
       {loading ? <div className="p-8 text-sm font-semibold text-text-secondary">Loading attendance…</div> : visibleRows.length ? <div className="crew-attendance-table"><DataTable density="compact" tableClassName="min-w-[1100px]" rows={visibleRows} getRowKey={(row) => row.id} getRowClassName={issueClass} onRowClick={setDetail} columns={columns} /></div> : <div className="px-6 py-12 text-center"><ShieldCheck className="mx-auto text-primary" size={28} /><h3 className="mt-3 font-bold text-text-primary">No attendance records</h3><p className="mt-1 text-sm text-text-secondary">No records match the selected date, outlet, or filters.</p></div>}
     </Card>
     {detail ? <AttendanceDetail row={detail} onClose={() => setDetail(null)} /> : null}

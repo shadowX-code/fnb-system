@@ -78,6 +78,19 @@ describe("Crew Attendance Admin", () => {
     await waitFor(() => expect(mocks.attendance).toHaveBeenLastCalledWith(expect.objectContaining({ outletId: null })));
   });
 
+  it("queries a new date range only after the picker is applied", async () => {
+    render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("Verified Crew");
+    mocks.attendance.mockClear();
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Last 7 days" }));
+    expect(mocks.attendance).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(mocks.attendance).toHaveBeenCalledTimes(1));
+    expect(mocks.attendance).toHaveBeenCalledWith(expect.objectContaining({ from: expect.any(String), to: expect.any(String), outletId: "outlet-1" }));
+    expect(screen.queryByRole("button", { name: "History" })).toBeNull();
+  });
+
   it("opens an operational detail view for no-roster and exception evidence", async () => {
     render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
     const noRoster = await screen.findByText("No Roster Crew");
