@@ -29,18 +29,18 @@ describe("Crew Leave v1 UI contracts", () => {
   });
 
   it("shows manager roster context and requires a rejection reason", () => {
-    expect(admin).toContain("Roster Context");
-    expect(admin).toContain("Approval preserves the superseded roster evidence.");
+    expect(admin).toContain("Roster impact");
+    expect(admin).toContain("No published roster");
     expect(admin).toContain("!reason.trim()");
   });
 
   it("uses only controlled leave RPCs from the frontend", () => {
-    for (const rpc of ["crew_leave_mobile", "crew_leave_submit", "crew_leave_cancel", "crew_leave_admin_data", "crew_leave_review", "crew_leave_policy_save", "crew_leave_adjust"]) expect(service).toContain(`rpc("${rpc}"`);
+    for (const rpc of ["crew_leave_mobile", "crew_leave_submit", "crew_leave_cancel", "crew_leave_admin_data", "crew_leave_review", "crew_leave_policy_save", "crew_leave_adjust", "crew_leave_adjustment_history"]) expect(service).toContain(`rpc("${rpc}"`);
     expect(service).not.toContain('from("crew_leave_requests")');
   });
 
   it("adds manager balance, adjustment and policy contexts without a second sidebar route", () => {
-    for (const copy of ["Balances", "Settings", "Balance Context", "Adjust Leave Balance", "Leave Policy", "One employee per row", "Expiry month"]) expect(admin).toContain(copy);
+    for (const copy of ["Balances", "Settings", "Balance summary", "Adjust Leave Balance", "Adjustment History", "Leave Policy", "One employee per row", "Expiry month"]) expect(admin).toContain(copy);
     expect(admin).toContain('auth.hasPermission("crew_leave_balance.adjust")');
     expect(admin).toContain('auth.hasPermission("crew_leave_settings.manage")');
   });

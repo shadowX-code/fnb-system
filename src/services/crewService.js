@@ -191,6 +191,12 @@ export const crewService = {
     return data;
   },
 
+  async leaveAdjustmentHistory(employeeId) {
+    const { data, error } = await supabase.rpc("crew_leave_adjustment_history", { p_employee_id: employeeId });
+    throwSupabaseError("crew.leaveAdjustmentHistory", error);
+    return data || [];
+  },
+
   async operationDetail(token, instanceId) {
     const { data, error } = await supabase.rpc("crew_tasks_detail", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.operationDetail", error);

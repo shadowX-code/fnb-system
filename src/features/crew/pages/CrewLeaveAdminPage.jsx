@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertCircle, CalendarDays, Check, History, RotateCcw, Search, Settings2, SlidersHorizontal, X } from "lucide-react";
+import { AlertCircle, CalendarDays, Check, Eye, History, RotateCcw, Search, Settings2, SlidersHorizontal, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -10,12 +10,12 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import { crewService } from "../../../services/crewService.js";
 import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
+import { formatLeaveDate, formatLeaveDateRange } from "../utils/leaveFormatters.js";
 
 const typeLabel = { annual: "Annual Leave", medical: "Medical Leave / MC", unpaid: "Unpaid Leave", other: "Other Leave" };
 const statusTone = { pending: "warning", approved: "success", rejected: "danger", cancelled: "neutral" };
 const monthOptions = Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: new Date(2026, index, 1).toLocaleDateString("en-MY", { month: "long" }) }));
 const dayOptions = Array.from({ length: 31 }, (_, index) => ({ value: String(index + 1), label: String(index + 1) }));
-const formatDate = (value) => value ? new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—";
 const formatTime = (value) => value ? new Date(`2026-01-01T${String(value).slice(0, 5)}:00`).toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit" }) : "—";
 const formatDays = (value) => value == null ? "Unlimited" : `${Number(value).toFixed(Number(value) % 1 ? 1 : 0)} days`;
 const statusLabel = (value) => value ? value[0].toUpperCase() + value.slice(1) : "—";
@@ -46,6 +46,7 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
   const [review, setReview] = useState(null);
   const [balanceEmployee, setBalanceEmployee] = useState(null);
   const [adjustment, setAdjustment] = useState(null);
+  const [adjustmentHistory, setAdjustmentHistory] = useState({ loading: false, error: "", rows: [] });
   const [policy, setPolicy] = useState(null);
   const [saving, setSaving] = useState(false);
   const canReview = auth.hasPermission("crew_leave.review");
@@ -56,7 +57,7 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
     if (!outletId) { setLoading(false); return; }
     setLoading(true);
     setError("");
-    try { setData(await crewService.leaveAdminData(outletId)); }
+    try { const next = await crewService.leaveAdminData(outletId); setData(next); return next; }
     catch (cause) { setError(cause.message || "Unable to load leave data."); }
     finally { setLoading(false); }
   };
@@ -68,8 +69,21 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
   const hasActiveFilters = Boolean(filters.search || filters.type !== "all" || filters.status !== "all");
   const clearFilters = () => setFilters({ search: "", type: "all", status: "all" });
 
+  const loadAdjustmentHistory = async (employeeId) => {
+    setAdjustmentHistory({ loading: true, error: "", rows: [] });
+    try {
+      const rows = await crewService.leaveAdjustmentHistory(employeeId);
+      setAdjustmentHistory({ loading: false, error: "", rows });
+      return rows;
+    } catch (cause) {
+      setAdjustmentHistory({ loading: false, error: cause.message || "Unable to load adjustment history.", rows: [] });
+      return [];
+    }
+  };
+  const openBalance = (group) => { setBalanceEmployee(group); loadAdjustmentHistory(group.employee?.id); };
+
   const decide = async (decision, reason = null) => { setSaving(true); try { await crewService.reviewLeave(review.id, decision, reason); ui.notify({ title: decision === "approve" ? "Leave approved" : "Leave rejected", message: decision === "approve" ? "Balance and Duty Roster evidence are updated." : "Reserved balance has been released.", tone: "success" }); setReview(null); await load(); } catch (cause) { ui.notify({ title: "Unable to review leave", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
-  const adjust = async (amount, reason) => { setSaving(true); try { await crewService.adjustLeaveBalance(adjustment.entitlement_id, amount, reason); ui.notify({ title: "Balance adjusted", message: "The immutable adjustment is now included in the employee balance.", tone: "success" }); setAdjustment(null); await load(); } catch (cause) { ui.notify({ title: "Unable to adjust balance", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
+  const adjust = async (amount, reason) => { const employeeId = adjustment.employee?.id || adjustment.employee_id; setSaving(true); try { await crewService.adjustLeaveBalance(adjustment.entitlement_id, amount, reason); const fresh = await load(); const group = groupBalances(fresh?.balances || []).find((item) => item.employee?.id === employeeId); await loadAdjustmentHistory(employeeId); ui.notify({ title: "Balance adjusted", message: "The immutable adjustment is now included in the employee balance and history.", tone: "success" }); setAdjustment(null); setBalanceEmployee(group || null); } catch (cause) { ui.notify({ title: "Unable to adjust balance", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
   const savePolicy = async (values) => { setSaving(true); try { await crewService.saveLeavePolicy(outletId, policy.leave_type, values); ui.notify({ title: "Leave policy saved", message: "Future entitlements use the updated policy. Existing grants remain historical.", tone: "success" }); setPolicy(null); await load(); } catch (cause) { ui.notify({ title: "Unable to save policy", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
 
   return <div className="min-w-0 overflow-x-hidden space-y-4">
@@ -78,10 +92,10 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
     <LeaveToolbar tab={tab} outlets={outlets} outletId={outletId} setOutletId={setOutletId} filters={filters} setFilters={setFilters} hasActiveFilters={hasActiveFilters} clearFilters={clearFilters} />
     {error ? <ErrorState message={error} onRetry={load} /> : null}
     {!error && tab === "requests" ? <RequestsPanel allRows={data.requests} rows={requestRows} loading={loading} filtered={hasActiveFilters} canReview={canReview} setReview={setReview} /> : null}
-    {!error && tab === "balances" ? <BalancesPanel allRows={groupedBalances} rows={balanceRows} loading={loading} filtered={Boolean(filters.search)} onManage={setBalanceEmployee} /> : null}
+    {!error && tab === "balances" ? <BalancesPanel allRows={groupedBalances} rows={balanceRows} loading={loading} filtered={Boolean(filters.search)} onManage={openBalance} /> : null}
     {!error && tab === "settings" ? <SettingsPanel rows={data.policies} loading={loading} canManage={canSettings} onEdit={setPolicy} /> : null}
     {review ? <LeaveReview request={review} canReview={canReview} saving={saving} onClose={() => setReview(null)} onDecide={decide} /> : null}
-    {balanceEmployee ? <BalanceDetail group={balanceEmployee} canAdjust={canAdjust} onClose={() => setBalanceEmployee(null)} onAdjust={(row) => { setBalanceEmployee(null); setAdjustment(row); }} /> : null}
+    {balanceEmployee ? <BalanceDetail group={balanceEmployee} history={adjustmentHistory} canAdjust={canAdjust} onRetryHistory={() => loadAdjustmentHistory(balanceEmployee.employee?.id)} onClose={() => setBalanceEmployee(null)} onAdjust={(row) => { setBalanceEmployee(null); setAdjustment(row); }} /> : null}
     {adjustment ? <AdjustmentModal balance={adjustment} saving={saving} onClose={() => setAdjustment(null)} onSave={adjust} /> : null}
     {policy ? <PolicyModal policy={policy} saving={saving} onClose={() => setPolicy(null)} onSave={savePolicy} /> : null}
   </div>;
@@ -98,62 +112,75 @@ function RequestsPanel({ allRows, rows, loading, filtered, canReview, setReview 
 
 function requestColumns(canReview, setReview) { return [
   { key: "employee", header: "Employee", render: (row) => <Employee employee={row.employee} /> },
-  { key: "type", header: "Leave Type", render: (row) => <span className="font-semibold text-text-primary">{typeLabel[row.leave_type]}</span> },
-  { key: "dates", header: "Dates", render: (row) => <div><div className="font-semibold text-text-primary">{formatDate(row.start_date)}{row.start_date !== row.end_date ? ` – ${formatDate(row.end_date)}` : ""}</div></div> },
-  { key: "duration", header: "Duration", render: (row) => formatDays(row.requested_days) },
-  { key: "balance", header: "Balance", render: (row) => <span className="font-semibold">{!row.balance_context ? "—" : row.balance_context.balance_enforced === false ? "Unlimited" : `${formatDays(row.balance_context.available)} available`}</span> },
-  { key: "conflict", header: "Roster", render: (row) => { const working = row.roster_context?.filter((day) => day.schedule?.entry_type === "working") || []; return <span className={working.length ? "font-semibold text-amber-700" : "text-text-secondary"}>{working.length ? `${working.length} shift conflict${working.length === 1 ? "" : "s"}` : "No conflict"}</span>; } },
+  { key: "type", header: "Leave Type", render: (row) => <span className="text-text-primary">{typeLabel[row.leave_type]}</span> },
+  { key: "dates", header: "Dates", render: (row) => <span className="whitespace-nowrap text-text-secondary">{formatLeaveDateRange(row.start_date, row.end_date)}</span> },
+  { key: "duration", header: "Duration", render: (row) => <span className="text-text-secondary">{formatDays(row.requested_days)}</span> },
+  { key: "balance", header: "Balance", render: (row) => <span className="text-text-secondary">{!row.balance_context ? "—" : row.balance_context.balance_enforced === false ? "Unlimited" : `${formatDays(row.balance_context.available)} available`}</span> },
+  { key: "conflict", header: "Roster", render: (row) => { const working = row.roster_context?.filter((day) => day.schedule?.entry_type === "working") || []; return working.length ? <Badge tone="warning">{working.length} conflict{working.length === 1 ? "" : "s"}</Badge> : <span className="text-text-secondary">No conflict</span>; } },
   { key: "status", header: "Status", render: (row) => <Badge tone={statusTone[row.status]}>{statusLabel(row.status)}</Badge> },
-  { key: "action", header: "Action", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setReview(row)}>{row.status === "pending" && canReview ? "Review" : "View"}</button> },
+  { key: "action", header: "Action", align: "right", render: (row) => row.status === "pending" && canReview ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => setReview(row)}>Review</button> : <button className="icon-btn h-9 w-9 min-h-9" type="button" aria-label={`View leave request for ${row.employee?.name || "employee"}`} title="View request" onClick={() => setReview(row)}><Eye size={16} /></button> },
 ]; }
 
 function BalancesPanel({ allRows, rows, loading, filtered, onManage }) {
-  const balanceCell = (row, type) => { const balance = row.balances[type]; return !balance ? <span className="text-text-muted">—</span> : balance.balance_enforced === false ? <span className="font-semibold text-text-primary">Unlimited</span> : <div><strong className={Number(balance.available) < 0 ? "text-rose-600" : "text-text-primary"}>{formatDays(balance.available)}</strong><small className="block text-text-secondary">available</small></div>; };
+  const balanceCell = (row, type) => { const balance = row.balances[type]; return !balance ? <span className="text-text-muted">—</span> : balance.balance_enforced === false ? <div><span className="text-text-primary">Unlimited</span><small className="block text-text-secondary">No balance limit</small></div> : <div><span className={`font-semibold ${Number(balance.available) < 0 ? "text-rose-600" : "text-text-primary"}`}>{formatDays(balance.available)}</span><small className="block text-text-secondary">available</small></div>; };
   return <Card title="Employee Leave Balances" description="One employee per row. Used and pending values come from leave evidence; adjustments remain immutable.">{loading ? <Loading /> : rows.length ? <DataTable density="compact" tableClassName="min-w-[1040px]" rows={rows} getRowKey={(row) => row.employee?.id} columns={[
     { key: "employee", header: "Employee", render: (row) => <Employee employee={row.employee} /> },
     { key: "annual", header: "Annual Leave", render: (row) => balanceCell(row, "annual") },
     { key: "medical", header: "Medical / MC", render: (row) => balanceCell(row, "medical") },
     { key: "unpaid", header: "Unpaid Leave", render: (row) => balanceCell(row, "unpaid") },
     { key: "other", header: "Other Leave", render: (row) => balanceCell(row, "other") },
-    { key: "period", header: "Period", render: (row) => <span className="whitespace-nowrap text-text-secondary">{formatDate(row.period_start)} – {formatDate(row.period_end)}</span> },
-    { key: "action", header: "Action", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onManage(row)}>Manage</button> },
+    { key: "period", header: "Period", render: (row) => <span className="whitespace-nowrap text-text-secondary">{formatLeaveDateRange(row.period_start, row.period_end)}</span> },
+    { key: "action", header: "Action", align: "right", render: (row) => <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onManage(row)}>Manage</button> },
   ]} /> : <div className="p-4"><EmptyState title={filtered && allRows.length ? "No employees match this search" : "No leave balances"} description={filtered && allRows.length ? "Clear or adjust the employee search." : "Active Crew entitlement balances for this outlet will appear here."} /></div>}</Card>;
 }
 
 function SettingsPanel({ rows, loading, canManage, onEdit }) {
   return <Card title="Leave Policy" description="Calendar-year defaults are outlet scoped. Existing annual grants remain unchanged for auditability.">{loading ? <Loading /> : rows.length ? <DataTable density="compact" tableClassName="min-w-[920px]" rows={rows} getRowKey={(row) => row.id} columns={[
-    { key: "type", header: "Leave Type", render: (row) => <strong>{typeLabel[row.leave_type]}</strong> },
+    { key: "type", header: "Leave Type", render: (row) => <span className="font-semibold text-text-primary">{typeLabel[row.leave_type]}</span> },
     { key: "entitlement", header: "Entitlement", render: (row) => row.balance_enforced ? `${formatDays(row.annual_days)} / year` : "Unlimited" },
-    { key: "rule", header: "Balance Rule", render: (row) => row.balance_enforced ? "Enforce available balance" : "Unlimited" },
+    { key: "rule", header: "Balance Rule", render: (row) => <span className="text-text-secondary">{row.balance_enforced ? "Enforced" : "Unlimited"}</span> },
     { key: "proration", header: "Join-date Proration", render: (row) => <Badge tone={row.proration_enabled ? "success" : "neutral"}>{row.proration_enabled ? "Enabled" : "Off"}</Badge> },
-    { key: "carry", header: "Carry Forward", render: (row) => row.carry_forward_enabled ? <div><strong>Enabled</strong><small className="block text-text-secondary">Max {formatDays(row.max_carry_forward_days)} · Expires {monthOptions[Number(row.carry_forward_expiry_month) - 1]?.label || "—"} {row.carry_forward_expiry_day || "—"}</small></div> : "Off" },
-    { key: "action", header: "Action", align: "right", render: (row) => canManage ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onEdit(row)}><Settings2 size={14} /> Edit</button> : "—" },
+    { key: "carry", header: "Carry Forward", render: (row) => row.carry_forward_enabled ? <div><span className="text-text-primary">Enabled</span><small className="block text-text-secondary">Max {formatDays(row.max_carry_forward_days)} · Expires {String(row.carry_forward_expiry_day || "").padStart(2, "0")}/{String(row.carry_forward_expiry_month || "").padStart(2, "0")}</small></div> : <span className="text-text-secondary">Off</span> },
+    { key: "action", header: "Action", align: "right", render: (row) => canManage ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onEdit(row)}><Settings2 size={14} /> Edit</button> : "—" },
   ]} /> : <div className="p-4"><EmptyState title="No leave policies" description="Outlet leave policies will appear here when configured." /></div>}</Card>;
 }
 
 function LeaveReview({ request, canReview, saving, onClose, onDecide }) {
   const [mode, setMode] = useState("review");
   const [reason, setReason] = useState("");
-  const working = request.roster_context?.filter((item) => item.schedule?.entry_type === "working") || [];
   const balance = request.balance_context;
+  const requested = Number(request.requested_days || 0);
+  const availableAfter = balance?.balance_enforced === false ? null : Number(balance?.available || 0);
+  const availableBefore = availableAfter == null ? null : availableAfter + requested;
   const footer = mode === "reject" ? <><button className="btn-secondary" type="button" onClick={() => setMode("review")}>Back</button><button className="btn-danger" type="button" disabled={saving || !reason.trim()} onClick={() => onDecide("reject", reason)}>Confirm Rejection</button></> : mode === "approve" ? <><button className="btn-secondary" type="button" onClick={() => setMode("review")}>Back</button><button className="btn-primary" type="button" disabled={saving || (balance?.balance_enforced && Number(balance?.available) < 0)} onClick={() => onDecide("approve")}><Check size={16} /> Approve Leave</button></> : request.status === "pending" && canReview ? <><button className="btn-danger" type="button" onClick={() => setMode("reject")}><X size={16} /> Reject</button><button className="btn-primary" type="button" onClick={() => setMode("approve")}><Check size={16} /> Approve</button></> : <button className="btn-secondary" type="button" onClick={onClose}>Close</button>;
-  return <Modal size="xl" title="Leave Request" description={`${request.employee?.name} · ${request.employee?.position || "Crew"} · ${request.outlet?.name}`} onClose={onClose} footer={footer}><div className="grid gap-5 lg:grid-cols-[minmax(0,1.12fr)_minmax(290px,.88fr)]">
-    <section className="space-y-4"><section><h3 className="mb-2 text-sm font-bold text-text-primary">Request Summary</h3><div className="grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-2"><Detail label="Leave Type" value={typeLabel[request.leave_type]} /><Detail label="Dates" value={`${formatDate(request.start_date)}${request.start_date !== request.end_date ? ` – ${formatDate(request.end_date)}` : ""}`} /><Detail label="Duration" value={formatDays(request.requested_days)} /><Detail label="Status" value={<Badge tone={statusTone[request.status]}>{statusLabel(request.status)}</Badge>} /></div></section>
-    {balance ? <section><h3 className="mb-2 text-sm font-bold text-text-primary">Balance Context</h3><div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-border p-3 sm:grid-cols-3"><Detail label="Entitled" value={formatDays(balance.entitled)} /><Detail label="Used" value={formatDays(balance.used)} /><Detail label="Pending" value={formatDays(balance.pending)} /><Detail label="Available now" value={balance.balance_enforced === false ? "Unlimited" : formatDays(balance.available)} /><Detail label="Requested" value={formatDays(request.requested_days)} /><Detail label="After approval" value={balance.balance_enforced === false ? "Unlimited" : formatDays(balance.available)} /></div></section> : null}
-    <section><h3 className="text-sm font-bold text-text-primary">Reason</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-text-secondary">{request.reason || "No reason provided."}</p></section>
-    {mode === "reject" ? <label className="field"><span>Rejection Reason *</span><textarea className="control min-h-24 w-full py-2" rows="3" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain why this request is rejected" /></label> : null}</section>
-    <RosterContext request={request} working={working} />
+  return <Modal size="lg" title="Leave Request" description={`${request.employee?.name} · ${request.employee?.position || "Crew"} · ${request.outlet?.name}`} onClose={onClose} footer={footer}><div className="space-y-5">
+    <section className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{typeLabel[request.leave_type]}</span><h3 className="mt-1 text-base font-semibold text-text-primary">{formatLeaveDateRange(request.start_date, request.end_date)} · {formatDays(request.requested_days)}</h3></div><Badge tone={statusTone[request.status]}>{statusLabel(request.status)}</Badge></section>
+    {balance ? <section><h3 className="mb-2 text-sm font-semibold text-text-primary">Balance summary</h3><div className="grid grid-cols-3 gap-3 rounded-xl border border-border bg-slate-50/60 p-3"><Detail label="Available before request" value={availableBefore == null ? "Unlimited" : formatDays(availableBefore)} /><Detail label="Requested" value={formatDays(request.requested_days)} /><Detail label="Remaining after approval" value={availableAfter == null ? "Unlimited" : formatDays(availableAfter)} emphasize /></div></section> : null}
+    <RosterContext request={request} />
+    <section><h3 className="text-sm font-semibold text-text-primary">Reason</h3><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-text-secondary">{request.reason || "No reason provided."}</p></section>
+    {mode === "reject" ? <label className="field"><span>Rejection Reason *</span><textarea className="control min-h-24 w-full py-2" rows="3" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain why this request is rejected" /></label> : null}
   </div></Modal>;
 }
 
-function RosterContext({ request, working }) {
+function RosterContext({ request }) {
   const days = request.roster_context || [];
-  return <section><div className="mb-2 flex items-center gap-2"><CalendarDays size={17} className="text-primary" /><h3 className="text-sm font-bold text-text-primary">Roster Context</h3></div>{days.length ? <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">{days.map((item) => <div className="grid gap-1 p-3" key={item.date}><div className="flex items-center justify-between gap-3"><strong className="text-sm text-text-primary">{formatDate(item.date)}</strong><Badge tone={item.schedule?.entry_type === "working" ? "warning" : "neutral"}>{item.schedule?.entry_type === "working" ? "Conflict" : "No conflict"}</Badge></div><span className="text-sm font-semibold text-text-primary">{rosterLabel(item.schedule)}</span><small className="text-text-secondary">{item.schedule?.outlet_name || request.outlet?.name || "No outlet context"}</small></div>)}</div> : <div className="rounded-xl bg-slate-50 p-4"><strong className="text-sm text-text-primary">No published roster</strong><p className="mt-1 text-sm text-text-secondary">No schedule context is available for the requested dates.</p></div>}{working.length ? <p className="mt-3 rounded-xl bg-amber-50 p-3 text-sm font-medium text-amber-800">{working.length} published shift{working.length === 1 ? " conflicts" : "s conflict"} with this request. Approval preserves the superseded roster evidence.</p> : null}</section>;
+  return <section><div className="mb-2 flex items-center gap-2"><CalendarDays size={16} className="text-primary" /><h3 className="text-sm font-semibold text-text-primary">Roster impact</h3></div>{days.length ? <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">{days.map((item) => { const conflict = item.schedule?.entry_type === "working"; return <div className="grid grid-cols-[110px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-2.5" key={item.date}><span className="text-sm text-text-secondary">{formatLeaveDate(item.date)}</span><span className="min-w-0 text-sm text-text-primary">{rosterLabel(item.schedule)}<small className="ml-2 text-text-muted">{item.schedule?.outlet_name || request.outlet?.name || ""}</small></span><Badge tone={conflict ? "warning" : "neutral"}>{conflict ? "Conflict" : "No conflict"}</Badge></div>; })}</div> : <div className="rounded-xl bg-slate-50 p-3"><span className="text-sm font-semibold text-text-primary">No published roster</span><p className="mt-1 text-sm text-text-secondary">No schedule context is available for the requested dates.</p></div>}</section>;
 }
 
-function BalanceDetail({ group, canAdjust, onClose, onAdjust }) {
+function BalanceDetail({ group, history, canAdjust, onRetryHistory, onClose, onAdjust }) {
   const periodYear = group.period_start ? new Date(`${group.period_start}T00:00:00`).getFullYear() : "Current period";
-  return <Modal size="lg" title="Leave Balance" description={`${group.employee?.name} · ${group.employee?.position || "Crew"} · ${periodYear}`} onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="divide-y divide-border overflow-hidden rounded-xl border border-border">{Object.keys(typeLabel).map((type) => { const row = group.balances[type]; const unlimited = row?.balance_enforced === false; return <section className="grid gap-3 p-4 sm:grid-cols-[minmax(170px,1fr)_minmax(0,2fr)_auto] sm:items-center" key={type}><div><h3 className="font-bold text-text-primary">{typeLabel[type]}</h3><p className="mt-1 text-xs text-text-secondary">{!row ? "Not configured" : unlimited ? "No balance limit" : `${formatDate(row.period_start)} – ${formatDate(row.period_end)}`}</p></div>{!row ? <span className="text-sm text-text-muted">No entitlement record</span> : unlimited ? <strong className="text-primary">Unlimited</strong> : <div className="grid grid-cols-4 gap-3"><Detail label="Entitled" value={formatDays(row.entitled)} /><Detail label="Used" value={formatDays(row.used)} /><Detail label="Pending" value={formatDays(row.pending)} /><Detail label="Available" value={formatDays(row.available)} /></div>}{canAdjust && row?.balance_enforced ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onAdjust(row)}><SlidersHorizontal size={14} /> Adjust</button> : <span />}</section>; })}</div></Modal>;
+  return <Modal size="xl" title="Leave Balance" description={`${group.employee?.name} · ${group.employee?.position || "Crew"} · ${periodYear}`} onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="space-y-5"><div className="divide-y divide-border overflow-hidden rounded-xl border border-border">{Object.keys(typeLabel).map((type) => { const row = group.balances[type]; const unlimited = row?.balance_enforced === false; return <section className="grid gap-3 p-4 sm:grid-cols-[minmax(180px,1fr)_minmax(0,2fr)_auto] sm:items-center" key={type}><div><h3 className="font-semibold text-text-primary">{typeLabel[type]}</h3><p className="mt-1 text-xs text-text-secondary">{!row ? "Not configured" : unlimited ? "No balance limit" : formatLeaveDateRange(row.period_start, row.period_end)}</p></div>{!row ? <span className="text-sm text-text-muted">No entitlement record</span> : unlimited ? <div><span className="font-semibold text-text-primary">Unlimited</span><small className="block text-text-secondary">No balance limit</small></div> : <div className="grid grid-cols-4 gap-3"><Detail label="Entitled" value={formatDays(row.entitled)} /><Detail label="Used" value={formatDays(row.used)} /><Detail label="Pending" value={formatDays(row.pending)} /><Detail label="Available" value={formatDays(row.available)} emphasize /></div>}{canAdjust && row?.balance_enforced ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onAdjust(row)}><SlidersHorizontal size={14} /> Adjust</button> : <span />}</section>; })}</div><AdjustmentHistory history={history} onRetry={onRetryHistory} /></div></Modal>;
+}
+
+function AdjustmentHistory({ history, onRetry }) {
+  return <section><div className="mb-2 flex items-center gap-2"><History size={16} className="text-primary" /><h3 className="text-sm font-semibold text-text-primary">Adjustment History</h3></div>{history.loading ? <Loading /> : history.error ? <div className="flex items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-3"><span className="text-sm text-rose-700">{history.error}</span><button className="btn-secondary min-h-8 px-3 py-1 text-xs" type="button" onClick={onRetry}>Retry</button></div> : history.rows.length ? <DataTable density="compact" tableClassName="min-w-[820px]" rows={history.rows} getRowKey={(row) => row.id} columns={[
+    { key: "date", header: "Date", render: (row) => <span className="whitespace-nowrap text-text-secondary">{formatLeaveDate(row.adjusted_at)}</span> },
+    { key: "type", header: "Leave Type", render: (row) => <span className="text-text-primary">{typeLabel[row.leave_type]}</span> },
+    { key: "amount", header: "Adjustment", render: (row) => <span className={`font-semibold ${Number(row.amount) > 0 ? "text-emerald-700" : "text-rose-600"}`}>{Number(row.amount) > 0 ? "+" : ""}{formatDays(row.amount)}</span> },
+    { key: "reason", header: "Reason", render: (row) => <span className="text-text-secondary">{row.reason}</span> },
+    { key: "actor", header: "Adjusted By", render: (row) => <span className="text-text-secondary">{row.adjusted_by?.name || "FeedX Admin"}</span> },
+    { key: "result", header: "Resulting Balance", render: (row) => row.previous_available == null || row.resulting_available == null ? <span className="text-text-muted">Historical value unavailable</span> : <span className="whitespace-nowrap text-text-secondary">{formatDays(row.previous_available)} → <strong className="font-semibold text-text-primary">{formatDays(row.resulting_available)}</strong></span> },
+  ]} /> : <div className="rounded-xl border border-dashed border-border p-4 text-center text-sm text-text-secondary">No manual adjustments recorded.</div>}</section>;
 }
 
 function AdjustmentModal({ balance, saving, onClose, onSave }) {
@@ -161,7 +188,7 @@ function AdjustmentModal({ balance, saving, onClose, onSave }) {
   const [reason, setReason] = useState("");
   const amountNumber = Number(amount);
   const valid = Boolean(amountNumber && reason.trim());
-  return <Modal title="Adjust Leave Balance" description={`${balance.employee?.name} · ${typeLabel[balance.leave_type]}`} onClose={onClose} footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={saving || !valid} onClick={() => onSave(amountNumber, reason)}>Save Adjustment</button></>}><div className="space-y-4"><div className="grid grid-cols-2 gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-4"><Detail label="Entitled" value={formatDays(balance.entitled)} /><Detail label="Used" value={formatDays(balance.used)} /><Detail label="Pending" value={formatDays(balance.pending)} /><Detail label="Available" value={formatDays(balance.available)} /></div><label className="field"><span>Adjustment</span><div className="relative"><input className={`control w-full pr-14 font-bold ${amountNumber > 0 ? "text-emerald-700" : amountNumber < 0 ? "text-rose-600" : ""}`} type="number" step="0.5" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="+ / -" /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-text-muted">days</span></div></label>{amountNumber ? <p className={`rounded-xl px-3 py-2 text-sm font-semibold ${amountNumber > 0 ? "bg-emerald-50 text-emerald-800" : "bg-rose-50 text-rose-700"}`}>{amountNumber > 0 ? "+" : ""}{amountNumber} days · New available balance {formatDays(Number(balance.available) + amountNumber)}</p> : null}<label className="field"><span>Reason *</span><textarea className="control min-h-24 w-full py-2" rows="4" maxLength="500" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for this permanent adjustment" /></label><p className="flex items-start gap-2 text-xs leading-5 text-text-secondary"><History className="mt-0.5 shrink-0" size={14} />Adjustments are permanent audit records and cannot be edited or deleted.</p></div></Modal>;
+  return <Modal title="Adjust Leave Balance" description={`${balance.employee?.name} · ${typeLabel[balance.leave_type]}`} onClose={onClose} footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={saving || !valid} onClick={() => onSave(amountNumber, reason)}>Save Adjustment</button></>}><div className="space-y-4"><div className="grid grid-cols-3 gap-3 rounded-xl border border-border bg-slate-50/60 p-3"><Detail label="Current available" value={formatDays(balance.available)} /><Detail label="Adjustment" value={amountNumber ? `${amountNumber > 0 ? "+" : ""}${formatDays(amountNumber)}` : "—"} /><Detail label="New available" value={amountNumber ? formatDays(Number(balance.available) + amountNumber) : formatDays(balance.available)} emphasize /></div><label className="field"><span>Adjustment</span><div className="relative"><input className={`control w-full pr-14 font-semibold ${amountNumber > 0 ? "text-emerald-700" : amountNumber < 0 ? "text-rose-600" : ""}`} type="number" step="0.5" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="+ / -" /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm font-semibold text-text-muted">days</span></div></label><label className="field"><span>Reason *</span><textarea className="control min-h-24 w-full py-2" rows="4" maxLength="500" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Reason for this permanent adjustment" /></label><p className="flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-800"><History className="mt-0.5 shrink-0" size={14} />This creates a permanent audit record. Adjustments cannot be edited or deleted.</p></div></Modal>;
 }
 
 function PolicyModal({ policy, saving, onClose, onSave }) {
@@ -172,7 +199,7 @@ function PolicyModal({ policy, saving, onClose, onSave }) {
 }
 
 function ToggleRow({ label, help, checked, onChange }) { return <button type="button" role="switch" aria-checked={checked} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-white p-3 text-left" onClick={() => onChange(!checked)}><span><strong className="block text-sm text-text-primary">{label}</strong><small className="mt-0.5 block text-text-secondary">{help}</small></span><span className={`relative h-6 w-11 shrink-0 rounded-full transition ${checked ? "bg-primary" : "bg-slate-300"}`}><i className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${checked ? "left-6" : "left-1"}`} /></span></button>; }
-function Employee({ employee }) { return <div><strong className="block text-text-primary">{employee?.name || "Crew employee"}</strong><small className="block text-text-secondary">{employee?.position || "Crew"}</small></div>; }
-function Detail({ label, value }) { return <div><div className="text-xs font-semibold text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>; }
+function Employee({ employee }) { return <div><span className="block font-semibold text-text-primary">{employee?.name || "Crew employee"}</span><small className="block text-text-secondary">{employee?.position || "Crew"}</small></div>; }
+function Detail({ label, value, emphasize = false }) { return <div><div className="text-xs font-medium text-text-muted">{label}</div><div className={`mt-1 text-sm text-text-primary ${emphasize ? "font-semibold" : "font-medium"}`}>{value}</div></div>; }
 function Loading() { return <div className="space-y-2 p-4" role="status" aria-label="Loading leave data">{[1, 2, 3, 4].map((row) => <div className="h-10 animate-pulse rounded-lg bg-slate-100" key={row} />)}</div>; }
 function ErrorState({ message, onRetry }) { return <section className="flex items-center justify-between gap-4 rounded-xl border border-rose-200 bg-rose-50 p-4" role="alert"><div className="flex items-start gap-3"><AlertCircle className="mt-0.5 shrink-0 text-rose-600" size={18} /><div><strong className="text-sm text-rose-800">Unable to load leave</strong><p className="mt-1 text-sm text-rose-700">{message}</p></div></div><button className="btn-secondary" type="button" onClick={onRetry}>Retry</button></section>; }

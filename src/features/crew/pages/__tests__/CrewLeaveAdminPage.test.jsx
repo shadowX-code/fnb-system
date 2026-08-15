@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   leaveAdminData: vi.fn(),
   reviewLeave: vi.fn(),
   adjustLeaveBalance: vi.fn(),
+  leaveAdjustmentHistory: vi.fn(),
   saveLeavePolicy: vi.fn(),
 }));
 
@@ -56,6 +57,18 @@ const data = {
   ],
 };
 
+const adjustmentHistory = [{
+  id: "adjustment-1",
+  entitlement_id: "employee-a-annual",
+  leave_type: "annual",
+  amount: 2,
+  reason: "Manual entitlement correction",
+  adjusted_at: "2026-08-15T03:30:00Z",
+  adjusted_by: { id: "admin-1", name: "Isaac" },
+  previous_available: 5.5,
+  resulting_available: 7.5,
+}];
+
 const auth = {
   canAccessOutlet: () => true,
   hasPermission: () => true,
@@ -67,6 +80,7 @@ beforeEach(() => {
   mocks.leaveAdminData.mockReset().mockResolvedValue(data);
   mocks.reviewLeave.mockReset().mockResolvedValue({});
   mocks.adjustLeaveBalance.mockReset().mockResolvedValue({});
+  mocks.leaveAdjustmentHistory.mockReset().mockResolvedValue(adjustmentHistory);
   mocks.saveLeavePolicy.mockReset().mockResolvedValue({});
   ui.notify.mockReset();
 });
@@ -78,11 +92,12 @@ describe("Crew Leave Admin UI", () => {
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
     expect(await screen.findByText("Alex Tan")).not.toBeNull();
     expect(screen.getByPlaceholderText("Search employee name or position")).not.toBeNull();
-    expect(screen.getByText("1 shift conflict")).not.toBeNull();
+    expect(screen.getByText("1 conflict")).not.toBeNull();
     expect(screen.queryByText("None")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
     const dialog = screen.getByRole("dialog", { name: "Leave Request" });
-    for (const label of ["Request Summary", "Balance Context", "Roster Context", "After approval"]) expect(within(dialog).getByText(label)).not.toBeNull();
+    for (const label of ["Balance summary", "Roster impact", "Remaining after approval"]) expect(within(dialog).getByText(label)).not.toBeNull();
+    expect(within(dialog).getByText("20/08/2026 – 21/08/2026 · 2 days")).not.toBeNull();
     fireEvent.click(within(dialog).getByRole("button", { name: "Reject" }));
     expect(within(dialog).getByRole("button", { name: "Confirm Rejection" }).disabled).toBe(true);
     fireEvent.change(within(dialog).getByPlaceholderText("Explain why this request is rejected"), { target: { value: "Coverage unavailable" } });
@@ -98,9 +113,38 @@ describe("Crew Leave Admin UI", () => {
     expect(screen.getAllByText("Unlimited").length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole("button", { name: "Manage" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Leave Balance" });
-    for (const label of ["Annual Leave", "Medical Leave / MC", "Unpaid Leave", "Other Leave", "Entitled", "Used", "Pending", "Available"]) expect(within(dialog).getAllByText(label).length).toBeGreaterThan(0);
+    for (const label of ["Annual Leave", "Medical Leave / MC", "Unpaid Leave", "Other Leave", "Entitled", "Used", "Pending", "Available", "Adjustment History"]) expect(within(dialog).getAllByText(label).length).toBeGreaterThan(0);
+    expect(await within(dialog).findByText("Manual entitlement correction")).not.toBeNull();
+    expect(within(dialog).getByText("7.5 days")).not.toBeNull();
     fireEvent.click(within(dialog).getAllByRole("button", { name: /Adjust/ })[0]);
-    expect(screen.getByRole("dialog", { name: "Adjust Leave Balance" })).not.toBeNull();
+    const adjustDialog = screen.getByRole("dialog", { name: "Adjust Leave Balance" });
+    expect(within(adjustDialog).getByText("Current available")).not.toBeNull();
+    expect(within(adjustDialog).getByText("New available")).not.toBeNull();
+  });
+
+  it("uses an eye action for finalized requests and keeps pending requests reviewable", async () => {
+    mocks.leaveAdminData.mockResolvedValueOnce({ ...data, requests: [data.requests[0], { ...data.requests[0], id: "request-2", status: "approved" }] });
+    render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
+    expect(await screen.findByRole("button", { name: "Review" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "View leave request for Alex Tan" })).not.toBeNull();
+  });
+
+  it("refreshes balances and immutable adjustment history after save", async () => {
+    render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
+    await screen.findByText("Alex Tan");
+    fireEvent.click(screen.getByRole("tab", { name: "Balances" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Manage" })[0]);
+    const detail = await screen.findByRole("dialog", { name: "Leave Balance" });
+    fireEvent.click(within(detail).getAllByRole("button", { name: /Adjust/ })[0]);
+    const dialog = screen.getByRole("dialog", { name: "Adjust Leave Balance" });
+    fireEvent.change(within(dialog).getByPlaceholderText("+ / -"), { target: { value: "2" } });
+    fireEvent.change(within(dialog).getByPlaceholderText("Reason for this permanent adjustment"), { target: { value: "Manual entitlement correction" } });
+    expect(within(dialog).getByText("11 days")).not.toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save Adjustment" }));
+    expect(await screen.findByRole("dialog", { name: "Leave Balance" })).not.toBeNull();
+    expect(mocks.adjustLeaveBalance).toHaveBeenCalledWith("employee-a-annual", 2, "Manual entitlement correction");
+    expect(mocks.leaveAdminData).toHaveBeenCalledTimes(2);
+    expect(mocks.leaveAdjustmentHistory).toHaveBeenCalledTimes(2);
   });
 
   it("uses readable policy controls and hides entitlement fields for unlimited leave", async () => {
