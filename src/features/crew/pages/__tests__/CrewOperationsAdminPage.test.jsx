@@ -53,7 +53,7 @@ describe("Crew unified Tasks Admin", () => {
     fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Record chiller temperature" } });
     fireEvent.click(screen.getByRole("button", { name: "Preview as Crew" }));
     expect(screen.getByRole("dialog", { name: "Temperature Check" })).not.toBeNull();
-    expect(screen.getByText("Record chiller temperature")).not.toBeNull();
+    expect(within(screen.getByRole("dialog", { name: "Temperature Check" })).getByText("Record chiller temperature")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back to Editor" }));
     fireEvent.click(screen.getByRole("button", { name: "Add Block" }));
     const picker = screen.getByRole("dialog", { name: "Add content block" });
@@ -144,5 +144,16 @@ describe("Crew unified Tasks Admin", () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Approve" }));
     await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("instance-2", "employee-1", "approved"));
+  });
+
+  it("updates the inline Mobile Preview live without saving the Task", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create Task" }));
+    const title = screen.getByLabelText("Title");
+    fireEvent.change(title, { target: { value: "Live preview checklist" } });
+    expect(screen.getByText("Mobile Preview")).not.toBeNull();
+    expect(screen.getAllByText("Live preview checklist").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Complete Live preview checklist/ }));
+    expect(mocks.save).not.toHaveBeenCalled();
   });
 });
