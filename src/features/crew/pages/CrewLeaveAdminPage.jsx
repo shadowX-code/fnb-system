@@ -17,7 +17,11 @@ const statusTone = { pending: "warning", approved: "success", rejected: "danger"
 const monthOptions = Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: new Date(2026, index, 1).toLocaleDateString("en-MY", { month: "long" }) }));
 const dayOptions = Array.from({ length: 31 }, (_, index) => ({ value: String(index + 1), label: String(index + 1) }));
 const formatTime = (value) => value ? new Date(`2026-01-01T${String(value).slice(0, 5)}:00`).toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit" }) : "—";
-const formatDays = (value) => value == null ? "Unlimited" : `${Number(value).toFixed(Number(value) % 1 ? 1 : 0)} days`;
+const formatDays = (value) => {
+  if (value == null) return "Unlimited";
+  const days = Number(value);
+  return `${days.toFixed(days % 1 ? 1 : 0)} ${days === 1 ? "day" : "days"}`;
+};
 const statusLabel = (value) => value ? value[0].toUpperCase() + value.slice(1) : "—";
 const rosterLabel = (schedule) => !schedule || schedule === "null" ? "No published roster" : schedule.entry_type === "working" ? `${formatTime(schedule.start_time)} – ${formatTime(schedule.end_time)}` : schedule.template_name || String(schedule.entry_type || "Not scheduled").replaceAll("_", " ");
 
