@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Share2, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
+import { CalendarDays, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Clock, Copy, Download, Layers3, LockKeyhole, MoreHorizontal, PanelRightOpen, Plane, Plus, Repeat2, Send, Share2, ShieldCheck, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -20,7 +20,8 @@ import CrewAdminToolbar from "../../crew/components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../../crew/context/CrewAdminOutletContext.jsx";
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const nonWorkingCodes = new Set(["OFF", "AL", "MC"]);
+const leaveCodes = new Set(["AL", "MC", "UL", "OL"]);
+const nonWorkingCodes = new Set(["OFF", ...leaveCodes]);
 const groupLabels = {
   floor: "FLOOR",
   kitchen: "KITCHEN",
@@ -160,17 +161,17 @@ function templateTone(template) {
           ? "full"
           : color;
   const tones = {
-    green: "border-emerald-200 border-l-4 bg-emerald-50 text-emerald-800 roster-template-card roster-template-green",
-    full: "border-emerald-200 border-l-4 bg-emerald-50 text-emerald-800 roster-template-card roster-template-full",
-    amber: "border-amber-200 border-l-4 bg-amber-50 text-amber-800 roster-template-card roster-template-amber",
-    red: "border-rose-200 border-l-4 bg-rose-50 text-rose-800 roster-template-card roster-template-red",
-    blue: "border-blue-200 border-l-4 bg-blue-50 text-blue-800 roster-template-card roster-template-blue",
-    al: "border-blue-200 border-l-4 bg-blue-50 text-blue-800 roster-template-card roster-template-al",
-    purple: "border-violet-200 border-l-4 bg-violet-50 text-violet-800 roster-template-card roster-template-purple",
-    mc: "border-violet-200 border-l-4 bg-violet-50 text-violet-800 roster-template-card roster-template-mc",
-    medical: "border-violet-200 border-l-4 bg-violet-50 text-violet-800 roster-template-card roster-template-medical",
-    gray: "border-slate-200 border-l-4 bg-slate-50 text-slate-600 roster-template-card roster-template-gray",
-    off: "border-slate-200 border-l-4 bg-slate-50 text-slate-600 roster-template-card roster-template-off",
+    green: "border-emerald-200 bg-emerald-50 text-emerald-800 roster-template-card roster-template-green",
+    full: "border-emerald-200 bg-emerald-50 text-emerald-800 roster-template-card roster-template-full",
+    amber: "border-amber-200 bg-amber-50 text-amber-800 roster-template-card roster-template-amber",
+    red: "border-rose-200 bg-rose-50 text-rose-800 roster-template-card roster-template-red",
+    blue: "border-blue-200 bg-blue-50 text-blue-800 roster-template-card roster-template-blue",
+    al: "border-sky-200 bg-sky-50 text-sky-800 roster-template-card roster-template-al",
+    purple: "border-violet-200 bg-violet-50 text-violet-800 roster-template-card roster-template-purple",
+    mc: "border-violet-200 bg-violet-50 text-violet-800 roster-template-card roster-template-mc",
+    medical: "border-violet-200 bg-violet-50 text-violet-800 roster-template-card roster-template-medical",
+    gray: "border-slate-200 bg-slate-50 text-slate-600 roster-template-card roster-template-gray",
+    off: "border-slate-200 bg-slate-50 text-slate-600 roster-template-card roster-template-off",
   };
   return tones[accent] ?? tones[color] ?? tones.green;
 }
@@ -194,6 +195,26 @@ function CheckIcon() {
 function isWorkingRoster(roster) {
   const code = roster?.template?.code;
   return roster && !nonWorkingCodes.has(code);
+}
+
+function isLeaveRoster(roster) {
+  return roster?.source === "approved_leave" || Boolean(roster?.approved_leave_id) || leaveCodes.has(String(roster?.template?.code || "").toUpperCase());
+}
+
+function isAssignableTemplate(template) {
+  const code = String(template?.code || "").toUpperCase();
+  return code === "OFF" || (!leaveCodes.has(code) && !["leave", "medical", "annual_leave", "medical_leave", "unpaid_leave", "other_leave"].includes(String(template?.shift_type || "").toLowerCase()));
+}
+
+function shortTimeRange(roster) {
+  if (!roster?.start_time || !roster?.end_time) return "";
+  const format = (value) => {
+    const [hours, minutes] = value.split(":").map(Number);
+    const suffix = hours >= 12 ? "pm" : "am";
+    const hour = hours % 12 || 12;
+    return `${hour}${minutes ? `:${String(minutes).padStart(2, "0")}` : ""}${suffix}`;
+  };
+  return `${format(roster.start_time)}–${format(roster.end_time)}`;
 }
 
 function rosterHasPublishedSnapshot(roster) {
@@ -220,14 +241,16 @@ function ShiftBlock({ roster }) {
   }
   const template = roster.template;
   const isNonWorking = nonWorkingCodes.has(template.code);
+  const leave = isLeaveRoster(roster);
   return (
-    <div className={`group rounded-xl border px-2.5 py-2 text-left shadow-sm ${templateTone(template)}`}>
+    <div className={`group rounded-xl border px-2.5 py-2 text-left shadow-sm ${leave ? "border-sky-200 bg-sky-50 text-sky-800" : templateTone(template)}`}>
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-[11px] font-black">
             {isNonWorking ? template.code : formatShiftTimeRange(roster.start_time, roster.end_time)}
           </div>
           <div className="mt-1 text-xs font-semibold opacity-80">{template.name}</div>
+          {leave ? <div className="mt-1 flex items-center gap-1 text-[10px] font-black uppercase tracking-wide"><ShieldCheck size={11} /> Approved leave</div> : null}
         </div>
       </div>
     </div>
@@ -330,104 +353,6 @@ function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplate
       </aside>
     </div>
   );
-}
-
-function BulkAssignDrawer({ employee, dates, templates, selectedTemplateId, onClose, onSave, saving }) {
-  const [templateId, setTemplateId] = useState(selectedTemplateId || "");
-  const [selectedDates, setSelectedDates] = useState(() => new Set(dates.slice(0, 5).map(toDateInputValue)));
-  const [remark, setRemark] = useState("");
-  const template = templates.find((item) => item.id === templateId);
-
-  function toggleDate(dateValue) {
-    setSelectedDates((current) => {
-      const next = new Set(current);
-      if (next.has(dateValue)) next.delete(dateValue);
-      else next.add(dateValue);
-      return next;
-    });
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
-      <button className="flex-1 cursor-default" type="button" aria-label="Close bulk assign drawer backdrop" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-[480px] flex-col border-l border-border bg-surface shadow-2xl">
-        <header className="shrink-0 border-b border-border p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Bulk Assign</div>
-              <h2 className="mt-1 text-xl font-semibold text-text-primary">{employee.nickname || employee.full_name}</h2>
-              <p className="mt-1 text-sm text-text-secondary">{groupLabels[employee.rosterGroup] ?? "OTHER"} · Select multiple dates</p>
-            </div>
-            <button className="icon-btn" type="button" onClick={onClose} aria-label="Close bulk assign drawer"><X size={18} /></button>
-          </div>
-        </header>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
-          <section className="rounded-3xl border border-border bg-background p-4">
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Dates</div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {dates.map((date, index) => {
-                const dateValue = toDateInputValue(date);
-                return (
-                  <button
-                    key={dateValue}
-                    className={`rounded-2xl border px-3 py-2 text-left text-sm font-bold transition ${selectedDates.has(dateValue) ? "border-primary bg-primary text-white" : "border-border bg-surface text-text-secondary hover:border-primary/40 hover:bg-primary/5"}`}
-                    type="button"
-                    onClick={() => toggleDate(dateValue)}
-                  >
-                    {viewDayLabel(date, index)}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-3xl border border-border bg-background p-4">
-            <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Shift Template</div>
-            <div className="mt-3 grid gap-2">
-              {templates.map((item) => (
-                <button
-                  key={item.id}
-                  className={`flex items-center justify-between rounded-2xl border p-3 text-left transition ${templateId === item.id ? "border-primary bg-primary/10 ring-2 ring-primary/15" : `${templateTone(item)} hover:-translate-y-0.5 hover:shadow-sm`}`}
-                  type="button"
-                  onClick={() => setTemplateId(item.id)}
-                >
-                  <span>
-                    <span className="block text-sm font-bold">{item.name}</span>
-                    <span className="mt-1 block text-xs font-semibold opacity-75">{shiftTimeLabel(item)}</span>
-                  </span>
-                  {templateId === item.id ? <CheckIcon /> : null}
-                </button>
-              ))}
-              {!templates.length ? (
-                <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-sm font-semibold text-text-muted">
-                  No shift templates configured for this outlet yet. Create templates in Settings before bulk assigning.
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-3xl border border-border bg-background p-4">
-            <label className="text-xs font-black uppercase tracking-[0.16em] text-text-muted" htmlFor="bulk-remark">Remark</label>
-            <textarea id="bulk-remark" className="control mt-2 min-h-20 w-full resize-none" value={remark} onChange={(event) => setRemark(event.target.value)} placeholder="Optional note for selected dates" />
-          </section>
-        </div>
-
-        <footer className="shrink-0 border-t border-border bg-background p-4">
-          <div className="flex justify-end gap-2">
-            <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-            <button className="btn-primary" type="button" disabled={!template || selectedDates.size === 0 || saving} onClick={() => onSave(employee, [...selectedDates], template, remark)}>
-              {saving ? "Saving..." : `Assign ${selectedDates.size} Dates`}
-            </button>
-          </div>
-        </footer>
-      </aside>
-    </div>
-  );
-}
-
-function viewDayLabel(date, index) {
-  return `${dayLabels[(date.getDay() + 6) % 7]} ${formatDay(date)}`;
 }
 
 const timeOptions = buildShiftTimeOptions();
@@ -1020,8 +945,9 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
   const outletName = outlets.find((outlet) => outlet.id === outletId)?.name ?? "Selected outlet";
   const assignedIds = new Set([...floorIds, ...kitchenIds]);
   const unassignedPositions = positions.filter((position) => !assignedIds.has(position.id));
-  const activeTemplates = templates.filter((template) => template.is_active);
-  const archivedTemplates = templates.filter((template) => !template.is_active);
+  const rosterTemplates = templates.filter(isAssignableTemplate);
+  const activeTemplates = rosterTemplates.filter((template) => template.is_active);
+  const archivedTemplates = rosterTemplates.filter((template) => !template.is_active);
   const templateIsOvernight = isOvernightTimeRange(templateDraft.start_time, templateDraft.end_time);
 
   useEffect(() => {
@@ -1110,6 +1036,7 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
     const nonWorking = isNonWorkingDraft({ ...templateDraft, code });
 
     if (!name) nextErrors.name = "Template name is required.";
+    if (leaveCodes.has(code)) nextErrors.code = "Leave codes are managed by Leave and cannot be roster templates.";
     if (!nonWorking) {
       if (!templateDraft.start_time) nextErrors.start_time = SHIFT_TIME_INPUT_ERROR;
       if (!templateDraft.end_time) nextErrors.end_time = SHIFT_TIME_INPUT_ERROR;
@@ -1230,7 +1157,8 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
                 </div>
                 <div>
                   <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">Code</label>
-                  <input className="control h-10 w-full" value={templateDraft.code} onChange={(event) => setTemplateDraft((current) => ({ ...current, code: event.target.value }))} placeholder="Code" />
+                  <input className="control h-10 w-full" value={templateDraft.code} onChange={(event) => { setTemplateDraft((current) => ({ ...current, code: event.target.value })); setTemplateErrors((current) => ({ ...current, code: "" })); }} placeholder="Code" />
+                  {templateErrors.code ? <div className="mt-1 text-[11px] font-semibold text-rose-600">{templateErrors.code}</div> : null}
                 </div>
                 <TimeComboField
                   label="Start Time"
@@ -1535,7 +1463,6 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const [outletId, setOutletIdState] = useState(sharedOutlet.outletId || activeOutlets[0]?.id || "");
   const setOutletId = (value) => { setOutletIdState(value); if (ownership === "crew") sharedOutlet.setOutletId(value); };
   const outletIdRef = useRef(outletId);
-  const bulkSnapshotRequestIdRef = useRef("");
   const publishedWeekRequestIdRef = useRef("");
   const copyRequestIdRef = useRef("");
   const statusRequestIdRef = useRef({});
@@ -1550,7 +1477,13 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const [period, setPeriod] = useState(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [shiftDrawer, setShiftDrawer] = useState(null);
-  const [bulkDrawer, setBulkDrawer] = useState(null);
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedCells, setSelectedCells] = useState(() => new Set());
+  const [selectionAnchor, setSelectionAnchor] = useState(null);
+  const [draggingSelection, setDraggingSelection] = useState(false);
+  const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
+  const [coverageOpen, setCoverageOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareLayout, setShareLayout] = useState("horizontal");
@@ -1573,7 +1506,8 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const canManageRoster = rosterPermission(auth, "manage");
   const canPublishRoster = rosterPermission(auth, "publish");
   const canWriteShift = canAddShift || canEditShift;
-  const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null;
+  const assignableTemplates = useMemo(() => templates.filter(isAssignableTemplate), [templates]);
+  const selectedTemplate = assignableTemplates.find((template) => template.id === selectedTemplateId) ?? null;
   const outletName = activeOutlets.find((outlet) => outlet.id === outletId)?.name ?? "Selected outlet";
 
   const weekDates = useMemo(() => {
@@ -1607,7 +1541,8 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     setAllTemplates([]);
     setSelectedTemplateId("");
     setShiftDrawer(null);
-    setBulkDrawer(null);
+    setSelectionMode(false);
+    setSelectedCells(new Set());
   }, [outletId]);
 
   useEffect(() => {
@@ -1651,11 +1586,11 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         )));
         setJobPositions(positionRows);
         setPositionMappings(mappingRows);
-        setTemplates(templateRows);
+        setTemplates(templateRows.filter(isAssignableTemplate));
         setAllTemplates(allTemplateRows);
         setRosters(rosterRows);
         setPeriod(nextPeriod);
-        setSelectedTemplateId((current) => (templateRows.some((template) => template.id === current) ? current : ""));
+        setSelectedTemplateId((current) => (templateRows.some((template) => template.id === current && isAssignableTemplate(template)) ? current : ""));
       } catch (loadError) {
         console.error("Unable to load duty roster", loadError);
         const setupMissing = loadError?.cause?.code === "42P01" || /shift_templates|duty_rosters|roster_periods/i.test(loadError?.message || "");
@@ -1723,6 +1658,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
       .map(([group, items]) => ({ group, label: groupLabels[group] ?? "OTHER", employees: items }));
   }, [employeeSearch, employeesWithGroups, groupFilter, positionFilter]);
+  const visibleEmployees = useMemo(() => groupedEmployees.flatMap((group) => group.employees), [groupedEmployees]);
 
   const summary = useMemo(() => {
     const workingRosters = rosters.filter(isWorkingRoster);
@@ -1730,10 +1666,10 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       staff: new Set(workingRosters.map((roster) => roster.employee_id)).size,
       hours: workingRosters.reduce((sum, roster) => sum + minutesBetween(roster.start_time, roster.end_time, roster.break_minutes), 0),
       off: rosters.filter((roster) => roster.template?.code === "OFF").length,
-      al: rosters.filter((roster) => roster.template?.code === "AL").length,
-      mc: rosters.filter((roster) => roster.template?.code === "MC").length,
+      leave: rosters.filter(isLeaveRoster).length,
+      coverageGaps: visibleDateValues.filter((date) => !workingRosters.some((roster) => roster.roster_date === date)).length,
     };
-  }, [rosters]);
+  }, [rosters, visibleDateValues]);
 
   async function saveShift(employee, date, templateOverride = selectedTemplate, remark = "") {
     if (locked) {
@@ -1821,6 +1757,10 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   function handleCellClick(employee, date) {
     if (readOnly) return;
     const existing = rosterByEmployeeDate.get(rosterKey(employee.id, date));
+    if (isLeaveRoster(existing)) {
+      ui.notify({ title: "Approved leave", message: "This roster cell is controlled by Leave and cannot be edited here.", tone: "warning" });
+      return;
+    }
     if (existing) {
       setShiftDrawer({ mode: "edit", employee, date, roster: existing });
       return;
@@ -1830,6 +1770,137 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       return;
     }
     setShiftDrawer({ mode: "add", employee, date, roster: null });
+  }
+
+  useEffect(() => {
+    function stopSelecting() {
+      setDraggingSelection(false);
+      setSelectionAnchor(null);
+    }
+    window.addEventListener("pointerup", stopSelecting);
+    return () => window.removeEventListener("pointerup", stopSelecting);
+  }, []);
+
+  function selectionKey(employeeId, date) {
+    return rosterKey(employeeId, date);
+  }
+
+  function selectRectangle(anchor, target) {
+    const rowStart = Math.min(anchor.row, target.row);
+    const rowEnd = Math.max(anchor.row, target.row);
+    const dateStart = Math.min(anchor.column, target.column);
+    const dateEnd = Math.max(anchor.column, target.column);
+    setSelectedCells(() => {
+      const next = new Set();
+      for (let row = rowStart; row <= rowEnd; row += 1) {
+        for (let column = dateStart; column <= dateEnd; column += 1) {
+          const employee = visibleEmployees[row];
+          const date = visibleDateValues[column];
+          if (employee && date) next.add(selectionKey(employee.id, date));
+        }
+      }
+      return next;
+    });
+  }
+
+  function beginCellSelection(event, row, column) {
+    if (!selectionMode || readOnly) return;
+    event.preventDefault();
+    const employee = visibleEmployees[row];
+    const date = visibleDateValues[column];
+    const key = selectionKey(employee.id, date);
+    if (event.metaKey || event.ctrlKey) {
+      setSelectedCells((current) => {
+        const next = new Set(current);
+        if (next.has(key)) next.delete(key); else next.add(key);
+        return next;
+      });
+    } else {
+      setSelectedCells(new Set([key]));
+    }
+    setSelectionAnchor({ row, column });
+    setDraggingSelection(true);
+  }
+
+  function extendCellSelection(row, column) {
+    if (!selectionMode || !draggingSelection || !selectionAnchor) return;
+    selectRectangle(selectionAnchor, { row, column });
+  }
+
+  function selectEmployeeRow(employeeId) {
+    setSelectedCells((current) => {
+      const keys = visibleDateValues.map((date) => selectionKey(employeeId, date));
+      const allSelected = keys.every((key) => current.has(key));
+      const next = new Set(current);
+      keys.forEach((key) => allSelected ? next.delete(key) : next.add(key));
+      return next;
+    });
+  }
+
+  function selectDateColumn(date) {
+    setSelectedCells((current) => {
+      const keys = visibleEmployees.map((employee) => selectionKey(employee.id, date));
+      const allSelected = keys.every((key) => current.has(key));
+      const next = new Set(current);
+      keys.forEach((key) => allSelected ? next.delete(key) : next.add(key));
+      return next;
+    });
+  }
+
+  const selectedCellDetails = useMemo(() => [...selectedCells].map((key) => {
+    const [employeeId, date] = key.split("|");
+    return { key, employeeId, date, roster: rosterByEmployeeDate.get(key) };
+  }), [rosterByEmployeeDate, selectedCells]);
+  const protectedSelectionCount = selectedCellDetails.filter((cell) => isLeaveRoster(cell.roster)).length;
+  const editableSelectionCount = selectedCellDetails.length - protectedSelectionCount;
+
+  async function applyTemplateToSelection(template) {
+    if (!template || !editableSelectionCount || saving) return;
+    const confirmed = await ui.confirm({
+      title: `Apply ${template.name}`,
+      message: `Update ${editableSelectionCount} selected roster cells? ${protectedSelectionCount ? `${protectedSelectionCount} approved leave cells will be preserved.` : ""}`,
+      confirmLabel: "Apply Template",
+    });
+    if (!confirmed) return;
+    setSaving(true);
+    try {
+      const editable = selectedCellDetails.filter((cell) => !isLeaveRoster(cell.roster));
+      const byWeek = new Map();
+      editable.forEach((cell) => {
+        const week = toDateInputValue(startOfWeek(`${cell.date}T00:00:00`));
+        if (!byWeek.has(week)) byWeek.set(week, []);
+        byWeek.get(week).push(cell);
+      });
+      for (const [targetWeek, cells] of byWeek) {
+        const targetEnd = toDateInputValue(addDays(`${targetWeek}T00:00:00`, 6));
+        const weekRows = await dutyRosterService.listDutyRosters(outletId, targetWeek, targetEnd);
+        const rowsByKey = new Map(weekRows.map((row) => [selectionKey(row.employee_id, row.roster_date), row]));
+        cells.forEach((cell) => rowsByKey.set(cell.key, {
+          ...(rowsByKey.get(cell.key) ?? {}), employee_id: cell.employeeId, roster_date: cell.date,
+          shift_template_id: template.id, template, remark: rowsByKey.get(cell.key)?.remark || "",
+        }));
+        const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId: createRosterRequestId(), outletId, weekStartDate: targetWeek, rows: [...rowsByKey.values()] });
+        setRosters((current) => [...current.filter((row) => row.roster_date < targetWeek || row.roster_date > targetEnd), ...result.rows]);
+        if (targetWeek === weekDateValues[0]) setPeriod(result.period);
+      }
+      setSelectedTemplateId(template.id);
+      setTemplateMenuOpen(false);
+      ui.notify({ title: "Bulk assignment saved", message: `${editableSelectionCount} cells updated. Approved leave was preserved.` });
+    } catch (bulkError) {
+      console.error("Unable to bulk assign duty roster", bulkError);
+      ui.notify({ title: "Unable to bulk assign", message: bulkError.message || "Please try again.", tone: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function repeatSelectedShifts() {
+    const source = selectedCellDetails.find((cell) => cell.roster?.template && !isLeaveRoster(cell.roster));
+    if (!source) {
+      ui.notify({ title: "Choose a source shift", message: "Select at least one existing work shift or OFF cell to repeat.", tone: "warning" });
+      return;
+    }
+    await applyTemplateToSelection(source.roster.template);
   }
 
   async function deleteShift(roster) {
@@ -1886,51 +1957,6 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     }
   }
 
-  async function bulkAssign(employee, dates, template, remark = "") {
-    if (!dates.length || !template) return;
-    if (dates.some((date) => date < weekDateValues[0] || date > weekEnd)) {
-      ui.notify({ title: "Choose dates from one roster week", message: "Bulk assignment saves one complete roster week at a time.", tone: "warning" });
-      return;
-    }
-    setSaving(true);
-    try {
-      const weekRows = rosters.filter((row) => row.roster_date >= weekDateValues[0] && row.roster_date <= weekEnd);
-      const byEmployeeDate = new Map(weekRows.map((row) => [rosterKey(row.employee_id, row.roster_date), row]));
-      dates.forEach((date) => {
-        const key = rosterKey(employee.id, date);
-        byEmployeeDate.set(key, {
-          ...(byEmployeeDate.get(key) ?? {}),
-          employee_id: employee.id,
-          roster_date: date,
-          shift_template_id: template.id,
-          template,
-          remark,
-        });
-      });
-      const requestId = bulkSnapshotRequestIdRef.current || createRosterRequestId();
-      bulkSnapshotRequestIdRef.current = requestId;
-      const result = await dutyRosterService.saveRosterWeekSnapshot({
-        requestId,
-        outletId,
-        weekStartDate: weekDateValues[0],
-        rows: [...byEmployeeDate.values()],
-      });
-      setPeriod(result.period);
-      setRosters((current) => [
-        ...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd),
-        ...result.rows,
-      ]);
-      bulkSnapshotRequestIdRef.current = "";
-      setBulkDrawer(null);
-      ui.notify({ title: "Bulk assignment saved", message: `${dates.length} dates assigned to ${template.name}.` });
-    } catch (bulkError) {
-      console.error("Unable to bulk assign duty roster", bulkError);
-      ui.notify({ title: "Unable to bulk assign", message: bulkError.message || "Please try again.", tone: "error" });
-    } finally {
-      setSaving(false);
-    }
-  }
-
   async function savePositionMappings(mappingPayload) {
     if (!canManageRoster) {
       notifyPermissionDenied(ui, "manage duty roster settings");
@@ -1962,10 +1988,11 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       shiftTemplateService.listAllShiftTemplates(currentOutletId),
     ]);
     if (currentOutletId !== outletIdRef.current) return { activeRows: [], allRows: [] };
-    setTemplates(activeRows);
+    const assignableRows = activeRows.filter(isAssignableTemplate);
+    setTemplates(assignableRows);
     setAllTemplates(allRows);
-    setSelectedTemplateId((current) => (activeRows.some((template) => template.id === current) ? current : ""));
-    return { activeRows, allRows };
+    setSelectedTemplateId((current) => (assignableRows.some((template) => template.id === current) ? current : ""));
+    return { activeRows: assignableRows, allRows };
   }
 
   async function saveShiftTemplate(template) {
@@ -2017,36 +2044,73 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     }
   }
 
-  async function copyWeek() {
+  async function copyPreviousPeriod() {
     if (copying) return;
     if (!canAddShift && !canEditShift) {
       notifyPermissionDenied(ui, "copy duty roster weeks");
       return;
     }
-    const source = window.prompt("Source week start date (YYYY-MM-DD)");
-    if (!source) return;
-    const sourceStart = toDateInputValue(startOfWeek(`${source}T00:00:00`));
-    const sourceEnd = toDateInputValue(addDays(`${sourceStart}T00:00:00`, 6));
+    const sourceStart = viewMode === "month"
+      ? toDateInputValue(startOfMonth(addMonths(`${visibleStart}T00:00:00`, -1)))
+      : toDateInputValue(addDays(`${weekDateValues[0]}T00:00:00`, -7));
+    const sourceEnd = viewMode === "month"
+      ? toDateInputValue(endOfMonth(`${sourceStart}T00:00:00`))
+      : toDateInputValue(addDays(`${sourceStart}T00:00:00`, 6));
     const overwrite = await ui.confirm({
-      title: "Copy week roster",
-      message: "Overwrite existing shifts in the selected week?",
-      confirmLabel: "Copy Week",
+      title: `Copy previous ${viewMode}`,
+      message: `Copy ${viewMode === "month" ? formatMonthYear(new Date(`${sourceStart}T00:00:00`)) : formatWeekRange(datesBetween(new Date(`${sourceStart}T00:00:00`), new Date(`${sourceEnd}T00:00:00`)))} into the current ${viewMode}? Existing work shifts may be replaced; approved leave is always preserved.`,
+      confirmLabel: `Copy ${viewMode === "month" ? "Month" : "Week"}`,
     });
+    if (!overwrite) return;
     setCopying(true);
     try {
+      if (viewMode === "month") {
+        const sourceRows = await dutyRosterService.listDutyRosters(outletId, sourceStart, sourceEnd);
+        const targetCells = sourceRows.map((row) => {
+          const sourceDate = new Date(`${row.roster_date}T00:00:00`);
+          const lastTargetDay = endOfMonth(`${visibleStart}T00:00:00`).getDate();
+          if (sourceDate.getDate() > lastTargetDay || isLeaveRoster(row)) return null;
+          const targetDate = new Date(`${visibleStart}T00:00:00`);
+          targetDate.setDate(sourceDate.getDate());
+          return { ...row, roster_date: toDateInputValue(targetDate), source: "manual_roster", approved_leave_id: null };
+        }).filter(Boolean);
+        const byWeek = new Map();
+        targetCells.forEach((row) => {
+          const targetWeek = toDateInputValue(startOfWeek(`${row.roster_date}T00:00:00`));
+          if (!byWeek.has(targetWeek)) byWeek.set(targetWeek, []);
+          byWeek.get(targetWeek).push(row);
+        });
+        for (const [targetWeek, copiedRows] of byWeek) {
+          const targetEnd = toDateInputValue(addDays(`${targetWeek}T00:00:00`, 6));
+          const currentRows = await dutyRosterService.listDutyRosters(outletId, targetWeek, targetEnd);
+          const rowsByKey = new Map(currentRows.map((row) => [rosterKey(row.employee_id, row.roster_date), row]));
+          copiedRows.forEach((row) => {
+            const key = rosterKey(row.employee_id, row.roster_date);
+            if (!isLeaveRoster(rowsByKey.get(key))) rowsByKey.set(key, row);
+          });
+          const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId: createRosterRequestId(), outletId, weekStartDate: targetWeek, rows: [...rowsByKey.values()] });
+          setRosters((current) => [...current.filter((row) => row.roster_date < targetWeek || row.roster_date > targetEnd), ...result.rows]);
+        }
+        ui.notify({ title: "Month copied", message: `${targetCells.length} shift cells copied. Approved leave was preserved.` });
+        return;
+      }
+      const [sourceRows, currentRows] = await Promise.all([
+        dutyRosterService.listDutyRosters(outletId, sourceStart, sourceEnd),
+        dutyRosterService.listDutyRosters(outletId, weekDateValues[0], weekEnd),
+      ]);
+      const rowsByKey = new Map(currentRows.map((row) => [rosterKey(row.employee_id, row.roster_date), row]));
+      sourceRows.filter((row) => !isLeaveRoster(row)).forEach((row) => {
+        const targetDate = toDateInputValue(addDays(`${row.roster_date}T00:00:00`, 7));
+        const key = rosterKey(row.employee_id, targetDate);
+        if (!isLeaveRoster(rowsByKey.get(key))) rowsByKey.set(key, { ...row, roster_date: targetDate, source: "manual_roster", approved_leave_id: null });
+      });
       const requestId = copyRequestIdRef.current || createRosterRequestId();
       copyRequestIdRef.current = requestId;
-      const result = await dutyRosterService.copyRosterWeek({
-        requestId,
-        outletId,
-        sourceWeekStartDate: sourceStart,
-        targetWeekStartDate: weekDateValues[0],
-        overwrite,
-      });
+      const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId, outletId, weekStartDate: weekDateValues[0], rows: [...rowsByKey.values()] });
       setRosters((current) => [...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd), ...result.rows]);
       setPeriod(result.period);
       copyRequestIdRef.current = "";
-      ui.notify({ title: "Week copied", message: `${result.rows.length} shifts copied.` });
+      ui.notify({ title: "Week copied", message: `${result.rows.length} shifts copied. Approved leave was preserved.` });
     } catch (copyError) {
       console.error("Unable to copy week roster", copyError);
       ui.notify({ title: "Unable to copy week", message: copyError.message || "Please try again.", tone: "error" });
@@ -2185,43 +2249,77 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         time={<FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}><RosterDateSelector mode={viewMode} weekStart={weekStart} weekDates={weekDates} visibleDates={visibleDates} onSelectDate={selectRosterDate} onPrevious={() => navigateRoster(-1)} onNext={() => navigateRoster(1)} /></FieldLabel>}
         search={<FieldLabel label="Employee"><input className="control h-10 w-full" value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="Search name..." /></FieldLabel>}
         filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel><div className="flex rounded-2xl border border-border bg-background p-1">{["week", "month"].map((mode) => <button key={mode} className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${viewMode === mode ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary"}`} type="button" onClick={() => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }}>{mode}</button>)}</div></>}
-        secondary={<><button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}><Download size={16} /> Export</button>{canExportRoster ? <button className="btn-secondary" type="button" onClick={prepareShareRoster}><Share2 size={16} /> Share Roster</button> : null}{canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}</>}
+        secondary={canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}
         primary={canPublishRoster ? <button className="btn-primary" type="button" disabled={viewMode !== "week" || !period || period.status === "published" || period.status === "locked"} onClick={() => setStatus("published")} title={viewMode !== "week" ? "Switch to Week view to publish a roster week." : undefined}><Send size={16} /> Publish Roster</button> : null}
       />
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Staff Scheduled", value: summary.staff, icon: Users, helper: "Assigned this period" },
           { label: "Working Hours", value: hoursLabel(summary.hours), icon: Clock, helper: "Scheduled working time" },
-          { label: "Off Days", value: summary.off, icon: CalendarX, helper: "OFF entries" },
-          { label: "Annual Leave", value: summary.al, icon: Plane, helper: "AL entries" },
-          { label: "MC", value: summary.mc, icon: HeartPulse, helper: "Medical leave entries" },
+          { label: "Leave Projection", value: summary.leave, icon: Plane, helper: "Approved leave cells" },
+          { label: "Coverage Gaps", value: summary.coverageGaps, icon: CalendarX, helper: "Days without a work shift" },
         ].map((item) => (
           <MetricCard key={item.label} label={item.label} value={item.value} helper={item.helper} icon={item.icon} />
         ))}
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div>
         <Card
           title={viewMode === "month" ? `Full Month View · ${formatMonthYear(visibleDates[0])}` : `Weekly Roster · ${formatWeekRange(weekDates)}`}
-          description="Employee x date cells are shift slots. Click any cell to add or edit a shift."
+          description={viewMode === "month" ? "Overview and bulk planning. Scroll horizontally to review every day." : "Detailed scheduling. Click a cell to edit, or use Bulk Assign to select a range."}
         >
+          <div className="relative flex flex-wrap items-center justify-between gap-2 border-b border-border bg-background/60 px-4 py-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone={statusTone}>{period?.status === "locked" ? "Locked" : period?.status === "published" ? "Published" : "Draft"}</Badge>
+              <span className="text-xs font-semibold text-text-secondary">{readOnly ? "Read-only" : "Editable"}</span>
+              {selectedTemplate ? <span className="rounded-lg bg-primary/10 px-2 py-1 text-xs font-bold text-primary">Template: {selectedTemplate.name}</span> : null}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              {!readOnly ? <button className={selectionMode ? "btn-primary h-9 px-3 text-xs" : "btn-secondary h-9 px-3 text-xs"} type="button" onClick={() => { setSelectionMode((current) => !current); setSelectedCells(new Set()); }}><Layers3 size={15} /> Bulk Assign</button> : null}
+              {!readOnly ? <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={copying} onClick={copyPreviousPeriod}><Copy size={15} /> {copying ? "Copying..." : `Copy Previous ${viewMode === "month" ? "Month" : "Week"}`}</button> : null}
+              <div className="relative">
+                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setTemplateMenuOpen((current) => !current)}><Clipboard size={15} /> Shift Template <ChevronDown size={14} /></button>
+                {templateMenuOpen ? <div className="absolute right-0 top-11 z-40 w-64 rounded-2xl border border-border bg-surface p-2 shadow-xl">
+                  {assignableTemplates.map((template) => <button key={template.id} className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-bold ${selectedTemplateId === template.id ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-background"}`} type="button" onClick={() => { setSelectedTemplateId(template.id); setTemplateMenuOpen(false); }}>{template.name}<span className="font-semibold opacity-70">{shiftTimeLabel(template)}</span></button>)}
+                  {!assignableTemplates.length ? <div className="px-3 py-2 text-xs font-semibold text-text-muted">No work/OFF templates configured.</div> : null}
+                </div> : null}
+              </div>
+              <div className="relative">
+                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setCoverageOpen((current) => !current)}><PanelRightOpen size={15} /> Coverage</button>
+                {coverageOpen ? <div className="absolute right-0 top-11 z-40 w-72 rounded-2xl border border-border bg-surface p-4 shadow-xl">
+                  <div className="text-sm font-bold text-text-primary">Coverage gaps</div>
+                  <p className="mt-1 text-xs text-text-secondary">Based on scheduled working shifts in this view.</p>
+                  <div className="mt-3 max-h-56 space-y-2 overflow-y-auto">{visibleDateValues.filter((date) => !rosters.some((row) => row.roster_date === date && isWorkingRoster(row))).map((date) => <div key={date} className="flex items-center justify-between rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800"><span>{new Intl.DateTimeFormat("en-MY", { weekday: "short", day: "2-digit", month: "short" }).format(new Date(`${date}T00:00:00`))}</span><span>No work shifts</span></div>)}{!summary.coverageGaps ? <div className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">No date-level coverage gaps.</div> : null}</div>
+                </div> : null}
+              </div>
+              <div className="relative">
+                <button className="icon-btn h-9 w-9" type="button" aria-label="More roster actions" onClick={() => setMoreOpen((current) => !current)}><MoreHorizontal size={17} /></button>
+                {moreOpen ? <div className="absolute right-0 top-11 z-40 w-52 rounded-2xl border border-border bg-surface p-2 shadow-xl">
+                  {canExportRoster ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-background" type="button" onClick={prepareShareRoster}><Share2 size={14} /> Share Roster</button> : null}
+                  <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-background" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}><Download size={14} /> Export</button>
+                  {canPublishRoster ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-background" type="button" onClick={() => setStatus(period?.status === "locked" ? "draft" : "locked")}>{period?.status === "locked" ? <UnlockKeyhole size={14} /> : <LockKeyhole size={14} />} {period?.status === "locked" ? "Unlock" : "Lock"}</button> : null}
+                </div> : null}
+              </div>
+            </div>
+          </div>
           {loading ? (
             <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading duty roster...</div>
           ) : (
             <>
-              <div className="hidden overflow-x-auto lg:block">
-                <table className={`w-full border-separate border-spacing-0 text-sm ${viewMode === "month" ? "min-w-[2400px]" : "min-w-[1120px]"}`}>
-                  <thead className="table-head">
+              <div className="hidden max-h-[68vh] overflow-auto lg:block">
+                <table className={`w-full border-separate border-spacing-0 text-sm ${viewMode === "month" ? "min-w-[3820px]" : "min-w-[1160px]"}`}>
+                  <thead className="table-head sticky top-0 z-30">
                     <tr>
-                      <th className="table-sticky-cell sticky left-0 z-20 w-[220px] px-3 py-3 text-left">Employee</th>
+                      <th className="table-sticky-cell sticky left-0 z-40 w-[220px] min-w-[220px] px-3 py-3 text-left">Employee</th>
                       {visibleDates.map((date) => {
                         const dateValue = toDateInputValue(date);
                         return (
-                          <th key={dateValue} className={`${viewMode === "month" ? "min-w-[72px]" : "min-w-[128px]"} px-3 py-3 text-left`}>
+                          <th key={dateValue} className={`${viewMode === "month" ? "min-w-[116px]" : "min-w-[134px]"} px-3 py-3 text-left`}>
+                            {selectionMode ? <button className="mb-1 text-[10px] font-bold text-primary hover:underline" type="button" onClick={() => selectDateColumn(dateValue)}>Select day</button> : null}
                             {viewMode === "month" ? (
                               <>
                                 <div className="text-sm font-black text-text-primary">{date.getDate()}</div>
@@ -2244,7 +2342,9 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                         <tr className="sticky top-[49px] z-10 bg-primary/10">
                           <td colSpan={visibleDates.length + 1} className="border-y border-primary/15 px-3 py-2 text-xs font-black uppercase tracking-[0.16em] text-primary">{group.label}</td>
                         </tr>
-                        {group.employees.map((employee) => (
+                        {group.employees.map((employee) => {
+                          const employeeRowIndex = visibleEmployees.findIndex((item) => item.id === employee.id);
+                          return (
                           <tr key={employee.id} className="table-row">
                             <td className="table-sticky-cell sticky left-0 z-10 bg-surface px-3 py-2.5">
                               <div className="flex items-start justify-between gap-2">
@@ -2255,31 +2355,36 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                                     <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
                                   ) : null}
                                 </div>
-                                {!readOnly ? (
-                                  <button className="rounded-xl border border-border px-2 py-1 text-[11px] font-bold text-primary hover:bg-primary/10" type="button" onClick={() => setBulkDrawer({ employee })}>
-                                    Bulk
-                                  </button>
-                                ) : null}
+                                {selectionMode ? <button className="rounded-lg border border-primary/20 bg-primary/5 px-2 py-1 text-[10px] font-bold text-primary hover:bg-primary/10" type="button" onClick={() => selectEmployeeRow(employee.id)}>Select row</button> : null}
                               </div>
                             </td>
-                            {visibleDateValues.map((dateValue) => {
+                            {visibleDateValues.map((dateValue, columnIndex) => {
                               const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
+                              const cellSelected = selectedCells.has(rosterKey(employee.id, dateValue));
+                              const protectedLeave = isLeaveRoster(roster);
                               return (
                                 <td key={dateValue} className="group border-l border-border px-1.5 py-1.5 align-top">
                                   <div
-                                    className={`min-h-[58px] w-full rounded-2xl border border-dashed border-border bg-background/50 p-1.5 text-left transition ${!readOnly ? "cursor-pointer hover:-translate-y-0.5 hover:border-primary/50 hover:bg-primary/5 hover:shadow-sm" : ""} ${selectedTemplate ? "ring-1 ring-primary/10" : ""}`}
+                                    className={`${viewMode === "month" ? "min-h-[62px]" : "min-h-[72px]"} w-full select-none rounded-xl border p-1.5 text-left transition ${protectedLeave ? "border-sky-200 bg-sky-50/60" : "border-dashed border-border bg-background/50"} ${!readOnly ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : ""} ${cellSelected ? "border-primary bg-primary/10 ring-2 ring-primary/30" : ""}`}
                                     role="button"
                                     tabIndex={readOnly ? -1 : 0}
                                     aria-disabled={readOnly}
-                                    onClick={() => handleCellClick(employee, dateValue)}
+                                    aria-label={`${employee.nickname || employee.full_name}, ${dateValue}${roster?.template ? `, ${roster.template.name}` : ", unassigned"}${protectedLeave ? ", protected leave" : ""}`}
+                                    onPointerDown={(event) => beginCellSelection(event, employeeRowIndex, columnIndex)}
+                                    onPointerEnter={() => extendCellSelection(employeeRowIndex, columnIndex)}
+                                    onClick={() => { if (!selectionMode) handleCellClick(employee, dateValue); }}
                                     onKeyDown={(event) => {
-                                      if (!readOnly && (event.key === "Enter" || event.key === " ")) handleCellClick(employee, dateValue);
+                                      if (!readOnly && (event.key === "Enter" || event.key === " ")) {
+                                        if (selectionMode) beginCellSelection(event, employeeRowIndex, columnIndex); else handleCellClick(employee, dateValue);
+                                      }
                                     }}
                                   >
                                     {viewMode === "month" ? (
                                       roster?.template ? (
-                                        <div className={`flex min-h-[38px] items-center justify-center rounded-xl border px-1 text-[11px] font-black shadow-sm ${templateTone(roster.template)}`} title={`${roster.template.name} · ${shiftTimeLabel(roster.template)}`}>
-                                          {roster.template.code === "CLOSING" ? "C" : roster.template.code === "MORNING" ? "M" : roster.template.code === "FULL" ? "F" : roster.template.code}
+                                        <div className={`min-h-[48px] rounded-lg border px-2 py-1.5 text-[11px] shadow-sm ${protectedLeave ? "border-sky-200 bg-sky-50 text-sky-800" : templateTone(roster.template)}`} title={`${roster.template.name} · ${shiftTimeLabel(roster.template)}`}>
+                                          <div className="truncate font-black">{roster.template.code === "OFF" ? "OFF" : roster.template.name}</div>
+                                          {!protectedLeave && roster.template.code !== "OFF" ? <div className="mt-1 truncate text-[10px] font-semibold opacity-80">{shortTimeRange(roster)}</div> : null}
+                                          {protectedLeave ? <div className="mt-1 flex items-center gap-1 text-[9px] font-black uppercase"><ShieldCheck size={10} /> Protected</div> : null}
                                         </div>
                                       ) : (
                                         <div className="flex min-h-[38px] items-center justify-center rounded-xl text-primary opacity-0 transition group-hover:bg-primary/5 group-hover:opacity-100">
@@ -2294,7 +2399,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                               );
                             })}
                           </tr>
-                        ))}
+                        );})}
                       </Fragment>
                     ))}
                   </tbody>
@@ -2348,68 +2453,20 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
             </>
           )}
         </Card>
-
-        <div className="space-y-4">
-          <Card className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Roster Status</div>
-                <div className="mt-2 flex items-center gap-2">
-                  <Badge tone={statusTone}>{period?.status === "locked" ? "Locked" : period?.status === "published" ? "Published" : "Draft"}</Badge>
-                  <Badge tone={readOnly ? "neutral" : "success"}>{readOnly ? "Read-only" : "Editable"}</Badge>
-                </div>
-              </div>
-              {canPublishRoster ? (
-                <div className="flex gap-2">
-                  {period?.status === "locked" ? (
-                    <button className="icon-btn" type="button" onClick={() => setStatus("draft")} title="Unlock roster"><UnlockKeyhole size={16} /></button>
-                  ) : (
-                    <button className="icon-btn" type="button" onClick={() => setStatus("locked")} title="Lock roster"><LockKeyhole size={16} /></button>
-                  )}
-                </div>
-              ) : null}
-            </div>
-          </Card>
-
-          <Card title="Quick Shift Templates" description="Select a template, then click a roster cell.">
-            <div className="space-y-2 p-4">
-              {selectedTemplate ? (
-                <div className="flex items-start justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
-                  <span>Selected: {selectedTemplate.name}. Click a roster cell to assign.</span>
-                  <button className="font-black underline-offset-2 hover:underline" type="button" onClick={() => setSelectedTemplateId("")}>Clear</button>
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-border bg-background px-3 py-2 text-xs font-semibold text-text-secondary">
-                  No template selected. Click an empty cell to open the Add Shift form.
-                </div>
-              )}
-              {!templates.length ? (
-                <div className="rounded-2xl border border-dashed border-border bg-surface px-3 py-3 text-sm font-semibold text-text-muted">
-                  <span className="block text-text">No shift templates configured yet.</span>
-                  <span className="mt-1 block text-xs leading-5 text-text-secondary">
-                    Go to Settings to create Morning, Mid, Closing, Full, or OFF templates for this outlet.
-                  </span>
-                </div>
-              ) : null}
-              {templates.map((template) => (
-                <button
-                  key={template.id}
-                  className={`flex w-full items-center justify-between rounded-2xl border px-3 py-2.5 text-left transition ${selectedTemplateId === template.id ? "border-primary bg-primary text-white shadow-sm" : `${templateTone(template)} hover:-translate-y-0.5 hover:shadow-sm`}`}
-                  type="button"
-                  onClick={() => setSelectedTemplateId((current) => (current === template.id ? "" : template.id))}
-                >
-                  <span>
-                    <span className="block text-sm font-bold">{template.name}</span>
-                    <span className="mt-0.5 block text-xs font-semibold opacity-75">{shiftTimeLabel(template)}</span>
-                  </span>
-                  {selectedTemplateId === template.id ? <CheckIcon /> : null}
-                </button>
-              ))}
-            </div>
-          </Card>
-
-        </div>
       </div>
+
+      {selectionMode ? <div className="sticky bottom-4 z-40 mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-surface/95 px-4 py-3 shadow-2xl backdrop-blur">
+        <div>
+          <div className="text-sm font-bold text-text-primary">{selectedCells.size} cells selected</div>
+          <div className="mt-0.5 text-xs font-semibold text-text-secondary">{editableSelectionCount} editable · {protectedSelectionCount} protected leave</div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setSelectedCells(new Set())}>Clear</button>
+          <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!editableSelectionCount || saving} onClick={repeatSelectedShifts}><Repeat2 size={14} /> Repeat Selected Shifts</button>
+          <SelectField ariaLabel="Bulk shift template" value={selectedTemplateId} options={assignableTemplates.map((template) => ({ value: template.id, label: `${template.name} · ${shiftTimeLabel(template)}` }))} onChange={setSelectedTemplateId} placeholder="Choose template" buttonClassName="h-9 min-w-[190px] text-xs" />
+          <button className="btn-primary h-9 px-4 text-xs" type="button" disabled={!selectedTemplate || !editableSelectionCount || saving} onClick={() => applyTemplateToSelection(selectedTemplate)}>{saving ? "Applying..." : `Apply to ${editableSelectionCount}`}</button>
+        </div>
+      </div> : null}
 
       {shiftDrawer ? (
         <ShiftDrawer
@@ -2425,18 +2482,6 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
           onClose={() => setShiftDrawer(null)}
           onSave={(template, remark) => saveShift(shiftDrawer.employee, shiftDrawer.date, template, remark)}
           onDelete={deleteShift}
-        />
-      ) : null}
-
-      {bulkDrawer ? (
-        <BulkAssignDrawer
-          employee={bulkDrawer.employee}
-          dates={weekDates}
-          templates={templates}
-          selectedTemplateId={selectedTemplateId}
-          saving={saving}
-          onClose={() => setBulkDrawer(null)}
-          onSave={bulkAssign}
         />
       ) : null}
 

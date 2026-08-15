@@ -3,7 +3,7 @@ import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
 const selectFields = `
-  id,outlet_id,employee_id,roster_date,shift_template_id,start_time,end_time,break_minutes,status,remark,created_by,updated_by,created_at,updated_at,
+  id,outlet_id,employee_id,roster_date,shift_template_id,start_time,end_time,break_minutes,status,remark,source,approved_leave_id,created_by,updated_by,created_at,updated_at,
   employee_name_snapshot,position_snapshot,department_snapshot,outlet_snapshot,shift_snapshot,publish_timestamp,
   shift_template:shift_templates(id,outlet_id,name,code,start_time,end_time,break_minutes,shift_type,color),
   employee:employees(id,full_name,nickname,position,department,workplace,employee_code,employment_status,is_active)
@@ -38,6 +38,8 @@ function mapRoster(row) {
     break_minutes: Number(row.break_minutes ?? template?.break_minutes ?? 0),
     status: row.status ?? "draft",
     remark: row.remark ?? "",
+    source: row.source ?? "manual_roster",
+    approved_leave_id: row.approved_leave_id ?? null,
     template: template ? {
       id: template.id,
       name: template.name,
