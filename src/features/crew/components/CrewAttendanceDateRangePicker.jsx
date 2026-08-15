@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -10,6 +10,15 @@ function parse(value) { const [year, month, day] = String(value || "").split("-"
 function moveDays(value, amount) { const date = parse(value); date.setDate(date.getDate() + amount); return iso(date); }
 function monthStart(value) { const date = parse(value); return new Date(date.getFullYear(), date.getMonth(), 1); }
 function moveMonth(date, amount) { return new Date(date.getFullYear(), date.getMonth() + amount, 1); }
+
+const MONTHS = Array.from({ length: 12 }, (_, month) => new Date(2020, month, 1).toLocaleDateString("en-MY", { month: "short" }));
+
+function yearOptions(selectedYear, today) {
+  const currentYear = parse(today).getFullYear();
+  const start = Math.min(currentYear - 10, selectedYear - 10);
+  const end = Math.max(currentYear + 10, selectedYear + 10);
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
 
 function calendarDays(month) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -55,11 +64,42 @@ function presetRanges(today) {
   ];
 }
 
-function MonthCalendar({ month, from, to, today, onSelect }) {
+function MonthYearSelector({ month, today, onChange, onClose }) {
+  const selectedYear = month.getFullYear();
+  return <div className="crew-attendance-month-selector" aria-label="Choose month and year">
+    <label>
+      <span>Year</span>
+      <span className="crew-attendance-year-select">
+        <select aria-label={`Year for ${month.toLocaleDateString("en-MY", { month: "long" })}`} value={selectedYear} onChange={(event) => onChange(new Date(Number(event.target.value), month.getMonth(), 1))}>
+          {yearOptions(selectedYear, today).map((year) => <option key={year} value={year}>{year}</option>)}
+        </select>
+        <ChevronDown size={14} aria-hidden="true" />
+      </span>
+    </label>
+    <div className="crew-attendance-month-grid">
+      {MONTHS.map((label, monthIndex) => {
+        const selected = monthIndex === month.getMonth();
+        return <button key={label} type="button" className={selected ? "is-selected" : ""} aria-pressed={selected} onClick={() => { onChange(new Date(selectedYear, monthIndex, 1)); onClose(); }}>
+          {label}{selected ? <Check size={13} aria-hidden="true" /> : null}
+        </button>;
+      })}
+    </div>
+  </div>;
+}
+
+function MonthCalendar({ month, from, to, today, onSelect, onMonthChange, isLeft, showPrevious, showNext, showMobileNext }) {
   const cells = useMemo(() => calendarDays(month), [month]);
   const monthLabel = month.toLocaleDateString("en-MY", { month: "long", year: "numeric" });
+  const [selectorOpen, setSelectorOpen] = useState(false);
   return <section className="crew-attendance-range-month" aria-label={monthLabel}>
-    <h3>{monthLabel}</h3>
+    <header>
+      {showPrevious ? <button className="icon-btn" type="button" aria-label="Previous month" onClick={() => onMonthChange(moveMonth(month, -1), isLeft)}><ChevronLeft size={17} /></button> : <span />}
+      <button className="crew-attendance-month-trigger" type="button" aria-label={`Choose month and year, ${monthLabel}`} aria-expanded={selectorOpen} onClick={() => setSelectorOpen((value) => !value)}>
+        <strong>{monthLabel}</strong><ChevronDown size={14} />
+      </button>
+      {showNext ? <button className="icon-btn" type="button" aria-label="Next month" onClick={() => onMonthChange(moveMonth(month, 1), isLeft)}><ChevronRight size={17} /></button> : showMobileNext ? <button className="icon-btn crew-attendance-mobile-next" type="button" aria-label="Next month" onClick={() => onMonthChange(moveMonth(month, 1), isLeft)}><ChevronRight size={17} /></button> : <span />}
+    </header>
+    {selectorOpen ? <MonthYearSelector month={month} today={today} onChange={(value) => onMonthChange(value, isLeft)} onClose={() => setSelectorOpen(false)} /> : null}
     <div className="crew-attendance-range-weekdays">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div>
     <div className="crew-attendance-range-grid">{cells.map((cell) => {
       const start = cell.value === from; const end = cell.value === to;
@@ -107,6 +147,11 @@ export default function CrewAttendanceDateRangePicker({ from, to, today, onApply
     setDraftFrom(start); setDraftTo(end); setSelectingEnd(false); setVisibleMonth(monthStart(start));
   }
 
+  function chooseDisplayedMonth(value, isLeft) {
+    const selected = new Date(value.getFullYear(), value.getMonth(), 1);
+    setVisibleMonth(isLeft ? selected : moveMonth(selected, -1));
+  }
+
   function cancel() { setDraftFrom(from); setDraftTo(to); setSelectingEnd(false); setOpen(false); }
   function apply() { onApply({ from: draftFrom, to: draftTo }); setOpen(false); }
 
@@ -115,16 +160,14 @@ export default function CrewAttendanceDateRangePicker({ from, to, today, onApply
     <button ref={anchorRef} type="button" aria-label="Date Range" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
       <CalendarDays size={16} /><strong>{rangeLabel(from, to, today)}</strong><ChevronDown size={15} />
     </button>
-    <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" width={760} estimatedHeight={470} maxHeight={620} className="crew-attendance-range-popover" contentClassName="crew-attendance-range-popover-content">
+    <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" width={756} estimatedHeight={480} maxHeight={560} className="crew-attendance-range-popover" contentClassName="crew-attendance-range-popover-content">
       <div className="crew-attendance-range-layout">
         <aside aria-label="Date range presets">{presets.map(([label, start, end]) => <button key={label} type="button" className={draftFrom === start && draftTo === end ? "is-active" : ""} onClick={() => choosePreset(start, end)}>{label}</button>)}</aside>
         <main>
-          <header>
-            <button className="icon-btn" type="button" aria-label="Previous month" onClick={() => setVisibleMonth((value) => moveMonth(value, -1))}><ChevronLeft size={17} /></button>
-            <p><strong>{rangeLabel(draftFrom, draftTo, today)}</strong><span>{selectingEnd ? "Select an end date" : "Select a start date or use a preset"}</span></p>
-            <button className="icon-btn" type="button" aria-label="Next month" onClick={() => setVisibleMonth((value) => moveMonth(value, 1))}><ChevronRight size={17} /></button>
-          </header>
-          <div className="crew-attendance-range-months"><MonthCalendar month={visibleMonth} from={draftFrom} to={draftTo} today={today} onSelect={chooseDate} /><MonthCalendar month={moveMonth(visibleMonth, 1)} from={draftFrom} to={draftTo} today={today} onSelect={chooseDate} /></div>
+          <div className="crew-attendance-range-months">
+            <MonthCalendar month={visibleMonth} from={draftFrom} to={draftTo} today={today} onSelect={chooseDate} onMonthChange={chooseDisplayedMonth} isLeft showPrevious showMobileNext />
+            <MonthCalendar month={moveMonth(visibleMonth, 1)} from={draftFrom} to={draftTo} today={today} onSelect={chooseDate} onMonthChange={chooseDisplayedMonth} isLeft={false} showNext />
+          </div>
         </main>
       </div>
       <footer><button className="btn-secondary" type="button" onClick={cancel}>Cancel</button><button className="btn-primary" type="button" onClick={apply}>Apply</button></footer>

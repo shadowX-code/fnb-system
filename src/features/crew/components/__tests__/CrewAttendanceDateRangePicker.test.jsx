@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import CrewAttendanceDateRangePicker, { rangeLabel } from "../CrewAttendanceDateRangePicker.jsx";
+import CrewAttendanceDateRangePicker, { rangeLabel } from "../../../../components/ui/FeedXDateRangePicker.jsx";
 
 afterEach(cleanup);
 
@@ -50,6 +50,39 @@ describe("Crew Attendance Date Range Picker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(onApply).not.toHaveBeenCalled();
     expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
+  });
+
+  it("supports direct month and year selection without changing the applied range", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, August 2026" }));
+    fireEvent.change(screen.getByRole("combobox", { name: "Year for August" }), { target: { value: "2027" } });
+    fireEvent.click(screen.getByRole("button", { name: "Dec" }));
+
+    expect(screen.getByRole("region", { name: "December 2027" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "January 2028" })).toBeTruthy();
+    expect(onApply).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
+  });
+
+  it("keeps consecutive months when the right calendar is changed directly", () => {
+    render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, September 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dec" }));
+    expect(screen.getByRole("region", { name: "November 2026" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "December 2026" })).toBeTruthy();
+  });
+
+  it("preserves the selected range while navigating months", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from="2026-08-10" to="2026-08-14" today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Next month" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({ from: "2026-08-10", to: "2026-08-14" });
   });
 
   it("formats current single-day and multi-day summaries", () => {

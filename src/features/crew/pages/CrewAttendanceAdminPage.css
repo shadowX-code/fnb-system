@@ -73,26 +73,28 @@
 .crew-attendance-range-popover {
   padding: 0 !important;
   overflow: hidden !important;
-  border-radius: 1rem !important;
+  border-radius: 0.875rem !important;
 }
 
 .crew-attendance-range-popover-content { display: flex; max-height: inherit; flex-direction: column; }
-.crew-attendance-range-layout { display: grid; min-height: 385px; grid-template-columns: 142px minmax(0, 1fr); }
-.crew-attendance-range-layout > aside { display: flex; flex-direction: column; gap: 0.25rem; border-right: 1px solid var(--color-border); background: rgb(248 250 252); padding: 0.875rem; }
-.crew-attendance-range-layout > aside button { border-radius: 0.625rem; padding: 0.55rem 0.65rem; color: var(--color-text-secondary); text-align: left; font-size: 0.8125rem; font-weight: 600; transition: background 150ms ease, color 150ms ease; }
+.crew-attendance-range-layout { display: grid; min-height: 390px; grid-template-columns: 160px minmax(0, 1fr); }
+.crew-attendance-range-layout > aside { display: flex; flex-direction: column; gap: 0.125rem; border-right: 1px solid var(--color-border); background: rgb(248 250 252); padding: 1rem 0.75rem; }
+.crew-attendance-range-layout > aside button { min-height: 2.5rem; border-radius: 0.5rem; padding: 0.5rem 0.75rem; color: var(--color-text-secondary); text-align: left; font-size: 0.8125rem; font-weight: 600; transition: background 150ms ease, color 150ms ease; }
 .crew-attendance-range-layout > aside button:hover { background: white; color: var(--color-text-primary); }
 .crew-attendance-range-layout > aside button.is-active { background: rgb(209 250 229); color: rgb(4 120 87); }
-.crew-attendance-range-layout > main { min-width: 0; padding: 0.875rem 1rem 1rem; }
-.crew-attendance-range-layout > main > header { display: grid; grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem; align-items: center; gap: 0.75rem; }
-.crew-attendance-range-layout > main > header p { min-width: 0; text-align: center; }
-.crew-attendance-range-layout > main > header strong { display: block; color: var(--color-text-primary); font-size: 0.875rem; }
-.crew-attendance-range-layout > main > header span { display: block; margin-top: 0.125rem; color: var(--color-text-muted); font-size: 0.6875rem; }
-.crew-attendance-range-months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.crew-attendance-range-month h3 { margin: 0.875rem 0 0.625rem; color: var(--color-text-primary); text-align: center; font-size: 0.8125rem; font-weight: 700; }
+.crew-attendance-range-layout > main { min-width: 0; padding: 1rem; }
+.crew-attendance-range-months { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.crew-attendance-range-month { position: relative; min-width: 0; }
+.crew-attendance-range-month > header { display: grid; height: 2.5rem; grid-template-columns: 2.25rem minmax(0, 1fr) 2.25rem; align-items: center; gap: 0.25rem; margin-bottom: 0.5rem; }
+.crew-attendance-month-trigger { display: inline-flex; min-width: 0; min-height: 2.25rem; align-items: center; justify-content: center; gap: 0.35rem; border-radius: 0.5rem; color: var(--color-text-primary); font-size: 0.8125rem; }
+.crew-attendance-month-trigger:hover,
+.crew-attendance-month-trigger[aria-expanded="true"] { background: rgb(240 253 250); color: rgb(4 120 87); }
+.crew-attendance-month-trigger:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-primary) 32%, transparent); outline-offset: 1px; }
+.crew-attendance-mobile-next { display: none; }
 .crew-attendance-range-weekdays,
 .crew-attendance-range-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
-.crew-attendance-range-weekdays span { padding: 0.3rem 0; color: var(--color-text-muted); text-align: center; font-size: 0.625rem; font-weight: 700; }
-.crew-attendance-range-grid button { position: relative; display: grid; height: 2.1rem; place-items: center; color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 600; }
+.crew-attendance-range-weekdays span { padding: 0.25rem 0; color: var(--color-text-muted); text-align: center; font-size: 0.625rem; font-weight: 700; }
+.crew-attendance-range-grid button { position: relative; display: grid; height: 2.25rem; place-items: center; color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 600; }
 .crew-attendance-range-grid button::before { position: absolute; inset: 0.16rem 0; background: transparent; content: ""; }
 .crew-attendance-range-grid button.is-in-range::before { background: rgb(209 250 229); }
 .crew-attendance-range-grid button.is-start::before { border-radius: 999px 0 0 999px; }
@@ -104,14 +106,26 @@
 .crew-attendance-range-grid button:not(.is-start):not(.is-end):hover > span { background: rgb(240 253 250); color: rgb(4 120 87); }
 .crew-attendance-range-grid button.is-outside { visibility: hidden; pointer-events: none; }
 .crew-attendance-range-grid button i { position: absolute; bottom: 0.2rem; z-index: 2; width: 0.2rem; height: 0.2rem; border-radius: 999px; background: var(--color-primary); }
-.crew-attendance-range-popover footer { display: flex; justify-content: flex-end; gap: 0.5rem; border-top: 1px solid var(--color-border); background: white; padding: 0.75rem 1rem; }
+.crew-attendance-month-selector { position: absolute; z-index: 2; top: 2.75rem; right: 0.25rem; left: 0.25rem; border: 1px solid var(--color-border); border-radius: 0.75rem; background: white; box-shadow: 0 6px 8px rgb(15 23 42 / 0.12); padding: 0.75rem; }
+.crew-attendance-month-selector > label { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 700; }
+.crew-attendance-year-select { position: relative; display: inline-flex; align-items: center; }
+.crew-attendance-year-select select { height: 2rem; min-width: 5.25rem; appearance: none; border: 1px solid var(--color-border); border-radius: 0.5rem; background: white; padding: 0 1.75rem 0 0.625rem; color: var(--color-text-primary); font: inherit; }
+.crew-attendance-year-select svg { position: absolute; right: 0.5rem; pointer-events: none; color: var(--color-text-muted); }
+.crew-attendance-year-select select:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-primary) 32%, transparent); outline-offset: 1px; }
+.crew-attendance-month-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.25rem; margin-top: 0.625rem; }
+.crew-attendance-month-grid button { display: inline-flex; min-height: 2rem; align-items: center; justify-content: center; gap: 0.2rem; border-radius: 0.45rem; color: var(--color-text-secondary); font-size: 0.75rem; font-weight: 650; }
+.crew-attendance-month-grid button:hover { background: rgb(240 253 250); color: rgb(4 120 87); }
+.crew-attendance-month-grid button.is-selected { background: var(--color-primary); color: white; }
+.crew-attendance-month-grid button:focus-visible { outline: 2px solid color-mix(in srgb, var(--color-primary) 32%, transparent); outline-offset: 1px; }
+.crew-attendance-range-popover footer { display: flex; min-height: 3.75rem; align-items: center; justify-content: flex-end; gap: 0.5rem; border-top: 1px solid var(--color-border); background: white; padding: 0.625rem 1rem; }
 
 @media (max-width: 760px) {
   .crew-attendance-range-layout { grid-template-columns: 1fr; }
-  .crew-attendance-range-layout > aside { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--color-border); }
+  .crew-attendance-range-layout > aside { flex-direction: row; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--color-border); padding: 0.625rem; }
   .crew-attendance-range-layout > aside button { flex: 0 0 auto; }
   .crew-attendance-range-months { grid-template-columns: 1fr; }
   .crew-attendance-range-month:nth-child(2) { display: none; }
+  .crew-attendance-mobile-next { display: inline-grid; }
 }
 
 @media (max-width: 520px) {
