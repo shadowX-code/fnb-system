@@ -153,6 +153,7 @@ describe("Crew unified Tasks Admin", () => {
     fireEvent.change(title, { target: { value: "Live preview checklist" } });
     expect(screen.getByText("Mobile Preview")).not.toBeNull();
     expect(screen.getAllByText("Live preview checklist").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Live preview checklistChecklist itemPending/ }));
     fireEvent.click(screen.getByRole("button", { name: /Complete Live preview checklist/ }));
     expect(mocks.save).not.toHaveBeenCalled();
   });

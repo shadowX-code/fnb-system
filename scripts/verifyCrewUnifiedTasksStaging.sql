@@ -81,15 +81,16 @@ begin
   select id into block_id from public.crew_operation_instance_items where instance_id=v_instance_id and block_type='short_text';
   execute 'set local role anon'; perform public.crew_tasks_update_block('unified-task-token-a',block_id,'completed',jsonb_build_object('value','Ready for service')); execute 'reset role';
   select id into block_id from public.crew_operation_instance_items where instance_id=v_instance_id and block_type='checklist_item';
-  execute 'set local role anon'; perform public.crew_tasks_update_block('unified-task-token-a',block_id,'completed'); result:=public.crew_tasks_complete('unified-task-token-a',v_instance_id); execute 'reset role';
-  if result->>'status'<>'completed' then raise exception 'FAIL complete required blocks'; end if; pass:=pass+1;
+  execute 'set local role anon'; result:=public.crew_tasks_update_block('unified-task-token-a',block_id,'completed'); execute 'reset role';
+  if result->>'task_status'<>'completed' or (select status from public.crew_task_instance_assignees where instance_id=v_instance_id and employee_id=employee_a)<>'completed' then raise exception 'FAIL automatic completion after final required block'; end if; pass:=pass+1;
 
   execute 'set local role authenticated';
   team_task:=public.crew_tasks_save(outlet,jsonb_build_object('name','Rollback Team Task','task_type','checklist','schedule_type','one_time','effective_date',timezone('Asia/Kuala_Lumpur',now())::date,'start_time','00:00','due_time','23:59','schedule_config',jsonb_build_object('frequency','every_day'),'assignment_type','all_crew','applicable_positions','[]'::jsonb,'applicable_employee_ids','[]'::jsonb,'applicable_group_names','[]'::jsonb,'on_duty_only',false,'priority','normal','completion_rule','one_for_team','allow_exception',true,'exception_requires_reason',true,'manager_review_required',false,'allow_late_completion',true,'blocks',jsonb_build_array(jsonb_build_object('block_type','checklist_item','title','Team close','is_required',true,'evidence_requirement','none','config','{}'::jsonb))));
   perform public.crew_operations_activate_template(team_task); perform public.crew_tasks_admin_data(outlet,timezone('Asia/Kuala_Lumpur',now())::date,timezone('Asia/Kuala_Lumpur',now())::date); execute 'reset role';
   select id into team_instance from public.crew_operation_instances where template_id=team_task and business_date=timezone('Asia/Kuala_Lumpur',now())::date;
   select id into block_id from public.crew_operation_instance_items where instance_id=team_instance;
-  execute 'set local role anon'; perform public.crew_tasks_update_block('unified-task-token-a',block_id,'completed'); execute 'reset role';
+  execute 'set local role anon'; result:=public.crew_tasks_update_block('unified-task-token-a',block_id,'completed'); execute 'reset role';
+  if result->>'task_status'<>'completed' then raise exception 'FAIL one-block automatic completion'; end if;
   denied:=false; execute 'set local role anon'; begin perform public.crew_tasks_update_block('unified-task-token-b',block_id,'completed'); exception when object_not_in_prerequisite_state then denied:=true; end; execute 'reset role';
   if not denied then raise exception 'FAIL one-for-team first writer'; end if; pass:=pass+1;
 
@@ -98,8 +99,8 @@ begin
   perform public.crew_operations_activate_template(review_task); perform public.crew_tasks_admin_data(outlet,timezone('Asia/Kuala_Lumpur',now())::date,timezone('Asia/Kuala_Lumpur',now())::date); execute 'reset role';
   select id into review_instance from public.crew_operation_instances where template_id=review_task and business_date=timezone('Asia/Kuala_Lumpur',now())::date;
   select id into block_id from public.crew_operation_instance_items where instance_id=review_instance;
-  execute 'set local role anon'; perform public.crew_tasks_update_block('unified-task-token-a',block_id,'completed'); result:=public.crew_tasks_complete('unified-task-token-a',review_instance); execute 'reset role';
-  if result->>'status'<>'review_required' then raise exception 'FAIL manager review gating'; end if; pass:=pass+1;
+  execute 'set local role anon'; result:=public.crew_tasks_update_block('unified-task-token-a',block_id,'completed'); execute 'reset role';
+  if result->>'task_status'<>'review_required' then raise exception 'FAIL automatic manager review gating'; end if; pass:=pass+1;
   execute 'set local role authenticated'; payload:=public.crew_tasks_admin_data(outlet,timezone('Asia/Kuala_Lumpur',now())::date,timezone('Asia/Kuala_Lumpur',now())::date); execute 'reset role';
   if not exists(select 1 from jsonb_array_elements(payload->'review_queue') x where x->>'instance_id'=review_instance::text and x->>'employee_id'=employee_a::text) then raise exception 'FAIL manager review queue'; end if; pass:=pass+1;
   execute 'set local role authenticated'; result:=public.crew_tasks_review(review_instance,employee_a,'approved'); execute 'reset role';

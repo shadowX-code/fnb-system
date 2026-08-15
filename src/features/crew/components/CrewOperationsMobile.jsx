@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, ClipboardCheck, HeartPulse, ListChecks, Store } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ClipboardCheck, HeartPulse, ListChecks, Store } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
-import CrewTaskBlockRenderer, { isTaskBlockActionable, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
+import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
 
 const REASONS = [["equipment_issue", "Equipment issue"], ["stock_unavailable", "Stock unavailable"], ["area_unavailable", "Area unavailable"], ["manager_instruction", "Manager instruction"], ["other", "Other"]];
 const label = (value) => ({ not_started: "Not Started", in_progress: "In Progress", completed: "Completed", completed_with_exceptions: "Completed · Exceptions", review_required: "Review Required", overdue: "Overdue", pending: "Pending", exception: "Exception", good: "Good", needs_attention: "Needs Attention", not_checked: "Not Checked" }[value] || value);
@@ -41,7 +41,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     try {
       await crewService.updateTaskBlock(token, block.id, action, response, exceptionReason || null, responseNote || null);
       await refreshDetail();
-    } catch (cause) { setError(cause.message); }
+    } catch (cause) { setError(cause.message); throw cause; }
     finally { setSavingBlockId(null); }
   }
   async function submitLegacy(action) {
@@ -52,12 +52,6 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
       setLegacyTask(null); setReason(""); setNote("");
       await onRefresh?.();
     } catch (cause) { setError(cause.message); }
-    finally { setSaving(false); }
-  }
-  async function finish() {
-    setSaving(true); setError("");
-    try { await crewService.completeOperationChecklist(token, detail.id); await refreshDetail(); }
-    catch (cause) { setError(cause.message); }
     finally { setSaving(false); }
   }
   async function openSop(reference) {
@@ -74,14 +68,14 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   if (detail) {
     const blocks = (detail.blocks || []).map(normalizeTaskBlock);
     const actionable = blocks.filter(isTaskBlockActionable);
-    const completed = actionable.filter((item) => !["pending", "not_started", "not_checked"].includes(item.status)).length;
-    const taskComplete = ["completed", "completed_with_exceptions"].includes(detail.status);
+    const completed = actionable.filter(isTaskBlockComplete).length;
+    const taskComplete = ["completed", "completed_with_exceptions", "review_required"].includes(detail.status);
     return <section className="crew-ops-mobile">
       <CrewMobileDetailHeader title={detail.name} onBack={() => setDetail(null)} />
       <div className="crew-ops-detail-head"><span>{String(detail.task_type || "task").replaceAll("_", " ")}</span><strong>{label(detail.status)}</strong><small>{completed} of {actionable.length} completed</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
+      {taskComplete ? <TaskCompletionState status={detail.status} completed={completed} total={actionable.length} completedAt={detail.completed_at} /> : null}
       <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode="interactive" allowException={detail.allow_exception} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
       {error ? <div className="crew-v2-error">{error}</div> : null}
-      <div className="crew-ops-sticky"><button className="crew-v2-primary" disabled={saving || taskComplete} onClick={finish}>{saving ? "Saving…" : taskComplete ? "Task Completed" : "Complete Task"}</button></div>
     </section>;
   }
 
@@ -98,17 +92,27 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
 export function CrewTaskPreview({ task, onBack }) {
   const blocks = useMemo(() => (task.blocks || []).map(normalizeTaskBlock), [task.blocks]);
   const actionable = blocks.filter(isTaskBlockActionable);
-  const [completedIds, setCompletedIds] = useState([]);
+  const required = actionable.filter((block) => block.required !== false);
+  const [previewStatuses, setPreviewStatuses] = useState({});
   const [sopMessage, setSopMessage] = useState("");
-  const completed = completedIds.length;
-  function previewSubmit({ block }) { setCompletedIds((ids) => ids.includes(block.id) ? ids : [...ids, block.id]); }
+  useEffect(() => { setPreviewStatuses({}); setSopMessage(""); }, [task.id]);
+  const completed = actionable.filter((block) => isTaskBlockComplete({ ...block, status: previewStatuses[block.id] || "pending" })).length;
+  const previewComplete = required.length > 0 && required.every((block) => isTaskBlockComplete({ ...block, status: previewStatuses[block.id] || "pending" }));
+  function previewSubmit({ block, action }) { setPreviewStatuses((statuses) => ({ ...statuses, [block.id]: action })); }
   return <section className="crew-ops-mobile crew-task-preview" aria-label="Crew Task preview">
     <div className="crew-task-preview-nav"><CrewMobileDetailHeader title={task.name || "Untitled Task"} onBack={onBack || (() => {})} /></div>
     <div className="crew-ops-detail-head"><span>{String(task.task_type || "task").replaceAll("_", " ")}</span><strong>Preview</strong><small>{completed} of {actionable.length} completed</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
-    <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={{ ...block, status: completedIds.includes(block.id) ? "completed" : "pending" }} index={index} mode="preview" allowException={task.allow_exception} onPreviewChange={previewSubmit} onOpenSop={(sop) => setSopMessage(`${sop?.title || "Published SOP"} opens read-only for Crew.`)} />)}</div>
+    {previewComplete ? <TaskCompletionState status={task.manager_review_required ? "review_required" : "completed"} completed={completed} total={actionable.length} /> : null}
+    <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={{ ...block, status: previewStatuses[block.id] || "pending" }} index={index} mode="preview" allowException={task.allow_exception} onPreviewChange={previewSubmit} onOpenSop={(sop) => setSopMessage(`${sop?.title || "Published SOP"} opens read-only for Crew.`)} />)}</div>
     {sopMessage ? <p className="crew-task-preview-only">{sopMessage}</p> : null}
-    <div className="crew-task-preview-complete"><button type="button" className="crew-v2-primary" onClick={() => setCompletedIds(actionable.map((block) => block.id))}>Complete Task</button><p className="crew-task-preview-only">Preview only · No execution or evidence will be saved.</p></div>
+    <p className="crew-task-preview-only">Preview only · No execution or evidence will be saved.</p>
   </section>;
+}
+
+function TaskCompletionState({ status, completed, total, completedAt }) {
+  const review = status === "review_required";
+  const time = completedAt ? new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit", hour12: true }).format(new Date(completedAt)).toLowerCase() : null;
+  return <section className="crew-task-completion-state" aria-live="polite"><CheckCircle2 size={21} /><span><strong>{review ? "Task submitted for review" : "Task completed"}</strong><small>{completed} of {total} completed{time ? ` · Completed at ${time}` : ""}</small></span></section>;
 }
 
 function SopTaskReader({ sop, token, onBack }) {

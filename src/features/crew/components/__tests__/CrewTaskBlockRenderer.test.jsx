@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CrewTaskBlockRenderer, { TASK_BLOCK_TYPES, isTaskBlockActionable, normalizeTaskBlock } from "../CrewTaskBlockRenderer.jsx";
 
@@ -17,33 +17,38 @@ describe("CrewTaskBlockRenderer", () => {
     const { container } = render(<>{TASK_BLOCK_TYPES.map((type, index) => <CrewTaskBlockRenderer key={type} block={base(type, configs[type])} index={index} mode="preview" onOpenSop={() => {}} />)}</>);
     expect(container.querySelectorAll("[data-block-type]")).toHaveLength(TASK_BLOCK_TYPES.length);
     for (const type of TASK_BLOCK_TYPES) expect(container.querySelector(`[data-block-type="${type}"]`)).not.toBeNull();
+    for (const type of TASK_BLOCK_TYPES) fireEvent.click(container.querySelector(`[data-block-type="${type}"] .crew-task-block-summary`));
     expect(screen.getByRole("button", { name: "Open SOP preview" })).not.toBeNull();
     expect(screen.getByRole("radio", { name: "Pass" })).not.toBeNull();
     expect(screen.getByLabelText("Temperature")).not.toBeNull();
   });
 
-  it("keeps preview interactions local and never calls the execution callback", () => {
+  it("keeps preview interactions local, collapses to its result and never calls the execution callback", () => {
     const onSubmit = vi.fn();
     const onPreviewChange = vi.fn();
     render(<CrewTaskBlockRenderer block={base("checklist_item")} mode="preview" onSubmit={onSubmit} onPreviewChange={onPreviewChange} />);
+    fireEvent.click(screen.getByRole("button", { name: /checklist_item block/i }));
     fireEvent.click(screen.getByRole("button", { name: /Complete checklist_item block/ }));
     expect(onSubmit).not.toHaveBeenCalled();
     expect(onPreviewChange).toHaveBeenCalledWith(expect.objectContaining({ action: "completed" }));
-    expect(screen.getByText("Completed")).not.toBeNull();
+    expect(screen.getByText("Done")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Complete checklist_item block/ })).toBeNull();
   });
 
-  it("uses the same contract in interactive mode and submits server-bound responses", () => {
+  it("uses the same contract in interactive mode and submits server-bound responses", async () => {
     const onSubmit = vi.fn();
     render(<CrewTaskBlockRenderer block={base("yes_no")} mode="interactive" onSubmit={onSubmit} />);
+    fireEvent.click(screen.getByRole("button", { name: /yes_no block/i }));
     fireEvent.click(screen.getByRole("button", { name: "Yes" }));
-    fireEvent.click(screen.getByRole("button", { name: "Submit" }));
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ action: "completed", response: { value: "yes" } }));
+    fireEvent.click(screen.getByRole("button", { name: "Save answer" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ action: "completed", response: { value: "yes" } })));
   });
 
   it("shows useful incomplete and unavailable linked-SOP states", () => {
     const { rerender } = render(<CrewTaskBlockRenderer block={base("text", { title: "" })} mode="preview" />);
     expect(screen.getByText("Add a title to preview this block.")).not.toBeNull();
     rerender(<CrewTaskBlockRenderer block={base("sop_reference")} mode="preview" />);
+    fireEvent.click(screen.getByRole("button", { name: /sop_reference block/i }));
     expect(screen.getByText("Choose a published SOP to preview this block.")).not.toBeNull();
   });
 
@@ -55,10 +60,13 @@ describe("CrewTaskBlockRenderer", () => {
 
   it("renders health rating separately from exception handling", () => {
     render(<CrewTaskBlockRenderer block={base("health_rating")} mode="preview" allowException />);
+    fireEvent.click(screen.getByRole("button", { name: /health_rating block/i }));
     expect(screen.getByRole("button", { name: "Good" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Needs Attention" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Not Checked" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Record exception" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Report issue" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Report issue" }));
+    expect(screen.getByRole("dialog", { name: /Report issue for health_rating block/ })).not.toBeNull();
   });
 
   it("normalizes Admin and Crew schema variants consistently", () => {

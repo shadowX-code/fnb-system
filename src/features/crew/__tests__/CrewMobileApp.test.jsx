@@ -249,6 +249,24 @@ describe("Crew Mobile redesign", () => {
     expect(mocks.operationsToday).toHaveBeenCalledWith("crew-token");
   });
 
+  it("refreshes server-derived completion after the final block without a manual Complete Task action", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.operationDetail
+      .mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "pending" }] })
+      .mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "completed", completed_at: "2026-08-16T02:30:00Z", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "completed", response: { value: true } }] });
+
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Unlock guest entrance/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Unlock guest entrance" }));
+
+    await waitFor(() => expect(mocks.updateTaskBlock).toHaveBeenCalledWith("crew-token", "item-1", "completed", { value: true }, null, null));
+    expect(await screen.findByText("Task completed")).not.toBeNull();
+    expect(screen.getAllByText(/1 of 1 completed/)).toHaveLength(2);
+    expect(screen.queryByRole("button", { name: "Complete Task" })).toBeNull();
+    expect(mocks.completeOperationChecklist).not.toHaveBeenCalled();
+  });
+
   it("uses the shared detail header for long SOP titles while keeping the full title and metadata in the reader", async () => {
     const title = "Customer Complaint Handling & Service Recovery Standard for International Guest Experience";
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
