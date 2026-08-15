@@ -61,6 +61,41 @@ describe("Duty Roster current browser lifecycle contracts", () => {
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
+  it("hydrates raw snapshot RPC rows from the submitted template so the saved grid updates immediately", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        period: { id: "period-1", status: "draft" },
+        rows: [{
+          id: "saved-1", outlet_id: outletId, employee_id: "employee-1", roster_date: "2026-08-10",
+          shift_template_id: template.id, start_time: "09:00", end_time: "17:00", break_minutes: 60,
+          status: "draft", remark: "", shift_snapshot: null,
+        }],
+      },
+      error: null,
+    });
+
+    const result = await dutyRosterService.saveRosterWeekSnapshot({
+      requestId: "00000000-0000-4000-8000-000000000013",
+      outletId,
+      weekStartDate: "2026-08-10",
+      rows: [{
+        employee_id: "employee-1",
+        roster_date: "2026-08-10",
+        shift_template_id: template.id,
+        template,
+        remark: "",
+      }],
+    });
+
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        id: "saved-1",
+        template: expect.objectContaining({ id: template.id, name: "Morning", code: "MORNING" }),
+      }),
+    ]);
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
   it("surfaces a week snapshot rejection without a browser fallback write", async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: new Error("week rejected") });
     await expect(dutyRosterService.saveRosterWeekSnapshot({ requestId: "request-1", outletId, weekStartDate: "2026-08-10", rows: [] })).rejects.toThrow("week rejected");

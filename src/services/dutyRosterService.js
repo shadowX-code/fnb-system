@@ -150,9 +150,29 @@ export const dutyRosterService = {
       p_rows: payloadRows,
     });
     throwSupabaseError("duty_rosters.save_week_snapshot", error);
+    const requestedRows = new Map((rows ?? []).map((row) => [
+      `${row.employee_id}|${row.roster_date}`,
+      row,
+    ]));
+    const mappedRows = (data?.rows ?? []).map(mapRoster).map((row) => {
+      if (row.template) return row;
+      const requested = requestedRows.get(`${row.employee_id}|${row.roster_date}`);
+      const requestedTemplate = requested?.template;
+      if (!requestedTemplate || requestedTemplate.id !== row.shift_template_id) return row;
+      return {
+        ...row,
+        template: {
+          id: requestedTemplate.id,
+          name: requestedTemplate.name,
+          code: requestedTemplate.code,
+          shift_type: requestedTemplate.shift_type,
+          color: requestedTemplate.color,
+        },
+      };
+    });
     return {
       period: data?.period ?? null,
-      rows: (data?.rows ?? []).map(mapRoster),
+      rows: mappedRows,
     };
   },
 
