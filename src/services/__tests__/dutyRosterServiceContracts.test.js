@@ -39,6 +39,15 @@ beforeEach(() => {
 });
 
 describe("Duty Roster current browser lifecycle contracts", () => {
+  it("loads only server-authorized employees for the selected roster outlet", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: "employee-1", nickname: "Aina", roster_eligible: true }], error: null });
+    await expect(dutyRosterService.listRosterEligibleEmployees(outletId)).resolves.toEqual([
+      { id: "employee-1", nickname: "Aina", roster_eligible: true },
+    ]);
+    expect(mocks.rpc).toHaveBeenCalledWith("list_roster_eligible_employees", { p_outlet_id: outletId });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
   it("maps a complete week snapshot to the single trusted RPC without browser roster DML", async () => {
     mocks.rpc.mockResolvedValueOnce({ data: { period: { id: "period-1", status: "draft" }, rows: [{ ...sourceRow, roster_date: "2026-08-10" }] }, error: null });
     await expect(dutyRosterService.saveRosterWeekSnapshot({

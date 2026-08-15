@@ -101,6 +101,14 @@ function buildPublishedPayload(status, snapshot) {
 }
 
 export const dutyRosterService = {
+  async listRosterEligibleEmployees(outletId) {
+    const { data, error } = await supabase.rpc("list_roster_eligible_employees", {
+      p_outlet_id: outletId,
+    });
+    throwSupabaseError("duty_rosters.list_eligible_employees", error);
+    return Array.isArray(data) ? data : [];
+  },
+
   async copyRosterWeek({ requestId, outletId, sourceWeekStartDate, targetWeekStartDate, overwrite }) {
     const { data, error } = await supabase.rpc("copy_roster_week", {
       p_request_id: requestId, p_outlet_id: outletId, p_source_week_start_date: sourceWeekStartDate,

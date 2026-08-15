@@ -8,7 +8,6 @@ import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
-import { employeeService } from "../../../services/employeeService.js";
 import { shiftTemplateService } from "../../../services/shiftTemplateService.js";
 import { dutyRosterService } from "../../../services/dutyRosterService.js";
 import { rosterPeriodService } from "../../../services/rosterPeriodService.js";
@@ -227,6 +226,7 @@ function snapshotEmployeeFromRoster(roster) {
     ...roster.employee_snapshot,
     id: roster.employee_id,
     is_roster_snapshot: true,
+    roster_eligible: false,
   };
 }
 
@@ -1466,6 +1466,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const publishedWeekRequestIdRef = useRef("");
   const copyRequestIdRef = useRef("");
   const statusRequestIdRef = useRef({});
+  const bulkSavingRef = useRef(false);
   const [weekStart, setWeekStart] = useState(() => toDateInputValue(startOfWeek(new Date())));
   const [viewMode, setViewMode] = useState("week");
   const [employees, setEmployees] = useState([]);
@@ -1479,6 +1480,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const [shiftDrawer, setShiftDrawer] = useState(null);
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedCells, setSelectedCells] = useState(() => new Set());
+  const [overwriteExisting, setOverwriteExisting] = useState(false);
   const [selectionAnchor, setSelectionAnchor] = useState(null);
   const [draggingSelection, setDraggingSelection] = useState(false);
   const [templateMenuOpen, setTemplateMenuOpen] = useState(false);
@@ -1543,6 +1545,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     setShiftDrawer(null);
     setSelectionMode(false);
     setSelectedCells(new Set());
+    setOverwriteExisting(false);
   }, [outletId]);
 
   useEffect(() => {
@@ -1570,7 +1573,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       setError("");
       try {
         const [employeeRows, positionRows, mappingRows, templateRows, allTemplateRows, rosterRows, nextPeriod] = await Promise.all([
-          employeeService.listEmployees(),
+          dutyRosterService.listRosterEligibleEmployees(outletId),
           jobPositionService.listJobPositions(),
           rosterPositionGroupService.listMappings(),
           shiftTemplateService.listShiftTemplates(outletId),
@@ -1581,9 +1584,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
             : rosterPeriodService.getRosterPeriod(outletId, weekDateValues[0]),
         ]);
         if (ignore) return;
-        setEmployees(employeeRows.filter((employee) => (
-          employee.is_active !== false && employee.employment_status === "active"
-        )));
+        setEmployees(employeeRows);
         setJobPositions(positionRows);
         setPositionMappings(mappingRows);
         setTemplates(templateRows.filter(isAssignableTemplate));
@@ -1637,6 +1638,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       rosterGroup: position ? mappedGroup || "other" : fallbackGroupFromDepartment(employee.department),
     };
   }), [displayEmployees, mappingByPositionId, positionByName]);
+  const employeesById = useMemo(() => new Map(employeesWithGroups.map((employee) => [employee.id, employee])), [employeesWithGroups]);
   const employeePositions = useMemo(() => [...new Set(employeesWithGroups.map((employee) => employee.position).filter(Boolean))].sort(), [employeesWithGroups]);
   const groupedEmployees = useMemo(() => {
     const groups = new Map();
@@ -1672,6 +1674,14 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   }, [rosters, visibleDateValues]);
 
   async function saveShift(employee, date, templateOverride = selectedTemplate, remark = "") {
+    if (employee?.roster_eligible === false) {
+      ui.notify({
+        title: "Employee cannot be scheduled",
+        message: `${employee.nickname || employee.full_name} is not currently eligible for this outlet. Update the employee's outlet assignment before scheduling.`,
+        tone: "error",
+      });
+      return;
+    }
     if (locked) {
       ui.notify({ title: "Roster is locked", message: "Unlock this roster before editing.", tone: "warning" });
       return;
@@ -1756,6 +1766,14 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
 
   function handleCellClick(employee, date) {
     if (readOnly) return;
+    if (employee?.roster_eligible === false) {
+      ui.notify({
+        title: "Employee cannot be scheduled",
+        message: `${employee.nickname || employee.full_name} is a historical roster snapshot and is not currently eligible for this outlet.`,
+        tone: "error",
+      });
+      return;
+    }
     const existing = rosterByEmployeeDate.get(rosterKey(employee.id, date));
     if (isLeaveRoster(existing)) {
       ui.notify({ title: "Approved leave", message: "This roster cell is controlled by Leave and cannot be edited here.", tone: "warning" });
@@ -1796,7 +1814,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         for (let column = dateStart; column <= dateEnd; column += 1) {
           const employee = visibleEmployees[row];
           const date = visibleDateValues[column];
-          if (employee && date) next.add(selectionKey(employee.id, date));
+          if (employee && employee.roster_eligible !== false && date) next.add(selectionKey(employee.id, date));
         }
       }
       return next;
@@ -1807,6 +1825,14 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     if (!selectionMode || readOnly) return;
     event.preventDefault();
     const employee = visibleEmployees[row];
+    if (employee?.roster_eligible === false) {
+      ui.notify({
+        title: "Employee cannot be selected",
+        message: `${employee.nickname || employee.full_name} is not currently eligible for this outlet.`,
+        tone: "error",
+      });
+      return;
+    }
     const date = visibleDateValues[column];
     const key = selectionKey(employee.id, date);
     if (event.metaKey || event.ctrlKey) {
@@ -1828,6 +1854,15 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   }
 
   function selectEmployeeRow(employeeId) {
+    const employee = employeesById.get(employeeId);
+    if (employee?.roster_eligible === false) {
+      ui.notify({
+        title: "Employee cannot be selected",
+        message: `${employee.nickname || employee.full_name} is not currently eligible for this outlet.`,
+        tone: "error",
+      });
+      return;
+    }
     setSelectedCells((current) => {
       const keys = visibleDateValues.map((date) => selectionKey(employeeId, date));
       const allSelected = keys.every((key) => current.has(key));
@@ -1839,7 +1874,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
 
   function selectDateColumn(date) {
     setSelectedCells((current) => {
-      const keys = visibleEmployees.map((employee) => selectionKey(employee.id, date));
+      const keys = visibleEmployees.filter((employee) => employee.roster_eligible !== false).map((employee) => selectionKey(employee.id, date));
       const allSelected = keys.every((key) => current.has(key));
       const next = new Set(current);
       keys.forEach((key) => allSelected ? next.delete(key) : next.add(key));
@@ -1849,22 +1884,48 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
 
   const selectedCellDetails = useMemo(() => [...selectedCells].map((key) => {
     const [employeeId, date] = key.split("|");
-    return { key, employeeId, date, roster: rosterByEmployeeDate.get(key) };
-  }), [rosterByEmployeeDate, selectedCells]);
+    return { key, employeeId, date, roster: rosterByEmployeeDate.get(key), employee: employeesById.get(employeeId) };
+  }), [employeesById, rosterByEmployeeDate, selectedCells]);
   const protectedSelectionCount = selectedCellDetails.filter((cell) => isLeaveRoster(cell.roster)).length;
-  const editableSelectionCount = selectedCellDetails.length - protectedSelectionCount;
+  const ineligibleSelectionCount = selectedCellDetails.filter((cell) => cell.employee?.roster_eligible === false).length;
+  const editableSelectionCount = selectedCellDetails.length - protectedSelectionCount - ineligibleSelectionCount;
+  const emptySelectionCount = selectedCellDetails.filter((cell) => !cell.roster && cell.employee?.roster_eligible !== false).length;
+  const existingWorkingSelectionCount = selectedCellDetails.filter((cell) => isWorkingRoster(cell.roster) && cell.employee?.roster_eligible !== false).length;
+  const overwriteConflictCount = selectedTemplate
+    ? selectedCellDetails.filter((cell) => (
+      isWorkingRoster(cell.roster)
+      && cell.roster?.shift_template_id !== selectedTemplate.id
+      && cell.employee?.roster_eligible !== false
+    )).length
+    : 0;
+
+  useEffect(() => {
+    setOverwriteExisting(false);
+  }, [selectedCells, selectedTemplateId]);
 
   async function applyTemplateToSelection(template) {
-    if (!template || !editableSelectionCount || saving) return;
-    const confirmed = await ui.confirm({
-      title: `Apply ${template.name}`,
-      message: `Update ${editableSelectionCount} selected roster cells? ${protectedSelectionCount ? `${protectedSelectionCount} approved leave cells will be preserved.` : ""}`,
-      confirmLabel: "Apply Template",
-    });
-    if (!confirmed) return;
+    if (!template || saving || bulkSavingRef.current) return;
+    if (ineligibleSelectionCount) {
+      ui.notify({
+        title: "Remove ineligible employees",
+        message: `${ineligibleSelectionCount} selected ${ineligibleSelectionCount === 1 ? "cell belongs" : "cells belong"} to an employee who is not eligible for this outlet.`,
+        tone: "error",
+      });
+      return;
+    }
+    if (!editableSelectionCount) return;
+    if (overwriteConflictCount && !overwriteExisting) {
+      ui.notify({
+        title: "Existing shifts selected",
+        message: `Enable overwrite to replace ${overwriteConflictCount} existing working ${overwriteConflictCount === 1 ? "shift" : "shifts"}.`,
+        tone: "warning",
+      });
+      return;
+    }
+    bulkSavingRef.current = true;
     setSaving(true);
     try {
-      const editable = selectedCellDetails.filter((cell) => !isLeaveRoster(cell.roster));
+      const editable = selectedCellDetails.filter((cell) => !isLeaveRoster(cell.roster) && cell.employee?.roster_eligible !== false);
       const byWeek = new Map();
       editable.forEach((cell) => {
         const week = toDateInputValue(startOfWeek(`${cell.date}T00:00:00`));
@@ -1885,11 +1946,14 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       }
       setSelectedTemplateId(template.id);
       setTemplateMenuOpen(false);
-      ui.notify({ title: "Bulk assignment saved", message: `${editableSelectionCount} cells updated. Approved leave was preserved.` });
+      setSelectedCells(new Set());
+      setOverwriteExisting(false);
+      ui.notify({ title: "Bulk assignment saved", message: `${editableSelectionCount} ${editableSelectionCount === 1 ? "shift" : "shifts"} updated.` });
     } catch (bulkError) {
       console.error("Unable to bulk assign duty roster", bulkError);
       ui.notify({ title: "Unable to bulk assign", message: bulkError.message || "Please try again.", tone: "error" });
     } finally {
+      bulkSavingRef.current = false;
       setSaving(false);
     }
   }
@@ -2352,7 +2416,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                                   <div className="truncate font-bold text-text-primary">{employee.nickname || employee.full_name}</div>
                                   <div className="mt-1 truncate text-xs text-text-secondary">{employee.position || "Employee"}</div>
                                   {employee.is_roster_snapshot ? (
-                                    <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
+                                    <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-amber-700">Historical snapshot · not schedulable</div>
                                   ) : null}
                                 </div>
                                 {selectionMode ? <button className="rounded-lg border border-primary/20 bg-primary/5 px-2 py-1 text-[10px] font-bold text-primary hover:bg-primary/10" type="button" onClick={() => selectEmployeeRow(employee.id)}>Select row</button> : null}
@@ -2362,14 +2426,15 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                               const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
                               const cellSelected = selectedCells.has(rosterKey(employee.id, dateValue));
                               const protectedLeave = isLeaveRoster(roster);
+                              const ineligibleEmployee = employee.roster_eligible === false;
                               return (
                                 <td key={dateValue} className="group border-l border-border px-1.5 py-1.5 align-top">
                                   <div
-                                    className={`${viewMode === "month" ? "min-h-[62px]" : "min-h-[72px]"} w-full select-none rounded-xl border p-1.5 text-left transition ${protectedLeave ? "border-sky-200 bg-sky-50/60" : "border-dashed border-border bg-background/50"} ${!readOnly ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : ""} ${cellSelected ? "border-primary bg-primary/10 ring-2 ring-primary/30" : ""}`}
+                                    className={`${viewMode === "month" ? "min-h-[62px]" : "min-h-[72px]"} w-full select-none rounded-xl border p-1.5 text-left transition ${protectedLeave ? "border-sky-200 bg-sky-50/60" : ineligibleEmployee ? "border-amber-200 bg-amber-50/50" : "border-dashed border-border bg-background/50"} ${!readOnly && !ineligibleEmployee ? "cursor-pointer hover:border-primary/50 hover:bg-primary/5" : "cursor-not-allowed"} ${cellSelected ? "border-primary bg-primary/10 ring-2 ring-primary/30" : ""}`}
                                     role="button"
-                                    tabIndex={readOnly ? -1 : 0}
-                                    aria-disabled={readOnly}
-                                    aria-label={`${employee.nickname || employee.full_name}, ${dateValue}${roster?.template ? `, ${roster.template.name}` : ", unassigned"}${protectedLeave ? ", protected leave" : ""}`}
+                                    tabIndex={readOnly || ineligibleEmployee ? -1 : 0}
+                                    aria-disabled={readOnly || ineligibleEmployee}
+                                    aria-label={`${employee.nickname || employee.full_name}, ${dateValue}${roster?.template ? `, ${roster.template.name}` : ", unassigned"}${protectedLeave ? ", protected leave" : ""}${ineligibleEmployee ? ", not eligible for this outlet" : ""}`}
                                     onPointerDown={(event) => beginCellSelection(event, employeeRowIndex, columnIndex)}
                                     onPointerEnter={() => extendCellSelection(employeeRowIndex, columnIndex)}
                                     onClick={() => { if (!selectionMode) handleCellClick(employee, dateValue); }}
@@ -2420,13 +2485,14 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                           <div className="space-y-2">
                             {group.employees.map((employee) => {
                               const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
+                              const ineligibleEmployee = employee.roster_eligible === false;
                               return (
                                 <div
                                   key={`${dateValue}-${employee.id}`}
-                                  className="flex w-full items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-3 text-left"
+                                  className={`flex w-full items-center justify-between gap-3 rounded-2xl border p-3 text-left ${ineligibleEmployee ? "border-amber-200 bg-amber-50/50" : "border-border bg-surface"}`}
                                   role="button"
-                                  tabIndex={readOnly ? -1 : 0}
-                                  aria-disabled={readOnly}
+                                  tabIndex={readOnly || ineligibleEmployee ? -1 : 0}
+                                  aria-disabled={readOnly || ineligibleEmployee}
                                   onClick={() => handleCellClick(employee, dateValue)}
                                   onKeyDown={(event) => {
                                     if (!readOnly && (event.key === "Enter" || event.key === " ")) handleCellClick(employee, dateValue);
@@ -2436,7 +2502,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                                     <div className="text-sm font-bold text-text-primary">{employee.nickname || employee.full_name}</div>
                                     <div className="text-xs text-text-secondary">{employee.position || "Employee"}</div>
                                     {employee.is_roster_snapshot ? (
-                                      <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
+                                      <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-amber-700">Historical snapshot · not schedulable</div>
                                     ) : null}
                                   </div>
                                   <ShiftBlock roster={roster} />
@@ -2455,16 +2521,27 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         </Card>
       </div>
 
-      {selectionMode ? <div className="sticky bottom-4 z-40 mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-surface/95 px-4 py-3 shadow-2xl backdrop-blur">
+      {selectionMode ? <div className="sticky bottom-4 z-40 mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-surface/95 px-4 py-2.5 shadow-lg backdrop-blur">
         <div>
-          <div className="text-sm font-bold text-text-primary">{selectedCells.size} cells selected</div>
-          <div className="mt-0.5 text-xs font-semibold text-text-secondary">{editableSelectionCount} editable · {protectedSelectionCount} protected leave</div>
+          <div className="text-sm font-bold text-text-primary">{selectedCells.size} {selectedCells.size === 1 ? "cell" : "cells"} selected</div>
+          <div className="mt-0.5 text-xs font-semibold text-text-secondary">{emptySelectionCount} empty · {existingWorkingSelectionCount} existing shifts · {protectedSelectionCount} protected leave{ineligibleSelectionCount ? ` · ${ineligibleSelectionCount} ineligible` : ""}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setSelectedCells(new Set())}>Clear</button>
+          <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => { setSelectedCells(new Set()); setOverwriteExisting(false); }}>Clear</button>
           <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!editableSelectionCount || saving} onClick={repeatSelectedShifts}><Repeat2 size={14} /> Repeat Selected Shifts</button>
           <SelectField ariaLabel="Bulk shift template" value={selectedTemplateId} options={assignableTemplates.map((template) => ({ value: template.id, label: `${template.name} · ${shiftTimeLabel(template)}` }))} onChange={setSelectedTemplateId} placeholder="Choose template" buttonClassName="h-9 min-w-[190px] text-xs" />
-          <button className="btn-primary h-9 px-4 text-xs" type="button" disabled={!selectedTemplate || !editableSelectionCount || saving} onClick={() => applyTemplateToSelection(selectedTemplate)}>{saving ? "Applying..." : `Apply to ${editableSelectionCount}`}</button>
+          {overwriteConflictCount ? (
+            <button
+              className={`${overwriteExisting ? "border-amber-300 bg-amber-50 text-amber-800" : "btn-secondary"} h-9 rounded-xl border px-3 text-xs font-semibold`}
+              type="button"
+              aria-pressed={overwriteExisting}
+              disabled={saving}
+              onClick={() => setOverwriteExisting((current) => !current)}
+            >
+              {overwriteExisting ? `Overwrite enabled (${overwriteConflictCount})` : `Allow overwrite (${overwriteConflictCount})`}
+            </button>
+          ) : null}
+          <button className="btn-primary h-9 px-4 text-xs" type="button" disabled={!selectedTemplate || !editableSelectionCount || Boolean(ineligibleSelectionCount) || Boolean(overwriteConflictCount && !overwriteExisting) || saving} onClick={() => applyTemplateToSelection(selectedTemplate)}>{saving ? "Applying..." : `Apply to ${editableSelectionCount}`}</button>
         </div>
       </div> : null}
 
