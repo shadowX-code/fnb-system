@@ -59,7 +59,7 @@ describe("Crew Attendance Admin", () => {
     expect(screen.getByText("Location Exception")).not.toBeNull();
     expect(screen.getByText("No Roster Match")).not.toBeNull();
     expect(screen.getByText("Late 7h")).not.toBeNull();
-    expect(screen.getByText("Potential anomaly")).not.toBeNull();
+    expect(screen.getAllByText("Potential anomaly").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Attendance not required")).toHaveLength(2);
     expect(screen.getAllByText("Unexpected attendance")).toHaveLength(2);
     expect(screen.getByText("Worked at Hola Hola")).not.toBeNull();

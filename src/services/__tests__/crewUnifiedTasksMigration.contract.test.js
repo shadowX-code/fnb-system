@@ -11,6 +11,7 @@ const confirmationFix = readFileSync(resolve("supabase/migrations/20260814071808
 const lifecycle = readFileSync(resolve("supabase/migrations/20260814100940_crew_task_lifecycle_results.sql"), "utf8");
 const lifecycleGuardFix = readFileSync(resolve("supabase/migrations/20260814102750_crew_task_lifecycle_guard_fix.sql"), "utf8");
 const duplicateEndDateFix = readFileSync(resolve("supabase/migrations/20260814103401_crew_task_duplicate_end_date_fix.sql"), "utf8");
+const canonicalVersions = readFileSync(resolve("supabase/migrations/20260815033250_crew_task_canonical_versions.sql"), "utf8");
 
 describe("Crew unified Tasks migration contract", () => {
   it("adds one versioned Task model without deleting legacy Operations history", () => {
@@ -88,5 +89,22 @@ describe("Crew unified Tasks migration contract", () => {
     expect(duplicateEndDateFix).toContain("set search_path=public");
     expect(duplicateEndDateFix).toContain("revoke all on function public.crew_tasks_duplicate(uuid) from public,anon,authenticated");
     expect(duplicateEndDateFix).toContain("grant execute on function public.crew_tasks_duplicate(uuid) to authenticated");
+  });
+
+  it("enforces one Draft per logical Task and exposes canonical series reads", () => {
+    expect(canonicalVersions).toContain("crew_operation_templates_one_draft_per_series_idx");
+    expect(canonicalVersions).toContain("where status='draft'");
+    expect(canonicalVersions).toContain("create or replace function public.crew_tasks_ensure_draft");
+    expect(canonicalVersions).toContain("pg_advisory_xact_lock");
+    expect(canonicalVersions).toContain("public.current_user_has_permission('crew_operations.manage')");
+    expect(canonicalVersions).toContain("public.current_user_can_access_outlet(v_source.outlet_id)");
+    expect(canonicalVersions).toContain("'current_version'");
+    expect(canonicalVersions).toContain("'draft_version'");
+    expect(canonicalVersions).toContain("'versions',v_versions");
+    expect(canonicalVersions).toContain("'has_result'");
+    expect(canonicalVersions).toContain("set search_path=public");
+    expect(canonicalVersions).toContain("revoke all on function public.crew_tasks_ensure_draft(uuid) from public,anon,authenticated");
+    expect(canonicalVersions).toContain("grant execute on function public.crew_tasks_ensure_draft(uuid) to authenticated");
+    expect(canonicalVersions).not.toMatch(/delete from public\.crew_(?:operation_templates|operation_instances|task_item_responses)/);
   });
 });

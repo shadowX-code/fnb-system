@@ -239,6 +239,12 @@ export const crewService = {
     return data;
   },
 
+  async ensureTaskDraft(templateId) {
+    const { data, error } = await supabase.rpc("crew_tasks_ensure_draft", { p_template_id: templateId });
+    throwSupabaseError("crew.ensureTaskDraft", error);
+    return data;
+  },
+
   async duplicateTask(templateId) {
     const { data, error } = await supabase.rpc("crew_tasks_duplicate", { p_template_id: templateId });
     throwSupabaseError("crew.duplicateTask", error);
