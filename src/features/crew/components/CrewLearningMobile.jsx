@@ -86,6 +86,12 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
     loadHome();
   }, [token]);
 
+  useEffect(() => {
+    if (screen !== "sop" && screen !== "lesson-sop") return;
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [screen, sop?.id]);
+
   function openLesson(nextLesson) {
     setError("");
     setLesson(nextLesson);

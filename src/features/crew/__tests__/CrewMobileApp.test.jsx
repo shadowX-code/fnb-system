@@ -269,6 +269,8 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByLabelText("SOP metadata").textContent).toContain("Service");
     expect(screen.getByLabelText("SOP metadata").textContent).toContain("v3");
     expect(screen.getByLabelText("SOP metadata").textContent).toContain("Acknowledgement required");
+    expect(document.documentElement.scrollTop).toBe(0);
+    expect(document.body.scrollTop).toBe(0);
   });
 
   it("renders ready, on-shift and completed Home attendance from the existing attendance authority", async () => {
