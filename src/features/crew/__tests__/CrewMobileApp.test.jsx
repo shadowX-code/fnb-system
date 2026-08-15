@@ -243,6 +243,7 @@ describe("Crew Mobile redesign", () => {
     render(<CrewMobileApp />);
     fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
     expect(await screen.findByRole("button", { name: /Unlock guest entrance/ })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Opening Checklist" }).closest(".crew-mobile-detail-header")).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Today’s Tasks" })).toBeNull();
     expect(mocks.operationDetail).toHaveBeenCalledWith("crew-token", "ops-1");
     expect(mocks.operationsToday).toHaveBeenCalledWith("crew-token");
