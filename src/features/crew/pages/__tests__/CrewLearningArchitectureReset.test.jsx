@@ -372,7 +372,7 @@ describe("Crew mobile Learn reset", () => {
     expect(screen.getByRole("heading", { name: "SOPs (1)" })).not.toBeNull();
     expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
     expect(screen.getByText("Required")).not.toBeNull();
-    expect(screen.getByText("Acknowledge")).not.toBeNull();
+    expect(screen.getByText("I acknowledge this SOP")).not.toBeNull();
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
   });
 
@@ -406,7 +406,7 @@ describe("Crew mobile Learn reset", () => {
   it("opens an SOP from the compact library row and preserves the controlled acknowledgement flow", async () => {
     render(<CrewLearningMobile token="crew-token" />);
     fireEvent.click(await screen.findByRole("button", { name: "Open Welcome & Goodbye Standard" }));
-    expect(await screen.findByRole("heading", { name: "Welcome & Goodbye Standard" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Welcome & Goodbye Standard", level: 1 })).not.toBeNull();
     expect(screen.getByText("Welcome every guest warmly.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "I acknowledge this SOP" }));
     await waitFor(() => expect(mocks.acknowledgeSop).toHaveBeenCalledWith("crew-token", "version-1", "direct_library"));

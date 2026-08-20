@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import "../../../i18n/index.js";
 import {
   ArrowLeft,
   BookOpenCheck,
@@ -36,6 +38,7 @@ function richBlock(block) {
 }
 
 export default function CrewLearningMobile({ token, onRefreshHome }) {
+  const { t } = useTranslation();
   const [home, setHome] = useState(null);
   const [assignment, setAssignment] = useState(null);
   const [library, setLibrary] = useState({ categories: [], sops: [] });
@@ -76,7 +79,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
       }
       onRefreshHome?.(nextHome);
     } catch (cause) {
-      setError(cause.message || "Unable to load Learn.");
+      setError(cause.message || t("learn.unable"));
     } finally {
       setLoading(false);
     }
@@ -132,7 +135,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
         ),
       }));
     } catch (cause) {
-      setError(cause.message || "Unable to acknowledge this SOP.");
+      setError(cause.message || t("errors.acknowledgeSop"));
     } finally {
       setSaving(false);
     }
@@ -204,7 +207,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
   if (loading) {
     return (
       <section className="crew-learning-loading" aria-live="polite">
-        Loading Learn…
+        {t("learn.loading")}
       </section>
     );
   }
@@ -266,42 +269,43 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
 }
 
 function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
+  const { t } = useTranslation();
   if (!assignment) {
     return (
       <section className="crew-learning-empty">
-        <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> Learn</button>
+        <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> {t("learn.title")}</button>
         <ClipboardCheck size={28} />
-        <h2>Onboarding is not published yet.</h2>
-        <p>Your outlet manager is preparing the eight-module setup.</p>
+        <h2>{t("learn.onboardingPending")}</h2>
+        <p>{t("learn.onboardingPendingBody")}</p>
       </section>
     );
   }
   return (
     <section className="crew-learning-home">
-      <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> Learn</button>
+      <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> {t("learn.title")}</button>
       {error && <p className="crew-mobile-error">{error}</p>}
       <div className="crew-learning-hero">
-        <span>Mandatory onboarding</span>
+        <span>{t("learn.mandatory")}</span>
         <h2>{assignment.journey?.name || "New Crew Onboarding"}</h2>
-        <p>{assignment.status === "completed" ? "Completed · review anytime" : assignment.journey?.description}</p>
+        <p>{assignment.status === "completed" ? t("learn.completedReview") : assignment.journey?.description}</p>
         <div>
           <strong>{home?.assignment?.lessons_completed || 0}/{home?.assignment?.lessons_total || 0}</strong>
           <Progress value={home?.assignment?.progress_percentage || 0} />
         </div>
       </div>
-      <div className="crew-learning-section-title"><h2>Modules</h2><span>{assignment.modules?.length || 0}</span></div>
+      <div className="crew-learning-section-title"><h2>{t("learn.modulesTitle")}</h2><span>{assignment.modules?.length || 0}</span></div>
       {assignment.modules?.map((module, index) => (
         <section className={module.locked ? "crew-learning-module is-locked" : "crew-learning-module"} key={module.module?.id}>
           <div className="crew-module-head">
             <span className="crew-module-order">{String(index + 1).padStart(2, "0")}</span>
-            <div><h3>{module.module?.title}</h3><p>{module.progress_percentage}% complete</p></div>
+            <div><h3>{module.module?.title}</h3><p>{t("learn.percentComplete", { count: module.progress_percentage })}</p></div>
             {module.completed ? <CheckCircle2 size={20} /> : module.locked ? <LockKeyhole size={18} /> : <BookOpenCheck size={20} />}
           </div>
           <Progress value={module.progress_percentage} />
           {module.lessons?.map((item) => (
             <button key={item.lesson?.id} className={item.locked ? "crew-lesson-row is-locked" : "crew-lesson-row"} disabled={item.locked} onClick={() => onOpenLesson({ ...item, moduleTitle: module.module?.title })}>
               <span className="crew-lesson-marker">{item.completed ? <CheckCircle2 size={16} /> : item.locked ? <LockKeyhole size={15} /> : <PlayCircle size={16} />}</span>
-              <span><strong>{item.lesson?.title}</strong><small>{item.completed ? "Completed · review" : item.locked ? "Complete earlier required learning" : item.quiz?.required ? "Lesson + knowledge check" : "Ready to learn"}</small></span>
+              <span><strong>{item.lesson?.title}</strong><small>{item.completed ? t("learn.completedReview") : item.locked ? t("learn.completeEarlier") : item.quiz?.required ? t("learn.lessonQuiz") : t("learn.readyLearn")}</small></span>
               <ChevronRight size={17} />
             </button>
           ))}
@@ -313,15 +317,16 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
 
 
 function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
+  const { t } = useTranslation();
   if (!sop) return null;
   const acknowledgement = sop.acknowledgement_required
-    ? sop.acknowledged ? "Acknowledged" : "Acknowledgement required"
-    : "No acknowledgement required";
+    ? sop.acknowledged ? t("learn.acknowledged") : t("learn.acknowledgementRequired")
+    : t("learn.noAcknowledgement");
   return (
     <section className="crew-learning-reader">
       <CrewMobileDetailHeader title={sop.title} onBack={onBack} className="crew-sop-mobile-nav" />
       <header className="crew-sop-mobile-intro">
-        <div className="crew-sop-mobile-meta" aria-label="SOP metadata">
+        <div className="crew-sop-mobile-meta" aria-label={t("learn.metadata")}>
           <span>{sop.category || "Other"}</span>
           <span>v{sop.version}</span>
           <span className={sop.acknowledged ? "is-acknowledged" : ""}>{acknowledgement}</span>
@@ -334,43 +339,44 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
       {sop.acknowledgement_required && (
         sop.acknowledged
           ? (
-            <div className="crew-sop-acknowledged" role="status" aria-label="SOP acknowledged">
+            <div className="crew-sop-acknowledged" role="status" aria-label={t("learn.acknowledgedTitle")}>
               <span className="crew-sop-acknowledged-icon" aria-hidden="true"><CheckCircle2 size={20} /></span>
               <span>
-                <strong>SOP acknowledged</strong>
-                <small>You’ve confirmed version {sop.version}. You can review it anytime.</small>
+                <strong>{t("learn.acknowledgedTitle")}</strong>
+                <small>{t("learn.acknowledgedBody", { version: sop.version })}</small>
               </span>
             </div>
           )
-          : <button className="crew-mobile-primary" disabled={saving} onClick={onAcknowledge}>{saving ? "Saving…" : "I acknowledge this SOP"}</button>
+          : <button className="crew-mobile-primary" disabled={saving} onClick={onAcknowledge}>{saving ? t("common.saving") : t("learn.acknowledge")}</button>
       )}
     </section>
   );
 }
 
 function LessonReader({ token, lesson, activeLesson, answers, result, saving, error, onBack, onOpenSop, onChoose, onSubmitQuiz, onComplete }) {
+  const { t } = useTranslation();
   return (
     <section className="crew-learning-reader">
-      <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> Onboarding</button>
-      <span className="crew-learning-kicker">{lesson.moduleTitle || "Module lesson"}</span>
+      <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> {t("learn.onboarding")}</button>
+      <span className="crew-learning-kicker">{lesson.moduleTitle || t("learn.moduleLesson")}</span>
       <h2>{lesson.lesson.title}</h2>
-      <p className="crew-learning-summary">{lesson.lesson.estimated_minutes ? `${lesson.lesson.estimated_minutes} min` : "Complete at your own pace"}</p>
+      <p className="crew-learning-summary">{lesson.lesson.estimated_minutes ? t("learn.minutes", { count: lesson.lesson.estimated_minutes }) : t("learn.ownPace")}</p>
       {lesson.blocks?.map((block) =>
         block.block_type === "sop_reference" ? (
           <button key={block.id} className="crew-sop-link" onClick={() => onOpenSop(block.payload?.sop_version_id)}>
-            <FileText size={18} /><span><strong>{block.payload?.title || "Required SOP"}</strong><small>Version {block.payload?.version || "—"}{block.payload?.required_acknowledgement ? " · acknowledgement required" : ""}</small></span><ChevronRight size={18} />
+            <FileText size={18} /><span><strong>{block.payload?.title || t("learn.requiredSop")}</strong><small>{t("learn.version", { version: block.payload?.version || "—" })}{block.payload?.required_acknowledgement ? ` · ${t("learn.acknowledgementRequired")}` : ""}</small></span><ChevronRight size={18} />
           </button>
         ) : (
-          <article key={block.id} className={`crew-content-block is-${block.block_type}`}><span>{block.block_type === "key_point" ? "Key point" : "Lesson"}</span><CrewRichContent html={richBlock(block)} />{block.payload?.media ? <CrewLearningImage token={token} media={block.payload.media} /> : null}</article>
+          <article key={block.id} className={`crew-content-block is-${block.block_type}`}><span>{block.block_type === "key_point" ? t("tasks.types.key_point") : t("learn.lesson")}</span><CrewRichContent html={richBlock(block)} />{block.payload?.media ? <CrewLearningImage token={token} media={block.payload.media} /> : null}</article>
         ),
       )}
       {activeLesson?.quiz && (
         <section className="crew-quiz">
-          <div><span className="crew-learning-kicker">Knowledge check</span><h3>{activeLesson.quiz.title}</h3><p>Pass score: {activeLesson.quiz.passing_score}%</p></div>
+          <div><span className="crew-learning-kicker">{t("learn.knowledgeCheck")}</span><h3>{activeLesson.quiz.title}</h3><p>{t("learn.passScore", { score: activeLesson.quiz.passing_score })}</p></div>
           {activeLesson.quiz.questions?.map((question, index) => (
             <fieldset key={question.id}>
               <legend>{index + 1}. {question.prompt}</legend>
-              <small>{question.question_type === "multiple_choice" ? "Select all that apply" : "Select one answer"}</small>
+              <small>{question.question_type === "multiple_choice" ? t("learn.selectAll") : t("learn.selectOne")}</small>
               {question.options?.map((option) => (
                 <label key={option.id} className={answers[question.id]?.includes(option.id) ? "is-selected" : ""}>
                   <input type={question.question_type === "multiple_choice" ? "checkbox" : "radio"} name={question.id} checked={Boolean(answers[question.id]?.includes(option.id))} onChange={() => onChoose(question, option.id)} />{option.label}
@@ -378,11 +384,11 @@ function LessonReader({ token, lesson, activeLesson, answers, result, saving, er
               ))}
             </fieldset>
           ))}
-          {result ? <div className={result.passed ? "crew-quiz-result is-pass" : "crew-quiz-result is-retry"}><strong>{result.passed ? "Passed" : "Try again"}</strong><span>{result.score}% · Attempt {result.attempt_number}</span></div> : <button className="crew-mobile-primary" disabled={saving} onClick={onSubmitQuiz}>{saving ? "Checking…" : "Submit quiz"}</button>}
+          {result ? <div className={result.passed ? "crew-quiz-result is-pass" : "crew-quiz-result is-retry"}><strong>{result.passed ? t("learn.passed") : t("common.retry")}</strong><span>{result.score}% · {t("learn.attempt", { number: result.attempt_number })}</span></div> : <button className="crew-mobile-primary" disabled={saving} onClick={onSubmitQuiz}>{saving ? t("learn.checking") : t("learn.submitQuiz")}</button>}
         </section>
       )}
       {error && <p className="crew-mobile-error">{error}</p>}
-      <button className="crew-mobile-primary crew-complete-lesson" disabled={saving || Boolean(activeLesson?.locked)} onClick={onComplete}>{lesson.completed ? "Completed" : saving ? "Saving…" : "Complete lesson"}</button>
+      <button className="crew-mobile-primary crew-complete-lesson" disabled={saving || Boolean(activeLesson?.locked)} onClick={onComplete}>{lesson.completed ? t("status.completed") : saving ? t("common.saving") : t("learn.completeLesson")}</button>
     </section>
   );
 }

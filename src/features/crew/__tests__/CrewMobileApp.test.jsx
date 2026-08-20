@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../services/crewService.js", () => ({ crewService: mocks }));
 
 import CrewMobileApp from "../CrewMobileApp.jsx";
+import i18n from "../../../i18n/index.js";
 
 const session = {
   token: "crew-token",
@@ -73,9 +74,22 @@ beforeEach(() => {
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
 });
 
-afterEach(cleanup);
+afterEach(async () => { cleanup(); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it("changes and persists the Crew system language from Me Settings", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /Language/ }));
+    fireEvent.click(screen.getByRole("button", { name: "简体中文" }));
+
+    expect(await screen.findByRole("heading", { name: "设置" })).not.toBeNull();
+    expect(screen.getByRole("navigation", { name: "员工导航" }).textContent).toContain("首页");
+    expect(localStorage.getItem("feedx.crew.language")).toBe("zh-CN");
+  });
+
   it("organizes Me as a profile hub with two real quick statuses and grouped navigation", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myAttendance.mockResolvedValueOnce([

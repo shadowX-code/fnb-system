@@ -1,17 +1,8 @@
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
 import scheduleCalendar from "../../../assets/crew/schedule-calendar.png";
-
-const ENTRY_LABELS = {
-  working: "Working Shift",
-  off: "OFF",
-  leave: "Annual Leave",
-  medical: "MC",
-  annual_leave: "Annual Leave",
-  medical_leave: "Medical Leave",
-  unpaid_leave: "Unpaid Leave",
-  other_leave: "Other Leave",
-};
+import { crewLocale, formatCrewDate } from "../utils/crewI18n.js";
 
 const parseDate = (value) => new Date(`${value}T00:00:00`);
 const dateKey = (date) => {
@@ -23,11 +14,11 @@ const dateKey = (date) => {
 const formatRosterTime = (value) => {
   if (!value) return "—";
   const [hours, minutes] = String(value).split(":").map(Number);
-  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit" });
+  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString(crewLocale(), { hour: "numeric", minute: "2-digit" });
 };
-const entryLabel = (entry) => ENTRY_LABELS[entry?.entry_type] || entry?.template?.name || "Working";
-const entryOutlet = (entry) => entry?.outlet?.name || entry?.outlet_name || "Your outlet";
-const entryRole = (entry, employee) => entry?.position || employee?.position || "Crew Member";
+const entryLabel = (entry, t) => ({ working: t("schedule.working"), off: t("schedule.off"), leave: t("schedule.annualLeave"), medical: "MC", annual_leave: t("schedule.annualLeave"), medical_leave: t("schedule.medicalLeave"), unpaid_leave: t("schedule.unpaidLeave"), other_leave: t("schedule.otherLeave") }[entry?.entry_type] || entry?.template?.name || t("schedule.working"));
+const entryOutlet = (entry, t) => entry?.outlet?.name || entry?.outlet_name || t("home.yourOutlet");
+const entryRole = (entry, employee, t) => entry?.position || employee?.position || t("home.crewMember");
 const entryTone = (entry) => {
   if (!entry) return "none";
   if (entry.entry_type === "working") return "working";
@@ -74,31 +65,36 @@ export default function CrewScheduleMobile({ roster, employee, onBack }) {
 }
 
 export function CrewScheduleHeader({ onBack, onToday }) {
-  return <header className="crew-schedule-final-header"><button type="button" onClick={onBack} aria-label="Back"><ArrowLeft size={20} /></button><h1>My Schedule</h1><button type="button" onClick={onToday} aria-label="Jump to today"><CalendarDays size={20} /></button></header>;
+  const { t } = useTranslation();
+  return <header className="crew-schedule-final-header"><button type="button" onClick={onBack} aria-label={t("common.back")}><ArrowLeft size={20} /></button><h1>{t("schedule.title")}</h1><button type="button" onClick={onToday} aria-label={t("schedule.jumpToday")}><CalendarDays size={20} /></button></header>;
 }
 
 export function CrewScheduleWeekStrip({ days, selectedDate, onSelect }) {
-  return <div className="crew-schedule-final-week" aria-label="Schedule week">{days.map(({ key, date, entry }) => <button key={key} type="button" className={selectedDate === key ? "is-selected" : ""} onClick={() => onSelect(key)} aria-label={`${date.toLocaleDateString("en-MY", { weekday: "long", day: "numeric", month: "long" })}, ${entry ? entryLabel(entry) : "No published schedule"}`} aria-pressed={selectedDate === key}><small>{date.toLocaleDateString("en-MY", { weekday: "short" })}</small><strong>{date.getDate()}</strong><i className={`is-${entryTone(entry)}`} /></button>)}</div>;
+  const { t } = useTranslation();
+  return <div className="crew-schedule-final-week" aria-label={t("schedule.title")}>{days.map(({ key, date, entry }) => <button key={key} type="button" className={selectedDate === key ? "is-selected" : ""} onClick={() => onSelect(key)} aria-label={`${formatCrewDate(date, { weekday: "long", day: "numeric", month: "long" })}, ${entry ? entryLabel(entry, t) : t("schedule.noSchedule")}`} aria-pressed={selectedDate === key}><small>{formatCrewDate(date, { weekday: "short" })}</small><strong>{date.getDate()}</strong><i className={`is-${entryTone(entry)}`} /></button>)}</div>;
 }
 
 export function CrewScheduleDayCard({ date, entry, employee, today }) {
+  const { t } = useTranslation();
   const value = parseDate(date);
   const working = entry?.entry_type === "working";
   const hours = durationHours(entry);
-  const title = entry ? working ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : entryLabel(entry) : "No published shift";
-  const contextLabel = `${date === today ? "Today, " : ""}${value.toLocaleDateString("en-MY", { weekday: "short", day: "numeric", month: "short" })}`;
-  return <article className={`crew-schedule-final-day is-${entryTone(entry)}`}><div className="crew-schedule-final-day-copy"><span className="crew-schedule-final-date-label">{contextLabel}</span><h2>{title}</h2>{entry ? <p><MapPin size={15} /> <span>{entryOutlet(entry)} · {entryRole(entry, employee)}{working && hours !== null ? ` · ${hours} hrs` : ""}</span></p> : <p>No roster entry for this day.</p>}</div><CrewScheduleStatusBadge entry={entry} label={entry ? working ? "Upcoming" : entryLabel(entry) : "No Schedule"} /><img src={scheduleCalendar} alt="" aria-hidden="true" /></article>;
+  const title = entry ? working ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : entryLabel(entry, t) : t("schedule.noSchedule");
+  const contextLabel = `${date === today ? `${t("common.today")}, ` : ""}${formatCrewDate(value, { weekday: "short", day: "numeric", month: "short" })}`;
+  return <article className={`crew-schedule-final-day is-${entryTone(entry)}`}><div className="crew-schedule-final-day-copy"><span className="crew-schedule-final-date-label">{contextLabel}</span><h2>{title}</h2>{entry ? <p><MapPin size={15} /> <span>{entryOutlet(entry, t)} · {entryRole(entry, employee, t)}{working && hours !== null ? ` · ${t("schedule.hours", { count: hours })}` : ""}</span></p> : <p>{t("schedule.noScheduleBody")}</p>}</div><CrewScheduleStatusBadge entry={entry} label={entry ? working ? t("schedule.upcomingStatus") : entryLabel(entry, t) : t("schedule.noSchedule")} /><img src={scheduleCalendar} alt="" aria-hidden="true" /></article>;
 }
 
 export function CrewScheduleList({ entries, employee, selectedDate }) {
-  return <section className="crew-schedule-final-upcoming"><header><h2>Upcoming Schedule</h2><span>Next 14 days</span></header>{entries.length ? <div className="crew-schedule-final-list">{entries.map((entry) => <CrewScheduleListItem key={entry.id} entry={entry} employee={employee} selected={entry.date === selectedDate} />)}</div> : <div className="crew-schedule-final-empty"><strong>No upcoming published schedule</strong><span>Your next published roster will appear here.</span></div>}</section>;
+  const { t } = useTranslation();
+  return <section className="crew-schedule-final-upcoming"><header><h2>{t("schedule.upcoming")}</h2><span>{t("schedule.nextDays")}</span></header>{entries.length ? <div className="crew-schedule-final-list">{entries.map((entry) => <CrewScheduleListItem key={entry.id} entry={entry} employee={employee} selected={entry.date === selectedDate} />)}</div> : <div className="crew-schedule-final-empty"><strong>{t("schedule.noSchedule")}</strong><span>{t("schedule.noScheduleBody")}</span></div>}</section>;
 }
 
 export function CrewScheduleListItem({ entry, employee, selected }) {
+  const { t } = useTranslation();
   const date = parseDate(entry.date);
   const working = entry.entry_type === "working";
   const hours = durationHours(entry);
-  return <article className={`crew-schedule-final-row is-${entryTone(entry)} ${selected ? "is-selected" : ""}`}><time dateTime={entry.date}><strong>{date.toLocaleDateString("en-MY", { weekday: "short" })}</strong><small>{date.toLocaleDateString("en-MY", { day: "numeric", month: "short" })}</small></time><i className="crew-schedule-final-timeline" /><div className="crew-schedule-final-row-copy"><strong>{working ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : entryLabel(entry)}</strong><small>{working && <MapPin size={13} />}{entryOutlet(entry)}{working ? <><span>{entryRole(entry, employee)} · {hours ?? "—"} hrs</span></> : ` · ${entryRole(entry, employee)}`}</small></div><CrewScheduleStatusBadge entry={entry} label={working ? "Upcoming" : entryLabel(entry)} /></article>;
+  return <article className={`crew-schedule-final-row is-${entryTone(entry)} ${selected ? "is-selected" : ""}`}><time dateTime={entry.date}><strong>{formatCrewDate(date, { weekday: "short" })}</strong><small>{formatCrewDate(date, { day: "numeric", month: "short" })}</small></time><i className="crew-schedule-final-timeline" /><div className="crew-schedule-final-row-copy"><strong>{working ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : entryLabel(entry, t)}</strong><small>{working && <MapPin size={13} />}{entryOutlet(entry, t)}{working ? <><span>{entryRole(entry, employee, t)} · {t("schedule.hours", { count: hours ?? "—" })}</span></> : ` · ${entryRole(entry, employee, t)}`}</small></div><CrewScheduleStatusBadge entry={entry} label={working ? t("schedule.upcomingStatus") : entryLabel(entry, t)} /></article>;
 }
 
 export function CrewScheduleStatusBadge({ entry, label }) {

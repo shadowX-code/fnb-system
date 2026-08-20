@@ -240,6 +240,9 @@ button, input, select { font: inherit; }
 .crew-me-confirm > div { display: flex; justify-content: flex-end; gap: 8px; }
 .crew-me-confirm button { min-height: 38px; border: 1px solid var(--crew-v2-border); border-radius: 9px; background: #fff; padding: 0 14px; color: var(--crew-v2-navy); font-size: 10px; font-weight: 800; }
 .crew-me-confirm button.is-danger { border-color: #d94958; background: #d94958; color: #fff; }
+.crew-language-modal .crew-language-list { display: grid; gap: 8px; margin: 0 0 18px; }
+.crew-language-modal .crew-language-list button { display: flex; width: 100%; align-items: center; justify-content: space-between; min-height: 44px; font-size: 13px; text-align: left; }
+.crew-language-modal .crew-language-list button[aria-pressed="true"] { border-color: #8bd8b5; background: #eaf8f1; color: #087d50; }
 
 @media (max-width: 380px) {
   .crew-me-profile-hero { grid-template-columns: 62px minmax(0, 1fr); gap: 12px; padding: 18px 15px; }

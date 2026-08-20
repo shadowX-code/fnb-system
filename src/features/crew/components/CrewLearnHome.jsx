@@ -1,4 +1,5 @@
 import { useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   CheckCircle2,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   Soup,
 } from "lucide-react";
 import learnBookSearch from "../../../assets/crew/learn-book-search.png";
+import { formatCrewDate } from "../utils/crewI18n.js";
 
 const CATEGORY_ICONS = [
   [/service|guest|customer/i, ConciergeBell],
@@ -38,7 +40,7 @@ function readingMinutes(item) {
 function formatAcknowledgedDate(item) {
   const value = item.acknowledged_at || item.acknowledgement_date;
   if (!value) return "";
-  return new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric" }).format(new Date(value));
+  return formatCrewDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
 export default function CrewLearnHome({ home, assignment, library, error, onOpenOnboarding, onOpenSop }) {
@@ -97,24 +99,27 @@ export default function CrewLearnHome({ home, assignment, library, error, onOpen
 }
 
 export function CrewLearnHero() {
+  const { t } = useTranslation();
   return (
     <header className="crew-learn-final-hero">
-      <div><h1>Learn</h1><p>Learn. Apply. <strong>Grow together.</strong></p></div>
+      <div><h1>{t("learn.title")}</h1><p>{t("learn.tagline")}</p></div>
       <img src={learnBookSearch} alt="" aria-hidden="true" />
     </header>
   );
 }
 
 export function CrewLearnSearch({ value, onChange, onFilter }) {
+  const { t } = useTranslation();
   return (
     <div className="crew-learn-final-search-row">
-      <label><Search size={21} aria-hidden="true" /><input aria-label="Search SOP, topic or keyword" value={value} onChange={(event) => onChange(event.target.value)} placeholder="Search SOP, topic or keyword" /></label>
-      <button type="button" aria-label="Browse SOP filters" onClick={onFilter}><SlidersHorizontal size={21} /></button>
+      <label><Search size={21} aria-hidden="true" /><input aria-label={t("learn.search")} value={value} onChange={(event) => onChange(event.target.value)} placeholder={t("learn.search")} /></label>
+      <button type="button" aria-label={t("learn.filters")} onClick={onFilter}><SlidersHorizontal size={21} /></button>
     </div>
   );
 }
 
 export function CrewOnboardingProgressCard({ home, assignment, onOpen }) {
+  const { t } = useTranslation();
   const onboarding = home.assignment;
   const complete = onboarding.status === "completed";
   const progress = Math.max(0, Math.min(100, Number(onboarding.progress_percentage) || 0));
@@ -122,52 +127,56 @@ export function CrewOnboardingProgressCard({ home, assignment, onOpen }) {
   const moduleDone = assignment?.modules?.filter((item) => item.completed).length || 0;
   const done = moduleTotal ? moduleDone : Number(onboarding.lessons_completed || 0);
   const total = moduleTotal || Number(onboarding.lessons_total || 0);
-  const title = complete ? "Onboarding Completed" : assignment?.journey?.name || "New Crew Onboarding";
+  const title = complete ? t("learn.onboardingComplete") : assignment?.journey?.name || "New Crew Onboarding";
   return (
     <button type="button" className={`crew-learn-final-onboarding ${complete ? "is-complete" : ""}`} onClick={onOpen} aria-label={`${title}, ${done} of ${total}`}>
       <span className="crew-learn-final-progress-ring" style={{ "--progress": `${progress * 3.6}deg` }}><CheckCircle2 size={25} /></span>
       <span className="crew-learn-final-onboarding-copy">
-        <strong>{complete ? "Onboarding Completed!" : title}</strong>
-        <small>{complete ? "Great job! You’ve completed all modules." : "Continue your required learning journey."}</small>
-        <span><b>{done}</b> / {total} {moduleTotal ? "modules" : "lessons"}<i>•</i><em>{complete ? "Review anytime" : `${progress}% complete`}</em></span>
+        <strong>{complete ? t("learn.onboardingComplete") : title}</strong>
+        <small>{complete ? t("learn.greatJob") : t("learn.continueJourney")}</small>
+        <span><b>{done}</b> / {total} {moduleTotal ? t("learn.modules") : t("learn.lessons")}<i>•</i><em>{complete ? t("learn.reviewAnytime") : t("learn.percentComplete", { count: progress })}</em></span>
       </span>
       <span className="crew-learn-final-onboarding-next"><ChevronRight size={21} /></span>
     </button>
   );
 }
 
-export const CrewSopCategoryCarousel = ({ categories, sops, value, onChange, onViewAll, ref }) => (
-  <section className="crew-learn-final-categories">
-    <header><h2>Browse by category</h2><button type="button" onClick={onViewAll}>View all <ChevronRight size={17} /></button></header>
-    <div className="crew-learn-final-category-scroll" ref={ref} aria-label="SOP categories">
-      <CrewSopCategoryCard name="All" count={sops.length} icon={Grid2X2} tone="mint" active={value === "all"} onClick={() => onChange("all")} />
+export const CrewSopCategoryCarousel = ({ categories, sops, value, onChange, onViewAll, ref }) => {
+  const { t } = useTranslation();
+  return <section className="crew-learn-final-categories">
+    <header><h2>{t("learn.browseCategory")}</h2><button type="button" onClick={onViewAll}>{t("common.viewAll")} <ChevronRight size={17} /></button></header>
+    <div className="crew-learn-final-category-scroll" ref={ref} aria-label={t("learn.filters")}>
+      <CrewSopCategoryCard name={t("learn.all")} count={sops.length} icon={Grid2X2} tone="mint" active={value === "all"} onClick={() => onChange("all")} />
       {categories.map((item, index) => <CrewSopCategoryCard key={item.id} name={item.name} count={sops.filter((sop) => sop.category_id === item.id).length} icon={categoryIcon(item.name)} tone={CATEGORY_TONES[(index + 1) % CATEGORY_TONES.length]} active={value === item.id} onClick={() => onChange(item.id)} />)}
     </div>
   </section>
-);
+};
 
 export function CrewSopCategoryCard({ name, count, icon: Icon, tone, active, onClick }) {
-  return <button type="button" className={`crew-learn-final-category is-${tone} ${active ? "is-active" : ""}`} aria-label={`${name}, ${count} ${count === 1 ? "SOP" : "SOPs"}`} aria-pressed={active} onClick={onClick}><span><Icon size={23} /></span><strong>{name}</strong><small>{count} {count === 1 ? "SOP" : "SOPs"}</small></button>;
+  const { t } = useTranslation();
+  return <button type="button" className={`crew-learn-final-category is-${tone} ${active ? "is-active" : ""}`} aria-label={`${name}, ${count} ${t("learn.sops")}`} aria-pressed={active} onClick={onClick}><span><Icon size={23} /></span><strong>{name}</strong><small>{count} {t("learn.sops")}</small></button>;
 }
 
 export function CrewSopLibrary({ sops, sort, onSort, onOpen }) {
+  const { t } = useTranslation();
   return (
     <section className="crew-learn-final-library">
-      <header><h2>SOPs ({sops.length})</h2><button type="button" onClick={onSort}>{sort === "latest" ? "Latest" : "Title"} <ChevronDown size={16} /></button></header>
+      <header><h2>{t("learn.sops")} ({sops.length})</h2><button type="button" onClick={onSort}>{sort === "latest" ? t("learn.latest") : t("learn.titleSort")} <ChevronDown size={16} /></button></header>
       <div className="crew-learn-final-list">
         {sops.map((item) => <CrewSopListItem key={item.version_id || item.id} item={item} onOpen={() => onOpen(item.version_id)} />)}
-        {!sops.length && <p className="crew-learn-final-empty">No SOPs match this search.</p>}
+        {!sops.length && <p className="crew-learn-final-empty">{t("learn.noSops")}</p>}
       </div>
     </section>
   );
 }
 
 export function CrewSopListItem({ item, onOpen }) {
+  const { t } = useTranslation();
   const minutes = readingMinutes(item);
   return (
-    <button type="button" className="crew-learn-final-sop" onClick={onOpen} aria-label={`Open ${item.title}`}>
+    <button type="button" className="crew-learn-final-sop" onClick={onOpen} aria-label={t("learn.openSop", { title: item.title })}>
       <span className="crew-learn-final-doc"><FileText size={22} /></span>
-      <span className="crew-learn-final-sop-copy"><strong>{item.title}</strong><small>{item.category || "Other"}<i>•</i>v{item.version}</small>{minutes > 0 && <small><Clock3 size={13} /> Est. {minutes} min</small>}</span>
+      <span className="crew-learn-final-sop-copy"><strong>{item.title}</strong><small>{item.category || t("common.other")}<i>•</i>v{item.version}</small>{minutes > 0 && <small><Clock3 size={13} /> {t("learn.estimatedMinutes", { count: minutes })}</small>}</span>
       <CrewSopAcknowledgementState item={item} />
       <ChevronRight className="crew-learn-final-chevron" size={19} />
     </button>
@@ -175,9 +184,10 @@ export function CrewSopListItem({ item, onOpen }) {
 }
 
 export function CrewSopAcknowledgementState({ item }) {
+  const { t } = useTranslation();
   if (item.acknowledged) {
     const date = formatAcknowledgedDate(item);
-    return <span className="crew-learn-final-ack is-done"><strong><CheckCircle2 size={16} /> Acknowledged</strong>{date && <small>{date}</small>}</span>;
+    return <span className="crew-learn-final-ack is-done"><strong><CheckCircle2 size={16} /> {t("learn.acknowledged")}</strong>{date && <small>{date}</small>}</span>;
   }
-  return <span className="crew-learn-final-ack"><b className={item.acknowledgement_required ? "is-required" : "is-optional"}>{item.acknowledgement_required ? "Required" : "Optional"}</b><strong>Acknowledge</strong></span>;
+  return <span className="crew-learn-final-ack"><b className={item.acknowledgement_required ? "is-required" : "is-optional"}>{item.acknowledgement_required ? t("common.required") : t("common.optional")}</b><strong>{t("learn.acknowledge")}</strong></span>;
 }

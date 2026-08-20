@@ -10,21 +10,21 @@ const service = readFileSync(resolve(process.cwd(), "src/services/crewService.js
 describe("Crew Leave v1 UI contracts", () => {
   it("keeps Leave under Me without changing the five-tab bottom navigation", () => {
     expect(app).toContain('setScreen("leave")');
-    expect(app).toContain('<span>Leave</span>');
+    expect(app).toContain('t("me.leave")');
     expect(app).toContain('{ id: "home", label: "Home"');
     expect(app).not.toContain('{ id: "leave", label: "Leave"');
   });
 
   it("implements the four-step application with authoritative balances and no required uploads", () => {
-    for (const copy of ["Leave Type", "Dates", "Reason", "Review Request", "Submit Request"]) expect(mobile).toContain(copy);
-    for (const copy of ["Available", "Requested", "After", "Insufficient leave balance"]) expect(mobile).toContain(copy);
-    expect(mobile).toContain("Supporting document not uploaded");
+    for (const key of ["leave.leaveType", "leave.dates", "leave.reason", "leave.review", "leave.submitRequest"]) expect(mobile).toContain(`t("${key}")`);
+    for (const key of ["leave.available", "leave.requested", "leave.after", "leave.insufficient"]) expect(mobile).toContain(`t("${key}")`);
+    expect(mobile).toContain('t("leave.documentNotUploaded")');
     expect(mobile).not.toContain("Balance 8.5");
   });
 
   it("supports pending cancellation and safe rejected/approved guidance", () => {
-    expect(mobile).toContain("Cancel Request");
-    expect(mobile).toContain("Contact your manager to change approved leave.");
+    expect(mobile).toContain('t("leave.cancelRequest")');
+    expect(mobile).toContain('t("leave.approvedChangeHelp")');
     expect(mobile).toContain("item.rejection_reason");
   });
 

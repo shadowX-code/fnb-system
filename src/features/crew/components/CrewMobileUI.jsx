@@ -1,4 +1,6 @@
 import { ChevronRight, Search } from "lucide-react";
+import { useTranslation } from "react-i18next";
+import "../../../i18n/index.js";
 
 export function CrewMobilePage({ className = "", children }) {
   return <section className={`crew-ui-page ${className}`.trim()}>{children}</section>;
@@ -17,8 +19,9 @@ export function CrewStatusBadge({ children, tone = "neutral" }) {
 }
 
 export function CrewProgressBar({ value = 0, label }) {
+  const { t } = useTranslation();
   const safe = Math.max(0, Math.min(100, Number(value) || 0));
-  return <div className="crew-ui-progress" aria-label={label || `${safe}% complete`}><span style={{ width: `${safe}%` }} /></div>;
+  return <div className="crew-ui-progress" aria-label={label || t("learn.percentComplete", { count: safe })}><span style={{ width: `${safe}%` }} /></div>;
 }
 
 export function CrewActionRow({ icon: Icon, title, subtitle, meta, tone = "blue", onClick, disabled = false, children }) {
@@ -30,8 +33,10 @@ export function CrewInfoRow({ label, value, supporting }) {
   return <div className="crew-ui-info-row"><span><strong>{label}</strong>{supporting && <small>{supporting}</small>}</span><em>{value}</em></div>;
 }
 
-export function CrewSearchBar({ value, onChange, onSubmit, placeholder = "Search" }) {
-  return <form className="crew-ui-search" onSubmit={(event) => { event.preventDefault(); onSubmit?.(value); }}><Search size={18} /><input aria-label={placeholder} value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} /><button type="submit" aria-label="Submit search"><Search size={17} /></button></form>;
+export function CrewSearchBar({ value, onChange, onSubmit, placeholder }) {
+  const { t } = useTranslation();
+  const copy = placeholder || t("learn.search");
+  return <form className="crew-ui-search" onSubmit={(event) => { event.preventDefault(); onSubmit?.(value); }}><Search size={18} /><input aria-label={copy} value={value} onChange={(event) => onChange(event.target.value)} placeholder={copy} /><button type="submit" aria-label={t("common.submit")}><Search size={17} /></button></form>;
 }
 
 export function CrewMetric({ value, label, tone = "neutral", onClick }) {
@@ -44,5 +49,6 @@ export function CrewEmptyState({ title, body }) {
 }
 
 export function CrewBottomNav({ items, active, onChange }) {
-  return <nav className="crew-v2-nav" aria-label="Crew navigation">{items.map(({ id, label, icon: Icon }) => <button type="button" key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>;
+  const { t } = useTranslation();
+  return <nav className="crew-v2-nav" aria-label={t("nav.label")}>{items.map(({ id, label, icon: Icon }) => <button type="button" key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}><Icon size={19} /><span>{t(`nav.${id}`, { defaultValue: label })}</span></button>)}</nav>;
 }
