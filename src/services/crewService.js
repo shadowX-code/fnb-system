@@ -239,6 +239,66 @@ export const crewService = {
     return data || { definitions: [], instances: [], published_sops: [], employees: [] };
   },
 
+  async cashCheckoutMobile(token, date = localBusinessDate()) {
+    const { data, error } = await supabase.rpc("crew_cash_mobile", { p_token: token, p_business_date: date });
+    throwSupabaseError("crew.cashCheckoutMobile", error);
+    return data || { checkout: null, deposit: { current_balance: 0, recent: [] }, pending_receipts: [], receivers: [] };
+  },
+
+  async saveCashCheckout(token, action, payload = {}) {
+    const { data, error } = await supabase.rpc("crew_cash_save_checkout", { p_token: token, p_action: action, p_payload: payload });
+    throwSupabaseError("crew.saveCashCheckout", error);
+    return data;
+  },
+
+  async recordCashCollection(token, payload) {
+    const { data, error } = await supabase.rpc("crew_cash_record_collection", { p_token: token, p_payload: payload });
+    throwSupabaseError("crew.recordCashCollection", error);
+    return data;
+  },
+
+  async confirmCashCollection(token, collectionId, receivedAmount) {
+    const { data, error } = await supabase.rpc("crew_cash_confirm_collection", { p_token: token, p_collection_id: collectionId, p_received_amount: receivedAmount });
+    throwSupabaseError("crew.confirmCashCollection", error);
+    return data;
+  },
+
+  async cashCheckoutAdminData(outletId, from = localBusinessDate(), to = from) {
+    const { data, error } = await supabase.rpc("crew_cash_admin_data", { p_outlet_id: outletId, p_from: from, p_to: to });
+    throwSupabaseError("crew.cashCheckoutAdminData", error);
+    return data || { settings: {}, summary: {}, checkouts: [], ledger: [], collections: [], float_history: [], employees: [] };
+  },
+
+  async saveCashSettings(outletId, payload) {
+    const { data, error } = await supabase.rpc("crew_cash_save_settings", { p_outlet_id: outletId, p_payload: payload });
+    throwSupabaseError("crew.saveCashSettings", error);
+    return data;
+  },
+
+  async reviewCashCheckout(checkoutId, decision, note = null) {
+    const { data, error } = await supabase.rpc("crew_cash_review_checkout", { p_checkout_id: checkoutId, p_decision: decision, p_note: note });
+    throwSupabaseError("crew.reviewCashCheckout", error);
+    return data;
+  },
+
+  async recordAdminCashCollection(outletId, payload) {
+    const { data, error } = await supabase.rpc("crew_cash_admin_record_collection", { p_outlet_id: outletId, p_payload: payload });
+    throwSupabaseError("crew.recordAdminCashCollection", error);
+    return data;
+  },
+
+  async reviewCashCollection(collectionId, decision, note) {
+    const { data, error } = await supabase.rpc("crew_cash_review_collection", { p_collection_id: collectionId, p_decision: decision, p_note: note });
+    throwSupabaseError("crew.reviewCashCollection", error);
+    return data;
+  },
+
+  async adjustCashCheckout(checkoutId, action, amount, reason) {
+    const { data, error } = await supabase.rpc("crew_cash_adjust_checkout", { p_checkout_id: checkoutId, p_action: action, p_amount: amount, p_reason: reason });
+    throwSupabaseError("crew.adjustCashCheckout", error);
+    return data;
+  },
+
   async saveTask(outletId, task) {
     const { data, error } = await supabase.rpc("crew_tasks_save", { p_outlet_id: outletId, p_task: task });
     throwSupabaseError("crew.saveTask", error);

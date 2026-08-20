@@ -21,6 +21,8 @@ export type ModuleAction =
   | "submit"
   | "receive"
   | "complete"
+  | "perform"
+  | "record_collection"
   | "cancel"
   | "enable_login"
   | "reset_password";
@@ -59,6 +61,8 @@ export const permissionActionOrder: ModuleAction[] = [
   "submit",
   "receive",
   "complete",
+  "perform",
+  "record_collection",
   "cancel",
   "manage",
   "import",
@@ -87,6 +91,8 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   submit: "Submit",
   receive: "Receive",
   complete: "Complete",
+  perform: "Perform",
+  record_collection: "Record Collection",
   cancel: "Cancel",
   manage: "Manage",
   import: "Import",
@@ -739,6 +745,26 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "crew",
     permissions: { view: true, manage: true, review: true },
+  },
+  {
+    id: "crew_cash_checkout",
+    section: "Operations",
+    label: "Cash Checkout",
+    route: "/crew/operations/cash-checkout",
+    icon: "crew-cash-checkout",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, perform: true, review: true, manage: true },
+  },
+  {
+    id: "crew_cash_deposit",
+    section: "Operations",
+    label: "Cash Deposit",
+    route: "/crew/operations/cash-deposit",
+    sidebar: false,
+    routable: false,
+    workspace: "crew",
+    permissions: { view: true, record_collection: true },
   },
   {
     id: "crew_operation_templates",

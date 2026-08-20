@@ -78,6 +78,7 @@ const iconMap = {
   "crew-feedback": MessageSquareText,
   "crew-reward": Wallet,
   "crew-reward-cycles": CalendarDays,
+  "crew-cash-checkout": Wallet,
 };
 
 function latestPeriod(store) {

@@ -30,6 +30,7 @@ import CrewPerformanceAdminPage from "../features/crew/pages/CrewPerformanceAdmi
 import CrewRewardAdminPage from "../features/crew/pages/CrewRewardAdminPage.jsx";
 import CrewOperationsAdminPage from "../features/crew/pages/CrewOperationsAdminPage.jsx";
 import CrewLeaveAdminPage from "../features/crew/pages/CrewLeaveAdminPage.jsx";
+import CrewCashCheckoutAdminPage from "../features/crew/pages/CrewCashCheckoutAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -377,6 +378,11 @@ export const routeDetails = {
     component: CrewOperationsAdminPage,
     permission: "crew_operations.view",
     props: {},
+  },
+  crew_cash_checkout: {
+    description: "Reconcile outlet cash and review the linked Cash Deposit ledger.",
+    component: CrewCashCheckoutAdminPage,
+    permission: "crew_cash_checkout.view OR crew_cash_deposit.view",
   },
   crew_operation_templates: {
     description: "Compatibility route for the unified Crew Tasks workspace.",

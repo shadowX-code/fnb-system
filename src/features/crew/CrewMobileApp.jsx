@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   ArrowLeft,
+  Banknote,
   Bell,
   BookOpen,
   BriefcaseBusiness,
@@ -37,6 +38,7 @@ import CrewRewardMobile from "./components/CrewRewardMobile.jsx";
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
 import CrewLeaveMobile from "./components/CrewLeaveMobile.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
+import CrewCashCheckoutMobile from "./components/CrewCashCheckoutMobile.jsx";
 import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
 import { formatCrewDate, formatCrewTime, crewLocale, translateStatus } from "./utils/crewI18n.js";
 import { SUPPORTED_CREW_LANGUAGES } from "../../i18n/index.js";
@@ -425,6 +427,7 @@ export default function CrewMobileApp() {
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} onViewReward={() => setScreen("reward")} onNavigate={(target) => setScreen(target)} />}
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={() => refresh()} onBack={() => { setOperationTarget(null); setScreen("home"); }} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => setScreen("me")} onChanged={() => refresh()} />}
+    {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => setScreen("me")} />}
 
     {screen === "schedule" && <CrewScheduleMobile roster={roster} employee={employee} onBack={() => setScreen("home")} />}
 
@@ -451,6 +454,7 @@ export default function CrewMobileApp() {
         <section className="crew-me-section"><h2>{t("me.work")}</h2><div className="crew-me-list">
           <button type="button" onClick={() => setScreen("attendance")}><span className="crew-me-row-icon"><Clock3 size={20} /></span><span><strong>{t("me.attendance")}</strong><small>{currentMonthAttendance.length ? t("me.shiftsThisMonth", { count: currentMonthAttendance.length }) : t("me.noActivity")}</small></span><ChevronRight size={19} /></button>
           <button type="button" onClick={() => setScreen("leave")}><span className="crew-me-row-icon"><Plane size={20} /></span><span><span>{t("me.leave")}</span></span>{pendingLeaveCount > 0 && <em className="crew-me-pending">{t("me.pendingCount", { count: pendingLeaveCount })}</em>}<ChevronRight size={19} /></button>
+          <button type="button" onClick={() => setScreen("cash-checkout")}><span className="crew-me-row-icon"><Banknote size={20} /></span><span><strong>{t("cash.title")}</strong><small>{t("cash.meSubtitle")}</small></span><ChevronRight size={19} /></button>
           <div><span className="crew-me-row-icon"><FileText size={20} /></span><span><strong>{t("me.employmentDocuments")}</strong></span><ChevronRight size={19} /></div>
         </div></section>
         <section className="crew-me-section"><h2>{t("me.account")}</h2><div className="crew-me-list is-neutral">
@@ -480,6 +484,6 @@ export default function CrewMobileApp() {
     </div>}
     {clockSuccess && <div className="crew-home-modal-backdrop" role="presentation"><section className="crew-home-success-modal" role="dialog" aria-modal="true" aria-labelledby="crew-clock-success-title"><span><Check size={28} /></span><h2 id="crew-clock-success-title">{t("home.clockedInSuccess")}</h2><dl><div><dt>{t("home.clockInTime")}</dt><dd>{formatTime(clockSuccess.time)}</dd></div><div><dt>{t("common.outlet")}</dt><dd>{clockSuccess.outlet}</dd></div><div><dt>{t("common.role")}</dt><dd>{clockSuccess.role}</dd></div></dl><button type="button" className="crew-v2-primary" onClick={() => { setClockSuccess(null); setScreen("attendance"); }}>{t("home.viewAttendance")}</button><button type="button" onClick={() => { setClockSuccess(null); setScreen("home"); }}>{t("home.goHome")}</button></section></div>}
 
-    <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : screen === "leave" ? "me" : screen} onChange={(next) => { if (next === "growth") setGrowthInitialView("overview"); setScreen(next); if (next === "me") setMeView("main"); }} />
+    <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout"].includes(screen) ? "me" : screen} onChange={(next) => { if (next === "growth") setGrowthInitialView("overview"); setScreen(next); if (next === "me") setMeView("main"); }} />
   </section></main>;
 }

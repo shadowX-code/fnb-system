@@ -1,0 +1,59 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import CrewCashCheckoutMobile from "../CrewCashCheckoutMobile.jsx";
+import { crewService } from "../../../../services/crewService.js";
+
+vi.mock("../../../../services/crewService.js", () => ({ crewService: {
+  cashCheckoutMobile: vi.fn(), saveCashCheckout: vi.fn(), recordCashCollection: vi.fn(), confirmCashCollection: vi.fn(),
+} }));
+
+const payload = {
+  outlet: { id: "outlet-1", name: "Friends Corner" }, business_date: "2026-08-21", can_perform: true, can_record_collection: true,
+  settings: { floating_cash: 300, variance_tolerance: 5 }, checkout: null,
+  deposit: { current_balance: 500, available_balance: 500, recent: [{ id: "l1", occurred_at: "2026-08-20T10:00:00+08:00", activity: "Cash Checkout · QA", signed_amount: 500 }] },
+  receivers: [{ id: "employee-2", name: "Receiver QA", position: "Supervisor" }], pending_receipts: [],
+};
+
+beforeEach(() => {
+  crewService.cashCheckoutMobile.mockResolvedValue(payload);
+  crewService.saveCashCheckout.mockResolvedValue({ checkout: { status: "reconciled" } });
+});
+afterEach(() => { cleanup(); vi.clearAllMocks(); });
+
+describe("Crew Cash Checkout mobile", () => {
+  it("renders the server-scoped checkout and deposit summary", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
+    expect(screen.getByText("Today’s Checkout")).not.toBeNull();
+    expect(screen.getByText("RM 500.00")).not.toBeNull();
+    expect(crewService.cashCheckoutMobile).toHaveBeenCalledWith("opaque-session", expect.any(String));
+  });
+
+  it("calculates a live denomination preview but sends raw counts to server authority", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    await screen.findByText("Count outlet cash");
+    fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("RM 0.5"), { target: { value: "2" } });
+    expect(screen.getByText("RM 401.00")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenCalledWith("opaque-session", "draft", expect.objectContaining({ denomination_counts: expect.objectContaining({ "100": "4", "0.50": "2" }) })));
+    const sent = crewService.saveCashCheckout.mock.calls[0][2];
+    expect(sent).not.toHaveProperty("counted_cash");
+    expect(sent).not.toHaveProperty("variance");
+  });
+
+  it("shows a read-only immutable completion state", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", completed_at: "2026-08-21T22:30:00+08:00", counted_cash: 850, variance: 0, amount_for_deposit: 500 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByText("Cash Checkout completed")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
+  });
+
+  it("keeps internal handover receipt confirmation session-bound", async () => {
+    crewService.confirmCashCollection.mockResolvedValue({ status: "completed" });
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA" }] });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+    await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("opaque-session", "handover-1", 100));
+  });
+});
