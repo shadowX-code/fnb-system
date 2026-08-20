@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import CrewRewardMobile from "../CrewRewardMobile.jsx";
+import i18n from "../../../../i18n/index.js";
 
 const data = {
   period_start: "2026-08-01", status: "qualified", cycle_status: "review",
@@ -95,5 +96,17 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.getByText(label)).not.toBeNull();
     expect(screen.getByText("Reward finalized")).not.toBeNull();
     expect(screen.queryByText("Estimated Reward Projection")).toBeNull();
+  });
+
+  it("localizes server-provided Reward labels instead of leaking English UI copy", async () => {
+    await i18n.changeLanguage("ms");
+    render(<CrewRewardMobile data={{ ...data, performance_score: 87, performance_level: "Strong" }} />);
+    expect(screen.getByText("Anggaran Ganjaran")).not.toBeNull();
+    expect(screen.getByText("Kukuh")).not.toBeNull();
+    expect(screen.getByText("Semasa")).not.toBeNull();
+    expect(screen.getByText("Hebat")).not.toBeNull();
+    expect(screen.getByText("Potensi Maksimum")).not.toBeNull();
+    expect(screen.queryByText("Estimated Reward")).toBeNull();
+    await i18n.changeLanguage("en");
   });
 });

@@ -1,4 +1,4 @@
-export default {
+const resources = {
   common: { back: "Back", close: "Close", closeNamed: "Close {{title}}", aboutNamed: "About {{title}}", cancel: "Cancel", continue: "Continue", confirm: "Confirm", save: "Save", saving: "Saving…", submit: "Submit", retry: "Try again", viewAll: "View all", loading: "Loading…", optional: "Optional", required: "Required", today: "Today", now: "Now", outlet: "Outlet", role: "Role", other: "Other", noLimit: "No limit", days: "days", shifts: "shifts" },
   nav: { home: "Home", learn: "Learn", reward: "Reward", growth: "Growth", me: "Me", label: "Crew navigation" },
   auth: { welcomeTo: "Welcome to", crew: "Crew", workday: "Your workday starts here.", signInPrompt: "Sign in with your registered mobile number.", mobile: "Mobile Number", countryCode: "Country code", invalidMobile: "Enter a valid mobile number.", welcomeBack: "Welcome back", enterPasscode: "Enter your 4-digit Crew passcode", digitsEntered: "{{count}} of 4 digits entered", backspace: "Backspace", signingIn: "Signing in…", secure: "Your passcode is private and secure.", unable: "Unable to sign in." },
@@ -28,3 +28,9 @@ export default {
   errors: { acknowledgeSop: "Unable to acknowledge this SOP.", chooseExceptionReason: "Choose an exception reason to {{action}}." },
   languages: { en: "English", "zh-CN": "简体中文", ms: "Bahasa Melayu" }
 };
+Object.assign(resources.reward, {
+  currentProjection: "Current",
+  greatProjection: "Great",
+  maxPotential: "Max Potential",
+});
+export default resources;

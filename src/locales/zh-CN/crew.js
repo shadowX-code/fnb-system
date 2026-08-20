@@ -26,4 +26,5 @@ Object.assign(resources.schedule, { jumpToday:"跳到今天" });
 Object.assign(resources.tasks, { reportIssueFor:"报告 {{title}} 的问题", completeBlock:"完成 {{title}}" });
 Object.assign(resources.growth, { skillCount_one:"{{count}} 项技能", skillCount_other:"{{count}} 项技能" });
 Object.assign(resources.me, { shiftsThisMonth_one:"本月 {{count}} 个班次", shiftsThisMonth_other:"本月 {{count}} 个班次", pendingCount:"{{count}} 项待处理", enterPasscodes:"请输入当前和新的四位数密码。", unablePasscode:"无法更改密码。" });
+Object.assign(resources.reward, { currentProjection:"当前", greatProjection:"表现优秀", maxPotential:"最高潜力" });
 export default resources;

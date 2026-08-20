@@ -27,6 +27,37 @@ const defaultTiers = (t) => [
   { range: "<70", level: t("reward.levels.belowStandard"), rate: 0 },
 ];
 
+const rewardLevelKey = (value) => String(value || "")
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, "_")
+  .replace(/^_|_$/g, "");
+
+const translateRewardLevel = (value, t) => {
+  const levelKeys = {
+    outstanding: "outstanding",
+    excellent: "excellent",
+    strong: "strong",
+    meets_standard: "meetsStandard",
+    developing: "developing",
+    below_standard: "belowStandard",
+  };
+  const key = levelKeys[rewardLevelKey(value)];
+  return key ? t(`reward.levels.${key}`) : value;
+};
+
+const translateProjectionLabel = (item, t) => {
+  const labels = {
+    current: "currentProjection",
+    on_track: "onTrack",
+    great: "greatProjection",
+    max: "maxPotential",
+    max_potential: "maxPotential",
+  };
+  const key = labels[rewardLevelKey(item?.key || item?.label)];
+  return key ? t(`reward.${key}`) : item?.label;
+};
+
 function Modal({ title, onClose, children }) {
   const { t } = useTranslation();
   const modalRef = useRef(null);
@@ -76,7 +107,7 @@ function TierTable({ tiers }) {
 function RewardHero({ data, onOpenModal }) {
   const { t } = useTranslation();
   const contribution = Math.max(0, Math.min(1, Number(data.contribution_share || 0)));
-  const label = data.reward_label || (data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward"));
+  const label = data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
   return <article className="crew-reward-hero">
     <img src={rewardArtwork} alt="" className="crew-reward-art" />
     <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><em>{translateStatus(data.status, t)}</em></div>
@@ -97,7 +128,7 @@ function PerformanceOverview({ data, tiers, onOpenSheet, onViewPerformance }) {
     <div className="crew-reward-performance-main">
       <div className="crew-reward-score-summary">
         <div className="crew-reward-score-ring" style={{ "--score-progress": `${score * 3.6}deg` }}><span><strong>{Math.round(score)}</strong><small>/ 100</small></span></div>
-        <div><h3>{data.performance_level || translateStatus("ready_for_review", t)}</h3><em>{t("reward.onTrack")}</em><small>{t("reward.currentRate")} <InfoButton label={t("common.aboutNamed", { title: t("reward.currentRate").toLowerCase() })} onClick={() => onOpenSheet("rates")} /></small><strong>{rate(data.earn_rate)}</strong></div>
+        <div><h3>{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</h3><em>{t("reward.onTrack")}</em><small>{t("reward.currentRate")} <InfoButton label={t("common.aboutNamed", { title: t("reward.currentRate").toLowerCase() })} onClick={() => onOpenSheet("rates")} /></small><strong>{rate(data.earn_rate)}</strong></div>
       </div>
     </div>
     <div className="crew-reward-scale" aria-label={t("reward.performanceScore", { score: Math.round(score) })}>
@@ -117,7 +148,7 @@ function RewardProjection({ data, onOpenSheet }) {
   return <article className="crew-reward-card crew-reward-projection">
     <header><span><h2><TrendingUp size={19} /> {t("reward.projection")}</h2><p>{t("reward.projectionCaption")}</p></span><button type="button" onClick={() => onOpenSheet("projection")}><Info size={15} /> {t("reward.howWorks")}</button></header>
     <div className="crew-reward-projection-track">
-      {projections.map((item, index) => <div key={item.key || item.label} className={`is-${item.key || index}`}><small>{item.label}</small><b>{t("reward.score", { score: item.key === "max" ? "95+" : Math.round(Number(item.score || 0)) })}</b><i>{item.key === "max" ? "★" : ""}</i><strong>{money(item.amount)}</strong><span>{t("reward.rateEarned", { rate: rate(item.earn_rate) })}</span></div>)}
+      {projections.map((item, index) => <div key={item.key || item.label} className={`is-${item.key || index}`}><small>{translateProjectionLabel(item, t)}</small><b>{t("reward.score", { score: item.key === "max" ? "95+" : Math.round(Number(item.score || 0)) })}</b><i>{item.key === "max" ? "★" : ""}</i><strong>{money(item.amount)}</strong><span>{t("reward.rateEarned", { rate: rate(item.earn_rate) })}</span></div>)}
     </div>
     <p className="crew-reward-projection-note"><Info size={14} /> {t("reward.projectionAssumption", { contribution: rate(data.contribution_share, 2) })}</p>
   </article>;
@@ -156,7 +187,7 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
     {sheet === "pool" && <Modal title={t("reward.rewardPool")} onClose={() => setSheet(null)}><p>{t("reward.poolDetail", { amount: money(data.reward_pool ?? data.configured_pool) })}</p></Modal>}
     {sheet === "rates" && <Modal title={t("reward.performanceRates")} onClose={() => setSheet(null)}><p>{t("reward.performanceRatesHelp")}</p><TierTable tiers={tiers} /></Modal>}
     {sheet === "projection" && <Modal title={t("reward.aboutProjections")} onClose={() => setSheet(null)}><p>{t("reward.projectionDetail")}</p></Modal>}
-    {sheet === "formula" && <Modal title={t("reward.formulaTitle")} onClose={() => setSheet(null)}><div className="crew-reward-formula"><span><small>{t("reward.rewardPool")}</small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></span><b>×</b><span><small>{t("reward.contributionShare")}</small><strong>{rate(data.contribution_share, 2)}</strong></span><b>=</b><span><small>{t("reward.maximumShare")}</small><strong>{money(data.maximum_share)}</strong></span></div><div className="crew-reward-formula"><span><small>{t("reward.maximumShare")}</small><strong>{money(data.maximum_share)}</strong></span><b>×</b><span><small>{t("reward.performanceEarnRate")}</small><strong>{rate(data.earn_rate)}</strong></span><b>=</b><span><small>{data.reward_label || t("reward.estimatedReward")}</small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong></span></div></Modal>}
+    {sheet === "formula" && <Modal title={t("reward.formulaTitle")} onClose={() => setSheet(null)}><div className="crew-reward-formula"><span><small>{t("reward.rewardPool")}</small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></span><b>×</b><span><small>{t("reward.contributionShare")}</small><strong>{rate(data.contribution_share, 2)}</strong></span><b>=</b><span><small>{t("reward.maximumShare")}</small><strong>{money(data.maximum_share)}</strong></span></div><div className="crew-reward-formula"><span><small>{t("reward.maximumShare")}</small><strong>{money(data.maximum_share)}</strong></span><b>×</b><span><small>{t("reward.performanceEarnRate")}</small><strong>{rate(data.earn_rate)}</strong></span><b>=</b><span><small>{data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward")}</small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong></span></div></Modal>}
     {sheet === "history" && <Modal title={t("reward.history")} onClose={() => setSheet(null)}><div className="crew-reward-modal-history">{(data.history || []).map((item) => <div key={item.period_start}><time>{formatCrewDate(`${item.period_start}T00:00:00`, { month: "long", year: "numeric" })}</time><span><strong>{money(item.amount)}</strong><small>{translateStatus(item.status, t)}</small></span></div>)}</div></Modal>}
   </section>;
 }
