@@ -6,7 +6,10 @@ import { routeDetails, salesPurchaseRoutes } from "../routes.jsx";
 describe("Crew Operations Tasks navigation ownership", () => {
   it("shows one Tasks product entry and hides the legacy Templates concept", () => {
     const operations = getSidebarSections("crew").find((section) => section.label === "Operations");
-    expect(operations?.items).toEqual([{ id: "crew_operations", label: "Tasks" }]);
+    expect(operations?.items).toEqual([
+      { id: "crew_operations", label: "Tasks" },
+      { id: "crew_cash_checkout", label: "Cash Checkout" },
+    ]);
     expect(operations?.items.some((item) => item.id === "crew_operation_templates")).toBe(false);
   });
 
