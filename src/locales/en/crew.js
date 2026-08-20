@@ -33,4 +33,5 @@ Object.assign(resources.reward, {
   greatProjection: "Great",
   maxPotential: "Max Potential",
 });
+Object.assign(resources.common, { day_one: "day", day_other: "days" });
 export default resources;

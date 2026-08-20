@@ -43,4 +43,12 @@ describe("Crew i18n foundation", () => {
     expect(i18n.t("home.workedDuration")).toBe("工作时长");
     expect(i18n.options.fallbackLng).toContain("en");
   });
+
+  it("uses locale-aware singular and plural day units", async () => {
+    expect(i18n.t("common.day", { count: 1 })).toBe("day");
+    expect(i18n.t("common.day", { count: 2 })).toBe("days");
+    await i18n.changeLanguage("ms");
+    expect(i18n.t("common.day", { count: 1 })).toBe("hari");
+    expect(i18n.t("common.day", { count: 2 })).toBe("hari");
+  });
 });

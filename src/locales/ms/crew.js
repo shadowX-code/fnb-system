@@ -27,4 +27,5 @@ Object.assign(resources.tasks, { reportIssueFor:"Laporkan isu untuk {{title}}", 
 Object.assign(resources.growth, { skillCount_one:"{{count}} kemahiran", skillCount_other:"{{count}} kemahiran" });
 Object.assign(resources.me, { shiftsThisMonth_one:"{{count}} syif bulan ini", shiftsThisMonth_other:"{{count}} syif bulan ini", pendingCount:"{{count}} Menunggu", enterPasscodes:"Masukkan kedua-dua kod laluan empat digit.", unablePasscode:"Tidak dapat menukar kod laluan." });
 Object.assign(resources.reward, { currentProjection:"Semasa", greatProjection:"Hebat", maxPotential:"Potensi Maksimum" });
+Object.assign(resources.common, { day_one:"hari", day_other:"hari" });
 export default resources;
