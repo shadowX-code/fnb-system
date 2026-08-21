@@ -19,3 +19,11 @@ describe("Crew Operations Tasks navigation ownership", () => {
     expect(salesPurchaseRoutes.find((route) => route.id === "crew_operation_templates")?.permission).toBe("crew_operations.view");
   });
 });
+
+describe("Crew Learning navigation ownership", () => {
+  it("keeps legacy Onboarding links on the canonical Learning route", () => {
+    expect(canonicalRouteId("crew_onboarding")).toBe("crew_learning");
+    expect(canonicalRouteId("#crew_onboarding")).toBe("crew_learning");
+    expect(salesPurchaseRoutes.find((route) => route.id === "crew_learning")?.permission).toBe("crew_learning.view OR crew_learning.manage");
+  });
+});
