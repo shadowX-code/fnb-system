@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Archive as ArchiveIcon, ArrowLeft, CalendarClock, CalendarDays, CheckCircle2, ChevronDown, ClipboardCheck, Clock3, Copy, Eye, FileText, HeartPulse, Info, ListChecks, MessageSquareText, MoreVertical, Pause, Play, Plus, ShieldAlert, Square, Star, Thermometer, Trash2, UserRound, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -8,8 +8,10 @@ import Badge from "../../../components/ui/Badge.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { CrewTaskPreview } from "../components/CrewOperationsMobile.jsx";
 import CrewTaskBlockRenderer from "../components/CrewTaskBlockRenderer.jsx";
+import LocalizedContentEditor from "../components/LocalizedContentEditor.jsx";
 import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
+import { detectContentLanguage, localizationLanguageSummary, taskLocalizationUnits } from "../utils/localizedContent.js";
 
 const localDate = (value = new Date()) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 const TASK_TYPES = [{ value: "checklist", label: "Checklist" }, { value: "instruction", label: "Instruction / Text" }, { value: "health_check", label: "Health Check" }, { value: "confirmation", label: "Confirmation" }, { value: "sop_review", label: "SOP Review" }];
@@ -28,8 +30,23 @@ export default function CrewOperationsAdminPage({ auth, ui, store }) {
   const canReview = auth.hasPermission("crew_operations.review");
   async function refresh() { if (!outletId) return; setLoading(true); try { setData(await crewService.tasksAdminData(outletId, from, to)); } catch (cause) { ui.notify({ title: "Unable to load Tasks", message: cause.message, tone: "error" }); } finally { setLoading(false); } }
   useEffect(() => { refresh(); }, [outletId, from, to]);
-  async function save(task) { try { await crewService.saveTask(outletId, task); setEditor(null); await refresh(); ui.notify({ title: "Task draft saved", message: "Schedule, assignment and content were saved together." }); } catch (cause) { ui.notify({ title: "Unable to save Task", message: cause.message, tone: "error" }); } }
-  async function publish(row) { try { await crewService.activateOperationTemplate(row.id); await refresh(); ui.notify({ title: "Task activated", message: "Future instances now use this immutable revision." }); } catch (cause) { ui.notify({ title: "Unable to activate Task", message: cause.message, tone: "error" }); } }
+  async function save(task) { try { const versionId = await crewService.saveTask(outletId, task); const detail = await crewService.taskAdminDetail(versionId); const canonical = detail?.draft || detail?.definition || { ...task, id: versionId }; await crewService.saveLocalizedContentUnits("task", versionId, taskLocalizationUnits(canonical, task._source_language || detectContentLanguage(task.name))); setEditor(null); await refresh(); ui.notify({ title: "Task draft saved", message: "Schedule, assignment, content and language source were saved together." }); return versionId; } catch (cause) { ui.notify({ title: "Unable to save Task", message: cause.message, tone: "error" }); return null; } }
+  async function publish(row) {
+    try {
+      const localization = await crewService.localizedContentAdmin("task", row.id);
+      const confirmed = await ui.confirm({
+        title: "Activate this Task version?",
+        message: `${localizationLanguageSummary(localization)}. Future instances will freeze this Task and its current language content.`,
+        confirmLabel: "Activate Task",
+        tone: "success",
+      });
+      if (!confirmed) return false;
+      await crewService.activateOperationTemplate(row.id);
+      await refresh();
+      ui.notify({ title: "Task activated", message: "Future instances now use this immutable revision." });
+      return true;
+    } catch (cause) { ui.notify({ title: "Unable to activate Task", message: cause.message, tone: "error" }); return false; }
+  }
   async function duplicate(row) { try { await crewService.duplicateTask(row.id); await refresh(); ui.notify({ title: "Task duplicated", message: "A separate Draft copy is ready to edit." }); } catch (cause) { ui.notify({ title: "Unable to duplicate Task", message: cause.message, tone: "error" }); } }
   async function openDraft(row) {
     try {
@@ -75,10 +92,14 @@ export default function CrewOperationsAdminPage({ auth, ui, store }) {
 
 function TaskEditor({ initial, employees, sops, outletName, onConfirm, onClose, onSave, onPublish }) {
   const [draft, setDraft] = useState(initial);
+  const initialSourceLanguage = useMemo(() => initial._source_language || detectContentLanguage(initial.name || initial.blocks?.map((block) => `${block.title} ${block.description || ""}`).join(" ")), [initial]);
+  const [sourceLanguage, setSourceLanguage] = useState(initialSourceLanguage);
+  const [savedSourceLanguage, setSavedSourceLanguage] = useState(initialSourceLanguage);
+  const hydrateSourceLanguage = useCallback((next) => { setSourceLanguage(next); setSavedSourceLanguage(next); }, []);
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const initialSignature = useMemo(() => JSON.stringify(initial), [initial]);
-  const dirty = JSON.stringify(draft) !== initialSignature;
+  const dirty = JSON.stringify(draft) !== initialSignature || sourceLanguage !== savedSourceLanguage;
   const valid = Boolean(draft.name.trim() && draft.blocks.length && draft.effective_date);
   const structuredCount = draft.blocks.filter((block) => ["yes_no", "single_choice", "number", "temperature", "short_text", "health_rating", "confirmation"].includes(block.block_type)).length;
   const previewTask = { ...draft, blocks: draft.blocks.map((block) => withSopPreview(block, sops)) };
@@ -90,9 +111,9 @@ function TaskEditor({ initial, employees, sops, outletName, onConfirm, onClose, 
     const discard = onConfirm ? await onConfirm({ title: "You have unsaved changes.", message: "Discard this Task draft or continue editing?", confirmLabel: "Discard", cancelLabel: "Continue Editing", tone: "danger" }) : false;
     if (discard) onClose();
   }
-  async function saveDraft() { setSaving(true); try { await onSave(draft); } finally { setSaving(false); } }
-  async function activate() { setSaving(true); try { await onPublish(draft); onClose(); } finally { setSaving(false); } }
-  return <><Modal title={title} description={description} headerActions={<Badge tone={dirty ? "warning" : "success"}>{dirty ? "Unsaved changes" : "Saved"}</Badge>} size="3xl" panelClassName="max-h-[92vh]" bodyClassName="p-0" footerClassName="justify-between" onClose={requestClose} footer={<><button type="button" className="btn-secondary" onClick={() => setPreviewing(true)}><Eye size={16} /> Preview as Crew</button><span className="flex items-center gap-2"><button type="button" className="btn-secondary" onClick={requestClose}>Cancel</button><button type="button" className="btn-primary" disabled={saving || !valid} onClick={saveDraft}>{saving ? "Saving…" : "Save Draft"}</button>{draft.id && draft.status === "draft" ? <button type="button" className="btn-primary" disabled={saving || !valid || dirty} title={dirty ? "Save draft changes before activation" : undefined} onClick={activate}>Activate Task</button> : null}</span></>}><div className="grid items-start xl:grid-cols-[minmax(0,1fr)_260px]"><main className="space-y-5 p-5 md:p-6"><TaskSection title="Basic information" description="Name the task and choose the closest starting format."><BasicEditor draft={draft} setDraft={setDraft} /></TaskSection><TaskSection title="Schedule" description="Choose when this task should appear for Crew."><ScheduleEditor draft={draft} setDraft={setDraft} /></TaskSection><TaskSection title="Assignment" description="Choose which Crew should receive this task."><AssignmentEditor draft={draft} setDraft={setDraft} employees={employees} outletName={outletName} /></TaskSection><TaskSection title="Task content" description="Build what Crew needs to read, check or submit." action={null}><ContentEditor draft={draft} setDraft={setDraft} updateBlock={updateBlock} sops={sops} /></TaskSection><TaskSection title="Completion" description="Define who completes the task and what evidence is required."><RulesEditor draft={draft} setDraft={setDraft} structuredCount={structuredCount} /></TaskSection></main><TaskSummary draft={draft} outletName={outletName} structuredCount={structuredCount} /></div></Modal>{previewing ? <Modal title={draft.name || "Untitled Task"} description="Crew preview · Unsaved changes are included" size="md" panelClassName="max-h-[90vh]" onClose={() => setPreviewing(false)} footer={<button className="btn-secondary" onClick={() => setPreviewing(false)}>Back to Editor</button>}><CrewTaskPreview task={previewTask} onBack={() => setPreviewing(false)} /></Modal> : null}</>;
+  async function saveDraft() { setSaving(true); try { await onSave({ ...draft, _source_language: sourceLanguage }); } finally { setSaving(false); } }
+  async function activate() { setSaving(true); try { if (await onPublish({ ...draft, _source_language: sourceLanguage })) onClose(); } finally { setSaving(false); } }
+  return <><Modal title={title} description={description} headerActions={<Badge tone={dirty ? "warning" : "success"}>{dirty ? "Unsaved changes" : "Saved"}</Badge>} size="3xl" panelClassName="max-h-[92vh]" bodyClassName="p-0" footerClassName="justify-between" onClose={requestClose} footer={<><button type="button" className="btn-secondary" onClick={() => setPreviewing(true)}><Eye size={16} /> Preview as Crew</button><span className="flex items-center gap-2"><button type="button" className="btn-secondary" onClick={requestClose}>Cancel</button><button type="button" className="btn-primary" disabled={saving || !valid} onClick={saveDraft}>{saving ? "Saving…" : "Save Draft"}</button>{draft.id && draft.status === "draft" ? <button type="button" className="btn-primary" disabled={saving || !valid || dirty} title={dirty ? "Save draft changes before activation" : undefined} onClick={activate}>Activate Task</button> : null}</span></>}><div className="grid items-start xl:grid-cols-[minmax(0,1fr)_260px]"><main className="space-y-5 p-5 md:p-6"><TaskSection title="Basic information" description="Name the task and choose the closest starting format."><BasicEditor draft={draft} setDraft={setDraft} /></TaskSection><TaskSection title="Schedule" description="Choose when this task should appear for Crew."><ScheduleEditor draft={draft} setDraft={setDraft} /></TaskSection><TaskSection title="Assignment" description="Choose which Crew should receive this task."><AssignmentEditor draft={draft} setDraft={setDraft} employees={employees} outletName={outletName} /></TaskSection><TaskSection title="Task content" description="Build what Crew needs to read, check or submit." action={null}><ContentEditor draft={draft} setDraft={setDraft} updateBlock={updateBlock} sops={sops} /></TaskSection><TaskSection title="Completion" description="Define who completes the task and what evidence is required."><RulesEditor draft={draft} setDraft={setDraft} structuredCount={structuredCount} /></TaskSection><LocalizedContentEditor domain="task" versionId={draft.id} sourceLanguage={sourceLanguage} onSourceLanguageChange={setSourceLanguage} onHydrateSourceLanguage={hydrateSourceLanguage} sourceUnits={taskLocalizationUnits(draft, sourceLanguage)} confirm={onConfirm} disabled={draft.status && draft.status !== "draft"} /></main><TaskSummary draft={draft} outletName={outletName} structuredCount={structuredCount} /></div></Modal>{previewing ? <Modal title={draft.name || "Untitled Task"} description="Crew preview · Unsaved changes are included" size="md" panelClassName="max-h-[90vh]" onClose={() => setPreviewing(false)} footer={<button className="btn-secondary" onClick={() => setPreviewing(false)}>Back to Editor</button>}><CrewTaskPreview task={previewTask} onBack={() => setPreviewing(false)} /></Modal> : null}</>;
 }
 
 function TaskSection({ title, description, children }) { return <section className="rounded-2xl bg-slate-50/80 p-4 md:p-5"><header className="mb-4"><h3 className="text-base font-bold text-text-primary">{title}</h3><p className="mt-1 text-sm text-text-secondary">{description}</p></header>{children}</section>; }

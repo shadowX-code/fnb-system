@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   uploadMedia: vi.fn(), deleteMedia: vi.fn(), mediaUrl: vi.fn(),
   manageCategory: vi.fn(),
   resumeMediaCleanup: vi.fn(),
+  localization: vi.fn(), saveLocalization: vi.fn(), translate: vi.fn(), editTranslation: vi.fn(), reviewTranslation: vi.fn(),
 }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   listOutletSopsAdmin: mocks.list,
@@ -26,6 +27,11 @@ vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   deleteSopMedia: mocks.deleteMedia,
   resumeSopMediaCleanup: mocks.resumeMediaCleanup,
   sopMediaAdminUrl: mocks.mediaUrl,
+  localizedContentAdmin: mocks.localization,
+  saveLocalizedContentUnits: mocks.saveLocalization,
+  translateLocalizedContent: mocks.translate,
+  editLocalizedTranslation: mocks.editTranslation,
+  reviewLocalizedTranslation: mocks.reviewTranslation,
 } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 
@@ -77,6 +83,8 @@ beforeEach(() => {
   mocks.deleteMedia.mockReset().mockResolvedValue({ deleted: true });
   mocks.resumeMediaCleanup.mockReset().mockResolvedValue({ deleted: 0 });
   mocks.mediaUrl.mockReset().mockResolvedValue("https://signed.test/sop-image");
+  mocks.localization.mockReset().mockResolvedValue({ units: {} });
+  mocks.saveLocalization.mockReset().mockResolvedValue({ units: {} });
   ui.notify.mockReset();
   ui.confirm.mockReset().mockResolvedValue(true);
 });

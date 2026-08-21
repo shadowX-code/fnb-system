@@ -18,6 +18,7 @@ import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewLearnHome from "./CrewLearnHome.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
+import { applyOnboardingLocalization, applySopLocalization } from "../utils/localizedContent.js";
 
 function Progress({ value = 0 }) {
   const safe = Math.max(0, Math.min(100, Number(value) || 0));
@@ -38,7 +39,7 @@ function richBlock(block) {
 }
 
 export default function CrewLearningMobile({ token, onRefreshHome }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [home, setHome] = useState(null);
   const [assignment, setAssignment] = useState(null);
   const [library, setLibrary] = useState({ categories: [], sops: [] });
@@ -68,12 +69,16 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
         crewService.learningHome(token),
         crewService.sopLibrary(token),
       ]);
+      const language = i18n.resolvedLanguage || i18n.language || "en";
+      const sopVersionIds = (nextLibrary?.sops || []).map((item) => item.version_id).filter(Boolean);
+      const sopLocalizations = await crewService.localizedContentForCrew(token, "sop", sopVersionIds, language).catch(() => ({}));
       setHome(nextHome);
-      setLibrary(nextLibrary);
+      setLibrary({ ...nextLibrary, sops: (nextLibrary?.sops || []).map((item) => ({ ...item, title: sopLocalizations[item.version_id]?.["sop.title"] || item.title })) });
       if (nextHome?.assignment?.id) {
-        setAssignment(
-          await crewService.learningAssignment(token, nextHome.assignment.id),
-        );
+        const nextAssignment = await crewService.learningAssignment(token, nextHome.assignment.id);
+        const journeyId = nextAssignment?.journey?.id;
+        const journeyLocalizations = journeyId ? await crewService.localizedContentForCrew(token, "onboarding", [journeyId], language).catch(() => ({})) : {};
+        setAssignment(applyOnboardingLocalization(nextAssignment, journeyLocalizations[journeyId] || {}));
       } else {
         setAssignment(null);
       }
@@ -87,7 +92,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
 
   useEffect(() => {
     loadHome();
-  }, [token]);
+  }, [token, i18n.resolvedLanguage]);
 
   useEffect(() => {
     if (screen !== "sop" && screen !== "lesson-sop") return;
@@ -108,7 +113,9 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
     setSaving(true);
     setError("");
     try {
-      setSop(await crewService.sopVersion(token, versionId));
+      const nextSop = await crewService.sopVersion(token, versionId);
+      const localized = await crewService.localizedContentForCrew(token, "sop", [versionId], i18n.resolvedLanguage || i18n.language || "en").catch(() => ({}));
+      setSop(applySopLocalization(nextSop, localized[versionId] || {}));
       setScreen(returnScreen === "lesson" ? "lesson-sop" : "sop");
     } catch (cause) {
       setError(cause.message || "This SOP is unavailable.");

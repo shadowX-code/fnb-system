@@ -9,6 +9,7 @@ import { crewService } from "../../../services/crewService.js";
 import CrewOnboardingEditor from "../components/CrewOnboardingEditor.jsx";
 import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
+import { localizationLanguageSummary } from "../utils/localizedContent.js";
 
 const byOrder = (rows = []) => [...rows].sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
 const lessonCount = (journey) => (journey?.modules || []).reduce((total, module) => total + (module.lessons?.length || 0), 0);
@@ -115,9 +116,11 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
   }
 
   async function publishOnboarding(nextDraft, stats) {
+    let languageSummary = "Language status unavailable";
+    try { languageSummary = localizationLanguageSummary(await crewService.localizedContentAdmin("onboarding", nextDraft.id)); } catch { /* Publishing remains server-authoritative; the RPC will surface any real failure. */ }
     const confirmed = await ui.confirm({
       title: `Publish Onboarding v${nextDraft.version}?`,
-      message: `${stats.modules} Modules · ${stats.lessons} Lessons · ${stats.quizzes} Knowledge Checks. This version becomes available to Crew. Published versions are immutable.`,
+      message: `${stats.modules} Modules · ${stats.lessons} Lessons · ${stats.quizzes} Knowledge Checks. ${languageSummary}. This version becomes available to Crew. Published versions are immutable.`,
       confirmLabel: `Publish v${nextDraft.version}`,
       tone: "success",
     });

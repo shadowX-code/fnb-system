@@ -24,6 +24,8 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import { IMAGE_UPLOAD_ACCEPT, validateLearningImageFile } from "../../../utils/imageUpload.js";
 import { crewService } from "../../../services/crewService.js";
 import { sanitizeSopHtml } from "../utils/sopDocumentContent.js";
+import LocalizedContentEditor from "./LocalizedContentEditor.jsx";
+import { detectContentLanguage, onboardingLocalizationUnits } from "../utils/localizedContent.js";
 
 const byOrder = (rows = []) => [...rows].sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
 const temporaryId = (type) => `temp:${type}:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`}`;
@@ -73,6 +75,7 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
   const [busy, setBusy] = useState(false);
   const [mediaBusy, setMediaBusy] = useState(false);
   const [pane, setPane] = useState("edit");
+  const [sourceLanguage, setSourceLanguage] = useState(() => detectContentLanguage(journey.name));
   const uploadedMedia = useRef(new Set());
   const selectedModule = draft.modules.find((module) => module.id === selection.moduleId) || draft.modules[0];
   const selectedLesson = selectedModule?.lessons.find((lesson) => lesson.id === selection.lessonId);
@@ -199,6 +202,7 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
     setBusy(true);
     try {
       const saved = await onSave(normalizeOrders(clone(draft)));
+      await crewService.saveLocalizedContentUnits("onboarding", saved.id, onboardingLocalizationUnits(saved, sourceLanguage));
       await cleanupUploadedMedia(saved);
       uploadedMedia.current.clear();
       setDraft(hydrateOnboardingDraft(saved));
@@ -210,7 +214,7 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
   }
   async function publish() {
     const saved = dirty ? await saveDraft() : draft;
-    if (saved) await onPublish(saved, editorStats(saved));
+    if (saved) await onPublish(saved, { ...editorStats(saved), sourceLanguage });
   }
   async function requestClose() {
     if (!dirty) return onClose();
@@ -222,9 +226,10 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
     }
   }
 
-  const footer = <div className="crew-onboarding-editor-footer"><button className="btn-secondary" type="button" onClick={() => setPane((value) => value === "preview" ? "edit" : "preview")}>{pane === "preview" ? "Back to Editor" : "Preview"}</button><div><button className="btn-primary" type="button" disabled={!dirty || busy || saving || mediaBusy} onClick={saveDraft}>{busy || mediaBusy ? "Saving…" : "Save Draft"}</button><button className="btn-secondary" type="button" disabled={busy || saving || mediaBusy} onClick={publish}>Publish</button></div></div>;
+  const localizationUnits = onboardingLocalizationUnits(draft, sourceLanguage);
+  const footer = <div className="crew-onboarding-editor-footer"><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => setPane((value) => value === "preview" ? "edit" : "preview")}>{pane === "preview" ? "Back to Editor" : "Preview"}</button><button className="btn-secondary" type="button" onClick={() => setPane((value) => value === "languages" ? "edit" : "languages")}>{pane === "languages" ? "Back to Editor" : "Languages"}</button></div><div><button className="btn-primary" type="button" disabled={!dirty || busy || saving || mediaBusy} onClick={saveDraft}>{busy || mediaBusy ? "Saving…" : "Save Draft"}</button><button className="btn-secondary" type="button" disabled={busy || saving || mediaBusy} onClick={publish}>Publish</button></div></div>;
   return <Modal title="Edit New Crew Onboarding" description={`${outlet?.name || "Outlet"} · Draft v${draft.version}`} size="2xl" panelClassName="crew-onboarding-editor-modal" bodyClassName="crew-onboarding-editor-body" headerActions={<span className={`crew-onboarding-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved Changes" : <><Check size={13} /> Saved</>}</span>} footer={footer} footerClassName="block" onClose={requestClose}>
-    {pane === "preview" ? <OnboardingPreview draft={draft} sops={sops} /> : <div className="crew-onboarding-editor-layout">
+    {pane === "preview" ? <OnboardingPreview draft={draft} sops={sops} /> : pane === "languages" ? <div className="p-5 md:p-6"><LocalizedContentEditor domain="onboarding" versionId={draft.id} sourceLanguage={sourceLanguage} onSourceLanguageChange={(next) => { setSourceLanguage(next); setDirty(true); }} onHydrateSourceLanguage={setSourceLanguage} sourceUnits={localizationUnits} confirm={confirm} disabled={busy || saving} /></div> : <div className="crew-onboarding-editor-layout">
       <aside className="crew-onboarding-module-outline"><header><strong>Modules</strong><span>{draft.modules.length}</span></header>{draft.modules.map((module, index) => <button key={module.id} className={selectedModule?.id === module.id ? "is-active" : ""} onClick={() => setSelection({ type: "module", moduleId: module.id })}><span>{String(index + 1).padStart(2, "0")}</span><strong>{module.title}</strong><ChevronRight size={15} /></button>)}</aside>
       <main className="crew-onboarding-editor-main">{selection.type === "lesson" && selectedLesson ? <LessonEditor module={selectedModule} lesson={selectedLesson} sops={sops} onBack={() => setSelection({ type: "module", moduleId: selectedModule.id })} onUpdate={updateLesson} onUpdateBlock={updateBlock} onUploadMedia={uploadBlockMedia} onAddBlock={addBlock} onMoveBlock={moveBlock} onDeleteBlock={deleteBlock} onUpdateQuiz={updateQuiz} /> : <ModuleEditor module={selectedModule} moduleIndex={draft.modules.indexOf(selectedModule)} moduleCount={draft.modules.length} onUpdate={updateModule} onMove={moveModule} onSelectLesson={(lessonId) => setSelection({ type: "lesson", moduleId: selectedModule.id, lessonId })} onAddLesson={addLesson} onMoveLesson={moveLesson} onDeleteLesson={deleteLesson} />}</main>
     </div>}

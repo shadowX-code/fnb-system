@@ -40,6 +40,8 @@ import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUplo
 import { parseSopBody, sanitizeSopHtml, serializeSopBody } from "../utils/sopDocumentContent.js";
 import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
+import LocalizedContentEditor from "../components/LocalizedContentEditor.jsx";
+import { detectContentLanguage, localizationLanguageSummary, sopLocalizationUnits } from "../utils/localizedContent.js";
 
 const byOrder = (rows = []) => [...rows].sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
 const byVersion = (rows = []) => [...rows].sort((a, b) => Number(b.version) - Number(a.version));
@@ -157,7 +159,8 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
           media,
         });
       }
-      if (sectionPayload.length) await crewService.saveSopDraftSections(versionId, sectionPayload, [], []);
+      const savedSections = sectionPayload.length ? await crewService.saveSopDraftSections(versionId, sectionPayload, [], []) : [];
+      await crewService.saveLocalizedContentUnits("sop", versionId, sopLocalizationUnits(sop, { id: versionId }, savedSections, detectContentLanguage(values.title)));
       await refresh();
       setCreateOpen(false);
       if (publishAfterSave) {
@@ -176,7 +179,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
   async function createVersion(sop) {
     setSaving(true);
     try {
-      const versionId = await crewService.newSopVersion(sop.id);
+      const versionId = await crewService.newSopVersion(sop.id, currentVersion(sop)?.id || null);
       await refresh();
       await openEditor(sop.id, versionId);
       ui.notify({ title: "New SOP version created", message: "The published version remains unchanged." });
@@ -211,9 +214,11 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
   }
 
   async function publishVersion(sop, version) {
+    let languageSummary = "Language status unavailable";
+    try { languageSummary = localizationLanguageSummary(await crewService.localizedContentAdmin("sop", version.id)); } catch { /* Publish authority remains the final validation boundary. */ }
     const confirmed = await ui.confirm({
       title: `Publish SOP v${version.version}?`,
-      message: `${version.sections?.length || 0} sections · ${version.require_acknowledgement ? "Acknowledgement required" : "No acknowledgement required"} · ${outlet?.name}. After publishing, v${version.version} becomes read only and existing pinned onboarding snapshots remain unchanged.`,
+      message: `${version.sections?.length || 0} sections · ${version.require_acknowledgement ? "Acknowledgement required" : "No acknowledgement required"} · ${outlet?.name}. ${languageSummary}. After publishing, v${version.version} becomes read only and existing pinned onboarding snapshots remain unchanged.`,
       confirmLabel: `Publish v${version.version}`,
       tone: "success",
     });
@@ -426,6 +431,7 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
   const [busy, setBusy] = useState(false);
   const [pane, setPane] = useState("edit");
   const [imageError, setImageError] = useState("");
+  const [sourceLanguage, setSourceLanguage] = useState(() => detectContentLanguage(sop.title));
   const selected = sections.find((section) => section.id === selectedId) || sections[0];
   const hasPendingImage = sections.some((section) => section.pendingImage || section.uploadingImage);
   const valid = sections.length > 0 && sections.every((section) => section.title?.trim());
@@ -513,6 +519,7 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
       }));
       const saved = await crewService.saveSopDraftSections(version.id, payload, originalIds.current, originalMediaIds.current);
       const hydrated = byOrder(saved).map(hydrateSection);
+      await crewService.saveLocalizedContentUnits("sop", version.id, sopLocalizationUnits(sop, version, hydrated, sourceLanguage));
       const selectedIndex = Math.max(0, sections.findIndex((section) => section.id === selectedId));
       originalIds.current = hydrated.map((section) => section.id);
       originalMediaIds.current = hydrated.map((section) => section.media?.id).filter(Boolean);
@@ -541,15 +548,16 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
     await onPublish({ ...version, sections: sections.map((section, index) => ({ ...section, sort_order: index + 1 })) });
   }
   const previewSections = sections.map((section, index) => ({ ...section, body: serializeSopBody(section.editorHtml, section.keyPointContent), key_point: Boolean(section.keyPointContent?.trim()), sort_order: index + 1 }));
+  const localizationUnits = sopLocalizationUnits(sop, version, sections, sourceLanguage);
   const footer = <div className="crew-sop-modal-footer">
-    <div>{pane === "edit" ? <button className="btn-secondary" type="button" onClick={() => setPane("preview")}>Preview</button> : <button className="btn-ghost" type="button" onClick={() => setPane("edit")}>← Back to Editor</button>}</div>
+    <div className="flex gap-2">{pane !== "edit" ? <button className="btn-ghost" type="button" onClick={() => setPane("edit")}>← Back to Editor</button> : <button className="btn-secondary" type="button" onClick={() => setPane("preview")}>Preview</button>}<button className="btn-secondary" type="button" onClick={() => setPane("languages")}>Languages</button></div>
     <div><button className="btn-secondary is-danger" disabled={busy || saving} onClick={onDeleteDraft}><Trash2 size={15} /> Delete Draft</button><button className="btn-primary" disabled={busy || !dirty || !valid || hasPendingImage} onClick={save}>{busy ? "Saving…" : "Save Draft"}</button><button className="btn-secondary" disabled={busy || saving || !valid || hasPendingImage} onClick={publish}>Publish</button></div>
   </div>;
   return <Modal title={sop.title} description={`Draft v${version.version} · ${outlet?.name}`} size="2xl" panelClassName="crew-sop-editor-popout" bodyClassName={`crew-sop-editor-popout-body ${pane === "preview" ? "is-preview" : ""}`} onClose={requestClose} headerActions={<span className={`crew-sop-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved changes" : <><Check size={13} /> Saved</>}</span>} footer={footer} footerClassName="block">
     {pane === "edit" ? <div className="crew-sop-draft-workspace">
       <aside><div><strong>Section Outline</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} className={selected?.id === section.id ? "is-active" : ""} onClick={() => setSelectedId(section.id)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title || "Untitled Section"}</strong><ChevronRight size={15} /></button>)}<button className="crew-sop-add-section" onClick={addSection}><Plus size={15} /> Add Section</button></aside>
       <main>{selected ? <><div className="crew-sop-editor-form-head"><div><span>Section {sections.findIndex((item) => item.id === selected.id) + 1}</span><h2>{selected.title || "Untitled Section"}</h2></div><div><button className="icon-btn" disabled={sections[0]?.id === selected.id} onClick={() => move(-1)} aria-label="Move section up"><ArrowUp size={16} /></button><button className="icon-btn" disabled={sections.at(-1)?.id === selected.id} onClick={() => move(1)} aria-label="Move section down"><ArrowDown size={16} /></button><button className="icon-btn is-danger" disabled={sections.length === 1} onClick={remove} aria-label="Delete section"><Trash2 size={16} /></button></div></div><label>Section Title *<input className="control w-full" value={selected.title || ""} onChange={(event) => updateSelected({ title: event.target.value })} /></label><div className="crew-sop-editor-field"><span>Content</span><RichTextEditor value={selected.editorHtml} onChange={(editorHtml) => updateSelected({ editorHtml })} onImage={chooseImage} disabled={selected.uploadingImage} />{imageError ? <small role="alert" className="crew-sop-editor-error">{imageError}</small> : null}</div>{selected.pendingImage || selected.media ? <div className="crew-sop-image-placeholder"><div>{selected.pendingImage?.url ? <img src={selected.pendingImage.url} alt="Uploading preview" /> : <CrewSopImage media={selected.media} admin />}</div><label>Image caption<input className="control w-full" disabled={selected.uploadingImage} value={selected.pendingImage?.caption ?? selected.media?.caption ?? ""} onChange={(event) => selected.pendingImage ? updateSelected({ pendingImage: { ...selected.pendingImage, caption: event.target.value } }) : updateSelected({ media: { ...selected.media, caption: event.target.value } })} /></label><button className="btn-secondary is-danger" type="button" disabled={selected.uploadingImage} onClick={removeSelectedImage}>Remove Image</button>{selected.uploadingImage ? <p role="status">Uploading and securing image…</p> : <p>Stored privately for this Outlet, SOP, and version.</p>}</div> : null}<label className="crew-sop-key-toggle"><input aria-label="Key Point" type="checkbox" checked={Boolean(selected.keyPointContent)} onChange={(event) => updateSelected({ keyPointContent: event.target.checked ? selected.keyPointContent || "Add the key point…" : "" })} /><span><strong>Key Point</strong><small>Add an optional callout below the normal section content.</small></span></label>{selected.keyPointContent ? <label>Key Point Content<textarea className="control min-h-24 w-full py-3" value={selected.keyPointContent} onChange={(event) => updateSelected({ keyPointContent: event.target.value })} /></label> : null}</> : <EmptyState title="Add the first section" description="Create a section to start this SOP draft." />}</main>
-    </div> : <section className="crew-sop-preview-pane" aria-label={`Preview v${version.version}`}>
+    </div> : pane === "languages" ? <div className="p-5 md:p-6"><LocalizedContentEditor domain="sop" versionId={version.id} sourceLanguage={sourceLanguage} onSourceLanguageChange={(next) => { setSourceLanguage(next); setDirty(true); }} onHydrateSourceLanguage={setSourceLanguage} sourceUnits={localizationUnits} confirm={onConfirm} disabled={busy || saving} /></div> : <section className="crew-sop-preview-pane" aria-label={`Preview v${version.version}`}>
       <div className="crew-sop-preview-context"><Star size={16} aria-hidden="true" /><span>Crew view · Unsaved draft changes included</span></div>
       <div className="crew-sop-preview-scroll" data-testid="sop-preview-scroll"><CrewSopDocument sections={previewSections} admin className="is-admin-preview" /></div>
     </section>}

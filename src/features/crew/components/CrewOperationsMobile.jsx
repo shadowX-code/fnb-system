@@ -7,9 +7,10 @@ import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
 import { formatCrewTime, translateStatus } from "../utils/crewI18n.js";
+import { applySopLocalization, applyTaskLocalization } from "../utils/localizedContent.js";
 
 export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [detail, setDetail] = useState(null);
   const [legacyTask, setLegacyTask] = useState(null);
   const [activeSop, setActiveSop] = useState(null);
@@ -28,13 +29,19 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
 
   async function openTask(row) {
     setSaving(true); setError("");
-    try { setDetail(await crewService.operationDetail(token, row.id)); }
+    try {
+      const nextDetail = await crewService.operationDetail(token, row.id);
+      const localized = nextDetail?.template_id ? await crewService.localizedContentForCrew(token, "task", [nextDetail.template_id], i18n.resolvedLanguage || i18n.language || "en").catch(() => ({})) : {};
+      setDetail(applyTaskLocalization(nextDetail, localized[nextDetail?.template_id] || {}));
+    }
     catch (cause) { setError(cause.message); }
     finally { setSaving(false); }
   }
   async function refreshDetail(current = detail) {
     if (!current) return;
-    setDetail(await crewService.operationDetail(token, current.id));
+    const nextDetail = await crewService.operationDetail(token, current.id);
+    const localized = nextDetail?.template_id ? await crewService.localizedContentForCrew(token, "task", [nextDetail.template_id], i18n.resolvedLanguage || i18n.language || "en").catch(() => ({})) : {};
+    setDetail(applyTaskLocalization(nextDetail, localized[nextDetail?.template_id] || {}));
     await onRefresh?.();
   }
   async function submitBlock({ block, action, response, reason: exceptionReason, note: responseNote }) {
@@ -59,7 +66,11 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     const id = reference?.sop_version_id || reference?.version_id || reference?.id;
     if (!id) return;
     setSaving(true); setError("");
-    try { setActiveSop(await crewService.sopVersion(token, id)); }
+    try {
+      const nextSop = await crewService.sopVersion(token, id);
+      const localized = await crewService.localizedContentForCrew(token, "sop", [id], i18n.resolvedLanguage || i18n.language || "en").catch(() => ({}));
+      setActiveSop(applySopLocalization(nextSop, localized[id] || {}));
+    }
     catch (cause) { setError(cause.message); }
     finally { setSaving(false); }
   }

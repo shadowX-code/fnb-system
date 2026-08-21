@@ -308,6 +308,7 @@ export const crewService = {
   async ensureTaskDraft(templateId) {
     const { data, error } = await supabase.rpc("crew_tasks_ensure_draft", { p_template_id: templateId });
     throwSupabaseError("crew.ensureTaskDraft", error);
+    if (data?.id && data.id !== templateId) await this.cloneLocalizedContent("task", templateId, data.id);
     return data;
   },
 
@@ -771,6 +772,74 @@ export const crewService = {
     return data || { sops: [], categories: [] };
   },
 
+  async localizedContentAdmin(domain, versionId) {
+    const { data, error } = await supabase.rpc("crew_admin_localized_content", {
+      p_domain: domain,
+      p_version_id: versionId,
+    });
+    throwSupabaseError("crew.localizedContentAdmin", error);
+    return data || { domain, version_id: versionId, languages: ["en", "zh-CN", "ms"], units: {} };
+  },
+
+  async saveLocalizedContentUnits(domain, versionId, units) {
+    const { data, error } = await supabase.rpc("crew_save_localized_content_units", {
+      p_domain: domain,
+      p_version_id: versionId,
+      p_units: units.map(({ label: _label, ...unit }) => unit),
+    });
+    throwSupabaseError("crew.saveLocalizedContentUnits", error);
+    return data;
+  },
+
+  async editLocalizedTranslation(unitId, language, value) {
+    const { data, error } = await supabase.rpc("crew_edit_localized_translation", {
+      p_unit_id: unitId,
+      p_language: language,
+      p_value: value,
+    });
+    throwSupabaseError("crew.editLocalizedTranslation", error);
+    return data;
+  },
+
+  async reviewLocalizedTranslation(unitId, language) {
+    const { data, error } = await supabase.rpc("crew_review_localized_translation", {
+      p_unit_id: unitId,
+      p_language: language,
+    });
+    throwSupabaseError("crew.reviewLocalizedTranslation", error);
+    return data;
+  },
+
+  async translateLocalizedContent(domain, versionId, unitIds = null, targetLanguages = null, replaceProtected = false) {
+    const { data, error } = await supabase.functions.invoke("crew-content-translate", {
+      body: { domain, version_id: versionId, unit_ids: unitIds, target_languages: targetLanguages, replace_protected: replaceProtected },
+    });
+    throwSupabaseError("crew.translateLocalizedContent", error || (data?.error ? { message: data.error } : null));
+    return data?.localization || data;
+  },
+
+  async cloneLocalizedContent(domain, sourceVersionId, targetVersionId) {
+    const { data, error } = await supabase.rpc("crew_clone_localized_content", {
+      p_domain: domain,
+      p_source_version_id: sourceVersionId,
+      p_target_version_id: targetVersionId,
+    });
+    throwSupabaseError("crew.cloneLocalizedContent", error);
+    return data;
+  },
+
+  async localizedContentForCrew(token, domain, versionIds, language) {
+    if (!versionIds?.length) return {};
+    const { data, error } = await supabase.rpc("crew_localized_content", {
+      p_token: token,
+      p_domain: domain,
+      p_version_ids: versionIds,
+      p_language: language,
+    });
+    throwSupabaseError("crew.localizedContentForCrew", error);
+    return data || {};
+  },
+
   async getSopAdmin(sopId) {
     const { data, error } = await supabase.rpc("crew_sop_admin_detail", {
       p_sop_id: sopId,
@@ -1031,6 +1100,7 @@ export const crewService = {
   async newJourneyVersion(journeyId) {
     const { data, error } = await supabase.rpc("crew_new_journey_version", { p_journey_id: journeyId });
     throwSupabaseError("crew.newJourneyVersion", error);
+    if (data && data !== journeyId) await this.cloneLocalizedContent("onboarding", journeyId, data);
     return data;
   },
 
@@ -1040,9 +1110,10 @@ export const crewService = {
     return data;
   },
 
-  async newSopVersion(sopId) {
+  async newSopVersion(sopId, sourceVersionId = null) {
     const { data, error } = await supabase.rpc("crew_new_sop_version", { p_sop_id: sopId });
     throwSupabaseError("crew.newSopVersion", error);
+    if (sourceVersionId && data !== sourceVersionId) await this.cloneLocalizedContent("sop", sourceVersionId, data);
     return data;
   },
   async manageAccess(employeeId, action, passcode = "") {

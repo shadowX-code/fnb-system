@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
   learningMediaAdminUrl: vi.fn(),
   publishJourney: vi.fn(),
   cloneLearningSetup: vi.fn(),
+  localization: vi.fn(), saveLocalization: vi.fn(), translate: vi.fn(), editTranslation: vi.fn(), reviewTranslation: vi.fn(), localizedForCrew: vi.fn(),
 }));
 
 vi.mock("../../../../services/crewService.js", () => ({
@@ -42,6 +43,12 @@ vi.mock("../../../../services/crewService.js", () => ({
     learningMediaAdminUrl: mocks.learningMediaAdminUrl,
     publishJourney: mocks.publishJourney,
     cloneLearningSetup: mocks.cloneLearningSetup,
+    localizedContentAdmin: mocks.localization,
+    saveLocalizedContentUnits: mocks.saveLocalization,
+    translateLocalizedContent: mocks.translate,
+    editLocalizedTranslation: mocks.editTranslation,
+    reviewLocalizedTranslation: mocks.reviewTranslation,
+    localizedContentForCrew: mocks.localizedForCrew,
   },
 }));
 vi.mock("../../../../services/outletService.js", () => ({
@@ -141,6 +148,9 @@ beforeEach(() => {
   mocks.learningMediaAdminUrl.mockReset().mockResolvedValue("https://signed.test/admin-preview.webp");
   mocks.publishJourney.mockReset().mockResolvedValue("journey-draft");
   mocks.cloneLearningSetup.mockReset().mockResolvedValue("journey-draft");
+  mocks.localization.mockReset().mockResolvedValue({ units: {} });
+  mocks.saveLocalization.mockReset().mockResolvedValue({ units: {} });
+  mocks.localizedForCrew.mockReset().mockResolvedValue({});
   ui.notify.mockReset();
   ui.confirm.mockReset().mockResolvedValue(true);
 });

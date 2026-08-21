@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   learningAssignment: vi.fn(),
   clock: vi.fn(),
   changePasscode: vi.fn(),
+  localizedContentForCrew: vi.fn(),
 }));
 
 vi.mock("../../../services/crewService.js", () => ({ crewService: mocks }));
@@ -70,6 +71,7 @@ beforeEach(() => {
   mocks.sopVersion.mockReset().mockResolvedValue({ id: "sop-version-1", title: "Welcome Standard", category: "Service", version: 2, acknowledgement_required: true, acknowledged: false, summary: "Welcome every guest consistently.", sections: [] });
   mocks.acknowledgeSop.mockReset().mockResolvedValue({ acknowledged: true });
   mocks.learningAssignment.mockReset().mockResolvedValue({ id: "assignment-1", journey: { name: "New Crew Onboarding" }, modules: [] });
+  mocks.localizedContentForCrew.mockReset().mockResolvedValue({});
   mocks.clock.mockReset().mockResolvedValue({});
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
 });
