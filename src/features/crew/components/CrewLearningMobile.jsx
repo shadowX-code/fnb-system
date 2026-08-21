@@ -46,6 +46,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
   const [screen, setScreen] = useState("home");
   const [lesson, setLesson] = useState(null);
   const [sop, setSop] = useState(null);
+  const [sopLanguage, setSopLanguage] = useState(null);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -100,6 +101,22 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
     document.body.scrollTop = 0;
   }, [screen, sop?.id]);
 
+  useEffect(() => {
+    const language = i18n.resolvedLanguage || i18n.language || "en";
+    if (!sop?.id || sopLanguage === language) return undefined;
+    let active = true;
+    Promise.all([
+      crewService.sopVersion(token, sop.id),
+      crewService.localizedContentForCrew(token, "sop", [sop.id], language).catch(() => ({})),
+    ]).then(([nextSop, localized]) => {
+      if (active) {
+        setSop(applySopLocalization(nextSop, localized[sop.id] || {}));
+        setSopLanguage(language);
+      }
+    }).catch((cause) => active && setError(cause.message || "This SOP is unavailable."));
+    return () => { active = false; };
+  }, [token, sop?.id, sopLanguage, i18n.resolvedLanguage, i18n.language]);
+
   function openLesson(nextLesson) {
     setError("");
     setLesson(nextLesson);
@@ -114,8 +131,10 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
     setError("");
     try {
       const nextSop = await crewService.sopVersion(token, versionId);
-      const localized = await crewService.localizedContentForCrew(token, "sop", [versionId], i18n.resolvedLanguage || i18n.language || "en").catch(() => ({}));
+      const language = i18n.resolvedLanguage || i18n.language || "en";
+      const localized = await crewService.localizedContentForCrew(token, "sop", [versionId], language).catch(() => ({}));
       setSop(applySopLocalization(nextSop, localized[versionId] || {}));
+      setSopLanguage(language);
       setScreen(returnScreen === "lesson" ? "lesson-sop" : "sop");
     } catch (cause) {
       setError(cause.message || "This SOP is unavailable.");

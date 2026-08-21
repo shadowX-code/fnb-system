@@ -19,8 +19,8 @@ export function detectContentLanguage(value = "") {
   if (!text) return "en";
   const han = (text.match(/[\u3400-\u9fff]/g) || []).length;
   if (han / Math.max(text.length, 1) > 0.12) return "zh-CN";
-  const malaySignals = text.toLowerCase().match(/\b(yang|dan|untuk|dengan|anda|sila|sebelum|selepas|pekerja|pelanggan|kedai|tugas)\b/g) || [];
-  return malaySignals.length >= 2 ? "ms" : "en";
+  const malaySignals = text.toLowerCase().match(/\b(yang|dan|untuk|dengan|anda|sila|sebelum|selepas|pekerja|pelanggan|kedai|tugas|keselamatan|makanan|pembersihan|pembukaan|penutupan|stesen|kerja|semakan|pengakuan)\b/g) || [];
+  return malaySignals.length >= 1 ? "ms" : "en";
 }
 
 const value = (source) => JSON.stringify(String(source ?? ""));

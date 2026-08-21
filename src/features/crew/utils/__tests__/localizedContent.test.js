@@ -15,6 +15,7 @@ describe("Crew localized business content", () => {
     expect(detectContentLanguage("Welcome to the team")).toBe("en");
     expect(detectContentLanguage("欢迎加入我们的团队")).toBe("zh-CN");
     expect(detectContentLanguage("Sila semak tugas yang anda perlu lakukan sebelum kedai dibuka")).toBe("ms");
+    expect(detectContentLanguage("Keselamatan Makanan")).toBe("ms");
     expect(resolveLocalizedValue({}, "missing", "Source fallback")).toBe("Source fallback");
   });
 

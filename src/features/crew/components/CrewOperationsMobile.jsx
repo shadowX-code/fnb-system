@@ -12,15 +12,17 @@ import { applySopLocalization, applyTaskLocalization } from "../utils/localizedC
 export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
   const { t, i18n } = useTranslation();
   const [detail, setDetail] = useState(null);
+  const [detailLanguage, setDetailLanguage] = useState(null);
   const [legacyTask, setLegacyTask] = useState(null);
   const [activeSop, setActiveSop] = useState(null);
+  const [activeSopLanguage, setActiveSopLanguage] = useState(null);
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [savingBlockId, setSavingBlockId] = useState(null);
   const [error, setError] = useState("");
 
-  useEffect(() => { setDetail(null); setLegacyTask(null); setActiveSop(null); }, [token]);
+  useEffect(() => { setDetail(null); setDetailLanguage(null); setLegacyTask(null); setActiveSop(null); setActiveSopLanguage(null); }, [token]);
   useEffect(() => {
     if (!initialTarget) return;
     if (initialTarget.kind === "legacy_task") setLegacyTask({ ...initialTarget.row, kind: "legacy_task" });
@@ -31,8 +33,10 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     setSaving(true); setError("");
     try {
       const nextDetail = await crewService.operationDetail(token, row.id);
-      const localized = nextDetail?.template_id ? await crewService.localizedContentForCrew(token, "task", [nextDetail.template_id], i18n.resolvedLanguage || i18n.language || "en").catch(() => ({})) : {};
+      const language = i18n.resolvedLanguage || i18n.language || "en";
+      const localized = nextDetail?.template_id ? await crewService.localizedContentForCrew(token, "task", [nextDetail.template_id], language).catch(() => ({})) : {};
       setDetail(applyTaskLocalization(nextDetail, localized[nextDetail?.template_id] || {}));
+      setDetailLanguage(language);
     }
     catch (cause) { setError(cause.message); }
     finally { setSaving(false); }
@@ -40,8 +44,10 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   async function refreshDetail(current = detail) {
     if (!current) return;
     const nextDetail = await crewService.operationDetail(token, current.id);
-    const localized = nextDetail?.template_id ? await crewService.localizedContentForCrew(token, "task", [nextDetail.template_id], i18n.resolvedLanguage || i18n.language || "en").catch(() => ({})) : {};
+    const language = i18n.resolvedLanguage || i18n.language || "en";
+    const localized = nextDetail?.template_id ? await crewService.localizedContentForCrew(token, "task", [nextDetail.template_id], language).catch(() => ({})) : {};
     setDetail(applyTaskLocalization(nextDetail, localized[nextDetail?.template_id] || {}));
+    setDetailLanguage(language);
     await onRefresh?.();
   }
   async function submitBlock({ block, action, response, reason: exceptionReason, note: responseNote }) {
@@ -68,12 +74,47 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     setSaving(true); setError("");
     try {
       const nextSop = await crewService.sopVersion(token, id);
-      const localized = await crewService.localizedContentForCrew(token, "sop", [id], i18n.resolvedLanguage || i18n.language || "en").catch(() => ({}));
+      const language = i18n.resolvedLanguage || i18n.language || "en";
+      const localized = await crewService.localizedContentForCrew(token, "sop", [id], language).catch(() => ({}));
       setActiveSop(applySopLocalization(nextSop, localized[id] || {}));
+      setActiveSopLanguage(language);
     }
     catch (cause) { setError(cause.message); }
     finally { setSaving(false); }
   }
+
+  useEffect(() => {
+    const language = i18n.resolvedLanguage || i18n.language || "en";
+    if (!detail?.id || detailLanguage === language) return undefined;
+    let active = true;
+    (async () => {
+      try {
+        const nextDetail = await crewService.operationDetail(token, detail.id);
+        const localized = nextDetail?.template_id ? await crewService.localizedContentForCrew(token, "task", [nextDetail.template_id], language).catch(() => ({})) : {};
+        if (active) {
+          setDetail(applyTaskLocalization(nextDetail, localized[nextDetail?.template_id] || {}));
+          setDetailLanguage(language);
+        }
+      } catch (cause) { if (active) setError(cause.message); }
+    })();
+    return () => { active = false; };
+  }, [token, detail?.id, detailLanguage, i18n.resolvedLanguage, i18n.language]);
+
+  useEffect(() => {
+    const language = i18n.resolvedLanguage || i18n.language || "en";
+    if (!activeSop?.id || activeSopLanguage === language) return undefined;
+    let active = true;
+    Promise.all([
+      crewService.sopVersion(token, activeSop.id),
+      crewService.localizedContentForCrew(token, "sop", [activeSop.id], language).catch(() => ({})),
+    ]).then(([nextSop, localized]) => {
+      if (active) {
+        setActiveSop(applySopLocalization(nextSop, localized[activeSop.id] || {}));
+        setActiveSopLanguage(language);
+      }
+    }).catch((cause) => active && setError(cause.message));
+    return () => { active = false; };
+  }, [token, activeSop?.id, activeSopLanguage, i18n.resolvedLanguage, i18n.language]);
 
   if (activeSop) return <SopTaskReader sop={activeSop} token={token} onBack={() => setActiveSop(null)} />;
 
