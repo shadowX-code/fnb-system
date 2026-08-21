@@ -40,6 +40,7 @@ import CrewLeaveMobile from "./components/CrewLeaveMobile.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import CrewCashCheckoutMobile from "./components/CrewCashCheckoutMobile.jsx";
 import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
+import SelectField from "../../components/forms/SelectField.jsx";
 import { formatCrewDate, formatCrewTime, crewLocale, translateStatus } from "./utils/crewI18n.js";
 import { SUPPORTED_CREW_LANGUAGES } from "../../i18n/index.js";
 import "./CrewMobileApp.css";
@@ -211,7 +212,7 @@ function AttendanceHistoryScreen({ employee, context, openShift, todayRoster, ro
   const shift = todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : null;
   return <section className="crew-v2-attendance crew-attendance-history-page">
     <header className="crew-v2-page-header"><div><button type="button" onClick={onBack} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("attendance.title")}</h1></div></header>
-    <label className="crew-attendance-month-select"><span>{t("attendance.month")}</span><select value={selectedMonth} onChange={(event) => onMonthChange(event.target.value)}>{months.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}</select><ChevronDown size={16} /></label>
+    <div className="crew-attendance-month-select"><SelectField label={t("attendance.month")} ariaLabel={t("attendance.month")} value={selectedMonth} onChange={onMonthChange} options={months} /></div>
     {openShift && <section className="crew-attendance-current-shift"><span><Clock3 size={18} /></span><div><strong>{t("home.onShift")}</strong><small>{t("attendance.started", { time: formatTime(openShift.clock_in_at) })}{shift ? ` · ${shift}` : ""}</small></div><button type="button" onClick={onBack}>{t("home.goHome")}</button></section>}
     <section className="crew-attendance-month-summary" aria-label={t("attendance.monthSummary")}>
       <div><small>{t("attendance.worked")}</small><strong>{rows.length} {t("common.shifts")}</strong></div>
@@ -527,19 +528,19 @@ export default function CrewMobileApp() {
       {logoutConfirmOpen && <div className="crew-me-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmOpen(false); }}><section className="crew-me-confirm" role="dialog" aria-modal="true" aria-labelledby="crew-logout-title"><h2 id="crew-logout-title">{t("me.logoutTitle")}</h2><p>{t("me.logoutBody")}</p><div><button type="button" onClick={() => setLogoutConfirmOpen(false)}>{t("common.cancel")}</button><button type="button" className="is-danger" onClick={logout}>{t("me.logout")}</button></div></section></div>}
     </section>}
 
-    {clockDraft && <div className="crew-home-modal-backdrop" role="presentation">
+    {clockDraft && <div className="crew-home-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !loading) setClockDraft(null); }}>
       <section className="crew-home-clock-modal" role="dialog" aria-modal="true" aria-labelledby="crew-clock-confirm-title">
         <header><span><Navigation size={19} /></span><div><h2 id="crew-clock-confirm-title">{t("attendance.confirmClock", { action: clockDraft.action === "out" ? t("home.clockOut") : t("home.clockIn") })}</h2><p>{context?.outlet_name || t("common.outlet")}</p></div></header>
         {!exceptionRequired && <p className="is-safe"><Check size={16} /> {t("attendance.locationVerified")}</p>}
         {outside && <p className="is-warning">{t("attendance.outsideRange", { distance: Math.round(clockDraft.distance), meters: context.radius_meters })}</p>}
         {!clockDraft.location && <p className="is-warning">{t("attendance.locationUnavailable")}</p>}
-        {exceptionRequired && <label>{t("attendance.reason")}<select value={exception} onChange={(event) => setException(event.target.value)}><option value="">{t("attendance.selectReason")}</option>{options.map((option) => <option key={option} value={reasonValues[option]}>{t(`attendanceReasons.${option}`)}</option>)}</select></label>}
+        {exceptionRequired && <div className="crew-home-modal-select"><SelectField label={t("attendance.reason")} ariaLabel={t("attendance.reason")} value={exception} onChange={setException} placeholder={t("attendance.selectReason")} options={options.map((option) => ({ value: reasonValues[option], label: t(`attendanceReasons.${option}`) }))} /></div>}
         {exception === reasonValues.other && <input value={otherReason} maxLength="280" onChange={(event) => setOtherReason(event.target.value)} placeholder={t("attendance.briefReason")} />}
         {error && <div className="crew-v2-error">{error}</div>}
-        <div className="crew-v2-actions"><button type="button" onClick={() => setClockDraft(null)}>{t("common.cancel")}</button><button className="crew-v2-primary" type="button" onClick={submitClock} disabled={loading}>{loading ? t("common.saving") : t("common.confirm")}</button></div>
+        <div className="crew-v2-actions"><button type="button" onClick={() => setClockDraft(null)} disabled={loading}>{t("common.cancel")}</button><button className="crew-v2-primary" type="button" onClick={submitClock} disabled={loading || (exceptionRequired && (!exception || (exception === reasonValues.other && !otherReason.trim())))}>{loading ? t("common.saving") : clockDraft.action === "out" ? t("home.clockOut") : t("common.confirm")}</button></div>
       </section>
     </div>}
-    {clockSuccess && <div className="crew-home-modal-backdrop" role="presentation"><section className="crew-home-success-modal" role="dialog" aria-modal="true" aria-labelledby="crew-clock-success-title"><span><Check size={28} /></span><h2 id="crew-clock-success-title">{t("home.clockedInSuccess")}</h2><dl><div><dt>{t("home.clockInTime")}</dt><dd>{formatTime(clockSuccess.time)}</dd></div><div><dt>{t("common.outlet")}</dt><dd>{clockSuccess.outlet}</dd></div><div><dt>{t("common.role")}</dt><dd>{clockSuccess.role}</dd></div></dl><button type="button" className="crew-v2-primary" onClick={() => { setClockSuccess(null); setScreen("attendance"); }}>{t("home.viewAttendance")}</button><button type="button" onClick={() => { setClockSuccess(null); setScreen("home"); }}>{t("home.goHome")}</button></section></div>}
+    {clockSuccess && <div className="crew-home-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setClockSuccess(null); }}><section className="crew-home-success-modal" role="dialog" aria-modal="true" aria-labelledby="crew-clock-success-title"><span><Check size={28} /></span><h2 id="crew-clock-success-title">{t("home.clockedInSuccess")}</h2><dl><div><dt>{t("home.clockInTime")}</dt><dd>{formatTime(clockSuccess.time)}</dd></div><div><dt>{t("common.outlet")}</dt><dd>{clockSuccess.outlet}</dd></div><div><dt>{t("common.role")}</dt><dd>{clockSuccess.role}</dd></div></dl><div className="crew-home-modal-actions"><button type="button" className="crew-v2-primary" onClick={() => { setClockSuccess(null); setScreen("home"); }}>{t("home.goHome")}</button><button type="button" className="crew-home-secondary-action" onClick={() => { setClockSuccess(null); setScreen("attendance"); }}>{t("home.viewAttendance")}</button></div></section></div>}
 
     <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout"].includes(screen) ? "me" : screen} onChange={(next) => { if (next === "growth") setGrowthInitialView("overview"); setScreen(next); if (next === "me") setMeView("main"); }} />
   </section></main>;

@@ -406,8 +406,10 @@ describe("Crew Mobile redesign", () => {
     render(<CrewMobileApp />);
     fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
     expect(await screen.findByText(/from the outlet/)).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
-    expect(await screen.findByText(/Choose an exception reason/)).not.toBeNull();
+    const confirm = screen.getByRole("button", { name: "Confirm" });
+    expect(confirm.disabled).toBe(true);
+    fireEvent.click(confirm);
+    expect(screen.getByRole("dialog", { name: "Confirm Clock In" })).not.toBeNull();
     expect(mocks.clock).not.toHaveBeenCalled();
   });
 

@@ -116,8 +116,6 @@
 .crew-home-schedule-row.is-away>em{color:#c66b00}
 .crew-home-empty{display:flex;min-height:58px;align-items:center;gap:10px;padding:10px 12px;color:#07855f}.crew-home-empty>span{display:grid;gap:3px}.crew-home-empty strong{color:#0b1938;font-size:10px}.crew-home-empty small{color:#68788f;font-size:8px}
 
-.crew-v2-app:has(>.crew-v2-home)>.crew-v2-nav{width:min(100%,430px);max-width:100%;margin:0 auto;padding:5px 8px calc(5px + env(safe-area-inset-bottom));background:rgb(255 255 255/.98);box-shadow:0 -5px 14px rgb(16 34 54/.06)}
-.crew-v2-app:has(>.crew-v2-home)>.crew-v2-nav button{min-height:44px;gap:2px;color:#64748b;font-size:8px;font-weight:720}.crew-v2-app:has(>.crew-v2-home)>.crew-v2-nav button svg{width:20px;height:20px;stroke-width:2}.crew-v2-app:has(>.crew-v2-home)>.crew-v2-nav button.active{color:#079c6e}
 
 @media(max-width:390px){
   .crew-v2-app:has(>.crew-v2-home){padding-inline:15px}
