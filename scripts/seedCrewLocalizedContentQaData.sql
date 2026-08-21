@@ -37,8 +37,11 @@ end; $$;
 do $$
 declare v_sop record; v_journey record; v_task record;
 begin
-  select v.id,s.outlet_id into v_sop from public.crew_sop_versions v join public.crew_sops s on s.id=v.sop_id where v.status='draft' and s.title ilike '%QA%' order by v.created_at desc limit 1;
-  select j.id,j.outlet_id into v_journey from public.crew_journeys j where j.status='draft' and j.name ilike '%QA%' order by j.created_at desc limit 1;
+  select v.id,s.outlet_id into v_sop from public.crew_sop_versions v join public.crew_sops s on s.id=v.sop_id where v.status='draft' and s.title ilike '%QA%' order by s.updated_at desc limit 1;
+  select j.id,j.outlet_id into v_journey from public.crew_journeys j
+  where j.status='draft'
+    and (j.name ilike '%QA%' or j.description ilike '%Staging only%')
+  order by j.created_at desc limit 1;
   select t.id,t.outlet_id into v_task from public.crew_operation_templates t where t.status='draft' and t.name ilike '[QA]%' order by t.created_at desc limit 1;
   if v_sop.id is null or v_journey.id is null or v_task.id is null then
     raise exception 'Create/reuse one QA Draft for SOP, Onboarding and Task before running the localized-content QA seed.';
