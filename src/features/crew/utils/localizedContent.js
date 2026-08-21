@@ -8,6 +8,7 @@ export const CONTENT_LANGUAGE_OPTIONS = [
 
 export const LOCALIZATION_STATUS = {
   original: { label: "Original", tone: "success" },
+  incomplete: { label: "Incomplete", tone: "warning" },
   ai_translated: { label: "AI Translated", tone: "info" },
   reviewed: { label: "Reviewed", tone: "success" },
   outdated: { label: "Outdated", tone: "warning" },
@@ -25,6 +26,9 @@ export function detectContentLanguage(value = "") {
 
 const value = (source) => JSON.stringify(String(source ?? ""));
 const stableSegment = (entity, fallback) => String(entity?.id || fallback).toLowerCase().replace(/[^a-z0-9_.:-]/g, "-");
+const taskBlockSegment = (block, fallback) => stableSegment({
+  id: block?.config?.localization_key || block?.block_config?.localization_key || block?.id,
+}, fallback);
 const unit = (unitKey, fieldKind, sourceLanguage, sourceValue, label) => ({
   unit_key: unitKey,
   field_kind: fieldKind,
@@ -81,7 +85,7 @@ export function onboardingLocalizationUnits(journey, sourceLanguage) {
 export function taskLocalizationUnits(task, sourceLanguage) {
   const rows = [unit("task.name", "plain_text", sourceLanguage, task?.name, "Task name")];
   (task?.blocks || []).forEach((block, index) => {
-    const key = `blocks.${stableSegment(block, index + 1)}`;
+    const key = `blocks.${taskBlockSegment(block, index + 1)}`;
     rows.push(unit(`${key}.title`, "plain_text", sourceLanguage, block.title, `Block ${index + 1} title`));
     if (block.description) rows.push(unit(`${key}.description`, "plain_text", sourceLanguage, block.description, `Block ${index + 1} instruction`));
     (block.config?.options || []).forEach((option, optionIndex) => rows.push(unit(`${key}.options.${stableSegment(typeof option === "string" ? null : option, optionIndex + 1)}`, "plain_text", sourceLanguage, typeof option === "string" ? option : option.label, `Block ${index + 1} option ${optionIndex + 1}`)));
@@ -100,20 +104,21 @@ export function localizationStatus(unit, language) {
   return unit.translations?.[language]?.status || "missing";
 }
 
+export function localizationLanguageStatus(units, language, sourceLanguage) {
+  const statuses = (units || []).map((storedUnit) => localizationStatus(storedUnit, language));
+  if (language === sourceLanguage || (sourceLanguage == null && (units || []).some((storedUnit) => storedUnit.source_language === language))) return "original";
+  if (statuses.includes("outdated")) return "outdated";
+  if (!statuses.length || statuses.every((status) => status === "missing")) return "missing";
+  if (statuses.includes("missing")) return "incomplete";
+  if (statuses.every((status) => status === "reviewed")) return "reviewed";
+  return "ai_translated";
+}
+
 export function localizationLanguageSummary(localization) {
   const units = Object.values(localization?.units || {});
   return CONTENT_LANGUAGES.map((language) => {
-    const statuses = units.map((storedUnit) => localizationStatus(storedUnit, language));
     const isSource = units.some((storedUnit) => storedUnit.source_language === language);
-    const status = isSource
-      ? "original"
-      : statuses.includes("outdated")
-        ? "outdated"
-        : statuses.includes("missing") || !statuses.length
-          ? "missing"
-          : statuses.includes("ai_translated")
-            ? "ai_translated"
-            : "reviewed";
+    const status = localizationLanguageStatus(units, language, isSource ? language : undefined);
     const label = CONTENT_LANGUAGE_OPTIONS.find((item) => item.value === language)?.label || language;
     return `${label}: ${LOCALIZATION_STATUS[status].label}`;
   }).join(" · ");
@@ -146,7 +151,7 @@ export function applyTaskLocalization(task, localizations = {}) {
     ...task,
     name: resolveLocalizedValue(localizations, "task.name", task.name),
     blocks: (task.blocks || []).map((block, index) => {
-      const key = `blocks.${stableSegment(block, index + 1)}`;
+      const key = `blocks.${taskBlockSegment(block, index + 1)}`;
       const options = (block.config?.options || []).map((option, optionIndex) => {
         const translated = resolveLocalizedValue(localizations, `${key}.options.${stableSegment(typeof option === "string" ? null : option, optionIndex + 1)}`, typeof option === "string" ? option : option.label);
         return typeof option === "string" ? translated : { ...option, label: translated };

@@ -7,6 +7,7 @@ import {
   CONTENT_LANGUAGE_OPTIONS,
   CONTENT_LANGUAGES,
   LOCALIZATION_STATUS,
+  localizationLanguageStatus,
   localizationStatus,
 } from "../utils/localizedContent.js";
 import "./LocalizedContentEditor.css";
@@ -16,6 +17,7 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
   const [language, setLanguage] = useState(sourceLanguage || "en");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const units = payload?.units || {};
   const visibleUnits = useMemo(() => sourceUnits.map((sourceUnit) => ({ ...sourceUnit, stored: units[sourceUnit.unit_key] })), [sourceUnits, units]);
 
@@ -37,12 +39,17 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
       setError("Save Draft source changes before translating so translations use the canonical saved content.");
       return;
     }
-    setBusy(true); setError("");
+    setBusy(true); setError(""); setSuccess("");
     try {
       // Legacy drafts can have saved content but predate localized units.
       // Hydrate canonical units first; reviewed/manual targets stay protected.
       await crewService.saveLocalizedContentUnits(domain, versionId, sourceUnits);
-      setPayload(await crewService.translateLocalizedContent(domain, versionId));
+      const translated = await crewService.translateLocalizedContent(domain, versionId);
+      // The Edge Function response is read after the complete server-side apply.
+      // Read again to prevent a previously-open editor from retaining stale units.
+      const refreshed = await crewService.localizedContentAdmin(domain, versionId);
+      setPayload(Object.keys(refreshed?.units || {}).length ? refreshed : translated);
+      setSuccess("Translations generated · Saved");
     }
     catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
@@ -91,8 +98,7 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
     </div>
     <div className="crew-localized-tabs" role="tablist" aria-label="Localized content language">
       {CONTENT_LANGUAGE_OPTIONS.map((option) => {
-        const statuses = visibleUnits.map(({ stored }) => localizationStatus(stored, option.value));
-        const status = option.value === sourceLanguage ? "original" : statuses.includes("outdated") ? "outdated" : statuses.includes("missing") ? "missing" : statuses.includes("ai_translated") ? "ai_translated" : "reviewed";
+        const status = localizationLanguageStatus(visibleUnits.map(({ stored }) => stored).filter(Boolean), option.value, sourceLanguage);
         return <button type="button" key={option.value} role="tab" aria-selected={language === option.value} className={language === option.value ? "is-active" : ""} onClick={() => setLanguage(option.value)}><span>{option.label}</span><Badge tone={LOCALIZATION_STATUS[status].tone}>{LOCALIZATION_STATUS[status].label}</Badge></button>;
       })}
     </div>
@@ -110,6 +116,7 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
       }) : <p className="crew-localized-empty">Save the Draft source once to create its translatable content units.</p>}
     </div>
     {error ? <p className="crew-localized-error" role="alert"><span>{error}</span>{versionId && !sourceDirty ? <button type="button" className="btn-ghost" disabled={busy || disabled} onClick={translateMissing}>Retry</button> : null}</p> : null}
+    {success ? <p className="crew-localized-success" role="status"><Check size={14} /> {success}</p> : null}
     {!versionId ? <p className="crew-localized-note"><RefreshCw size={14} /> Save the Draft before generating translations.</p> : null}
   </section>;
 }
@@ -117,8 +124,7 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
 export function LocalizationPublishSummary({ localization, sourceLanguage = "en" }) {
   const units = Object.values(localization?.units || {});
   return <section className="crew-localized-publish-summary"><h3>Language summary</h3>{CONTENT_LANGUAGES.map((language) => {
-    const statuses = units.map((unit) => localizationStatus(unit, language));
-    const status = language === sourceLanguage ? "original" : statuses.includes("outdated") ? "outdated" : statuses.includes("missing") || !statuses.length ? "missing" : statuses.includes("ai_translated") ? "ai_translated" : "reviewed";
+    const status = localizationLanguageStatus(units, language, sourceLanguage);
     return <div key={language}><span>{CONTENT_LANGUAGE_OPTIONS.find((item) => item.value === language)?.label}</span><Badge tone={LOCALIZATION_STATUS[status].tone}>{LOCALIZATION_STATUS[status].label}</Badge></div>;
   })}</section>;
 }

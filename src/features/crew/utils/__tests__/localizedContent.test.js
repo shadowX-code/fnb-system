@@ -4,6 +4,7 @@ import {
   applySopLocalization,
   applyTaskLocalization,
   detectContentLanguage,
+  localizationLanguageStatus,
   localizationStatus,
   onboardingLocalizationUnits,
   resolveLocalizedValue,
@@ -34,6 +35,22 @@ describe("Crew localized business content", () => {
     expect(localized.blocks[0].id).toBe("block-1");
     expect(localized.blocks[0].config.options[0]).toEqual({ id: "option-a", label: "是" });
     expect(taskLocalizationUnits(task, "en").map((row) => row.unit_key)).toEqual(["task.name", "blocks.block-1.title", "blocks.block-1.description", "blocks.block-1.options.option-a"]);
+  });
+
+  it("keeps Task localization keys stable when a draft save rebuilds block rows", () => {
+    const beforeSave = { name: "Opening", blocks: [{ id: "old-block-id", title: "Count float", description: "Before opening", config: { localization_key: "cash-float" } }] };
+    const afterSave = { name: "Opening", blocks: [{ id: "new-block-id", title: "Count float", description: "Before opening", config: { localization_key: "cash-float" } }] };
+    expect(taskLocalizationUnits(beforeSave, "en").map((row) => row.unit_key)).toEqual(taskLocalizationUnits(afterSave, "en").map((row) => row.unit_key));
+  });
+
+  it("reports partially generated target languages as Incomplete rather than Missing", () => {
+    const units = [
+      { source_language: "en", translations: { "zh-CN": { status: "ai_translated" } } },
+      { source_language: "en", translations: {} },
+    ];
+    expect(localizationLanguageStatus(units, "en", "en")).toBe("original");
+    expect(localizationLanguageStatus(units, "zh-CN", "en")).toBe("incomplete");
+    expect(localizationLanguageStatus(units, "ms", "en")).toBe("missing");
   });
 
   it("localizes quiz display text while preserving question and option IDs", () => {

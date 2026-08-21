@@ -233,7 +233,8 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Translate Missing" }));
     await waitFor(() => expect(mocks.saveLocalization).toHaveBeenCalledWith("sop", "v2", expect.any(Array)));
     await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "v2"));
-    fireEvent.click(screen.getByRole("tab", { name: /简体中文.*Missing/ }));
+    expect((await screen.findByRole("status")).textContent).toContain("Translations generated · Saved");
+    fireEvent.click(screen.getByRole("tab", { name: /简体中文.*AI Translated/ }));
     expect(await screen.findByDisplayValue("欢迎标准")).not.toBeNull();
   });
 
