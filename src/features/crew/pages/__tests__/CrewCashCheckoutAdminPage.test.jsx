@@ -52,4 +52,20 @@ describe("Crew Cash Checkout Admin", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Record Collection" })[1]);
     await waitFor(() => expect(mocks.collect).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ amount: "300", receiver_name: "Secure Logistics" })));
   });
+
+  it("renders an unconfigured outlet without dereferencing null settings", async () => {
+    mocks.data.mockResolvedValueOnce({ ...fixture, settings: null });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("Not configured")).not.toBeNull();
+    expect(screen.getByText("Set this before Crew can reconcile opening cash")).not.toBeNull();
+  });
+
+  it("shows a recoverable error rather than an empty or crashed page", async () => {
+    mocks.data.mockRejectedValueOnce(new Error("Request timed out"));
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("Unable to load Cash Checkout")).not.toBeNull();
+    expect(screen.getByText("Request timed out")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(mocks.data).toHaveBeenCalledTimes(2));
+  });
 });

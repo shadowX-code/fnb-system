@@ -42,11 +42,15 @@ describe("Crew Cash Checkout mobile", () => {
     expect(sent).not.toHaveProperty("variance");
   });
 
-  it("shows a read-only immutable completion state", async () => {
-    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", completed_at: "2026-08-21T22:30:00+08:00", counted_cash: 850, variance: 0, amount_for_deposit: 500 } });
+  it("shows a compact immutable completion state and opens the server snapshot", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 0, amount_for_deposit: 500 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    expect(await screen.findByText("Cash Checkout completed")).not.toBeNull();
+    expect(await screen.findByText("Completed at 10:30 pm")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(screen.getByRole("heading", { name: "Checkout Details" })).not.toBeNull();
+    expect(screen.getByText("RM100 × 8")).not.toBeNull();
+    expect(screen.getByText("This checkout is completed and cannot be edited.")).not.toBeNull();
   });
 
   it("keeps internal handover receipt confirmation session-bound", async () => {

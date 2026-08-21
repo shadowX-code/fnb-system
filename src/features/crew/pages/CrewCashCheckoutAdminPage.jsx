@@ -7,6 +7,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
+import { formatCrewEmployee } from "../utils/crewI18n.js";
 
 const localDate = (value = new Date()) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 const money = (value) => new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value || 0));
@@ -14,14 +15,25 @@ const date = (value) => value ? new Intl.DateTimeFormat("en-GB", { day: "2-digit
 const dateTime = (value) => value ? new Intl.DateTimeFormat("en-MY", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(value)) : "—";
 const statusLabel = (value) => ({ draft: "Draft", reconciled: "Reconciled", submitted: "Submitted", completed: "Completed", pending_receipt: "Pending Receipt", review_required: "Review Required", cancelled: "Cancelled", balanced: "Balanced", over: "Over", short: "Short" }[value] || value || "—");
 const statusTone = (value) => ["completed", "balanced"].includes(value) ? "success" : ["review_required", "over", "short", "submitted", "pending_receipt"].includes(value) ? "warning" : value === "cancelled" ? "danger" : "neutral";
+const emptyData = () => ({ settings: null, summary: {}, checkouts: [], ledger: [], collections: [], float_history: [], employees: [] });
+const normalizeData = (payload) => {
+  const source = payload && typeof payload === "object" ? payload : {};
+  return {
+    settings: source.settings && typeof source.settings === "object" ? source.settings : null,
+    summary: source.summary && typeof source.summary === "object" ? source.summary : {},
+    checkouts: Array.isArray(source.checkouts) ? source.checkouts : [], ledger: Array.isArray(source.ledger) ? source.ledger : [],
+    collections: Array.isArray(source.collections) ? source.collections : [], float_history: Array.isArray(source.float_history) ? source.float_history : [], employees: Array.isArray(source.employees) ? source.employees : [],
+  };
+};
 
 export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
   const [tab, setTab] = useState("checkout");
   const [from, setFrom] = useState(() => { const value = new Date(); value.setDate(value.getDate() - 30); return localDate(value); });
   const [to, setTo] = useState(localDate());
-  const [data, setData] = useState({ settings: {}, summary: {}, checkouts: [], ledger: [], collections: [], float_history: [], employees: [] });
+  const [data, setData] = useState(emptyData);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [selected, setSelected] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
@@ -30,10 +42,10 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   const canCollect = auth.hasPermission("crew_cash_deposit.record_collection");
 
   async function refresh() {
-    if (!outletId) return;
-    setLoading(true);
-    try { setData(await crewService.cashCheckoutAdminData(outletId, from, to)); }
-    catch (cause) { ui.notify({ title: "Unable to load Cash Checkout", message: cause.message, tone: "error" }); }
+    if (!outletId) { setData(emptyData()); setLoadError(""); setLoading(false); return; }
+    setLoading(true); setLoadError("");
+    try { setData(normalizeData(await crewService.cashCheckoutAdminData(outletId, from, to))); }
+    catch (cause) { setData(emptyData()); setLoadError(cause.message || "Unable to load Cash Checkout"); }
     finally { setLoading(false); }
   }
   useEffect(() => { refresh(); }, [outletId, from, to]);
@@ -61,12 +73,12 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
     <PageHeader section="Crew · Operations" title="Cash Checkout" description="Reconcile daily outlet cash separately from the auditable Cash Deposit ledger." />
     <CrewAdminToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />} time={<div className="flex gap-2"><label className="field-label">From<input className="control mt-1" type="date" value={from} onChange={(event) => setFrom(event.target.value)} /></label><label className="field-label">To<input className="control mt-1" type="date" value={to} onChange={(event) => setTo(event.target.value)} /></label></div>} primary={<div className="flex gap-2">{canManage && <button className="btn-secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</button>}{tab === "deposit" && canCollect && <button className="btn-primary" onClick={() => setCollectionOpen(true)}><HandCoins size={16} /> Record Collection</button>}</div>} />
     <div className="inline-flex rounded-xl border border-border bg-white p-1" role="tablist"><button className={tab === "checkout" ? "btn-primary" : "btn-ghost"} role="tab" aria-selected={tab === "checkout"} onClick={() => setTab("checkout")}>Daily Checkout</button><button className={tab === "deposit" ? "btn-primary" : "btn-ghost"} role="tab" aria-selected={tab === "deposit"} onClick={() => setTab("deposit")}>Cash Deposit</button></div>
-    {tab === "checkout" ? <>
-      <section className="grid gap-3 md:grid-cols-4"><Metric icon={WalletCards} label="Floating Cash" value={money(data.settings.floating_cash)} helper="Current outlet setting" /><Metric icon={CheckCircle2} label="Completed" value={data.checkouts.filter((item) => item.status === "completed").length} helper="Selected period" /><Metric icon={History} label="In Progress" value={data.checkouts.filter((item) => item.status !== "completed").length} helper="Draft through submitted" /><Metric icon={Banknote} label="Needs Review" value={reviewCount} helper="Variance, shortfall or receipt difference" tone={reviewCount ? "warning" : "success"} /></section>
+    {loadError ? <section className="card flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center"><Banknote size={28} className="text-text-muted" /><div><h2 className="text-base font-semibold">Unable to load Cash Checkout</h2><p className="mt-1 text-sm text-text-secondary">{loadError}</p></div><button className="btn-primary" onClick={refresh}>Retry</button></section> : tab === "checkout" ? <>
+      <section className="grid gap-3 md:grid-cols-4"><Metric icon={WalletCards} label="Floating Cash" value={data.settings ? money(data.settings.floating_cash) : "Not configured"} helper={data.settings ? "Current outlet setting" : "Set this before Crew can reconcile opening cash"} /><Metric icon={CheckCircle2} label="Completed" value={data.checkouts.filter((item) => item.status === "completed").length} helper="Selected period" /><Metric icon={History} label="In Progress" value={data.checkouts.filter((item) => item.status !== "completed").length} helper="Draft through submitted" /><Metric icon={Banknote} label="Needs Review" value={reviewCount} helper="Variance, shortfall or receipt difference" tone={reviewCount ? "warning" : "success"} /></section>
       <section className="card overflow-hidden">{loading ? <div className="p-8 text-sm text-text-muted">Loading Cash Checkout…</div> : <DataTable density="compact" tableClassName="min-w-[1120px]" rows={data.checkouts} getRowKey={(row) => row.id} columns={[
         { key: "date", header: "Date", render: (row) => date(row.business_date) },
         { key: "outlet", header: "Outlet", render: () => outlets.find((item) => item.id === outletId)?.name || "—" },
-        { key: "crew", header: "Checked Out By", render: (row) => row.checked_out_by },
+        { key: "crew", header: "Checked Out By", render: (row) => formatCrewEmployee(row.checked_out_by) },
         { key: "opening", header: "Opening", render: (row) => money(row.expected_opening_cash) },
         { key: "counted", header: "Counted", render: (row) => money(row.counted_cash) },
         { key: "pos", header: "POS Expected", render: (row) => row.pos_expected_cash == null ? "—" : money(row.pos_expected_cash) },
@@ -82,12 +94,12 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
         { key: "date", header: "Date", render: (row) => dateTime(row.occurred_at) }, { key: "activity", header: "Activity", render: (row) => row.activity },
         { key: "in", header: "Amount In", render: (row) => Number(row.amount_in) ? <span className="font-semibold text-emerald-700">+{money(row.amount_in)}</span> : "—" },
         { key: "out", header: "Amount Out", render: (row) => Number(row.amount_out) ? <span className="font-semibold text-slate-700">−{money(row.amount_out)}</span> : "—" },
-        { key: "balance", header: "Balance", render: (row) => <strong>{money(row.balance)}</strong> }, { key: "receiver", header: "Receiver", render: (row) => row.receiver_name || "—" }, { key: "actor", header: "Recorded By", render: (row) => row.recorded_by },
+        { key: "balance", header: "Balance", render: (row) => <strong>{money(row.balance)}</strong> }, { key: "receiver", header: "Receiver", render: (row) => formatCrewEmployee(row.receiver_name) }, { key: "actor", header: "Recorded By", render: (row) => formatCrewEmployee(row.recorded_by) },
       ]} />}</section>
       {data.collections.some((item) => ["pending_receipt", "review_required"].includes(item.status)) && <section className="card overflow-hidden"><div className="border-b border-border px-5 py-4"><h2 className="font-semibold">Handover Status</h2></div><DataTable density="compact" rows={data.collections.filter((item) => ["pending_receipt", "review_required"].includes(item.status))} getRowKey={(row) => row.id} columns={[{ key: "receiver", header: "Receiver", render: (row) => row.receiver_name }, { key: "amount", header: "Handed Over", render: (row) => money(row.amount) }, { key: "received", header: "Received", render: (row) => row.received_amount ? money(row.received_amount) : "Awaiting confirmation" }, { key: "status", header: "Status", render: (row) => <Badge tone="warning">{statusLabel(row.status)}</Badge> }, { key: "action", header: "Action", align: "right", render: (row) => row.status === "review_required" && canReview ? <button className="btn-secondary" onClick={() => reviewCollection(row, refresh, ui)}>Review Difference</button> : null }]} /></section>}
     </>}
     {selected && <CheckoutDetail row={selected} canReview={canReview} canManage={canManage} onReview={review} onChanged={refresh} ui={ui} onClose={() => setSelected(null)} />}
-    {settingsOpen && <CashSettings initial={data.settings} history={data.float_history} outletId={outletId} onClose={() => setSettingsOpen(false)} onSaved={async () => { setSettingsOpen(false); await refresh(); }} ui={ui} />}
+    {settingsOpen && <CashSettings initial={data.settings || {}} history={data.float_history} outletId={outletId} onClose={() => setSettingsOpen(false)} onSaved={async () => { setSettingsOpen(false); await refresh(); }} ui={ui} />}
     {collectionOpen && <CollectionForm outletId={outletId} employees={data.employees} balance={data.summary.available_balance ?? data.summary.current_balance} onClose={() => setCollectionOpen(false)} onSaved={async () => { setCollectionOpen(false); await refresh(); }} ui={ui} />}
   </div>;
 }
@@ -97,7 +109,7 @@ function Metric({ icon: Icon, label, value, helper, tone = "neutral" }) { return
 function CheckoutDetail({ row, canReview, canManage, onReview, onChanged, ui, onClose }) {
   const counts = Object.entries(row.denomination_counts || {}).filter(([, qty]) => Number(qty) > 0);
   const [correcting, setCorrecting] = useState(false);
-  return <Modal title={`Cash Checkout · ${date(row.business_date)}`} description={`${row.checked_out_by} · ${statusLabel(row.status)}`} size="xl" onClose={onClose} footer={<div className="flex w-full justify-between"><span>{canManage && row.status === "completed" ? <button className="btn-secondary" onClick={() => setCorrecting(true)}>Record Correction</button> : null}</span><span className="flex gap-2">{canReview && row.review_required && row.review_status === "pending" ? <><button className="btn-secondary" onClick={() => onReview(row, "reject")}>Return</button><button className="btn-primary" onClick={() => onReview(row, "approve")}>Approve & Complete</button></> : <button className="btn-secondary" onClick={onClose}>Close</button>}</span></div>}>
+  return <Modal title={`Cash Checkout · ${date(row.business_date)}`} description={`${formatCrewEmployee(row.checked_out_by)} · ${statusLabel(row.status)}`} size="xl" onClose={onClose} footer={<div className="flex w-full justify-between"><span>{canManage && row.status === "completed" ? <button className="btn-secondary" onClick={() => setCorrecting(true)}>Record Correction</button> : null}</span><span className="flex gap-2">{canReview && row.review_required && row.review_status === "pending" ? <><button className="btn-secondary" onClick={() => onReview(row, "reject")}>Return</button><button className="btn-primary" onClick={() => onReview(row, "approve")}>Approve & Complete</button></> : <button className="btn-secondary" onClick={onClose}>Close</button>}</span></div>}>
     <div className="grid gap-3 sm:grid-cols-3"><Detail label="Expected Opening" value={money(row.expected_opening_cash)} /><Detail label="Counted Cash" value={money(row.counted_cash)} /><Detail label="POS Expected" value={row.pos_expected_cash == null ? "—" : money(row.pos_expected_cash)} /><Detail label="Variance" value={row.variance == null ? "—" : money(row.variance)} /><Detail label="Carry Forward" value={money(row.carry_forward)} /><Detail label="For Deposit" value={money(row.amount_for_deposit)} /></div>
     {row.float_shortfall > 0 && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Float shortfall: {money(row.float_shortfall)}</p>}
     {(row.variance_reason || row.opening_variance_reason) && <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm"><strong>Recorded reasons</strong>{row.opening_variance_reason && <p>Opening: {row.opening_variance_reason}</p>}{row.variance_reason && <p>Reconciliation: {row.variance_reason}</p>}</div>}
