@@ -1169,6 +1169,18 @@ export const crewService = {
     return data || [];
   },
 
+  async myAttendanceMonth(token, month) {
+    const { data, error } = await supabase.rpc("crew_my_attendance_month", { p_token: token, p_month: month });
+    throwSupabaseError("crew.myAttendanceMonth", error);
+    return data || [];
+  },
+
+  async myProfile(token) {
+    const { data, error } = await supabase.rpc("crew_my_profile", { p_token: token });
+    throwSupabaseError("crew.myProfile", error);
+    return data || null;
+  },
+
   async listAttendance({ from: requestedFrom, to: requestedTo, outletId = null } = {}) {
     const today = localBusinessDate();
     const fallbackFrom = new Date(`${today}T00:00:00`);

@@ -199,11 +199,52 @@ function HomeScheduleRow({ entry, label, onClick }) {
   return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${scheduleLabel}`}><i><CalendarDays size={19} /></i><span><strong>{title}</strong><small>{outlet}{entry.position ? ` · ${entry.position}` : ""}</small></span><em>{meta}</em><ChevronRight size={18} /></button>;
 }
 
+function AttendanceHistoryScreen({ employee, context, openShift, todayRoster, rows, loading, selectedMonth, onMonthChange, onBack, t }) {
+  const months = [0, 1, 2].map((offset) => {
+    const date = new Date();
+    date.setMonth(date.getMonth() - offset, 1);
+    return { value: date.toISOString().slice(0, 7), label: formatCrewDate(date, { month: "long", year: "numeric" }) };
+  });
+  const totalMinutes = rows.reduce((total, row) => total + (row.clock_in_at && row.clock_out_at ? Math.max(0, (new Date(row.clock_out_at) - new Date(row.clock_in_at)) / 60000) : 0), 0);
+  const exceptions = rows.filter((row) => row.clock_in_location_exception || row.status === "open").length;
+  const formatMonthDate = (value) => formatCrewDate(value, { day: "2-digit", month: "2-digit", year: "numeric" });
+  const shift = todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : null;
+  return <section className="crew-v2-attendance crew-attendance-history-page">
+    <header className="crew-v2-page-header"><div><button type="button" onClick={onBack} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("attendance.title")}</h1></div></header>
+    <label className="crew-attendance-month-select"><span>{t("attendance.month")}</span><select value={selectedMonth} onChange={(event) => onMonthChange(event.target.value)}>{months.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}</select><ChevronDown size={16} /></label>
+    {openShift && <section className="crew-attendance-current-shift"><span><Clock3 size={18} /></span><div><strong>{t("home.onShift")}</strong><small>{t("attendance.started", { time: formatTime(openShift.clock_in_at) })}{shift ? ` · ${shift}` : ""}</small></div><button type="button" onClick={onBack}>{t("home.goHome")}</button></section>}
+    <section className="crew-attendance-month-summary" aria-label={t("attendance.monthSummary")}>
+      <div><small>{t("attendance.worked")}</small><strong>{rows.length} {t("common.shifts")}</strong></div>
+      <div><small>{t("attendance.totalHours")}</small><strong>{Math.floor(totalMinutes / 60)}h {Math.round(totalMinutes % 60)}m</strong></div>
+      <div><small>{t("attendance.exceptions")}</small><strong className={exceptions ? "is-warning" : ""}>{exceptions}</strong></div>
+    </section>
+    <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>{t("attendance.history")}</h2><span>{rows.length} {t("common.shifts")}</span></div><div className="crew-v2-history">{loading ? <div className="crew-attendance-loading">{t("common.loading")}</div> : rows.length ? rows.map((row) => {
+      const completed = Boolean(row.clock_out_at);
+      const minutes = completed ? Math.max(0, (new Date(row.clock_out_at) - new Date(row.clock_in_at)) / 60000) : 0;
+      return <div key={row.id}><span><strong>{formatMonthDate(row.clock_in_at)}</strong><small>{row.clock_in_location_verified ? t("attendance.locationVerified") : row.clock_in_location_exception ? t("attendance.locationException") : t("attendance.locationUnavailable")}</small></span><span><strong>{formatTime(row.clock_in_at)} – {completed ? formatTime(row.clock_out_at) : t("common.now")}</strong><small>{completed ? `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m · ${t("status.completed")}` : t("home.onShift")}</small></span></div>;
+    }) : <EmptyState title={t("attendance.noShifts")} body={t("attendance.completedAppear")} />}</div></section>
+  </section>;
+}
+
+function ProfileInformation({ profile, employee, context, firstName, t, onBack }) {
+  const date = (value) => value ? formatCrewDate(value, { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
+  const field = (label, value) => <div><dt>{label}</dt><dd>{value || "—"}</dd></div>;
+  return <><header className="crew-v2-page-header"><div><button type="button" onClick={onBack} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("me.profile")}</h1></div></header><article className="crew-me-profile-detail">
+    <span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span><h2>{profile.full_name || employee.full_name || firstName}</h2><p>{profile.nickname || employee.nickname || "—"}</p><strong>{profile.position || employee.position || t("home.crewMember")}</strong>
+    <section><h2>{t("me.personal")}</h2><dl>{field(t("me.fullName"), profile.full_name || employee.full_name)}{field(t("me.nickname"), profile.nickname || employee.nickname)}{field(t("me.birthday"), date(profile.birthday))}{field(t("me.contact"), profile.contact || employee.contact)}</dl></section>
+    <section><h2>{t("me.employment")}</h2><dl>{field(t("me.joinedDate"), date(profile.joined_date))}{field(t("me.position"), profile.position || employee.position)}{field(t("common.outlet"), profile.outlet_name || context?.outlet_name || employee.workplace || t("me.notAssigned"))}{field(t("me.employmentStatus"), profile.employment_status ? String(profile.employment_status).replace(/_/g, " ") : t("status.active"))}</dl></section>
+  </article></>;
+}
+
 export default function CrewMobileApp() {
   const { t, i18n } = useTranslation();
   const [session, setSession] = useState(readSession);
   const [screen, setScreen] = useState("home");
   const [attendance, setAttendance] = useState([]);
+  const [attendanceMonth, setAttendanceMonth] = useState([]);
+  const [attendanceMonthLoading, setAttendanceMonthLoading] = useState(false);
+  const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [profile, setProfile] = useState(null);
   const [context, setContext] = useState(null);
   const [learningHome, setLearningHome] = useState(null);
   const [growth, setGrowth] = useState(null);
@@ -226,11 +267,12 @@ export default function CrewMobileApp() {
   const [exception, setException] = useState("");
   const [otherReason, setOtherReason] = useState("");
   const [meView, setMeView] = useState("main");
-  const [passcodeChangeOpen, setPasscodeChangeOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
   const [currentPasscode, setCurrentPasscode] = useState("");
   const [newPasscode, setNewPasscode] = useState("");
+  const [confirmPasscode, setConfirmPasscode] = useState("");
+  const [passcodeSuccess, setPasscodeSuccess] = useState(false);
   const openShift = useMemo(() => attendance.find((item) => item.status === "open"), [attendance]);
   const employee = session?.employee || {};
   const firstName = employee.nickname || employee.full_name?.split(" ")[0] || t("auth.crew");
@@ -240,7 +282,7 @@ export default function CrewMobileApp() {
   async function refresh(token = session?.token) {
     if (!token) return;
     setPageLoading(true);
-    const [historyResult, contextResult, learningResult, growthResult, performanceResult, rewardResult, operationsResult, rosterResult, leaveResult] = await Promise.allSettled([
+    const [historyResult, contextResult, learningResult, growthResult, performanceResult, rewardResult, operationsResult, rosterResult, leaveResult, profileResult] = await Promise.allSettled([
       crewService.myAttendance(token),
       crewService.attendanceContext(token),
       crewService.learningHome(token),
@@ -250,6 +292,7 @@ export default function CrewMobileApp() {
       crewService.operationsToday(token),
       crewService.myRoster(token),
       crewService.myLeave(token),
+      typeof crewService.myProfile === "function" ? crewService.myProfile(token) : Promise.resolve(null),
     ]);
     if ([historyResult, contextResult, learningResult].some((result) => result.status === "rejected")) {
       const cause = [historyResult, contextResult, learningResult].find((result) => result.status === "rejected")?.reason;
@@ -273,10 +316,26 @@ export default function CrewMobileApp() {
     setOperations(operationsResult.status === "fulfilled" ? operationsResult.value : { tasks: [] });
     setRoster(rosterResult.status === "fulfilled" ? rosterResult.value : { today: null, entries: [] });
     setLeave(leaveResult.status === "fulfilled" ? leaveResult.value : { requests: [], upcoming: [] });
+    setProfile(profileResult.status === "fulfilled" ? profileResult.value : null);
     setPageLoading(false);
   }
 
   useEffect(() => { refresh(); }, [session?.token]);
+  useEffect(() => {
+    if (!session?.token || screen !== "attendance") return;
+    let active = true;
+    setAttendanceMonthLoading(true);
+    const loadMonth = typeof crewService.myAttendanceMonth === "function"
+      ? crewService.myAttendanceMonth(session.token, `${selectedAttendanceMonth}-01`)
+      : Promise.resolve(attendance.filter((row) => row.clock_in_at?.slice(0, 7) === selectedAttendanceMonth));
+    loadMonth
+      .then((rows) => { if (active) setAttendanceMonth(rows); })
+      .catch((cause) => { if (active) setError(cause.message || t("attendance.unableUpdate")); })
+      .finally(() => { if (active) setAttendanceMonthLoading(false); });
+    return () => { active = false; };
+  // This is a bounded server read. Keep it independent from Home's summary
+  // refresh so opening Attendance never turns into duplicate month requests.
+  }, [screen, selectedAttendanceMonth, session?.token]);
   useEffect(() => {
     if (!openShift) return undefined;
     setNowTick(Date.now());
@@ -337,7 +396,7 @@ export default function CrewMobileApp() {
   async function changePasscode(event) {
     event.preventDefault();
     setError("");
-    if (!/^\d{4}$/.test(currentPasscode) || !/^\d{4}$/.test(newPasscode)) return setError(t("me.enterPasscodes"));
+    if (!/^\d{4}$/.test(currentPasscode) || !/^\d{4}$/.test(newPasscode) || newPasscode !== confirmPasscode) return setError(t("me.enterPasscodes"));
     setLoading(true);
     try {
       const next = await crewService.changePasscode(session.token, currentPasscode, newPasscode);
@@ -346,7 +405,9 @@ export default function CrewMobileApp() {
       setSession(updated);
       setCurrentPasscode("");
       setNewPasscode("");
-      setPasscodeChangeOpen(false);
+      setConfirmPasscode("");
+      setPasscodeSuccess(true);
+      setMeView("main");
     } catch (cause) {
       setError(cause.message || t("me.unablePasscode"));
     } finally {
@@ -431,17 +492,15 @@ export default function CrewMobileApp() {
 
     {screen === "schedule" && <CrewScheduleMobile roster={roster} employee={employee} onBack={() => setScreen("home")} />}
 
-    {screen === "attendance" && <section className="crew-v2-attendance">
-      <header className="crew-v2-page-header"><div><button type="button" onClick={() => setScreen("home")} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("attendance.title")}</h1></div></header>
-      <article className="crew-v3-attendance-summary"><div><CrewStatusBadge tone={openShift ? "success" : todayRoster ? "ready" : "neutral"}>{openShift ? t("home.onShift") : todayRoster ? t("attendance.readyShift") : t("attendance.noShift")}</CrewStatusBadge><Clock3 size={22} /></div><small>{t("attendance.todayShift")}</small><h2>{todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : todayRoster ? rosterEntryLabel(todayRoster, t) : t("attendance.scheduleNotPublished")}</h2><p>{todayRoster?.position || employee.position || t("home.crewMember")} · {todayRoster?.outlet_name || context?.outlet_name || t("home.yourOutlet")}</p>{openShift && <span>{t("attendance.started", { time: formatTime(openShift.clock_in_at) })}</span>}</article>
-      <button className="crew-v2-primary" type="button" onClick={() => prepareClock(openShift ? "out" : "in")} disabled={loading}>{loading ? t("attendance.checkingLocation") : openShift ? t("home.clockOut") : t("home.clockIn")}</button>
-      <section className="crew-v2-location"><MapPin size={19} /><span><strong>{context?.location_enabled ? t("attendance.locationVerification") : t("attendance.locationNotConfigured")}</strong><small>{context?.location_enabled ? t("attendance.withinMeters", { meters: context.radius_meters, outlet: context.outlet_name }) : t("attendance.noGeofence")}</small></span></section>
-      <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>{t("attendance.history")}</h2><span>{attendance.length} {t("common.shifts")}</span></div><div className="crew-v2-history">{attendance.length ? attendance.map((row) => <div key={row.id}><span><strong>{formatDate(row.clock_in_at)}</strong><small>{row.clock_in_location_verified ? t("attendance.locationVerified") : row.clock_in_location_exception ? t("attendance.locationException") : t("attendance.locationUnavailable")}</small></span><span><strong>{formatTime(row.clock_in_at)} – {row.clock_out_at ? formatTime(row.clock_out_at) : t("common.now")}</strong><small>{row.status === "open" ? t("home.onShift") : t("status.completed")}</small></span></div>) : <EmptyState title={t("attendance.noShifts")} body={t("attendance.completedAppear")} />}</div></section>
-    </section>}
+    {screen === "attendance" && <AttendanceHistoryScreen
+      employee={employee} context={context} openShift={openShift} todayRoster={todayRoster}
+      rows={attendanceMonth} loading={attendanceMonthLoading} selectedMonth={selectedAttendanceMonth}
+      onMonthChange={setSelectedAttendanceMonth} onBack={() => setScreen("home")} t={t}
+    />}
 
     {screen === "me" && <section className="crew-v2-me">
-      {meView === "settings" ? <><header className="crew-v2-page-header"><div><button type="button" onClick={() => setMeView("main")} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("me.settings")}</h1></div></header><div className="crew-v2-menu"><div><Bell size={18} /><span>{t("me.notifications")}</span><ChevronRight size={17} /></div><button type="button" onClick={() => setLanguageOpen(true)}><Languages size={18} /><span>{t("me.language")}</span><em>{t(`languages.${i18n.resolvedLanguage || i18n.language}`)}</em><ChevronRight size={17} /></button><button type="button" onClick={() => setPasscodeChangeOpen(true)}><LockKeyhole size={18} /><span>{t("me.passcode")}</span><ChevronRight size={17} /></button><div><ShieldCheck size={18} /><span>{t("me.privacy")}</span><ChevronRight size={17} /></div><div><FileText size={18} /><span>{t("me.terms")}</span><ChevronRight size={17} /></div><div><HelpCircle size={18} /><span>{t("me.about")}</span><ChevronRight size={17} /></div></div></> : meView === "profile" ? <><header className="crew-v2-page-header"><div><button type="button" onClick={() => setMeView("main")} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("me.profile")}</h1></div></header><article className="crew-me-profile-detail"><span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span><h2>{employee.full_name || firstName}</h2><p>{employee.position || t("home.crewMember")}</p><dl><div><dt>{t("common.outlet")}</dt><dd>{context?.outlet_name || employee.workplace || t("me.notAssigned")}</dd></div><div><dt>{t("me.employmentStatus")}</dt><dd>{t("status.active")}</dd></div></dl></article></> : <>
-        <header className="crew-me-header"><h1>{t("me.title")}</h1></header>
+      {meView === "settings" ? <><header className="crew-v2-page-header"><div><button type="button" onClick={() => setMeView("main")} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("me.settings")}</h1></div></header><div className="crew-v2-menu"><div><Bell size={18} /><span>{t("me.notifications")}</span><ChevronRight size={17} /></div><button type="button" aria-label={t("me.language")} onClick={() => setLanguageOpen(true)}><Languages size={18} /><span>{t("me.language")}</span><em>{t(`languages.${i18n.resolvedLanguage || i18n.language}`)}</em><ChevronRight size={17} /></button><div><ShieldCheck size={18} /><span>{t("me.privacy")}</span><ChevronRight size={17} /></div><div><FileText size={18} /><span>{t("me.terms")}</span><ChevronRight size={17} /></div><div><HelpCircle size={18} /><span>{t("me.about")}</span><ChevronRight size={17} /></div></div></> : meView === "profile" ? <ProfileInformation profile={profile || employee} employee={employee} context={context} firstName={firstName} t={t} onBack={() => setMeView("main")} /> : meView === "passcode" ? <section className="crew-me-passcode-page"><header className="crew-v2-page-header"><div><button type="button" onClick={() => setMeView("main")} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("me.changePasscode")}</h1></div></header><form className="crew-v2-passcode-form" onSubmit={changePasscode}><label>{t("me.currentPasscode")}<input inputMode="numeric" autoComplete="current-password" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>{t("me.newPasscode")}<input inputMode="numeric" autoComplete="new-password" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>{t("me.confirmNewPasscode")}<input inputMode="numeric" autoComplete="new-password" maxLength="4" value={confirmPasscode} onChange={(event) => setConfirmPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-v2-primary" disabled={loading}>{t("me.savePasscode")}</button></form></section> : <>
+        <header className="crew-me-header"><h1>{t("me.title")}</h1></header>{passcodeSuccess && <p className="crew-me-success" role="status"><Check size={16} /> {t("me.passcodeSaved")}</p>}
         <button className="crew-me-profile-hero" type="button" onClick={() => setMeView("profile")} aria-label={t("me.viewProfile")}>
           <span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span>
           <span className="crew-me-profile-copy"><strong>{employee.full_name || firstName}</strong><small>{employee.position || t("home.crewMember")}</small><small className="crew-me-outlet"><BriefcaseBusiness size={14} />{context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small><em><i />{t("status.active")}</em></span>
@@ -459,13 +518,11 @@ export default function CrewMobileApp() {
         </div></section>
         <section className="crew-me-section"><h2>{t("me.account")}</h2><div className="crew-me-list is-neutral">
           <button type="button" onClick={() => setMeView("profile")}><span className="crew-me-row-icon"><UserRound size={20} /></span><span><strong>{t("me.profile")}</strong></span><ChevronRight size={19} /></button>
-          <button type="button" onClick={() => setPasscodeChangeOpen(true)}><span className="crew-me-row-icon"><LockKeyhole size={20} /></span><span><strong>{t("me.changePasscode")}</strong></span><ChevronRight size={19} /></button>
+          <button type="button" onClick={() => setMeView("passcode")}><span className="crew-me-row-icon"><LockKeyhole size={20} /></span><span><strong>{t("me.changePasscode")}</strong></span><ChevronRight size={19} /></button>
           <button type="button" onClick={() => setMeView("settings")}><span className="crew-me-row-icon"><Settings size={20} /></span><span><strong>{t("me.settings")}</strong></span><ChevronRight size={19} /></button>
         </div></section>
-        <section className="crew-me-section"><h2>{t("me.support")}</h2><div className="crew-me-list is-neutral"><div><span className="crew-me-row-icon"><HelpCircle size={20} /></span><span><strong>{t("me.help")}</strong></span><ChevronRight size={19} /></div></div></section>
         <button className="crew-v2-logout" type="button" onClick={() => setLogoutConfirmOpen(true)}><LogOut size={20} /> {t("me.logout")}</button>
       </>}
-      {passcodeChangeOpen && <form className="crew-v2-passcode-form" onSubmit={changePasscode}><div className="crew-v2-section-title"><h2>{t("me.changePasscode")}</h2><button type="button" onClick={() => setPasscodeChangeOpen(false)}>{t("common.close")}</button></div><label>{t("me.currentPasscode")}<input inputMode="numeric" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>{t("me.newPasscode")}<input inputMode="numeric" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-v2-primary" disabled={loading}>{t("me.savePasscode")}</button></form>}
       {languageOpen && <div className="crew-me-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLanguageOpen(false); }}><section className="crew-me-confirm crew-language-modal" role="dialog" aria-modal="true" aria-labelledby="crew-language-title"><h2 id="crew-language-title">{t("me.languageTitle")}</h2><p>{t("me.languageHint")}</p><div className="crew-language-list">{SUPPORTED_CREW_LANGUAGES.map((language) => <button type="button" key={language} aria-pressed={(i18n.resolvedLanguage || i18n.language) === language} onClick={() => { i18n.changeLanguage(language); setLanguageOpen(false); }}><span>{t(`languages.${language}`)}</span>{(i18n.resolvedLanguage || i18n.language) === language && <Check size={18} />}</button>)}</div><div><button type="button" onClick={() => setLanguageOpen(false)}>{t("common.close")}</button></div></section></div>}
       {logoutConfirmOpen && <div className="crew-me-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmOpen(false); }}><section className="crew-me-confirm" role="dialog" aria-modal="true" aria-labelledby="crew-logout-title"><h2 id="crew-logout-title">{t("me.logoutTitle")}</h2><p>{t("me.logoutBody")}</p><div><button type="button" onClick={() => setLogoutConfirmOpen(false)}>{t("common.cancel")}</button><button type="button" className="is-danger" onClick={logout}>{t("me.logout")}</button></div></section></div>}
     </section>}

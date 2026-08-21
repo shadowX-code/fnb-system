@@ -114,7 +114,7 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getAllByText("Employment Documents")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Work" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Account" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Support" })).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Support" })).toBeNull();
   });
 
   it("keeps Me truthful for empty attendance, leave and pending states", async () => {
@@ -147,6 +147,20 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("dialog", { name: "Log out of FeedX?" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByRole("dialog", { name: "Log out of FeedX?" })).toBeNull();
+  });
+
+  it("keeps passcode changes on their own page and leaves Settings for app preferences", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: "Change Passcode" }));
+    expect(screen.getByRole("heading", { name: "Change Passcode" })).not.toBeNull();
+    expect(screen.getByText("Confirm new passcode")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Account" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.queryByRole("button", { name: "Passcode" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Language" })).not.toBeNull();
   });
 
   it("uses a two-step mobile and custom passcode login that auto-submits four digits", async () => {
@@ -202,7 +216,7 @@ describe("Crew Mobile redesign", () => {
     expect(await screen.findByRole("button", { name: "Clock In" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /View Attendance/ }));
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Clock In" })).toBeNull();
   });
 
   it("uses an explicit schedule-empty label instead of implying the Crew is working", async () => {
