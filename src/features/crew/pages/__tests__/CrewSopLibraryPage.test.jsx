@@ -85,6 +85,7 @@ beforeEach(() => {
   mocks.mediaUrl.mockReset().mockResolvedValue("https://signed.test/sop-image");
   mocks.localization.mockReset().mockResolvedValue({ units: {} });
   mocks.saveLocalization.mockReset().mockResolvedValue({ units: {} });
+  mocks.translate.mockReset().mockResolvedValue({ units: {} });
   ui.notify.mockReset();
   ui.confirm.mockReset().mockResolvedValue(true);
 });
@@ -234,6 +235,19 @@ describe("Crew SOP Library Admin", () => {
     await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "v2"));
     fireEvent.click(screen.getByRole("tab", { name: /简体中文.*Missing/ }));
     expect(await screen.findByDisplayValue("欢迎标准")).not.toBeNull();
+  });
+
+  it("requires saving source edits before a translation request", async () => {
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    fireEvent.change(await screen.findByLabelText("Section Title *"), { target: { value: "Unsaved source" } });
+    await screen.findByText("Unsaved changes");
+    fireEvent.click(screen.getByRole("button", { name: "Languages" }));
+    fireEvent.click(screen.getByRole("button", { name: "Translate Missing" }));
+    expect((await screen.findByRole("alert")).textContent).toContain("Save Draft source changes before translating");
+    expect(mocks.saveLocalization).not.toHaveBeenCalled();
+    expect(mocks.translate).not.toHaveBeenCalled();
   });
 
   it("warns before closing with retained unsaved changes", async () => {
