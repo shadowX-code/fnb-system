@@ -219,6 +219,23 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
+  it("labels the canonical source as Original and hydrates legacy saved draft units before translating", async () => {
+    mocks.translate.mockResolvedValue({ units: {
+      "sop.title": { id: "unit-title", source_language: "en", translations: { "zh-CN": { status: "ai_translated", value: "欢迎标准" }, ms: { status: "ai_translated", value: "Standard Selamat Datang" } } },
+    } });
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    await screen.findByLabelText("Section Title *");
+    fireEvent.click(screen.getByRole("button", { name: "Languages" }));
+    expect((await screen.findAllByText("Original")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Translate Missing" }));
+    await waitFor(() => expect(mocks.saveLocalization).toHaveBeenCalledWith("sop", "v2", expect.any(Array)));
+    await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "v2"));
+    fireEvent.click(screen.getByRole("tab", { name: /简体中文.*Missing/ }));
+    expect(await screen.findByDisplayValue("欢迎标准")).not.toBeNull();
+  });
+
   it("warns before closing with retained unsaved changes", async () => {
     ui.confirm.mockResolvedValueOnce(false);
     renderPage();

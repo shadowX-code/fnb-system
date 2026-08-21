@@ -11,7 +11,7 @@ import {
 } from "../utils/localizedContent.js";
 import "./LocalizedContentEditor.css";
 
-export default function LocalizedContentEditor({ domain, versionId, sourceLanguage, onSourceLanguageChange, onHydrateSourceLanguage, sourceUnits = [], confirm, disabled = false }) {
+export default function LocalizedContentEditor({ domain, versionId, sourceLanguage, onSourceLanguageChange, onHydrateSourceLanguage, sourceUnits = [], sourceDirty = false, confirm, disabled = false }) {
   const [payload, setPayload] = useState(null);
   const [language, setLanguage] = useState(sourceLanguage || "en");
   const [busy, setBusy] = useState(false);
@@ -33,8 +33,17 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
   }, [domain, versionId, onHydrateSourceLanguage]);
 
   async function translateMissing() {
+    if (sourceDirty) {
+      setError("Save Draft source changes before translating so translations use the canonical saved content.");
+      return;
+    }
     setBusy(true); setError("");
-    try { setPayload(await crewService.translateLocalizedContent(domain, versionId)); }
+    try {
+      // Legacy drafts can have saved content but predate localized units.
+      // Hydrate canonical units first; reviewed/manual targets stay protected.
+      await crewService.saveLocalizedContentUnits(domain, versionId, sourceUnits);
+      setPayload(await crewService.translateLocalizedContent(domain, versionId));
+    }
     catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   }
@@ -83,13 +92,13 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
     <div className="crew-localized-tabs" role="tablist" aria-label="Localized content language">
       {CONTENT_LANGUAGE_OPTIONS.map((option) => {
         const statuses = visibleUnits.map(({ stored }) => localizationStatus(stored, option.value));
-        const status = statuses.includes("outdated") ? "outdated" : statuses.includes("missing") ? "missing" : statuses.includes("ai_translated") ? "ai_translated" : option.value === sourceLanguage ? "original" : "reviewed";
+        const status = option.value === sourceLanguage ? "original" : statuses.includes("outdated") ? "outdated" : statuses.includes("missing") ? "missing" : statuses.includes("ai_translated") ? "ai_translated" : "reviewed";
         return <button type="button" key={option.value} role="tab" aria-selected={language === option.value} className={language === option.value ? "is-active" : ""} onClick={() => setLanguage(option.value)}><span>{option.label}</span><Badge tone={LOCALIZATION_STATUS[status].tone}>{LOCALIZATION_STATUS[status].label}</Badge></button>;
       })}
     </div>
     <div className="crew-localized-units">
       {visibleUnits.length ? visibleUnits.map(({ stored, ...sourceUnit }) => {
-        const status = localizationStatus(stored, language);
+        const status = language === sourceLanguage ? "original" : localizationStatus(stored, language);
         const translation = stored?.translations?.[language];
         const isSource = language === (stored?.source_language || sourceLanguage);
         const currentValue = isSource ? sourceUnit.source_value : translation?.value ?? "";
@@ -100,7 +109,7 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
         </article>;
       }) : <p className="crew-localized-empty">Save the Draft source once to create its translatable content units.</p>}
     </div>
-    {error ? <p className="crew-localized-error" role="alert">{error}</p> : null}
+    {error ? <p className="crew-localized-error" role="alert"><span>{error}</span>{versionId && !sourceDirty ? <button type="button" className="btn-ghost" disabled={busy || disabled} onClick={translateMissing}>Retry</button> : null}</p> : null}
     {!versionId ? <p className="crew-localized-note"><RefreshCw size={14} /> Save the Draft before generating translations.</p> : null}
   </section>;
 }
