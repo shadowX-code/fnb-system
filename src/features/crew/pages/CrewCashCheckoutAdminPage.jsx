@@ -7,12 +7,13 @@ import Badge from "../../../components/ui/Badge.jsx";
 import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
-import { formatCrewEmployee } from "../utils/crewI18n.js";
+import { formatCrewEmployee, formatCrewMoney, formatCrewOperationalDateTime } from "../utils/crewI18n.js";
 
 const localDate = (value = new Date()) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
-const money = (value) => new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value || 0));
+const money = (value) => formatCrewMoney(value);
 const date = (value) => value ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(`${String(value).slice(0, 10)}T12:00:00+08:00`)) : "—";
-const dateTime = (value) => value ? new Intl.DateTimeFormat("en-MY", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(value)) : "—";
+const ledgerActivity = (entry) => ({ checkout_due: "Cash Checkout", collection: "Cash Collection", checkout_adjustment: "Cash Adjustment", checkout_reversal: "Cash Reversal" }[entry.entry_type] || entry.activity || "Cash Activity");
+const ledgerActor = (entry) => formatCrewEmployee(entry.receiver_name || entry.recorded_by);
 const statusLabel = (value) => ({ draft: "Draft", reconciled: "Reconciled", submitted: "Submitted", completed: "Completed", pending_receipt: "Pending Receipt", review_required: "Review Required", cancelled: "Cancelled", balanced: "Balanced", over: "Over", short: "Short" }[value] || value || "—");
 const statusTone = (value) => ["completed", "balanced"].includes(value) ? "success" : ["review_required", "over", "short", "submitted", "pending_receipt"].includes(value) ? "warning" : value === "cancelled" ? "danger" : "neutral";
 const emptyData = () => ({ settings: null, summary: {}, checkouts: [], ledger: [], collections: [], float_history: [], employees: [] });
@@ -91,10 +92,10 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
     </> : <>
       <section className="grid gap-3 md:grid-cols-3"><Metric icon={WalletCards} label="Current Balance" value={money(data.summary.current_balance)} helper="Total due minus confirmed collections" /><Metric icon={Banknote} label="Total Added" value={money(data.summary.total_added)} helper="Completed Cash Checkout only" /><Metric icon={HandCoins} label="Total Collected" value={money(data.summary.total_collected)} helper="Confirmed receipts only" /></section>
       <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">Deposit Ledger</h2><p className="text-sm text-text-secondary">Append-only checkout, collection and correction activity.</p></div><button className="btn-secondary" onClick={copySummary}><Clipboard size={15} /> Copy Summary</button></div>{loading ? <div className="p-8 text-sm text-text-muted">Loading Cash Deposit…</div> : <DataTable density="compact" tableClassName="min-w-[860px]" rows={data.ledger} getRowKey={(row) => row.id} columns={[
-        { key: "date", header: "Date", render: (row) => dateTime(row.occurred_at) }, { key: "activity", header: "Activity", render: (row) => row.activity },
+        { key: "date", header: "Date", render: (row) => <span className="grid gap-0.5"><strong className="text-[13px]">{formatCrewOperationalDateTime(row.occurred_at).split(" · ")[0]}</strong><small className="text-xs text-text-muted">{formatCrewOperationalDateTime(row.occurred_at).split(" · ")[1]}</small></span> }, { key: "activity", header: "Activity", render: (row) => <span className="grid gap-0.5"><strong>{ledgerActivity(row)}</strong>{ledgerActor(row) !== "—" && <small className="text-xs text-text-muted">{ledgerActor(row)}</small>}</span> },
         { key: "in", header: "Amount In", render: (row) => Number(row.amount_in) ? <span className="font-semibold text-emerald-700">+{money(row.amount_in)}</span> : "—" },
         { key: "out", header: "Amount Out", render: (row) => Number(row.amount_out) ? <span className="font-semibold text-slate-700">−{money(row.amount_out)}</span> : "—" },
-        { key: "balance", header: "Balance", render: (row) => <strong>{money(row.balance)}</strong> }, { key: "receiver", header: "Receiver", render: (row) => formatCrewEmployee(row.receiver_name) }, { key: "actor", header: "Recorded By", render: (row) => formatCrewEmployee(row.recorded_by) },
+        { key: "balance", header: "Balance", render: (row) => <strong>{money(row.balance)}</strong> },
       ]} />}</section>
       {data.collections.some((item) => ["pending_receipt", "review_required"].includes(item.status)) && <section className="card overflow-hidden"><div className="border-b border-border px-5 py-4"><h2 className="font-semibold">Handover Status</h2></div><DataTable density="compact" rows={data.collections.filter((item) => ["pending_receipt", "review_required"].includes(item.status))} getRowKey={(row) => row.id} columns={[{ key: "receiver", header: "Receiver", render: (row) => row.receiver_name }, { key: "amount", header: "Handed Over", render: (row) => money(row.amount) }, { key: "received", header: "Received", render: (row) => row.received_amount ? money(row.received_amount) : "Awaiting confirmation" }, { key: "status", header: "Status", render: (row) => <Badge tone="warning">{statusLabel(row.status)}</Badge> }, { key: "action", header: "Action", align: "right", render: (row) => row.status === "review_required" && canReview ? <button className="btn-secondary" onClick={() => reviewCollection(row, refresh, ui)}>Review Difference</button> : null }]} /></section>}
     </>}
