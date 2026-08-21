@@ -5,6 +5,7 @@ import path from "node:path";
 const migration = fs.readFileSync(path.resolve("supabase/migrations/20260821123000_crew_localized_content_layer.sql"), "utf8");
 const fallbackFix = fs.readFileSync(path.resolve("supabase/migrations/20260821123100_crew_localized_content_fallback_status_fix.sql"), "utf8");
 const adminUnitIdsFix = fs.readFileSync(path.resolve("supabase/migrations/20260821150000_crew_localized_content_admin_unit_ids.sql"), "utf8");
+const legacySnapshotBackfill = fs.readFileSync(path.resolve("supabase/migrations/20260821162000_backfill_crew_localized_snapshots.sql"), "utf8");
 const edge = fs.readFileSync(path.resolve("supabase/functions/crew-content-translate/index.ts"), "utf8");
 
 describe("Crew localized business content contract", () => {
@@ -23,6 +24,13 @@ describe("Crew localized business content contract", () => {
     expect(migration).toContain("zz_crew_task_localization_freeze");
     expect(migration).toContain("zz_crew_assignment_localization_snapshot");
     expect(migration).toContain("zz_crew_task_instance_localization_snapshot");
+  });
+
+  it("backfills legacy published versions and historical Crew snapshots without overwriting existing frozen state", () => {
+    expect(legacySnapshotBackfill).toContain("crew_localization_snapshot('onboarding', j.id)");
+    expect(legacySnapshotBackfill).toContain("crew_localization_snapshot('task', t.id)");
+    expect(legacySnapshotBackfill).toContain("where not (coalesce(a.journey_snapshot, '{}'::jsonb) ? 'localized_content')");
+    expect(legacySnapshotBackfill).toContain("where not (coalesce(i.template_snapshot, '{}'::jsonb) ? 'localized_content')");
   });
 
   it("keeps Admin writes permission/outlet scoped and Crew reads session bound", () => {
