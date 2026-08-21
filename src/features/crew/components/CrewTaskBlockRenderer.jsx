@@ -140,6 +140,7 @@ export default function CrewTaskBlockRenderer({
 
     {expanded ? <div className="crew-task-block-panel">
       {block.description && !["key_point", "text"].includes(block.block_type) ? <p>{block.description}</p> : null}
+      {actionable && ["note", "optional_note"].includes(block.evidence_requirement) ? <label className="crew-task-additional-note"><span>{block.evidence_requirement === "note" ? "Completion note" : "Completion note (optional)"}</span><textarea value={note} disabled={readonly || saving} onChange={(event) => setNote(event.target.value)} placeholder={block.evidence_requirement === "note" ? "Add the required completion note" : "Add a note if useful"} /></label> : null}
       <BlockControl block={block} response={response} setResponse={setResponse} mode={mode} saving={saving} submit={submit} onOpenSop={onOpenSop} />
       {actionable && allowException && !responded ? <button type="button" className="crew-task-report-link" onClick={() => setExceptionOpen(true)} disabled={readonly || saving}><AlertTriangle size={15} /> {t("tasks.reportIssue")}</button> : null}
       {block.evidence_requirement && block.evidence_requirement !== "none" ? <small className="crew-task-evidence">{t("tasks.evidence", { type: String(block.evidence_requirement).replaceAll("_", " ") })}</small> : null}

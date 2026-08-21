@@ -157,4 +157,18 @@ describe("Crew unified Tasks Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: /Complete Live preview checklist/ }));
     expect(mocks.save).not.toHaveBeenCalled();
   });
+
+  it("uses the two canonical completion choices and response-based evidence language", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create Task" }));
+    expect(screen.getByRole("button", { name: /One completion for this task/ })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Each assigned Crew must complete/ })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Any assigned Crew/ })).toBeNull();
+    expect(screen.getByText("Evidence from task responses")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Optional" }));
+    fireEvent.change(screen.getByLabelText(/Task Name/), { target: { value: "Opening confirmation" } });
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Confirm opening" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ completion_rule: "one_for_team", blocks: [expect.objectContaining({ evidence_requirement: "optional_note" })] })));
+  });
 });
