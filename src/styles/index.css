@@ -2703,5 +2703,7 @@
 .crew-admin-toolbar-controls,.crew-admin-toolbar-filter-group,.crew-admin-toolbar-actions{display:flex;min-width:0;align-items:flex-end;gap:12px;flex-wrap:wrap}
 .crew-admin-toolbar-controls{flex:1 1 auto}.crew-admin-toolbar-actions{margin-left:auto;flex:0 0 auto}.crew-admin-toolbar-outlet{width:210px}.crew-admin-toolbar [data-toolbar-slot=time]{min-width:170px}.crew-admin-toolbar [data-toolbar-slot=search]{min-width:min(260px,100%);flex:1 1 240px}
 .crew-admin-toolbar .control,.crew-admin-toolbar button[aria-haspopup=listbox]{height:40px}.crew-admin-toolbar-actions>.btn-primary,.crew-admin-toolbar-actions>.btn-secondary,.crew-admin-toolbar-actions>.btn-ghost{min-height:40px}
+.crew-cash-table .data-table-scroll{max-height:min(62vh,680px);overflow:auto}
+.crew-cash-table .table-head{position:sticky;top:0;z-index:2;box-shadow:0 1px 0 var(--theme-border,#dbe3e8)}
 @media(max-width:1024px){.crew-admin-toolbar{align-items:stretch;flex-wrap:wrap}.crew-admin-toolbar-controls{width:100%}.crew-admin-toolbar-actions{width:100%;justify-content:flex-end}}
 @media(max-width:640px){.crew-admin-toolbar-controls>div,.crew-admin-toolbar-filter-group,.crew-admin-toolbar-filter-group>*,.crew-admin-toolbar-outlet{width:100%}.crew-admin-toolbar-actions>*{flex:1 1 auto;justify-content:center}}
