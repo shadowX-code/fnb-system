@@ -439,3 +439,11 @@
 @media(prefers-reduced-motion:reduce){
   .crew-v2-home .crew-home-clock-zone::before{filter:none}
 }
+
+/* Readability overrides align the Home list with the shared Crew scale. */
+.crew-v2-home .crew-ui-section-head h2{font-size:var(--crew-type-section-title)!important;line-height:1.2}
+.crew-v2-home .crew-ui-section-head>button{font-size:var(--crew-type-helper)!important}
+.crew-home-task,.crew-home-schedule-row{min-height:72px}
+.crew-home-task strong,.crew-home-schedule-row strong{font-size:var(--crew-type-card-title)!important;line-height:1.28!important}
+.crew-home-task small,.crew-home-schedule-row small{font-size:var(--crew-type-secondary)!important;line-height:1.35!important;white-space:normal!important;text-overflow:clip!important}
+.crew-home-task>em,.crew-home-schedule-row>em{font-size:var(--crew-type-status)!important;line-height:1.2!important}

@@ -45,6 +45,7 @@ import { formatCrewDate, formatCrewTime, crewLocale, translateStatus } from "./u
 import { SUPPORTED_CREW_LANGUAGES } from "../../i18n/index.js";
 import "./CrewMobileApp.css";
 import "./CrewHome.css";
+import "./CrewMobileTypography.css";
 
 const storageKey = "feedx.crew.session";
 const reasonValues = {

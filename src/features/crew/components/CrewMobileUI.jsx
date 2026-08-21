@@ -11,11 +11,11 @@ export function CrewHeroCard({ className = "", children }) {
 }
 
 export function CrewSectionHeader({ title, meta, action, onAction }) {
-  return <div className="crew-ui-section-head"><h2>{title}{meta !== undefined && <span>{meta}</span>}</h2>{action && <button type="button" onClick={onAction}>{action}</button>}</div>;
+  return <div className="crew-ui-section-head"><h2 className="crew-type-section-title">{title}{meta !== undefined && <span>{meta}</span>}</h2>{action && <button type="button" onClick={onAction}>{action}</button>}</div>;
 }
 
 export function CrewStatusBadge({ children, tone = "neutral" }) {
-  return <span className={`crew-ui-status is-${tone}`}>{children}</span>;
+  return <span className={`crew-ui-status crew-type-status is-${tone}`}>{children}</span>;
 }
 
 export function CrewProgressBar({ value = 0, label }) {
@@ -25,7 +25,7 @@ export function CrewProgressBar({ value = 0, label }) {
 }
 
 export function CrewActionRow({ icon: Icon, title, subtitle, meta, tone = "blue", onClick, disabled = false, children }) {
-  const content = <><span className={`crew-ui-row-icon is-${tone}`}>{Icon && <Icon size={18} />}</span><span className="crew-ui-row-copy"><strong>{title}</strong>{subtitle && <small>{subtitle}</small>}{children}</span>{meta && <em>{meta}</em>}{onClick && <ChevronRight size={17} />}</>;
+  const content = <><span className={`crew-ui-row-icon is-${tone}`}>{Icon && <Icon size={18} />}</span><span className="crew-ui-row-copy"><strong className="crew-type-card-title">{title}</strong>{subtitle && <small className="crew-type-secondary">{subtitle}</small>}{children}</span>{meta && <em className="crew-type-status">{meta}</em>}{onClick && <ChevronRight size={17} />}</>;
   return onClick ? <button type="button" className="crew-ui-action-row" onClick={onClick} disabled={disabled}>{content}</button> : <div className="crew-ui-action-row">{content}</div>;
 }
 
@@ -50,5 +50,5 @@ export function CrewEmptyState({ title, body }) {
 
 export function CrewBottomNav({ items, active, onChange }) {
   const { t } = useTranslation();
-  return <nav className="crew-v2-nav" aria-label={t("nav.label")}>{items.map(({ id, label, icon: Icon }) => <button type="button" key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}><Icon size={19} /><span>{t(`nav.${id}`, { defaultValue: label })}</span></button>)}</nav>;
+  return <nav className="crew-v2-nav" aria-label={t("nav.label")}>{items.map(({ id, label, icon: Icon }) => <button type="button" key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}><Icon size={19} /><span className="crew-type-nav-label">{t(`nav.${id}`, { defaultValue: label })}</span></button>)}</nav>;
 }

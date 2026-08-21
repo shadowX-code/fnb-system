@@ -11,6 +11,17 @@
   --crew-v2-amber: #c77b00;
   --crew-v2-red: #c53d52;
   --crew-v2-z-nav: 20;
+  /* Crew Mobile type scale: semantic roles stay readable at 375px. */
+  --crew-type-page-title: 28px;
+  --crew-type-detail-title: 23px;
+  --crew-type-section-title: 22px;
+  --crew-type-card-title: 16px;
+  --crew-type-body: 15px;
+  --crew-type-secondary: 14px;
+  --crew-type-label: 14px;
+  --crew-type-helper: 13px;
+  --crew-type-status: 12px;
+  --crew-type-nav: 12px;
 }
 
 .crew-v2-shell { min-height: 100dvh; overflow-x: hidden; background: var(--crew-v2-canvas); color: var(--crew-v2-ink); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
@@ -409,6 +420,40 @@ button, input, select { font: inherit; }
 @media(max-width:359px){.crew-schedule-final{gap:15px}.crew-schedule-final-header{grid-template-columns:38px minmax(0,1fr) 38px}.crew-schedule-final-header h1{font-size:19px}.crew-schedule-final-header button{width:36px;height:36px}.crew-schedule-final-week{gap:1px;padding-inline:4px}.crew-schedule-final-week button{min-height:54px}.crew-schedule-final-week small{font-size:7px}.crew-schedule-final-day{min-height:112px;padding:12px}.crew-schedule-final-day-copy{padding-right:54px}.crew-schedule-final-day h2{font-size:17px}.crew-schedule-final-day>img{right:-5px;width:90px}.crew-schedule-final-row{grid-template-columns:38px 10px minmax(0,1fr) auto;gap:6px;padding-inline:8px}.crew-schedule-final-row-copy>strong{font-size:10px}.crew-schedule-final-badge{padding-inline:6px;font-size:7px}}
 @media(prefers-reduced-motion:reduce){.crew-schedule-final-row{transition:none}}
 
+/* Shared Crew Mobile typography foundation. */
+.crew-type-page-title{font-size:var(--crew-type-page-title)!important;line-height:1.14!important;letter-spacing:-.028em}
+.crew-type-detail-title{font-size:var(--crew-type-detail-title)!important;line-height:1.2!important;font-weight:780}
+.crew-type-section-title,.crew-ui-section-head h2{font-size:var(--crew-type-section-title)!important;line-height:1.2!important;font-weight:780}
+.crew-type-card-title,.crew-ui-row-copy strong{font-size:var(--crew-type-card-title)!important;line-height:1.28!important;font-weight:720}
+.crew-type-secondary,.crew-ui-row-copy small{font-size:var(--crew-type-secondary)!important;line-height:1.42!important}
+.crew-type-status,.crew-ui-status{font-size:var(--crew-type-status)!important;line-height:1.2!important}
+.crew-type-nav-label,.crew-v2-nav button{font-size:var(--crew-type-nav)!important;line-height:1.2!important}
+.crew-v2-page-header h1{font-size:var(--crew-type-page-title);line-height:1.14}
+.crew-mobile-detail-header h1{font-size:var(--crew-type-detail-title);line-height:1.2}
+.crew-v2-home-header p{font-size:var(--crew-type-secondary);line-height:1.35}.crew-v2-home-header small{font-size:var(--crew-type-secondary);line-height:1.4}
+.crew-ui-section-head>button{font-size:var(--crew-type-helper)!important}
+
+/* Home is the highest-frequency surface: supporting copy must be readable
+   without zooming, including Chinese and Malay. */
+.crew-home-task strong,.crew-home-schedule-row strong{font-size:var(--crew-type-card-title)!important;line-height:1.28!important}
+.crew-home-task small,.crew-home-schedule-row small{font-size:var(--crew-type-secondary)!important;line-height:1.35!important;white-space:normal!important;text-overflow:clip!important}
+.crew-home-task>em,.crew-home-schedule-row>em,.crew-home-show-more{font-size:var(--crew-type-status)!important;line-height:1.2!important}
+.crew-v2-home .crew-ui-section-head h2>span{font-size:var(--crew-type-status)!important}
+
+/* Shared secondary-page and form copy. */
+.crew-v2-app label,.crew-v2-app input,.crew-v2-app textarea,.crew-v2-app select{font-size:var(--crew-type-body)}
+.crew-v2-app label{font-size:var(--crew-type-label)}
+.crew-v2-app small,.crew-v2-app .crew-v2-helper{font-size:var(--crew-type-helper);line-height:1.42}
+
+/* Growth and performance retain their compact cards with a consistent scale. */
+.crew-growth-final-skills h2,.crew-growth-final-performance h2,.crew-performance-final-breakdown>header h2,.crew-performance-final-strengths>h2,.crew-performance-final-trend-section h2{font-size:var(--crew-type-section-title)!important}
+.crew-growth-final-skills>header p,.crew-growth-final-performance header p,.crew-performance-final-hero-copy p{font-size:var(--crew-type-secondary)!important;line-height:1.4!important}
+.crew-growth-final-stat-grid article span,.crew-growth-final-ready>div small,.crew-performance-final-breakdown-card>button>span small,.crew-performance-final-strengths p{font-size:var(--crew-type-helper)!important;line-height:1.35!important}
+.crew-growth-final-ready>div strong,.crew-performance-final-breakdown-card>button>span strong{font-size:var(--crew-type-card-title)!important;line-height:1.25!important}
+.crew-growth-final-ready>div em,.crew-performance-final-breakdown-card>button>b{font-size:var(--crew-type-status)!important}
+
+@media(max-width:390px){.crew-home-task,.crew-home-schedule-row{min-height:72px}.crew-home-task>em,.crew-home-schedule-row>em{font-size:11px!important}}
+
 /* Crew Mobile Growth — final approved three-module composition. */
 .crew-growth-final{display:grid;min-width:0;gap:12px;color:var(--crew-v2-navy)}
 .crew-growth-final .crew-v2-page-header{margin:0;min-height:50px}
@@ -468,6 +513,22 @@ button, input, select { font: inherit; }
 @media(max-width:389px){.crew-performance-final{gap:11px}.crew-performance-final-hero{min-height:158px}.crew-performance-final-hero-copy{width:59%;min-height:158px;padding:13px 0 11px 14px}.crew-performance-final-total strong{font-size:40px}.crew-performance-final-breakdown-card>button{min-height:46px;grid-template-columns:30px minmax(82px,1fr) minmax(42px,.75fr) auto 15px;gap:5px;padding-inline:7px}.crew-performance-final-breakdown-card>button>i{width:28px;height:28px}.crew-performance-final-strengths article{grid-template-columns:1fr;gap:4px;padding:6px}.crew-performance-final-strengths article>i{width:24px;height:24px}.crew-performance-final-reward{grid-template-columns:30px minmax(68px,1fr) auto auto;gap:5px;padding:8px}.crew-performance-final-reward>button{grid-column:2/-1;justify-self:end}}
 @media(max-width:359px){.crew-performance-final-strengths>div{grid-template-columns:1fr}.crew-performance-final-strengths article{grid-template-columns:30px 1fr}.crew-performance-final-reward{grid-template-columns:34px 1fr auto}.crew-performance-final-reward>div:nth-of-type(2){grid-column:2}.crew-performance-final-reward>button{grid-column:3;grid-row:2}}
 @media(prefers-reduced-motion:reduce){.crew-performance-final button{transition:none}}
+
+/* Final overrides for the later page modules in this stylesheet. */
+.crew-growth-final .crew-v2-page-header h1,.crew-performance-final .crew-v2-page-header h1{font-size:var(--crew-type-page-title)!important;line-height:1.14!important}
+.crew-growth-final-skills h2,.crew-growth-final-performance h2,.crew-performance-final-breakdown>header h2,.crew-performance-final-strengths>h2,.crew-performance-final-trend-section h2{font-size:var(--crew-type-section-title)!important}
+.crew-growth-final-skills>header p,.crew-growth-final-performance header p,.crew-performance-final-hero-copy p{font-size:var(--crew-type-secondary)!important;line-height:1.4!important}
+.crew-growth-final-stat-grid article span,.crew-growth-final-ready>div small,.crew-performance-final-breakdown-card>button>span small,.crew-performance-final-strengths p{font-size:var(--crew-type-helper)!important;line-height:1.35!important}
+.crew-growth-final-ready>div strong,.crew-performance-final-breakdown-card>button>span strong{font-size:var(--crew-type-card-title)!important;line-height:1.25!important}
+.crew-growth-final-ready>div em,.crew-performance-final-breakdown-card>button>b{font-size:var(--crew-type-status)!important}
+.crew-performance-final-reward>span strong,.crew-performance-final-reward>div strong{font-size:var(--crew-type-card-title)!important}.crew-performance-final-reward small{font-size:var(--crew-type-helper)!important}
+
+/* Leave, attendance and schedule are utility pages: metadata remains compact,
+   but no employee-facing label falls below the readable shared scale. */
+.crew-v3-leave-tabs button,.crew-v3-header-action,.crew-v3-leave-card strong,.crew-v3-next-action strong{font-size:var(--crew-type-card-title)!important}
+.crew-v3-leave-card small,.crew-v3-leave-balance-preview small,.crew-v3-next-action small,.crew-v3-attendance-summary p,.crew-v3-attendance-summary>small,.crew-v3-attendance-summary>span{font-size:var(--crew-type-helper)!important;line-height:1.4!important}
+.crew-v3-balance-grid span,.crew-v3-balance-grid small{font-size:var(--crew-type-status)!important;line-height:1.3!important}
+.crew-schedule-final-upcoming h2,.crew-schedule-final-day h2{font-size:var(--crew-type-section-title)!important}.crew-schedule-final-row-copy>strong{font-size:var(--crew-type-card-title)!important;line-height:1.25!important}.crew-schedule-final-row-copy>small,.crew-schedule-final-row time small,.crew-schedule-final-day p{font-size:var(--crew-type-helper)!important;line-height:1.4!important}.crew-schedule-final-row time strong,.crew-schedule-final-badge{font-size:var(--crew-type-status)!important}
 .crew-v3-skill-group{margin-top:20px}.crew-v3-skill-group .crew-v2-skill-list{margin-top:0}.crew-v3-performance-preview{display:flex;width:100%;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;border:0;border-radius:14px;background:#eef8f5;padding:15px;color:var(--crew-v2-navy);text-align:left}.crew-v3-performance-preview>span:first-child{display:grid;grid-template-columns:auto auto;align-items:end;gap:2px 8px}.crew-v3-performance-preview small{grid-column:1/-1;color:var(--crew-v2-green-dark);font-size:10px;font-weight:800}.crew-v3-performance-preview strong{font-size:26px;line-height:1}.crew-v3-performance-preview em{color:var(--crew-v2-muted);font-size:9px;font-style:normal}.crew-v3-performance-preview>span:last-child{display:flex;align-items:center;color:var(--crew-v2-green-dark);font-size:9px;font-weight:780;white-space:nowrap}
 .crew-v3-week-strip{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px;margin:6px 0 3px;border-block:1px solid var(--crew-v2-border);padding:12px 0}.crew-v3-week-strip span{display:grid;min-height:48px;place-content:center;justify-items:center;gap:4px;border-radius:10px;color:var(--crew-v2-muted)}.crew-v3-week-strip small{font-size:8px;font-weight:750}.crew-v3-week-strip strong{font-size:12px}.crew-v3-week-strip span.is-active{background:var(--crew-v2-green);color:#fff}
 .crew-v3-next-action{display:flex;align-items:center;gap:10px;margin-top:17px;border-radius:12px;background:#fff4de;padding:12px;color:#a76700}.crew-v3-next-action span{display:grid;gap:2px}.crew-v3-next-action strong{color:var(--crew-v2-navy);font-size:11px}.crew-v3-next-action small{font-size:9px}
