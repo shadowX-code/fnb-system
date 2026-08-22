@@ -20,4 +20,15 @@ describe("Crew Task schedule formatter", () => {
     expect(taskMatchesStatus({ status: "pending" }, "not_started")).toBe(true);
     expect(taskMatchesStatus({ status: "completed" }, "not_started")).toBe(false);
   });
+
+  it("does not expose an untimed task's all-day availability window as a fake appointment", () => {
+    const label = formatTaskSchedule({
+      schedule_type: "recurring",
+      schedule_config: { frequency: "every_day" },
+      business_date: "2026-08-22",
+      available_from: "2026-08-22T04:00:00Z",
+      due_at: "2026-08-22T15:59:00Z",
+    }, t);
+    expect(label).toBe("Today · Daily");
+  });
 });

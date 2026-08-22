@@ -23,32 +23,9 @@ function localizedWeekdays(days, t) {
 }
 
 function taskTime(task) {
-  if (isDefaultAllDayWindow(task)) return null;
   if (task.start_time) return task.start_time;
-  if (task.available_from) return task.available_from;
+  if (task.schedule_type === "one_time" && task.available_from) return task.available_from;
   return null;
-}
-
-function timeParts(value) {
-  if (!value) return null;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: MALAYSIA_TIME_ZONE,
-    hour: "2-digit",
-    minute: "2-digit",
-    hourCycle: "h23",
-  }).formatToParts(date);
-  return Object.fromEntries(parts.filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
-}
-
-// Instance generation represents an untimed recurring task as 00:00–23:59.
-// That is an availability window, not a Crew-facing appointment, so never surface it as a fake time.
-function isDefaultAllDayWindow(task) {
-  if (task.start_time || task.due_time || !task.available_from || !(task.due_at || task.available_until)) return false;
-  const start = timeParts(task.available_from);
-  const end = timeParts(task.due_at || task.available_until);
-  return start?.hour === 0 && start?.minute === 0 && end?.hour === 23 && end?.minute === 59;
 }
 
 function formattedTime(value) {
@@ -85,7 +62,7 @@ export function formatTaskSchedule(task, t) {
   const rule = scheduleRule(task, t);
   const date = localDateLabel(task.business_date || task.task_date || task.effective_date, t);
   const start = formattedTime(taskTime(task));
-  const due = isDefaultAllDayWindow(task) ? null : formattedTime(task.due_at || task.available_until || task.due_time);
+  const due = formattedTime(task.due_time || (task.schedule_type === "one_time" ? (task.due_at || task.available_until) : null));
   const timing = start && due && start !== due ? `${start}–${due}` : start || due || null;
 
   if (task.schedule_type === "one_time") return [rule, date, timing].filter(Boolean).join(" · ");
