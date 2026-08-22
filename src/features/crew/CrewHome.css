@@ -1282,14 +1282,14 @@
 @media (prefers-reduced-motion:reduce){.crew-v2-home .crew-home-attendance.is-ready .crew-home-clock-action:not(:disabled),.crew-v2-home .crew-home-clock-action:active::after{animation:none}.crew-v2-home .crew-home-clock-action{transition:none}}
 
 /* Home clock signal assets: a single decorative SVG per surface, never DOM decoration. */
-.crew-v2-home .crew-home-attendance-main{background-image:url("./assets/crew-home-signal-flow.svg"),radial-gradient(circle at 83% 39%,rgb(0 183 199/.14),transparent 27%),linear-gradient(135deg,var(--crew-color-deep-teal),#103f44);background-position:center bottom,center,center;background-repeat:no-repeat,no-repeat,no-repeat;background-size:100% 100%,auto,auto}
+.crew-v2-home .crew-home-attendance-main{background-image:url("./assets/clock-signal-field.svg"),radial-gradient(circle at 83% 39%,rgb(0 183 199/.14),transparent 27%),linear-gradient(135deg,var(--crew-color-deep-teal),#103f44);background-position:center bottom,center,center;background-repeat:no-repeat,no-repeat,no-repeat;background-size:100% 100%,auto,auto}
 .crew-v2-home .crew-home-clock-zone::before{display:none}
 .crew-v2-home .crew-home-radar-orbit{display:none}
-.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:116px;border:0;background-color:var(--crew-color-deep-teal);background-image:url("./assets/crew-home-clock-signal.svg");background-position:center;background-repeat:no-repeat;background-size:contain;box-shadow:inset 0 0 22px rgb(0 183 199/.08),0 4px 12px rgb(0 0 0/.14)}
+.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:116px;border:0;background-color:var(--crew-color-deep-teal);background-image:url("./assets/clock-orbit.svg");background-position:center;background-repeat:no-repeat;background-size:contain;box-shadow:inset 0 0 22px rgb(0 183 199/.08),0 4px 12px rgb(0 0 0/.14)}
 .crew-v2-home .crew-home-clock-action::after{inset:-7px;border-color:rgb(0 183 199/.45)}
 .crew-v2-home .crew-home-clock-action>span,.crew-v2-home .crew-home-complete-ring>span{z-index:1}
-.crew-v2-home .crew-home-schedule-row.is-working>em{font-size:var(--crew-type-helper);font-weight:600;line-height:1.25}
-@media (max-width:374px){.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:100px}.crew-v2-home .crew-home-schedule-row.is-working>em{font-size:10px;line-height:1.2}}
+.crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px;align-items:start}.crew-v2-home .crew-home-schedule-row>span{gap:2px}.crew-v2-home .crew-home-schedule-time{color:var(--crew-color-deep-teal);font-size:var(--crew-type-helper);font-weight:600;line-height:1.25}.crew-v2-home .crew-home-schedule-row>svg{align-self:center}.crew-v2-home .crew-home-schedule-row>.crew-ui-status{grid-column:2;justify-self:start;margin-top:2px}
+@media (max-width:374px){.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:100px}.crew-v2-home .crew-home-schedule-time{font-size:10px;line-height:1.2}}
 
 @media (max-width:374px) {
 .crew-home-task>em,.crew-home-schedule-row>em{

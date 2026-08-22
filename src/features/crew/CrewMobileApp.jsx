@@ -211,8 +211,7 @@ function HomeScheduleRow({ entry, label, onClick }) {
   const dateLabel = label || formatCrewDate(`${entry.date}T12:00:00+08:00`, { weekday: "short", day: "numeric", month: "short" });
   const scheduleLabel = away ? rosterEntryLabel(entry, t) : `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}`;
   const title = label === "today" ? t("common.today") : dateLabel;
-  const meta = scheduleLabel;
-  return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${scheduleLabel}`}><i><CalendarDays size={19} /></i><span><strong className="crew-list-primary">{title}</strong><small className="crew-list-secondary">{outlet}{entry.position ? ` · ${entry.position}` : ""}</small></span><em className="crew-list-status">{meta}</em><ChevronRight size={18} /></button>;
+  return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${scheduleLabel}`}><i><CalendarDays size={19} /></i><span><strong className="crew-list-primary">{title}</strong>{!away && <small className="crew-home-schedule-time">{scheduleLabel}</small>}<small className="crew-list-secondary">{outlet}{entry.position ? ` · ${entry.position}` : ""}</small></span>{away && <CrewStatusBadge tone="warning">{scheduleLabel}</CrewStatusBadge>}<ChevronRight size={18} /></button>;
 }
 
 function AttendanceHistoryScreen({ employee, context, openShift, todayRoster, rows, loading, selectedMonth, onMonthChange, onBack, t }) {
