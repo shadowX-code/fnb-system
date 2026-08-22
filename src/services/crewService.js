@@ -138,6 +138,16 @@ export const crewService = {
     return data || { tasks: [], attendance_context: null };
   },
 
+  async operationsAllTasks(token, from = null, to = null) {
+    const { data, error } = await supabase.rpc("crew_tasks_for_crew", {
+      p_token: token,
+      p_from: from || null,
+      p_to: to || null,
+    });
+    throwSupabaseError("crew.operationsAllTasks", error);
+    return data || { tasks: [], attendance_context: null };
+  },
+
   async myRoster(token, from = localBusinessDate(), to = null) {
     const end = to || (() => {
       const value = new Date(`${from}T00:00:00`);

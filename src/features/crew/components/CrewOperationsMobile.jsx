@@ -1,12 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
-import { AlertTriangle, CheckCircle2, ClipboardCheck, HeartPulse, ListChecks, Store } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, HeartPulse, ListChecks, Store } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
 import { formatCrewTime, translateStatus } from "../utils/crewI18n.js";
+import { formatTaskSchedule, taskGroup, taskMatchesStatus } from "../utils/taskSchedule.js";
 import { applySopLocalization, applyTaskLocalization } from "../utils/localizedContent.js";
 
 export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
@@ -21,8 +22,23 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   const [saving, setSaving] = useState(false);
   const [savingBlockId, setSavingBlockId] = useState(null);
   const [error, setError] = useState("");
+  const [allTaskData, setAllTaskData] = useState(null);
+  const [allTasksLoading, setAllTasksLoading] = useState(false);
+  const [taskFilter, setTaskFilter] = useState("all");
+  const allTaskRequest = useRef(0);
 
-  useEffect(() => { setDetail(null); setDetailLanguage(null); setLegacyTask(null); setActiveSop(null); setActiveSopLanguage(null); }, [token]);
+  useEffect(() => { setDetail(null); setDetailLanguage(null); setLegacyTask(null); setActiveSop(null); setActiveSopLanguage(null); setAllTaskData(null); setTaskFilter("all"); }, [token]);
+  async function loadAllTasks() {
+    const request = ++allTaskRequest.current;
+    setAllTasksLoading(true); setError("");
+    try {
+      const nextData = await crewService.operationsAllTasks(token);
+      if (request === allTaskRequest.current) setAllTaskData(nextData);
+    }
+    catch (cause) { if (request === allTaskRequest.current) setError(cause.message); }
+    finally { if (request === allTaskRequest.current) setAllTasksLoading(false); }
+  }
+  useEffect(() => { loadAllTasks(); }, [token]);
   useEffect(() => {
     if (!initialTarget) return;
     if (initialTarget.kind === "legacy_task") setLegacyTask({ ...initialTarget.row, kind: "legacy_task" });
@@ -49,6 +65,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     setDetail(applyTaskLocalization(nextDetail, localized[nextDetail?.template_id] || {}));
     setDetailLanguage(language);
     await onRefresh?.();
+    await loadAllTasks();
   }
   async function submitBlock({ block, action, response, reason: exceptionReason, note: responseNote }) {
     setSavingBlockId(block.id); setError("");
@@ -65,6 +82,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
       await crewService.updateDailyTask(token, legacyTask.id, action, reason || null, note || null);
       setLegacyTask(null); setReason(""); setNote("");
       await onRefresh?.();
+      await loadAllTasks();
     } catch (cause) { setError(cause.message); }
     finally { setSaving(false); }
   }
@@ -132,11 +150,21 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     </section>;
   }
 
-  const tasks = data?.tasks || [];
+  const taskData = allTaskData || data || {};
+  const tasks = (taskData.tasks || []).filter((task) => taskMatchesStatus(task, taskFilter));
+  const groups = tasks.reduce((result, task) => {
+    const label = taskGroup(task, t);
+    (result[label] ||= []).push(task);
+    return result;
+  }, {});
+  const filterOptions = [
+    ["all", t("tasks.all")], ["not_started", t("tasks.notStarted")], ["in_progress", t("tasks.inProgress")], ["overdue", t("tasks.overdue")], ["completed", t("tasks.completedFilter")],
+  ];
   return <section className="crew-ops-mobile">
     <CrewMobileDetailHeader title={t("tasks.title")} onBack={onBack} />
-    <div className="crew-ops-context"><span><Store size={17} /><strong>{data?.outlet?.name || t("home.yourOutlet")}</strong></span><small>{data?.attendance_context?.on_shift ? t("home.onShift") : t("tasks.outsideShift")}</small></div>
-    {loading ? <div className="crew-ops-loading">{t("common.loading")}</div> : <section className="crew-ops-group"><div className="crew-v2-section-title"><h2>{t("tasks.task")}</h2><span>{tasks.length}</span></div>{tasks.length ? tasks.map((task) => <button key={`${task.source}-${task.id}`} type="button" className={`crew-ops-task is-${task.status}`} onClick={() => task.source === "legacy_daily" ? setLegacyTask({ ...task, kind: "legacy_task" }) : openTask(task)}><span>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span><span><strong>{task.name}</strong><small>{task.block_count ? t("tasks.completedCount", { completed: task.completed_count || 0, total: task.block_count }) : task.description || String(task.task_type).replaceAll("_", " ")}</small></span><em>{translateStatus(task.status, t)}</em></button>) : <Empty text={t("tasks.noTasks")} />}</section>}
+    <div className="crew-ops-context"><span><Store size={17} /><strong>{taskData?.outlet?.name || t("home.yourOutlet")}</strong></span><small>{(taskData?.attendance_context || data?.attendance_context)?.on_shift ? t("home.onShift") : t("tasks.outsideShift")}</small></div>
+    <div className="crew-ops-filters" role="tablist" aria-label={t("tasks.title")}>{filterOptions.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={taskFilter === value} className={taskFilter === value ? "is-active" : ""} onClick={() => setTaskFilter(value)}>{label}</button>)}</div>
+    {(loading && !allTaskData) || allTasksLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : tasks.length ? Object.entries(groups).map(([label, groupTasks]) => <section className="crew-ops-group" key={label}><div className="crew-v2-section-title"><h2>{label}</h2><span>{groupTasks.length}</span></div>{groupTasks.map((task) => <button key={`${task.source}-${task.id}`} type="button" className={`crew-ops-task is-${task.status}`} onClick={() => task.source === "legacy_daily" ? setLegacyTask({ ...task, kind: "legacy_task" }) : openTask(task)}><span>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span><span><strong>{task.name}</strong><small>{task.block_count ? t("tasks.completedCount", { completed: task.completed_count || 0, total: task.block_count }) : task.description || String(task.task_type).replaceAll("_", " ")}</small><small className="crew-ops-schedule">{formatTaskSchedule(task, t)}</small></span><em>{translateStatus(task.status, t)}</em><ChevronRight aria-hidden="true" size={17} /></button>)}</section>) : <section className="crew-ops-group"><Empty text={t("tasks.noTasks")} /></section>}
     {error ? <div className="crew-v2-error">{error}</div> : null}
     {legacyTask ? <LegacyTaskModal item={legacyTask} reason={reason} setReason={setReason} note={note} setNote={setNote} saving={saving} onClose={() => setLegacyTask(null)} onSubmit={submitLegacy} /> : null}
   </section>;

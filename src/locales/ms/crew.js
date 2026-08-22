@@ -23,7 +23,12 @@ const resources = { ...en,
 Object.assign(resources.home, { workedDuration:"Tempoh bekerja", clockInAt:"Daftar Masuk", clockOutAt:"Daftar Keluar" });
 Object.assign(resources.attendance, { outsideRange:"Anda berada {{distance}}m dari cawangan ({{meters}}m dibenarkan)." });
 Object.assign(resources.schedule, { jumpToday:"Pergi ke hari ini" });
-Object.assign(resources.tasks, { reportIssueFor:"Laporkan isu untuk {{title}}", completeBlock:"Lengkapkan {{title}}" });
+Object.assign(resources.tasks, {
+  title:"Semua Tugasan", all:"Semua", notStarted:"Belum Bermula", inProgress:"Sedang Berlangsung", overdue:"Lewat", completedFilter:"Selesai",
+  noTasks:"Tiada Tugasan semasa yang terpakai untuk anda.", groups:{ today:"Hari ini", upcoming:"Akan datang", ongoing:"Berulang & berterusan" },
+  schedule:{ today:"Hari ini", daily:"Setiap hari", weekly:"Mingguan", monthlyDay:"Bulanan · hari {{day}}", everyDays:"Setiap {{count}} hari", selectedWeekdays:"Hari dipilih", before_shift:"Sebelum syif", start_of_shift:"Mula syif", during_shift:"Semasa syif", end_of_shift:"Akhir syif", oneTime:"Sekali sahaja", noFixedTime:"Tiada masa tetap", weekdays:{ mon:"Isn", tue:"Sel", wed:"Rab", thu:"Kha", fri:"Jum", sat:"Sab", sun:"Ahd" } },
+  reportIssueFor:"Laporkan isu untuk {{title}}", completeBlock:"Lengkapkan {{title}}"
+});
 Object.assign(resources.growth, { skillCount_one:"{{count}} kemahiran", skillCount_other:"{{count}} kemahiran" });
 Object.assign(resources.me, { shiftsThisMonth_one:"{{count}} syif bulan ini", shiftsThisMonth_other:"{{count}} syif bulan ini", pendingCount:"{{count}} Menunggu", enterPasscodes:"Masukkan kedua-dua kod laluan empat digit.", unablePasscode:"Tidak dapat menukar kod laluan." });
 Object.assign(resources.me, { confirmNewPasscode:"Sahkan kod laluan baharu", passcodeSaved:"Kod laluan berjaya dikemas kini.", personal:"Peribadi", employment:"Pekerjaan", fullName:"Nama Penuh", nickname:"Nama Panggilan", birthday:"Tarikh Lahir", contact:"Hubungan", joinedDate:"Tarikh Mula", position:"Jawatan", languageHint:"UI sistem dan kandungan perniagaan yang tersedia dikemas kini serta-merta." });
