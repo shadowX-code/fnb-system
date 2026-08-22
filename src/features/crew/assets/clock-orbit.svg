@@ -1,5 +1,15 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
- <defs><filter id="gl"><feGaussianBlur stdDeviation="2.4"/></filter><linearGradient id="a"><stop stop-color="#00b7c7" stop-opacity="0"/><stop offset=".3" stop-color="#76fff5"/><stop offset=".7" stop-color="#00b7c7"/><stop offset="1" stop-color="#00b7c7" stop-opacity="0"/></linearGradient></defs>
- <g fill="none" stroke-linecap="round"><circle cx="90" cy="90" r="84" stroke="#00b7c7" stroke-opacity=".58" stroke-dasharray="1.5 5"/><circle cx="90" cy="90" r="70" stroke="#b1d5c9" stroke-opacity=".32" stroke-width="1.5"/><circle cx="90" cy="90" r="62" stroke="#00b7c7" stroke-opacity=".18"/>
- <g stroke="url(#a)" stroke-width="5" filter="url(#gl)" opacity=".52"><path d="M28 112A66 66 0 0 1 44 43"/><path d="M101 21A69 69 0 0 1 145 61"/><path d="M151 112A67 67 0 0 1 121 148"/></g><g stroke="url(#a)" stroke-width="3.2"><path d="M28 112A66 66 0 0 1 44 43"/><path d="M101 21A69 69 0 0 1 145 61"/><path d="M151 112A67 67 0 0 1 121 148"/></g></g>
+  <defs>
+    <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.2"/></filter>
+    <linearGradient id="arc-a" x1="0" x2="1"><stop stop-color="#00b7c7" stop-opacity="0"/><stop offset=".22" stop-color="#00b7c7"/><stop offset=".52" stop-color="#b9ffff"/><stop offset=".83" stop-color="#00d4dd"/><stop offset="1" stop-color="#00b7c7" stop-opacity="0"/></linearGradient>
+    <linearGradient id="arc-b" x1="0" x2="1"><stop stop-color="#00b7c7" stop-opacity="0"/><stop offset=".34" stop-color="#4fe8e5"/><stop offset=".66" stop-color="#d4ffff"/><stop offset="1" stop-color="#00b7c7" stop-opacity="0"/></linearGradient>
+  </defs>
+  <g fill="none" stroke-linecap="round">
+    <circle cx="90" cy="90" r="86" stroke="#00d4dd" stroke-opacity=".62" stroke-dasharray="1.4 5.2"/>
+    <circle cx="90" cy="90" r="75" stroke="#7cf2e9" stroke-opacity=".2" stroke-width="1.15"/>
+    <circle cx="90" cy="90" r="63" stroke="#b1d5c9" stroke-opacity=".32" stroke-width="1.6"/>
+    <circle cx="90" cy="90" r="57" stroke="#00b7c7" stroke-opacity=".13"/>
+    <g filter="url(#glow)" opacity=".5" stroke-width="7"><path stroke="url(#arc-a)" d="M22 111A70 70 0 0 1 42 39"/><path stroke="url(#arc-b)" d="M99 16A75 75 0 0 1 151 63"/><path stroke="url(#arc-a)" d="M154 112A70 70 0 0 1 119 155"/></g>
+    <g stroke-width="3.8"><path stroke="url(#arc-a)" d="M22 111A70 70 0 0 1 42 39"/><path stroke="url(#arc-b)" d="M99 16A75 75 0 0 1 151 63"/><path stroke="url(#arc-a)" d="M154 112A70 70 0 0 1 119 155"/></g>
+  </g>
 </svg>
