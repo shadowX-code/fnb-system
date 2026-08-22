@@ -2,7 +2,7 @@ import { crewLocale, formatCrewDate, formatCrewTime, MALAYSIA_TIME_ZONE } from "
 
 const WEEKDAY_BY_ISO = [null, "mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
-function localBusinessDate(value = new Date()) {
+export function crewBusinessDate(value = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: MALAYSIA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" })
     .format(value);
 }
@@ -13,7 +13,7 @@ function dateValue(value) {
 
 function localDateLabel(value, t) {
   if (!value) return null;
-  if (value === localBusinessDate()) return t("tasks.schedule.today");
+  if (value === crewBusinessDate()) return t("tasks.schedule.today");
   return formatCrewDate(dateValue(value), { weekday: "short", day: "numeric", month: "short" });
 }
 
@@ -74,7 +74,7 @@ export function formatTaskSchedule(task, t) {
 
 export function taskGroup(task, t) {
   const date = task.business_date || task.task_date || task.effective_date;
-  const today = localBusinessDate();
+  const today = crewBusinessDate();
   if (date === today) return t("tasks.groups.today");
   if (date && date > today) return t("tasks.groups.upcoming");
   return t("tasks.groups.ongoing");
@@ -84,4 +84,65 @@ export function taskMatchesStatus(task, filter) {
   if (filter === "all") return true;
   const status = task.status === "pending" ? "not_started" : task.status;
   return status === filter;
+}
+
+function taskDate(task) {
+  return task.business_date || task.task_date || task.effective_date || "";
+}
+
+function activePriority(task, today) {
+  const status = task.status === "pending" ? "not_started" : task.status;
+  const date = taskDate(task);
+  if (status === "overdue") return 0;
+  if (status === "in_progress") return 1;
+  if (date === today && status === "not_started") return 2;
+  if (date > today && status === "not_started") return 3;
+  if (date === today) return 4;
+  return 5;
+}
+
+/**
+ * Condense the instance stream into the Crew-facing active responsibility list.
+ * Recurring and shift-based definitions deliberately appear once while every
+ * immutable instance remains available in the execution history read model.
+ */
+export function activeTaskResponsibilities(tasks = [], t) {
+  const today = crewBusinessDate();
+  const current = tasks.filter((task) => taskDate(task) >= today);
+  const unique = new Map();
+  for (const task of current) {
+    const recurring = task.source === "instance" && ["recurring", "shift_based"].includes(task.schedule_type);
+    const key = recurring ? `definition:${task.template_id || task.name}:${task.schedule_type}` : `${task.source || "task"}:${task.id}`;
+    const existing = unique.get(key);
+    if (!existing || activePriority(task, today) < activePriority(existing, today)) unique.set(key, task);
+  }
+  const groups = {
+    [t("tasks.groups.needsAttention")]: [],
+    [t("tasks.groups.recurringScheduled")]: [],
+    [t("tasks.groups.upcoming")]: [],
+  };
+  for (const task of unique.values()) {
+    const status = task.status === "pending" ? "not_started" : task.status;
+    if (["overdue", "in_progress"].includes(status)) groups[t("tasks.groups.needsAttention")].push(task);
+    else if (["recurring", "shift_based"].includes(task.schedule_type)) groups[t("tasks.groups.recurringScheduled")].push(task);
+    else groups[t("tasks.groups.upcoming")].push(task);
+  }
+  return Object.entries(groups).filter(([, group]) => group.length);
+}
+
+export function historyTasks(tasks = [], filter = "all", now = new Date()) {
+  const today = crewBusinessDate(now);
+  const earliest = new Date(`${today}T00:00:00+08:00`);
+  earliest.setDate(earliest.getDate() - 29);
+  const from = new Intl.DateTimeFormat("en-CA", { timeZone: MALAYSIA_TIME_ZONE, year: "numeric", month: "2-digit", day: "2-digit" }).format(earliest);
+  return tasks
+    .filter((task) => {
+      const date = taskDate(task);
+      const status = task.status === "pending" ? "not_started" : task.status;
+      if (!date || date < from || date > today) return false;
+      if (filter === "all") return ["completed", "completed_with_exceptions", "review_required", "overdue", "exception"].includes(status);
+      if (filter === "completed") return ["completed", "completed_with_exceptions", "review_required"].includes(status);
+      return status === filter;
+    })
+    .sort((a, b) => String(taskDate(b)).localeCompare(String(taskDate(a))) || String(b.completed_at || "").localeCompare(String(a.completed_at || "")));
 }

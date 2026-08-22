@@ -24,8 +24,8 @@ Object.assign(resources.home, { workedDuration:"工作时长", clockInAt:"上班
 Object.assign(resources.attendance, { outsideRange:"您距离门店 {{distance}} 米（允许范围 {{meters}} 米）。" });
 Object.assign(resources.schedule, { jumpToday:"跳到今天" });
 Object.assign(resources.tasks, {
-  title:"全部任务", all:"全部", notStarted:"未开始", inProgress:"进行中", overdue:"已逾期", completedFilter:"已完成",
-  noTasks:"目前没有适用任务。", groups:{ today:"今天", upcoming:"即将开始", ongoing:"周期性与进行中" },
+  title:"全部任务", active:"当前任务", history:"历史记录", all:"全部", notStarted:"未开始", inProgress:"进行中", overdue:"已逾期", exception:"异常", completedFilter:"已完成",
+  noTasks:"目前没有适用任务。", noActiveTasks:"当前没有适用于你的任务。", noHistory:"最近30天没有任务记录。", groups:{ today:"今天", upcoming:"即将开始", ongoing:"周期性与进行中", needsAttention:"需要关注", recurringScheduled:"循环和排程任务" },
   schedule:{ today:"今天", daily:"每天", weekly:"每周", monthlyDay:"每月 · {{day}} 日", everyDays:"每 {{count}} 天", selectedWeekdays:"已选工作日", before_shift:"班前", start_of_shift:"上班开始", during_shift:"班中", end_of_shift:"班后", oneTime:"一次性", noFixedTime:"没有固定时间", weekdays:{ mon:"周一", tue:"周二", wed:"周三", thu:"周四", fri:"周五", sat:"周六", sun:"周日" } },
   reportIssueFor:"报告 {{title}} 的问题", completeBlock:"完成 {{title}}"
 });

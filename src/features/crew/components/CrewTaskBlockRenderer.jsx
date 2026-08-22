@@ -126,6 +126,7 @@ export default function CrewTaskBlockRenderer({
 
   const summaryStatus = actionable ? result : expanded ? t("tasks.hide") : t("tasks.view");
   const canOpen = !readonly && (!actionable || !responded);
+  const showPanel = expanded || readonly;
 
   return <section className={`crew-task-block is-${block.block_type} is-${status}${expanded ? " is-expanded" : ""}${compact ? " is-compact" : ""}`} data-block-type={block.block_type} data-preview-mode={preview ? "true" : undefined}>
     <button type="button" className="crew-task-block-summary" aria-expanded={expanded} disabled={!canOpen} onClick={() => setExpanded((value) => !value)}>
@@ -138,10 +139,10 @@ export default function CrewTaskBlockRenderer({
       {canOpen ? <ChevronRight className="crew-task-block-chevron" size={17} aria-hidden="true" /> : <CheckCircle2 className="crew-task-block-saved-icon" size={17} aria-hidden="true" />}
     </button>
 
-    {expanded ? <div className="crew-task-block-panel">
+    {showPanel ? <div className="crew-task-block-panel">
       {block.description && !["key_point", "text"].includes(block.block_type) ? <p>{block.description}</p> : null}
       {actionable && ["note", "optional_note"].includes(block.evidence_requirement) ? <label className="crew-task-additional-note"><span>{block.evidence_requirement === "note" ? "Completion note" : "Completion note (optional)"}</span><textarea value={note} disabled={readonly || saving} onChange={(event) => setNote(event.target.value)} placeholder={block.evidence_requirement === "note" ? "Add the required completion note" : "Add a note if useful"} /></label> : null}
-      <BlockControl block={block} response={response} setResponse={setResponse} mode={mode} saving={saving} submit={submit} onOpenSop={onOpenSop} />
+      {readonly && actionable ? <div className="crew-task-readonly-result">{result}</div> : <BlockControl block={block} response={response} setResponse={setResponse} mode={mode} saving={saving} submit={submit} onOpenSop={onOpenSop} />}
       {actionable && allowException && !responded ? <button type="button" className="crew-task-report-link" onClick={() => setExceptionOpen(true)} disabled={readonly || saving}><AlertTriangle size={15} /> {t("tasks.reportIssue")}</button> : null}
       {block.evidence_requirement && block.evidence_requirement !== "none" ? <small className="crew-task-evidence">{t("tasks.evidence", { type: String(block.evidence_requirement).replaceAll("_", " ") })}</small> : null}
     </div> : null}

@@ -6,8 +6,8 @@ import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
-import { formatCrewTime, translateStatus } from "../utils/crewI18n.js";
-import { formatTaskSchedule, taskGroup, taskMatchesStatus } from "../utils/taskSchedule.js";
+import { formatCrewDate, formatCrewTime, translateStatus } from "../utils/crewI18n.js";
+import { activeTaskResponsibilities, crewBusinessDate, formatTaskSchedule, historyTasks } from "../utils/taskSchedule.js";
 import { applySopLocalization, applyTaskLocalization } from "../utils/localizedContent.js";
 
 export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
@@ -23,11 +23,18 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   const [savingBlockId, setSavingBlockId] = useState(null);
   const [error, setError] = useState("");
   const [allTaskData, setAllTaskData] = useState(null);
+  const [historyTaskData, setHistoryTaskData] = useState(null);
   const [allTasksLoading, setAllTasksLoading] = useState(false);
-  const [taskFilter, setTaskFilter] = useState("all");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [taskView, setTaskView] = useState("active");
+  const [historyFilter, setHistoryFilter] = useState("all");
+  const [detailLoading, setDetailLoading] = useState(Boolean(initialTarget));
+  const [detailContext, setDetailContext] = useState(initialTarget?.context || null);
   const allTaskRequest = useRef(0);
+  const historyTaskRequest = useRef(0);
+  const listScrollY = useRef(0);
 
-  useEffect(() => { setDetail(null); setDetailLanguage(null); setLegacyTask(null); setActiveSop(null); setActiveSopLanguage(null); setAllTaskData(null); setTaskFilter("all"); }, [token]);
+  useEffect(() => { setDetail(null); setDetailLanguage(null); setLegacyTask(null); setActiveSop(null); setActiveSopLanguage(null); setAllTaskData(null); setHistoryTaskData(null); setTaskView("active"); setHistoryFilter("all"); setDetailLoading(Boolean(initialTarget)); setDetailContext(initialTarget?.context || null); }, [token]);
   async function loadAllTasks() {
     const request = ++allTaskRequest.current;
     setAllTasksLoading(true); setError("");
@@ -39,13 +46,30 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     finally { if (request === allTaskRequest.current) setAllTasksLoading(false); }
   }
   useEffect(() => { loadAllTasks(); }, [token]);
+  async function loadHistoryTasks() {
+    const request = ++historyTaskRequest.current;
+    const today = crewBusinessDate();
+    const fromDate = new Date(`${today}T00:00:00+08:00`);
+    fromDate.setDate(fromDate.getDate() - 29);
+    const from = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(fromDate);
+    setHistoryLoading(true); setError("");
+    try {
+      const nextData = await crewService.operationsAllTasks(token, from, today);
+      if (request === historyTaskRequest.current) setHistoryTaskData(nextData);
+    } catch (cause) { if (request === historyTaskRequest.current) setError(cause.message); }
+    finally { if (request === historyTaskRequest.current) setHistoryLoading(false); }
+  }
+  useEffect(() => { if (taskView === "history" && !historyTaskData) loadHistoryTasks(); }, [taskView, token]);
   useEffect(() => {
     if (!initialTarget) return;
-    if (initialTarget.kind === "legacy_task") setLegacyTask({ ...initialTarget.row, kind: "legacy_task" });
-    else openTask(initialTarget.row);
+    setDetailContext(initialTarget.context || { from: "home" });
+    if (initialTarget.kind === "legacy_task") { setLegacyTask({ ...initialTarget.row, kind: "legacy_task" }); setDetailLoading(false); }
+    else openTask(initialTarget.row, initialTarget.context || { from: "home" });
   }, [initialTarget]);
 
-  async function openTask(row) {
+  async function openTask(row, context = { from: "list" }) {
+    setDetailContext(context);
+    setDetailLoading(true);
     setSaving(true); setError("");
     try {
       const nextDetail = await crewService.operationDetail(token, row.id);
@@ -55,7 +79,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
       setDetailLanguage(language);
     }
     catch (cause) { setError(cause.message); }
-    finally { setSaving(false); }
+    finally { setSaving(false); setDetailLoading(false); }
   }
   async function refreshDetail(current = detail) {
     if (!current) return;
@@ -134,7 +158,26 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     return () => { active = false; };
   }, [token, activeSop?.id, activeSopLanguage, i18n.resolvedLanguage, i18n.language]);
 
+  function returnFromDetail() {
+    if (detailContext?.from === "home") { onBack?.(detailContext); return; }
+    setDetail(null); setDetailLoading(false); setDetailContext(null);
+    requestAnimationFrame(() => window.scrollTo({ top: detailContext?.scrollY || 0 }));
+  }
+
+  function openFromList(task, source = taskView) {
+    listScrollY.current = window.scrollY;
+    const context = { from: "list", view: source, filter: historyFilter, scrollY: listScrollY.current };
+    if (task.source === "legacy_daily") setLegacyTask({ ...task, kind: "legacy_task" });
+    else openTask(task, context);
+  }
+
   if (activeSop) return <SopTaskReader sop={activeSop} token={token} onBack={() => setActiveSop(null)} />;
+
+  if (detailLoading && !detail) return <section className="crew-ops-mobile" aria-busy="true">
+    <CrewMobileDetailHeader title={initialTarget?.row?.name || t("tasks.task")} onBack={returnFromDetail} />
+    <div className="crew-ops-loading">{t("common.loading")}</div>
+    {error ? <div className="crew-v2-error">{error}</div> : null}
+  </section>;
 
   if (detail) {
     const blocks = (detail.blocks || []).map(normalizeTaskBlock);
@@ -142,29 +185,28 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     const completed = actionable.filter(isTaskBlockComplete).length;
     const taskComplete = ["completed", "completed_with_exceptions", "review_required"].includes(detail.status);
     return <section className="crew-ops-mobile">
-      <CrewMobileDetailHeader title={detail.name} onBack={() => setDetail(null)} />
+      <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} />
       <div className="crew-ops-detail-head"><span>{String(detail.task_type || "task").replaceAll("_", " ")}</span><strong>{translateStatus(detail.status, t)}</strong><small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
       {taskComplete ? <TaskCompletionState status={detail.status} completed={completed} total={actionable.length} completedAt={detail.completed_at} /> : null}
-      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode="interactive" allowException={detail.allow_exception} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
+      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" ? "readonly" : "interactive"} allowException={detail.allow_exception} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
       {error ? <div className="crew-v2-error">{error}</div> : null}
     </section>;
   }
 
   const taskData = allTaskData || data || {};
-  const tasks = (taskData.tasks || []).filter((task) => taskMatchesStatus(task, taskFilter));
-  const groups = tasks.reduce((result, task) => {
-    const label = taskGroup(task, t);
-    (result[label] ||= []).push(task);
-    return result;
-  }, {});
+  const activeGroups = activeTaskResponsibilities(taskData.tasks || [], t);
+  const historical = historyTasks(historyTaskData?.tasks || [], historyFilter);
   const filterOptions = [
-    ["all", t("tasks.all")], ["not_started", t("tasks.notStarted")], ["in_progress", t("tasks.inProgress")], ["overdue", t("tasks.overdue")], ["completed", t("tasks.completedFilter")],
+    ["all", t("tasks.all")], ["completed", t("tasks.completedFilter")], ["overdue", t("tasks.overdue")], ["exception", t("tasks.exception")],
   ];
   return <section className="crew-ops-mobile">
     <CrewMobileDetailHeader title={t("tasks.title")} onBack={onBack} />
     <div className="crew-ops-context"><span><Store size={17} /><strong>{taskData?.outlet?.name || t("home.yourOutlet")}</strong></span><small>{(taskData?.attendance_context || data?.attendance_context)?.on_shift ? t("home.onShift") : t("tasks.outsideShift")}</small></div>
-    <div className="crew-ops-filters" role="tablist" aria-label={t("tasks.title")}>{filterOptions.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={taskFilter === value} className={taskFilter === value ? "is-active" : ""} onClick={() => setTaskFilter(value)}>{label}</button>)}</div>
-    {(loading && !allTaskData) || allTasksLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : tasks.length ? Object.entries(groups).map(([label, groupTasks]) => <section className="crew-ops-group" key={label}><div className="crew-v2-section-title"><h2>{label}</h2><span>{groupTasks.length}</span></div>{groupTasks.map((task) => <button key={`${task.source}-${task.id}`} type="button" className={`crew-ops-task is-${task.status}`} onClick={() => task.source === "legacy_daily" ? setLegacyTask({ ...task, kind: "legacy_task" }) : openTask(task)}><span>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span><span><strong>{task.name}</strong><small>{task.block_count ? t("tasks.completedCount", { completed: task.completed_count || 0, total: task.block_count }) : task.description || String(task.task_type).replaceAll("_", " ")}</small><small className="crew-ops-schedule">{formatTaskSchedule(task, t)}</small></span><em>{translateStatus(task.status, t)}</em><ChevronRight aria-hidden="true" size={17} /></button>)}</section>) : <section className="crew-ops-group"><Empty text={t("tasks.noTasks")} /></section>}
+    <div className="crew-ops-top-tabs" role="tablist" aria-label={t("tasks.title")}><button type="button" role="tab" aria-selected={taskView === "active"} className={taskView === "active" ? "is-active" : ""} onClick={() => setTaskView("active")}>{t("tasks.active")}</button><button type="button" role="tab" aria-selected={taskView === "history"} className={taskView === "history" ? "is-active" : ""} onClick={() => setTaskView("history")}>{t("tasks.history")}</button></div>
+    {taskView === "history" ? <>
+      <div className="crew-ops-filters" role="tablist" aria-label={t("tasks.history")}>{filterOptions.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={historyFilter === value} className={historyFilter === value ? "is-active" : ""} onClick={() => setHistoryFilter(value)}>{label}</button>)}</div>
+      {historyLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : historical.length ? <section className="crew-ops-group">{historical.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} history onOpen={() => openFromList(task, "history")} />)}</section> : <section className="crew-ops-group"><Empty text={t("tasks.noHistory")} /></section>}
+    </> : (loading && !allTaskData) || allTasksLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : activeGroups.length ? activeGroups.map(([label, groupTasks]) => <section className="crew-ops-group" key={label}><div className="crew-v2-section-title"><h2>{label}</h2><span>{groupTasks.length}</span></div>{groupTasks.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} onOpen={() => openFromList(task, "active")} />)}</section>) : <section className="crew-ops-group"><Empty text={t("tasks.noActiveTasks")} /></section>}
     {error ? <div className="crew-v2-error">{error}</div> : null}
     {legacyTask ? <LegacyTaskModal item={legacyTask} reason={reason} setReason={setReason} note={note} setNote={setNote} saving={saving} onClose={() => setLegacyTask(null)} onSubmit={submitLegacy} /> : null}
   </section>;
@@ -210,3 +252,19 @@ function LegacyTaskModal({ item, reason, setReason, note, setNote, saving, onClo
 }
 
 function Empty({ text }) { return <div className="crew-ops-empty"><ClipboardCheck size={22} /><p>{text}</p></div>; }
+
+function TaskRow({ task, t, history = false, onOpen }) {
+  const hasProgress = Number(task.completed_count || 0) > 0 && Number(task.block_count || 0) > 0;
+  const historyContext = [
+    task.business_date ? formatCrewDate(new Date(`${task.business_date}T00:00:00+08:00`), { day: "2-digit", month: "2-digit", year: "numeric" }) : null,
+    task.completed_at ? t("tasks.completedAt", { time: formatCrewTime(task.completed_at).toLowerCase() }) : null,
+  ].filter(Boolean).join(" · ");
+  return <button type="button" className={`crew-ops-task is-${task.status}`} onClick={onOpen}>
+    <span>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span>
+    <span><strong>{task.name}</strong>
+      {history ? <small>{historyContext || task.description || String(task.task_type).replaceAll("_", " ")}</small> : hasProgress ? <small>{t("tasks.completedCount", { completed: task.completed_count, total: task.block_count })}</small> : task.description ? <small>{task.description}</small> : null}
+      {!history ? <small className="crew-ops-schedule">{formatTaskSchedule(task, t)}</small> : null}
+    </span>
+    <em>{translateStatus(task.status, t)}</em><ChevronRight aria-hidden="true" size={17} />
+  </button>;
+}

@@ -50,6 +50,7 @@ const growth = {
 };
 const performance = { period_start: "2026-08-01", status: "finalized", score: 87, calculation_version: "performance-v1", breakdown: { attendance: { score: 28, explanation: "Verified attendance evidence." }, service: { score: 26, explanation: "Reviewed standards." }, customer: { score: 13, confidence: "established", explanation: "Five responses." }, knowledge: { score: 14, explanation: "Learning evidence." }, conduct: { score: 6, explanation: "Reviewed conduct." } }, trend: [{ period_start: "2026-08-01", score: 87, status: "finalized" }] };
 const reward = { period_start: "2026-08-01", status: "qualified", cycle_status: "review", reward_label: "Estimated Reward", reward_amount: 120.72, estimated_reward: 120.72, performance_score: 75, performance_level: "Meets Standard", earn_rate: .45, eligible_hours: 235, total_eligible_hours: 730, contribution_share: .3219, maximum_share: 268.33, reward_pool: 500, calculation_version: "reward-tier-v2", projection_applicable: true, projections: [{ key: "current", label: "Current", score: 75, earn_rate: .45, amount: 120.72 }, { key: "on_track", label: "On Track", score: 80, earn_rate: .65, amount: 174.41 }, { key: "great", label: "Great", score: 85, earn_rate: .8, amount: 214.66 }, { key: "max", label: "Max Potential", score: 95, earn_rate: 1, amount: 268.33 }], history: [{ period_start: "2026-07-01", amount: 112.4, status: "paid", paid_at: "2026-08-05T00:00:00Z" }] };
+const currentBusinessDate = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 beforeEach(() => {
   localStorage.clear();
@@ -61,7 +62,7 @@ beforeEach(() => {
   mocks.performanceMobile.mockReset().mockResolvedValue(performance);
   mocks.rewardMobile.mockReset().mockResolvedValue(reward);
   mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, tasks: [{ id: "ops-1", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", block_count: 2, completed_count: 0 }, { id: "task-1", source: "legacy_daily", name: "Check reservation board", status: "pending", priority: "normal" }] });
-  mocks.operationsAllTasks.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, tasks: [{ id: "ops-1", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", business_date: "2026-08-13", schedule_type: "recurring", schedule_config: { frequency: "every_day" }, available_from: "2026-08-13T02:00:00Z", due_at: "2026-08-13T10:00:00Z", block_count: 2, completed_count: 0 }] });
+  mocks.operationsAllTasks.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, tasks: [{ id: "ops-1", template_id: "template-opening", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", business_date: currentBusinessDate(), schedule_type: "recurring", schedule_config: { frequency: "every_day" }, available_from: "2026-08-13T02:00:00Z", due_at: "2026-08-13T10:00:00Z", block_count: 2, completed_count: 0 }] });
   mocks.myRoster.mockReset().mockResolvedValue({ from: "2026-08-13", to: "2026-08-26", today: { entry_id: "roster-1", date: "2026-08-13", outlet_id: "outlet-1", outlet_name: "Friends Corner", start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew" }, entries: [{ id: "roster-1", date: "2026-08-13", outlet: { id: "outlet-1", name: "Friends Corner" }, start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew", template: { code: "MORNING", name: "Morning" } }, { id: "roster-2", date: "2026-08-14", outlet: { id: "outlet-2", name: "Hola Hola" }, entry_type: "off", template: { code: "OFF", name: "OFF" } }] });
   mocks.myLeave.mockReset().mockResolvedValue({ requests: [], upcoming: [] });
   mocks.operationDetail.mockReset().mockResolvedValue({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "checklist_item", required: true, status: "pending" }] });
@@ -288,6 +289,21 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByRole("heading", { name: "Today’s Tasks" })).toBeNull();
     expect(mocks.operationDetail).toHaveBeenCalledWith("crew-token", "ops-1");
     expect(mocks.operationsToday).toHaveBeenCalledWith("crew-token");
+  });
+
+  it("keeps the direct Home task route in a detail loading shell and returns to Home", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    let resolveDetail;
+    mocks.operationDetail.mockImplementationOnce(() => new Promise((resolve) => { resolveDetail = resolve; }));
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
+
+    expect(await screen.findByRole("heading", { name: "Opening Checklist" })).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "All Tasks" })).toBeNull();
+    resolveDetail({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", blocks: [] });
+    await waitFor(() => expect(screen.getByText("0 of 0 completed")).not.toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByRole("button", { name: "Clock In" })).not.toBeNull();
   });
 
   it("refreshes server-derived completion after the final block without a manual Complete Task action", async () => {

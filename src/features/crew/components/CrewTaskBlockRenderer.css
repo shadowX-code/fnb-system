@@ -20,6 +20,7 @@
 .crew-task-block.is-expanded .crew-task-block-chevron { transform: rotate(90deg); }
 .crew-task-block-saved-icon { color: #0a9467; }
 .crew-task-block-panel { display: grid; gap: 10px; margin: 0 0 13px 42px; border-radius: 12px; background: #f7faf9; padding: 11px; }
+.crew-task-readonly-result { border-radius: 9px; background: #eef7f3; padding: 9px 10px; color: #245f50; font-size: var(--crew-type-secondary); font-weight: 700; line-height: 1.4; }
 .crew-task-block-panel > p,.crew-task-instruction { margin: 0; color: #52647e; font-size: var(--crew-type-secondary); line-height: 1.55; white-space: pre-wrap; }
 .crew-task-block.is-incomplete { display: grid; grid-template-columns: 30px 1fr; align-items: center; gap: 10px; border: 1px dashed #d5dde3; border-radius: 12px; background: #f8faf9; padding: 12px; }
 .crew-task-block.is-incomplete .crew-task-block-main { display: grid; gap: 3px; }

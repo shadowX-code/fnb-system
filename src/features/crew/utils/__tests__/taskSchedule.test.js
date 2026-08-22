@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import i18n from "../../../../i18n/index.js";
-import { formatTaskSchedule, taskMatchesStatus } from "../taskSchedule.js";
+import { activeTaskResponsibilities, crewBusinessDate, formatTaskSchedule, historyTasks, taskMatchesStatus } from "../taskSchedule.js";
 
 const t = (key, values = {}) => i18n.t(key, values);
 
@@ -40,5 +40,33 @@ describe("Crew Task schedule formatter", () => {
       start_time: "15:00:00",
       due_time: "16:00:00",
     }, t)).toBe("Today · Daily · 3:00 pm–4:00 pm");
+  });
+
+  it("shows a recurring responsibility once while retaining immutable instances for history", () => {
+    const today = crewBusinessDate();
+    const tomorrow = new Date(`${today}T00:00:00+08:00`);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowDate = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(tomorrow);
+    const tasks = [
+      { id: "today", template_id: "opening", source: "instance", name: "Opening Checklist", schedule_type: "recurring", business_date: today, status: "in_progress" },
+      { id: "tomorrow", template_id: "opening", source: "instance", name: "Opening Checklist", schedule_type: "recurring", business_date: tomorrowDate, status: "not_started" },
+      { id: "one-time", source: "instance", name: "Team briefing", schedule_type: "one_time", business_date: tomorrowDate, status: "not_started" },
+    ];
+    const flattened = activeTaskResponsibilities(tasks, t).flatMap(([, values]) => values);
+    expect(flattened.map((task) => task.id)).toEqual(["today", "one-time"]);
+  });
+
+  it("limits Crew history to the latest thirty calendar days and filters execution status", () => {
+    const today = crewBusinessDate();
+    const old = new Date(`${today}T00:00:00+08:00`); old.setDate(old.getDate() - 30);
+    const recent = new Date(`${today}T00:00:00+08:00`); recent.setDate(recent.getDate() - 1);
+    const format = (value) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(value);
+    const tasks = [
+      { id: "old", business_date: format(old), status: "completed" },
+      { id: "recent", business_date: format(recent), status: "completed" },
+      { id: "exception", business_date: today, status: "exception" },
+    ];
+    expect(historyTasks(tasks).map((task) => task.id)).toEqual(["exception", "recent"]);
+    expect(historyTasks(tasks, "exception").map((task) => task.id)).toEqual(["exception"]);
   });
 });

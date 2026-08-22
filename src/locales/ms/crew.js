@@ -24,8 +24,8 @@ Object.assign(resources.home, { workedDuration:"Tempoh bekerja", clockInAt:"Daft
 Object.assign(resources.attendance, { outsideRange:"Anda berada {{distance}}m dari cawangan ({{meters}}m dibenarkan)." });
 Object.assign(resources.schedule, { jumpToday:"Pergi ke hari ini" });
 Object.assign(resources.tasks, {
-  title:"Semua Tugasan", all:"Semua", notStarted:"Belum Bermula", inProgress:"Sedang Berlangsung", overdue:"Lewat", completedFilter:"Selesai",
-  noTasks:"Tiada Tugasan semasa yang terpakai untuk anda.", groups:{ today:"Hari ini", upcoming:"Akan datang", ongoing:"Berulang & berterusan" },
+  title:"Semua Tugasan", active:"Tugasan Aktif", history:"Sejarah", all:"Semua", notStarted:"Belum Bermula", inProgress:"Sedang Berlangsung", overdue:"Lewat", exception:"Pengecualian", completedFilter:"Selesai",
+  noTasks:"Tiada Tugasan semasa yang terpakai untuk anda.", noActiveTasks:"Tiada Tugasan aktif yang terpakai untuk anda.", noHistory:"Tiada sejarah Tugasan dalam 30 hari yang lalu.", groups:{ today:"Hari ini", upcoming:"Akan datang", ongoing:"Berulang & berterusan", needsAttention:"Perlu Perhatian", recurringScheduled:"Berulang & Berjadual" },
   schedule:{ today:"Hari ini", daily:"Setiap hari", weekly:"Mingguan", monthlyDay:"Bulanan · hari {{day}}", everyDays:"Setiap {{count}} hari", selectedWeekdays:"Hari dipilih", before_shift:"Sebelum syif", start_of_shift:"Mula syif", during_shift:"Semasa syif", end_of_shift:"Akhir syif", oneTime:"Sekali sahaja", noFixedTime:"Tiada masa tetap", weekdays:{ mon:"Isn", tue:"Sel", wed:"Rab", thu:"Kha", fri:"Jum", sat:"Sab", sun:"Ahd" } },
   reportIssueFor:"Laporkan isu untuk {{title}}", completeBlock:"Lengkapkan {{title}}"
 });
