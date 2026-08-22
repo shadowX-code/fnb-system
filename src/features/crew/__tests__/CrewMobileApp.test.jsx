@@ -372,9 +372,10 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     const { unmount } = render(<CrewMobileApp />);
     expect(await screen.findByText("Ready")).not.toBeNull();
-    expect(screen.getByText("Ready to clock in")).not.toBeNull();
+    expect(screen.queryByText("Ready to clock in")).toBeNull();
     expect(document.querySelector(".crew-home-ready-context small").textContent).toContain("Friends Corner");
     expect(document.querySelector(".crew-home-clock-action > span").textContent).toBe("Tap toClock In");
+    expect(document.querySelector(".crew-home-clock-zone .crew-home-gps")).not.toBeNull();
     expect(screen.getByRole("region", { name: "Attendance status" }).classList.contains("is-ready")).toBe(true);
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Clock Out" })).toBeNull();

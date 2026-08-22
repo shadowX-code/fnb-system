@@ -1,10 +1,10 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../../../../i18n/index.js";
 import { activeTaskResponsibilities, crewBusinessDate, formatTaskSchedule, historyTasks, taskMatchesStatus } from "../taskSchedule.js";
 
 const t = (key, values = {}) => i18n.t(key, values);
 
-afterEach(async () => { await i18n.changeLanguage("en"); });
+afterEach(async () => { vi.useRealTimers(); await i18n.changeLanguage("en"); });
 
 describe("Crew Task schedule formatter", () => {
   it("formats canonical recurring, one-time and shift schedules without backend enum copy", () => {
@@ -22,6 +22,8 @@ describe("Crew Task schedule formatter", () => {
   });
 
   it("does not expose an untimed task's all-day availability window as a fake appointment", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-22T12:00:00+08:00"));
     const label = formatTaskSchedule({
       schedule_type: "recurring",
       schedule_config: { frequency: "every_day" },
@@ -33,6 +35,8 @@ describe("Crew Task schedule formatter", () => {
   });
 
   it("keeps configured database time values in their local wall-clock time", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-22T12:00:00+08:00"));
     expect(formatTaskSchedule({
       schedule_type: "recurring",
       schedule_config: { frequency: "every_day" },

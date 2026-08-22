@@ -1252,6 +1252,35 @@
 @media (max-width:374px){.crew-v2-home .crew-home-attendance-main{min-height:196px}.crew-v2-home .crew-home-attendance-copy{padding-left:15px}.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:98px}}
 @media (prefers-reduced-motion:reduce){.crew-v2-home .crew-home-clock-action{transition:none}}
 
+/* Final Home polish: Home owns attendance and roster composition; semantic
+   status remains in the canonical badge contract. */
+.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 132px;min-height:214px;background:radial-gradient(circle at 83% 39%,rgb(0 183 199/.14),transparent 27%),linear-gradient(135deg,var(--crew-color-deep-teal),#103f44)}
+.crew-v2-home .crew-home-attendance-copy{justify-content:flex-start;gap:8px;padding:18px 8px 16px 18px}
+.crew-v2-home .crew-home-ready-row{grid-template-columns:minmax(0,1fr);align-items:start;gap:8px}
+.crew-v2-home .crew-home-current-time{margin-top:0;font-size:36px;line-height:1}
+.crew-v2-home .crew-home-ready-context{gap:5px;border-left:0;padding-left:0}
+.crew-v2-home .crew-home-ready-context b{font-size:var(--crew-type-meta)}
+.crew-v2-home .crew-home-ready-context small{font-size:var(--crew-type-helper)}
+.crew-v2-home .crew-home-clock-zone{align-content:center;justify-items:center;gap:9px;padding:12px 6px 8px}
+.crew-v2-home .crew-home-clock-zone::before{inset:13px 11px 33px}
+.crew-v2-home .crew-home-radar-orbit{width:118px;height:118px;border-color:rgb(0 183 199/.42)}
+.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:108px;box-shadow:0 0 0 5px rgb(0 183 199/.1),0 6px 14px rgb(0 0 0/.14);transition:transform 200ms ease-out,box-shadow 200ms ease-out}
+.crew-v2-home .crew-home-clock-action::after{position:absolute;inset:-8px;border:1px solid rgb(0 183 199/.55);border-radius:inherit;content:"";opacity:0;pointer-events:none}
+.crew-v2-home .crew-home-clock-action:active::after{animation:crew-home-clock-ripple 220ms ease-out}
+.crew-v2-home .crew-home-attendance.is-ready .crew-home-clock-action:not(:disabled){animation:crew-home-clock-pulse 2400ms ease-out infinite}
+.crew-v2-home .crew-home-gps{display:flex;max-width:122px;align-items:flex-start;justify-content:center;gap:4px;margin:0;color:var(--crew-color-mist-mint);font-size:var(--crew-type-badge);font-style:normal;line-height:1.25;text-align:center}
+.crew-v2-home .crew-home-gps svg{flex:0 0 auto;margin-top:1px;color:var(--crew-color-cyan)}
+.crew-v2-home .crew-home-task>i,.crew-v2-home .crew-home-task.is-overdue>i,.crew-v2-home .crew-home-task.is-exception>i,.crew-v2-home .crew-home-task.is-in_progress>i{background:color-mix(in srgb,var(--crew-color-mist-mint) 34%,white);color:var(--crew-color-deep-teal)}
+.crew-v2-home .crew-home-task>.crew-ui-status{justify-self:end}
+.crew-v2-home .crew-home-schedule-row>i,.crew-v2-home .crew-home-schedule-row.is-away>i{background:color-mix(in srgb,var(--crew-color-mist-mint) 34%,white);color:var(--crew-color-deep-teal)}
+.crew-v2-home .crew-home-schedule-row.is-working>em{max-width:none;background:transparent;padding:0;color:var(--crew-color-deep-teal);font-size:var(--crew-type-list-secondary);font-weight:650;white-space:normal;text-align:right}
+.crew-v2-home .crew-home-schedule-row.is-away>em{max-width:none;background:color-mix(in srgb,var(--crew-color-warning) 12%,white);color:var(--crew-color-warning)}
+.crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) minmax(82px,.9fr) 16px}
+@keyframes crew-home-clock-pulse{0%,72%,100%{box-shadow:0 0 0 5px rgb(0 183 199/.1),0 6px 14px rgb(0 0 0/.14)}84%{box-shadow:0 0 0 8px rgb(0 183 199/.16),0 6px 14px rgb(0 0 0/.14)}}
+@keyframes crew-home-clock-ripple{0%{transform:scale(.98);opacity:.75}100%{transform:scale(1.08);opacity:0}}
+@media (max-width:374px){.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 108px;min-height:210px}.crew-v2-home .crew-home-attendance-copy{padding-left:15px}.crew-v2-home .crew-home-current-time{font-size:32px}.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:94px}.crew-v2-home .crew-home-radar-orbit{width:104px;height:104px}.crew-v2-home .crew-home-gps{max-width:104px;font-size:10px}.crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px}.crew-v2-home .crew-home-schedule-row>em{grid-column:2;grid-row:2;justify-self:start;margin-top:-1px;text-align:left}.crew-v2-home .crew-home-schedule-row.is-working>em{font-size:var(--crew-type-helper)}.crew-v2-home .crew-home-schedule-row.is-away>em{padding:2px 6px}.crew-home-task>.crew-ui-status{max-width:76px;overflow:hidden;text-overflow:ellipsis}}
+@media (prefers-reduced-motion:reduce){.crew-v2-home .crew-home-attendance.is-ready .crew-home-clock-action:not(:disabled),.crew-v2-home .crew-home-clock-action:active::after{animation:none}.crew-v2-home .crew-home-clock-action{transition:none}}
+
 @media (max-width:374px) {
 .crew-home-task>em,.crew-home-schedule-row>em{
   max-width:76px;
