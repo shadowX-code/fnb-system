@@ -2,10 +2,8 @@
   <defs>
     <linearGradient id="strand" x1="0" x2="1"><stop stop-color="#00b7c7" stop-opacity="0"/><stop offset=".18" stop-color="#00b7c7" stop-opacity=".27"/><stop offset=".42" stop-color="#88fff4" stop-opacity=".5"/><stop offset=".73" stop-color="#b1d5c9" stop-opacity=".25"/><stop offset="1" stop-color="#00b7c7" stop-opacity="0"/></linearGradient>
     <radialGradient id="flare"><stop stop-color="#d4ffff" stop-opacity=".86"/><stop offset=".12" stop-color="#00d8e8" stop-opacity=".34"/><stop offset="1" stop-color="#00b7c7" stop-opacity="0"/></radialGradient>
-    <linearGradient id="fade" x1="0" x2="0" y1="0" y2="1"><stop offset=".05" stop-opacity="0"/><stop offset=".35" stop-opacity=".55"/><stop offset=".91" stop-opacity="1"/><stop offset="1" stop-opacity="0"/></linearGradient>
-    <mask id="field-fade"><rect width="720" height="320" fill="url(#fade)"/></mask>
   </defs>
-  <g mask="url(#field-fade)" fill="none" stroke="url(#strand)" stroke-linecap="round">
+  <g fill="none" stroke="url(#strand)" stroke-linecap="round">
     <g stroke-width="1.15"><path d="M-36 267C72 164 150 306 280 218S422 143 518 194s126 80 242 12"/><path d="M-36 272C78 174 158 312 288 225S430 151 528 201s122 72 232 20"/><path d="M-36 278C86 185 166 319 298 233S440 160 538 209s116 64 222 28"/><path d="M-36 284C94 196 174 325 308 241S450 170 548 217s108 56 212 35"/><path d="M-36 290C102 207 184 331 319 250S459 180 558 225s101 48 202 44"/><path d="M-36 296C110 218 192 337 330 259S469 191 568 234s92 40 192 53"/><path d="M-36 302C118 229 202 342 342 268S480 201 579 242s83 31 181 63"/><path d="M-36 309C126 240 211 348 353 278S490 213 590 251s72 22 170 73"/></g>
     <g stroke-width="1.7"><path d="M-36 256C62 144 143 292 271 204S411 126 508 181s137 94 252 1"/><path d="M-36 248C52 126 133 277 260 190S400 107 498 168s145 104 262-10"/><path d="M-36 240C43 110 122 263 248 176S388 90 486 155s155 114 274-21"/><path d="M-36 232C32 93 111 248 236 163S376 74 475 143s166 125 285-35"/><path d="M-36 224C21 76 99 234 224 151S364 60 464 132s176 136 296-47"/><path d="M-36 216C9 59 87 222 212 139S351 47 452 121s185 145 308-58"/></g>
   </g>
