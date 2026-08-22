@@ -15,7 +15,7 @@
 .crew-v2-home-header .crew-v2-avatar { width: 40px; height: 40px; border: 0; background: color-mix(in srgb, var(--crew-color-mist-mint) 42%, white); color: var(--crew-color-deep-teal); font-size: 16px; }
 
 .crew-v2-home .crew-home-attendance { overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: var(--crew-shadow-focus); }
-.crew-home-attendance-main { display: grid; min-height: 174px; grid-template-columns: minmax(0, 56%) minmax(0, 44%); background: var(--crew-color-deep-teal); color: var(--crew-color-surface); }
+.crew-home-attendance-main { display: grid; width: 100%; min-width: 0; box-sizing: border-box; min-height: 174px; grid-template-columns: minmax(0, 56%) minmax(0, 44%); background: var(--crew-color-deep-teal); color: var(--crew-color-surface); }
 .crew-home-attendance-copy { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; padding: 16px; }
 .crew-home-attendance-copy > .crew-ui-status { display: inline-flex; min-height: 22px; align-items: center; border: 1px solid rgb(177 213 201 / .42); border-radius: 999px; background: transparent; padding: 0 8px; color: var(--crew-color-mist-mint); font-size: var(--crew-type-badge); font-weight: 600; letter-spacing: .05em; }
 .crew-home-attendance-copy > .crew-ui-status::before { width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--crew-color-cyan); content: ""; }
@@ -50,7 +50,7 @@
 .crew-home-clock-action:focus-visible { outline: 3px solid color-mix(in srgb, var(--crew-color-cyan) 35%, transparent); outline-offset: 4px; }
 .crew-home-clock-zone.is-confirmed .crew-home-clock-action, .crew-home-complete-ring { background: var(--crew-color-success); box-shadow: 0 0 0 2px color-mix(in srgb, var(--crew-color-success) 50%, white); }
 
-.crew-home-attendance-footer { display: flex; width: 100%; min-height: 58px; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface); padding: 8px 14px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-home-attendance-footer { display: flex; width: 100%; box-sizing: border-box; min-height: 58px; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface); padding: 8px 14px; color: var(--crew-color-deep-teal); text-align: left; }
 .crew-home-attendance-footer > span { display: grid; min-width: 0; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 2px 8px; }
 .crew-home-attendance-footer > span > svg { grid-row: 1 / 3; box-sizing: content-box; border-radius: 10px; background: color-mix(in srgb, var(--crew-color-mist-mint) 34%, white); padding: 7px; color: var(--crew-color-deep-teal); }
 .crew-home-attendance-footer small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
