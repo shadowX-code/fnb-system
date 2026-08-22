@@ -63,7 +63,9 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {
-    [".crew-home-attendance-main", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
+    expect(sharedStyles).not.toContain(".crew-home-attendance {");
+    expect(home).toContain(".crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0; box-sizing: border-box;");
+    [".crew-home-attendance-main", "grid-template-columns: minmax(0, 56%) minmax(0, 44%)", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
     expect(home).not.toContain("!important");
   });
 

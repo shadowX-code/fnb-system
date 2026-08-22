@@ -14,7 +14,7 @@
 .crew-v2-home-header > div:last-child button::after { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border: 2px solid var(--crew-color-surface); border-radius: 50%; background: var(--crew-color-cyan); content: ""; }
 .crew-v2-home-header .crew-v2-avatar { width: 40px; height: 40px; border: 0; background: color-mix(in srgb, var(--crew-color-mist-mint) 42%, white); color: var(--crew-color-deep-teal); font-size: 16px; }
 
-.crew-v2-home .crew-home-attendance { overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: var(--crew-shadow-focus); }
+.crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0; box-sizing: border-box; overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); padding: 0; box-shadow: var(--crew-shadow-focus); }
 .crew-home-attendance-main { display: grid; width: 100%; min-width: 0; box-sizing: border-box; min-height: 174px; grid-template-columns: minmax(0, 56%) minmax(0, 44%); background: var(--crew-color-deep-teal); color: var(--crew-color-surface); }
 .crew-home-attendance-copy { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; padding: 16px; }
 .crew-home-attendance-copy > .crew-ui-status { display: inline-flex; min-height: 22px; align-items: center; border: 1px solid rgb(177 213 201 / .42); border-radius: 999px; background: transparent; padding: 0 8px; color: var(--crew-color-mist-mint); font-size: var(--crew-type-badge); font-weight: 600; letter-spacing: .05em; }
