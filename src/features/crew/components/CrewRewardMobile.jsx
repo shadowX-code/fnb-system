@@ -173,10 +173,10 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
     <CrewMobilePageHeader title={t("reward.title")} action={<button type="button" className="crew-reward-header-action" aria-label={t("reward.help")} onClick={() => setSheet("help")}><CircleHelp size={22} /></button>} />
     {unlocked ? <>
       <RewardHero data={data} onOpenModal={setSheet} />
-      <button type="button" className="crew-reward-motivation" onClick={() => setSheet("help")}><i><Lightbulb size={19} /></i><span>{t("reward.motivation")}</span><ChevronRight size={18} /></button>
+      <button type="button" className="crew-reward-motivation" onClick={() => setSheet("help")}><i className="crew-ui-icon-container"><Lightbulb size={19} /></i><span>{t("reward.motivation")}</span><ChevronRight size={18} /></button>
       <PerformanceOverview data={data} tiers={tiers} onOpenSheet={setSheet} onViewPerformance={onViewPerformance} />
       <RewardProjection data={data} onOpenSheet={setSheet} />
-      <button type="button" className="crew-reward-formula-row" onClick={() => setSheet("formula")}><i><Calculator size={18} /></i><span><strong>{t("reward.calculated")}</strong></span><ChevronRight size={18} /></button>
+      <button type="button" className="crew-reward-formula-row" onClick={() => setSheet("formula")}><i className="crew-ui-icon-container"><Calculator size={18} /></i><span><strong>{t("reward.calculated")}</strong></span><ChevronRight size={18} /></button>
       <RewardHistory history={data.history || []} onViewAll={() => setSheet("history")} />
     </> : <article className="crew-reward-unavailable"><Gift size={30} /><h2>{translateStatus(data.status, t) || t("reward.notAvailable")}</h2><p>{data.eligibility_reason || data.explanation || t("reward.notAvailableYet")}</p></article>}
 

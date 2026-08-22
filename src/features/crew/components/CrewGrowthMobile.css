@@ -1,6 +1,6 @@
 /* Growth-specific layout and data visualization migrate here from CrewMobileApp. */
 
-.crew-v2-growth-links, .crew-v2-focus-list > button, .crew-v2-growth-links > button, .crew-v2-focus-list > button:last-child, .crew-v2-growth-links > button:last-child, .crew-v2-focus-list > button > span:nth-child(2), .crew-v2-growth-links > button > span, .crew-v2-focus-list strong, .crew-v2-growth-links strong, .crew-v2-focus-list small, .crew-v2-growth-links small, .crew-v2-focus-list > button > em, .crew-v2-row-icon, .crew-v2-icon-token {
+.crew-v2-growth-links, .crew-v2-focus-list > button, .crew-v2-growth-links > button, .crew-v2-focus-list > button:last-child, .crew-v2-growth-links > button:last-child, .crew-v2-focus-list > button > span:nth-child(2), .crew-v2-growth-links > button > span, .crew-v2-focus-list strong, .crew-v2-growth-links strong, .crew-v2-focus-list small, .crew-v2-growth-links small, .crew-v2-focus-list > button > em {
   display: grid;
   flex: 0 0 auto;
   place-items: center;

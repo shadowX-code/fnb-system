@@ -65,9 +65,7 @@
 .crew-home-list { overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }
 .crew-home-task, .crew-home-schedule-row { display: grid; width: 100%; min-width: 0; min-height: 64px; grid-template-columns: 34px minmax(0, 1fr) auto 16px; align-items: center; gap: 9px; border: 0; border-bottom: 1px solid var(--crew-color-divider); background: var(--crew-color-surface); padding: 9px 11px; color: var(--crew-color-deep-teal); text-align: left; }
 .crew-home-task:last-child, .crew-home-schedule-row:last-child { border-bottom: 0; }
-.crew-home-task > i, .crew-home-schedule-row > i { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 10px; background: color-mix(in srgb, var(--crew-color-mist-mint) 34%, white); color: var(--crew-color-deep-teal); font-style: normal; }
-.crew-home-task.is-overdue > i, .crew-home-task.is-exception > i { background: #fbecee; color: var(--crew-color-danger); }
-.crew-home-task.is-in_progress > i { background: #eaf2ff; color: var(--crew-color-info); }
+.crew-home-task > .crew-ui-icon-container, .crew-home-schedule-row > .crew-ui-icon-container { width: 32px; height: 32px; border-radius: 10px; font-style: normal; }
 .crew-home-task > span, .crew-home-schedule-row > span { display: grid; min-width: 0; gap: 3px; }
 .crew-home-task strong, .crew-home-schedule-row strong { display: -webkit-box; overflow: hidden; color: var(--crew-color-deep-teal); font-size: var(--crew-type-list-primary); font-weight: 600; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .crew-home-task small, .crew-home-schedule-row small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-list-secondary); line-height: 1.32; }
@@ -811,14 +809,10 @@
   border-bottom:0
 }
 
-.crew-home-task>i,.crew-home-schedule-row>i{
-  display:grid;
+.crew-home-task>.crew-ui-icon-container,.crew-home-schedule-row>.crew-ui-icon-container{
   width:36px;
   height:36px;
-  place-items:center;
-  border:2px solid #efad3e;
   border-radius:50%;
-  color:#c47700;
   font-style:normal
 }
 
@@ -860,30 +854,14 @@
   color:#64748a
 }
 
-.crew-home-task.is-completed>i{
-  border-color:#13a875;
-  background:#e9f8f2;
-  color:var(--crew-color-success)
-}
-
 .crew-home-task.is-completed>em{
   background:#e5f7ef;
   color:#07815d
 }
 
-.crew-home-task.is-in_progress>i{
-  border-color:#3d83e7;
-  color:#3474cf
-}
-
 .crew-home-task.is-in_progress>em{
   background:#eaf2ff;
   color:#2968c0
-}
-
-.crew-home-task.is-overdue>i,.crew-home-task.is-exception>i{
-  border-color:#e0525f;
-  color:#c73c4c
 }
 
 .crew-home-task.is-overdue>em,.crew-home-task.is-exception>em{
@@ -899,18 +877,6 @@
   color:var(--crew-v2-navy);
   font-size:var(--crew-type-helper);
   font-weight:800
-}
-
-.crew-home-schedule-row>i{
-  border:0;
-  border-radius:11px;
-  background:#e8f8f2;
-  color:#078a62
-}
-
-.crew-home-schedule-row.is-away>i{
-  background:#f1f4f7;
-  color:#68778d
 }
 
 .crew-home-schedule-row>em{
@@ -1270,9 +1236,9 @@
 .crew-v2-home .crew-home-attendance.is-ready .crew-home-clock-action:not(:disabled){animation:crew-home-clock-pulse 2400ms ease-out infinite}
 .crew-v2-home .crew-home-gps{display:flex;max-width:122px;align-items:flex-start;justify-content:center;gap:4px;margin:0;color:var(--crew-color-mist-mint);font-size:var(--crew-type-badge);font-style:normal;line-height:1.25;text-align:center}
 .crew-v2-home .crew-home-gps svg{flex:0 0 auto;margin-top:1px;color:var(--crew-color-cyan)}
-.crew-v2-home .crew-home-task>i,.crew-v2-home .crew-home-task.is-overdue>i,.crew-v2-home .crew-home-task.is-exception>i,.crew-v2-home .crew-home-task.is-in_progress>i{width:32px;height:32px;border:0;border-radius:10px;background:color-mix(in srgb,var(--crew-color-mist-mint) 34%,white);color:var(--crew-color-deep-teal)}
+.crew-v2-home .crew-home-task>.crew-ui-icon-container,.crew-v2-home .crew-home-task.is-overdue>.crew-ui-icon-container,.crew-v2-home .crew-home-task.is-exception>.crew-ui-icon-container,.crew-v2-home .crew-home-task.is-in_progress>.crew-ui-icon-container{width:32px;height:32px;border:0;border-radius:10px}
 .crew-v2-home .crew-home-task>.crew-ui-status{justify-self:end}
-.crew-v2-home .crew-home-schedule-row>i,.crew-v2-home .crew-home-schedule-row.is-away>i{width:32px;height:32px;border:0;border-radius:10px;background:color-mix(in srgb,var(--crew-color-mist-mint) 34%,white);color:var(--crew-color-deep-teal)}
+.crew-v2-home .crew-home-schedule-row>.crew-ui-icon-container,.crew-v2-home .crew-home-schedule-row.is-away>.crew-ui-icon-container{width:32px;height:32px;border:0;border-radius:10px}
 .crew-v2-home .crew-home-schedule-row.is-working>em{max-width:none;background:transparent;padding:0;color:var(--crew-color-deep-teal);font-size:var(--crew-type-list-secondary);font-weight:650;white-space:normal;text-align:right}
 .crew-v2-home .crew-home-schedule-row.is-away>em{max-width:none;background:color-mix(in srgb,var(--crew-color-warning) 12%,white);color:var(--crew-color-warning)}
 .crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) minmax(82px,.9fr) 16px}

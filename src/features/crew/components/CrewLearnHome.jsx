@@ -147,7 +147,7 @@ export const CrewSopCategoryCarousel = ({ categories, sops, value, onChange, onV
 
 export function CrewSopCategoryCard({ name, count, icon: Icon, active, onClick }) {
   const { t } = useTranslation();
-  return <button type="button" className={`crew-learn-final-category ${active ? "is-active" : ""}`} aria-label={`${name}, ${count} ${t("learn.sops")}`} aria-pressed={active} onClick={onClick}><span><Icon size={23} /></span><strong>{name}</strong><small>{count} {t("learn.sops")}</small></button>;
+  return <button type="button" className={`crew-learn-final-category ${active ? "is-active" : ""}`} aria-label={`${name}, ${count} ${t("learn.sops")}`} aria-pressed={active} onClick={onClick}><span className={`crew-ui-icon-container ${active ? "is-selected is-active" : ""}`}><Icon size={23} /></span><strong>{name}</strong><small>{count} {t("learn.sops")}</small></button>;
 }
 
 export function CrewSopLibrary({ sops, sort, onSort, onOpen }) {
@@ -168,7 +168,7 @@ export function CrewSopListItem({ item, onOpen }) {
   const minutes = readingMinutes(item);
   return (
     <button type="button" className="crew-learn-final-sop" onClick={onOpen} aria-label={t("learn.openSop", { title: item.title })}>
-      <span className="crew-learn-final-doc"><FileText size={22} /></span>
+      <span className="crew-learn-final-doc crew-ui-icon-container"><FileText size={22} /></span>
       <span className="crew-learn-final-sop-copy"><strong>{item.title}</strong><small>{item.category || t("common.other")}<i>•</i>v{item.version}</small>{minutes > 0 && <small><Clock3 size={13} /> {t("learn.estimatedMinutes", { count: minutes })}</small>}</span>
       <CrewSopAcknowledgementState item={item} />
       <ChevronRight className="crew-learn-final-chevron" size={19} />

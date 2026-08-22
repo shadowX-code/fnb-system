@@ -58,6 +58,21 @@ describe("Crew Mobile design system contract", () => {
     expect(sharedStyles).not.toMatch(/^\.crew-mobile-primary\s*\{/m);
   });
 
+  it("owns ordinary icon-container color roles centrally", () => {
+    [
+      "--crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 32%, white)",
+      "--crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 46%, white)",
+      "--crew-color-icon-neutral-bg: #e6ebec",
+      "--crew-color-icon-neutral-fg: #728086",
+      ".crew-ui-icon-container.is-active, .crew-ui-icon-container.is-live",
+    ].forEach((contract) => expect(system).toContain(contract));
+    expect(mobileApp).toContain('className="crew-ui-icon-container"');
+    expect(learnHome).toContain("crew-ui-icon-container ${active ? \"is-selected is-active\" : \"\"}");
+    expect(meStyles).not.toContain(".crew-me-list.is-neutral .crew-me-row-icon");
+    expect(meStyles).not.toContain(".crew-me-settings .crew-ui-row-icon{background");
+    expect(growthStyles).not.toContain(".crew-v2-row-icon, .crew-v2-icon-token");
+  });
+
   it("keeps shared and Auth presentation out of the route shell stylesheet", () => {
     expect(authStyles).toContain("Auth-owned Crew mobile composition");
     [":root", ".crew-ui-", ".crew-v2-section-title", ".crew-v2-search", ".crew-v2-chips", ".crew-v2-status", ".crew-v2-login", ".crew-auth-", ".crew-v2-keypad"].forEach((selector) => expect(appStyles).not.toContain(selector));
