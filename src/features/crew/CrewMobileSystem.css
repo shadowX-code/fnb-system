@@ -1,0 +1,305 @@
+/*
+ * Crew Mobile system layer
+ *
+ * This file is intentionally imported after individual feature styles. It owns
+ * shared rhythm, surface hierarchy, list-row DNA, focus-surface geometry and
+ * navigation signals; feature styles only provide content-specific layouts.
+ */
+:root {
+  --crew-mobile-page-inline: 16px;
+  --crew-mobile-page-top: 16px;
+  --crew-mobile-section-gap: 20px;
+  --crew-mobile-row-min: 58px;
+  --crew-mobile-functional-radius: 16px;
+  --crew-mobile-focus-radius: 20px;
+  --crew-mobile-border: rgb(22 75 80 / .12);
+  --crew-mobile-shadow: 0 8px 22px rgb(22 75 80 / .07);
+  --crew-mobile-icon-size: 34px;
+  --crew-mobile-signal: #00b7c7;
+  --crew-mobile-structure: #164b50;
+  --crew-mobile-mist: #b1d5c9;
+  --crew-mobile-canvas: #f5f7f6;
+  --crew-mobile-ease: cubic-bezier(.22, 1, .36, 1);
+}
+
+/* Level 0 canvas and a shared page rhythm. */
+.crew-v2-shell,
+.crew-v2-app { background: var(--crew-mobile-canvas); }
+
+.crew-v2-home,
+.crew-learn-final-home,
+.crew-reward-final,
+.crew-growth-final,
+.crew-v2-me {
+  color: var(--crew-mobile-structure);
+  animation: crew-mobile-system-enter 200ms var(--crew-mobile-ease) both;
+}
+
+.crew-learn-final-home,
+.crew-reward-final,
+.crew-growth-final,
+.crew-v2-me {
+  padding-inline: var(--crew-mobile-page-inline);
+  padding-bottom: 96px;
+}
+
+/* Page headers are Level 1: hierarchy through spacing, never a container. */
+.crew-learn-final-hero,
+.crew-reward-page-header,
+.crew-growth-final > .crew-v2-page-header,
+.crew-me-header {
+  min-height: 58px;
+  margin: 0 0 var(--crew-mobile-section-gap);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.crew-learn-final-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--crew-mobile-page-top) 0 0;
+}
+
+.crew-learn-final-hero h1,
+.crew-reward-page-header h1,
+.crew-growth-final > .crew-v2-page-header h1,
+.crew-me-header h1 {
+  color: var(--crew-mobile-structure);
+  font-size: var(--crew-type-page-title);
+  font-weight: 760;
+  letter-spacing: -.032em;
+  line-height: 1.12;
+}
+
+.crew-learn-final-hero p,
+.crew-reward-page-header p,
+.crew-growth-final > .crew-v2-page-header p,
+.crew-me-header p { color: var(--crew-v2-muted); font-size: var(--crew-type-secondary); line-height: 1.42; }
+
+/* Level 2 functional surfaces. */
+.crew-home-list,
+.crew-me-list,
+.crew-learn-final-list,
+.crew-growth-final-ready > div,
+.crew-v2-skill-list,
+.crew-reward-card,
+.crew-reward-motivation,
+.crew-reward-formula-row {
+  border-color: var(--crew-mobile-border);
+  border-radius: var(--crew-mobile-functional-radius);
+  box-shadow: none;
+}
+
+/* One row DNA: familiar touch target, icon, copy, status and chevron cadence. */
+.crew-home-task,
+.crew-home-schedule-row,
+.crew-learn-final-sop,
+.crew-growth-final-ready > div > button,
+.crew-me-list > button,
+.crew-me-list > div,
+.crew-v2-skill-list > button,
+.crew-ui-action-row {
+  min-height: var(--crew-mobile-row-min);
+  border-color: var(--crew-mobile-border);
+  color: var(--crew-mobile-structure);
+}
+
+.crew-home-task > i,
+.crew-home-schedule-row > i,
+.crew-learn-final-doc,
+.crew-growth-final-ready > div > button > i,
+.crew-me-status-icon,
+.crew-me-row-icon,
+.crew-ui-row-icon {
+  width: var(--crew-mobile-icon-size);
+  height: var(--crew-mobile-icon-size);
+  border-radius: 11px;
+  background: #e8f4f1;
+  color: #007d8a;
+}
+
+.crew-home-task strong,
+.crew-home-schedule-row strong,
+.crew-learn-final-sop-copy strong,
+.crew-growth-final-ready > div > button strong,
+.crew-me-list strong,
+.crew-ui-row-copy strong {
+  color: var(--crew-mobile-structure);
+  font-size: var(--crew-type-list-primary);
+  font-weight: 650;
+  line-height: 1.28;
+}
+
+.crew-home-task small,
+.crew-home-schedule-row small,
+.crew-learn-final-sop-copy small,
+.crew-growth-final-ready > div > button small,
+.crew-me-list small,
+.crew-ui-row-copy small {
+  color: var(--crew-v2-muted);
+  font-size: var(--crew-type-list-secondary);
+  line-height: 1.36;
+}
+
+.crew-home-task > svg,
+.crew-home-schedule-row > svg,
+.crew-learn-final-chevron,
+.crew-growth-final-ready > div > button > svg,
+.crew-me-list > button > svg,
+.crew-ui-action-row > svg { color: #71818b; }
+
+.crew-ui-status,
+.crew-home-task > em,
+.crew-home-schedule-row > em,
+.crew-learn-final-ack b,
+.crew-growth-final-ready > div > button em {
+  font-size: var(--crew-type-status);
+  font-weight: 650;
+  letter-spacing: 0;
+}
+
+/* Level 3 focus surfaces: exactly one quiet but clear focus anchor per tab. */
+.crew-v2-home .crew-home-attendance,
+.crew-learn-final-onboarding,
+.crew-reward-hero,
+.crew-growth-final-hero,
+.crew-me-profile-hero {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--crew-mobile-border);
+  border-radius: var(--crew-mobile-focus-radius);
+  box-shadow: var(--crew-mobile-shadow);
+}
+
+.crew-learn-final-onboarding,
+.crew-growth-final-hero {
+  background: linear-gradient(135deg, #fff 0%, #edf6f4 100%);
+}
+
+.crew-learn-final-onboarding::after,
+.crew-growth-final-hero::after,
+.crew-reward-hero::after,
+.crew-me-profile-hero::after {
+  position: absolute;
+  top: -30px;
+  right: -24px;
+  width: 126px;
+  height: 126px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(0 183 199 / .16) 0 2px, transparent 2.6px);
+  background-size: 12px 12px;
+  content: "";
+  opacity: .8;
+  pointer-events: none;
+}
+
+.crew-learn-final-onboarding > *,
+.crew-growth-final-hero > *,
+.crew-reward-hero > *,
+.crew-me-profile-hero > * { position: relative; z-index: 1; }
+
+/* Home retains the operational focus, with fewer competing visual effects. */
+.crew-v2-home .crew-home-attendance-main {
+  background: linear-gradient(118deg, #164b50 0%, #164b50 54%, #0b6570 100%);
+}
+
+.crew-v2-home .crew-home-attendance-main::before { box-shadow: none; opacity: .48; }
+.crew-v2-home .crew-home-attendance-main::after { display: none; }
+.crew-v2-home .crew-home-radar-orbit { width: 116px; height: 116px; border-color: rgb(0 183 199 / .34); }
+.crew-v2-home .crew-home-radar-orbit::before,
+.crew-v2-home .crew-home-radar-orbit::after { display: none; }
+.crew-v2-home .crew-home-clock-action,
+.crew-v2-home .crew-home-complete-ring { box-shadow: 0 0 0 5px rgb(177 213 201 / .24), 0 8px 16px rgb(22 75 80 / .15); }
+.crew-v2-home .crew-home-clock-action::before,
+.crew-v2-home .crew-home-complete-ring::before { background: conic-gradient(from 24deg, #00b7c7 0 68%, #b1d5c9 68% 78%, #00b7c7 78% 100%); }
+
+/* Reward contains its financial data without becoming a second application. */
+.crew-reward-hero {
+  min-height: 0;
+  background: linear-gradient(135deg, #164b50, #145d64);
+  padding: 16px;
+}
+
+.crew-reward-hero::after { opacity: .38; }
+.crew-reward-hero-total { margin-block: 14px; }
+.crew-reward-hero-metrics { gap: 10px; border-top-color: rgb(255 255 255 / .18); }
+.crew-reward-hero-metrics > div { padding-top: 10px; }
+.crew-reward-hero-metrics > div + div { border-left-color: rgb(255 255 255 / .16); }
+.crew-reward-hero-metrics .is-contribution > i::before { background: #164b50; }
+
+/* Growth uses summary + rows rather than competing card treatments. */
+.crew-growth-final-stat-grid article {
+  min-height: 76px;
+  border-color: var(--crew-mobile-border);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: none;
+}
+
+.crew-growth-final-performance {
+  border: 1px solid var(--crew-mobile-border);
+  border-radius: var(--crew-mobile-functional-radius);
+  background: #fff;
+  box-shadow: none;
+}
+
+/* Me is the same focus geometry; state is carried by data, not a decorative blob. */
+.crew-me-profile-hero {
+  background: linear-gradient(135deg, #164b50, #145d64);
+}
+.crew-me-profile-hero::after { opacity: .32; }
+
+/* Shared actions use cyan as an active signal, not as ambient decoration. */
+.crew-learn-final-categories header button,
+.crew-learn-final-library header button,
+.crew-growth-final-skills header button,
+.crew-growth-final-view-all,
+.crew-reward-card header button,
+.crew-reward-info-link,
+.crew-me-section > header button { color: #007d8a; font-weight: 650; }
+
+/* Canonical Bottom Nav: no selected-item rectangle. */
+.crew-v2-nav {
+  height: 68px;
+  border-top: 1px solid var(--crew-mobile-border);
+  background: rgb(245 247 246 / .96);
+  box-shadow: 0 -5px 14px rgb(22 75 80 / .05);
+  backdrop-filter: blur(14px);
+}
+
+.crew-v2-nav button { position: relative; color: #78838a; }
+.crew-v2-nav button.active { background: transparent; color: #007d8a; }
+.crew-v2-nav button.active::before { display: none; }
+.crew-v2-nav button.active::after {
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--crew-mobile-signal);
+  content: "";
+  transform: translateX(-50%);
+}
+
+@keyframes crew-mobile-system-enter {
+  from { opacity: .65; transform: translateY(2px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 374px) {
+  :root { --crew-mobile-page-inline: 14px; --crew-mobile-section-gap: 18px; --crew-mobile-row-min: 56px; }
+  .crew-v2-home .crew-home-radar-orbit { width: 108px; height: 108px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .crew-v2-home,
+  .crew-learn-final-home,
+  .crew-reward-final,
+  .crew-growth-final,
+  .crew-v2-me { animation: none; }
+  .crew-v2-home .crew-home-radar-orbit { animation: none; }
+}

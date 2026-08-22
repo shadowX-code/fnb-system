@@ -12,7 +12,6 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import rewardArtwork from "../../../assets/crew/reward-trophy-gift.png";
 import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI18n.js";
 
 const money = formatCrewMoney;
@@ -109,7 +108,6 @@ function RewardHero({ data, onOpenModal }) {
   const contribution = Math.max(0, Math.min(1, Number(data.contribution_share || 0)));
   const label = data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
   return <article className="crew-reward-hero">
-    <img src={rewardArtwork} alt="" className="crew-reward-art" />
     <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><em>{translateStatus(data.status, t)}</em></div>
     <div className="crew-reward-hero-total"><small>{label} <InfoButton label={t("common.aboutNamed", { title: label })} onClick={() => onOpenModal("help")} /></small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong><p>{t("reward.scoreBasis", { score: data.performance_score == null ? "—" : Math.round(data.performance_score) })}</p></div>
     <div className="crew-reward-hero-metrics">

@@ -24,7 +24,6 @@ import {
   X,
 } from "lucide-react";
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import milestoneArtwork from "../../../assets/crew/growth-milestone-target.png";
 import performanceArtwork from "../../../assets/crew/performance-trophy-hero.png";
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
@@ -110,7 +109,6 @@ const performanceLevel = (score, t) => {
 function GrowthMilestoneHero({ skill, onOpen }) {
   const { t } = useTranslation();
   return <article className="crew-growth-final-hero">
-    <img src={milestoneArtwork} alt="" />
     <div className="crew-growth-final-hero-copy">
       <small>{t("growth.nextMilestone")}</small>
       <h2>{skill?.name || t("growth.allCaughtUp")}</h2>

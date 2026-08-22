@@ -46,6 +46,7 @@ import { SUPPORTED_CREW_LANGUAGES } from "../../i18n/index.js";
 import "./CrewMobileApp.css";
 import "./CrewHome.css";
 import "./CrewMobileTypography.css";
+import "./CrewMobileSystem.css";
 
 const storageKey = "feedx.crew.session";
 const reasonValues = {

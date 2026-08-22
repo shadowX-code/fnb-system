@@ -16,7 +16,6 @@ import {
   Sparkles,
   Soup,
 } from "lucide-react";
-import learnBookSearch from "../../../assets/crew/learn-book-search.png";
 import { formatCrewDate } from "../utils/crewI18n.js";
 
 const CATEGORY_ICONS = [
@@ -103,7 +102,6 @@ export function CrewLearnHero() {
   return (
     <header className="crew-learn-final-hero">
       <div><h1>{t("learn.title")}</h1><p>{t("learn.tagline")}</p></div>
-      <img src={learnBookSearch} alt="" aria-hidden="true" />
     </header>
   );
 }
