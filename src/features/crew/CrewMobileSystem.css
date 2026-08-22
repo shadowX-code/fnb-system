@@ -382,8 +382,8 @@
   flex:0 0 auto;
   place-items:center;
   border-radius:10px;
-  background:#edf3ff;
-  color:#376fc5
+  background:var(--crew-color-mineral);
+  color:var(--crew-color-deep-teal)
 }
 
 .crew-ui-row-icon.is-mint{
@@ -410,8 +410,9 @@
 
 .crew-ui-row-copy strong{
   overflow:hidden;
-  color:var(--crew-v2-navy);
-  font-size:var(--crew-type-helper);
+  color:var(--crew-color-text);
+  font-size:var(--crew-type-list-primary);
+  font-weight:600;
   line-height:1.25;
   text-overflow:ellipsis;
   white-space:nowrap
@@ -419,8 +420,8 @@
 
 .crew-ui-row-copy small{
   overflow:hidden;
-  color:var(--crew-v2-muted);
-  font-size:var(--crew-type-helper);
+  color:var(--crew-color-text-secondary);
+  font-size:var(--crew-type-list-secondary);
   line-height:1.4;
   text-overflow:ellipsis
 }

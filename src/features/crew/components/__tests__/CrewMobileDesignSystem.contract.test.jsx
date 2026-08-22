@@ -69,6 +69,15 @@ describe("Crew Mobile design system contract", () => {
     expect(home).not.toContain("!important");
   });
 
+  it("keeps canonical rows shared while Skills, Settings, and Profile retain only feature composition", () => {
+    expect(system).toContain(".crew-ui-action-row");
+    expect(system).toContain("font-size:var(--crew-type-list-primary)");
+    expect(growthStyles).toContain(".crew-skill-row");
+    expect(growthStyles).not.toContain(".crew-v2-menu");
+    expect(meStyles).toContain(".crew-me-settings");
+    expect(meStyles).toContain(".crew-me-profile-summary");
+  });
+
   it("keeps migrated Cash Checkout and Performance detail owners on semantic tokens", () => {
     [cashCheckout, performanceModal, learningStyles, scheduleStyles, attendanceStyles].forEach((source) => {
       ["#07865f", "#079566", "#0b9069", "!important", "linear-gradient", "radial-gradient", "conic-gradient"].forEach((token) => {

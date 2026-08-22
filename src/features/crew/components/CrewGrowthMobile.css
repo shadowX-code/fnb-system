@@ -1,6 +1,6 @@
 /* Growth-specific layout and data visualization migrate here from CrewMobileApp. */
 
-.crew-v2-growth-links, .crew-v2-menu, .crew-v2-focus-list > button, .crew-v2-growth-links > button, .crew-v2-menu > *, .crew-v2-focus-list > button:last-child, .crew-v2-growth-links > button:last-child, .crew-v2-menu > *:last-child, .crew-v2-focus-list > button > span:nth-child(2), .crew-v2-growth-links > button > span, .crew-v2-menu > * > span, .crew-v2-focus-list strong, .crew-v2-growth-links strong, .crew-v2-focus-list small, .crew-v2-growth-links small, .crew-v2-focus-list > button > em, .crew-v2-row-icon, .crew-v2-icon-token {
+.crew-v2-growth-links, .crew-v2-focus-list > button, .crew-v2-growth-links > button, .crew-v2-focus-list > button:last-child, .crew-v2-growth-links > button:last-child, .crew-v2-focus-list > button > span:nth-child(2), .crew-v2-growth-links > button > span, .crew-v2-focus-list strong, .crew-v2-growth-links strong, .crew-v2-focus-list small, .crew-v2-growth-links small, .crew-v2-focus-list > button > em, .crew-v2-row-icon, .crew-v2-icon-token {
   display: grid;
   flex: 0 0 auto;
   place-items: center;
@@ -1466,6 +1466,8 @@
 .crew-v3-skill-group .crew-v2-skill-list{
   margin-top:0
 }
+.crew-v3-skill-group .crew-v2-skill-list{overflow:hidden;border:1px solid var(--crew-color-border);border-radius:var(--crew-radius-functional);background:var(--crew-color-surface)}
+.crew-skill-row{gap:10px}.crew-skill-row .crew-ui-row-copy{gap:4px}.crew-skill-row .crew-ui-linear-progress{margin-top:3px}.crew-skill-row>.crew-ui-status{flex:0 0 auto}.crew-skill-row>svg{flex:0 0 auto;color:var(--crew-color-text-muted)}
 
 
 /* Route residue migrated from CrewMobileApp.css. */

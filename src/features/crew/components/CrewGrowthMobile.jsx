@@ -36,7 +36,7 @@ const statusCopy = {
   expired: "Expired",
 };
 
-const statusClass = (status) => `is-${String(status || "not_started").replaceAll("_", "-")}`;
+const statusTone = (status) => status === "certified" ? "success" : ["ready_for_review", "needs_renewal"].includes(status) ? "ready" : "neutral";
 const percentFor = (skill) => {
   const total = Number(skill?.requirements_total) || 0;
   return total ? Math.round(((Number(skill?.requirements_completed) || 0) / total) * 100) : 0;
@@ -459,10 +459,10 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
     <PageHeader title={t("growth.skills")} onBack={() => setView("overview")} />
     <label className="crew-v2-search"><Search size={17} /><input aria-label={t("growth.searchSkills")} placeholder={t("growth.searchSkills")} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
     <div className="crew-v2-chips" aria-label={t("growth.skillCategories")}>{categories.map((item) => <button type="button" key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item === "All" ? t("growth.all") : item}</button>)}</div>
-    {[[t("status.ready_for_review"), filtered.filter((skill) => ['ready_for_review', 'needs_renewal'].includes(skill.status))], [t("status.in_progress"), filtered.filter((skill) => skill.status === 'in_progress')], [t("status.certified"), filtered.filter((skill) => skill.status === 'certified')], [t("status.not_started"), filtered.filter((skill) => skill.status === 'not_started')]].filter(([, rows]) => rows.length).map(([label, rows]) => <section className="crew-v3-skill-group" key={label}><CrewSectionHeader title={`${label} · ${rows.length}`} /><div className="crew-v2-skill-list">{rows.map((skill) => <button type="button" key={skill.id} onClick={() => openSkill(skill)}>
-      <div className="crew-v2-row-icon"><BookOpenCheck size={17} /></div>
-      <span><strong>{skill.name}</strong><small>{skill.category}{skill.status === 'ready_for_review' ? ` · ${t("growth.requirementsComplete")}` : ''}</small>{skill.status === "in_progress" && <ProgressBar value={percentFor(skill)} />}</span>
-      <em className={`crew-v2-status ${statusClass(skill.status)}`}>{translateStatus(skill.status, t)}</em>
+    {[[t("status.ready_for_review"), filtered.filter((skill) => ['ready_for_review', 'needs_renewal'].includes(skill.status))], [t("status.in_progress"), filtered.filter((skill) => skill.status === 'in_progress')], [t("status.certified"), filtered.filter((skill) => skill.status === 'certified')], [t("status.not_started"), filtered.filter((skill) => skill.status === 'not_started')]].filter(([, rows]) => rows.length).map(([label, rows]) => <section className="crew-v3-skill-group" key={label}><CrewSectionHeader title={`${label} · ${rows.length}`} /><div className="crew-v2-skill-list">{rows.map((skill) => <button type="button" className="crew-ui-action-row crew-skill-row" key={skill.id} onClick={() => openSkill(skill)}>
+      <span className="crew-ui-row-icon is-mint"><BookOpenCheck size={18} /></span>
+      <span className="crew-ui-row-copy"><strong>{skill.name}</strong><small>{skill.category}{skill.status === 'ready_for_review' ? ` · ${t("growth.requirementsComplete")}` : ''}</small>{skill.status === "in_progress" && <ProgressBar value={percentFor(skill)} />}</span>
+      <CrewStatusBadge tone={statusTone(skill.status)}>{translateStatus(skill.status, t)}</CrewStatusBadge>
       <ChevronRight size={16} />
     </button>)}</div></section>)}
     {!filtered.length && <div className="crew-v2-empty">{t("growth.noMatch")}</div>}

@@ -24,9 +24,9 @@ export function CrewProgressBar({ value = 0, label }) {
   return <div className="crew-ui-progress" aria-label={label || t("learn.percentComplete", { count: safe })}><span style={{ width: `${safe}%` }} /></div>;
 }
 
-export function CrewActionRow({ icon: Icon, title, subtitle, meta, tone = "blue", onClick, disabled = false, children }) {
+export function CrewActionRow({ icon: Icon, title, subtitle, meta, tone = "blue", onClick, disabled = false, ariaLabel, children }) {
   const content = <><span className={`crew-ui-row-icon is-${tone}`}>{Icon && <Icon size={18} />}</span><span className="crew-ui-row-copy"><strong className="crew-type-card-title">{title}</strong>{subtitle && <small className="crew-type-secondary">{subtitle}</small>}{children}</span>{meta && <em className="crew-type-status">{meta}</em>}{onClick && <ChevronRight size={17} />}</>;
-  return onClick ? <button type="button" className="crew-ui-action-row" onClick={onClick} disabled={disabled}>{content}</button> : <div className="crew-ui-action-row">{content}</div>;
+  return onClick ? <button type="button" className="crew-ui-action-row" aria-label={ariaLabel} onClick={onClick} disabled={disabled}>{content}</button> : <div className="crew-ui-action-row">{content}</div>;
 }
 
 export function CrewInfoRow({ label, value, supporting }) {
