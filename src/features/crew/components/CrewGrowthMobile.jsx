@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
+import { CrewActionRow, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 
@@ -138,7 +138,7 @@ function GrowthReadyList({ skills, onOpen, onViewAll }) {
   if (!skills.length) return null;
   return <section className="crew-growth-final-ready">
     <header><h3>{t("growth.readyForReview")}</h3><span>{t("growth.skillCount", { count: skills.length })}</span></header>
-    <div>{skills.slice(0, 3).map((skill) => <button type="button" key={skill.id} onClick={() => onOpen(skill)}><i><BookOpenCheck size={20} /></i><span><strong>{skill.name}</strong><small>{skill.category || t("growth.skills")}</small></span><em>{t("growth.readyForReview")}</em><ChevronRight size={18} /></button>)}</div>
+    <div>{skills.slice(0, 3).map((skill) => <CrewActionRow key={skill.id} icon={BookOpenCheck} title={skill.name} subtitle={skill.category || t("growth.skills")} meta={t("growth.readyForReview")} tone="mint" onClick={() => onOpen(skill)} ariaLabel={skill.name} />)}</div>
     <button type="button" className="crew-growth-final-view-all" onClick={onViewAll}>{t("growth.viewAllSkills")} <ChevronRight size={18} /></button>
   </section>;
 }
@@ -152,7 +152,7 @@ function GrowthPerformanceCard({ performance, onOpen }) {
     <div className="crew-growth-final-performance-body">
       <div className="crew-growth-final-score"><strong>{score ?? "—"}</strong><span>/100</span><i /><em><b>{performanceLevel(score, t)}</b><small>{t("growth.thisMonth")}</small></em></div>
       <div className="crew-growth-final-trend" aria-label={trend.length > 1 ? t("growth.recentTrend") : t("growth.noTrend")}>
-        {trend.length > 1 ? <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 12, right: 7, bottom: 5, left: 7 }}><XAxis dataKey="label" hide /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Line type="monotone" dataKey="score" stroke="#079b69" strokeWidth={3} dot={{ r: 4, fill: "#fff", stroke: "#079b69", strokeWidth: 2 }} activeDot={false} /></LineChart></ResponsiveContainer> : <span>{t("growth.noTrend")}</span>}
+        {trend.length > 1 ? <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 12, right: 7, bottom: 5, left: 7 }}><XAxis dataKey="label" hide /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Line type="monotone" dataKey="score" stroke="#00b7c7" strokeWidth={3} dot={{ r: 4, fill: "#fff", stroke: "#00b7c7", strokeWidth: 2 }} activeDot={false} /></LineChart></ResponsiveContainer> : <span>{t("growth.noTrend")}</span>}
       </div>
     </div>
     <footer>{t("growth.viewPerformance")} <ChevronRight size={18} /></footer>
@@ -370,7 +370,7 @@ function PerformanceTrend({ performance }) {
   const trend = (performance.trend || []).filter((item) => item.status === "finalized" && item.score != null).sort((a, b) => String(a.period_start).localeCompare(String(b.period_start))).slice(-4).map((item) => ({ ...item, score: Math.round(Number(item.score)), month: formatCrewDate(`${item.period_start}T00:00:00`, { month: "short", year: "numeric" }) }));
   if (!trend.length) return null;
   return <section className="crew-performance-final-trend-section"><header><h2>{t("performance.trend")}</h2><span>{t("performance.lastMonths")}</span></header>
-    {trend.length > 1 ? <div className="crew-performance-final-chart" aria-label={t("performance.finalizedTrend")}><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend} margin={{ top: 20, right: 12, bottom: 2, left: 12 }}><defs><linearGradient id="performanceTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#14a873" stopOpacity=".24"/><stop offset="100%" stopColor="#14a873" stopOpacity=".02"/></linearGradient></defs><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#52627a", fontSize: 9 }} /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Area type="monotone" dataKey="score" stroke="#0aa875" strokeWidth={2.5} fill="url(#performanceTrendFill)" dot={{ r: 3.5, fill: "#0aa875", strokeWidth: 0 }} activeDot={false} label={{ position: "top", fill: "#1d2a44", fontSize: 9, fontWeight: 800 }} /></AreaChart></ResponsiveContainer></div> : <article className="crew-performance-final-single-trend"><strong>{trend[0].score} · {monthLabel(trend[0].period_start, "long", t)}</strong><p>{t("performance.trendMore")}</p></article>}
+    {trend.length > 1 ? <div className="crew-performance-final-chart" aria-label={t("performance.finalizedTrend")}><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend} margin={{ top: 20, right: 12, bottom: 2, left: 12 }}><defs><linearGradient id="performanceTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#00b7c7" stopOpacity=".24"/><stop offset="100%" stopColor="#00b7c7" stopOpacity=".02"/></linearGradient></defs><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#52627a", fontSize: 9 }} /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Area type="monotone" dataKey="score" stroke="#00b7c7" strokeWidth={2.5} fill="url(#performanceTrendFill)" dot={{ r: 3.5, fill: "#00b7c7", strokeWidth: 0 }} activeDot={false} label={{ position: "top", fill: "#1d2a44", fontSize: 9, fontWeight: 800 }} /></AreaChart></ResponsiveContainer></div> : <article className="crew-performance-final-single-trend"><strong>{trend[0].score} · {monthLabel(trend[0].period_start, "long", t)}</strong><p>{t("performance.trendMore")}</p></article>}
   </section>;
 }
 

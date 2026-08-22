@@ -1432,6 +1432,62 @@
 .crew-performance-final button{
   transition:none
 }
+
+/* Phase 2 — Growth and performance use focused operational surfaces. */
+.crew-growth-final{gap:14px}
+.crew-growth-final-hero{min-height:170px;border:1px solid rgb(0 183 199/.22);background:var(--crew-color-deep-teal);box-shadow:0 7px 18px rgb(22 75 80/.13)}
+.crew-growth-final-hero>img{display:none}
+.crew-growth-final-hero-copy{width:68%;min-height:170px;gap:7px;padding:18px}
+.crew-growth-final-hero-copy>small{color:var(--crew-color-mist-mint)}
+.crew-growth-final-hero-copy h2{color:var(--crew-color-surface);font-size:22px}
+.crew-growth-final-hero-copy p{color:rgb(255 255 255/.72)}
+.crew-growth-final-hero-copy>button{border-color:rgb(177 213 201/.42);background:rgb(255 255 255/.08);color:var(--crew-color-surface)}
+.crew-growth-final-skill-card{border:0;border-radius:0;background:transparent;padding:0;box-shadow:none}
+.crew-growth-final-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:0;margin-top:8px;border-top:1px solid var(--crew-color-divider);border-bottom:1px solid var(--crew-color-divider)}
+.crew-growth-final-stat-grid article{min-height:56px;grid-template-columns:28px auto minmax(0,1fr);place-content:stretch;align-items:center;justify-items:start;gap:7px;border:0;border-right:1px solid var(--crew-color-divider);border-bottom:1px solid var(--crew-color-divider);border-radius:0;background:transparent;padding:8px 7px;text-align:left}
+.crew-growth-final-stat-grid article:nth-child(2n){border-right:0}
+.crew-growth-final-stat-grid article:nth-last-child(-n+2){border-bottom:0}
+.crew-growth-final-stat-grid article svg{width:18px;height:18px;margin:0;color:var(--crew-color-deep-teal)}
+.crew-growth-final-stat-grid article strong{font-size:21px;color:var(--crew-color-deep-teal)}
+.crew-growth-final-stat-grid article span{overflow:hidden;font-size:var(--crew-type-helper);text-overflow:ellipsis;white-space:nowrap}
+.crew-growth-final-stat-grid .is-green strong,.crew-growth-final-stat-grid .is-blue strong,.crew-growth-final-stat-grid .is-amber strong{color:var(--crew-color-deep-teal)}
+.crew-growth-final-ready{margin-top:15px}
+.crew-growth-final-ready>header span{background:var(--crew-color-mineral);color:var(--crew-color-deep-teal)}
+.crew-growth-final-ready>div{border-color:var(--crew-color-border);border-radius:var(--crew-radius-control)}
+.crew-growth-final-ready .crew-ui-action-row{min-height:58px;padding:10px}
+.crew-growth-final-ready .crew-ui-action-row>em{color:var(--crew-color-deep-teal)}
+.crew-growth-final-view-all,.crew-growth-final-skills>header button{color:var(--crew-color-deep-teal)}
+.crew-growth-final-performance{min-height:118px;border-color:var(--crew-color-border);background:var(--crew-color-mineral);padding:14px;box-shadow:none}
+.crew-growth-final-performance-body{gap:10px}
+.crew-growth-final-score>i{background:var(--crew-color-cyan)}
+.crew-growth-final-score b{color:var(--crew-color-deep-teal)}
+.crew-growth-final-performance>footer{color:var(--crew-color-deep-teal)}
+.crew-performance-final{gap:15px}
+.crew-performance-final-hero{min-height:176px;border:1px solid rgb(0 183 199/.22);background:var(--crew-color-deep-teal);box-shadow:0 7px 18px rgb(22 75 80/.13)}
+.crew-performance-final-signal{opacity:.34}
+.crew-performance-final-hero-copy{width:70%;min-height:176px;padding:17px}
+.crew-performance-final-period>span{border:1px solid rgb(177 213 201/.4);background:rgb(177 213 201/.12);color:var(--crew-color-mist-mint)}
+.crew-performance-final-total strong{font-size:46px;color:var(--crew-color-surface)}
+.crew-performance-final-total span,.crew-performance-final-hero-copy h2{color:var(--crew-color-surface)}
+.crew-performance-final-hero-copy p{color:rgb(255 255 255/.74)}
+.crew-performance-final-breakdown-card{border:1px solid var(--crew-color-border);border-radius:var(--crew-radius-control);box-shadow:none}
+.crew-performance-final-breakdown-card>button{grid-template-columns:28px minmax(76px,1fr) minmax(48px,.9fr) auto 15px;gap:7px;background:transparent;padding:9px 8px}
+.crew-performance-final-breakdown-card>button>i{width:26px;height:26px;border-radius:8px;background:transparent;color:var(--crew-color-deep-teal)}
+.crew-performance-final-meter{height:4px;background:var(--crew-color-mineral)}
+.crew-performance-final-meter>span{background:var(--crew-color-cyan);transition:width 200ms ease}
+.crew-performance-final-breakdown-card>button>b{color:var(--crew-color-deep-teal)}
+.crew-performance-final-breakdown-card>.crew-performance-final-evidence{background:var(--crew-color-mineral)}
+.crew-performance-final-strengths>div{gap:0;border-top:1px solid var(--crew-color-divider);border-bottom:1px solid var(--crew-color-divider)}
+.crew-performance-final-strengths article{border:0;border-bottom:1px solid var(--crew-color-divider);border-radius:0;background:transparent;padding:10px 0;box-shadow:none}
+.crew-performance-final-strengths article:last-child{border-bottom:0}
+.crew-performance-final-strengths article>i{background:transparent;color:var(--crew-color-deep-teal)}
+.crew-performance-final-trend-section{border:0;border-radius:0;background:transparent;padding:0;box-shadow:none}
+.crew-performance-final-chart{border:1px solid var(--crew-color-border);border-radius:var(--crew-radius-control);background:var(--crew-color-surface)}
+.crew-performance-final-reward{border:0;border-radius:var(--crew-radius-control);background:var(--crew-color-mineral);padding:12px;box-shadow:none}
+.crew-performance-final-reward>i{background:transparent;color:var(--crew-color-deep-teal)}
+.crew-performance-final-reward>div strong,.crew-performance-final-reward>button{color:var(--crew-color-deep-teal)}
+@media(max-width:374px){.crew-growth-final-hero-copy,.crew-performance-final-hero-copy{width:72%;padding:15px}.crew-growth-final-stat-grid article{grid-template-columns:24px auto minmax(0,1fr);gap:5px;padding-inline:5px}.crew-performance-final-breakdown-card>button{grid-template-columns:25px minmax(69px,1fr) minmax(42px,.8fr) auto 13px;gap:4px;padding-inline:6px}}
+@media(prefers-reduced-motion:reduce){.crew-performance-final-meter>span{transition:none}}
 .crew-growth-final .crew-v2-page-header h1,.crew-performance-final .crew-v2-page-header h1{
   font-size:var(--crew-type-page-title);
   line-height:1.14
@@ -1585,3 +1641,13 @@
   font-weight:780;
   white-space:nowrap
 }
+
+/* Final Phase 2 feature presentation is kept last so legacy route residue cannot restyle it. */
+.crew-growth-final-hero-copy p{color:rgb(255 255 255/.72)}
+.crew-growth-final-stat-grid article span{font-size:var(--crew-type-helper)}
+.crew-growth-final-ready .crew-ui-action-row{min-height:58px;padding:10px}
+.crew-performance-final-hero-copy p{color:rgb(255 255 255/.74)}
+.crew-performance-final-breakdown-card>button{grid-template-columns:28px minmax(76px,1fr) minmax(48px,.9fr) auto 15px;gap:7px;background:transparent;padding:9px 8px}
+.crew-performance-final-strengths article{border:0;border-bottom:1px solid var(--crew-color-divider);border-radius:0;background:transparent;padding:10px 0;box-shadow:none}
+.crew-performance-final-reward{border:0;border-radius:var(--crew-radius-control);background:var(--crew-color-mineral);padding:12px;box-shadow:none}
+@media(max-width:374px){.crew-performance-final-breakdown-card>button{grid-template-columns:25px minmax(69px,1fr) minmax(42px,.8fr) auto 13px;gap:4px;padding-inline:6px}}

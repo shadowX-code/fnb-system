@@ -76,6 +76,14 @@ describe("Crew Mobile design system contract", () => {
     expect(growthStyles).not.toContain(".crew-v2-menu");
     expect(meStyles).toContain(".crew-me-settings");
     expect(meStyles).toContain(".crew-me-profile-summary");
+    expect(growth).toContain("<CrewActionRow key={skill.id}");
+  });
+
+  it("keeps Phase 2 signature presentation scoped to Home, Reward, and Growth owners", () => {
+    expect(home).toContain("Home signature clock");
+    expect(rewardStyles).toContain("Reward signature data surface and progression rail");
+    expect(growthStyles).toContain("Growth and performance use focused operational surfaces");
+    expect(appStyles).not.toContain("Phase 2");
   });
 
   it("keeps migrated Cash Checkout and Performance detail owners on semantic tokens", () => {
