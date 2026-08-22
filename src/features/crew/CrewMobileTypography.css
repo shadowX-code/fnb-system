@@ -3,6 +3,7 @@
 .crew-type-page-title { font-size: var(--crew-type-page-title); line-height: 1.14; letter-spacing: -.028em; }
 .crew-type-detail-title { font-size: var(--crew-type-detail-title); line-height: 1.2; font-weight: 780; }
 .crew-type-section-title { font-size: var(--crew-type-section-title); line-height: 1.2; font-weight: 780; }
+.crew-ui-section-head.is-operational .crew-type-section-title { font-size: var(--crew-type-operational-section-title); line-height: 1.24; font-weight: 720; }
 .crew-type-card-title { font-size: var(--crew-type-card-title); line-height: 1.28; font-weight: 720; }
 .crew-list-primary { font-size: var(--crew-type-list-primary); line-height: 1.25; font-weight: 650; }
 .crew-list-secondary { font-size: var(--crew-type-list-secondary); line-height: 1.35; font-weight: 400; }

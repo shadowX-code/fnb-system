@@ -25,6 +25,7 @@
   --crew-type-list-primary: 16px;
   --crew-type-list-secondary: 14px;
   --crew-type-list-status: 13px;
+  --crew-type-operational-section-title: 21px;
 }
 
 .crew-v2-shell { min-height: 100dvh; overflow-x: hidden; background: var(--crew-v2-canvas); color: var(--crew-v2-ink); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
