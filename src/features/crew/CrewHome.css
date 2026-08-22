@@ -1282,7 +1282,7 @@
 @media (prefers-reduced-motion:reduce){.crew-v2-home .crew-home-attendance.is-ready .crew-home-clock-action:not(:disabled),.crew-v2-home .crew-home-clock-action:active::after{animation:none}.crew-v2-home .crew-home-clock-action{transition:none}}
 
 /* Home clock signal assets: a single decorative SVG per surface, never DOM decoration. */
-.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 154px;min-height:238px;background-image:url("./assets/clock-signal-field.svg"),radial-gradient(circle at 83% 39%,rgb(0 183 199/.16),transparent 30%),linear-gradient(135deg,var(--crew-color-deep-teal),#103f44);background-position:center bottom,center,center;background-repeat:no-repeat,no-repeat,no-repeat;background-size:100% 100%,auto,auto}
+.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 154px;min-height:238px;background-image:linear-gradient(108deg,rgb(5 43 48/.22),rgb(5 43 48/.03) 68%),url("./assets/crew-home-clock-atmosphere.png");background-position:center,50% 54%;background-repeat:no-repeat;background-size:100% 100%,cover}
 .crew-v2-home .crew-home-current-time{font-size:42px;line-height:.96}
 .crew-v2-home .crew-home-clock-zone{align-content:start;gap:5px;padding:10px 1px 7px}
 .crew-v2-home .crew-home-clock-zone::before{display:none}
@@ -1294,11 +1294,11 @@
 .crew-v2-home .crew-home-attendance.is-ready .crew-home-attendance-main{animation:crew-home-signal-drift 8s ease-in-out infinite}
 .crew-v2-home .crew-home-attendance.is-ready .crew-home-radar-orbit{animation:crew-home-orbit-breathe 5.6s ease-in-out infinite}
 .crew-v2-home .crew-home-clock-zone.is-confirmed .crew-home-radar-orbit{animation:crew-home-orbit-response 600ms ease-out both}
-@keyframes crew-home-signal-drift{0%,100%{background-position:center bottom,center,center}50%{background-position:center calc(100% + 3px),center,center}}
+@keyframes crew-home-signal-drift{0%,100%{background-position:center,50% 54%}50%{background-position:center,52% 55%}}
 @keyframes crew-home-orbit-breathe{0%,100%{filter:brightness(1);opacity:1;transform:scale(1)}50%{filter:brightness(1.12);opacity:.94;transform:scale(1.012)}}
 @keyframes crew-home-orbit-response{0%{filter:brightness(1);transform:scale(1)}42%{filter:brightness(1.28);transform:scale(1.045)}100%{filter:brightness(1);transform:scale(1)}}
 .crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px;align-items:start}.crew-v2-home .crew-home-schedule-row>span{gap:2px}.crew-v2-home .crew-home-schedule-time{color:var(--crew-color-deep-teal);font-size:var(--crew-type-helper);font-weight:600;line-height:1.25}.crew-v2-home .crew-home-schedule-row>svg{align-self:center}.crew-v2-home .crew-home-schedule-row>.crew-ui-status{grid-column:2;justify-self:start;margin-top:2px}
-@media (max-width:374px){.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 132px;min-height:224px}.crew-v2-home .crew-home-current-time{font-size:37px}.crew-v2-home .crew-home-clock-zone{padding-top:8px}.crew-v2-home .crew-home-radar-orbit{top:4px;width:128px;height:128px}.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:116px}.crew-v2-home .crew-home-gps{width:132px;font-size:9px;letter-spacing:-.01em}.crew-v2-home .crew-home-schedule-time{font-size:10px;line-height:1.2}}
+@media (max-width:374px){.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 132px;min-height:224px;background-position:center,54% 52%}.crew-v2-home .crew-home-current-time{font-size:37px}.crew-v2-home .crew-home-clock-zone{padding-top:8px}.crew-v2-home .crew-home-radar-orbit{top:4px;width:128px;height:128px}.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:116px}.crew-v2-home .crew-home-gps{width:132px;font-size:9px;letter-spacing:-.01em}.crew-v2-home .crew-home-schedule-time{font-size:10px;line-height:1.2}}
 @media (prefers-reduced-motion:reduce){.crew-v2-home .crew-home-attendance.is-ready .crew-home-attendance-main,.crew-v2-home .crew-home-attendance.is-ready .crew-home-radar-orbit,.crew-v2-home .crew-home-clock-zone.is-confirmed .crew-home-radar-orbit{animation:none}}
 
 @media (max-width:374px) {
