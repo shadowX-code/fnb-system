@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, CalendarDays, Check, ChevronRight, FileText, Plus, X } from "lucide-react";
+import { CalendarDays, Check, ChevronRight, FileText, Plus, X } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import { CrewActionRow, CrewEmptyState, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
+import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 
 const statusTone = { pending: "ready", approved: "success", rejected: "danger", cancelled: "neutral" };
@@ -35,7 +36,7 @@ export default function CrewLeaveMobile({ token, onBack, onChanged }) {
   const cancel = async (id) => { setSaving(true); try { await crewService.cancelLeave(token, id); await load(); onChanged?.(); } catch (cause) { setError(cause.message); } finally { setSaving(false); } };
 
   if (step) return <section className="crew-v3-leave">
-    <header className="crew-v2-page-header"><div><button type="button" onClick={() => setStep(0)} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("leave.apply")}</h1></div><span>{t("leave.step", { step })}</span></header>
+    <CrewMobileDetailHeader title={t("leave.apply")} onBack={() => setStep(0)} action={<span className="crew-mobile-header-step">{t("leave.step", { step })}</span>} />
     <div className="crew-v3-leave-steps" aria-label={t("leave.progress")}>{[1, 2, 3, 4].map((value) => <span key={value} className={value <= step ? "is-active" : ""} />)}</div>
     {step === 1 && <section className="crew-v3-leave-form"><CrewSectionHeader title={t("leave.leaveType")} /><div className="crew-v3-choice-list">{Object.entries(typeLabel).map(([value, label]) => <button type="button" className={form.leave_type === value ? "is-selected" : ""} key={value} onClick={() => update("leave_type", value)}><span><strong>{label}</strong>{value === "medical" && <small>{t("leave.medicalDocumentFuture")}</small>}</span>{form.leave_type === value ? <Check size={18} /> : <ChevronRight size={18} />}</button>)}</div></section>}
     {step === 2 && <section className="crew-v3-leave-form"><CrewSectionHeader title={t("leave.dates")} /><div className="crew-v3-field-grid"><label>{t("leave.startDate")}<input type="date" min={today()} value={form.start_date} onChange={(event) => update("start_date", event.target.value)} /></label><label>{t("leave.endDate")}<input type="date" min={form.start_date} disabled={form.duration_type === "half_day"} value={form.end_date} onChange={(event) => update("end_date", event.target.value)} /></label></div><div className="crew-v3-segment"><button type="button" className={form.duration_type === "full_day" ? "is-active" : ""} onClick={() => update("duration_type", "full_day")}>{t("leave.fullDay")}</button><button type="button" className={form.duration_type === "half_day" ? "is-active" : ""} onClick={() => update("duration_type", "half_day")}>{t("leave.halfDay")}</button></div>{form.duration_type === "half_day" && <div className="crew-v3-segment"><button type="button" className={form.half_day_period === "am" ? "is-active" : ""} onClick={() => update("half_day_period", "am")}>AM</button><button type="button" className={form.half_day_period === "pm" ? "is-active" : ""} onClick={() => update("half_day_period", "pm")}>PM</button></div>}<BalancePreview balance={selectedBalance} requested={days} after={afterRequest} insufficient={insufficient} /></section>}
@@ -46,7 +47,7 @@ export default function CrewLeaveMobile({ token, onBack, onChanged }) {
   </section>;
 
   return <section className="crew-v3-leave">
-    <header className="crew-v2-page-header"><div><button type="button" onClick={onBack} aria-label={t("common.back")}><ArrowLeft size={19} /></button><h1>{t("leave.title")}</h1></div><button type="button" className="crew-v3-header-action" onClick={() => setStep(1)}><Plus size={16} /> {t("leave.apply")}</button></header>
+    <CrewMobileDetailHeader title={t("leave.title")} onBack={onBack} action={<button type="button" className="crew-v3-header-action" onClick={() => setStep(1)}><Plus size={16} /> {t("leave.apply")}</button>} />
     {!loading && <section className="crew-v3-balance-grid" aria-label={t("leave.balances")}>{data.balances?.filter((item) => item.leave_type !== "other").map((item) => <article key={item.entitlement_id}><span>{typeLabel[item.leave_type]}</span><strong>{item.balance_enforced ? item.available : "∞"}</strong><small>{item.balance_enforced ? t("leave.pendingUsed", { pending: item.pending, used: item.used }) : t("leave.noBalanceLimit")}</small></article>)}</section>}
     <div className="crew-v3-leave-tabs" role="tablist">{[["upcoming", t("leave.upcoming")], ["pending", t("status.pending")], ["history", t("leave.history")]].map(([value, label]) => <button type="button" role="tab" aria-selected={tab === value} className={tab === value ? "is-active" : ""} key={value} onClick={() => setTab(value)}>{label}</button>)}</div>
     {error && <div className="crew-v2-error" role="alert">{error}</div>}

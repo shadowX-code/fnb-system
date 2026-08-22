@@ -6,19 +6,52 @@
  * navigation signals; feature styles only provide content-specific layouts.
  */
 :root {
+  /* Canonical FeedX Crew identity. Feature CSS consumes these aliases rather
+     than inventing a route-specific teal/green palette. */
+  --crew-color-deep-teal: #164b50;
+  --crew-color-cyan: #00b7c7;
+  --crew-color-mist-mint: #b1d5c9;
+  --crew-color-mineral: #f5f7f6;
+  --crew-color-text: #164b50;
+  --crew-color-text-secondary: #50696e;
+  --crew-color-text-muted: #708488;
+  --crew-color-divider: #dfe8e6;
+  --crew-color-border: #cfe0dc;
+  --crew-color-surface: #ffffff;
+  --crew-color-surface-elevated: #ffffff;
+  --crew-color-success: #087f61;
+  --crew-color-warning: #a86400;
+  --crew-color-danger: #b83e4b;
+  --crew-color-info: #3973be;
+  --crew-color-intelligence: #5f5aa4;
+  --crew-radius-functional: 16px;
+  --crew-radius-focus: 20px;
+  --crew-shadow-none: none;
+  --crew-shadow-focus: 0 8px 22px rgb(22 75 80 / .07);
+  --crew-v2-navy: var(--crew-color-deep-teal);
+  --crew-v2-ink: var(--crew-color-text);
+  --crew-v2-muted: var(--crew-color-text-secondary);
+  --crew-v2-border: var(--crew-color-border);
+  --crew-v2-surface: var(--crew-color-surface);
+  --crew-v2-canvas: var(--crew-color-mineral);
+  --crew-v2-green: var(--crew-color-cyan);
+  --crew-v2-green-dark: var(--crew-color-deep-teal);
+  --crew-v2-mint: #e7f3ef;
+  --crew-v2-amber: var(--crew-color-warning);
+  --crew-v2-red: var(--crew-color-danger);
   --crew-mobile-page-inline: 16px;
   --crew-mobile-page-top: 16px;
   --crew-mobile-section-gap: 20px;
   --crew-mobile-row-min: 58px;
-  --crew-mobile-functional-radius: 16px;
-  --crew-mobile-focus-radius: 20px;
-  --crew-mobile-border: rgb(22 75 80 / .12);
-  --crew-mobile-shadow: 0 8px 22px rgb(22 75 80 / .07);
+  --crew-mobile-functional-radius: var(--crew-radius-functional);
+  --crew-mobile-focus-radius: var(--crew-radius-focus);
+  --crew-mobile-border: var(--crew-color-border);
+  --crew-mobile-shadow: var(--crew-shadow-focus);
   --crew-mobile-icon-size: 34px;
-  --crew-mobile-signal: #00b7c7;
-  --crew-mobile-structure: #164b50;
-  --crew-mobile-mist: #b1d5c9;
-  --crew-mobile-canvas: #f5f7f6;
+  --crew-mobile-signal: var(--crew-color-cyan);
+  --crew-mobile-structure: var(--crew-color-deep-teal);
+  --crew-mobile-mist: var(--crew-color-mist-mint);
+  --crew-mobile-canvas: var(--crew-color-mineral);
   --crew-mobile-ease: cubic-bezier(.22, 1, .36, 1);
 }
 
@@ -382,4 +415,266 @@
   .crew-v2-home .crew-home-radar-orbit,
   .crew-v2-home .crew-home-clock-action,
   .crew-v2-home .crew-home-clock-action::before { animation: none; }
+}
+
+/* --------------------------------------------------------------------------
+   Canonical route layer
+   Imported last on purpose: this removes legacy per-page geometry without
+   changing any feature state, data contract or navigation behaviour.
+   -------------------------------------------------------------------------- */
+
+.crew-v2-app {
+  color: var(--crew-color-text);
+  background: var(--crew-color-surface);
+}
+
+.crew-v2-page-header,
+.crew-mobile-detail-header {
+  min-height: 48px;
+  margin: 0 0 18px;
+  align-items: flex-start;
+  color: var(--crew-color-deep-teal);
+}
+
+.crew-v2-page-header > div,
+.crew-mobile-detail-header > div {
+  min-width: 0;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.crew-v2-page-header button,
+.crew-mobile-detail-header > div > button,
+.crew-mobile-detail-icon-action {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid var(--crew-color-border);
+  border-radius: 50%;
+  background: var(--crew-color-surface);
+  color: var(--crew-color-deep-teal);
+  box-shadow: none;
+}
+
+.crew-mobile-detail-header h1 {
+  overflow: hidden;
+  display: -webkit-box;
+  margin: 5px 0 0;
+  color: var(--crew-color-deep-teal);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.crew-mobile-detail-header-action {
+  display: inline-flex;
+  min-width: 0;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  justify-content: flex-end;
+}
+
+.crew-mobile-header-step {
+  padding-top: 9px;
+  color: var(--crew-color-text-muted);
+  font-size: var(--crew-type-status);
+  font-weight: 650;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.crew-v2-page-header:not(.crew-mobile-detail-header) h1 {
+  color: var(--crew-color-deep-teal);
+  font-size: var(--crew-type-page-title);
+  font-weight: 700;
+  line-height: 1.21;
+}
+
+/* Four surface levels: canvas, plain section, functional surface, focus. */
+.crew-v2-app :is(
+  .crew-v3-row-group,
+  .crew-v3-leave-card,
+  .crew-v3-review-list,
+  .crew-v3-choice-list button,
+  .crew-v3-balance-grid article,
+  .crew-schedule-final-week,
+  .crew-schedule-final-list,
+  .crew-schedule-final-empty,
+  .crew-cash-card,
+  .crew-cash-detail-card,
+  .crew-cash-ledger,
+  .crew-cash-receipts,
+  .crew-task-block,
+  .crew-task-block-preview,
+  .crew-v2-performance-list details,
+  .crew-v2-upcoming-shifts,
+  .crew-v2-schedule-list
+) {
+  border-color: var(--crew-color-border);
+  border-radius: var(--crew-radius-functional);
+  background: var(--crew-color-surface);
+  box-shadow: var(--crew-shadow-none);
+}
+
+/* Shared row DNA for every operational list. */
+.crew-v2-app :is(
+  .crew-home-task,
+  .crew-home-schedule-row,
+  .crew-learn-final-sop,
+  .crew-schedule-final-row,
+  .crew-v3-leave-card,
+  .crew-v3-choice-list button,
+  .crew-cash-list-row,
+  .crew-cash-ledger-row,
+  .crew-task-block,
+  .crew-ui-action-row,
+  .crew-me-list > button,
+  .crew-me-list > div,
+  .crew-v2-skill-list > button
+) {
+  color: var(--crew-color-text);
+  border-color: var(--crew-color-divider);
+}
+
+.crew-v2-app :is(
+  .crew-home-task strong,
+  .crew-home-schedule-row strong,
+  .crew-schedule-final-row-copy > strong,
+  .crew-v3-leave-card strong,
+  .crew-v3-choice-list strong,
+  .crew-cash-card h2,
+  .crew-cash-detail-card h3,
+  .crew-task-block h3,
+  .crew-ui-row-copy strong,
+  .crew-me-list strong
+) {
+  color: var(--crew-color-text);
+  font-size: var(--crew-type-list-primary);
+  font-weight: 650;
+  line-height: 1.3;
+}
+
+.crew-v2-app :is(
+  .crew-home-task small,
+  .crew-home-schedule-row small,
+  .crew-schedule-final-row-copy > small,
+  .crew-v3-leave-card small,
+  .crew-v3-leave-card p,
+  .crew-cash-card small,
+  .crew-cash-detail-card small,
+  .crew-task-block p,
+  .crew-ui-row-copy small
+) {
+  color: var(--crew-color-text-secondary);
+  font-size: var(--crew-type-list-secondary);
+  font-weight: 400;
+  line-height: 1.35;
+}
+
+/* Status is semantic, not a secondary brand palette. */
+.crew-v2-app :is(.crew-ui-status, .crew-home-task > em, .crew-home-schedule-row > em, .crew-schedule-final-badge) {
+  min-height: 22px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: var(--crew-type-status);
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.crew-v2-app :is(.is-success, .is-completed) > em,
+.crew-v2-app .crew-ui-status.is-success {
+  background: #e7f4ee;
+  color: var(--crew-color-success);
+}
+
+.crew-v2-app :is(.is-warning, .is-ready, .is-overdue) > em,
+.crew-v2-app .crew-ui-status.is-ready {
+  background: #fff3df;
+  color: var(--crew-color-warning);
+}
+
+.crew-v2-app :is(.is-danger, .is-exception) > em,
+.crew-v2-app .crew-ui-status.is-danger {
+  background: #fbecee;
+  color: var(--crew-color-danger);
+}
+
+.crew-v2-primary,
+.crew-cash-primary,
+.crew-mobile-primary {
+  border: 1px solid var(--crew-color-deep-teal);
+  background: var(--crew-color-deep-teal);
+  color: #fff;
+  box-shadow: none;
+}
+
+.crew-v2-secondary,
+.crew-home-secondary-action,
+.crew-cash-sheet footer > button:not(.crew-cash-primary) {
+  border-color: var(--crew-color-border);
+  background: var(--crew-color-surface);
+  color: var(--crew-color-deep-teal);
+}
+
+.crew-v3-header-action {
+  min-height: 36px;
+  border-radius: 10px;
+  background: var(--crew-color-deep-teal);
+  color: #fff;
+  font-size: var(--crew-type-status);
+  font-weight: 650;
+}
+
+/* Route-specific headers now compose the shared DetailHeader. */
+.crew-schedule-final-header {
+  display: flex;
+  min-height: 48px;
+  grid-template-columns: none;
+  margin-bottom: 0;
+  border-bottom: 0;
+  padding: 0;
+}
+
+.crew-schedule-final-header .crew-mobile-detail-header-action {
+  margin-left: auto;
+}
+
+.crew-schedule-final-header .crew-mobile-detail-icon-action {
+  border-radius: 12px;
+}
+
+/* Form, tabs and sheets share functional control geometry. */
+.crew-v2-app :is(.crew-v3-leave-form input, .crew-v3-leave-form textarea, .crew-attendance-month-select, .crew-cash-mobile input, .crew-cash-mobile textarea, .crew-cash-mobile select) {
+  border-color: var(--crew-color-border);
+  border-radius: 12px;
+  color: var(--crew-color-text);
+  background: var(--crew-color-surface);
+}
+
+.crew-v2-app :is(.crew-v3-leave-tabs, .crew-ops-top-tabs) {
+  border-color: var(--crew-color-divider);
+}
+
+.crew-v2-app :is(.crew-v3-leave-tabs button.is-active, .crew-ops-top-tabs button.is-active) {
+  border-color: var(--crew-color-cyan);
+  color: var(--crew-color-deep-teal);
+}
+
+.crew-v2-app :is(.crew-v3-leave-balance-preview, .crew-v3-document-note, .crew-attendance-current-shift) {
+  background: #edf6f3;
+  color: var(--crew-color-deep-teal);
+}
+
+.crew-v2-app :is(.crew-home-task > svg, .crew-home-schedule-row > svg, .crew-schedule-final-row > svg, .crew-ui-action-row > svg) {
+  color: var(--crew-color-text-muted);
+}
+
+@media (max-width: 374px) {
+  .crew-mobile-detail-header h1 { font-size: 19px; }
+  .crew-v2-page-header:not(.crew-mobile-detail-header) h1 { font-size: 26px; }
 }

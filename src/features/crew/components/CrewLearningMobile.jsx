@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
 import {
-  ArrowLeft,
   BookOpenCheck,
   CheckCircle2,
   ChevronRight,
@@ -299,7 +298,7 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
   if (!assignment) {
     return (
       <section className="crew-learning-empty">
-        <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> {t("learn.title")}</button>
+        <CrewMobileDetailHeader title={t("learn.title")} onBack={onBack} />
         <ClipboardCheck size={28} />
         <h2>{t("learn.onboardingPending")}</h2>
         <p>{t("learn.onboardingPendingBody")}</p>
@@ -308,7 +307,7 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
   }
   return (
     <section className="crew-learning-home">
-      <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> {t("learn.title")}</button>
+      <CrewMobileDetailHeader title={t("learn.title")} onBack={onBack} />
       {error && <p className="crew-mobile-error">{error}</p>}
       <div className="crew-learning-hero">
         <span>{t("learn.mandatory")}</span>
@@ -383,7 +382,7 @@ function LessonReader({ token, lesson, activeLesson, answers, result, saving, er
   const { t } = useTranslation();
   return (
     <section className="crew-learning-reader">
-      <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> {t("learn.onboarding")}</button>
+      <CrewMobileDetailHeader title={t("learn.onboarding")} onBack={onBack} />
       <span className="crew-learning-kicker">{lesson.moduleTitle || t("learn.moduleLesson")}</span>
       <h2>{lesson.lesson.title}</h2>
       <p className="crew-learning-summary">{lesson.lesson.estimated_minutes ? t("learn.minutes", { count: lesson.lesson.estimated_minutes }) : t("learn.ownPace")}</p>

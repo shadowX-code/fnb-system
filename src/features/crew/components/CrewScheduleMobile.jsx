@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowLeft, CalendarDays, MapPin } from "lucide-react";
+import { CalendarDays, MapPin } from "lucide-react";
 import scheduleCalendar from "../../../assets/crew/schedule-calendar.png";
 import { crewLocale, formatCrewDate } from "../utils/crewI18n.js";
+import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 
 const parseDate = (value) => new Date(`${value}T00:00:00`);
 const dateKey = (date) => {
@@ -66,7 +67,7 @@ export default function CrewScheduleMobile({ roster, employee, onBack }) {
 
 export function CrewScheduleHeader({ onBack, onToday }) {
   const { t } = useTranslation();
-  return <header className="crew-schedule-final-header"><button type="button" onClick={onBack} aria-label={t("common.back")}><ArrowLeft size={20} /></button><h1>{t("schedule.title")}</h1><button type="button" onClick={onToday} aria-label={t("schedule.jumpToday")}><CalendarDays size={20} /></button></header>;
+  return <CrewMobileDetailHeader className="crew-schedule-final-header" title={t("schedule.title")} onBack={onBack} action={<button type="button" className="crew-mobile-detail-icon-action" onClick={onToday} aria-label={t("schedule.jumpToday")}><CalendarDays size={20} /></button>} />;
 }
 
 export function CrewScheduleWeekStrip({ days, selectedDate, onSelect }) {

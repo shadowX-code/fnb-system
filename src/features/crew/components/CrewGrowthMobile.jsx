@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
 import {
-  ArrowLeft,
   ArrowUpRight,
   Award,
   BadgeCheck,
@@ -26,6 +25,7 @@ import {
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import performanceArtwork from "../../../assets/crew/performance-trophy-hero.png";
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
+import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 import "./CrewPerformanceComponentModal.css";
 
@@ -50,9 +50,9 @@ function ProgressBar({ value }) {
 }
 
 function PageHeader({ title, onBack, action }) {
-  const { t } = useTranslation();
+  if (onBack) return <CrewMobileDetailHeader title={title} onBack={onBack} action={action} />;
   return <header className="crew-v2-page-header">
-    <div>{onBack && <button type="button" onClick={onBack} aria-label={t("common.back")}><ArrowLeft size={19} /></button>}<h1>{title}</h1></div>
+    <div><h1>{title}</h1></div>
     {action}
   </header>;
 }
