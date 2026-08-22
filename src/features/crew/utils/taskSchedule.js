@@ -32,7 +32,9 @@ function formattedTime(value) {
   if (!value) return null;
   if (typeof value === "string" && /^\d{1,2}:\d{2}/.test(value)) {
     const [hours, minutes] = value.split(":").map(Number);
-    return new Intl.DateTimeFormat(crewLocale(), { hour: "numeric", minute: "2-digit", hour12: true, timeZone: MALAYSIA_TIME_ZONE })
+    // PostgreSQL `time` values are already wall-clock values. Formatting them in
+    // Malaysia again would shift the displayed time by eight hours.
+    return new Intl.DateTimeFormat(crewLocale(), { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" })
       .format(new Date(Date.UTC(2026, 0, 1, hours, minutes)));
   }
   return formatCrewTime(value, { hour12: true });

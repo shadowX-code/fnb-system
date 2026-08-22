@@ -31,4 +31,14 @@ describe("Crew Task schedule formatter", () => {
     }, t);
     expect(label).toBe("Today · Daily");
   });
+
+  it("keeps configured database time values in their local wall-clock time", () => {
+    expect(formatTaskSchedule({
+      schedule_type: "recurring",
+      schedule_config: { frequency: "every_day" },
+      business_date: "2026-08-22",
+      start_time: "15:00:00",
+      due_time: "16:00:00",
+    }, t)).toBe("Today · Daily · 3:00 pm–4:00 pm");
+  });
 });
