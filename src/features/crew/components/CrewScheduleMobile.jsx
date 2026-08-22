@@ -3,7 +3,6 @@ import { useTranslation } from "react-i18next";
 import { CalendarDays, MapPin } from "lucide-react";
 import { crewLocale, formatCrewDate } from "../utils/crewI18n.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
-import "./CrewScheduleMobile.css";
 
 const parseDate = (value) => new Date(`${value}T00:00:00`);
 const dateKey = (date) => {

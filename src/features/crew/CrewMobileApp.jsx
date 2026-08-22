@@ -46,11 +46,20 @@ import { formatCrewDate, formatCrewTime, crewLocale, translateStatus } from "./u
 import { SUPPORTED_CREW_LANGUAGES } from "../../i18n/index.js";
 import "./CrewMobileSystem.css";
 import "./CrewAuthMobile.css";
-import "./components/CrewMeMobile.css";
 import "./CrewMobileTypography.css";
 import "./CrewMobileApp.css";
 import "./CrewHome.css";
 import "./components/CrewAttendanceMobile.css";
+import "./components/CrewScheduleMobile.css";
+import "./components/CrewLearningMobile.css";
+import "./components/CrewLeaveMobile.css";
+import "./components/CrewRewardMobile.css";
+import "./components/CrewGrowthMobile.css";
+import "./components/CrewPerformanceComponentModal.css";
+import "./components/CrewOperationsMobile.css";
+import "./components/CrewMeMobile.css";
+import "./components/CrewCashCheckoutMobile.css";
+import "./components/CrewTaskBlockRenderer.css";
 
 const storageKey = "feedx.crew.session";
 const reasonValues = {

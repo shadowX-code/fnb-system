@@ -6,7 +6,6 @@ import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewEmptyState, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { formatCrewEmployee, formatCrewMoney, formatCrewOperationalDate, formatCrewOperationalDateTime, formatCrewTime } from "../utils/crewI18n.js";
-import "./CrewCashCheckoutMobile.css";
 
 const DENOMINATIONS = [100, 50, 20, 10, 5, 1, 0.5, 0.2, 0.1, 0.05];
 const denominationKey = (value) => value < 1 ? value.toFixed(2) : String(value);

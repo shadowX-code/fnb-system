@@ -5,7 +5,6 @@ import { crewService } from "../../../services/crewService.js";
 import { CrewEmptyState, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
-import "./CrewLeaveMobile.css";
 
 const statusTone = { pending: "ready", approved: "success", rejected: "danger", cancelled: "neutral" };
 const today = () => new Date().toISOString().slice(0, 10);

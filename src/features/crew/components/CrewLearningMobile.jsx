@@ -18,7 +18,6 @@ import CrewLearnHome from "./CrewLearnHome.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 import { applyOnboardingLocalization, applySopLocalization } from "../utils/localizedContent.js";
-import "./CrewLearningMobile.css";
 
 function Progress({ value = 0 }) {
   const safe = Math.max(0, Math.min(100, Number(value) || 0));

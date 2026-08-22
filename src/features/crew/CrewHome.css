@@ -95,6 +95,23 @@
 @media (prefers-reduced-motion: reduce) { .crew-home-clock-action { transition: none; } }
 
 
+/* FeedX brand refinement retained with the Home composition. */
+.crew-v2-home .crew-home-attendance { border-color: rgb(0 183 199 / .20); box-shadow: 0 8px 22px rgb(22 75 80 / .10); }
+.crew-v2-home .crew-home-attendance-main { background: linear-gradient(108deg, #164b50 0%, #164b50 54%, #103f44 54%, #0c5f66 100%); }
+.crew-v2-home .crew-home-attendance-main::before { width: 60%; background: linear-gradient(100deg, rgb(177 213 201 / .07), transparent 65%); }
+.crew-v2-home .crew-home-attendance-main::after { right: 39%; background: linear-gradient(90deg, transparent, rgb(0 183 199 / .08)); }
+.crew-v2-home .crew-home-attendance-copy, .crew-v2-home .crew-home-attendance-copy > .crew-ui-status, .crew-v2-home .crew-home-attendance .crew-home-attendance-kicker, .crew-v2-home .crew-home-attendance-copy > p, .crew-v2-home .crew-home-attendance-copy > em, .crew-v2-home .crew-home-attendance-copy > small, .crew-v2-home .crew-home-attendance-copy dt, .crew-v2-home .crew-home-attendance-copy dd { color: #fff; }
+.crew-v2-home .crew-home-attendance-copy > .crew-ui-status { border-color: rgb(177 213 201 / .22); background: rgb(255 255 255 / .11); box-shadow: none; color: #b1d5c9; backdrop-filter: none; }
+.crew-v2-home .crew-home-attendance-copy > .crew-ui-status::before, .crew-v2-home .crew-home-clock-rings > span { background: #00b7c7; }
+.crew-v2-home .crew-home-attendance-copy > p { border-color: rgb(255 255 255 / .17); color: #b1d5c9; }
+.crew-v2-home .crew-home-attendance-copy > em { background: rgb(177 213 201 / .14); box-shadow: none; color: #d9f4ed; backdrop-filter: none; }
+.crew-v2-home .crew-home-attendance-copy > em.is-exception { background: rgb(255 197 104 / .16); color: #ffd18a; }
+.crew-v2-home .crew-home-clock-zone { background: radial-gradient(circle at 55% 50%, #fbffff 0 38%, #dcefeb 69%, #b1d5c9 100%); }
+.crew-v2-home .crew-home-clock-zone::before { background: radial-gradient(circle, rgb(0 183 199 / .23), transparent 69%); }
+.crew-home-clock-action, .crew-home-complete-ring { box-shadow: 0 0 0 5px rgb(177 213 201 / .25), 0 8px 16px rgb(22 75 80 / .16); }
+.crew-home-clock-action::before, .crew-home-complete-ring::before { background: conic-gradient(from 18deg, #00b7c7 0 26%, #b1d5c9 26% 34%, #00b7c7 34% 67%, #dcefeb 67% 83%, #00b7c7 83% 100%); }
+.crew-home-clock-action strong, .crew-home-complete-ring strong, .crew-v2-home .crew-home-clock-action strong, .crew-v2-home .crew-home-complete-ring strong { color: #164b50; }
+
 /* Route residue migrated from CrewMobileApp.css. */
 .crew-v2-home-header {
   display: flex;

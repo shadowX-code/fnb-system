@@ -9,7 +9,6 @@ import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, norm
 import { formatCrewDate, formatCrewTime, translateStatus } from "../utils/crewI18n.js";
 import { activeTaskResponsibilities, crewBusinessDate, formatTaskSchedule, historyTasks } from "../utils/taskSchedule.js";
 import { applySopLocalization, applyTaskLocalization } from "../utils/localizedContent.js";
-import "./CrewOperationsMobile.css";
 
 export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
   const { t, i18n } = useTranslation();

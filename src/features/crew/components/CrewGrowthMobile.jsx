@@ -26,8 +26,6 @@ import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, 
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
-import "./CrewPerformanceComponentModal.css";
-import "./CrewGrowthMobile.css";
 
 const statusCopy = {
   certified: "Certified",

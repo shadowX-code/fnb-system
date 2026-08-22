@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const system = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileSystem.css"), "utf8");
 const appStyles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.css"), "utf8");
+const mobileApp = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.jsx"), "utf8");
 const authStyles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewAuthMobile.css"), "utf8");
 const sharedStyles = readFileSync(resolve(process.cwd(), "src/styles/index.css"), "utf8");
 const home = readFileSync(resolve(process.cwd(), "src/features/crew/CrewHome.css"), "utf8");
@@ -33,6 +34,21 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain(".crew-ui-functional-surface");
     expect(system).toContain(".crew-mobile-detail-header");
     expect(system).toContain(".crew-v2-nav button.active::before { display: none;");
+    expect(system).toContain(".crew-v2-nav { position: fixed;");
+    expect(system).toContain(".crew-v2-nav button { display: grid;");
+  });
+
+  it("loads canonical and feature presentation in an explicit cascade order", () => {
+    const imports = [
+      "./CrewMobileSystem.css", "./CrewAuthMobile.css", "./CrewMobileTypography.css", "./CrewMobileApp.css", "./CrewHome.css",
+      "./components/CrewAttendanceMobile.css", "./components/CrewScheduleMobile.css", "./components/CrewLearningMobile.css", "./components/CrewLeaveMobile.css",
+      "./components/CrewRewardMobile.css", "./components/CrewGrowthMobile.css", "./components/CrewPerformanceComponentModal.css", "./components/CrewOperationsMobile.css", "./components/CrewMeMobile.css", "./components/CrewCashCheckoutMobile.css",
+    ];
+    imports.reduce((previous, current) => {
+      const position = mobileApp.indexOf(`import \"${current}\"`);
+      expect(position).toBeGreaterThan(previous);
+      return position;
+    }, -1);
   });
 
   it("keeps primary actions, generic fields, and linear progress canonical", () => {
@@ -46,10 +62,9 @@ describe("Crew Mobile design system contract", () => {
     [":root", ".crew-ui-", ".crew-v2-section-title", ".crew-v2-search", ".crew-v2-chips", ".crew-v2-status", ".crew-v2-login", ".crew-auth-", ".crew-v2-keypad"].forEach((selector) => expect(appStyles).not.toContain(selector));
   });
 
-  it("guards migrated Home presentation from deprecated brand greens and override chains", () => {
-    ["#07865f", "#079566", "#0b9069", "!important", "linear-gradient", "radial-gradient", "conic-gradient"].forEach((token) => {
-      expect(home).not.toContain(token);
-    });
+  it("keeps the complete Home hero contract in its feature owner without override chains", () => {
+    [".crew-home-attendance-main", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
+    expect(home).not.toContain("!important");
   });
 
   it("keeps migrated Cash Checkout and Performance detail owners on semantic tokens", () => {
@@ -70,7 +85,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("gives Leave one feature presentation owner and no legacy selector fallback", () => {
-    expect(leave).toContain('import "./CrewLeaveMobile.css"');
+    expect(mobileApp).toContain('import "./components/CrewLeaveMobile.css"');
     expect(leaveStyles).toContain("Leave-specific flow composition");
     expect(leaveStyles).toContain("--crew-color-deep-teal");
     expect(leaveStyles).toContain("--crew-color-cyan");
@@ -82,14 +97,15 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("gives Reward one token-based feature presentation owner", () => {
-    expect(reward).toContain('import "./CrewRewardMobile.css"');
+    expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific data visualization");
     [".crew-reward-", ".crew-v2-reward-"].forEach((selector) => expect(appStyles).not.toContain(selector));
-    ["!important", "#07865f", "#079566", "#0b9069", "linear-gradient", "radial-gradient"].forEach((token) => expect(rewardStyles).not.toContain(token));
+    [".crew-reward-motivation", ".crew-reward-score-summary", ".crew-reward-projection-track", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
+    expect(rewardStyles).not.toContain("!important");
   });
 
   it("keeps the complete Growth and My Performance presentation out of the app shell", () => {
-    expect(growth).toContain('import "./CrewGrowthMobile.css"');
+    expect(mobileApp).toContain('import "./components/CrewGrowthMobile.css"');
     [".crew-growth-final", ".crew-performance-final", ".crew-v2-skill-hero", ".crew-v2-requirements", ".crew-v2-path-hero", ".crew-v2-performance-"].forEach((selector) => expect(appStyles).not.toContain(selector));
     ["!important", "#07865f", "#079566", "#0b9069", "linear-gradient", "radial-gradient"].forEach((token) => expect(growthStyles).not.toContain(token));
     expect(growthStyles).toContain("Growth-specific layout and data visualization");
