@@ -1,14 +1,16 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180">
   <defs>
     <filter id="glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="3.2"/></filter>
+    <radialGradient id="disc" cx="40%" cy="31%"><stop stop-color="#155c62"/><stop offset=".62" stop-color="#0c4147"/><stop offset="1" stop-color="#082f35"/></radialGradient>
     <linearGradient id="arc-a" x1="0" x2="1"><stop stop-color="#00b7c7" stop-opacity="0"/><stop offset=".22" stop-color="#00b7c7"/><stop offset=".52" stop-color="#b9ffff"/><stop offset=".83" stop-color="#00d4dd"/><stop offset="1" stop-color="#00b7c7" stop-opacity="0"/></linearGradient>
     <linearGradient id="arc-b" x1="0" x2="1"><stop stop-color="#00b7c7" stop-opacity="0"/><stop offset=".34" stop-color="#4fe8e5"/><stop offset=".66" stop-color="#d4ffff"/><stop offset="1" stop-color="#00b7c7" stop-opacity="0"/></linearGradient>
   </defs>
   <g fill="none" stroke-linecap="round">
+    <circle cx="90" cy="90" r="69" fill="url(#disc)" stroke="#00b7c7" stroke-opacity=".12" stroke-width="1.2"/>
     <circle cx="90" cy="90" r="86" stroke="#00d4dd" stroke-opacity=".62" stroke-dasharray="1.4 5.2"/>
     <circle cx="90" cy="90" r="75" stroke="#7cf2e9" stroke-opacity=".2" stroke-width="1.15"/>
     <circle cx="90" cy="90" r="63" stroke="#b1d5c9" stroke-opacity=".32" stroke-width="1.6"/>
-    <circle cx="90" cy="90" r="57" stroke="#00b7c7" stroke-opacity=".13"/>
+    <circle cx="90" cy="90" r="57" stroke="#00b7c7" stroke-opacity=".18"/>
     <g filter="url(#glow)" opacity=".5" stroke-width="7"><path stroke="url(#arc-a)" d="M22 111A70 70 0 0 1 42 39"/><path stroke="url(#arc-b)" d="M99 16A75 75 0 0 1 151 63"/><path stroke="url(#arc-a)" d="M154 112A70 70 0 0 1 119 155"/></g>
     <g stroke-width="3.8"><path stroke="url(#arc-a)" d="M22 111A70 70 0 0 1 42 39"/><path stroke="url(#arc-b)" d="M99 16A75 75 0 0 1 151 63"/><path stroke="url(#arc-a)" d="M154 112A70 70 0 0 1 119 155"/></g>
   </g>
