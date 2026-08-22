@@ -1,34 +1,15 @@
-/* Canonical Crew Mobile type roles. Imported after page modules so a semantic
-   role has one readable value across the Crew experience. */
-.crew-type-page-title{font-size:var(--crew-type-page-title)!important;line-height:1.14!important;letter-spacing:-.028em}
-.crew-type-detail-title{font-size:var(--crew-type-detail-title)!important;line-height:1.2!important;font-weight:780}
-.crew-type-section-title,.crew-ui-section-head h2{font-size:var(--crew-type-section-title)!important;line-height:1.2!important;font-weight:780}
-.crew-type-card-title,.crew-ui-row-copy strong{font-size:var(--crew-type-card-title)!important;line-height:1.28!important;font-weight:720}
-.crew-type-secondary,.crew-ui-row-copy small{font-size:var(--crew-type-secondary)!important;line-height:1.42!important}
-.crew-type-status,.crew-ui-status{font-size:var(--crew-type-status)!important;line-height:1.2!important}
-.crew-type-nav-label,.crew-v2-nav button{font-size:var(--crew-type-nav)!important;line-height:1.2!important}
-
-.crew-v2-page-header h1,.crew-growth-final .crew-v2-page-header h1,.crew-performance-final .crew-v2-page-header h1{font-size:var(--crew-type-page-title)!important;line-height:1.14!important}
-.crew-mobile-detail-header h1{font-size:var(--crew-type-detail-title)!important;line-height:1.2!important}
-.crew-v2-home-header p{font-size:var(--crew-type-secondary)!important;line-height:1.35!important}.crew-v2-home-header small{font-size:var(--crew-type-secondary)!important;line-height:1.4!important}
-.crew-ui-section-head>button,.crew-growth-final-skills>header button,.crew-growth-final-view-all{font-size:var(--crew-type-helper)!important}
-
-/* Home operational rows are deliberately denser than card content. */
-.crew-list-primary{font-size:var(--crew-type-list-primary)!important;line-height:1.25!important;font-weight:650!important}.crew-list-secondary{font-size:var(--crew-type-list-secondary)!important;line-height:1.35!important;font-weight:400!important}.crew-list-status{font-size:var(--crew-type-list-status)!important;line-height:1.25!important;font-weight:650!important}.crew-home-task,.crew-home-schedule-row{min-height:66px}.crew-home-task .crew-list-primary,.crew-home-schedule-row .crew-list-primary{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.crew-home-task .crew-list-secondary,.crew-home-schedule-row .crew-list-secondary{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.crew-home-task>em,.crew-home-schedule-row>em,.crew-home-show-more{font-size:var(--crew-type-list-status)!important;line-height:1.2!important}.crew-home-schedule-row{grid-template-columns:38px minmax(0,1fr) minmax(78px,104px) 18px}.crew-home-schedule-row>em{max-width:none!important;overflow:visible!important;white-space:normal!important;text-align:right;text-overflow:clip!important}.crew-v2-home .crew-ui-section-head h2>span{font-size:var(--crew-type-status)!important}
-
-/* Form labels, helpers, and localized strings. */
-.crew-v2-app label,.crew-v2-app input,.crew-v2-app textarea,.crew-v2-app select{font-size:var(--crew-type-body)!important}.crew-v2-app label{font-size:var(--crew-type-label)!important}.crew-v2-app small,.crew-v2-app .crew-v2-helper{font-size:var(--crew-type-helper)!important;line-height:1.42!important}
-
-/* Learning and Tasks share body/answer clarity. */
-.crew-task-block-number{font-size:var(--crew-type-status)!important}.crew-task-block-copy strong{font-size:var(--crew-type-card-title)!important;line-height:1.28!important;white-space:normal!important;text-overflow:clip!important}.crew-task-block-copy small,.crew-task-block-panel>p,.crew-task-instruction,.crew-task-key-point{font-size:var(--crew-type-secondary)!important;line-height:1.5!important;white-space:normal!important;text-overflow:clip!important}.crew-task-block-copy em,.crew-task-block-result,.crew-task-range,.crew-task-evidence,.crew-task-sop-card small,.crew-task-sop-card em{font-size:var(--crew-type-status)!important;line-height:1.3!important}.crew-task-unavailable,.crew-task-sop-card strong,.crew-task-focused-action,.crew-task-submit,.crew-task-choice-grid button,.crew-task-choice-list button,.crew-task-input-wrap input,.crew-task-input-wrap label>span,.crew-task-input-wrap label>em,.crew-task-input-wrap textarea,.crew-task-health textarea{font-size:var(--crew-type-body)!important}.crew-task-choice-grid.is-health button,.crew-task-report-link,.crew-task-exception-body label,.crew-task-exception-body small,.crew-task-sheet-cancel,.crew-task-sheet-submit{font-size:var(--crew-type-label)!important;line-height:1.35!important}.crew-task-exception-sheet>header span,.crew-task-preview-only{font-size:var(--crew-type-helper)!important;line-height:1.4!important}
-
-/* Growth and performance preserve compact composition with stable semantics. */
-.crew-growth-final-skills h2,.crew-growth-final-performance h2,.crew-performance-final-breakdown>header h2,.crew-performance-final-strengths>h2,.crew-performance-final-trend-section h2{font-size:var(--crew-type-section-title)!important}.crew-growth-final-skills>header p,.crew-growth-final-performance header p,.crew-performance-final-hero-copy p{font-size:var(--crew-type-secondary)!important;line-height:1.4!important}.crew-growth-final-stat-grid article span,.crew-growth-final-ready>div small,.crew-performance-final-breakdown-card>button>span small,.crew-performance-final-strengths p{font-size:var(--crew-type-helper)!important;line-height:1.35!important}.crew-growth-final-ready>div strong,.crew-performance-final-breakdown-card>button>span strong{font-size:var(--crew-type-card-title)!important;line-height:1.25!important}.crew-growth-final-ready>div em,.crew-performance-final-breakdown-card>button>b{font-size:var(--crew-type-status)!important}.crew-performance-final-reward>span strong,.crew-performance-final-reward>div strong{font-size:var(--crew-type-card-title)!important}.crew-performance-final-reward small{font-size:var(--crew-type-helper)!important}
-
-/* Me, Leave, Attendance and Schedule utility content. */
-.crew-v3-leave-tabs button,.crew-v3-header-action,.crew-v3-leave-card strong,.crew-v3-next-action strong{font-size:var(--crew-type-card-title)!important}.crew-v3-leave-card small,.crew-v3-leave-balance-preview small,.crew-v3-next-action small,.crew-v3-attendance-summary p,.crew-v3-attendance-summary>small,.crew-v3-attendance-summary>span{font-size:var(--crew-type-helper)!important;line-height:1.4!important}.crew-v3-balance-grid span,.crew-v3-balance-grid small{font-size:var(--crew-type-status)!important;line-height:1.3!important}.crew-schedule-final-upcoming h2,.crew-schedule-final-day h2{font-size:var(--crew-type-section-title)!important}.crew-schedule-final-row-copy>strong{font-size:var(--crew-type-card-title)!important;line-height:1.25!important}.crew-schedule-final-row-copy>small,.crew-schedule-final-row time small,.crew-schedule-final-day p{font-size:var(--crew-type-helper)!important;line-height:1.4!important}.crew-schedule-final-row time strong,.crew-schedule-final-badge{font-size:var(--crew-type-status)!important}
-
-/* Cash data entry and ledger labels. */
-.crew-cash-mobile{font-size:var(--crew-type-body)!important}.crew-cash-summary small,.crew-cash-card p,.crew-cash-ledger p,.crew-cash-ledger article small,.crew-cash-detail-heading p,.crew-cash-detail-card p{font-size:var(--crew-type-secondary)!important;line-height:1.42!important}.crew-cash-opening label,.crew-cash-field,.crew-cash-sheet label,.crew-cash-denominations span,.crew-cash-today-summary dt{font-size:var(--crew-type-label)!important;line-height:1.35!important}.crew-cash-card h2,.crew-cash-ledger h2,.crew-cash-receipts h2{font-size:var(--crew-type-section-title)!important}.crew-cash-detail-card h3{font-size:var(--crew-type-card-title)!important}.crew-cash-denominations span small{font-size:var(--crew-type-helper)!important}
-
-@media(max-width:390px){.crew-home-task,.crew-home-schedule-row{min-height:64px}.crew-home-schedule-row{grid-template-columns:35px minmax(0,1fr) minmax(72px,94px) 16px}.crew-home-task>em,.crew-home-schedule-row>em{font-size:12px!important}}
+/* Canonical Crew Mobile typography roles. Page modules consume these tokens
+   directly so readable text is not recovered through a later override layer. */
+.crew-type-page-title { font-size: var(--crew-type-page-title); line-height: 1.14; letter-spacing: -.028em; }
+.crew-type-detail-title { font-size: var(--crew-type-detail-title); line-height: 1.2; font-weight: 780; }
+.crew-type-section-title { font-size: var(--crew-type-section-title); line-height: 1.2; font-weight: 780; }
+.crew-type-card-title { font-size: var(--crew-type-card-title); line-height: 1.28; font-weight: 720; }
+.crew-list-primary { font-size: var(--crew-type-list-primary); line-height: 1.25; font-weight: 650; }
+.crew-list-secondary { font-size: var(--crew-type-list-secondary); line-height: 1.35; font-weight: 400; }
+.crew-list-status { font-size: var(--crew-type-list-status); line-height: 1.25; font-weight: 650; }
+.crew-type-body { font-size: var(--crew-type-body); line-height: 1.5; }
+.crew-type-secondary { font-size: var(--crew-type-secondary); line-height: 1.42; }
+.crew-type-label { font-size: var(--crew-type-label); line-height: 1.35; font-weight: 700; }
+.crew-type-helper { font-size: var(--crew-type-helper); line-height: 1.42; }
+.crew-type-status { font-size: var(--crew-type-status); line-height: 1.25; font-weight: 700; }
+.crew-type-nav-label { font-size: var(--crew-type-nav); line-height: 1.2; font-weight: 650; }
