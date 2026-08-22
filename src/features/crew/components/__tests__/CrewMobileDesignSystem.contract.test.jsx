@@ -16,6 +16,7 @@ const attendanceStyles = readFileSync(resolve(process.cwd(), "src/features/crew/
 const leave = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLeaveMobile.jsx"), "utf8");
 const leaveStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLeaveMobile.css"), "utf8");
 const reward = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewRewardMobile.jsx"), "utf8");
+const learnHome = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLearnHome.jsx"), "utf8");
 const rewardStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewRewardMobile.css"), "utf8");
 const growthStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewGrowthMobile.css"), "utf8");
 const operationsStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewOperationsMobile.css"), "utf8");
@@ -60,6 +61,31 @@ describe("Crew Mobile design system contract", () => {
   it("keeps shared and Auth presentation out of the route shell stylesheet", () => {
     expect(authStyles).toContain("Auth-owned Crew mobile composition");
     [":root", ".crew-ui-", ".crew-v2-section-title", ".crew-v2-search", ".crew-v2-chips", ".crew-v2-status", ".crew-v2-login", ".crew-auth-", ".crew-v2-keypad"].forEach((selector) => expect(appStyles).not.toContain(selector));
+  });
+
+  it("keeps Crew mobile feature presentation out of the global stylesheet", () => {
+    [".crew-learn-final", ".crew-v2-page-header", ".crew-mobile-detail-header"].forEach((selector) => expect(sharedStyles).not.toContain(selector));
+    expect(mobileApp).toContain('import "./components/CrewLearningMobile.css"');
+    expect(learningStyles).toContain("Learn home is feature-owned");
+  });
+
+  it("keeps root, detail, and workflow header geometry canonical", () => {
+    expect(system).toContain(".crew-mobile-page-header,.crew-v2-page-header");
+    expect(system).toContain(".crew-mobile-detail-header.is-workflow");
+    expect(reward).toContain("<CrewMobilePageHeader");
+    expect(growth).toContain("<CrewMobilePageHeader title={title} action={action} />");
+    expect(mobileApp).toContain("<CrewMobilePageHeader title={t(\"me.title\")} />");
+    [rewardStyles, growthStyles, meStyles].forEach((source) => expect(source).not.toContain("crew-v2-page-header"));
+    [rewardStyles, meStyles].forEach((source) => expect(source).not.toMatch(/crew-(reward|me)-header\s*\{/));
+  });
+
+  it("keeps Learn categories neutral except for the canonical active state", () => {
+    ["CATEGORY_TONES", "is-rose", "is-lilac", "is-peach", "is-sage"].forEach((legacy) => {
+      expect(learnHome).not.toContain(legacy);
+      expect(learningStyles).not.toContain(legacy);
+    });
+    expect(learningStyles).toContain(".crew-learn-final-category.is-active");
+    expect(learningStyles).toContain("var(--crew-color-cyan)");
   });
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {
@@ -142,5 +168,6 @@ describe("Crew Mobile design system contract", () => {
     expect(growth).toContain("if (onBack) return <CrewMobileDetailHeader");
     expect(learning).not.toContain("crew-learning-back");
     expect(learning).toContain("<CrewMobileDetailHeader title={t(\"learn.onboarding\")}");
+    expect(growth).toContain("<CrewMobilePageHeader title={title} action={action} />");
   });
 });

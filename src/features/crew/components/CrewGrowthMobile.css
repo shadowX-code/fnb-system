@@ -419,15 +419,6 @@
   gap:12px;
   color:var(--crew-v2-navy)
 }
-.crew-growth-final .crew-v2-page-header{
-  margin:0;
-  min-height:50px
-}
-.crew-growth-final .crew-v2-page-header h1{
-  font-size:var(--crew-type-page-title);
-  line-height:1.2;
-  letter-spacing:-.03em
-}
 .crew-growth-final-help{
   display:grid;
   width:38px;
@@ -906,15 +897,6 @@
   min-width:0;
   gap:12px;
   color:var(--crew-v2-navy)
-}
-.crew-performance-final .crew-v2-page-header{
-  margin:0;
-  min-height:50px
-}
-.crew-performance-final .crew-v2-page-header h1{
-  font-size:var(--crew-type-page-title);
-  line-height:1.2;
-  letter-spacing:-.03em
 }
 .crew-performance-final-help{
   display:grid;
@@ -1488,10 +1470,6 @@
 .crew-performance-final-reward>div strong,.crew-performance-final-reward>button{color:var(--crew-color-deep-teal)}
 @media(max-width:374px){.crew-growth-final-hero-copy,.crew-performance-final-hero-copy{width:72%;padding:15px}.crew-growth-final-stat-grid article{grid-template-columns:24px auto minmax(0,1fr);gap:5px;padding-inline:5px}.crew-performance-final-breakdown-card>button{grid-template-columns:25px minmax(69px,1fr) minmax(42px,.8fr) auto 13px;gap:4px;padding-inline:6px}}
 @media(prefers-reduced-motion:reduce){.crew-performance-final-meter>span{transition:none}}
-.crew-growth-final .crew-v2-page-header h1,.crew-performance-final .crew-v2-page-header h1{
-  font-size:var(--crew-type-page-title);
-  line-height:1.14
-}
 .crew-growth-final-skills h2,.crew-growth-final-performance h2,.crew-performance-final-breakdown>header h2,.crew-performance-final-strengths>h2,.crew-performance-final-trend-section h2{
   font-size:var(--crew-type-section-title)
 }

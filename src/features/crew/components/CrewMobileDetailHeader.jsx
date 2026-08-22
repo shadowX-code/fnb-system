@@ -2,10 +2,10 @@ import { ArrowLeft } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
 
-export default function CrewMobileDetailHeader({ title, onBack, action = null, className = "" }) {
+export default function CrewMobileDetailHeader({ title, onBack, action = null, variant = "detail", className = "" }) {
   const { t } = useTranslation();
   return (
-    <header className={`crew-v2-page-header crew-mobile-detail-header ${className}`.trim()}>
+    <header className={`crew-v2-page-header crew-mobile-detail-header is-${variant} ${className}`.trim()}>
       <div>
         <button type="button" onClick={onBack} aria-label={t("common.back")}>
           <ArrowLeft size={19} />

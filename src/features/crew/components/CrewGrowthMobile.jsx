@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CrewActionRow, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
+import { CrewActionRow, CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 
@@ -49,10 +49,7 @@ function ProgressBar({ value }) {
 
 function PageHeader({ title, onBack, action }) {
   if (onBack) return <CrewMobileDetailHeader title={title} onBack={onBack} action={action} />;
-  return <header className="crew-v2-page-header">
-    <div><h1>{title}</h1></div>
-    {action}
-  </header>;
+  return <CrewMobilePageHeader title={title} action={action} />;
 }
 
 function GrowthHelpModal({ onClose }) {

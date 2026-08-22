@@ -356,7 +356,6 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
           <span>v{sop.version}</span>
           <span className={sop.acknowledged ? "is-acknowledged" : ""}>{acknowledgement}</span>
         </div>
-        <h2>{sop.title}</h2>
         {(sop.summary || sop.change_summary) && <p className="crew-learning-summary">{sop.summary || sop.change_summary}</p>}
       </header>
       <CrewSopDocument sections={sop.sections} token={token} sopVersionId={sop.id} className="is-mobile" />

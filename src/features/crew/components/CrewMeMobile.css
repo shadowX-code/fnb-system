@@ -147,24 +147,6 @@
 }
 
 
-/* Route residue migrated from CrewMobileApp.css. */
-.crew-me-header {
-  display: flex;
-  min-height: 56px;
-  align-items: center;
-
-}
-
-.crew-me-header h1 {
-  margin: 0;
-  color: var(--crew-v2-navy);
-  font-size: var(--crew-type-page-title);
-  font-weight: 700;
-  line-height: 1.2;
-  letter-spacing: -.03em;
-
-}
-
 .crew-me-profile-hero {
   position: relative;
   display: grid;

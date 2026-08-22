@@ -174,7 +174,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   if (activeSop) return <SopTaskReader sop={activeSop} token={token} onBack={() => setActiveSop(null)} />;
 
   if (detailLoading && !detail) return <section className="crew-ops-mobile" aria-busy="true">
-    <CrewMobileDetailHeader title={initialTarget?.row?.name || t("tasks.task")} onBack={returnFromDetail} />
+    <CrewMobileDetailHeader title={initialTarget?.row?.name || t("tasks.task")} onBack={returnFromDetail} variant="workflow" />
     <div className="crew-ops-loading">{t("common.loading")}</div>
     {error ? <div className="crew-v2-error">{error}</div> : null}
   </section>;
@@ -185,7 +185,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     const completed = actionable.filter(isTaskBlockComplete).length;
     const taskComplete = ["completed", "completed_with_exceptions", "review_required"].includes(detail.status);
     return <section className="crew-ops-mobile">
-      <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} />
+      <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} variant="workflow" />
       <div className="crew-ops-detail-head"><span>{String(detail.task_type || "task").replaceAll("_", " ")}</span><strong>{translateStatus(detail.status, t)}</strong><small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
       {taskComplete ? <TaskCompletionState status={detail.status} completed={completed} total={actionable.length} completedAt={detail.completed_at} /> : null}
       <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" ? "readonly" : "interactive"} allowException={detail.allow_exception} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
@@ -200,7 +200,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     ["all", t("tasks.all")], ["completed", t("tasks.completedFilter")], ["overdue", t("tasks.overdue")], ["exception", t("tasks.exception")],
   ];
   return <section className="crew-ops-mobile">
-    <CrewMobileDetailHeader title={t("tasks.title")} onBack={onBack} />
+    <CrewMobileDetailHeader title={t("tasks.title")} onBack={onBack} variant="workflow" />
     <div className="crew-ops-context"><span><Store size={17} /><strong>{taskData?.outlet?.name || t("home.yourOutlet")}</strong></span><small>{(taskData?.attendance_context || data?.attendance_context)?.on_shift ? t("home.onShift") : t("tasks.outsideShift")}</small></div>
     <div className="crew-ops-top-tabs" role="tablist" aria-label={t("tasks.title")}><button type="button" role="tab" aria-selected={taskView === "active"} className={taskView === "active" ? "is-active" : ""} onClick={() => setTaskView("active")}>{t("tasks.active")}</button><button type="button" role="tab" aria-selected={taskView === "history"} className={taskView === "history" ? "is-active" : ""} onClick={() => setTaskView("history")}>{t("tasks.history")}</button></div>
     {taskView === "history" ? <>
@@ -224,7 +224,7 @@ export function CrewTaskPreview({ task, onBack }) {
   const previewComplete = required.length > 0 && required.every((block) => isTaskBlockComplete({ ...block, status: previewStatuses[block.id] || "pending" }));
   function previewSubmit({ block, action }) { setPreviewStatuses((statuses) => ({ ...statuses, [block.id]: action })); }
   return <section className="crew-ops-mobile crew-task-preview" aria-label={t("tasks.crewPreview")}>
-    <div className="crew-task-preview-nav"><CrewMobileDetailHeader title={task.name || t("tasks.untitled")} onBack={onBack || (() => {})} /></div>
+    <div className="crew-task-preview-nav"><CrewMobileDetailHeader title={task.name || t("tasks.untitled")} onBack={onBack || (() => {})} variant="workflow" /></div>
     <div className="crew-ops-detail-head"><span>{String(task.task_type || "task").replaceAll("_", " ")}</span><strong>{t("tasks.preview")}</strong><small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
     {previewComplete ? <TaskCompletionState status={task.manager_review_required ? "review_required" : "completed"} completed={completed} total={actionable.length} /> : null}
     <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={{ ...block, status: previewStatuses[block.id] || "pending" }} index={index} mode="preview" allowException={task.allow_exception} onPreviewChange={previewSubmit} onOpenSop={(sop) => setSopMessage(t("tasks.sopReadOnly", { title: sop?.title || t("tasks.publishedSop") }))} />)}</div>

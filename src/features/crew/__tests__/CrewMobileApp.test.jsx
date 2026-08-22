@@ -341,7 +341,8 @@ describe("Crew Mobile redesign", () => {
     expect(nav.closest(".crew-mobile-detail-header")).not.toBeNull();
     expect(nav.getAttribute("title")).toBe(title);
     expect(screen.getByRole("button", { name: "Back" }).closest(".crew-mobile-detail-header")).not.toBeNull();
-    expect(screen.getByRole("heading", { name: title, level: 2 }).textContent).toBe(title);
+    expect(screen.getByRole("heading", { name: title, level: 1 }).closest(".crew-mobile-detail-header")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: title, level: 2 })).toBeNull();
     expect(screen.getByLabelText("SOP metadata").textContent).toContain("Service");
     expect(screen.getByLabelText("SOP metadata").textContent).toContain("v3");
     expect(screen.getByLabelText("SOP metadata").textContent).toContain("Acknowledgement required");

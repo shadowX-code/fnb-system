@@ -17,6 +17,7 @@ import {
   Soup,
 } from "lucide-react";
 import { formatCrewDate } from "../utils/crewI18n.js";
+import { CrewMobilePageHeader } from "./CrewMobileUI.jsx";
 
 const CATEGORY_ICONS = [
   [/service|guest|customer/i, ConciergeBell],
@@ -25,8 +26,6 @@ const CATEGORY_ICONS = [
   [/food|kitchen|prep/i, Soup],
   [/beverage|drink|coffee/i, Coffee],
 ];
-
-const CATEGORY_TONES = ["mint", "rose", "lilac", "amber", "sage", "peach"];
 
 function categoryIcon(name) {
   return CATEGORY_ICONS.find(([pattern]) => pattern.test(name || ""))?.[1] || Shapes;
@@ -99,11 +98,7 @@ export default function CrewLearnHome({ home, assignment, library, error, onOpen
 
 export function CrewLearnHero() {
   const { t } = useTranslation();
-  return (
-    <header className="crew-learn-final-hero">
-      <div><h1>{t("learn.title")}</h1><p>{t("learn.tagline")}</p></div>
-    </header>
-  );
+  return <CrewMobilePageHeader className="crew-learn-final-hero" title={t("learn.title")} subtitle={t("learn.tagline")} />;
 }
 
 export function CrewLearnSearch({ value, onChange, onFilter }) {
@@ -144,15 +139,15 @@ export const CrewSopCategoryCarousel = ({ categories, sops, value, onChange, onV
   return <section className="crew-learn-final-categories">
     <header><h2>{t("learn.browseCategory")}</h2><button type="button" onClick={onViewAll}>{t("common.viewAll")} <ChevronRight size={17} /></button></header>
     <div className="crew-learn-final-category-scroll" ref={ref} aria-label={t("learn.filters")}>
-      <CrewSopCategoryCard name={t("learn.all")} count={sops.length} icon={Grid2X2} tone="mint" active={value === "all"} onClick={() => onChange("all")} />
-      {categories.map((item, index) => <CrewSopCategoryCard key={item.id} name={item.name} count={sops.filter((sop) => sop.category_id === item.id).length} icon={categoryIcon(item.name)} tone={CATEGORY_TONES[(index + 1) % CATEGORY_TONES.length]} active={value === item.id} onClick={() => onChange(item.id)} />)}
+      <CrewSopCategoryCard name={t("learn.all")} count={sops.length} icon={Grid2X2} active={value === "all"} onClick={() => onChange("all")} />
+      {categories.map((item) => <CrewSopCategoryCard key={item.id} name={item.name} count={sops.filter((sop) => sop.category_id === item.id).length} icon={categoryIcon(item.name)} active={value === item.id} onClick={() => onChange(item.id)} />)}
     </div>
   </section>
 };
 
-export function CrewSopCategoryCard({ name, count, icon: Icon, tone, active, onClick }) {
+export function CrewSopCategoryCard({ name, count, icon: Icon, active, onClick }) {
   const { t } = useTranslation();
-  return <button type="button" className={`crew-learn-final-category is-${tone} ${active ? "is-active" : ""}`} aria-label={`${name}, ${count} ${t("learn.sops")}`} aria-pressed={active} onClick={onClick}><span><Icon size={23} /></span><strong>{name}</strong><small>{count} {t("learn.sops")}</small></button>;
+  return <button type="button" className={`crew-learn-final-category ${active ? "is-active" : ""}`} aria-label={`${name}, ${count} ${t("learn.sops")}`} aria-pressed={active} onClick={onClick}><span><Icon size={23} /></span><strong>{name}</strong><small>{count} {t("learn.sops")}</small></button>;
 }
 
 export function CrewSopLibrary({ sops, sort, onSort, onOpen }) {

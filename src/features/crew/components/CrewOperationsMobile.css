@@ -208,8 +208,9 @@
   grid-template-columns: 1fr auto;
   gap: 4px 10px;
   margin-bottom: 12px;
-  border-radius: 12px;
-  background: #f5f8f7;
+  border: 1px solid var(--crew-color-border);
+  border-radius: var(--crew-radius-control);
+  background: var(--crew-color-mineral);
   padding: 12px;
 
 }
@@ -219,7 +220,7 @@
 
 }
 .crew-ops-detail-head strong {
-  color: var(--crew-v2-green-dark);
+  color: var(--crew-color-deep-teal);
   font-size:var(--crew-type-helper);
 
 }

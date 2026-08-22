@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI18n.js";
+import { CrewMobilePageHeader } from "./CrewMobileUI.jsx";
 
 const money = formatCrewMoney;
 const rate = (value, digits = 0) => `${(Number(value || 0) * 100).toFixed(digits)}%`;
@@ -169,7 +170,7 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
   if (!data) return <section className="crew-v2-state is-error"><Gift size={26} /><strong>{t("reward.unavailable")}</strong><p>{t("reward.unavailableBody")}</p><button type="button" onClick={onRetry}>{t("common.retry")}</button></section>;
   const unlocked = ["qualified", "finalized", "paid"].includes(data.status);
   return <section className="crew-reward-final">
-    <header className="crew-reward-page-header"><h1>{t("reward.title")}</h1><button type="button" aria-label={t("reward.help")} onClick={() => setSheet("help")}><CircleHelp size={22} /></button></header>
+    <CrewMobilePageHeader title={t("reward.title")} action={<button type="button" className="crew-reward-header-action" aria-label={t("reward.help")} onClick={() => setSheet("help")}><CircleHelp size={22} /></button>} />
     {unlocked ? <>
       <RewardHero data={data} onOpenModal={setSheet} />
       <button type="button" className="crew-reward-motivation" onClick={() => setSheet("help")}><i><Lightbulb size={19} /></i><span>{t("reward.motivation")}</span><ChevronRight size={18} /></button>

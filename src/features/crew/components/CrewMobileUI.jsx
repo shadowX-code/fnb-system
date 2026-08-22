@@ -6,6 +6,10 @@ export function CrewMobilePage({ className = "", children }) {
   return <section className={`crew-ui-page ${className}`.trim()}>{children}</section>;
 }
 
+export function CrewMobilePageHeader({ title, subtitle, action = null, className = "" }) {
+  return <header className={`crew-mobile-page-header ${className}`.trim()}><span><h1 className="crew-type-page-title">{title}</h1>{subtitle && <p className="crew-type-secondary">{subtitle}</p>}</span>{action ? <span className="crew-mobile-page-header-action">{action}</span> : null}</header>;
+}
+
 export function CrewHeroCard({ className = "", children }) {
   return <article className={`crew-ui-hero ${className}`.trim()}>{children}</article>;
 }
