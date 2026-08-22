@@ -23,11 +23,11 @@ import {
   X,
 } from "lucide-react";
 import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import performanceArtwork from "../../../assets/crew/performance-trophy-hero.png";
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 import "./CrewPerformanceComponentModal.css";
+import "./CrewGrowthMobile.css";
 
 const statusCopy = {
   certified: "Certified",
@@ -46,7 +46,7 @@ const percentFor = (skill) => {
 const formatDate = (value) => formatCrewDate(value, { day: "numeric", month: "short", year: "numeric" });
 
 function ProgressBar({ value }) {
-  return <div className="crew-v2-progress" aria-label={`${value}% complete`}><span style={{ width: `${value}%` }} /></div>;
+  return <div className="crew-ui-linear-progress" aria-label={`${value}% complete`}><span style={{ width: `${value}%` }} /></div>;
 }
 
 function PageHeader({ title, onBack, action }) {
@@ -323,7 +323,7 @@ function PerformanceHero({ performance }) {
   const previous = [...finalizedTrend].reverse().find((item) => item.period_start !== performance.period_start);
   const delta = score != null && previous ? score - Math.round(Number(previous.score)) : null;
   return <article className="crew-performance-final-hero">
-    <img src={performanceArtwork} alt="" />
+    <span className="crew-performance-final-signal" aria-hidden="true"><i /><i /><i /></span>
     <div className="crew-performance-final-hero-copy">
       <div className="crew-performance-final-period"><strong>{monthLabel(performance.period_start, "long", t)}</strong><span className={`is-${performance.status}`}>{performanceStatus(performance.status, t)}</span></div>
       <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong><span>/100</span></div>
@@ -452,7 +452,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
           </div>)}
         </div>
       </section>
-      {selectedSkill.status === "ready_for_review" && <section className="crew-v3-next-action"><Target size={19} /><span><strong>{t("growth.nextAction")}</strong><small>{t("growth.waitingReview")}</small></span></section>}
+      {selectedSkill.status === "ready_for_review" && <section className="crew-ui-note crew-growth-next-action"><Target size={19} /><span><strong>{t("growth.nextAction")}</strong><small>{t("growth.waitingReview")}</small></span></section>}
       {selectedSkill.certification && <section className="crew-v2-certificate-note"><Award size={20} /><div><strong>{t("growth.certifiedOn", { date: formatDate(selectedSkill.certification.certified_at) })}</strong><small>{selectedSkill.certification.expires_at ? t("growth.validUntil", { date: formatDate(selectedSkill.certification.expires_at) }) : t("growth.noExpiry")}</small></div></section>}
     </section>;
   }

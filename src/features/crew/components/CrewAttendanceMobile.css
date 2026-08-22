@@ -1,0 +1,126 @@
+/* Attendance-specific chronology and month-summary composition. */
+.crew-attendance-history-page { padding-bottom: 16px; }
+.crew-attendance-month-select { margin: 4px 0 12px; }
+.crew-attendance-current-shift { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: color-mix(in srgb, var(--crew-color-mist-mint) 42%, white); padding: 11px; color: var(--crew-color-deep-teal); }
+.crew-attendance-current-shift > span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: var(--crew-color-surface); }.crew-attendance-current-shift > div { display: grid; min-width: 0; flex: 1; gap: 2px; }.crew-attendance-current-shift strong { font-size: var(--crew-type-card-title); }.crew-attendance-current-shift small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }.crew-attendance-current-shift button { border: 0; background: transparent; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 650; }
+.crew-attendance-month-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; margin-bottom: 16px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }.crew-attendance-month-summary > div { display: grid; min-width: 0; gap: 4px; padding: 12px 10px; }.crew-attendance-month-summary > div + div { border-left: 1px solid var(--crew-color-divider); }.crew-attendance-month-summary small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }.crew-attendance-month-summary strong { overflow: hidden; color: var(--crew-color-text); font-size: var(--crew-type-card-title); text-overflow: ellipsis; white-space: nowrap; }.crew-attendance-month-summary strong.is-warning { color: var(--crew-color-warning); }.crew-attendance-loading { padding: 18px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); text-align: center; }
+
+
+/* Route residue migrated from CrewMobileApp.css. */
+.crew-v2-attendance-hero {
+  display: grid;
+  justify-items: center;
+  border: 1px solid var(--crew-v2-border);
+  border-radius: 15px;
+  padding: 22px 15px;
+  text-align: center;
+
+}
+
+.crew-v2-attendance-status {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  place-items: center;
+  border-radius: 50%;
+  background: #f0f3f5;
+  color: #708096;
+
+}
+
+.crew-v2-attendance-status.is-on {
+  background: var(--crew-v2-mint);
+  color: var(--crew-v2-green);
+
+}
+
+.crew-v2-attendance-hero small {
+  margin-top: 13px;
+  color: #718097;
+  font-size:var(--crew-type-helper);
+
+}
+
+.crew-v2-attendance-hero h2 {
+  margin: 3px 0;
+  color: var(--crew-v2-green-dark);
+  font-size: 16px;
+
+}
+
+.crew-v2-attendance-hero strong {
+  color: var(--crew-v2-navy);
+  font-size: 28px;
+  letter-spacing: -.04em;
+
+}
+
+.crew-v2-attendance-hero p {
+  margin: 5px 0 0;
+  color: #5c6c82;
+  font-size:var(--crew-type-helper);
+
+}
+
+.crew-v2-attendance-hero + .crew-mobile-primary {
+  width: 100%;
+  margin-top: 13px;
+
+}
+
+.crew-v2-attendance-hero{
+  background:#f8fbfa
+}
+
+.crew-v3-attendance-summary p,.crew-v3-attendance-summary>small,.crew-v3-attendance-summary>span{
+  font-size:var(--crew-type-helper);
+  line-height:1.4
+}
+
+.crew-v3-attendance-summary{
+  display:grid;
+  gap:4px;
+  border:1px solid var(--crew-v2-border);
+  border-radius:14px;
+  background:#f7fbf9;
+  padding:15px
+}
+
+.crew-v3-attendance-summary>div{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  color:var(--crew-v2-green-dark)
+}
+
+.crew-v3-attendance-summary>small{
+  margin-top:8px;
+  color:var(--crew-v2-muted);
+  font-size:var(--crew-type-helper);
+  font-weight:750
+}
+
+.crew-v3-attendance-summary h2{
+  margin:0;
+  color:var(--crew-v2-navy);
+  font-size:21px;
+  letter-spacing:-.025em
+}
+
+.crew-v3-attendance-summary p{
+  margin:2px 0 0;
+  color:var(--crew-v2-muted);
+  font-size:var(--crew-type-helper)
+}
+
+.crew-v3-attendance-summary>span{
+  margin-top:7px;
+  color:var(--crew-v2-green-dark);
+  font-size:var(--crew-type-helper);
+  font-weight:780
+}
+
+.crew-v3-attendance-summary+.crew-mobile-primary{
+  width:100%;
+  margin-top:12px
+}

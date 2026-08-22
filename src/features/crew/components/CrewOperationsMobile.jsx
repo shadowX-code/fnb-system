@@ -9,6 +9,7 @@ import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, norm
 import { formatCrewDate, formatCrewTime, translateStatus } from "../utils/crewI18n.js";
 import { activeTaskResponsibilities, crewBusinessDate, formatTaskSchedule, historyTasks } from "../utils/taskSchedule.js";
 import { applySopLocalization, applyTaskLocalization } from "../utils/localizedContent.js";
+import "./CrewOperationsMobile.css";
 
 export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
   const { t, i18n } = useTranslation();
@@ -248,7 +249,7 @@ function SopTaskReader({ sop, token, onBack }) {
 function LegacyTaskModal({ item, reason, setReason, note, setNote, saving, onClose, onSubmit }) {
   const { t } = useTranslation();
   const reasons = ["equipment_issue", "stock_unavailable", "area_unavailable", "manager_instruction", "other"];
-  return <div className="crew-ops-sheet-backdrop"><section className="crew-ops-sheet"><div><h2>{item.name || item.title}</h2><button onClick={onClose} aria-label={t("common.close")}>×</button></div><p>{item.description || t("tasks.legacyInstruction")}</p><button className="crew-v2-primary" disabled={saving} onClick={() => onSubmit("completed")}>{t("status.completed")}</button><button className="crew-ops-choice is-warning" onClick={() => setReason(reason || "equipment_issue")}><AlertTriangle size={18} /> {t("tasks.recordException")}</button>{reason ? <><label>{t("tasks.chooseReason")}<select value={reason} onChange={(event) => setReason(event.target.value)}>{reasons.map((value) => <option key={value} value={value}>{t(`tasks.reasons.${value}`)}</option>)}</select></label><label>{t("tasks.note")}<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label><button className="crew-v2-primary" disabled={saving} onClick={() => onSubmit("exception")}>{t("tasks.submitException")}</button></> : null}</section></div>;
+  return <div className="crew-ops-sheet-backdrop"><section className="crew-ops-sheet"><div><h2>{item.name || item.title}</h2><button onClick={onClose} aria-label={t("common.close")}>×</button></div><p>{item.description || t("tasks.legacyInstruction")}</p><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("completed")}>{t("status.completed")}</button><button className="crew-ops-choice is-warning" onClick={() => setReason(reason || "equipment_issue")}><AlertTriangle size={18} /> {t("tasks.recordException")}</button>{reason ? <><label>{t("tasks.chooseReason")}<select value={reason} onChange={(event) => setReason(event.target.value)}>{reasons.map((value) => <option key={value} value={value}>{t(`tasks.reasons.${value}`)}</option>)}</select></label><label>{t("tasks.note")}<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("exception")}>{t("tasks.submitException")}</button></> : null}</section></div>;
 }
 
 function Empty({ text }) { return <div className="crew-ops-empty"><ClipboardCheck size={22} /><p>{text}</p></div>; }

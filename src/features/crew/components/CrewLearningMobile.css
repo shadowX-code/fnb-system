@@ -1,0 +1,113 @@
+/* Learning-specific structure only; shared controls come from CrewMobileSystem. */
+.crew-learning-home,.crew-learning-reader,.crew-mobile-sop-library { color: var(--crew-color-text); }
+.crew-learn-reset-title h1,.crew-mobile-sop-library header h2 { color: var(--crew-color-deep-teal); font-size: var(--crew-type-detail-title); line-height: 1.3; }
+.crew-onboarding-mobile-card,.crew-learning-hero,.crew-module-head,.crew-mobile-list { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); box-shadow: none; }
+.crew-mobile-sop-search { border-radius: var(--crew-radius-control); }.crew-mobile-sop-categories button { border-radius: 999px; }.crew-mobile-sop-list > button { min-height: var(--crew-mobile-row-min); }
+.crew-v3-knowledge-search { display: grid; gap: 8px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); padding: 11px; }.crew-v3-knowledge-search > strong { color: var(--crew-color-text); font-size: var(--crew-type-label); }.crew-v3-search-results { margin-top: 17px; }.crew-v3-search-results p { margin: 0; padding: 16px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
+.crew-v3-onboarding-card { display: flex; width: 100%; align-items: center; gap: 11px; margin-top: 15px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-mist-mint); padding: 13px; color: var(--crew-color-deep-teal); text-align: left; }.crew-v3-onboarding-card > span:nth-child(2) { display: grid; min-width: 0; flex: 1; gap: 3px; }.crew-v3-onboarding-card strong { color: var(--crew-color-text); font-size: var(--crew-type-row-title); }.crew-v3-onboarding-meta { display: grid; gap: 6px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
+.crew-mobile-required-sops,.crew-v3-categories { margin-top: 22px; }.crew-v3-categories > div { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); gap: 7px; }.crew-v3-categories button { display: grid; min-width: 0; min-height: 72px; align-content: center; gap: 5px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 8px; color: var(--crew-color-text); text-align: left; }.crew-v3-categories strong { overflow: hidden; font-size: var(--crew-type-meta); line-height: 1.2; text-overflow: ellipsis; }.crew-v3-categories small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); }
+@media (max-width: 374px) { .crew-v3-categories > div { grid-template-columns: repeat(2,minmax(0,1fr)); } }
+
+
+/* Route residue migrated from CrewMobileApp.css. */
+.crew-sop-mobile-nav {
+  margin-bottom: 13px;
+
+}
+
+.crew-sop-mobile-intro {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 4px;
+
+}
+
+.crew-sop-mobile-meta {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+
+}
+
+.crew-sop-mobile-meta span {
+  display: inline-flex;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 999px;
+  background: #f1f5f7;
+  padding: 4px 8px;
+  color: #53667d;
+  font-size:var(--crew-type-helper);
+  font-weight: 750;
+  line-height: 1.2;
+
+}
+
+.crew-sop-mobile-meta span:first-child, .crew-sop-mobile-meta span.is-acknowledged {
+  background: var(--crew-v2-mint);
+  color: var(--crew-v2-green-dark);
+
+}
+
+.crew-sop-mobile-intro h2 {
+  overflow-wrap: anywhere;
+  margin: 0;
+  color: var(--crew-v2-navy);
+  font-size: var(--crew-type-detail-title);
+  line-height: 1.3;
+  letter-spacing: -.025em;
+  text-wrap: pretty;
+
+}
+
+.crew-sop-mobile-intro .crew-learning-summary {
+  margin: 0 0 4px;
+
+}
+
+.crew-sop-acknowledged {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 18px;
+  border-radius: 12px;
+  background: var(--crew-v2-mint);
+  padding: 12px 13px;
+  color: var(--crew-v2-green-dark);
+
+}
+
+.crew-sop-acknowledged-icon {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border-radius: 50%;
+  background: #fff;
+  color: var(--crew-v2-green);
+
+}
+
+.crew-sop-acknowledged > span:last-child {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+
+}
+
+.crew-sop-acknowledged strong {
+  color: #155c49;
+  font-size:var(--crew-type-helper);
+  line-height: 1.25;
+
+}
+
+.crew-sop-acknowledged small {
+  color: #417568;
+  font-size:var(--crew-type-helper);
+  line-height: 1.4;
+
+}

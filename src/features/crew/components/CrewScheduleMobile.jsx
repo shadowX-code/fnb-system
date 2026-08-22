@@ -1,9 +1,9 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CalendarDays, MapPin } from "lucide-react";
-import scheduleCalendar from "../../../assets/crew/schedule-calendar.png";
 import { crewLocale, formatCrewDate } from "../utils/crewI18n.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
+import "./CrewScheduleMobile.css";
 
 const parseDate = (value) => new Date(`${value}T00:00:00`);
 const dateKey = (date) => {
@@ -82,7 +82,7 @@ export function CrewScheduleDayCard({ date, entry, employee, today }) {
   const hours = durationHours(entry);
   const title = entry ? working ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : entryLabel(entry, t) : t("schedule.noSchedule");
   const contextLabel = `${date === today ? `${t("common.today")}, ` : ""}${formatCrewDate(value, { weekday: "short", day: "numeric", month: "short" })}`;
-  return <article className={`crew-schedule-final-day is-${entryTone(entry)}`}><div className="crew-schedule-final-day-copy"><span className="crew-schedule-final-date-label">{contextLabel}</span><h2>{title}</h2>{entry ? <p><MapPin size={15} /> <span>{entryOutlet(entry, t)} · {entryRole(entry, employee, t)}{working && hours !== null ? ` · ${t("schedule.hours", { count: hours })}` : ""}</span></p> : <p>{t("schedule.noScheduleBody")}</p>}</div><CrewScheduleStatusBadge entry={entry} label={entry ? working ? t("schedule.upcomingStatus") : entryLabel(entry, t) : t("schedule.noSchedule")} /><img src={scheduleCalendar} alt="" aria-hidden="true" /></article>;
+  return <article className={`crew-schedule-final-day is-${entryTone(entry)}`}><div className="crew-schedule-final-day-copy"><span className="crew-schedule-final-date-label">{contextLabel}</span><h2>{title}</h2>{entry ? <p><MapPin size={15} /> <span>{entryOutlet(entry, t)} · {entryRole(entry, employee, t)}{working && hours !== null ? ` · ${t("schedule.hours", { count: hours })}` : ""}</span></p> : <p>{t("schedule.noScheduleBody")}</p>}</div><CrewScheduleStatusBadge entry={entry} label={entry ? working ? t("schedule.upcomingStatus") : entryLabel(entry, t) : t("schedule.noSchedule")} /></article>;
 }
 
 export function CrewScheduleList({ entries, employee, selectedDate }) {

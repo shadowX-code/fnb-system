@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI18n.js";
+import "./CrewRewardMobile.css";
 
 const money = formatCrewMoney;
 const rate = (value, digits = 0) => `${(Number(value || 0) * 100).toFixed(digits)}%`;
