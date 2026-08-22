@@ -535,10 +535,10 @@ export default function CrewMobileApp() {
           <button type="button" onClick={() => setScreen("cash-checkout")}><span className="crew-me-row-icon crew-ui-icon-container"><Banknote size={20} /></span><span><strong>{t("cash.title")}</strong><small>{t("cash.meSubtitle")}</small></span><ChevronRight size={19} /></button>
           <div><span className="crew-me-row-icon crew-ui-icon-container"><FileText size={20} /></span><span><strong>{t("me.employmentDocuments")}</strong></span><ChevronRight size={19} /></div>
         </div></section>
-        <section className="crew-me-section"><h2>{t("me.account")}</h2><div className="crew-me-list is-neutral">
-          <button type="button" onClick={() => setMeView("profile")}><span className="crew-me-row-icon crew-ui-icon-container is-neutral"><UserRound size={20} /></span><span><strong>{t("me.profile")}</strong></span><ChevronRight size={19} /></button>
-          <button type="button" onClick={() => setMeView("passcode")}><span className="crew-me-row-icon crew-ui-icon-container is-neutral"><LockKeyhole size={20} /></span><span><strong>{t("me.changePasscode")}</strong></span><ChevronRight size={19} /></button>
-          <button type="button" onClick={() => setMeView("settings")}><span className="crew-me-row-icon crew-ui-icon-container is-neutral"><Settings size={20} /></span><span><strong>{t("me.settings")}</strong></span><ChevronRight size={19} /></button>
+        <section className="crew-me-section"><h2>{t("me.account")}</h2><div className="crew-me-list">
+          <button type="button" onClick={() => setMeView("profile")}><span className="crew-me-row-icon crew-ui-icon-container"><UserRound size={20} /></span><span><strong>{t("me.profile")}</strong></span><ChevronRight size={19} /></button>
+          <button type="button" onClick={() => setMeView("passcode")}><span className="crew-me-row-icon crew-ui-icon-container"><LockKeyhole size={20} /></span><span><strong>{t("me.changePasscode")}</strong></span><ChevronRight size={19} /></button>
+          <button type="button" onClick={() => setMeView("settings")}><span className="crew-me-row-icon crew-ui-icon-container"><Settings size={20} /></span><span><strong>{t("me.settings")}</strong></span><ChevronRight size={19} /></button>
         </div></section>
         <button className="crew-v2-logout" type="button" onClick={() => setLogoutConfirmOpen(true)}><LogOut size={20} /> {t("me.logout")}</button>
       </>}

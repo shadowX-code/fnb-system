@@ -16,8 +16,8 @@
   --crew-color-danger: #b83e4b;
   --crew-color-info: #3973be;
   --crew-color-intelligence: #5f5aa4;
-  --crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 32%, white);
-  --crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 46%, white);
+  --crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 48%, white);
+  --crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, white);
   --crew-color-icon-neutral-bg: #e6ebec;
   --crew-color-icon-neutral-fg: #728086;
   --crew-radius-functional: 14px;
@@ -66,7 +66,7 @@
 .crew-ui-icon-container { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: 10px; background: var(--crew-color-icon-default-bg); color: var(--crew-color-deep-teal); }
 .crew-ui-icon-container.is-selected { background: var(--crew-color-icon-selected-bg); }
 .crew-ui-icon-container.is-active, .crew-ui-icon-container.is-live { color: var(--crew-color-cyan); }
-.crew-ui-icon-container.is-neutral, .crew-ui-icon-container.is-disabled { background: var(--crew-color-icon-neutral-bg); color: var(--crew-color-icon-neutral-fg); }
+.crew-ui-icon-container.is-disabled, .crew-ui-icon-container.is-unavailable { background: var(--crew-color-icon-neutral-bg); color: var(--crew-color-icon-neutral-fg); }
 .crew-mobile-primary { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--crew-color-deep-teal); border-radius: var(--crew-radius-control); background: var(--crew-color-deep-teal); padding: 0 14px; color: #fff; font-size: var(--crew-type-label); font-weight: 650; }
 .crew-mobile-secondary { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 0 14px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-label); font-weight: 650; }
 .crew-mobile-primary:hover { background: color-mix(in srgb, var(--crew-color-deep-teal) 90%, black); }.crew-mobile-primary:active { transform: scale(.985); }.crew-mobile-primary:disabled { cursor: default; opacity: .58; }
@@ -417,7 +417,7 @@
   color:#b66d00
 }
 
-.crew-ui-row-icon.is-neutral{
+.crew-ui-row-icon.is-disabled,.crew-ui-row-icon.is-unavailable{
   background:var(--crew-color-icon-neutral-bg);
   color:var(--crew-color-icon-neutral-fg)
 }

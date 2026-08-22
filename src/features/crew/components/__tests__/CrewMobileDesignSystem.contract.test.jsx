@@ -60,8 +60,8 @@ describe("Crew Mobile design system contract", () => {
 
   it("owns ordinary icon-container color roles centrally", () => {
     [
-      "--crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 32%, white)",
-      "--crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 46%, white)",
+      "--crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 48%, white)",
+      "--crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, white)",
       "--crew-color-icon-neutral-bg: #e6ebec",
       "--crew-color-icon-neutral-fg: #728086",
       ".crew-ui-icon-container.is-active, .crew-ui-icon-container.is-live",
@@ -71,6 +71,7 @@ describe("Crew Mobile design system contract", () => {
     expect(meStyles).not.toContain(".crew-me-list.is-neutral .crew-me-row-icon");
     expect(meStyles).not.toContain(".crew-me-settings .crew-ui-row-icon{background");
     expect(growthStyles).not.toContain(".crew-v2-row-icon, .crew-v2-icon-token");
+    expect(mobileApp).not.toContain("crew-me-row-icon crew-ui-icon-container is-neutral");
   });
 
   it("keeps shared and Auth presentation out of the route shell stylesheet", () => {
