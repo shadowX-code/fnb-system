@@ -34,6 +34,7 @@ Object.assign(resources.reward, {
   maxPotential: "Max Potential",
 });
 Object.assign(resources.common, { day_one: "day", day_other: "days" });
+Object.assign(resources.growth, { subtitle: "Grow your skills. Achieve more.", skillsOverview: "Skills Overview", allSkills: "All Skills ({{count}})", sortStatus: "Sort: Status" });
 Object.assign(resources.me, { confirmNewPasscode: "Confirm new passcode", passcodeSaved: "Passcode updated securely.", personal: "Personal", employment: "Employment", fullName: "Full Name", nickname: "Nickname", birthday: "Birthday", contact: "Contact", joinedDate: "Joined Date", position: "Position", languageHint: "System UI and available business content update immediately." });
 Object.assign(resources.attendance, { month: "Month", monthSummary: "Month summary", worked: "Worked", totalHours: "Total Hours", exceptions: "Exceptions" });
 resources.cash = {

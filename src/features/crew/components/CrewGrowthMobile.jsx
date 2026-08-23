@@ -8,12 +8,12 @@ import {
   BookOpenCheck,
   CalendarCheck2,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Circle,
   CircleHelp,
   Clock3,
   Gift,
-  Search,
   ShieldCheck,
   SmilePlus,
   Sparkles,
@@ -22,10 +22,11 @@ import {
   TrendingUp,
   X,
 } from "lucide-react";
-import { Area, AreaChart, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { CrewActionRow, CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
+import growthPerformanceAtmosphere from "../assets/growth-performance-atmosphere.png";
 
 const statusCopy = {
   certified: "Certified",
@@ -36,7 +37,7 @@ const statusCopy = {
   expired: "Expired",
 };
 
-const statusTone = (status) => status === "certified" ? "success" : ["ready_for_review", "needs_renewal"].includes(status) ? "ready" : "neutral";
+const statusTone = (status) => status === "certified" ? "success" : ["ready_for_review", "needs_renewal"].includes(status) ? "ready" : status === "in_progress" ? "info" : "neutral";
 const percentFor = (skill) => {
   const total = Number(skill?.requirements_total) || 0;
   return total ? Math.round(((Number(skill?.requirements_completed) || 0) / total) * 100) : 0;
@@ -47,8 +48,9 @@ function ProgressBar({ value }) {
   return <div className="crew-ui-linear-progress" aria-label={`${value}% complete`}><span style={{ width: `${value}%` }} /></div>;
 }
 
-function PageHeader({ title, onBack, action }) {
+function PageHeader({ title, subtitle, onBack, action }) {
   if (onBack) return <CrewMobileDetailHeader title={title} onBack={onBack} action={action} />;
+  if (subtitle) return <CrewMobilePageHeader title={title} subtitle={subtitle} action={action} />;
   return <CrewMobilePageHeader title={title} action={action} />;
 }
 
@@ -101,59 +103,61 @@ const performanceLevel = (score, t) => {
   return t("reward.levels.belowStandard");
 };
 
-function GrowthMilestoneHero({ skill, onOpen }) {
+const skillSummaryCards = [
+  { key: "certified", icon: BadgeCheck },
+  { key: "in_progress", icon: Clock3 },
+  { key: "ready_for_review", icon: Star },
+  { key: "not_started", icon: Circle },
+];
+
+function GrowthSkillSummary({ summary }) {
   const { t } = useTranslation();
-  return <article className="crew-growth-final-hero">
-    <div className="crew-growth-final-hero-copy">
-      <small>{t("growth.nextMilestone")}</small>
-      <h2>{skill?.name || t("growth.allCaughtUp")}</h2>
-      <p>{skill?.category || t("growth.skillsCurrent")}</p>
-      {skill ? <><CrewStatusBadge tone={skill.status === "ready_for_review" ? "ready" : "neutral"}>{translateStatus(skill.status, t)}</CrewStatusBadge><button type="button" onClick={() => onOpen(skill)}>{t("growth.viewSkill")} <ChevronRight size={17} /></button></> : null}
+  return <section className="crew-growth-overview-summary" aria-label={t("growth.skillsOverview")}>
+    <CrewSectionHeader title={t("growth.skillsOverview")} />
+    <div className="crew-growth-overview-metrics">
+      {skillSummaryCards.map(({ key, icon: Icon }) => <article key={key}>
+        <i className="crew-ui-icon-container"><Icon size={20} /></i>
+        <strong>{summary?.[key] || 0}</strong>
+        <span>{translateStatus(key, t)}</span>
+      </article>)}
     </div>
+  </section>;
+}
+
+function GrowthPerformanceHero({ performance, onOpen }) {
+  const { t } = useTranslation();
+  const score = performance?.score == null ? null : Math.round(Number(performance.score));
+  const trend = (performance?.trend || []).filter((item) => item.score != null).slice(-2);
+  const delta = trend.length > 1 ? Number(trend.at(-1).score) - Number(trend.at(-2).score) : null;
+  const trendText = delta == null ? t("growth.noTrend") : `${delta >= 0 ? "+" : ""}${delta} ${t("growth.recentTrend")}`;
+  return <article className="crew-growth-performance-hero" style={{ "--crew-growth-performance-art": `url(${growthPerformanceAtmosphere})` }}>
+    <div className="crew-growth-performance-copy">
+      <small>{t("growth.performance")}</small>
+      <h2>{performanceLevel(score, t)}</h2>
+      <p>{t("growth.thisMonth")}</p>
+      <span><TrendingUp size={17} />{trendText}</span>
+      <button type="button" onClick={onOpen}>{t("growth.viewPerformance")} <ChevronRight size={18} /></button>
+    </div>
+    <div className="crew-growth-performance-score" aria-label={score == null ? t("performance.awaitingData") : `${score} / 100`}><strong>{score ?? "—"}</strong><span>/100</span></div>
   </article>;
 }
 
-const skillSummaryCards = [
-  { key: "certified", label: "Certified", icon: BadgeCheck, tone: "green" },
-  { key: "in_progress", label: "In Progress", icon: Circle, tone: "blue" },
-  { key: "ready_for_review", label: "Ready for Review", icon: Star, tone: "amber" },
-  { key: "not_started", label: "Not Started", icon: Clock3, tone: "neutral" },
-];
-
-function GrowthSkillSummary({ summary, onViewAll }) {
+function GrowthSkillList({ skills, onOpen }) {
   const { t } = useTranslation();
-  return <section className="crew-growth-final-skills">
-    <header><span><h2>{t("growth.yourSkills")}</h2><p>{t("growth.skillsCaption")}</p></span><button type="button" onClick={onViewAll}>{t("growth.viewAllSkills")} <ChevronRight size={17} /></button></header>
-    <div className="crew-growth-final-stat-grid">
-      {skillSummaryCards.map(({ key, label, icon: Icon, tone }) => <article key={key} className={`is-${tone}`}><Icon size={25} /><strong>{summary?.[key] || 0}</strong><span>{translateStatus(key, t) || label}</span></article>)}
-    </div>
+  const [descending, setDescending] = useState(false);
+  const orderedSkills = useMemo(() => {
+    const rank = { ready_for_review: 0, needs_renewal: 0, in_progress: 1, not_started: 2, certified: 3 };
+    return [...skills].sort((a, b) => descending ? rank[b.status] - rank[a.status] : rank[a.status] - rank[b.status]);
+  }, [descending, skills]);
+  return <section className="crew-growth-all-skills" aria-labelledby="crew-growth-all-skills">
+    <header><h2 id="crew-growth-all-skills">{t("growth.allSkills", { count: skills.length })}</h2><button type="button" onClick={() => setDescending((value) => !value)} aria-label={t("growth.sortStatus")}><span>{t("growth.sortStatus")}</span><ChevronDown size={17} /></button></header>
+    <div>{orderedSkills.map((skill) => <button type="button" className="crew-growth-skill-row" key={skill.id} onClick={() => onOpen(skill)}>
+      <i className="crew-ui-row-icon"><BookOpenCheck size={19} /></i>
+      <span><strong>{skill.name}</strong><small>{skill.category || t("growth.skills")}</small></span>
+      <CrewStatusBadge tone={statusTone(skill.status)}>{translateStatus(skill.status, t)}</CrewStatusBadge>
+      <ChevronRight size={18} />
+    </button>)}</div>
   </section>;
-}
-
-function GrowthReadyList({ skills, onOpen, onViewAll }) {
-  const { t } = useTranslation();
-  if (!skills.length) return null;
-  return <section className="crew-growth-final-ready">
-    <header><h3>{t("growth.readyForReview")}</h3><span>{t("growth.skillCount", { count: skills.length })}</span></header>
-    <div>{skills.slice(0, 3).map((skill) => <CrewActionRow key={skill.id} icon={BookOpenCheck} title={skill.name} subtitle={skill.category || t("growth.skills")} meta={t("growth.readyForReview")} tone="mint" onClick={() => onOpen(skill)} ariaLabel={skill.name} />)}</div>
-    <button type="button" className="crew-growth-final-view-all" onClick={onViewAll}>{t("growth.viewAllSkills")} <ChevronRight size={18} /></button>
-  </section>;
-}
-
-function GrowthPerformanceCard({ performance, onOpen }) {
-  const { t } = useTranslation();
-  const score = performance?.score == null ? null : Math.round(Number(performance.score));
-  const trend = (performance?.trend || []).filter((item) => item.score != null).slice(-6).map((item) => ({ ...item, score: Number(item.score), label: formatCrewDate(`${item.period_start}T00:00:00`, { month: "short" }) }));
-  return <button type="button" className="crew-growth-final-performance" onClick={onOpen} aria-label={t("growth.viewPerformance")}>
-    <header><span><h2>{t("growth.performance")}</h2><p>{t("growth.performanceCaption")}</p></span></header>
-    <div className="crew-growth-final-performance-body">
-      <div className="crew-growth-final-score"><strong>{score ?? "—"}</strong><span>/100</span><i /><em><b>{performanceLevel(score, t)}</b><small>{t("growth.thisMonth")}</small></em></div>
-      <div className="crew-growth-final-trend" aria-label={trend.length > 1 ? t("growth.recentTrend") : t("growth.noTrend")}>
-        {trend.length > 1 ? <ResponsiveContainer width="100%" height="100%"><LineChart data={trend} margin={{ top: 12, right: 7, bottom: 5, left: 7 }}><XAxis dataKey="label" hide /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Line type="monotone" dataKey="score" stroke="#00b7c7" strokeWidth={3} dot={{ r: 4, fill: "#fff", stroke: "#00b7c7", strokeWidth: 2 }} activeDot={false} /></LineChart></ResponsiveContainer> : <span>{t("growth.noTrend")}</span>}
-      </div>
-    </div>
-    <footer>{t("growth.viewPerformance")} <ChevronRight size={18} /></footer>
-  </button>;
 }
 
 const performanceComponents = (t) => [
@@ -400,22 +404,13 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   const [view, setView] = useState(initialView);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [skillReturnView, setSkillReturnView] = useState("overview");
-  const [query, setQuery] = useState("");
-  const [category, setCategory] = useState("All");
   const [helpOpen, setHelpOpen] = useState(false);
   useEffect(() => { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }, [view]);
   const skills = data?.skills || [];
   const summary = data?.summary || { certified: 0, in_progress: 0, ready_for_review: 0, not_started: 0, total: 0 };
-  const categories = useMemo(() => ["All", ...new Set(skills.map((skill) => skill.category).filter(Boolean))], [skills]);
-  const filtered = useMemo(() => skills.filter((skill) => {
-    const matchesQuery = !query || `${skill.name} ${skill.category}`.toLowerCase().includes(query.toLowerCase());
-    return matchesQuery && (category === "All" || skill.category === category);
-  }), [skills, query, category]);
   const completeRequirements = skills.reduce((sum, skill) => sum + (Number(skill.requirements_completed) || 0), 0);
   const allRequirements = skills.reduce((sum, skill) => sum + (Number(skill.requirements_total) || 0), 0);
   const overall = allRequirements ? Math.round((completeRequirements / allRequirements) * 100) : 0;
-  const nextMilestone = skills.find((skill) => skill.status === "ready_for_review") || skills.find((skill) => skill.status === "in_progress") || skills.find((skill) => skill.status === "not_started");
-  const readySkills = skills.filter((skill) => ["ready_for_review", "needs_renewal"].includes(skill.status));
 
   function openSkill(skill) {
     setSkillReturnView(view === "skill" ? "overview" : view);
@@ -452,19 +447,6 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
     </section>;
   }
 
-  if (view === "skills") return <section className="crew-v2-growth">
-    <PageHeader title={t("growth.skills")} onBack={() => setView("overview")} />
-    <label className="crew-v2-search"><Search size={17} /><input aria-label={t("growth.searchSkills")} placeholder={t("growth.searchSkills")} value={query} onChange={(event) => setQuery(event.target.value)} /></label>
-    <div className="crew-v2-chips" aria-label={t("growth.skillCategories")}>{categories.map((item) => <button type="button" key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item === "All" ? t("growth.all") : item}</button>)}</div>
-    {[[t("status.ready_for_review"), filtered.filter((skill) => ['ready_for_review', 'needs_renewal'].includes(skill.status))], [t("status.in_progress"), filtered.filter((skill) => skill.status === 'in_progress')], [t("status.certified"), filtered.filter((skill) => skill.status === 'certified')], [t("status.not_started"), filtered.filter((skill) => skill.status === 'not_started')]].filter(([, rows]) => rows.length).map(([label, rows]) => <section className="crew-v3-skill-group" key={label}><CrewSectionHeader title={`${label} · ${rows.length}`} /><div className="crew-v2-skill-list">{rows.map((skill) => <button type="button" className="crew-ui-action-row crew-skill-row" key={skill.id} onClick={() => openSkill(skill)}>
-      <span className="crew-ui-row-icon is-mint"><BookOpenCheck size={18} /></span>
-      <span className="crew-ui-row-copy"><strong>{skill.name}</strong><small>{skill.category}{skill.status === 'ready_for_review' ? ` · ${t("growth.requirementsComplete")}` : ''}</small>{skill.status === "in_progress" && <ProgressBar value={percentFor(skill)} />}</span>
-      <CrewStatusBadge tone={statusTone(skill.status)}>{translateStatus(skill.status, t)}</CrewStatusBadge>
-      <ChevronRight size={16} />
-    </button>)}</div></section>)}
-    {!filtered.length && <div className="crew-v2-empty">{t("growth.noMatch")}</div>}
-  </section>;
-
   if (view === "path") {
     const next = skills.find((skill) => skill.status === "ready_for_review") || skills.find((skill) => skill.status === "in_progress") || skills.find((skill) => skill.status === "not_started");
     return <section className="crew-v2-growth">
@@ -492,17 +474,14 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   }
 
   if (view === "performance") {
-    return performance ? <CrewPerformanceDetail performance={performance} onBack={() => setView("overview")} onViewReward={onViewReward} onNavigate={(target) => target === "skills" || target === "growth" ? setView(target === "skills" ? "skills" : "overview") : onNavigate?.(target)} /> : <section className="crew-v2-growth crew-v2-performance"><PageHeader title={t("performance.title")} onBack={() => setView("overview")} /><section className="crew-v2-performance-empty"><Target size={28} /><h2>{t("performance.unavailable")}</h2><p>{t("performance.unavailableBody")}</p></section></section>;
+    return performance ? <CrewPerformanceDetail performance={performance} onBack={() => setView("overview")} onViewReward={onViewReward} onNavigate={(target) => target === "skills" || target === "growth" ? setView("overview") : onNavigate?.(target)} /> : <section className="crew-v2-growth crew-v2-performance"><PageHeader title={t("performance.title")} onBack={() => setView("overview")} /><section className="crew-v2-performance-empty"><Target size={28} /><h2>{t("performance.unavailable")}</h2><p>{t("performance.unavailableBody")}</p></section></section>;
   }
 
-  return <section className="crew-v2-growth crew-growth-final">
-    <PageHeader title={t("growth.title")} action={<button type="button" className="crew-growth-final-help" aria-label={t("growth.help")} onClick={() => setHelpOpen(true)}><CircleHelp size={23} /></button>} />
-    <GrowthMilestoneHero skill={nextMilestone} onOpen={openSkill} />
-    <div className="crew-growth-final-skill-card">
-      <GrowthSkillSummary summary={summary} onViewAll={() => setView("skills")} />
-      <GrowthReadyList skills={readySkills} onOpen={openSkill} onViewAll={() => setView("skills")} />
-    </div>
-    <GrowthPerformanceCard performance={performance} onOpen={() => setView("performance")} />
+  return <section className="crew-v2-growth crew-growth-overview">
+    <PageHeader title={t("growth.title")} subtitle={t("growth.subtitle")} action={<button type="button" className="crew-growth-final-help" aria-label={t("growth.help")} onClick={() => setHelpOpen(true)}><CircleHelp size={23} /></button>} />
+    <GrowthPerformanceHero performance={performance} onOpen={() => setView("performance")} />
+    <GrowthSkillSummary summary={summary} />
+    <GrowthSkillList skills={skills} onOpen={openSkill} />
     {helpOpen ? <GrowthHelpModal onClose={() => setHelpOpen(false)} /> : null}
   </section>;
 }

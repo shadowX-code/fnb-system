@@ -118,7 +118,9 @@ describe("Crew Mobile design system contract", () => {
     expect(growthStyles).not.toContain(".crew-v2-menu");
     expect(meStyles).toContain(".crew-me-settings");
     expect(meStyles).toContain(".crew-me-profile-summary");
-    expect(growth).toContain("<CrewActionRow key={skill.id}");
+    expect(growth).toContain('className="crew-growth-skill-row"');
+    expect(growth).toContain('className="crew-ui-row-icon"');
+    expect(growth).toContain("<CrewStatusBadge tone={statusTone(skill.status)}>");
   });
 
   it("keeps Phase 2 signature presentation scoped to Home, Reward, and Growth owners", () => {

@@ -44,23 +44,28 @@ const fullPerformance = {
 afterEach(cleanup);
 
 describe("Crew Growth mobile final IA", () => {
-  it("prioritizes ready review, consolidates Skills, and removes Path and Certifications from home", () => {
-    render(<CrewGrowthMobile data={data} performance={{ score: 100, trend: [] }} />);
-    expect(screen.getByRole("heading", { name: "Closing Responsibilities" })).not.toBeNull();
-    expect(screen.getByText("Your Skills")).not.toBeNull();
-    expect(screen.getAllByText("Ready for Review").length).toBeGreaterThan(0);
+  it("makes Performance the sole hero and shows the complete Skills overview directly on Growth", () => {
+    render(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
+    expect(screen.getByText("Strong")).not.toBeNull();
+    expect(screen.getByLabelText("87 / 100")).not.toBeNull();
+    expect(screen.getByText("Skills Overview")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "All Skills (4)" })).not.toBeNull();
+    expect(screen.getByText("Closing Responsibilities")).not.toBeNull();
+    expect(screen.getByText("Workstation Cleanliness")).not.toBeNull();
+    expect(screen.getByText("Opening Readiness")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Sort: Status" })).not.toBeNull();
+    expect(screen.queryByText("Next Milestone")).toBeNull();
+    expect(screen.queryByText("Recommended for you")).toBeNull();
+    expect(screen.queryByRole("button", { name: /View all skills/ })).toBeNull();
     expect(screen.queryByText("My Path")).toBeNull();
     expect(screen.queryByText("My Certifications")).toBeNull();
     expect(screen.queryByRole("navigation", { name: "Growth sections" })).toBeNull();
-    expect(screen.getByText("Outstanding")).not.toBeNull();
   });
 
-  it("uses the required milestone priority and does not invent a milestone when all skills are certified", () => {
-    const { rerender } = render(<CrewGrowthMobile data={{ ...data, skills: skills.filter((skill) => skill.status !== "ready_for_review") }} performance={null} />);
-    expect(screen.getByRole("heading", { name: "Workstation Cleanliness" })).not.toBeNull();
-    rerender(<CrewGrowthMobile data={{ summary: { certified: 1, in_progress: 0, ready_for_review: 0, not_started: 0, total: 1 }, skills: [skills[0]], timeline: [] }} performance={null} />);
-    expect(screen.getByRole("heading", { name: "All caught up" })).not.toBeNull();
-    expect(screen.getByText("Your current skills are up to date.")).not.toBeNull();
+  it("keeps the hero score singular when there is no Performance data", () => {
+    render(<CrewGrowthMobile data={data} performance={null} />);
+    expect(screen.getByLabelText("Awaiting data")).not.toBeNull();
+    expect(screen.queryByText("Next Milestone")).toBeNull();
   });
 
   it("opens the centered accessible help dialog and closes with Escape", () => {
@@ -80,26 +85,19 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.body.textContent).not.toContain("Earn Rate");
   });
 
-  it("routes the unified Skills and Performance calls to the existing detail surfaces", () => {
+  it("routes the performance CTA to the existing Performance detail surface", () => {
     render(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
-    fireEvent.click(screen.getAllByRole("button", { name: /View all skills/ })[0]);
-    expect(screen.getByRole("heading", { name: "Skills" })).not.toBeNull();
-    expect(screen.getByText(/Ready for Review · 1/)).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
     fireEvent.click(screen.getByRole("button", { name: "View my performance" }));
     expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
   });
 
-  it("returns from Skill Detail to the surface that opened it", () => {
+  it("opens each direct Growth skill row and returns to the Growth overview", () => {
     render(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
-    fireEvent.click(screen.getByRole("button", { name: /View skill/ }));
+    fireEvent.click(screen.getByRole("button", { name: /Closing Responsibilities/ }));
     expect(screen.getByRole("heading", { name: "Skill Detail" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Growth" })).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: /View all skills/ })[0]);
-    fireEvent.click(screen.getByRole("button", { name: /Closing Responsibilities/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: "Skills" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "All Skills (4)" })).not.toBeNull();
   });
 
   it("renders the finalized Performance hero, unified breakdown, strengths, real trend and Reward impact", () => {
