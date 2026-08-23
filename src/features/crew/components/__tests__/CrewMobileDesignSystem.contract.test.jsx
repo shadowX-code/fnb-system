@@ -60,7 +60,7 @@ describe("Crew Mobile design system contract", () => {
 
   it("owns ordinary icon-container color roles centrally", () => {
     [
-      "--crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 48%, white)",
+      "--crew-color-icon-default-bg: #e0f6f8",
       "--crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, white)",
       "--crew-color-icon-neutral-bg: #e6ebec",
       "--crew-color-icon-neutral-fg: #728086",
