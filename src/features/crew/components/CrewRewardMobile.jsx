@@ -142,7 +142,11 @@ function RewardProjection({ data, onOpenSheet }) {
   if (data.projection_applicable === false || ["finalized", "paid"].includes(data.cycle_status)) {
     return <article className="crew-reward-card crew-reward-finalized"><TrendingUp size={20} /><span><h2>{t("reward.finalized")}</h2><p>{t("reward.finalizedCaption")}</p></span></article>;
   }
-  const projections = data.projections || [];
+  const allProjections = data.projections || [];
+  const currentScore = Number(data.performance_score || 0);
+  const currentProjection = allProjections.find((item) => item.key === "current") || allProjections[0];
+  // A mobile progression must never move backwards from the actual current score.
+  const projections = [currentProjection, ...allProjections.filter((item) => item !== currentProjection && Number(item.score || 0) > currentScore)];
   return <section className="crew-reward-section crew-reward-projection">
     <header><span><h2><TrendingUp size={19} /> {t("reward.projection")}</h2><p>{t("reward.projectionCaption")}</p></span><button type="button" onClick={() => onOpenSheet("projection")}><Info size={15} /> {t("reward.howWorks")}</button></header>
     <div className="crew-reward-projection-track">
