@@ -281,7 +281,7 @@ function PerformanceModal({ title, onClose, children }) {
     };
   }, [onClose]);
   return <div className="crew-performance-final-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section ref={modalRef} className="crew-performance-final-modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+    <section ref={modalRef} className="crew-performance-final-modal crew-performance-detail-modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
       <header><h2>{title}</h2><button ref={closeRef} type="button" aria-label={t("common.closeNamed", { title })} onClick={onClose}><X size={19} /></button></header>
       <div>{children}</div>
     </section>
@@ -295,7 +295,7 @@ function PerformanceComponentModal({ component, onClose, onNavigate }) {
   return <PerformanceModal title={component.label} onClose={onClose}>
     <div className="crew-performance-component-modal">
       <header className="crew-performance-component-summary">
-        <i><Icon size={22} /></i>
+        <i className="crew-ui-icon-container"><Icon size={22} /></i>
         <span><strong>{guidance.level}</strong><small>{t("performance.current")}</small></span>
         <div><strong>{component.value ?? "—"}</strong><small>/ {component.max}</small></div>
       </header>
@@ -305,12 +305,12 @@ function PerformanceComponentModal({ component, onClose, onNavigate }) {
           {guidance.why.map((row, index) => <div key={`${row.label}-${index}`} className={`is-${row.tone || "neutral"}`}><span><strong>{row.label}</strong><small>{row.value}</small></span><i>{row.tone === "success" ? <CheckCircle2 size={15} /> : row.tone === "warning" ? <CircleHelp size={15} /> : <Circle size={13} />}</i></div>)}
         </div>
       </section>
-      <section className="crew-performance-component-section is-improve">
+      <section className={`crew-performance-component-section is-improve ${component.value === component.max ? "is-success" : "is-warning"}`}>
         <h3>{component.value === component.max ? t("performance.keepItUp") : t("performance.howImprove")}</h3>
         <ul>{guidance.improve.map((item) => <li key={item}><CheckCircle2 size={15} /><span>{item}</span></li>)}</ul>
       </section>
       <section className="crew-performance-component-section is-counts"><h3>{t("performance.whatCounts")}</h3><p>{guidance.whatCounts}</p></section>
-      {guidance.cta ? <button type="button" className="crew-performance-component-cta" onClick={() => onNavigate(guidance.cta.action)}>{guidance.cta.label} <ArrowUpRight size={17} /></button> : null}
+      {guidance.cta ? <button type="button" className="crew-mobile-primary crew-performance-component-cta" onClick={() => onNavigate(guidance.cta.action)}>{guidance.cta.label} <ArrowUpRight size={17} /></button> : null}
     </div>
   </PerformanceModal>;
 }
@@ -337,7 +337,7 @@ function PerformanceBreakdown({ performance, onSelect, onExplain }) {
   const { t } = useTranslation();
   const total = performance.score == null ? null : Math.round(Number(performance.score));
   return <section className="crew-performance-final-breakdown">
-    <header><h2>{t("performance.scoreBreakdown")}</h2><strong>{total == null ? "—" : total} / 100</strong></header>
+    <header className="crew-performance-final-breakdown-head"><h2 className="crew-type-section-title">{t("performance.scoreBreakdown")}</h2><strong aria-hidden="true">{total == null ? "— / 100" : `${total} / 100`}</strong></header>
     <div className="crew-performance-final-breakdown-card">
       {performanceComponents(t).map(({ key, label, max, weight, icon: Icon }) => {
         const item = performance.breakdown?.[key] || {};
@@ -350,8 +350,8 @@ function PerformanceBreakdown({ performance, onSelect, onExplain }) {
           <b>{value == null ? "—" : value} / {max}</b><ChevronRight size={17} />
         </button>;
       })}
-      <button type="button" className="crew-performance-final-evidence" onClick={onExplain}><i><ShieldCheck size={19} /></i><span><strong>{t("performance.verifiedEvidence")}</strong><small>{t("performance.learnCalculation")}</small></span><ChevronRight size={17} /></button>
     </div>
+    <button type="button" className="crew-performance-final-evidence" onClick={onExplain}><i className="crew-ui-icon-container"><ShieldCheck size={18} /></i><span><strong>{t("performance.verifiedEvidence")}</strong><small>{t("performance.learnCalculation")}</small></span><ChevronRight size={17} /></button>
   </section>;
 }
 
@@ -370,7 +370,7 @@ function PerformanceTrend({ performance }) {
   const { t } = useTranslation();
   const trend = (performance.trend || []).filter((item) => item.status === "finalized" && item.score != null).sort((a, b) => String(a.period_start).localeCompare(String(b.period_start))).slice(-4).map((item) => ({ ...item, score: Math.round(Number(item.score)), month: formatCrewDate(`${item.period_start}T00:00:00`, { month: "short", year: "numeric" }) }));
   if (!trend.length) return null;
-  return <section className="crew-performance-final-trend-section"><header><h2>{t("performance.trend")}</h2><span>{t("performance.lastMonths")}</span></header>
+  return <section className="crew-performance-final-trend-section"><header><h2>{t("performance.trend")}</h2><span className="crew-performance-final-trend-context">{t("performance.lastMonths")}</span></header>
     {trend.length > 1 ? <div className="crew-performance-final-chart" aria-label={t("performance.finalizedTrend")}><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend} margin={{ top: 20, right: 12, bottom: 2, left: 12 }}><defs><linearGradient id="performanceTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#00b7c7" stopOpacity=".24"/><stop offset="100%" stopColor="#00b7c7" stopOpacity=".02"/></linearGradient></defs><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#52627a", fontSize: 9 }} /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Area type="monotone" dataKey="score" stroke="#00b7c7" strokeWidth={2.5} fill="url(#performanceTrendFill)" dot={{ r: 3.5, fill: "#00b7c7", strokeWidth: 0 }} activeDot={false} label={{ position: "top", fill: "#1d2a44", fontSize: 9, fontWeight: 800 }} /></AreaChart></ResponsiveContainer></div> : <article className="crew-performance-final-single-trend"><strong>{trend[0].score} · {monthLabel(trend[0].period_start, "long", t)}</strong><p>{t("performance.trendMore")}</p></article>}
   </section>;
 }
@@ -380,7 +380,7 @@ function PerformanceRewardImpact({ performance, onViewReward }) {
   const score = performance.score == null ? null : Math.round(Number(performance.score));
   const finalized = performance.status === "finalized";
   const rate = score == null ? null : rewardEarnRate(score);
-  return <section className="crew-performance-final-reward"><i><Gift size={21} /></i><span><strong>{t("performance.rewardImpact")}</strong><small>{finalized ? t("performance.finalizedPerformance") : t("performance.estimatedPerformance")}</small></span><div><small>{t("growth.performance")}</small><strong>{score ?? "—"} / 100</strong></div><div><small>{t("performance.earnRate")}</small><strong>{rate == null ? "—" : `${rate}%`}</strong></div><button type="button" onClick={onViewReward}>{t("performance.viewReward")} <ChevronRight size={17} /></button></section>;
+  return <section className="crew-performance-final-reward"><i className="crew-ui-icon-container"><Gift size={20} /></i><span><strong>{t("performance.rewardImpact")}</strong><small>{finalized ? t("performance.finalizedPerformance") : t("performance.estimatedPerformance")}</small></span><div><small>{t("growth.performance")}</small><strong>{score ?? "—"} / 100</strong></div><div><small>{t("performance.earnRate")}</small><strong>{rate == null ? "—" : `${rate}%`}</strong></div><button type="button" className="crew-mobile-ghost" onClick={onViewReward}>{t("performance.viewReward")} <ChevronRight size={17} /></button></section>;
 }
 
 function CrewPerformanceDetail({ performance, onBack, onViewReward, onNavigate }) {
