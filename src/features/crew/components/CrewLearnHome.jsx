@@ -183,5 +183,5 @@ export function CrewSopAcknowledgementState({ item }) {
     const date = formatAcknowledgedDate(item);
     return <span className="crew-learn-final-ack is-done"><CrewStatusBadge tone="success"><CheckCircle2 size={14} /> {t("learn.acknowledged")}</CrewStatusBadge>{date && <small>{date}</small>}</span>;
   }
-  return <span className="crew-learn-final-ack"><CrewStatusBadge tone={item.acknowledgement_required ? "warning" : "neutral"}>{item.acknowledgement_required ? t("common.required") : t("common.optional")}</CrewStatusBadge><strong>{t("learn.acknowledge")}</strong></span>;
+  return <span className="crew-learn-final-ack"><CrewStatusBadge tone={item.acknowledgement_required ? "warning" : "neutral"}>{item.acknowledgement_required ? t("common.required") : t("common.optional")}</CrewStatusBadge></span>;
 }

@@ -382,7 +382,7 @@ describe("Crew mobile Learn reset", () => {
     expect(screen.getByRole("heading", { name: "SOPs (1)" })).not.toBeNull();
     expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
     expect(screen.getByText("Required")).not.toBeNull();
-    expect(screen.getByText("I acknowledge this SOP")).not.toBeNull();
+    expect(screen.queryByText("I acknowledge this SOP")).toBeNull();
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
   });
 
