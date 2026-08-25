@@ -1631,7 +1631,7 @@
 @media(max-width:374px){.crew-performance-final-breakdown-card>button{grid-template-columns:25px minmax(69px,1fr) minmax(42px,.8fr) auto 13px;gap:4px;padding-inline:6px}}
 
 /* Growth overview: feature-owned composition around canonical headers, icons and badges. */
-.crew-growth-overview{gap:var(--crew-space-section)}
+.crew-growth-overview{display:grid;gap:var(--crew-space-section)}
 .crew-growth-performance-hero{position:relative;isolation:isolate;display:grid;min-height:238px;grid-template-columns:minmax(0,1.08fr) minmax(124px,.92fr);align-items:center;overflow:hidden;border:1px solid rgb(0 183 199/.2);border-radius:var(--crew-radius-focus);background-color:var(--crew-color-deep-teal);background-image:var(--crew-growth-performance-art);background-position:60% 52%;background-size:cover;box-shadow:0 8px 16px rgb(22 75 80/.13);color:var(--crew-color-surface)}
 .crew-growth-performance-hero::after{position:absolute;z-index:-1;inset:0;background:rgb(0 43 48/.21);content:"";pointer-events:none}
 .crew-growth-performance-copy{display:grid;position:relative;z-index:1;align-content:center;justify-items:start;gap:0;min-width:0;padding:17px 0 17px 22px}
