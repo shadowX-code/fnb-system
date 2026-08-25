@@ -16,7 +16,7 @@
 .crew-performance-component-evidence strong { font-size: var(--crew-type-row-title); font-weight: 600; }
 .crew-performance-component-evidence small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); line-height: 1.35; }
 .crew-performance-component-evidence i { display: grid; width: 28px; height: 28px; flex: 0 0 28px; place-items: center; border-radius: 50%; background: var(--crew-color-mineral); color: var(--crew-color-text-secondary); font-style: normal; }
-.crew-performance-component-evidence .is-success i { background: color-mix(in srgb, var(--crew-color-success) 14%, white); color: var(--crew-color-success); }
+.crew-performance-component-evidence .is-success i { background: var(--crew-color-success-surface); color: var(--crew-color-success); }
 .crew-performance-component-evidence .is-warning { background: color-mix(in srgb, var(--crew-color-warning) 8%, white); }
 .crew-performance-component-evidence .is-warning i { background: color-mix(in srgb, var(--crew-color-warning) 16%, white); color: var(--crew-color-warning); }
 .crew-performance-component-section.is-improve { border-radius: var(--crew-radius-functional); background: var(--crew-color-mist-mint); padding: 12px; color: var(--crew-color-deep-teal); }

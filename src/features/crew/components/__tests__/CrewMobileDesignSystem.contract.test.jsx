@@ -31,7 +31,10 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain("--crew-color-deep-teal: #164b50");
     expect(system).toContain("--crew-color-cyan: #00b7c7");
     expect(system).toContain("--crew-color-mist-mint: #b1d5c9");
-    expect(system).toContain("--crew-color-success: #15803d");
+    expect(system).toContain("--crew-color-success: #007d8a");
+    expect(system).toContain("--crew-color-success-surface: #e5f6f5");
+    expect(system).toContain("--crew-color-info: #2563a6");
+    expect(system).toContain("--crew-color-info-surface: #eaf3fb");
     expect(system).toContain("--crew-color-mineral: #f5f7f6");
     expect(system).toContain("tokens and primitives only");
     expect(system).toContain(".crew-ui-functional-surface");
@@ -124,7 +127,8 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps completed and acknowledged states on the shared success treatment", () => {
-    expect(system).toContain(".crew-ui-status.is-success { background: color-mix(in srgb, var(--crew-color-success) 12%, white); color: var(--crew-color-success);");
+    expect(system).toContain(".crew-ui-status.is-success { background: var(--crew-color-success-surface); color: var(--crew-color-success);");
+    expect(system).toContain(".crew-ui-status.is-info { background: var(--crew-color-info-surface); color: var(--crew-color-info);");
     expect(mobileApp).toContain('task.status === "completed" ? "success"');
     expect(learnHome).toContain('tone="success"');
   });

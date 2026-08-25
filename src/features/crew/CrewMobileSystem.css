@@ -11,10 +11,12 @@
   --crew-color-text-muted: #708488;
   --crew-color-border: #cfe0dc;
   --crew-color-divider: #dfe8e6;
-  --crew-color-success: #15803d;
+  --crew-color-success: #007d8a;
+  --crew-color-success-surface: #e5f6f5;
   --crew-color-warning: #a86400;
   --crew-color-danger: #b83e4b;
-  --crew-color-info: #3973be;
+  --crew-color-info: #2563a6;
+  --crew-color-info-surface: #eaf3fb;
   --crew-color-intelligence: #5f5aa4;
   --crew-color-icon-default-bg: #e0f6f8;
   --crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, white);
@@ -73,7 +75,7 @@
 .crew-ui-field { min-height: 44px; box-sizing: border-box; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 0 12px; color: var(--crew-color-text); font-size: var(--crew-type-body); }.crew-ui-field:focus { border-color: var(--crew-color-cyan); outline: 2px solid color-mix(in srgb, var(--crew-color-cyan) 24%, transparent); outline-offset: 1px; }.crew-ui-field:disabled { background: var(--crew-color-mineral); color: var(--crew-color-text-muted); }
 .crew-ui-linear-progress { width: 100%; height: 4px; overflow: hidden; border-radius: 999px; background: var(--crew-color-divider); }.crew-ui-linear-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--crew-color-cyan); transition: width .18s ease; }
 .crew-ui-status { display: inline-flex; width: fit-content; min-height: 22px; align-items: center; justify-content: center; border-radius: 999px; background: var(--crew-color-mineral); padding: 3px 8px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); font-weight: 600; line-height: 1.25; white-space: nowrap; }
-.crew-ui-status.is-success { background: color-mix(in srgb, var(--crew-color-success) 12%, white); color: var(--crew-color-success); }.crew-ui-status.is-ready,.crew-ui-status.is-warning { background: color-mix(in srgb, var(--crew-color-warning) 12%, white); color: var(--crew-color-warning); }.crew-ui-status.is-danger { background: color-mix(in srgb, var(--crew-color-danger) 10%, white); color: var(--crew-color-danger); }.crew-ui-status.is-info { background: color-mix(in srgb, var(--crew-color-cyan) 12%, white); color: var(--crew-color-deep-teal); }
+.crew-ui-status.is-success { background: var(--crew-color-success-surface); color: var(--crew-color-success); }.crew-ui-status.is-ready,.crew-ui-status.is-warning { background: color-mix(in srgb, var(--crew-color-warning) 12%, white); color: var(--crew-color-warning); }.crew-ui-status.is-danger { background: color-mix(in srgb, var(--crew-color-danger) 10%, white); color: var(--crew-color-danger); }.crew-ui-status.is-info { background: var(--crew-color-info-surface); color: var(--crew-color-info); }
 .crew-ui-progress { width: 100%; height: 5px; overflow: hidden; border-radius: 999px; background: var(--crew-color-divider); }.crew-ui-progress > span { display: block; height: 100%; border-radius: inherit; background: var(--crew-color-cyan); }
 .crew-ui-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border-bottom: 1px solid var(--crew-color-border); }.crew-ui-tabs button { border: 0; border-bottom: 2px solid transparent; background: transparent; padding: 11px 4px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-label); font-weight: 650; }.crew-ui-tabs button.is-active { border-color: var(--crew-color-cyan); color: var(--crew-color-deep-teal); }
 .crew-ui-list-stack { display: grid; gap: 10px; }.crew-ui-list-card { display: grid; gap: 10px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); padding: 14px; }.crew-ui-list-card > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.crew-ui-list-card-copy { display: grid; min-width: 0; gap: 3px; }.crew-ui-list-card-copy strong { color: var(--crew-color-text); font-size: var(--crew-type-card-title); }.crew-ui-list-card-copy small, .crew-ui-list-card > p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.4; }

@@ -6,7 +6,7 @@
 .crew-task-block-summary:disabled { cursor: default; }
 .crew-task-block-summary:focus-visible { outline: 2px solid #0aa06e; outline-offset: -2px; border-radius: 10px; }
 .crew-task-block-number { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 50%; background: #eef3f4; color: #617187; font-size: var(--crew-type-status); font-weight: 850; }
-.crew-task-block-number.is-completed,.crew-task-block-number.is-good { background: #dff7ed; color: #07845d; }
+.crew-task-block-number.is-completed,.crew-task-block-number.is-good { background: var(--crew-color-success-surface); color: var(--crew-color-success); }
 .crew-task-block-number.is-exception,.crew-task-block-number.is-needs_attention,.crew-task-block-number.is-not_checked { background: #fff0dd; color: #b36a00; }
 .crew-task-block-copy { display: grid; min-width: 0; gap: 3px; }
 .crew-task-block-copy > span { display: flex; min-width: 0; align-items: center; gap: 6px; }
@@ -14,11 +14,11 @@
 .crew-task-block-copy em { flex: 0 0 auto; border-radius: 999px; background: #eef2f4; padding: 3px 6px; color: #68788d; font-size: var(--crew-type-status); font-style: normal; font-weight: 800; }
 .crew-task-block-copy small { overflow: hidden; color: #68788d; font-size: var(--crew-type-secondary); line-height: 1.42; text-overflow: ellipsis; white-space: nowrap; }
 .crew-task-block-result { max-width: 108px; overflow: hidden; border-radius: 999px; background: #f2f5f6; padding: 4px 7px; color: #68788d; font-size: var(--crew-type-status); font-weight: 800; line-height: 1.25; text-overflow: ellipsis; text-transform: capitalize; white-space: nowrap; }
-.crew-task-block-result.is-saved { background: #e5f7ef; color: #087a58; }
+.crew-task-block-result.is-saved { background: var(--crew-color-success-surface); color: var(--crew-color-success); }
 .crew-task-block-result.is-warning { background: #fff0dd; color: #a76200; }
 .crew-task-block-chevron { color: #718197; transition: transform .16s ease; }
 .crew-task-block.is-expanded .crew-task-block-chevron { transform: rotate(90deg); }
-.crew-task-block-saved-icon { color: #0a9467; }
+.crew-task-block-saved-icon { color: var(--crew-color-success); }
 .crew-task-block-panel { display: grid; gap: 10px; margin: 0 0 13px 42px; border-radius: 12px; background: #f7faf9; padding: 11px; }
 .crew-task-readonly-result { border-radius: 9px; background: #eef7f3; padding: 9px 10px; color: #245f50; font-size: var(--crew-type-secondary); font-weight: 700; line-height: 1.4; }
 .crew-task-block-panel > p,.crew-task-instruction { margin: 0; color: #52647e; font-size: var(--crew-type-secondary); line-height: 1.55; white-space: pre-wrap; }
