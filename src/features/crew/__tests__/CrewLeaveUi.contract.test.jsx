@@ -26,6 +26,8 @@ describe("Crew Leave v1 UI contracts", () => {
     expect(mobile).toContain('t("leave.cancelRequest")');
     expect(mobile).toContain('t("leave.approvedChangeHelp")');
     expect(mobile).toContain("item.rejection_reason");
+    expect(mobile).toContain("crew-leave-guidance");
+    expect(mobile).toContain('t("leave.availableDays"');
   });
 
   it("shows manager roster context and requires a rejection reason", () => {
