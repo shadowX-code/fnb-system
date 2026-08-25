@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const system = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileSystem.css"), "utf8");
+const typography = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileTypography.css"), "utf8");
 const appStyles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.css"), "utf8");
 const mobileApp = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.jsx"), "utf8");
 const authStyles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewAuthMobile.css"), "utf8");
@@ -128,7 +129,8 @@ describe("Crew Mobile design system contract", () => {
     expect(learnHome).toContain("CrewStatusBadge");
     expect(learnHome).not.toContain('<strong>{t("learn.acknowledge")}</strong>');
     expect(learningStyles).toContain("grid-template-columns:40px minmax(0,1fr) minmax(72px,96px) 18px");
-    expect(learningStyles).toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);font-size:var(--crew-type-helper);font-weight:600");
+    expect(learningStyles).toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);text-overflow:ellipsis;white-space:nowrap");
+    expect(learningStyles).not.toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);font-size:");
     expect(learningStyles).toContain(".crew-learn-final-ack>.crew-ui-status{justify-self:end;max-width:100%;white-space:normal");
   });
 
@@ -151,12 +153,14 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain("font-size:var(--crew-type-list-primary)");
     expect(system).toContain(".crew-ui-count");
     expect(system).toContain("--crew-space-section: 24px");
+    expect(typography).toContain(".crew-list-dense-primary");
     expect(growthStyles).toContain(".crew-skill-row");
     expect(growthStyles).not.toContain(".crew-v2-menu");
     expect(meStyles).toContain(".crew-me-settings");
     expect(meStyles).toContain(".crew-me-profile-summary");
     expect(growth).toContain('className="crew-growth-skill-row"');
-    expect(growth).toContain('className="crew-list-primary"');
+    expect(growth).toContain('className="crew-list-dense-primary"');
+    expect(learnHome).toContain('className="crew-list-dense-primary"');
     expect(growth).toContain('className="crew-list-secondary"');
     expect(growth).toContain('className="crew-ui-count"');
     expect(growth).toContain('className="crew-ui-row-icon"');

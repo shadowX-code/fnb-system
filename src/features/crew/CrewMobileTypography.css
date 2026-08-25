@@ -6,6 +6,7 @@
 .crew-ui-section-head.is-operational .crew-type-section-title { font-size: var(--crew-type-operational-section-title); line-height: 1.24; font-weight: 720; }
 .crew-type-card-title { font-size: var(--crew-type-card-title); line-height: 1.28; font-weight: 720; }
 .crew-list-primary { font-size: var(--crew-type-list-primary); line-height: 1.25; font-weight: 650; }
+.crew-list-dense-primary { font-size: var(--crew-type-helper); font-weight: 600; line-height: 1.3; letter-spacing: normal; }
 .crew-list-secondary { font-size: var(--crew-type-list-secondary); line-height: 1.35; font-weight: 400; }
 .crew-list-status { font-size: var(--crew-type-list-status); line-height: 1.25; font-weight: 650; }
 .crew-type-body { font-size: var(--crew-type-body); line-height: 1.5; }

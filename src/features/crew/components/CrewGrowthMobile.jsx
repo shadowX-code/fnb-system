@@ -150,10 +150,10 @@ function GrowthSkillList({ skills, onOpen }) {
     return [...skills].sort((a, b) => descending ? rank[b.status] - rank[a.status] : rank[a.status] - rank[b.status]);
   }, [descending, skills]);
   return <section className="crew-growth-all-skills" aria-labelledby="crew-growth-all-skills">
-    <header><h2 id="crew-growth-all-skills">{t("growth.allSkillsTitle")} <span className="crew-ui-count">{skills.length}</span></h2><button type="button" onClick={() => setDescending((value) => !value)} aria-label={t("growth.sortStatus")}><span>{t("growth.sortStatus")}</span><ChevronDown size={17} /></button></header>
+    <CrewSectionHeader title={<>{t("growth.allSkillsTitle")} <span className="crew-ui-count">{skills.length}</span></>} action={<><span>{t("growth.sortStatus")}</span><ChevronDown size={17} /></>} actionLabel={t("growth.sortStatus")} onAction={() => setDescending((value) => !value)} />
     <div>{orderedSkills.map((skill) => <button type="button" className="crew-growth-skill-row" key={skill.id} onClick={() => onOpen(skill)}>
       <i className="crew-ui-row-icon"><BookOpenCheck size={19} /></i>
-      <span><strong className="crew-list-primary">{skill.name}</strong><small className="crew-list-secondary">{skill.category || t("growth.skills")}</small></span>
+      <span><strong className="crew-list-dense-primary">{skill.name}</strong><small className="crew-list-secondary">{skill.category || t("growth.skills")}</small></span>
       <CrewStatusBadge tone={statusTone(skill.status)}>{translateStatus(skill.status, t)}</CrewStatusBadge>
       <ChevronRight size={18} />
     </button>)}</div>

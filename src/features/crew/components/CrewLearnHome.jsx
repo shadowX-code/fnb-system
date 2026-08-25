@@ -170,7 +170,7 @@ export function CrewSopListItem({ item, onOpen }) {
   return (
     <button type="button" className="crew-learn-final-sop" onClick={onOpen} aria-label={t("learn.openSop", { title: item.title })}>
       <span className="crew-learn-final-doc crew-ui-icon-container"><FileText size={22} /></span>
-      <span className="crew-learn-final-sop-copy"><strong>{item.title}</strong><small>{item.category || t("common.other")}<i>•</i>v{item.version}</small>{minutes > 0 && <small><Clock3 size={13} /> {t("learn.estimatedMinutes", { count: minutes })}</small>}</span>
+      <span className="crew-learn-final-sop-copy"><strong className="crew-list-dense-primary">{item.title}</strong><small>{item.category || t("common.other")}<i>•</i>v{item.version}</small>{minutes > 0 && <small><Clock3 size={13} /> {t("learn.estimatedMinutes", { count: minutes })}</small>}</span>
       <CrewSopAcknowledgementState item={item} />
       <ChevronRight className="crew-learn-final-chevron" size={19} />
     </button>
