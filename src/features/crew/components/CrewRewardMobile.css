@@ -16,10 +16,10 @@
 .crew-reward-hero-metrics small { color: rgb(255 255 255 / .62); font-size: var(--crew-type-status); font-weight: 650; line-height: 1.3; text-transform: uppercase; }
 .crew-reward-hero-metrics strong { overflow: hidden; color: var(--crew-color-surface); font-size: var(--crew-type-card-title); line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 
-.crew-reward-section,.crew-reward-card,.crew-reward-unavailable { min-width: 0; }
-.crew-reward-section > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
-.crew-reward-section h2,.crew-reward-unavailable h2 { display: flex; min-width: 0; align-items: center; gap: 7px; margin: 0; color: var(--crew-color-text); font-size: var(--crew-type-section-title); line-height: 1.25; }
-.crew-reward-section > header button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; border: 0; background: transparent; padding: 2px 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 650; text-align: right; }
+.crew-reward-editorial,.crew-reward-card,.crew-reward-unavailable { min-width: 0; }
+.crew-reward-editorial > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
+.crew-reward-editorial h2,.crew-reward-unavailable h2 { display: flex; min-width: 0; align-items: center; gap: 7px; margin: 0; color: var(--crew-color-text); font-size: var(--crew-type-section-title); line-height: 1.25; }
+.crew-reward-editorial > header button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; border: 0; background: transparent; padding: 2px 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 650; text-align: right; }
 
 .crew-reward-performance-relationship { display: grid; grid-template-columns: minmax(0, 1fr) 28px minmax(0, 1fr); align-items: end; gap: 10px; }
 .crew-reward-performance-relationship > div { display: grid; gap: 3px; }
@@ -78,8 +78,8 @@
   .crew-reward-hero-total strong { font-size: 36px; }
   .crew-reward-hero-metrics { gap: 8px; }
   .crew-reward-hero-metrics strong { font-size: var(--crew-type-body); }
-  .crew-reward-section > header { gap: 8px; }
-  .crew-reward-section > header button { max-width: 126px; }
+  .crew-reward-editorial > header { gap: 8px; }
+  .crew-reward-editorial > header button { max-width: 126px; }
   .crew-reward-potential { gap: 7px; }
   .crew-reward-potential-rail { min-width: 36px; }
 }
