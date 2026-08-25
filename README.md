@@ -1,6 +1,6 @@
 # FeedX
 
-FeedX is an internal F&B operations platform for restaurant and factory teams. It covers outlet operations, inventory, purchasing, recipes, people, reporting, factory production, warehouse activity, stock reconciliation, traceability, and governance.
+FeedX is an internal F&B operations platform spanning Restaurant, Crew, Factory, and the bounded Guest AI prototype workspace. It supports outlet finance and purchasing, inventory and assets, people and access control, workforce operations and learning, factory production and warehousing, traceability, and governed AI prototyping.
 
 ## Current release baseline
 
@@ -13,20 +13,12 @@ Production and Staging are migrated through the current Factory and trusted-auth
 
 ## Workspaces
 
-- **Restaurant**: Sales/Purchase, Inventory Control, Suppliers, Purchase Orders, Inventory Movements, Recipes & Usage, Asset Tracking, Product Analytics, Duty Roster, Employees, Roles & Permissions, and reporting.
-- **Factory**: Dashboard, Production Planning, Job Orders, Production, reports and traceability; Finished Goods and Dispatch; Raw Material receiving/inventory/movements/stock checks; Recipes/BOM and SOP; Storage Locations, Suppliers, Customers, and Factory Audit Logs.
+- **Restaurant**: outlet finance, purchasing, inventory, assets, people administration, and reporting.
+- **Crew**: workforce access, roster, attendance, leave, daily operations, cash checkout, learning, performance, reward, and localized Crew experiences.
+- **Factory**: production planning and execution, batch traceability, warehouse operations, and Factory master data.
+- **Guest AI**: a self-contained prototype workspace for device, voice, protocol, and AI-provider validation.
 
-The full canonical module registry is [`config/modules.ts`](config/modules.ts). Factory route/page completeness is protected by route-contract tests; do not create a second naming or routing system.
-
-## Architecture rules
-
-- Trusted server authorities own protected multi-write lifecycles. The browser submits intent, consumes canonical results, and refreshes the established read model; it must not recreate an RPC/Edge Function workflow with direct Supabase CRUD.
-- Request IDs and payload fingerprints make applicable lifecycle retries idempotent. A materially changed request must use a new ID.
-- Factory and Inventory ownership structures are frozen. Preserve the existing query, mutation, notification, and refresh seams; do not introduce duplicate authority.
-- `employees.role_id` is the canonical employee-role assignment. `employees.auth_user_id` is the canonical employee/Auth link and must not be changed by ordinary employee editing.
-- Role configuration saves only through `save_role_configuration`; Factory Recipe/BOM Draft saves only through `save_factory_product_recipe`.
-
-Current trusted authorities include Inventory lifecycle RPCs, Asset lifecycle RPCs, `product_analytics_save_report`, Data Import batch RPCs, Sales/Purchase period snapshots, Duty Roster week lifecycle RPCs, role configuration, and Factory Recipe/BOM save.
+The canonical module registry is [`config/modules.ts`](config/modules.ts). Read [`FEEDX_CODEX_CONTEXT.md`](FEEDX_CODEX_CONTEXT.md) for stable project-wide rules and [`docs/README.md`](docs/README.md) for task-specific architecture and domain routing.
 
 ## Local setup and verification
 
@@ -35,15 +27,13 @@ npm install
 npm run dev
 ```
 
-Run the relevant focused tests first. Before a review or promotion, run:
+Run relevant focused tests first. Before a review or promotion, run the verification appropriate to the change, including:
 
 ```bash
 npm test
 npm run build
 git diff --check
 ```
-
-The Vite build may report a large-chunk warning; it is accepted P2 performance debt unless measured production evidence justifies a change.
 
 ## Supabase migrations and deployments
 
@@ -59,8 +49,8 @@ Apply migrations or deploy Production only after explicit approval. Do not copy 
 
 ## Documentation
 
-- [Project Master Document](FEEDX_PROJECT_MASTER_DOCUMENT.md): canonical business rules, architecture, trusted authorities, current release baseline, accepted P2 debt, and development guardrails.
-- [Factory V1 Staging Sign-off](docs/audits/FACTORY_V1_STAGING_SIGNOFF.md): Factory certification record.
-- [Development Log](FEEDX_DEVELOPMENT_LOG.md): concise delivery history.
-- [Release Notes](docs/releases/README.md): Production release records.
-- [Archived Reports](docs/archive/README.md): historical UAT and readiness evidence only, not current authority.
+- [`FEEDX_CODEX_CONTEXT.md`](FEEDX_CODEX_CONTEXT.md): stable project-wide engineering, authority, delivery, and documentation rules.
+- [`docs/README.md`](docs/README.md): canonical documentation map and task router.
+- [`PRODUCT.md`](PRODUCT.md): high-level product audience and design direction.
+- [`FEEDX_PROJECT_MASTER_DOCUMENT.md`](FEEDX_PROJECT_MASTER_DOCUMENT.md): legacy deep reference/archive; not the default source of current truth.
+- [`FEEDX_DEVELOPMENT_LOG.md`](FEEDX_DEVELOPMENT_LOG.md): milestone changelog, not architecture authority.

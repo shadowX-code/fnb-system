@@ -1,12 +1,20 @@
 # FeedX Project Master Document
 
+> **LEGACY DEEP REFERENCE / ARCHIVE**
+>
+> This document is retained for historical requirements, implementation context, and targeted deep reference. It is no longer the canonical architecture or current-system authority. Current code and migrations take precedence, followed by current tests/contracts and the canonical documentation routed from `docs/README.md`. Future Codex tasks should not read this file in full by default.
+
 Last updated: 2026-08-13
 Document owner: FeedX product / engineering workspace  
-Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
+Document purpose: Historical deep reference and archive for prior requirements, architecture, business rules, implementation phases, and development plans.
 
-## Documentation Maintenance Rule
+## Legacy Maintenance Rule Superseded
 
-This document must be updated automatically whenever future development changes any of the following:
+The automatic maintenance rule below is retired. Current documentation governance lives in `FEEDX_CODEX_CONTEXT.md` and `docs/README.md`.
+Canonical domain documents plus current code, migrations, and tests take precedence over this file.
+Consult only the specific historical section needed after reading current sources.
+
+Historical rule preserved for archive context:
 
 - Product requirements
 - Sidebar or module architecture
@@ -28,7 +36,7 @@ Future workflow:
 4. Assistant verifies build/tests where applicable.
 5. Assistant summarizes both documentation and code changes.
 
-This file is the permanent archive for FeedX system direction. Do not create competing requirement documents unless this document links to them explicitly. Where historical implementation notes conflict with **Section 19 — Current System Baseline**, Section 19 is authoritative.
+This file remains an archive, but Section 19 and all other sections may be stale. They do not override current implementation or canonical domain documentation.
 
 ---
 
@@ -1990,7 +1998,7 @@ Inventory Control permissions:
 
 RBAC verification status:
 
-- RBAC Full Verification completed on 30 May 2026. Historical report: [FEEDX RBAC Verification Report](../docs/archive/2026-05/FEEDX_RBAC_VERIFICATION_REPORT.md).
+- RBAC Full Verification completed on 30 May 2026. Historical report: [FEEDX RBAC Verification Report](docs/archive/2026-05/FEEDX_RBAC_VERIFICATION_REPORT.md).
 - Result: Pass with live-role UAT caveat.
 - Stock Requests was removed from the active module registry during verification so it cannot appear in generated permission groups or the permission catalog for new role saves.
 - Inventory Control bootstrap context now checks active child Inventory permissions instead of legacy `inventory_control.view`, so Inventory-only roles can load outlet and supplier context required for filters and scoped workflows.
@@ -2152,7 +2160,7 @@ Status as of 30 May 2026:
 - Purchase Suggestions to Draft PO creation is Supabase-backed through `inventory_purchase_orders` and `inventory_purchase_order_items`.
 - Purchase Orders submit, edit Draft PO, receive, partial receive, complete, and cancel are Supabase-backed through `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, and `inventory_movements`.
 - Inventory Movements created from Purchase Receive are Supabase-backed. Manual Inventory Movements entry is also Supabase-backed through `inventory_movements`.
-- Inventory Control P0 UAT completed on 29 May 2026. Historical report: [FEEDX Inventory Control UAT Report](../docs/archive/2026-05/FEEDX_INVENTORY_UAT_REPORT.md).
+- Inventory Control P0 UAT completed on 29 May 2026. Historical report: [FEEDX Inventory Control UAT Report](docs/archive/2026-05/FEEDX_INVENTORY_UAT_REPORT.md).
 - Wastage create waste record is Supabase-backed through `inventory_waste_records` and creates a Waste movement row in `inventory_movements`.
 - Recipes & Usage create/edit/archive and ingredient mapping are Supabase-backed through `inventory_recipes` and `inventory_recipe_items`.
 - Production Readiness Cleanup Phase 1 completed on 30 May 2026:
@@ -3260,7 +3268,7 @@ Date: 2026-08-08
 
 The approved Factory V1 scope passed Owner runtime smoke coverage, Operator permission smoke coverage, and read-only permission smoke coverage. Permission-boundary hardening is applied through migration `202608050031_factory_permission_boundary_hardening.sql`. This sign-off is operational release evidence, not a claim of independent penetration testing or exhaustive security certification.
 
-See [Factory V1 Staging Sign-off](../docs/audits/FACTORY_V1_STAGING_SIGNOFF.md) for the concise certification record.
+See [Factory V1 Staging Sign-off](docs/audits/FACTORY_V1_STAGING_SIGNOFF.md) for the concise certification record.
 
 ## 5.14 Outlets
 
@@ -3870,7 +3878,7 @@ Permission UI:
 
 People UAT status:
 
-- People Module UAT & Stabilization completed on 30 May 2026. Historical report: [FEEDX People Module UAT & Stabilization Report](../docs/archive/2026-05/FEEDX_PEOPLE_UAT_REPORT.md).
+- People Module UAT & Stabilization completed on 30 May 2026. Historical report: [FEEDX People Module UAT & Stabilization Report](docs/archive/2026-05/FEEDX_PEOPLE_UAT_REPORT.md).
 - Result: Production Ready Candidate with live-account UAT caveat.
 - Verified/stabilized modules: Employees, Job Positions, Departments, Roles & Permissions, and Employee Login Access.
 - Critical fixes from the pass:
@@ -5016,7 +5024,7 @@ Typography rules:
 - Shared components must use semantic type classes instead of raw `text-sm`, `text-lg`, or arbitrary text sizes.
 - Raw Tailwind typography is allowed only for one-off visual exceptions, not repeated UI patterns.
 - Page-level modules should migrate gradually through shared components rather than mass rewriting every text node.
-- Desktop density is historically tracked in [FEEDX Desktop Typography Audit](../docs/archive/2026-06/FEEDX_TYPOGRAPHY_AUDIT.md); future typography changes should create or update a current audit when they intentionally alter the global scale.
+- Desktop density is historically tracked in [FEEDX Desktop Typography Audit](docs/archive/2026-06/FEEDX_TYPOGRAPHY_AUDIT.md); future typography changes should create or update a current audit when they intentionally alter the global scale.
 - Sidebar navigation uses 13.5px-14px, medium-weight labels with 20px line height. Sidebar section labels use 11px, uppercase, 0.12em letter spacing, and 600 weight.
 - Sidebar user footer uses 14px for the name and 12px for the role.
 - Page header eyebrow labels use 12px uppercase text with 0.18em letter spacing. Page titles stay strong at about 26-28px with 700 weight, and subtitles use 13-14px muted text.
@@ -5337,15 +5345,15 @@ Production release gates:
 - Verify production RLS for owner/admin, all-outlet role, selected-outlet role, view-only role, and no-permission role.
 - Verify production Storage buckets and policies for `inventory-item-photos` and `asset-photos`.
 - Verify production Supabase Auth redirects, SMTP email delivery, forgot-password, invite/setup-password, and employee onboarding Edge Function.
-- Execute the current release checklist before cutover. The June 2026 checklist is preserved as [historical evidence](../docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md).
+- Execute the current release checklist before cutover. The June 2026 checklist is preserved as [historical evidence](docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md).
 - Confirm no authenticated production workflow relies on browser-local operational records or fallback/demo data.
 
 Release governance documents:
 
-- [FEEDX Production Readiness Audit](../docs/archive/2026-06/FEEDX_PRODUCTION_READINESS_AUDIT.md)
-- [FEEDX Production UAT Checklist](../docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md)
-- [FEEDX Release Candidate Report](../docs/archive/2026-06/FEEDX_RELEASE_CANDIDATE_REPORT.md)
-- [FEEDX Go-Live Checklist](../docs/archive/2026-06/FEEDX_GO_LIVE_CHECKLIST.md)
+- [FEEDX Production Readiness Audit](docs/archive/2026-06/FEEDX_PRODUCTION_READINESS_AUDIT.md)
+- [FEEDX Production UAT Checklist](docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md)
+- [FEEDX Release Candidate Report](docs/archive/2026-06/FEEDX_RELEASE_CANDIDATE_REPORT.md)
+- [FEEDX Go-Live Checklist](docs/archive/2026-06/FEEDX_GO_LIVE_CHECKLIST.md)
 - `FEEDX_DEVELOPMENT_LOG.md`
 - `docs/releases/`
 

@@ -1,0 +1,59 @@
+# Crew Operations
+
+## Purpose And Scope
+
+This domain owns operational tasks and Daily Operations, task schedule/assignment/completion, Cash Checkout, Floating Cash, Deposit Ledger, and cash Handover.
+It covers the daily execution layer used by outlet Crew and supervising Admins.
+
+## Canonical Ownership
+
+Current task, operations-template, daily-instance, cash-checkout, collection/handover, deposit-ledger, RPC, RLS, and contract tests are authoritative.
+Crew Workforce owns employee access, roster, attendance, and leave.
+Crew Localization owns translated content state and fallback behavior.
+
+## Core Entities
+
+- Task and Daily Operations templates, schedules, assignments, instances, and completion evidence
+- Outlet/date/position and roster-derived execution context
+- Cash settings, effective Floating Cash, immutable float adjustments, and tolerance rules
+- Daily Cash Checkouts, denomination evidence, variances, reviews, and retained/deposit amounts
+- Cash collections or handovers, receiver confirmation, deposit ledger entries, corrections, and receipt evidence
+
+## Lifecycle And Business Rules
+
+Published or active task definitions create scheduled operational work according to current assignment rules.
+Crew receives only work applicable to its validated session, outlet/date/position context, and assignment.
+Completion and review transitions are server-controlled and preserve required evidence.
+
+Cash Checkout is an outlet/date lifecycle with controlled draft, submission, review, completion, and canonical calculation states.
+The server calculates opening expectation, counted totals, variance, retained float, carry-forward, and amount for deposit.
+Floating Cash changes require authorized settings workflow and immutable adjustment evidence.
+
+The Deposit Ledger is append-only financial evidence derived from completed obligations, confirmed collections, deposits, and explicit corrections.
+Internal handover remains pending until the intended receiver confirms through a valid Crew session when confirmation is required.
+Corrections cannot silently rewrite completed checkout or ledger history.
+
+## Permissions, Snapshots, And Audit
+
+Admin task and cash actions require the relevant Crew Operations permission plus outlet scope.
+Crew mutations are token-bound to the current employee and eligible work.
+Published task/content versions, completion evidence, cash calculations, float adjustments, handover confirmations, and ledger entries retain immutable or append-only history.
+
+## Admin And Crew Workflows
+
+Admins create and publish operational templates, monitor daily execution, review exceptions, configure outlet cash rules, review Cash Checkouts, coordinate collections, and inspect the Deposit Ledger.
+Crew view assigned daily work, complete tasks with required evidence, perform eligible Cash Checkout steps, and confirm assigned handovers.
+
+## Integrations
+
+Crew Workforce provides secure sessions and roster-derived context.
+Crew Localization supplies translated task snapshots and fallback behavior.
+Crew Learning may supply SOP references or required knowledge but does not own task completion.
+Crew Performance may consume controlled completion and cash evidence without mutating operations history.
+Restaurant Finance may consume summarized cash evidence without owning the Crew cash lifecycle.
+
+## Compatibility And Deferred Scope
+
+Legacy task or operation-template route names resolve to this domain's canonical owners.
+Tasks and Cash Checkout remain grouped because both are outlet daily execution lifecycles; their entities and permissions remain distinct.
+Bank API integration, automated deposit matching, and payroll deductions are deferred unless explicitly introduced.

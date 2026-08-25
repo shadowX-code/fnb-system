@@ -1,5 +1,7 @@
 # Crew Mobile Clock In Hero — Design QA
 
+> Design QA evidence only. This file records a specific visual verification pass and is not current architecture, product scope, or business-rule authority.
+
 ## Visual truth and rendered evidence
 
 - Source visual truth: `/Users/deron/Downloads/ChatGPT Image Aug 14, 2026, 06_17_44 PM.png`
