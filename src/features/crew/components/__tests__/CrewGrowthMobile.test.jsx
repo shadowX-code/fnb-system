@@ -71,7 +71,10 @@ describe("Crew Growth mobile final IA", () => {
   it("opens the centered accessible help dialog and closes with Escape", () => {
     render(<CrewGrowthMobile data={data} performance={{ score: 75, trend: [] }} />);
     fireEvent.click(screen.getByRole("button", { name: "Growth help" }));
-    expect(screen.getByRole("dialog", { name: "About Growth" })).not.toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "About Growth" });
+    expect(dialog).not.toBeNull();
+    expect(dialog.parentElement.parentElement).toBe(document.body);
+    expect(document.body.style.position).toBe("fixed");
     expect(screen.getByText("Your monthly performance score reflects your verified work evidence.")).not.toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "About Growth" })).toBeNull();

@@ -612,16 +612,20 @@ to {
   position: fixed;
   z-index: 90;
   inset: 0;
+  width: 100vw;
+  height: 100dvh;
   display: grid;
   place-items: center;
   background: rgb(5 18 42 / .48);
-  padding: 18px;
+  padding: max(18px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+  box-sizing: border-box;
+  touch-action: none;
 }
 
 .crew-ui-modal {
   display: flex;
   width: min(100%, 350px);
-  max-height: min(calc(78dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)), 620px);
+  max-height: min(calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 36px), 620px);
   overflow: hidden;
   flex-direction: column;
   border: 0;
@@ -631,6 +635,7 @@ to {
 }
 
 .crew-ui-modal-header {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -664,7 +669,9 @@ to {
   flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  touch-action: pan-y;
   padding: 16px;
   color: var(--crew-color-text-secondary);
   font-size: var(--crew-type-helper);

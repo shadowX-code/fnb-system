@@ -25,6 +25,7 @@ import {
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
+import CrewMobileModal from "./CrewMobileModal.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 import growthPerformanceAtmosphere from "../assets/growth-performance-atmosphere.png";
 
@@ -56,40 +57,11 @@ function PageHeader({ title, subtitle, onBack, action }) {
 
 function GrowthHelpModal({ onClose }) {
   const { t } = useTranslation();
-  const modalRef = useRef(null);
-  const closeRef = useRef(null);
-  useEffect(() => {
-    const previousFocus = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") return onClose();
-      if (event.key !== "Tab") return;
-      const focusable = [...modalRef.current.querySelectorAll("button, [href], [tabindex]:not([tabindex='-1'])")];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus?.();
-    };
-  }, [onClose]);
-  return <div className="crew-growth-final-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section ref={modalRef} className="crew-growth-final-modal" role="dialog" aria-modal="true" aria-label={t("growth.about")} onMouseDown={(event) => event.stopPropagation()}>
-      <header><h2>{t("growth.about")}</h2><button ref={closeRef} type="button" aria-label={t("common.close")} onClick={onClose}><X size={19} /></button></header>
-      <div>
-        <section><strong>{t("growth.skills")}</strong><p>{t("growth.helpSkills")}</p></section>
-        <section><strong>{t("growth.readyForReview")}</strong><p>{t("growth.helpReview")}</p></section>
-        <section><strong>{t("growth.performance")}</strong><p>{t("growth.helpPerformance")}</p></section>
-      </div>
-    </section>
-  </div>;
+  return <CrewMobileModal title={t("growth.about")} onClose={onClose}>
+    <section className="crew-growth-help-section"><strong>{t("growth.skills")}</strong><p>{t("growth.helpSkills")}</p></section>
+    <section className="crew-growth-help-section"><strong>{t("growth.readyForReview")}</strong><p>{t("growth.helpReview")}</p></section>
+    <section className="crew-growth-help-section"><strong>{t("growth.performance")}</strong><p>{t("growth.helpPerformance")}</p></section>
+  </CrewMobileModal>;
 }
 
 const performanceLevel = (score, t) => {

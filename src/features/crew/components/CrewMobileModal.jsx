@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 
 export default function CrewMobileModal({ title, onClose, children }) {
@@ -9,8 +10,17 @@ export default function CrewMobileModal({ title, onClose, children }) {
 
   useEffect(() => {
     const previousFocus = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
+    const previousBodyStyles = {
+      overflow: document.body.style.overflow,
+      position: document.body.style.position,
+      top: document.body.style.top,
+      width: document.body.style.width,
+    };
+    const scrollY = window.scrollY;
     document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.top = `-${scrollY}px`;
+    document.body.style.width = "100%";
     closeRef.current?.focus();
     const onKeyDown = (event) => {
       if (event.key === "Escape") return onClose();
@@ -24,16 +34,19 @@ export default function CrewMobileModal({ title, onClose, children }) {
     };
     document.addEventListener("keydown", onKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      Object.assign(document.body.style, previousBodyStyles);
       document.removeEventListener("keydown", onKeyDown);
+      if (!navigator.userAgent.includes("jsdom")) window.scrollTo(0, scrollY);
       previousFocus?.focus?.();
     };
   }, [onClose]);
 
-  return <div className="crew-ui-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+  if (typeof document === "undefined") return null;
+
+  return createPortal(<div className="crew-ui-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
     <section ref={modalRef} className="crew-ui-modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
       <header className="crew-ui-modal-header"><h2>{title}</h2><button ref={closeRef} className="crew-ui-modal-close" type="button" onClick={onClose} aria-label={t("common.close")}><X size={19} /></button></header>
       <div className="crew-ui-modal-content">{children}</div>
     </section>
-  </div>;
+  </div>, document.body);
 }
