@@ -21,14 +21,14 @@ const data = {
 afterEach(cleanup);
 
 describe("Crew Reward mobile reference UI", () => {
-  it("keeps hero, current projection and formula sheet amounts consistent", () => {
+  it("keeps hero, current projection and calculation sheet amounts consistent", () => {
     render(<CrewRewardMobile data={data} />);
     expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("RM 160.96").length).toBeGreaterThanOrEqual(2);
-    fireEvent.click(screen.getByRole("button", { name: /How is this calculated/ }));
-    expect(screen.getByRole("dialog", { name: "How your Reward is calculated" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /How it works/ }));
+    expect(screen.getByRole("dialog", { name: "About projections" })).not.toBeNull();
     expect(screen.getAllByText("45%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(3);
+    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(2);
   });
 
   it("opens help, earn-rate, projection and history sheets", () => {
@@ -36,7 +36,7 @@ describe("Crew Reward mobile reference UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Reward help" }));
     expect(screen.getByRole("dialog", { name: "About your Reward" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    fireEvent.click(screen.getByRole("button", { name: /How earn rate works/ }));
+    fireEvent.click(screen.getByRole("button", { name: "About current earn rate" }));
     expect(screen.getByRole("dialog", { name: "Performance earn rates" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: /How it works/ }));

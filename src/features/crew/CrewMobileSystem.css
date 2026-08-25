@@ -606,3 +606,72 @@ to {
   border-radius:14px;
   background:#fff
 }
+
+/* Canonical mobile dialog shell; domain content remains feature-owned. */
+.crew-ui-modal-backdrop {
+  position: fixed;
+  z-index: 90;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgb(22 75 80 / .42);
+  padding: 16px;
+}
+
+.crew-ui-modal {
+  display: flex;
+  width: min(100%, 360px);
+  max-height: min(80dvh, 640px);
+  overflow: hidden;
+  flex-direction: column;
+  border: 1px solid var(--crew-color-border);
+  border-radius: var(--crew-radius-focus);
+  background: var(--crew-color-surface);
+  box-shadow: 0 8px 22px rgb(22 75 80 / .16);
+}
+
+.crew-ui-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--crew-color-divider);
+  padding: 14px 16px;
+}
+
+.crew-ui-modal-header h2 {
+  margin: 0;
+  color: var(--crew-color-deep-teal);
+  font-size: var(--crew-type-detail-title);
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: -.02em;
+}
+
+.crew-ui-modal-close {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  place-items: center;
+  border: 1px solid var(--crew-color-border);
+  border-radius: 50%;
+  background: var(--crew-color-surface);
+  color: var(--crew-color-deep-teal);
+}
+
+.crew-ui-modal-content {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 16px;
+  color: var(--crew-color-text-secondary);
+  font-size: var(--crew-type-body);
+  line-height: 1.5;
+}
+
+@media (max-width: 374px) {
+  .crew-ui-modal-backdrop { padding: 12px; }
+  .crew-ui-modal { max-height: 82dvh; }
+  .crew-ui-modal-content { padding: 14px; }
+}
