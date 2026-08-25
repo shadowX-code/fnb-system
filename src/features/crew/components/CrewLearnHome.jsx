@@ -17,7 +17,7 @@ import {
   Soup,
 } from "lucide-react";
 import { formatCrewDate } from "../utils/crewI18n.js";
-import { CrewMobilePageHeader } from "./CrewMobileUI.jsx";
+import { CrewMobilePageHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 const CATEGORY_ICONS = [
   [/service|guest|customer/i, ConciergeBell],
@@ -123,11 +123,12 @@ export function CrewOnboardingProgressCard({ home, assignment, onOpen }) {
   const title = complete ? t("learn.onboardingComplete") : assignment?.journey?.name || "New Crew Onboarding";
   return (
     <button type="button" className={`crew-learn-final-onboarding ${complete ? "is-complete" : ""}`} onClick={onOpen} aria-label={`${title}, ${done} of ${total}`}>
-      <span className="crew-learn-final-progress-ring" style={{ "--progress": `${progress * 3.6}deg` }}><CheckCircle2 size={25} /></span>
+      <span className="crew-ui-icon-container crew-learn-final-progress-icon"><CheckCircle2 size={23} /></span>
       <span className="crew-learn-final-onboarding-copy">
         <strong>{complete ? t("learn.onboardingComplete") : title}</strong>
         <small>{complete ? t("learn.greatJob") : t("learn.continueJourney")}</small>
         <span><b>{done}</b> / {total} {moduleTotal ? t("learn.modules") : t("learn.lessons")}<i>•</i><em>{complete ? t("learn.reviewAnytime") : t("learn.percentComplete", { count: progress })}</em></span>
+        <span className="crew-ui-progress crew-learn-final-onboarding-progress" aria-label={t("learn.percentComplete", { count: progress })}><span style={{ width: `${progress}%` }} /></span>
       </span>
       <span className="crew-learn-final-onboarding-next"><ChevronRight size={21} /></span>
     </button>
@@ -180,7 +181,7 @@ export function CrewSopAcknowledgementState({ item }) {
   const { t } = useTranslation();
   if (item.acknowledged) {
     const date = formatAcknowledgedDate(item);
-    return <span className="crew-learn-final-ack is-done"><strong><CheckCircle2 size={16} /> {t("learn.acknowledged")}</strong>{date && <small>{date}</small>}</span>;
+    return <span className="crew-learn-final-ack is-done"><CrewStatusBadge tone="success"><CheckCircle2 size={14} /> {t("learn.acknowledged")}</CrewStatusBadge>{date && <small>{date}</small>}</span>;
   }
-  return <span className="crew-learn-final-ack"><b className={item.acknowledgement_required ? "is-required" : "is-optional"}>{item.acknowledgement_required ? t("common.required") : t("common.optional")}</b><strong>{t("learn.acknowledge")}</strong></span>;
+  return <span className="crew-learn-final-ack"><CrewStatusBadge tone={item.acknowledgement_required ? "warning" : "neutral"}>{item.acknowledgement_required ? t("common.required") : t("common.optional")}</CrewStatusBadge><strong>{t("learn.acknowledge")}</strong></span>;
 }
