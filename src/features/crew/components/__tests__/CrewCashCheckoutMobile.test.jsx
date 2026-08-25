@@ -9,8 +9,8 @@ vi.mock("../../../../services/crewService.js", () => ({ crewService: {
 
 const payload = {
   outlet: { id: "outlet-1", name: "Friends Corner" }, business_date: "2026-08-21", can_perform: true, can_record_collection: true,
-  settings: { floating_cash: 300, variance_tolerance: 5 }, checkout: null,
-  deposit: { current_balance: 500, available_balance: 500, recent: [{ id: "l1", occurred_at: "2026-08-20T10:00:00+08:00", activity: "Cash Checkout · QA", signed_amount: 500 }] },
+  settings: { floating_cash: 300, variance_tolerance: 5 }, cash_context: { floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350 }, checkout: null,
+  deposit: { current_balance: 500, available_balance: 500, recent: [{ id: "l1", occurred_at: "2026-08-20T10:00:00+08:00", activity: "Cash Checkout · QA", signed_amount: 500, balance_after: 500 }], ledger: [{ id: "l1", occurred_at: "2026-08-20T10:00:00+08:00", activity: "Cash Checkout · QA", signed_amount: 500, balance_after: 500 }] },
   receivers: [{ id: "employee-2", name: "Receiver QA", position: "Supervisor" }], pending_receipts: [],
 };
 
@@ -26,11 +26,15 @@ describe("Crew Cash Checkout mobile", () => {
     expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
     expect(screen.getByText("Today’s Checkout")).not.toBeNull();
     expect(screen.getByText("RM 500.00")).not.toBeNull();
+    expect(screen.queryByText("Count outlet cash")).toBeNull();
+    expect(screen.getByText("RM 300.00")).not.toBeNull();
+    expect(screen.getByText("RM 50.00")).not.toBeNull();
     expect(crewService.cashCheckoutMobile).toHaveBeenCalledWith("opaque-session", expect.any(String));
   });
 
   it("calculates a live denomination preview but sends raw counts to server authority", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     await screen.findByText("Count outlet cash");
     fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "4" } });
     fireEvent.change(screen.getByLabelText("RM 0.5"), { target: { value: "2" } });
@@ -59,5 +63,13 @@ describe("Crew Cash Checkout mobile", () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
     await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("opaque-session", "handover-1", 100));
+  });
+
+  it("opens a server-backed ledger with each entry balance", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    await screen.findAllByRole("button", { name: "View ledger" });
+    fireEvent.click(screen.getAllByRole("button", { name: "View ledger" })[0]);
+    expect((await screen.findAllByRole("heading", { name: "Cash Deposit" })).length).toBe(2);
+    expect(screen.getByText(/Balance.*500\.00/)).not.toBeNull();
   });
 });
