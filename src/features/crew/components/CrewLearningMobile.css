@@ -28,6 +28,10 @@
   gap: 6px;
 }
 
+.crew-sop-mobile-meta-context { display: inline-flex; min-width: 0; align-items: center; gap: 7px; }
+.crew-sop-mobile-meta-context .crew-ui-status { min-height: 0; background: transparent; padding: 0; color: var(--crew-color-text-muted); font-size: var(--crew-type-status); font-weight: 600; }
+.crew-sop-mobile-meta-context .crew-ui-status + .crew-ui-status::before { margin-right: 7px; color: var(--crew-color-divider); content: "•"; }
+
 .crew-sop-mobile-intro .crew-learning-summary {
   margin: 0;
   color: var(--crew-color-text-secondary);

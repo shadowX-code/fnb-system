@@ -51,9 +51,9 @@ export default function CrewSopDocument({
               {content.html ? <CrewRichContent html={content.html} /> : null}
               <CrewSopImage media={media} token={token} sopVersionId={sopVersionId} admin={admin} />
               {content.keyPointContent ? (
-                <aside className="crew-ui-note crew-sop-reader-key-point" aria-label="Key point">
-                  <span className="crew-ui-icon-container" aria-hidden="true"><Star size={17} /></span>
-                  <span><p>{content.keyPointContent}</p></span>
+                <aside className="crew-sop-reader-key-point" aria-label="Key point">
+                  <Star size={17} aria-hidden="true" />
+                  <p>{content.keyPointContent}</p>
                 </aside>
               ) : null}
             </div>

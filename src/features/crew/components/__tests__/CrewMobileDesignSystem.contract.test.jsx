@@ -60,6 +60,7 @@ describe("Crew Mobile design system contract", () => {
   it("keeps primary actions, generic fields, and linear progress canonical", () => {
     [".crew-v2-primary", ".crew-v2-mobile-field", ".crew-v2-progress"].forEach((selector) => expect(appStyles).not.toContain(selector));
     [".crew-mobile-primary", ".crew-ui-field", ".crew-ui-linear-progress"].forEach((selector) => expect(system).toContain(selector));
+    expect(system).toContain(".crew-mobile-primary.is-cyan");
     expect(sharedStyles).not.toMatch(/^\.crew-mobile-primary\s*\{/m);
   });
 

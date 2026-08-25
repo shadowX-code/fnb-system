@@ -353,9 +353,8 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
       <CrewMobileDetailHeader title={sop.title} onBack={onBack} className="crew-sop-mobile-nav" />
       <header className="crew-sop-mobile-intro">
         <div className="crew-sop-mobile-meta" aria-label={t("learn.metadata")}>
-          <CrewStatusBadge>{sop.category || "Other"}</CrewStatusBadge>
-          <CrewStatusBadge>v{sop.version}</CrewStatusBadge>
-          <CrewStatusBadge tone={sop.acknowledged ? "success" : "neutral"}>{acknowledgement}</CrewStatusBadge>
+          <span className="crew-sop-mobile-meta-context"><CrewStatusBadge>{sop.category || "Other"}</CrewStatusBadge><CrewStatusBadge>v{sop.version}</CrewStatusBadge></span>
+          <CrewStatusBadge tone={sop.acknowledged ? "success" : sop.acknowledgement_required ? "warning" : "neutral"}>{acknowledgement}</CrewStatusBadge>
         </div>
         {(sop.summary || sop.change_summary) && <p className="crew-learning-summary">{sop.summary || sop.change_summary}</p>}
       </header>
@@ -372,7 +371,7 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
               </span>
             </div>
           )
-          : <div className="crew-sop-acknowledgement-action"><button className="crew-mobile-primary" disabled={saving} onClick={onAcknowledge}>{saving ? t("common.saving") : t("learn.acknowledge")}</button></div>
+          : <div className="crew-sop-acknowledgement-action"><button className="crew-mobile-primary is-cyan" disabled={saving} onClick={onAcknowledge}>{saving ? t("common.saving") : t("learn.acknowledge")}</button></div>
       )}
     </section>
   );
