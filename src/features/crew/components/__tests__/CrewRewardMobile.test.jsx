@@ -57,6 +57,8 @@ describe("Crew Reward mobile reference UI", () => {
     fireEvent.click(screen.getByRole("button", { name: "Current Earn Rate" }));
     expect(screen.getByRole("dialog", { name: "Current Earn Rate" })).not.toBeNull();
     expect(screen.getByText("Your Performance Score determines the percentage of your Maximum Share earned.")).not.toBeNull();
+    expect(screen.getByLabelText("Performance earn rate table")).not.toBeNull();
+    expect(screen.queryByText("RM 500.00 × 32.19% = RM 160.96")).toBeNull();
   });
 
   it("keeps the Hero background as a self-contained orbital SVG layer", () => {
@@ -87,6 +89,8 @@ describe("Crew Reward mobile reference UI", () => {
     expect(relationship.textContent).toContain("/100");
     expect(container.querySelector(".crew-reward-score-ring")).toBeNull();
     expect(container.querySelector(".crew-reward-performance-relationship > i").textContent).toBe("→");
+    expect(container.querySelectorAll(".crew-reward-performance-title")).toHaveLength(0);
+    expect(container.querySelectorAll(".crew-reward-performance-insight")).toHaveLength(0);
   });
 
   it("deep-links to the existing Performance experience", () => {
