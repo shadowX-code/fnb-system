@@ -1664,6 +1664,13 @@
 .crew-growth-skill-row>.crew-ui-status{justify-self:end}
 .crew-growth-skill-row>svg{color:var(--crew-color-text-muted)}
 @keyframes crew-growth-score-reveal{from{opacity:.74;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+@media(max-width:390px){
+  .crew-growth-skill-row{min-height:74px;grid-template-columns:36px minmax(0,1fr) 15px;grid-template-areas:"icon content chevron" "icon status chevron";column-gap:7px;row-gap:3px;padding:9px 10px}
+  .crew-growth-skill-row>i{grid-area:icon}
+  .crew-growth-skill-row>span{grid-area:content}
+  .crew-growth-skill-row>.crew-ui-status{grid-area:status;justify-self:start}
+  .crew-growth-skill-row>svg{grid-area:chevron}
+}
 @media(max-width:374px){
   .crew-growth-overview{gap:var(--crew-space-section)}
   .crew-growth-performance-hero{min-height:218px;grid-template-columns:minmax(0,1fr) minmax(112px,.84fr);background-position:58% 52%}
@@ -1680,7 +1687,7 @@
   .crew-growth-overview-metrics .crew-ui-icon-container{width:30px;height:30px}
   .crew-growth-overview-metrics strong{font-size:21px}
   .crew-growth-overview-metrics span{font-size:10px}
-  .crew-growth-skill-row{min-height:62px;grid-template-columns:36px minmax(0,1fr) auto 15px;gap:7px;padding:9px 10px}
-  .crew-growth-skill-row>.crew-ui-status{max-width:92px;min-height:28px;text-align:center;white-space:normal}
+  .crew-growth-skill-row{min-height:74px}
+  .crew-growth-skill-row>.crew-ui-status{min-height:28px;text-align:center;white-space:normal}
 }
 @media(prefers-reduced-motion:reduce){.crew-growth-performance-score{animation:none}.crew-growth-performance-copy button{transition:none}}
