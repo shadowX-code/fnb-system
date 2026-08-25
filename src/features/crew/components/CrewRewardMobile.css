@@ -6,67 +6,65 @@
 .crew-reward-hero-orbit { position: absolute; z-index: -1; top: -80px; right: -120px; width: 482px; max-width: 136%; height: 326px; color: var(--crew-color-cyan); opacity: .98; pointer-events: none; will-change: transform; }
 .crew-reward-hero-planet,.crew-reward-hero-orbit-rings,.crew-reward-hero-nodes circle { will-change: transform, opacity; }
 .crew-reward-hero-kicker { z-index: 1; display: flex; align-items: center; gap: 10px; }
-.crew-reward-hero-kicker span { color: rgb(255 255 255 / .92); font-size: var(--crew-type-body); font-weight: 650; }
-.crew-reward-hero-kicker em { border-radius: 999px; background: rgb(0 183 199 / .18); padding: 7px 11px; color: var(--crew-color-surface); font-size: var(--crew-type-label); font-style: normal; font-weight: 700; }
+.crew-reward-hero-kicker span { color: rgb(255 255 255 / .92); font-size: 15px; font-weight: 600; }
+.crew-reward-hero-kicker em { border-radius: 999px; background: rgb(0 183 199 / .18); padding: 7px 11px; color: var(--crew-color-surface); font-size: 14px; font-style: normal; font-weight: 650; }
 .crew-reward-hero-total { z-index: 1; display: grid; gap: 7px; }
-.crew-reward-hero-total small,.crew-reward-hero-metrics small { display: inline-flex; width: fit-content; align-items: center; gap: 6px; color: rgb(255 255 255 / .86); font-size: var(--crew-type-body); font-weight: 500; line-height: 1.3; }
-.crew-reward-hero-total strong { font-size: clamp(38px, 11vw, 50px); line-height: .98; letter-spacing: -.05em; }
-.crew-reward-hero-total p { margin: 0; color: rgb(255 255 255 / .76); font-size: var(--crew-type-body); line-height: 1.42; }
-.crew-reward-hero-info { display: inline-grid; width: 18px; height: 18px; place-items: center; border: 1px solid rgb(255 255 255 / .7); border-radius: 50%; background: transparent; padding: 0; color: inherit; }
-.crew-reward-hero-info svg { width: 11px; height: 11px; }
+.crew-reward-hero-total small,.crew-reward-hero-metrics small { display: inline-flex; width: fit-content; align-items: center; gap: 6px; color: rgb(255 255 255 / .86); font-size: 15px; font-weight: 500; line-height: 1.3; }
+.crew-reward-hero-total strong { font-size: clamp(40px, 11vw, 44px); line-height: 1; letter-spacing: -.03em; }
+.crew-reward-hero-total p { margin: 0; color: rgb(255 255 255 / .76); font-size: 14px; line-height: 1.42; }
+.crew-reward-hero-info { display: inline-grid; width: 17px; height: 17px; flex: 0 0 auto; place-items: center; border: 1px solid currentColor; border-radius: 50%; background: transparent; padding: 0; color: inherit; font-family: inherit; font-size: 11px; font-weight: 700; line-height: 1; }
 .crew-reward-hero-metrics { z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: auto; border-top: 1px solid rgb(255 255 255 / .28); padding-top: 12px; }
 .crew-reward-hero-metrics > div { display: grid; min-width: 0; gap: 5px; padding: 0 8px; }
 .crew-reward-hero-metrics > div:first-child { padding-left: 0; }
 .crew-reward-hero-metrics > div + div { border-left: 1px solid rgb(255 255 255 / .28); }
-.crew-reward-hero-metrics small { color: rgb(255 255 255 / .86); font-size: 11px; font-weight: 500; white-space: nowrap; }
-.crew-reward-hero-metrics strong { overflow: hidden; color: var(--crew-color-surface); font-size: var(--crew-type-card-title); line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.crew-reward-hero-metrics small { width: auto; color: rgb(255 255 255 / .86); font-size: 13px; font-weight: 500; white-space: normal; }
+.crew-reward-hero-metrics strong { overflow: hidden; color: var(--crew-color-surface); font-size: 21px; font-weight: 650; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 
 @media (prefers-reduced-motion: reduce) {
   .crew-reward-hero,.crew-reward-hero-orbit,.crew-reward-hero-planet,.crew-reward-hero-orbit-rings,.crew-reward-hero-nodes circle { will-change: auto; }
 }
 
 .crew-reward-surface,.crew-reward-card,.crew-reward-unavailable { min-width: 0; }
-.crew-reward-surface { border: 1px solid color-mix(in srgb, var(--crew-color-border) 70%, transparent); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: 0 12px 28px rgb(15 57 62 / .055); padding: 20px; }
-.crew-reward-surface > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
-.crew-reward-surface h2,.crew-reward-unavailable h2 { display: flex; min-width: 0; align-items: center; gap: 7px; margin: 0; color: var(--crew-color-text); font-size: 20px; line-height: 1.25; }
+.crew-reward-surface { border: 1px solid color-mix(in srgb, var(--crew-color-border) 70%, transparent); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: 0 8px 16px rgb(15 57 62 / .045); padding: 22px; }
+.crew-reward-surface > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+.crew-reward-surface h2,.crew-reward-unavailable h2 { display: flex; min-width: 0; align-items: center; gap: 7px; margin: 0; color: var(--crew-color-text); font-size: 19px; font-weight: 650; line-height: 1.25; }
 .crew-reward-performance-title { text-transform: capitalize; }
 .crew-reward-performance > header { gap: 8px; }
-.crew-reward-performance > header h2 { flex: 1 1 auto; font-size: 18px; letter-spacing: -.02em; white-space: nowrap; }
-.crew-reward-performance > header button { font-size: 12px; }
-.crew-reward-surface > header button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; border: 0; background: transparent; padding: 2px 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 650; text-align: right; }
+.crew-reward-performance > header h2 { flex: 1 1 auto; letter-spacing: 0; white-space: nowrap; }
+.crew-reward-performance > header button { font-size: 13px; }
+.crew-reward-surface > header button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; border: 0; background: transparent; padding: 2px 0; color: var(--crew-color-deep-teal); font-size: 13px; font-weight: 650; text-align: right; }
 
-.crew-reward-performance-relationship { display: grid; grid-template-columns: minmax(74px, 1fr) minmax(48px, 1.6fr) minmax(74px, 1fr); align-items: center; gap: 10px; }
+.crew-reward-performance-relationship { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: center; gap: 16px; }
 .crew-reward-performance-relationship > div { display: grid; justify-items: center; gap: 5px; }
-.crew-reward-performance-score { position: relative; width: 68px; height: 68px; align-content: center; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-icon-default-bg) 75%, white); }
-.crew-reward-performance-relationship strong { color: var(--crew-color-deep-teal); font-size: 31px; line-height: .95; letter-spacing: -.04em; }
-.crew-reward-performance-score span { margin-top: -2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 650; }
-.crew-reward-performance-relationship small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.3; text-align: center; }
-.crew-reward-performance-relationship > i { position: relative; display: grid; width: 100%; height: 1px; place-items: center; border-top: 1px dashed color-mix(in srgb, var(--crew-color-cyan) 35%, var(--crew-color-divider)); color: var(--crew-color-deep-teal); font-size: 0; font-style: normal; }
-.crew-reward-performance-relationship > i::before { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-icon-default-bg) 72%, white); content: ""; }
-.crew-reward-performance-relationship > i::after { position: absolute; font-size: 23px; line-height: 1; content: "→"; }
-.crew-reward-performance-rate strong { color: var(--crew-color-text); font-size: 35px; }
-.crew-reward-performance-status { display: flex; justify-content: center; margin: 8px 0 13px; }
-.crew-reward-performance-status em { border-radius: 999px; background: color-mix(in srgb, var(--crew-color-mist-mint) 48%, white); padding: 4px 10px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-style: normal; font-weight: 700; }
-.crew-reward-performance-insight { display: grid; width: 100%; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 9px; border: 0; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); padding: 12px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-reward-performance-relationship > div > span { display: inline-flex; align-items: baseline; gap: 3px; }
+.crew-reward-performance-relationship strong { color: var(--crew-color-deep-teal); font-size: 30px; line-height: 1; letter-spacing: -.02em; }
+.crew-reward-performance-score b { color: var(--crew-color-deep-teal); font-size: 13px; font-weight: 600; }
+.crew-reward-performance-relationship small { color: var(--crew-color-text-secondary); font-size: 13px; line-height: 1.3; text-align: center; }
+.crew-reward-performance-relationship > i { color: var(--crew-color-deep-teal); font-size: 22px; font-style: normal; line-height: 1; }
+.crew-reward-performance-rate strong { color: var(--crew-color-text); }
+.crew-reward-performance-rate .crew-reward-hero-info { color: var(--crew-color-deep-teal); }
+.crew-reward-performance-status { display: flex; justify-content: center; margin: 9px 0 14px; }
+.crew-reward-performance-status em { color: var(--crew-color-deep-teal); font-size: 13px; font-style: normal; font-weight: 650; }
+.crew-reward-performance-insight { display: grid; width: 100%; grid-template-columns: 20px minmax(0, 1fr) auto; align-items: center; gap: 8px; border: 0; border-top: 1px solid var(--crew-color-divider); background: transparent; padding: 12px 0 0; color: var(--crew-color-deep-teal); text-align: left; }
 .crew-reward-performance-insight svg { color: var(--crew-color-cyan); }
-.crew-reward-performance-insight span { overflow: hidden; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
-.crew-reward-performance-insight b { display: inline-flex; align-items: center; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); white-space: nowrap; }
+.crew-reward-performance-insight span { color: var(--crew-color-deep-teal); font-size: 13px; line-height: 1.4; }
+.crew-reward-performance-insight b { display: inline-flex; align-items: center; color: var(--crew-color-deep-teal); font-size: 13px; white-space: nowrap; }
 
-.crew-reward-projection > header { margin-bottom: 24px; }
+.crew-reward-projection > header { margin-bottom: 20px; }
 .crew-reward-potential { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 10px; }
 .crew-reward-potential > div:not(.crew-reward-potential-rail):not(.crew-reward-potential-scale) { display: grid; min-width: 0; gap: 3px; }
 .crew-reward-potential .is-potential { text-align: right; }
-.crew-reward-potential strong { color: var(--crew-color-deep-teal); font-size: var(--crew-type-card-title); line-height: 1.2; white-space: nowrap; }
-.crew-reward-potential small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 650; }
+.crew-reward-potential strong { color: var(--crew-color-deep-teal); font-size: 20px; font-weight: 650; line-height: 1.2; white-space: nowrap; }
+.crew-reward-potential small { color: var(--crew-color-text-secondary); font-size: 13px; font-weight: 500; }
 .crew-reward-potential .is-current strong { color: var(--crew-color-cyan); }
-.crew-reward-potential-rail { position: relative; grid-column: 1 / -1; height: 7px; overflow: visible; margin: 8px 5px 0; border-radius: 999px; background: var(--crew-color-divider); }
+.crew-reward-potential-rail { position: relative; grid-column: 1 / -1; height: 5px; overflow: visible; margin: 10px 5px 0; border-radius: 999px; background: var(--crew-color-divider); }
 .crew-reward-potential-rail::before { display: block; width: var(--crew-reward-progress); max-width: 100%; height: 100%; border-radius: inherit; background: var(--crew-color-cyan); content: ""; }
-.crew-reward-potential-rail i { position: absolute; top: 50%; left: var(--crew-reward-progress); width: 18px; height: 18px; box-sizing: border-box; border: 2px solid var(--crew-color-cyan); border-radius: 50%; background: var(--crew-color-surface); transform: translate(-50%, -50%); }
+.crew-reward-potential-rail i { position: absolute; top: 50%; left: var(--crew-reward-progress); width: 16px; height: 16px; box-sizing: border-box; border: 2px solid var(--crew-color-cyan); border-radius: 50%; background: var(--crew-color-surface); transform: translate(-50%, -50%); }
 .crew-reward-potential-rail b { display: none; }
-.crew-reward-potential-scale { display: grid; grid-column: 1 / -1; grid-template-columns: 1.2fr .55fr .55fr .55fr 1.2fr; gap: 4px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); line-height: 1.3; }
+.crew-reward-potential-scale { display: grid; grid-column: 1 / -1; grid-template-columns: 1.2fr .55fr .55fr .55fr 1.2fr; gap: 4px; color: var(--crew-color-text-secondary); font-size: 13px; line-height: 1.35; }
 .crew-reward-potential-scale > span:last-child { text-align: right; }
 .crew-reward-potential-scale em { display: block; margin-top: 5px; color: var(--crew-color-text-secondary); font-size: inherit; font-style: normal; }
-.crew-reward-projection-note { display: flex; align-items: flex-start; gap: 10px; margin: 20px 0 0; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); padding: 12px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); line-height: 1.4; }
+.crew-reward-projection-note { display: flex; align-items: flex-start; gap: 8px; margin: 18px 0 0; color: var(--crew-color-text-secondary); font-size: 13px; line-height: 1.4; }
 .crew-reward-projection-note svg { flex: 0 0 auto; color: var(--crew-color-deep-teal); }
 
 .crew-reward-history-card > header { margin-bottom: 14px; }
@@ -108,18 +106,16 @@
   .crew-reward-final { gap: 24px; }
   .crew-reward-hero { min-height: 238px; padding: 18px; }
   .crew-reward-hero-orbit { top: -62px; right: -126px; width: 420px; }
-  .crew-reward-hero-total strong { font-size: 38px; }
+  .crew-reward-hero-total strong { font-size: 40px; }
   .crew-reward-hero-metrics > div { padding: 0 7px; }
-  .crew-reward-hero-metrics strong { font-size: var(--crew-type-body); }
-  .crew-reward-hero-metrics small { font-size: 10px; }
-  .crew-reward-surface { padding: 18px; }
+  .crew-reward-hero-metrics strong { font-size: 20px; }
+  .crew-reward-hero-metrics small { font-size: 13px; }
+  .crew-reward-surface { padding: 20px; }
   .crew-reward-surface > header { gap: 8px; }
   .crew-reward-surface > header button { max-width: 132px; }
-  .crew-reward-performance-relationship { grid-template-columns: minmax(64px, 1fr) minmax(35px, 1.1fr) minmax(64px, 1fr); gap: 6px; }
-  .crew-reward-performance-score { width: 64px; height: 64px; }
-  .crew-reward-performance-relationship strong { font-size: 29px; }
-  .crew-reward-performance-rate strong { font-size: 32px; }
+  .crew-reward-performance-relationship { gap: 10px; }
+  .crew-reward-performance-relationship strong { font-size: 28px; }
   .crew-reward-performance-insight { grid-template-columns: 20px minmax(0, 1fr); }
   .crew-reward-performance-insight b { grid-column: 2; justify-self: start; }
-  .crew-reward-potential-scale { grid-template-columns: 1.1fr .45fr .45fr .45fr 1.1fr; font-size: 10px; }
+  .crew-reward-potential-scale { grid-template-columns: 1.1fr .45fr .45fr .45fr 1.1fr; font-size: 12px; }
 }
