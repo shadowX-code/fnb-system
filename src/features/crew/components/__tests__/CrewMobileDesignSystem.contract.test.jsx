@@ -207,7 +207,7 @@ describe("Crew Mobile design system contract", () => {
     expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
     [".crew-reward-", ".crew-v2-reward-"].forEach((selector) => expect(appStyles).not.toContain(selector));
-    [".crew-reward-hero-insight", ".crew-reward-score-summary", ".crew-reward-projection-track", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
+    [".crew-reward-hero-metrics", ".crew-reward-performance-relationship", ".crew-reward-potential", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
     expect(system).toContain(".crew-ui-modal");
     expect(rewardStyles).not.toContain("!important");
   });

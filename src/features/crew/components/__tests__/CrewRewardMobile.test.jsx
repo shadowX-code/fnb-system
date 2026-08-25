@@ -26,35 +26,30 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(2);
     expect(screen.getAllByText("RM 160.96").length).toBeGreaterThanOrEqual(2);
     fireEvent.click(screen.getByRole("button", { name: /How it works/ }));
-    expect(screen.getByRole("dialog", { name: "About your Reward" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "How your Reward is calculated" })).not.toBeNull();
     expect(screen.getAllByText("45%").length).toBeGreaterThan(0);
     expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(2);
   });
 
-  it("opens help, earn-rate, projection and history sheets", () => {
+  it("uses one calculation disclosure from the header and potential section", () => {
     render(<CrewRewardMobile data={data} />);
     fireEvent.click(screen.getByRole("button", { name: "Reward help" }));
-    expect(screen.getByRole("dialog", { name: "About your Reward" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "How your Reward is calculated" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: /How it works/ }));
-    expect(screen.getByRole("dialog", { name: "About your Reward" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "How your Reward is calculated" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: /View all/ }));
     expect(screen.getByRole("dialog", { name: "Reward History" })).not.toBeNull();
   });
 
-  it("opens every hero metric explanation in a centered dialog", () => {
+  it("keeps hero metrics as one scan-friendly rail without duplicate explanation controls", () => {
     render(<CrewRewardMobile data={data} />);
-    for (const [buttonName, dialogName] of [
-      ["About Estimated Reward", "About your Reward"],
-      ["About maximum share", "Your Maximum Share"],
-      ["About contribution share", "Your Contribution"],
-      ["About reward pool", "Reward Pool"],
-    ]) {
-      fireEvent.click(screen.getByRole("button", { name: buttonName }));
-      expect(screen.getByRole("dialog", { name: dialogName })).not.toBeNull();
-      fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    }
+    expect(screen.getByText("Maximum Share")).not.toBeNull();
+    expect(screen.getByText("Reward Pool")).not.toBeNull();
+    expect(screen.getByText("Your Contribution")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /About maximum share/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /About contribution share/ })).toBeNull();
   });
 
   it("closes a dialog with Escape and restores page scrolling", () => {
@@ -69,12 +64,12 @@ describe("Crew Reward mobile reference UI", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it.each([7, 75, 87, 100])("keeps score %s and its denominator on separate lines", (score) => {
+  it.each([7, 75, 87, 100])("keeps score %s in the open score-to-rate relationship", (score) => {
     const { container } = render(<CrewRewardMobile data={{ ...data, performance_score: score }} />);
-    const ring = container.querySelector(".crew-reward-score-ring");
-    expect(ring.querySelector("strong").textContent).toBe(String(score));
-    expect(ring.querySelector("small").textContent).toBe("/ 100");
-    expect(ring.querySelector("span").children).toHaveLength(2);
+    const relationship = container.querySelector(".crew-reward-performance-relationship");
+    expect(relationship.querySelector("strong").textContent).toBe(String(score));
+    expect(relationship.textContent).toContain(`Performance score ${score}`);
+    expect(container.querySelector(".crew-reward-score-ring")).toBeNull();
   });
 
   it("deep-links to the existing Performance experience", () => {
