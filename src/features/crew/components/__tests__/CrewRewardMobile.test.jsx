@@ -88,6 +88,14 @@ describe("Crew Reward mobile reference UI", () => {
     expect(onViewPerformance).toHaveBeenCalledTimes(1);
   });
 
+  it("shows projection scenarios only from the current score upward", () => {
+    render(<CrewRewardMobile data={{ ...data, performance_score: 87, projections: data.projections.map((item) => item.key === "current" ? { ...item, score: 87 } : item) }} />);
+    expect(screen.getByText("Score 87")).not.toBeNull();
+    expect(screen.queryByText("Score 80")).toBeNull();
+    expect(screen.queryByText("Score 85")).toBeNull();
+    expect(screen.getByText("Score 95+")).not.toBeNull();
+  });
+
   it.each([
     ["finalized", "Final Reward"],
     ["paid", "Paid Reward"],
@@ -100,11 +108,10 @@ describe("Crew Reward mobile reference UI", () => {
 
   it("localizes server-provided Reward labels instead of leaking English UI copy", async () => {
     await i18n.changeLanguage("ms");
-    render(<CrewRewardMobile data={{ ...data, performance_score: 87, performance_level: "Strong" }} />);
+    render(<CrewRewardMobile data={{ ...data, performance_score: 87, performance_level: "Strong", projections: data.projections.map((item) => item.key === "current" ? { ...item, score: 87 } : item) }} />);
     expect(screen.getByText("Anggaran Ganjaran")).not.toBeNull();
     expect(screen.getByText("Kukuh")).not.toBeNull();
     expect(screen.getByText("Semasa")).not.toBeNull();
-    expect(screen.getByText("Hebat")).not.toBeNull();
     expect(screen.getByText("Potensi Maksimum")).not.toBeNull();
     expect(screen.queryByText("Estimated Reward")).toBeNull();
     await i18n.changeLanguage("en");
