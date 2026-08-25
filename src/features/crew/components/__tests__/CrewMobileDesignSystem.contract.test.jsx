@@ -31,6 +31,7 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain("--crew-color-deep-teal: #164b50");
     expect(system).toContain("--crew-color-cyan: #00b7c7");
     expect(system).toContain("--crew-color-mist-mint: #b1d5c9");
+    expect(system).toContain("--crew-color-success: #15803d");
     expect(system).toContain("--crew-color-mineral: #f5f7f6");
     expect(system).toContain("tokens and primitives only");
     expect(system).toContain(".crew-ui-functional-surface");
@@ -118,7 +119,7 @@ describe("Crew Mobile design system contract", () => {
     expect(learnHome).toContain("CrewStatusBadge");
     expect(learnHome).not.toContain('<strong>{t("learn.acknowledge")}</strong>');
     expect(learningStyles).toContain("grid-template-columns:40px minmax(0,1fr) minmax(72px,96px) 18px");
-    expect(learningStyles).toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);font-size:var(--crew-type-list-primary);font-weight:600");
+    expect(learningStyles).toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);font-size:var(--crew-type-helper);font-weight:600");
     expect(learningStyles).toContain(".crew-learn-final-ack>.crew-ui-status{justify-self:end;max-width:100%;white-space:normal");
   });
 
