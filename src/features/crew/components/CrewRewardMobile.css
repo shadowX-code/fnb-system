@@ -25,18 +25,21 @@
 .crew-reward-surface > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
 .crew-reward-surface h2,.crew-reward-unavailable h2 { display: flex; min-width: 0; align-items: center; gap: 7px; margin: 0; color: var(--crew-color-text); font-size: 20px; line-height: 1.25; }
 .crew-reward-performance-title { text-transform: capitalize; }
+.crew-reward-performance > header { gap: 8px; }
+.crew-reward-performance > header h2 { flex: 1 1 auto; font-size: 18px; letter-spacing: -.02em; white-space: nowrap; }
+.crew-reward-performance > header button { font-size: 12px; }
 .crew-reward-surface > header button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; border: 0; background: transparent; padding: 2px 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 650; text-align: right; }
 
 .crew-reward-performance-relationship { display: grid; grid-template-columns: minmax(74px, 1fr) minmax(48px, 1.6fr) minmax(74px, 1fr); align-items: center; gap: 10px; }
 .crew-reward-performance-relationship > div { display: grid; justify-items: center; gap: 5px; }
-.crew-reward-performance-score { position: relative; width: 76px; height: 76px; align-content: center; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-icon-default-bg) 75%, white); }
-.crew-reward-performance-relationship strong { color: var(--crew-color-deep-teal); font-size: 34px; line-height: .95; letter-spacing: -.04em; }
+.crew-reward-performance-score { position: relative; width: 68px; height: 68px; align-content: center; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-icon-default-bg) 75%, white); }
+.crew-reward-performance-relationship strong { color: var(--crew-color-deep-teal); font-size: 31px; line-height: .95; letter-spacing: -.04em; }
 .crew-reward-performance-score span { margin-top: -2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 650; }
 .crew-reward-performance-relationship small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.3; text-align: center; }
 .crew-reward-performance-relationship > i { position: relative; display: grid; width: 100%; height: 1px; place-items: center; border-top: 1px dashed color-mix(in srgb, var(--crew-color-cyan) 35%, var(--crew-color-divider)); color: var(--crew-color-deep-teal); font-size: 0; font-style: normal; }
 .crew-reward-performance-relationship > i::before { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-icon-default-bg) 72%, white); content: ""; }
 .crew-reward-performance-relationship > i::after { position: absolute; font-size: 23px; line-height: 1; content: "→"; }
-.crew-reward-performance-rate strong { color: var(--crew-color-text); font-size: 38px; }
+.crew-reward-performance-rate strong { color: var(--crew-color-text); font-size: 35px; }
 .crew-reward-performance-status { display: flex; justify-content: center; margin: 8px 0 13px; }
 .crew-reward-performance-status em { border-radius: 999px; background: color-mix(in srgb, var(--crew-color-mist-mint) 48%, white); padding: 4px 10px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-style: normal; font-weight: 700; }
 .crew-reward-performance-insight { display: grid; width: 100%; grid-template-columns: 22px minmax(0, 1fr) auto; align-items: center; gap: 9px; border: 0; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); padding: 12px; color: var(--crew-color-deep-teal); text-align: left; }
@@ -108,9 +111,9 @@
   .crew-reward-surface > header { gap: 8px; }
   .crew-reward-surface > header button { max-width: 132px; }
   .crew-reward-performance-relationship { grid-template-columns: minmax(64px, 1fr) minmax(35px, 1.1fr) minmax(64px, 1fr); gap: 6px; }
-  .crew-reward-performance-score { width: 68px; height: 68px; }
-  .crew-reward-performance-relationship strong { font-size: 30px; }
-  .crew-reward-performance-rate strong { font-size: 34px; }
+  .crew-reward-performance-score { width: 64px; height: 64px; }
+  .crew-reward-performance-relationship strong { font-size: 29px; }
+  .crew-reward-performance-rate strong { font-size: 32px; }
   .crew-reward-performance-insight { grid-template-columns: 20px minmax(0, 1fr); }
   .crew-reward-performance-insight b { grid-column: 2; justify-self: start; }
   .crew-reward-potential-scale { grid-template-columns: 1.1fr .45fr .45fr .45fr 1.1fr; font-size: 10px; }
