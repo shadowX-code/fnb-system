@@ -97,11 +97,13 @@ describe("Crew Reward mobile reference UI", () => {
   });
 
   it("shows projection scenarios only from the current score upward", () => {
-    render(<CrewRewardMobile data={{ ...data, performance_score: 87, projections: data.projections.map((item) => item.key === "current" ? { ...item, score: 87 } : item) }} />);
+    const { container } = render(<CrewRewardMobile data={{ ...data, performance_score: 87, projections: data.projections.map((item) => item.key === "current" ? { ...item, score: 87 } : item) }} />);
     expect(screen.getByText("Score 87")).not.toBeNull();
     expect(screen.queryByText("Score 80")).toBeNull();
     expect(screen.queryByText("Score 85")).toBeNull();
     expect(screen.getByText("Score 95+")).not.toBeNull();
+    expect(container.querySelectorAll(".crew-reward-potential-scale > span")).toHaveLength(2);
+    expect(container.querySelector(".crew-reward-potential-scale").textContent).not.toContain("50%");
   });
 
   it.each([
