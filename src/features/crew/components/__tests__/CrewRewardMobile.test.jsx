@@ -43,12 +43,20 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.getByRole("dialog", { name: "Reward History" })).not.toBeNull();
   });
 
-  it("keeps hero metrics as a scan-friendly rail with shared calculation help", () => {
-    render(<CrewRewardMobile data={data} />);
+  it("keeps hero metric helpers scoped to the selected metric", () => {
+    render(<CrewRewardMobile data={{ ...data, performance_score: 87, earn_rate: .8 }} />);
     expect(screen.getByText("Maximum Share")).not.toBeNull();
     expect(screen.getByText("Reward Pool")).not.toBeNull();
     expect(screen.getByText("Your Contribution")).not.toBeNull();
-    expect(screen.getAllByRole("button", { name: "Reward help" })).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: "Reward help" })).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "Maximum Share" }));
+    expect(screen.getByRole("dialog", { name: "Maximum Share" })).not.toBeNull();
+    expect(screen.getByText("Your potential share is based on your eligible contribution.")).not.toBeNull();
+    expect(screen.queryByText("Performance earn rate table")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: "Current Earn Rate" }));
+    expect(screen.getByRole("dialog", { name: "Current Earn Rate" })).not.toBeNull();
+    expect(screen.getByText("Your Performance Score determines the percentage of your Maximum Share earned.")).not.toBeNull();
   });
 
   it("keeps the Hero background as a self-contained orbital SVG layer", () => {
@@ -78,6 +86,7 @@ describe("Crew Reward mobile reference UI", () => {
     expect(relationship.textContent).toContain(String(score));
     expect(relationship.textContent).toContain("/100");
     expect(container.querySelector(".crew-reward-score-ring")).toBeNull();
+    expect(container.querySelector(".crew-reward-performance-relationship > i").textContent).toBe("→");
   });
 
   it("deep-links to the existing Performance experience", () => {
@@ -113,6 +122,15 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.getByText("Semasa")).not.toBeNull();
     expect(screen.getByText("Potensi Maksimum")).not.toBeNull();
     expect(screen.queryByText("Estimated Reward")).toBeNull();
+    await i18n.changeLanguage("en");
+  });
+
+  it.each(["zh-CN", "ms"])("keeps Reward helper and projection copy localized in %s", async (language) => {
+    await i18n.changeLanguage(language);
+    render(<CrewRewardMobile data={data} />);
+    expect(screen.getByText(i18n.t("reward.projectionAssumption"))).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: i18n.t("reward.maximumShare") }));
+    expect(screen.getByText(i18n.t("reward.maximumShareHelp"))).not.toBeNull();
     await i18n.changeLanguage("en");
   });
 });
