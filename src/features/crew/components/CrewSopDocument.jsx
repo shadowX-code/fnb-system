@@ -2,6 +2,7 @@ import { Star } from "lucide-react";
 import CrewRichContent from "./CrewRichContent.jsx";
 import CrewSopImage from "./CrewSopImage.jsx";
 import { parseSopBody } from "../utils/sopDocumentContent.js";
+import "./CrewSopDocument.css";
 
 const orderedSections = (sections = []) => [...sections].sort(
   (left, right) => Number(left.sort_order || 0) - Number(right.sort_order || 0),
@@ -50,9 +51,9 @@ export default function CrewSopDocument({
               {content.html ? <CrewRichContent html={content.html} /> : null}
               <CrewSopImage media={media} token={token} sopVersionId={sopVersionId} admin={admin} />
               {content.keyPointContent ? (
-                <aside className="crew-sop-reader-key-point" aria-label="Key point">
-                  <Star size={17} aria-hidden="true" />
-                  <p>{content.keyPointContent}</p>
+                <aside className="crew-ui-note crew-sop-reader-key-point" aria-label="Key point">
+                  <span className="crew-ui-icon-container" aria-hidden="true"><Star size={17} /></span>
+                  <span><p>{content.keyPointContent}</p></span>
                 </aside>
               ) : null}
             </div>

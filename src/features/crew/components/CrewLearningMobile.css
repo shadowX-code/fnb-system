@@ -12,14 +12,12 @@
 /* Route residue migrated from CrewMobileApp.css. */
 .crew-sop-mobile-nav {
   margin-bottom: 10px;
-
 }
 
 .crew-sop-mobile-intro {
   display: grid;
   gap: 10px;
-  margin-bottom: 16px;
-
+  margin-bottom: 18px;
 }
 
 .crew-sop-mobile-meta {
@@ -28,32 +26,6 @@
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-
-}
-
-.crew-sop-mobile-meta span {
-  display: inline-flex;
-  min-height: 22px;
-  align-items: center;
-  border-radius: 999px;
-  background: var(--crew-color-mineral);
-  padding: 4px 8px;
-  color: var(--crew-color-text-secondary);
-  font-size:var(--crew-type-helper);
-  font-weight: 750;
-  line-height: 1.2;
-
-}
-
-.crew-sop-mobile-meta span:first-child {
-  background: color-mix(in srgb, var(--crew-color-mist-mint) 42%, white);
-  color: var(--crew-color-deep-teal);
-}
-
-.crew-sop-mobile-meta span.is-acknowledged {
-  background: color-mix(in srgb, var(--crew-color-success) 12%, white);
-  color: var(--crew-color-success);
-
 }
 
 .crew-sop-mobile-intro .crew-learning-summary {
@@ -61,54 +33,24 @@
   color: var(--crew-color-text-secondary);
   font-size: var(--crew-type-body);
   line-height: 1.5;
-
 }
 
 .crew-sop-acknowledged {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin-top: 18px;
-  border: 1px solid color-mix(in srgb, var(--crew-color-success) 24%, var(--crew-color-border));
-  border-radius: var(--crew-radius-control);
-  background: color-mix(in srgb, var(--crew-color-success) 8%, white);
-  padding: 12px 13px;
-  color: var(--crew-color-success);
-
+  margin-top: 20px;
 }
 
 .crew-sop-acknowledged-icon {
-  display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--crew-color-surface);
   color: var(--crew-color-success);
-
 }
 
 .crew-sop-acknowledged > span:last-child {
   display: grid;
   min-width: 0;
   gap: 3px;
-
 }
 
-.crew-sop-acknowledged strong {
-  color: var(--crew-color-text);
-  font-size:var(--crew-type-helper);
-  line-height: 1.25;
-
-}
-
-.crew-sop-acknowledged small {
-  color: var(--crew-color-text-secondary);
-  font-size:var(--crew-type-helper);
-  line-height: 1.4;
-
-}
+.crew-sop-acknowledgement-action { margin-top: 20px; padding-bottom: calc(12px + env(safe-area-inset-bottom)); }
+.crew-sop-acknowledgement-action .crew-mobile-primary { width: 100%; }
 
 /* Learn home is feature-owned; categories are neutral unless selected. */
 .crew-learn-final-home{display:grid;gap:18px;color:var(--crew-color-text)}

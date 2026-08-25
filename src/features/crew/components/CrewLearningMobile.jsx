@@ -16,6 +16,7 @@ import CrewLearningImage from "./CrewLearningImage.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewLearnHome from "./CrewLearnHome.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
+import { CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 import { applyOnboardingLocalization, applySopLocalization } from "../utils/localizedContent.js";
 
@@ -352,9 +353,9 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
       <CrewMobileDetailHeader title={sop.title} onBack={onBack} className="crew-sop-mobile-nav" />
       <header className="crew-sop-mobile-intro">
         <div className="crew-sop-mobile-meta" aria-label={t("learn.metadata")}>
-          <span>{sop.category || "Other"}</span>
-          <span>v{sop.version}</span>
-          <span className={sop.acknowledged ? "is-acknowledged" : ""}>{acknowledgement}</span>
+          <CrewStatusBadge>{sop.category || "Other"}</CrewStatusBadge>
+          <CrewStatusBadge>v{sop.version}</CrewStatusBadge>
+          <CrewStatusBadge tone={sop.acknowledged ? "success" : "neutral"}>{acknowledgement}</CrewStatusBadge>
         </div>
         {(sop.summary || sop.change_summary) && <p className="crew-learning-summary">{sop.summary || sop.change_summary}</p>}
       </header>
@@ -363,15 +364,15 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
       {sop.acknowledgement_required && (
         sop.acknowledged
           ? (
-            <div className="crew-sop-acknowledged" role="status" aria-label={t("learn.acknowledgedTitle")}>
-              <span className="crew-sop-acknowledged-icon" aria-hidden="true"><CheckCircle2 size={20} /></span>
+            <div className="crew-ui-note crew-sop-acknowledged" role="status" aria-label={t("learn.acknowledgedTitle")}>
+              <span className="crew-ui-icon-container crew-sop-acknowledged-icon" aria-hidden="true"><CheckCircle2 size={20} /></span>
               <span>
                 <strong>{t("learn.acknowledgedTitle")}</strong>
                 <small>{t("learn.acknowledgedBody", { version: sop.version })}</small>
               </span>
             </div>
           )
-          : <button className="crew-mobile-primary" disabled={saving} onClick={onAcknowledge}>{saving ? t("common.saving") : t("learn.acknowledge")}</button>
+          : <div className="crew-sop-acknowledgement-action"><button className="crew-mobile-primary" disabled={saving} onClick={onAcknowledge}>{saving ? t("common.saving") : t("learn.acknowledge")}</button></div>
       )}
     </section>
   );

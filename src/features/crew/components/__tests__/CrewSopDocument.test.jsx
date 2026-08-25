@@ -16,6 +16,7 @@ describe("shared Crew SOP document", () => {
     expect(container.querySelector("strong")?.textContent).toBe("First body");
     expect(screen.getByLabelText("Key point").textContent).toBe("Keep the workstation ready.");
     expect(screen.queryByText("Key Point")).toBeNull();
+    expect(container.querySelector(".crew-sop-reader-key-point.crew-ui-note .crew-ui-icon-container")).not.toBeNull();
     expect(container.querySelectorAll(".crew-sop-reader-number")[0].textContent).toContain("01");
   });
 

@@ -11,6 +11,7 @@ const home = readFileSync(resolve(process.cwd(), "src/features/crew/CrewHome.css
 const cashCheckout = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.css"), "utf8");
 const performanceModal = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewPerformanceComponentModal.css"), "utf8");
 const learningStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLearningMobile.css"), "utf8");
+const sopDocumentStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewSopDocument.css"), "utf8");
 const scheduleStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewScheduleMobile.css"), "utf8");
 const attendanceStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewAttendanceMobile.css"), "utf8");
 const leave = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLeaveMobile.jsx"), "utf8");
@@ -80,9 +81,18 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps Crew mobile feature presentation out of the global stylesheet", () => {
-    [".crew-learn-final", ".crew-v2-page-header", ".crew-mobile-detail-header"].forEach((selector) => expect(sharedStyles).not.toContain(selector));
+    [".crew-learn-final", ".crew-v2-page-header", ".crew-mobile-detail-header", ".crew-sop-reader-"].forEach((selector) => expect(sharedStyles).not.toContain(selector));
     expect(mobileApp).toContain('import "./components/CrewLearningMobile.css"');
     expect(learningStyles).toContain("Learn home is feature-owned");
+  });
+
+  it("keeps SOP reader presentation in its shared component owner and consumes Crew primitives", () => {
+    expect(sopDocumentStyles).toContain("Shared SOP document composition");
+    ["var(--crew-color-deep-teal", "var(--crew-color-divider", "var(--crew-color-text-secondary"].forEach((token) => expect(sopDocumentStyles).toContain(token));
+    expect(sopDocumentStyles).not.toContain("!important");
+    expect(learning).toContain('import { CrewStatusBadge } from "./CrewMobileUI.jsx"');
+    expect(learning).toContain('className="crew-ui-note crew-sop-acknowledged"');
+    expect(learning).toContain('className="crew-sop-acknowledgement-action"');
   });
 
   it("keeps root, detail, and workflow header geometry canonical", () => {
