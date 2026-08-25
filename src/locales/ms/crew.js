@@ -30,7 +30,7 @@ Object.assign(resources.tasks, {
   reportIssueFor:"Laporkan isu untuk {{title}}", completeBlock:"Lengkapkan {{title}}"
 });
 Object.assign(resources.growth, { skillCount_one:"{{count}} kemahiran", skillCount_other:"{{count}} kemahiran" });
-Object.assign(resources.growth, { subtitle:"Kembangkan kemahiran anda. Capai lebih banyak.", skillsOverview:"Ringkasan Kemahiran", allSkills:"Semua Kemahiran ({{count}})", sortStatus:"Isih: Status" });
+Object.assign(resources.growth, { subtitle:"Kembangkan kemahiran anda. Capai lebih banyak.", skillsOverview:"Ringkasan Kemahiran", allSkills:"Semua Kemahiran ({{count}})", allSkillsTitle:"Semua Kemahiran", sortStatus:"Isih: Status" });
 Object.assign(resources.me, { shiftsThisMonth_one:"{{count}} syif bulan ini", shiftsThisMonth_other:"{{count}} syif bulan ini", pendingCount:"{{count}} Menunggu", enterPasscodes:"Masukkan kedua-dua kod laluan empat digit.", unablePasscode:"Tidak dapat menukar kod laluan." });
 Object.assign(resources.me, { confirmNewPasscode:"Sahkan kod laluan baharu", passcodeSaved:"Kod laluan berjaya dikemas kini.", personal:"Peribadi", employment:"Pekerjaan", fullName:"Nama Penuh", nickname:"Nama Panggilan", birthday:"Tarikh Lahir", contact:"Hubungan", joinedDate:"Tarikh Mula", position:"Jawatan", languageHint:"UI sistem dan kandungan perniagaan yang tersedia dikemas kini serta-merta." });
 Object.assign(resources.attendance, { month:"Bulan", monthSummary:"Ringkasan bulan", worked:"Bekerja", totalHours:"Jumlah Jam", exceptions:"Pengecualian" });

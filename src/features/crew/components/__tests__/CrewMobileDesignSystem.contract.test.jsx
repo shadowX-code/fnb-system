@@ -149,11 +149,16 @@ describe("Crew Mobile design system contract", () => {
   it("keeps canonical rows shared while Skills, Settings, and Profile retain only feature composition", () => {
     expect(system).toContain(".crew-ui-action-row");
     expect(system).toContain("font-size:var(--crew-type-list-primary)");
+    expect(system).toContain(".crew-ui-count");
+    expect(system).toContain("--crew-space-section: 24px");
     expect(growthStyles).toContain(".crew-skill-row");
     expect(growthStyles).not.toContain(".crew-v2-menu");
     expect(meStyles).toContain(".crew-me-settings");
     expect(meStyles).toContain(".crew-me-profile-summary");
     expect(growth).toContain('className="crew-growth-skill-row"');
+    expect(growth).toContain('className="crew-list-primary"');
+    expect(growth).toContain('className="crew-list-secondary"');
+    expect(growth).toContain('className="crew-ui-count"');
     expect(growth).toContain('className="crew-ui-row-icon"');
     expect(growth).toContain("<CrewStatusBadge tone={statusTone(skill.status)}>");
   });

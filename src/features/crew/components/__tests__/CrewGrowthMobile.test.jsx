@@ -49,7 +49,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText("Strong")).not.toBeNull();
     expect(screen.getByLabelText("87 / 100")).not.toBeNull();
     expect(screen.getByText("Skills Overview")).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "All Skills (4)" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "All Skills 4" })).not.toBeNull();
     expect(screen.getByText("Closing Responsibilities")).not.toBeNull();
     expect(screen.getByText("Workstation Cleanliness")).not.toBeNull();
     expect(screen.getByText("Opening Readiness")).not.toBeNull();
@@ -97,7 +97,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByRole("heading", { name: "Skill Detail" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(screen.getByRole("heading", { name: "Growth" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "All Skills (4)" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "All Skills 4" })).not.toBeNull();
   });
 
   it("renders the finalized Performance hero, unified breakdown, strengths, real trend and Reward impact", () => {
