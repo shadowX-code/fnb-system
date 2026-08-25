@@ -98,16 +98,44 @@ function TierTable({ tiers }) {
   </div>;
 }
 
-function RewardHero({ data }) {
+function RewardHeroOrbit() {
+  return <svg className="crew-reward-hero-orbit" viewBox="0 0 420 280" aria-hidden="true">
+    <defs>
+      <linearGradient id="crew-reward-orbit-cyan" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#00b7c7" stopOpacity="0" /><stop offset=".38" stopColor="#70f2ee" stopOpacity=".9" /><stop offset=".68" stopColor="#00b7c7" stopOpacity=".22" /><stop offset="1" stopColor="#00b7c7" stopOpacity="0" /></linearGradient>
+      <filter id="crew-reward-orbit-glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3" /></filter>
+    </defs>
+    <g fill="none" stroke="currentColor">
+      <circle cx="309" cy="-5" r="154" strokeOpacity=".16" strokeWidth="1" />
+      <circle cx="309" cy="-5" r="134" strokeOpacity=".12" strokeWidth="1" />
+      <circle cx="309" cy="-5" r="112" strokeOpacity=".1" strokeWidth="1" />
+      <path d="M161 31A154 154 0 0 1 410 111" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="2" />
+      <path d="M178 47A134 134 0 0 1 389 115" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1.5" />
+      <path d="M199 65A112 112 0 0 1 366 120" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1" />
+      <path d="M168 38A151 151 0 0 1 264 -145" stroke="#65f5ef" strokeOpacity=".68" strokeWidth="2.5" filter="url(#crew-reward-orbit-glow)" />
+      <path d="M351 101A131 131 0 0 1 402 170" stroke="#65f5ef" strokeOpacity=".55" strokeWidth="2" filter="url(#crew-reward-orbit-glow)" />
+      <circle cx="177" cy="44" r="3" fill="#72f4ed" fillOpacity=".8" stroke="none" />
+      <circle cx="247" cy="74" r="2" fill="#72f4ed" fillOpacity=".65" stroke="none" />
+      <circle cx="352" cy="104" r="2.5" fill="#72f4ed" fillOpacity=".7" stroke="none" />
+    </g>
+  </svg>;
+}
+
+function HeroInfoButton({ onOpen }) {
+  const { t } = useTranslation();
+  return <button className="crew-reward-hero-info" type="button" aria-label={t("reward.help")} onClick={onOpen}><Info size={14} /></button>;
+}
+
+function RewardHero({ data, onOpenSheet }) {
   const { t } = useTranslation();
   const label = data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
   return <article className="crew-reward-hero">
+    <RewardHeroOrbit />
     <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><em>{translateStatus(data.status, t)}</em></div>
-    <div className="crew-reward-hero-total"><small>{label}</small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong><p>{t("reward.scoreBasis", { score: data.performance_score == null ? "—" : Math.round(data.performance_score) })}</p></div>
+    <div className="crew-reward-hero-total"><small>{label}<HeroInfoButton onOpen={() => onOpenSheet("help")} /></small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong><p>{t("reward.scoreBasis", { score: data.performance_score == null ? "—" : Math.round(data.performance_score) })}</p></div>
     <div className="crew-reward-hero-metrics">
-      <div><small>{t("reward.maximumShare")}</small><strong>{money(data.maximum_share)}</strong></div>
-      <div><small>{t("reward.rewardPool")}</small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></div>
-      <div><small>{t("reward.contribution")}</small><strong>{rate(data.contribution_share, 2)}</strong></div>
+      <div><small>{t("reward.maximumShare")}<HeroInfoButton onOpen={() => onOpenSheet("help")} /></small><strong>{money(data.maximum_share)}</strong></div>
+      <div><small>{t("reward.rewardPool")}<HeroInfoButton onOpen={() => onOpenSheet("help")} /></small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></div>
+      <div><small>{t("reward.contribution")}<HeroInfoButton onOpen={() => onOpenSheet("help")} /></small><strong>{rate(data.contribution_share, 2)}</strong></div>
     </div>
   </article>;
 }
@@ -115,14 +143,15 @@ function RewardHero({ data }) {
 function PerformanceOverview({ data, onViewPerformance }) {
   const { t } = useTranslation();
   const score = Math.max(0, Math.min(100, Number(data.performance_score || 0)));
-  return <section className="crew-reward-editorial crew-reward-performance">
-    <header><h2>{t("reward.performanceOverview")} <span aria-hidden="true">→</span> {t("reward.estimatedReward")}</h2><button type="button" onClick={onViewPerformance}>{t("reward.viewPerformance")} <ChevronRight size={16} /></button></header>
+  return <section className="crew-reward-surface crew-reward-performance">
+    <header><h2 className="crew-reward-performance-title">{t("reward.performanceScore", { score: "" })}</h2><button type="button" onClick={onViewPerformance}>{t("reward.viewPerformance")} <ChevronRight size={16} /></button></header>
     <div className="crew-reward-performance-relationship">
-      <div><strong>{Math.round(score)}</strong><small>{t("reward.performanceScore", { score: Math.round(score) })}</small></div>
+      <div className="crew-reward-performance-score"><strong>{Math.round(score)}</strong><span>/100</span><small>{t("reward.performanceScore", { score: "" })}</small></div>
       <i aria-hidden="true">→</i>
-      <div><strong>{rate(data.earn_rate)}</strong><small>{t("reward.currentRate")}</small></div>
+      <div className="crew-reward-performance-rate"><strong>{rate(data.earn_rate)}</strong><small>{t("reward.currentRate")}</small></div>
     </div>
-    <p className="crew-reward-performance-status"><em>{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</em>{t("reward.performanceCaption")}</p>
+    <p className="crew-reward-performance-status"><em>{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</em></p>
+    <button className="crew-reward-performance-insight" type="button" onClick={() => onViewPerformance?.()}><TrendingUp size={18} /><span>{t("reward.performanceCaption")}</span><b>{t("reward.earnRateWorks")} <ChevronRight size={15} /></b></button>
   </section>;
 }
 
@@ -138,22 +167,25 @@ function RewardProjection({ data, onOpenSheet }) {
   const potentialProjection = [...allProjections]
     .filter((item) => item !== currentProjection && Number(item.score || 0) > currentScore)
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0];
-  return <section className="crew-reward-editorial crew-reward-projection">
-    <header><h2><TrendingUp size={19} /> {t("reward.projection")}</h2><button type="button" onClick={() => onOpenSheet("help")}><Info size={15} /> {t("reward.howWorks")}</button></header>
+  const earnedRate = Math.max(0, Math.min(1, Number(currentProjection?.earn_rate ?? data.earn_rate ?? 0)));
+  return <section className="crew-reward-surface crew-reward-projection">
+    <header><h2>{t("reward.estimatedReward")}</h2><button type="button" onClick={() => onOpenSheet("help")}>{t("reward.howWorks")} <Info size={15} /></button></header>
     <div className="crew-reward-potential" aria-label={t("reward.projection")}>
-      <div className="is-current"><strong>{money(currentProjection?.amount)}</strong><small>{translateProjectionLabel(currentProjection, t)}</small><span>{t("reward.score", { score: Math.round(Number(currentProjection?.score || currentScore)) })}</span><em>{t("reward.rateEarned", { rate: rate(currentProjection?.earn_rate) })}</em></div>
-      <div className="crew-reward-potential-rail" aria-hidden="true"><i /><b /></div>
-      <div className="is-potential"><strong>{money(potentialProjection?.amount ?? currentProjection?.amount)}</strong><small>{potentialProjection ? translateProjectionLabel(potentialProjection, t) : translateProjectionLabel(currentProjection, t)}</small><span>{t("reward.score", { score: potentialProjection?.key === "max" ? "95+" : Math.round(Number(potentialProjection?.score ?? currentProjection?.score ?? currentScore)) })}</span><em>{t("reward.rateEarned", { rate: rate(potentialProjection?.earn_rate ?? currentProjection?.earn_rate) })}</em></div>
+      <div className="is-current"><strong>{money(currentProjection?.amount)}</strong><small>{translateProjectionLabel(currentProjection, t)}</small></div>
+      <div className="is-potential"><strong>{money(potentialProjection?.amount ?? currentProjection?.amount)}</strong><small>{t("reward.maxPotential")}</small></div>
+      <div className="crew-reward-potential-rail" style={{ "--crew-reward-progress": `${earnedRate * 100}%` }} aria-hidden="true"><i /><b /></div>
+      <div className="crew-reward-potential-scale"><span>{t("reward.score", { score: Math.round(Number(currentProjection?.score || currentScore)) })}<em>{t("reward.rateEarned", { rate: rate(currentProjection?.earn_rate) })}</em></span><span>0%</span><span>50%</span><span>100%</span><span>{t("reward.score", { score: potentialProjection?.key === "max" ? "95+" : Math.round(Number(potentialProjection?.score ?? currentProjection?.score ?? currentScore)) })}<em>{t("reward.rateEarned", { rate: rate(potentialProjection?.earn_rate ?? currentProjection?.earn_rate) })}</em></span></div>
     </div>
+    <p className="crew-reward-projection-note"><Info size={18} />{t("reward.projectionAssumption", { contribution: rate(data.contribution_share, 2) })}</p>
   </section>;
 }
 
 function RewardHistory({ history, onViewAll }) {
   const { t } = useTranslation();
   const recent = history?.[0];
-  return <section className="crew-reward-editorial crew-reward-history-card">
+  return <section className="crew-reward-surface crew-reward-history-card">
     <header><span><h2><History size={18} /> {t("reward.history")}</h2><p>{t("reward.historyCaption")}</p></span>{history?.length ? <button type="button" onClick={onViewAll}>{t("reward.viewAll")} <ChevronRight size={16} /></button> : null}</header>
-    {recent ? <button type="button" className="crew-reward-history-row" onClick={onViewAll}><time>{formatCrewDate(`${recent.period_start}T00:00:00`, { month: "short", year: "numeric" })}</time><span><strong>{money(recent.amount)}</strong><em>{translateStatus(recent.status, t)}</em></span><ChevronRight size={17} /></button> : <p className="crew-reward-history-empty"><History size={17} />{t("reward.noHistory")}</p>}
+    {recent ? <button type="button" className="crew-reward-history-row" onClick={onViewAll}><time>{formatCrewDate(`${recent.period_start}T00:00:00`, { month: "short", year: "numeric" })}</time><span><strong>{money(recent.amount)}</strong><em>{translateStatus(recent.status, t)}</em></span><ChevronRight size={17} /></button> : <div className="crew-reward-history-empty"><span className="crew-ui-icon-container"><History size={19} /></span><strong>{t("reward.noHistory")}</strong><p>{t("reward.historyCaption")}</p></div>}
   </section>;
 }
 
@@ -167,7 +199,7 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
   return <section className="crew-reward-final">
     <CrewMobilePageHeader title={t("reward.title")} action={<button type="button" className="crew-reward-header-action" aria-label={t("reward.help")} onClick={() => setSheet("help")}><CircleHelp size={22} /></button>} />
     {unlocked ? <>
-      <RewardHero data={data} />
+      <RewardHero data={data} onOpenSheet={setSheet} />
       <PerformanceOverview data={data} onViewPerformance={onViewPerformance} />
       <RewardProjection data={data} onOpenSheet={setSheet} />
       <RewardHistory history={data.history || []} onViewAll={() => setSheet("history")} />

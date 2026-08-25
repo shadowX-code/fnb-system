@@ -33,7 +33,7 @@ describe("Crew Reward mobile reference UI", () => {
 
   it("uses one calculation disclosure from the header and potential section", () => {
     render(<CrewRewardMobile data={data} />);
-    fireEvent.click(screen.getByRole("button", { name: "Reward help" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Reward help" })[0]);
     expect(screen.getByRole("dialog", { name: "How your Reward is calculated" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: /How it works/ }));
@@ -43,18 +43,17 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.getByRole("dialog", { name: "Reward History" })).not.toBeNull();
   });
 
-  it("keeps hero metrics as one scan-friendly rail without duplicate explanation controls", () => {
+  it("keeps hero metrics as a scan-friendly rail with shared calculation help", () => {
     render(<CrewRewardMobile data={data} />);
     expect(screen.getByText("Maximum Share")).not.toBeNull();
     expect(screen.getByText("Reward Pool")).not.toBeNull();
     expect(screen.getByText("Your Contribution")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: /About maximum share/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /About contribution share/ })).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Reward help" })).toHaveLength(5);
   });
 
   it("closes a dialog with Escape and restores page scrolling", () => {
     render(<CrewRewardMobile data={data} />);
-    const trigger = screen.getByRole("button", { name: "Reward help" });
+    const trigger = screen.getAllByRole("button", { name: "Reward help" })[0];
     trigger.focus();
     fireEvent.click(trigger);
     expect(document.body.style.overflow).toBe("hidden");
@@ -68,7 +67,8 @@ describe("Crew Reward mobile reference UI", () => {
     const { container } = render(<CrewRewardMobile data={{ ...data, performance_score: score }} />);
     const relationship = container.querySelector(".crew-reward-performance-relationship");
     expect(relationship.querySelector("strong").textContent).toBe(String(score));
-    expect(relationship.textContent).toContain(`Performance score ${score}`);
+    expect(relationship.textContent).toContain(String(score));
+    expect(relationship.textContent).toContain("/100");
     expect(container.querySelector(".crew-reward-score-ring")).toBeNull();
   });
 
@@ -100,7 +100,7 @@ describe("Crew Reward mobile reference UI", () => {
   it("localizes server-provided Reward labels instead of leaking English UI copy", async () => {
     await i18n.changeLanguage("ms");
     render(<CrewRewardMobile data={{ ...data, performance_score: 87, performance_level: "Strong", projections: data.projections.map((item) => item.key === "current" ? { ...item, score: 87 } : item) }} />);
-    expect(screen.getByText("Anggaran Ganjaran")).not.toBeNull();
+    expect(screen.getAllByText("Anggaran Ganjaran").length).toBeGreaterThan(0);
     expect(screen.getByText("Kukuh")).not.toBeNull();
     expect(screen.getByText("Semasa")).not.toBeNull();
     expect(screen.getByText("Potensi Maksimum")).not.toBeNull();
