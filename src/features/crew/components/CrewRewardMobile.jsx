@@ -109,25 +109,25 @@ function RewardHeroOrbit() {
       <linearGradient id="crew-reward-orbit-cyan" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#00b7c7" stopOpacity="0" /><stop offset=".35" stopColor="#8af7ef" stopOpacity=".86" /><stop offset=".64" stopColor="#00b7c7" stopOpacity=".28" /><stop offset="1" stopColor="#00b7c7" stopOpacity="0" /></linearGradient>
       <filter id="crew-reward-orbit-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5" /></filter>
     </defs>
-    <circle className="crew-reward-hero-planet" cx="486" cy="-55" r="202" fill="url(#crew-reward-planet-depth)" />
+    <circle className="crew-reward-hero-planet" cx="485" cy="-58" r="252" fill="url(#crew-reward-planet-depth)" />
     <g className="crew-reward-hero-orbit-rings crew-reward-hero-orbit-rings-a" fill="none" stroke="currentColor">
-      <circle cx="486" cy="-55" r="211" strokeOpacity=".18" strokeWidth="1" />
-      <circle cx="486" cy="-55" r="186" strokeOpacity=".13" strokeWidth="1" />
-      <circle cx="486" cy="-55" r="162" strokeOpacity=".1" strokeWidth="1" />
-      <path d="M275 5A211 211 0 0 1 486 -266" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="2" />
-      <path d="M310 34A186 186 0 0 1 516 -238" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1.5" />
-      <path d="M344 57A162 162 0 0 1 540 -215" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1" />
+      <circle cx="485" cy="-58" r="252" strokeOpacity=".2" strokeWidth="1" />
+      <circle cx="485" cy="-58" r="228" strokeOpacity=".14" strokeWidth="1" />
+      <circle cx="485" cy="-58" r="204" strokeOpacity=".1" strokeWidth="1" />
+      <circle cx="485" cy="-58" r="252" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="2" strokeDasharray="210 1373" strokeDashoffset="-2" />
+      <circle cx="485" cy="-58" r="228" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1.5" strokeDasharray="176 1257" strokeDashoffset="18" />
+      <circle cx="485" cy="-58" r="204" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1" strokeDasharray="140 1142" strokeDashoffset="31" />
     </g>
     <g className="crew-reward-hero-orbit-rings crew-reward-hero-orbit-rings-b" fill="none" stroke="currentColor">
-      <path className="crew-reward-hero-glow-arc" d="M294 11A205 205 0 0 1 425 -247" stroke="#7ef5ed" strokeOpacity=".72" strokeWidth="2.8" filter="url(#crew-reward-orbit-glow)" />
-      <path d="M430 151A183 183 0 0 1 605 36" stroke="#74f4ed" strokeOpacity=".45" strokeWidth="2.1" filter="url(#crew-reward-orbit-glow)" />
-      <path d="M342 56A161 161 0 0 1 503 -215" stroke="#00b7c7" strokeOpacity=".34" strokeWidth="1.4" />
+      <circle className="crew-reward-hero-glow-arc" cx="485" cy="-58" r="252" stroke="#7ef5ed" strokeOpacity=".78" strokeWidth="3" strokeDasharray="132 1451" strokeDashoffset="-522" filter="url(#crew-reward-orbit-glow)" />
+      <circle cx="485" cy="-58" r="228" stroke="#74f4ed" strokeOpacity=".45" strokeWidth="2" strokeDasharray="86 1346" strokeDashoffset="-452" filter="url(#crew-reward-orbit-glow)" />
+      <circle cx="485" cy="-58" r="204" stroke="#00b7c7" strokeOpacity=".34" strokeWidth="1.4" strokeDasharray="64 1218" strokeDashoffset="-382" />
     </g>
     <g className="crew-reward-hero-nodes" fill="#81f7ef" stroke="none">
-      <circle cx="287" cy="15" r="3" fillOpacity=".86" />
-      <circle cx="353" cy="64" r="2.3" fillOpacity=".72" />
-      <circle cx="421" cy="115" r="2.6" fillOpacity=".7" />
-      <circle cx="239" cy="88" r="1.9" fillOpacity=".52" />
+      <circle cx="250" cy="5" r="3" fillOpacity=".86" />
+      <circle cx="308" cy="77" r="2.3" fillOpacity=".72" />
+      <circle cx="391" cy="142" r="2.6" fillOpacity=".7" />
+      <circle cx="343" cy="23" r="1.9" fillOpacity=".52" />
     </g>
   </svg>;
 }
@@ -154,9 +154,9 @@ function RewardHero({ data, onOpenSheet }) {
       .fromTo(content, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: .34, stagger: .05 }, "<.18")
       .fromTo(amountRef.current, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: .38 }, "<.08")
       .to(value, { amount, duration: .56, ease: "power1.out", onUpdate: () => { if (amountRef.current) amountRef.current.textContent = money(value.amount); } }, "<");
-    gsap.to(root.querySelector(".crew-reward-hero-planet"), { scale: 1.015, transformOrigin: "486px -55px", duration: 12, ease: "sine.inOut", repeat: -1, yoyo: true });
-    gsap.to(root.querySelector(".crew-reward-hero-orbit-rings-a"), { rotation: 1.8, svgOrigin: "486 -55", duration: 24, ease: "sine.inOut", repeat: -1, yoyo: true });
-    gsap.to(root.querySelector(".crew-reward-hero-orbit-rings-b"), { rotation: -1.2, svgOrigin: "486 -55", duration: 29, ease: "sine.inOut", repeat: -1, yoyo: true });
+    gsap.to(root.querySelector(".crew-reward-hero-planet"), { scale: 1.015, transformOrigin: "485px -58px", duration: 12, ease: "sine.inOut", repeat: -1, yoyo: true });
+    gsap.to(root.querySelector(".crew-reward-hero-orbit-rings-a"), { rotation: 1.8, svgOrigin: "485 -58", duration: 24, ease: "sine.inOut", repeat: -1, yoyo: true });
+    gsap.to(root.querySelector(".crew-reward-hero-orbit-rings-b"), { rotation: -1.2, svgOrigin: "485 -58", duration: 29, ease: "sine.inOut", repeat: -1, yoyo: true });
     gsap.to(root.querySelector(".crew-reward-hero-glow-arc"), { opacity: .45, duration: 9, ease: "sine.inOut", repeat: -1, yoyo: true });
     gsap.to(root.querySelectorAll(".crew-reward-hero-nodes circle"), { x: (index) => index % 2 ? -3 : 3, y: (index) => index % 2 ? 2 : -2, opacity: .55, duration: 5.5, ease: "sine.inOut", stagger: .45, repeat: -1, yoyo: true });
     return undefined;
