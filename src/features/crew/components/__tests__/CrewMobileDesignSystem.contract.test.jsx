@@ -169,7 +169,7 @@ describe("Crew Mobile design system contract", () => {
 
   it("keeps Phase 2 signature presentation scoped to Home, Reward, and Growth owners", () => {
     expect(home).toContain("Home signature clock");
-    expect(rewardStyles).toContain("Reward signature data surface and progression rail");
+    expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
     expect(growthStyles).toContain("Growth and performance use focused operational surfaces");
     expect(appStyles).not.toContain("Phase 2");
   });
@@ -205,9 +205,10 @@ describe("Crew Mobile design system contract", () => {
 
   it("gives Reward one token-based feature presentation owner", () => {
     expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
-    expect(rewardStyles).toContain("Reward-specific data visualization");
+    expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
     [".crew-reward-", ".crew-v2-reward-"].forEach((selector) => expect(appStyles).not.toContain(selector));
-    [".crew-reward-motivation", ".crew-reward-score-summary", ".crew-reward-projection-track", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
+    [".crew-reward-hero-insight", ".crew-reward-score-summary", ".crew-reward-projection-track", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
+    expect(system).toContain(".crew-ui-modal");
     expect(rewardStyles).not.toContain("!important");
   });
 
