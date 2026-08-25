@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { gsap } from "gsap";
+import { useGSAP } from "@gsap/react";
 import "../../../i18n/index.js";
 import {
   ChevronRight,
@@ -12,6 +14,8 @@ import {
 } from "lucide-react";
 import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI18n.js";
 import { CrewMobilePageHeader } from "./CrewMobileUI.jsx";
+
+gsap.registerPlugin(useGSAP);
 
 const money = formatCrewMoney;
 const rate = (value, digits = 0) => `${(Number(value || 0) * 100).toFixed(digits)}%`;
@@ -99,23 +103,31 @@ function TierTable({ tiers }) {
 }
 
 function RewardHeroOrbit() {
-  return <svg className="crew-reward-hero-orbit" viewBox="0 0 420 280" aria-hidden="true">
+  return <svg className="crew-reward-hero-orbit" viewBox="0 0 500 300" aria-hidden="true">
     <defs>
-      <linearGradient id="crew-reward-orbit-cyan" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#00b7c7" stopOpacity="0" /><stop offset=".38" stopColor="#70f2ee" stopOpacity=".9" /><stop offset=".68" stopColor="#00b7c7" stopOpacity=".22" /><stop offset="1" stopColor="#00b7c7" stopOpacity="0" /></linearGradient>
-      <filter id="crew-reward-orbit-glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="3" /></filter>
+      <radialGradient id="crew-reward-planet-depth" cx="18%" cy="18%" r="82%"><stop stopColor="#0d5260" stopOpacity=".42" /><stop offset=".58" stopColor="#062a36" stopOpacity=".45" /><stop offset="1" stopColor="#021923" stopOpacity=".92" /></radialGradient>
+      <linearGradient id="crew-reward-orbit-cyan" x1="0" y1="0" x2="1" y2="1"><stop stopColor="#00b7c7" stopOpacity="0" /><stop offset=".35" stopColor="#8af7ef" stopOpacity=".86" /><stop offset=".64" stopColor="#00b7c7" stopOpacity=".28" /><stop offset="1" stopColor="#00b7c7" stopOpacity="0" /></linearGradient>
+      <filter id="crew-reward-orbit-glow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="3.5" /></filter>
     </defs>
-    <g fill="none" stroke="currentColor">
-      <circle cx="309" cy="-5" r="154" strokeOpacity=".16" strokeWidth="1" />
-      <circle cx="309" cy="-5" r="134" strokeOpacity=".12" strokeWidth="1" />
-      <circle cx="309" cy="-5" r="112" strokeOpacity=".1" strokeWidth="1" />
-      <path d="M161 31A154 154 0 0 1 410 111" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="2" />
-      <path d="M178 47A134 134 0 0 1 389 115" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1.5" />
-      <path d="M199 65A112 112 0 0 1 366 120" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1" />
-      <path d="M168 38A151 151 0 0 1 264 -145" stroke="#65f5ef" strokeOpacity=".68" strokeWidth="2.5" filter="url(#crew-reward-orbit-glow)" />
-      <path d="M351 101A131 131 0 0 1 402 170" stroke="#65f5ef" strokeOpacity=".55" strokeWidth="2" filter="url(#crew-reward-orbit-glow)" />
-      <circle cx="177" cy="44" r="3" fill="#72f4ed" fillOpacity=".8" stroke="none" />
-      <circle cx="247" cy="74" r="2" fill="#72f4ed" fillOpacity=".65" stroke="none" />
-      <circle cx="352" cy="104" r="2.5" fill="#72f4ed" fillOpacity=".7" stroke="none" />
+    <circle className="crew-reward-hero-planet" cx="486" cy="-55" r="202" fill="url(#crew-reward-planet-depth)" />
+    <g className="crew-reward-hero-orbit-rings crew-reward-hero-orbit-rings-a" fill="none" stroke="currentColor">
+      <circle cx="486" cy="-55" r="211" strokeOpacity=".18" strokeWidth="1" />
+      <circle cx="486" cy="-55" r="186" strokeOpacity=".13" strokeWidth="1" />
+      <circle cx="486" cy="-55" r="162" strokeOpacity=".1" strokeWidth="1" />
+      <path d="M275 5A211 211 0 0 1 486 -266" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="2" />
+      <path d="M310 34A186 186 0 0 1 516 -238" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1.5" />
+      <path d="M344 57A162 162 0 0 1 540 -215" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1" />
+    </g>
+    <g className="crew-reward-hero-orbit-rings crew-reward-hero-orbit-rings-b" fill="none" stroke="currentColor">
+      <path className="crew-reward-hero-glow-arc" d="M294 11A205 205 0 0 1 425 -247" stroke="#7ef5ed" strokeOpacity=".72" strokeWidth="2.8" filter="url(#crew-reward-orbit-glow)" />
+      <path d="M430 151A183 183 0 0 1 605 36" stroke="#74f4ed" strokeOpacity=".45" strokeWidth="2.1" filter="url(#crew-reward-orbit-glow)" />
+      <path d="M342 56A161 161 0 0 1 503 -215" stroke="#00b7c7" strokeOpacity=".34" strokeWidth="1.4" />
+    </g>
+    <g className="crew-reward-hero-nodes" fill="#81f7ef" stroke="none">
+      <circle cx="287" cy="15" r="3" fillOpacity=".86" />
+      <circle cx="353" cy="64" r="2.3" fillOpacity=".72" />
+      <circle cx="421" cy="115" r="2.6" fillOpacity=".7" />
+      <circle cx="239" cy="88" r="1.9" fillOpacity=".52" />
     </g>
   </svg>;
 }
@@ -127,11 +139,32 @@ function HeroInfoButton({ onOpen }) {
 
 function RewardHero({ data, onOpenSheet }) {
   const { t } = useTranslation();
+  const heroRef = useRef(null);
+  const amountRef = useRef(null);
   const label = data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
-  return <article className="crew-reward-hero">
+  const amount = Number(data.reward_amount ?? data.estimated_reward ?? 0);
+  useGSAP(() => {
+    const root = heroRef.current;
+    if (!root || typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
+    const content = root.querySelectorAll(".crew-reward-hero-kicker, .crew-reward-hero-total small, .crew-reward-hero-total p, .crew-reward-hero-metrics > div");
+    const value = { amount: 0 };
+    const timeline = gsap.timeline({ defaults: { ease: "power2.out" } });
+    timeline
+      .fromTo(root, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: .76 })
+      .fromTo(content, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: .34, stagger: .05 }, "<.18")
+      .fromTo(amountRef.current, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: .38 }, "<.08")
+      .to(value, { amount, duration: .56, ease: "power1.out", onUpdate: () => { if (amountRef.current) amountRef.current.textContent = money(value.amount); } }, "<");
+    gsap.to(root.querySelector(".crew-reward-hero-planet"), { scale: 1.015, transformOrigin: "486px -55px", duration: 12, ease: "sine.inOut", repeat: -1, yoyo: true });
+    gsap.to(root.querySelector(".crew-reward-hero-orbit-rings-a"), { rotation: 1.8, svgOrigin: "486 -55", duration: 24, ease: "sine.inOut", repeat: -1, yoyo: true });
+    gsap.to(root.querySelector(".crew-reward-hero-orbit-rings-b"), { rotation: -1.2, svgOrigin: "486 -55", duration: 29, ease: "sine.inOut", repeat: -1, yoyo: true });
+    gsap.to(root.querySelector(".crew-reward-hero-glow-arc"), { opacity: .45, duration: 9, ease: "sine.inOut", repeat: -1, yoyo: true });
+    gsap.to(root.querySelectorAll(".crew-reward-hero-nodes circle"), { x: (index) => index % 2 ? -3 : 3, y: (index) => index % 2 ? 2 : -2, opacity: .55, duration: 5.5, ease: "sine.inOut", stagger: .45, repeat: -1, yoyo: true });
+    return undefined;
+  }, { scope: heroRef });
+  return <article ref={heroRef} className="crew-reward-hero">
     <RewardHeroOrbit />
     <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><em>{translateStatus(data.status, t)}</em></div>
-    <div className="crew-reward-hero-total"><small>{label}<HeroInfoButton onOpen={() => onOpenSheet("help")} /></small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong><p>{t("reward.scoreBasis", { score: data.performance_score == null ? "—" : Math.round(data.performance_score) })}</p></div>
+    <div className="crew-reward-hero-total"><small>{label}<HeroInfoButton onOpen={() => onOpenSheet("help")} /></small><strong ref={amountRef}>{money(amount)}</strong><p>{t("reward.scoreBasis", { score: data.performance_score == null ? "—" : Math.round(data.performance_score) })}</p></div>
     <div className="crew-reward-hero-metrics">
       <div><small>{t("reward.maximumShare")}<HeroInfoButton onOpen={() => onOpenSheet("help")} /></small><strong>{money(data.maximum_share)}</strong></div>
       <div><small>{t("reward.rewardPool")}<HeroInfoButton onOpen={() => onOpenSheet("help")} /></small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></div>
