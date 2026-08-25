@@ -1,9 +1,9 @@
 /* Reward-specific financial hierarchy and data visualization. Shared tokens, headings, modal, and buttons remain system-owned. */
 .crew-reward-final { display: grid; gap: 24px; padding-bottom: 32px; color: var(--crew-color-text); }
 
-.crew-reward-hero { position: relative; display: grid; min-height: 246px; gap: 12px; overflow: hidden; border: 0; border-radius: var(--crew-radius-focus); background: radial-gradient(circle at 78% 16%, rgb(0 183 199 / .1), transparent 30%), radial-gradient(circle at 76% 4%, rgb(16 108 122 / .18), transparent 42%), linear-gradient(125deg, #020f1d 0%, #041b2b 47%, #062d39 100%); padding: 20px 22px; color: var(--crew-color-surface); isolation: isolate; }
-.crew-reward-hero::before { position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse at 68% 0%, rgb(0 183 199 / .08), transparent 32%), linear-gradient(105deg, rgb(0 0 0 / .16), transparent 46%); content: ""; pointer-events: none; }
-.crew-reward-hero-orbit { position: absolute; z-index: -1; top: -76px; right: -112px; width: 450px; max-width: 126%; height: 310px; color: var(--crew-color-cyan); opacity: .94; pointer-events: none; will-change: transform; }
+.crew-reward-hero { position: relative; display: grid; min-height: 246px; gap: 12px; overflow: hidden; border: 0; border-radius: var(--crew-radius-focus); background: radial-gradient(circle at 76% 16%, rgb(0 183 199 / .055), transparent 29%), radial-gradient(circle at 62% 40%, rgb(0 87 112 / .055), transparent 43%), linear-gradient(126deg, #031827 0%, #031827 48%, #062235 100%); padding: 20px 22px; color: var(--crew-color-surface); isolation: isolate; }
+.crew-reward-hero::before { position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse at 76% 6%, rgb(127 247 255 / .09), rgb(0 183 199 / .035) 24%, transparent 50%), radial-gradient(ellipse at 70% 38%, rgb(0 183 199 / .035), transparent 44%), linear-gradient(105deg, rgb(0 0 0 / .3), transparent 48%); content: ""; pointer-events: none; }
+.crew-reward-hero-orbit { position: absolute; z-index: -1; top: -80px; right: -120px; width: 482px; max-width: 136%; height: 326px; color: var(--crew-color-cyan); opacity: .98; pointer-events: none; will-change: transform; }
 .crew-reward-hero-planet,.crew-reward-hero-orbit-rings,.crew-reward-hero-nodes circle { will-change: transform, opacity; }
 .crew-reward-hero-kicker { z-index: 1; display: flex; align-items: center; gap: 10px; }
 .crew-reward-hero-kicker span { color: rgb(255 255 255 / .92); font-size: var(--crew-type-body); font-weight: 650; }
