@@ -51,6 +51,14 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.getAllByRole("button", { name: "Reward help" })).toHaveLength(5);
   });
 
+  it("keeps the Hero background as a self-contained orbital SVG layer", () => {
+    const { container } = render(<CrewRewardMobile data={data} />);
+    const hero = container.querySelector(".crew-reward-hero");
+    expect(hero.querySelector(".crew-reward-hero-orbit")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-planet")).not.toBeNull();
+    expect(hero.querySelectorAll(".crew-reward-hero-nodes circle")).toHaveLength(4);
+  });
+
   it("closes a dialog with Escape and restores page scrolling", () => {
     render(<CrewRewardMobile data={data} />);
     const trigger = screen.getAllByRole("button", { name: "Reward help" })[0];
