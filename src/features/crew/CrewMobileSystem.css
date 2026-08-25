@@ -614,20 +614,20 @@ to {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgb(22 75 80 / .42);
-  padding: 16px;
+  background: rgb(5 18 42 / .48);
+  padding: 18px;
 }
 
 .crew-ui-modal {
   display: flex;
-  width: min(100%, 360px);
-  max-height: min(calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px), 640px);
+  width: min(100%, 350px);
+  max-height: min(calc(78dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom)), 620px);
   overflow: hidden;
   flex-direction: column;
-  border: 1px solid var(--crew-color-border);
-  border-radius: var(--crew-radius-focus);
+  border: 0;
+  border-radius: 16px;
   background: var(--crew-color-surface);
-  box-shadow: 0 8px 22px rgb(22 75 80 / .16);
+  box-shadow: 0 18px 50px rgb(5 18 42 / .24);
 }
 
 .crew-ui-modal-header {
@@ -636,27 +636,27 @@ to {
   justify-content: space-between;
   gap: 12px;
   border-bottom: 1px solid var(--crew-color-divider);
-  padding: 14px 16px;
+  padding: 15px 16px;
 }
 
 .crew-ui-modal-header h2 {
   margin: 0;
   color: var(--crew-color-deep-teal);
-  font-size: var(--crew-type-detail-title);
-  font-weight: 700;
+  font-size: var(--crew-type-card-title);
+  font-weight: 400;
   line-height: 1.25;
   letter-spacing: -.02em;
 }
 
 .crew-ui-modal-close {
   display: grid;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
   place-items: center;
-  border: 1px solid var(--crew-color-border);
+  border: 0;
   border-radius: 50%;
-  background: var(--crew-color-surface);
+  background: var(--crew-color-mineral);
   color: var(--crew-color-deep-teal);
 }
 
@@ -667,12 +667,6 @@ to {
   overscroll-behavior: contain;
   padding: 16px;
   color: var(--crew-color-text-secondary);
-  font-size: var(--crew-type-body);
-  line-height: 1.5;
-}
-
-@media (max-width: 374px) {
-  .crew-ui-modal-backdrop { padding: 12px; }
-  .crew-ui-modal { max-height: min(calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px), 640px); }
-  .crew-ui-modal-content { padding: 14px; }
+  font-size: var(--crew-type-helper);
+  line-height: 1.55;
 }

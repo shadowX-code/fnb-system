@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -10,10 +10,10 @@ import {
   History,
   Info,
   TrendingUp,
-  X,
 } from "lucide-react";
 import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI18n.js";
 import { CrewMobilePageHeader } from "./CrewMobileUI.jsx";
+import CrewMobileModal from "./CrewMobileModal.jsx";
 
 gsap.registerPlugin(useGSAP);
 
@@ -59,40 +59,6 @@ const translateProjectionLabel = (item, t) => {
   const key = labels[rewardLevelKey(item?.key || item?.label)];
   return key ? t(`reward.${key}`) : item?.label;
 };
-
-function Modal({ title, onClose, children }) {
-  const { t } = useTranslation();
-  const modalRef = useRef(null);
-  const closeRef = useRef(null);
-  useEffect(() => {
-    const previousFocus = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") return onClose();
-      if (event.key !== "Tab") return;
-      const focusable = [...modalRef.current.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", onKeyDown);
-      previousFocus?.focus?.();
-    };
-  }, [onClose]);
-  return <div className="crew-ui-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section ref={modalRef} className="crew-ui-modal crew-reward-modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
-      <header className="crew-ui-modal-header"><h2>{title}</h2><button ref={closeRef} className="crew-ui-modal-close" type="button" onClick={onClose} aria-label={t("common.close")}><X size={20} /></button></header>
-      <div className="crew-ui-modal-content">{children}</div>
-    </section>
-  </div>;
-}
 
 function TierTable({ tiers }) {
   const { t } = useTranslation();
@@ -249,12 +215,12 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
       <RewardHistory history={data.history || []} onViewAll={() => setSheet("history")} />
     </> : <article className="crew-reward-unavailable"><Gift size={30} /><h2>{translateStatus(data.status, t) || t("reward.notAvailable")}</h2><p>{data.eligibility_reason || data.explanation || t("reward.notAvailableYet")}</p></article>}
 
-    {sheet === "help" && <Modal title={t("reward.formulaTitle")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><strong>{t("reward.maximumShare")}</strong><p>{t("reward.maximumShareHelp")}</p><div className="crew-reward-formula"><small>{t("reward.rewardPool")} × {t("reward.contributionShare")}</small><strong>{money(data.reward_pool ?? data.configured_pool)} × {rate(data.contribution_share, 2)} = {money(data.maximum_share)}</strong></div></div><div className="crew-reward-modal-section"><strong>{t("reward.performanceEarnRate")}</strong><p>{t("reward.performanceEarnRateHelp")}</p><div className="crew-reward-formula is-result"><small>{t("reward.maximumShare")} × {t("reward.performanceEarnRate")}</small><strong>{money(data.maximum_share)} × {rate(data.earn_rate)} = {money(data.reward_amount ?? data.estimated_reward)}</strong></div></div></Modal>}
-    {sheet === "estimated-reward" && <Modal title={t("reward.estimatedReward")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.estimatedRewardHelp")}</p></div></Modal>}
-    {sheet === "maximum-share" && <Modal title={t("reward.maximumShare")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.maximumShareHelp")}</p></div></Modal>}
-    {sheet === "reward-pool" && <Modal title={t("reward.rewardPool")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.rewardPoolHelp")}</p></div></Modal>}
-    {sheet === "contribution" && <Modal title={t("reward.contribution")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.contributionHelp")}</p></div></Modal>}
-    {sheet === "earn-rate" && <Modal title={t("reward.currentRate")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.performanceEarnRateHelp")}</p></div><TierTable tiers={tiers} /></Modal>}
-    {sheet === "history" && <Modal title={t("reward.history")} onClose={() => setSheet(null)}><div className="crew-reward-modal-history">{(data.history || []).map((item) => <div key={item.period_start}><time>{formatCrewDate(`${item.period_start}T00:00:00`, { month: "long", year: "numeric" })}</time><span><strong>{money(item.amount)}</strong><small>{translateStatus(item.status, t)}</small></span></div>)}</div></Modal>}
+    {sheet === "help" && <CrewMobileModal title={t("reward.formulaTitle")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><strong>{t("reward.maximumShare")}</strong><p>{t("reward.maximumShareHelp")}</p><div className="crew-reward-formula"><small>{t("reward.rewardPool")} × {t("reward.contributionShare")}</small><strong>{money(data.reward_pool ?? data.configured_pool)} × {rate(data.contribution_share, 2)} = {money(data.maximum_share)}</strong></div></div><div className="crew-reward-modal-section"><strong>{t("reward.performanceEarnRate")}</strong><p>{t("reward.performanceEarnRateHelp")}</p><div className="crew-reward-formula is-result"><small>{t("reward.maximumShare")} × {t("reward.performanceEarnRate")}</small><strong>{money(data.maximum_share)} × {rate(data.earn_rate)} = {money(data.reward_amount ?? data.estimated_reward)}</strong></div></div></CrewMobileModal>}
+    {sheet === "estimated-reward" && <CrewMobileModal title={t("reward.estimatedReward")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.estimatedRewardHelp")}</p></div></CrewMobileModal>}
+    {sheet === "maximum-share" && <CrewMobileModal title={t("reward.maximumShare")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.maximumShareHelp")}</p></div></CrewMobileModal>}
+    {sheet === "reward-pool" && <CrewMobileModal title={t("reward.rewardPool")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.rewardPoolHelp")}</p></div></CrewMobileModal>}
+    {sheet === "contribution" && <CrewMobileModal title={t("reward.contribution")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.contributionHelp")}</p></div></CrewMobileModal>}
+    {sheet === "earn-rate" && <CrewMobileModal title={t("reward.currentRate")} onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><p>{t("reward.performanceEarnRateHelp")}</p></div><TierTable tiers={tiers} /></CrewMobileModal>}
+    {sheet === "history" && <CrewMobileModal title={t("reward.history")} onClose={() => setSheet(null)}><div className="crew-reward-modal-history">{(data.history || []).map((item) => <div key={item.period_start}><time>{formatCrewDate(`${item.period_start}T00:00:00`, { month: "long", year: "numeric" })}</time><span><strong>{money(item.amount)}</strong><small>{translateStatus(item.status, t)}</small></span></div>)}</div></CrewMobileModal>}
   </section>;
 }

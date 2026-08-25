@@ -80,17 +80,17 @@
 .crew-reward-unavailable p { max-width: 280px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.45; }
 .crew-reward-finalized { display: flex; align-items: center; gap: 12px; color: var(--crew-color-success); }
 
-.crew-reward-modal-section + .crew-reward-modal-section { margin-top: 18px; }
-.crew-reward-modal-section strong { display: block; color: var(--crew-color-text); font-size: var(--crew-type-card-title); }
-.crew-reward-modal-section p { margin: 5px 0 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.45; }
+.crew-reward-modal-section + .crew-reward-modal-section { margin-top: 15px; }
+.crew-reward-modal-section strong { display: block; color: var(--crew-color-text); font-size: var(--crew-type-helper); font-weight: 700; }
+.crew-reward-modal-section p { margin: 4px 0 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.55; }
 .crew-reward-tier-table { overflow: hidden; margin-top: 14px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); }
 .crew-reward-tier-table > div { display: grid; min-height: 28px; grid-template-columns: .8fr 1.25fr .7fr; align-items: center; border-bottom: 1px solid var(--crew-color-divider); color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); text-align: center; }
 .crew-reward-tier-table > div:first-child { background: var(--crew-color-mineral); color: var(--crew-color-text); }
 .crew-reward-tier-table > div:last-child { border-bottom: 0; }
 .crew-reward-tier-table strong { color: var(--crew-color-deep-teal); }
-.crew-reward-formula { display: grid; gap: 5px; margin-top: 14px; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); padding: 12px; }
+.crew-reward-formula { display: grid; gap: 4px; margin-top: 12px; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); padding: 10px 12px; }
 .crew-reward-formula small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
-.crew-reward-formula strong { color: var(--crew-color-text); font-size: var(--crew-type-card-title); line-height: 1.35; }
+.crew-reward-formula strong { color: var(--crew-color-text); font-size: var(--crew-type-helper); font-weight: 600; line-height: 1.45; }
 .crew-reward-formula.is-result { background: color-mix(in srgb, var(--crew-color-cyan) 8%, white); }
 .crew-reward-modal-history { display: grid; }
 .crew-reward-modal-history > div { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--crew-color-divider); padding: 12px 0; }
