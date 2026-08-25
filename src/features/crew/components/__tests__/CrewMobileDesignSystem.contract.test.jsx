@@ -9,6 +9,7 @@ const authStyles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewAu
 const sharedStyles = readFileSync(resolve(process.cwd(), "src/styles/index.css"), "utf8");
 const home = readFileSync(resolve(process.cwd(), "src/features/crew/CrewHome.css"), "utf8");
 const cashCheckout = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.css"), "utf8");
+const taskBlockStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewTaskBlockRenderer.css"), "utf8");
 const performanceModal = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewPerformanceComponentModal.css"), "utf8");
 const learningStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLearningMobile.css"), "utf8");
 const sopDocumentStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewSopDocument.css"), "utf8");
@@ -60,8 +61,12 @@ describe("Crew Mobile design system contract", () => {
   it("keeps primary actions, generic fields, and linear progress canonical", () => {
     [".crew-v2-primary", ".crew-v2-mobile-field", ".crew-v2-progress"].forEach((selector) => expect(appStyles).not.toContain(selector));
     [".crew-mobile-primary", ".crew-ui-field", ".crew-ui-linear-progress"].forEach((selector) => expect(system).toContain(selector));
-    expect(system).toContain(".crew-mobile-primary.is-cyan");
+    [".crew-mobile-primary", ".crew-mobile-secondary", ".crew-mobile-destructive", ".crew-mobile-ghost"].forEach((selector) => expect(system).toContain(selector));
+    expect(system).not.toContain(".crew-mobile-primary.is-cyan");
     expect(sharedStyles).not.toMatch(/^\.crew-mobile-primary\s*\{/m);
+    [".crew-cash-primary", ".crew-home-secondary-action", ".crew-task-sheet-submit", ".crew-task-sheet-cancel"].forEach((selector) => {
+      expect(cashCheckout + home + taskBlockStyles).not.toContain(selector);
+    });
   });
 
   it("owns ordinary icon-container color roles centrally", () => {

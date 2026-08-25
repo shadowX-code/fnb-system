@@ -371,7 +371,7 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
               </span>
             </div>
           )
-          : <div className="crew-sop-acknowledgement-action"><button className="crew-mobile-primary is-cyan" disabled={saving} onClick={onAcknowledge}>{saving ? t("common.saving") : t("learn.acknowledge")}</button></div>
+          : <div className="crew-sop-acknowledgement-action"><button className="crew-mobile-primary" disabled={saving} onClick={onAcknowledge}>{saving ? t("common.saving") : t("learn.acknowledge")}</button></div>
       )}
     </section>
   );

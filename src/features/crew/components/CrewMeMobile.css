@@ -123,12 +123,6 @@
   align-items: center;
   gap: 8px;
   margin: 18px 5px 0;
-  border: 0;
-  background: transparent;
-  color: var(--crew-v2-red);
-  font-size:var(--crew-type-helper);
-  font-weight: 780;
-
 }
 .crew-v2-me {
   padding-bottom: 12px;
@@ -136,14 +130,8 @@
 }
 .crew-v2-me .crew-v2-logout {
   width: 100%;
-  min-height: 51px;
   justify-content: flex-start;
   margin: 18px 0 0;
-  border-radius: 12px;
-  background: #fff8f8;
-  padding: 0 15px;
-  font-size:var(--crew-type-helper);
-
 }
 
 
@@ -483,24 +471,6 @@
 
 }
 
-.crew-me-confirm button {
-  min-height: 38px;
-  border: 1px solid var(--crew-v2-border);
-  border-radius: 9px;
-  background: #fff;
-  padding: 0 14px;
-  color: var(--crew-v2-navy);
-  font-size:var(--crew-type-helper);
-  font-weight: 800;
-
-}
-
-.crew-me-confirm button.is-danger {
-  border-color: #d94958;
-  background: #d94958;
-  color: #fff;
-
-}
 
 .crew-language-modal .crew-language-list {
   display: grid;

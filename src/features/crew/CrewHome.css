@@ -79,7 +79,6 @@
 .crew-home-modal-backdrop { position: fixed; z-index: 90; inset: 0; display: grid; place-items: center; background: rgb(22 75 80 / .42); padding: 20px; }
 .crew-home-clock-modal, .crew-home-success-modal { width: min(100%, 360px); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); padding: 20px; box-shadow: 0 18px 42px rgb(22 75 80 / .18); }
 .crew-home-modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 18px; }.crew-home-modal-actions button { min-height: 44px; }
-.crew-home-secondary-action { border: 1px solid var(--crew-color-border); border-radius: 11px; background: var(--crew-color-surface); color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 600; }
 
 @media (max-width: 374px) {
   .crew-home-attendance-main { min-height: 166px; grid-template-columns: minmax(0, 58%) minmax(0, 42%); }
@@ -371,19 +370,10 @@
 
 }
 
-.crew-v2-actions > button:not(.crew-mobile-primary) {
+.crew-v2-actions > button {
   flex: 1;
-  min-height: 40px;
-  border: 1px solid #d7dfe7;
-  border-radius: 10px;
-  background: white;
-  color: #42536b;
-  font-size:var(--crew-type-helper);
-  font-weight: 740;
-
 }
 
-.crew-v2-actions .crew-mobile-primary { min-height: 40px; }
 
 .crew-v2-history {
   margin-top: 9px;
@@ -1078,22 +1068,8 @@
   gap:8px
 }
 
-.crew-home-modal-actions .crew-home-secondary-action{
-  width:100%;
-  min-height:42px;
-  border-radius:11px;
-  font-size:var(--crew-type-helper);
-  font-weight:800
-}
-
-.crew-home-modal-actions .crew-mobile-primary{
+.crew-home-modal-actions .crew-mobile-primary,.crew-home-modal-actions .crew-mobile-secondary{
   width:100%
-}
-
-.crew-home-secondary-action{
-  border:1px solid #d7e2df;
-  background:#fff;
-  color:var(--crew-v2-green-dark)
 }
 
 @keyframes crew-home-success-in {
