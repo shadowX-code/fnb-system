@@ -103,8 +103,9 @@ describe("Crew Reward mobile reference UI", () => {
     expect(relationship.querySelector("strong").textContent).toBe(String(score));
     expect(relationship.textContent).toContain(String(score));
     expect(relationship.textContent).toContain("/100");
-    expect(container.querySelector(".crew-reward-score-ring")).toBeNull();
-    expect(container.querySelector(".crew-reward-performance-relationship > i").textContent).toBe("→");
+    expect(container.querySelector(".crew-reward-score-ring")).not.toBeNull();
+    expect(container.querySelector(".crew-reward-score-ring-progress").getAttribute("stroke-dasharray")).toBe(`${score} 100`);
+    expect(container.querySelector(".crew-reward-performance-connector")).not.toBeNull();
     expect(container.querySelectorAll(".crew-reward-performance-title")).toHaveLength(0);
     expect(container.querySelectorAll(".crew-reward-performance-insight")).toHaveLength(0);
   });

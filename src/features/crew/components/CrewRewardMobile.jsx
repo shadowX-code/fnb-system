@@ -12,7 +12,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI18n.js";
-import { CrewMobilePageHeader } from "./CrewMobileUI.jsx";
+import { CrewMobilePageHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
 
 gsap.registerPlugin(useGSAP);
@@ -150,17 +150,26 @@ function RewardHero({ data, onOpenSheet }) {
   </article>;
 }
 
+function ScoreRing({ score }) {
+  return <div className="crew-reward-score-ring" aria-label={`${Math.round(score)} / 100`}>
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <circle className="crew-reward-score-ring-track" cx="50" cy="50" r="43" pathLength="100" />
+      <circle className="crew-reward-score-ring-progress" cx="50" cy="50" r="43" pathLength="100" strokeDasharray={`${score} 100`} />
+    </svg>
+    <span><strong>{Math.round(score)}</strong><b>/100</b></span>
+  </div>;
+}
+
 function PerformanceOverview({ data, onViewPerformance }) {
   const { t } = useTranslation();
   const score = Math.max(0, Math.min(100, Number(data.performance_score || 0)));
   return <section className="crew-reward-surface crew-reward-performance">
     <header><button type="button" onClick={onViewPerformance}>{t("reward.viewPerformance")} <ChevronRight size={16} /></button></header>
     <div className="crew-reward-performance-relationship">
-      <div className="crew-reward-performance-score"><span><strong>{Math.round(score)}</strong><b>/100</b></span><small>{t("reward.performanceScoreLabel")}</small></div>
-      <i aria-hidden="true">→</i>
-      <div className="crew-reward-performance-rate"><span><strong>{rate(data.earn_rate)}</strong><HeroInfoButton label={t("reward.currentRate")} onOpen={() => onViewPerformance?.("earn-rate")} /></span><small>{t("reward.currentRate")}</small></div>
+      <div className="crew-reward-performance-score"><ScoreRing score={score} /><small>{t("reward.performanceScoreLabel")}</small></div>
+      <span className="crew-reward-performance-connector" aria-hidden="true"><ChevronRight size={16} /></span>
+      <div className="crew-reward-performance-rate"><span><strong>{rate(data.earn_rate)}</strong><HeroInfoButton label={t("reward.currentRate")} onOpen={() => onViewPerformance?.("earn-rate")} /></span><small>{t("reward.currentRate")}</small><CrewStatusBadge tone="success">{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</CrewStatusBadge></div>
     </div>
-    <p className="crew-reward-performance-status"><em>{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</em></p>
     <button className="crew-reward-performance-rate-action" type="button" onClick={() => onViewPerformance?.("earn-rate")}>{t("reward.earnRateWorks")} <ChevronRight size={15} /></button>
   </section>;
 }
