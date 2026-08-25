@@ -115,7 +115,7 @@ function RewardHero({ data }) {
 function PerformanceOverview({ data, onViewPerformance }) {
   const { t } = useTranslation();
   const score = Math.max(0, Math.min(100, Number(data.performance_score || 0)));
-  return <section className="crew-reward-section crew-reward-performance">
+  return <section className="crew-reward-editorial crew-reward-performance">
     <header><h2>{t("reward.performanceOverview")} <span aria-hidden="true">→</span> {t("reward.estimatedReward")}</h2><button type="button" onClick={onViewPerformance}>{t("reward.viewPerformance")} <ChevronRight size={16} /></button></header>
     <div className="crew-reward-performance-relationship">
       <div><strong>{Math.round(score)}</strong><small>{t("reward.performanceScore", { score: Math.round(score) })}</small></div>
@@ -138,7 +138,7 @@ function RewardProjection({ data, onOpenSheet }) {
   const potentialProjection = [...allProjections]
     .filter((item) => item !== currentProjection && Number(item.score || 0) > currentScore)
     .sort((a, b) => Number(b.score || 0) - Number(a.score || 0))[0];
-  return <section className="crew-reward-section crew-reward-projection">
+  return <section className="crew-reward-editorial crew-reward-projection">
     <header><h2><TrendingUp size={19} /> {t("reward.projection")}</h2><button type="button" onClick={() => onOpenSheet("help")}><Info size={15} /> {t("reward.howWorks")}</button></header>
     <div className="crew-reward-potential" aria-label={t("reward.projection")}>
       <div className="is-current"><strong>{money(currentProjection?.amount)}</strong><small>{translateProjectionLabel(currentProjection, t)}</small><span>{t("reward.score", { score: Math.round(Number(currentProjection?.score || currentScore)) })}</span><em>{t("reward.rateEarned", { rate: rate(currentProjection?.earn_rate) })}</em></div>
@@ -151,7 +151,7 @@ function RewardProjection({ data, onOpenSheet }) {
 function RewardHistory({ history, onViewAll }) {
   const { t } = useTranslation();
   const recent = history?.[0];
-  return <section className="crew-reward-section crew-reward-history-card">
+  return <section className="crew-reward-editorial crew-reward-history-card">
     <header><span><h2><History size={18} /> {t("reward.history")}</h2><p>{t("reward.historyCaption")}</p></span>{history?.length ? <button type="button" onClick={onViewAll}>{t("reward.viewAll")} <ChevronRight size={16} /></button> : null}</header>
     {recent ? <button type="button" className="crew-reward-history-row" onClick={onViewAll}><time>{formatCrewDate(`${recent.period_start}T00:00:00`, { month: "short", year: "numeric" })}</time><span><strong>{money(recent.amount)}</strong><em>{translateStatus(recent.status, t)}</em></span><ChevronRight size={17} /></button> : <p className="crew-reward-history-empty"><History size={17} />{t("reward.noHistory")}</p>}
   </section>;
