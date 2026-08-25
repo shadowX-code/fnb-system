@@ -621,7 +621,7 @@ to {
 .crew-ui-modal {
   display: flex;
   width: min(100%, 360px);
-  max-height: min(80dvh, 640px);
+  max-height: min(calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 32px), 640px);
   overflow: hidden;
   flex-direction: column;
   border: 1px solid var(--crew-color-border);
@@ -661,6 +661,7 @@ to {
 }
 
 .crew-ui-modal-content {
+  flex: 1 1 auto;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -672,6 +673,6 @@ to {
 
 @media (max-width: 374px) {
   .crew-ui-modal-backdrop { padding: 12px; }
-  .crew-ui-modal { max-height: 82dvh; }
+  .crew-ui-modal { max-height: min(calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 24px), 640px); }
   .crew-ui-modal-content { padding: 14px; }
 }
