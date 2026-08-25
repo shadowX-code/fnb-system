@@ -195,7 +195,7 @@ function PerformanceOverview({ data, onViewPerformance }) {
       <div className="crew-reward-performance-rate"><span><strong>{rate(data.earn_rate)}</strong><HeroInfoButton label={t("reward.currentRate")} onOpen={() => onViewPerformance?.("earn-rate")} /></span><small>{t("reward.currentRate")}</small></div>
     </div>
     <p className="crew-reward-performance-status"><em>{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</em></p>
-    <button className="crew-reward-performance-insight" type="button" onClick={() => onViewPerformance?.("earn-rate")}><TrendingUp size={17} /><span>{t("reward.performanceCaption", { score: Math.round(score), rate: rate(data.earn_rate) })}</span><b>{t("reward.earnRateWorks")} <ChevronRight size={15} /></b></button>
+    <button className="crew-reward-performance-insight" type="button" onClick={() => onViewPerformance?.("earn-rate")}><span>{t("reward.performanceCaption", { score: Math.round(score), rate: rate(data.earn_rate) })}</span><b>{t("reward.earnRateWorks")} <ChevronRight size={15} /></b></button>
   </section>;
 }
 
@@ -217,8 +217,8 @@ function RewardProjection({ data, onOpenSheet }) {
     <div className="crew-reward-potential" aria-label={t("reward.projection")}>
       <div className="is-current"><strong>{money(currentProjection?.amount)}</strong><small>{translateProjectionLabel(currentProjection, t)}</small></div>
       <div className="is-potential"><strong>{money(potentialProjection?.amount ?? currentProjection?.amount)}</strong><small>{t("reward.maxPotential")}</small></div>
+      <div className="crew-reward-potential-scale"><span>{t("reward.score", { score: Math.round(Number(currentProjection?.score || currentScore)) })}<em>{t("reward.rateEarned", { rate: rate(currentProjection?.earn_rate) })}</em></span><span>{t("reward.score", { score: potentialProjection?.key === "max" ? "95+" : Math.round(Number(potentialProjection?.score ?? currentProjection?.score ?? currentScore)) })}<em>{t("reward.rateEarned", { rate: rate(potentialProjection?.earn_rate ?? currentProjection?.earn_rate) })}</em></span></div>
       <div className="crew-reward-potential-rail" style={{ "--crew-reward-progress": `${earnedRate * 100}%` }} aria-hidden="true"><i /><b /></div>
-      <div className="crew-reward-potential-scale"><span>{t("reward.score", { score: Math.round(Number(currentProjection?.score || currentScore)) })}<em>{t("reward.rateEarned", { rate: rate(currentProjection?.earn_rate) })}</em></span><span>0%</span><span>50%</span><span>100%</span><span>{t("reward.score", { score: potentialProjection?.key === "max" ? "95+" : Math.round(Number(potentialProjection?.score ?? currentProjection?.score ?? currentScore)) })}<em>{t("reward.rateEarned", { rate: rate(potentialProjection?.earn_rate ?? currentProjection?.earn_rate) })}</em></span></div>
     </div>
     <p className="crew-reward-projection-note"><Info size={15} />{t("reward.projectionAssumption")}</p>
   </section>;
