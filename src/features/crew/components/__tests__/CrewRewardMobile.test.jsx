@@ -81,6 +81,22 @@ describe("Crew Reward mobile reference UI", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("ports long helper content to the viewport-level scroll container", () => {
+    render(<CrewRewardMobile data={data} />);
+    fireEvent.click(screen.getAllByRole("button", { name: "Reward help" })[0]);
+    const dialog = screen.getByRole("dialog", { name: "How your Reward is calculated" });
+    const content = dialog.querySelector(".crew-ui-modal-content");
+    Object.defineProperties(content, {
+      clientHeight: { configurable: true, value: 120 },
+      scrollHeight: { configurable: true, value: 480 },
+    });
+    content.scrollTop = 180;
+    fireEvent.scroll(content);
+    expect(content.scrollTop).toBe(180);
+    expect(dialog.parentElement.parentElement).toBe(document.body);
+    expect(document.body.style.position).toBe("fixed");
+  });
+
   it.each([7, 75, 87, 100])("keeps score %s in the open score-to-rate relationship", (score) => {
     const { container } = render(<CrewRewardMobile data={{ ...data, performance_score: score }} />);
     const relationship = container.querySelector(".crew-reward-performance-relationship");
