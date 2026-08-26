@@ -1,7 +1,7 @@
 /* Schedule-specific temporal layout; generic headers, rows and badges remain shared. */
 .crew-schedule-final { display: grid; min-width: 0; gap: 16px; color: var(--crew-color-text); }
 .crew-schedule-final-header { margin-bottom: 0; }
-.crew-schedule-final-week { grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
+.crew-schedule-final-week { grid-auto-columns: auto; grid-auto-flow: row; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
 .crew-schedule-final-week button { display: grid; min-height: 64px; place-items: center; gap: 6px; border: 0; background: transparent; color: var(--crew-color-text-secondary); padding: 0; }
 .crew-schedule-final-date-block { display: grid; min-height: 42px; min-width: 42px; place-content: center; justify-items: center; gap: 2px; border-radius: var(--crew-radius-control); }
 .crew-schedule-final-week small { font-size: var(--crew-type-status); }.crew-schedule-final-week strong { font-size: var(--crew-type-row-title); }.crew-schedule-final-week i { width: 6px; height: 6px; border-radius: 50%; background: var(--crew-color-text-muted); }

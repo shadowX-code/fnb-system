@@ -256,6 +256,8 @@ describe("Crew Mobile design system contract", () => {
     expect(schedule).not.toContain("CalendarDays");
     expect(schedule).not.toContain("jumpToday");
     expect(scheduleStyles).toContain("background: var(--crew-color-icon-default-bg)");
+    expect(scheduleStyles).toContain("grid-auto-flow: row");
+    expect(scheduleStyles).toContain("grid-template-columns: repeat(7, minmax(0, 1fr))");
     expect(scheduleStyles).toContain("button.is-selected i { background: var(--crew-color-deep-teal); }");
     expect(scheduleStyles).not.toContain("button.is-selected { background: var(--crew-color-deep-teal)");
   });
