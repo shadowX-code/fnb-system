@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   clock: vi.fn(),
   changePasscode: vi.fn(),
   localizedContentForCrew: vi.fn(),
+  myProfile: vi.fn(),
 }));
 
 vi.mock("../../../services/crewService.js", () => ({ crewService: mocks }));
@@ -75,6 +76,7 @@ beforeEach(() => {
   mocks.acknowledgeSop.mockReset().mockResolvedValue({ acknowledged: true });
   mocks.learningAssignment.mockReset().mockResolvedValue({ id: "assignment-1", journey: { name: "New Crew Onboarding" }, modules: [] });
   mocks.localizedContentForCrew.mockReset().mockResolvedValue({});
+  mocks.myProfile.mockReset().mockResolvedValue({ employment_type: "full_time" });
   mocks.clock.mockReset().mockResolvedValue({});
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
 });
@@ -95,7 +97,7 @@ describe("Crew Mobile redesign", () => {
     expect(localStorage.getItem("feedx.crew.language")).toBe("zh-CN");
   });
 
-  it("organizes Me as a profile hub with two real quick statuses and grouped navigation", async () => {
+  it("keeps Me as an identity-only profile hub with grouped navigation", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myAttendance.mockResolvedValueOnce([
       { id: "attendance-1", clock_in_at: "2026-08-14T02:00:00Z", clock_out_at: "2026-08-14T10:00:00Z", status: "completed" },
@@ -110,9 +112,10 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
 
     expect(screen.getByRole("heading", { name: "Me" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "View profile information" }).textContent).toContain("Alex Tan");
-    expect(screen.getByRole("region", { name: "Work status summary" }).textContent).toContain("Good");
-    expect(screen.getByRole("region", { name: "Work status summary" }).textContent).toContain("7.5");
+    expect(screen.queryByRole("button", { name: "View profile information" })).toBeNull();
+    expect(screen.queryByRole("region", { name: "Work status summary" })).toBeNull();
+    expect(screen.getByText("Alex Tan")).not.toBeNull();
+    expect(screen.getByText("Full-Time")).not.toBeNull();
     expect(screen.getByText("1 Pending")).not.toBeNull();
     expect(screen.getAllByText("Employment Documents")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Work" })).not.toBeNull();
@@ -120,7 +123,7 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByRole("heading", { name: "Support" })).toBeNull();
   });
 
-  it("keeps Me truthful for empty attendance, leave and pending states", async () => {
+  it("keeps Me truthful for empty attendance and pending states without restoring the removed summary strip", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify({ ...session, employee: { ...session.employee, full_name: "A Very Long International Employee Name", nickname: "A" } }));
     mocks.attendanceContext.mockResolvedValueOnce({ outlet_name: "An Exceptionally Long International Restaurant Outlet Name", location_enabled: false });
     mocks.myLeave.mockResolvedValueOnce({ balances: [], requests: [], upcoming: [] });
@@ -128,16 +131,36 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
 
     expect(screen.getAllByText("No activity yet").length).toBeGreaterThan(0);
-    expect(screen.getByText("No balance")).not.toBeNull();
     expect(screen.queryByText(/Pending/)).toBeNull();
-    expect(screen.getByRole("button", { name: "View profile information" }).textContent).toContain("A Very Long International Employee Name");
+    expect(screen.getByText("A Very Long International Employee Name")).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "Work status summary" })).toBeNull();
+  });
+
+  it("renders canonical employment type labels without deriving them from role or status", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myProfile.mockResolvedValueOnce({ employment_type: "part_time" });
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+
+    expect(screen.getByText("Part-Time")).not.toBeNull();
+    expect(screen.queryByText("Active")).toBeNull();
+  });
+
+  it("does not invent an employment type when the canonical session field is unavailable", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myProfile.mockResolvedValueOnce(null);
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+
+    expect(document.querySelector(".crew-me-profile-hero .crew-ui-status")).toBeNull();
+    expect(screen.queryByText("Active")).toBeNull();
   });
 
   it("routes Attendance, Leave and Profile from Me and confirms logout", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
-    fireEvent.click(screen.getByRole("button", { name: "View profile information" }));
+    fireEvent.click(screen.getByRole("button", { name: "Profile Information" }));
     expect(screen.getByRole("heading", { name: "Profile Information" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     fireEvent.click(screen.getAllByRole("button", { name: /Attendance/ })[0]);

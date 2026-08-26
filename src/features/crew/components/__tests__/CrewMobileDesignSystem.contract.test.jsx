@@ -325,6 +325,19 @@ describe("Crew Mobile design system contract", () => {
     expect(leaveStyles).not.toMatch(/\.crew-ui-icon-container[^\{]*\{[^}]*(?:background|color|border-radius|width|height)/s);
   });
 
+  it("keeps the Me employment-type badge on the shared Mint status owner", () => {
+    expect(system).toContain(".crew-ui-status.is-mint { background: var(--crew-color-icon-default-bg); color: var(--crew-color-icon-default-fg); }");
+    expect(mobileApp).toContain('<CrewStatusBadge tone="mint">{formatEmploymentType(employmentType)}</CrewStatusBadge>');
+    expect(mobileApp).toContain('const employmentType = profile?.employment_type || employee.employment_type || "";');
+    expect(mobileApp).not.toContain('aria-label={t("me.viewProfile")}');
+    expect(mobileApp).not.toContain('className="crew-me-quick-status"');
+    expect(meStyles).not.toContain(".crew-me-profile-copy em");
+    expect(meStyles).not.toContain(".crew-me-quick-status");
+    expect(meStyles).not.toContain("#e8fbf4");
+    expect(meStyles).toContain("@media (max-width: 380px) {");
+    expect(meStyles).toContain(".crew-me-profile-hero {");
+  });
+
   it("keeps the Cash Checkout manager-review notice in a canonical two-column warning layout", () => {
     expect(cashCheckout).toContain(".crew-cash-warning { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start;");
     expect(cashCheckout).toContain(".crew-cash-warning > div { display: grid; min-width: 0; gap: 4px;");

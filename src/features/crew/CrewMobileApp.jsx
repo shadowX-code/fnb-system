@@ -92,6 +92,7 @@ const readSession = () => {
 };
 const formatTime = (value) => formatCrewTime(value, { hour: "2-digit", minute: "2-digit" });
 const formatDate = (value) => formatCrewDate(value, { day: "numeric", month: "short", year: "numeric" });
+const formatEmploymentType = (value) => String(value || "").split(/[_-]/).filter(Boolean).map((part) => `${part.charAt(0).toUpperCase()}${part.slice(1)}`).join("-");
 const malaysiaDateKey = (value = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
 const formatHomeDate = (value = new Date()) => formatCrewDate(value, { weekday: "short", day: "numeric", month: "short" });
 const formatHomeClock = (value = new Date()) => {
@@ -460,11 +461,8 @@ export default function CrewMobileApp({ onNotify }) {
     const now = new Date();
     return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
   });
-  const completedAttendance = currentMonthAttendance.filter((item) => item.status === "completed" || item.clock_out_at);
-  const attendanceStatus = currentMonthAttendance.length && completedAttendance.length === currentMonthAttendance.length ? t("status.good") : currentMonthAttendance.length ? t("status.needs_attention") : t("me.noActivity");
-  const annualLeaveBalance = leave?.balances?.find((item) => item.leave_type === "annual");
-  const annualLeaveAvailable = annualLeaveBalance?.balance_enforced === false ? null : annualLeaveBalance?.available;
   const pendingLeaveCount = (leave?.requests || []).filter((item) => item.status === "pending").length;
+  const employmentType = profile?.employment_type || employee.employment_type || "";
   const homeClock = formatHomeClock(nowTick);
   const attendanceOutlet = context?.outlet_name || todayRoster?.outlet_name || t("home.yourOutlet");
   const shiftLabel = todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : todayRoster ? rosterEntryLabel(todayRoster, t) : t("home.notPublished");
@@ -521,14 +519,9 @@ export default function CrewMobileApp({ onNotify }) {
     {screen === "me" && <section className="crew-v2-me">
       {meView === "settings" ? <><CrewMobileDetailHeader title={t("me.settings")} onBack={() => setMeView("main")} /><section className="crew-me-settings crew-ui-functional-surface"><CrewActionRow icon={Bell} title={t("me.notifications")} /><CrewActionRow icon={Languages} title={t("me.language")} subtitle={t(`languages.${i18n.resolvedLanguage || i18n.language}`)} ariaLabel={t("me.language")} onClick={() => setLanguageOpen(true)} /><CrewActionRow icon={ShieldCheck} title={t("me.privacy")} /><CrewActionRow icon={FileText} title={t("me.terms")} /><CrewActionRow icon={HelpCircle} title={t("me.about")} /></section></> : meView === "profile" ? <ProfileInformation profile={profile || employee} employee={employee} context={context} firstName={firstName} t={t} onBack={() => setMeView("main")} /> : meView === "passcode" ? <section className="crew-me-passcode-page"><CrewMobileDetailHeader title={t("me.changePasscode")} onBack={() => setMeView("main")} /><form className="crew-v2-passcode-form" onSubmit={changePasscode}><label>{t("me.currentPasscode")}<input inputMode="numeric" autoComplete="current-password" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>{t("me.newPasscode")}<input inputMode="numeric" autoComplete="new-password" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>{t("me.confirmNewPasscode")}<input inputMode="numeric" autoComplete="new-password" maxLength="4" value={confirmPasscode} onChange={(event) => setConfirmPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-mobile-primary" disabled={loading}>{t("me.savePasscode")}</button></form></section> : <>
         <CrewMobilePageHeader title={t("me.title")} />{passcodeSuccess && <p className="crew-me-success" role="status"><Check size={16} /> {t("me.passcodeSaved")}</p>}
-        <button className="crew-me-profile-hero" type="button" onClick={() => setMeView("profile")} aria-label={t("me.viewProfile")}>
+        <section className="crew-me-profile-hero">
           <span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span>
-          <span className="crew-me-profile-copy"><strong>{employee.full_name || firstName}</strong><small>{employee.position || t("home.crewMember")}</small><small className="crew-me-outlet"><BriefcaseBusiness size={14} />{context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small><em><i />{t("status.active")}</em></span>
-          <span className="crew-me-profile-link">{t("me.viewProfile")} <ChevronRight size={17} /></span>
-        </button>
-        <section className="crew-me-quick-status" aria-label={t("me.workSummary")}>
-          <button type="button" onClick={() => setScreen("attendance")}><span className="crew-me-status-icon crew-ui-icon-container"><CalendarCheck size={21} /></span><span><small>{t("me.attendance")}</small><strong className={attendanceStatus === t("status.needs_attention") ? "is-warning" : ""}>{attendanceStatus}</strong><em>{currentMonthAttendance.length ? t("me.shiftsThisMonth", { count: currentMonthAttendance.length }) : t("me.noHistory")}</em></span></button>
-          <button type="button" onClick={() => setScreen("leave")}><span className="crew-me-status-icon crew-ui-icon-container"><Plane size={21} /></span><span><small>{t("me.leaveBalance")}</small><strong>{annualLeaveAvailable == null ? t("me.noBalance") : Number(annualLeaveAvailable).toLocaleString(crewLocale(), { maximumFractionDigits: 1 })}</strong><em>{annualLeaveAvailable == null ? t("me.annualLeave") : t("me.daysAvailable")}</em></span></button>
+          <span className="crew-me-profile-copy"><strong>{employee.full_name || firstName}</strong><small>{employee.position || t("home.crewMember")}</small><small className="crew-me-outlet"><BriefcaseBusiness size={14} />{context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small>{employmentType && <CrewStatusBadge tone="mint">{formatEmploymentType(employmentType)}</CrewStatusBadge>}</span>
         </section>
         <section className="crew-me-section"><h2>{t("me.work")}</h2><div className="crew-me-list">
           <button type="button" onClick={() => setScreen("attendance")}><span className="crew-me-row-icon crew-ui-icon-container"><Clock3 size={20} /></span><span><strong>{t("me.attendance")}</strong><small>{currentMonthAttendance.length ? t("me.shiftsThisMonth", { count: currentMonthAttendance.length }) : t("me.noActivity")}</small></span><ChevronRight size={19} /></button>
