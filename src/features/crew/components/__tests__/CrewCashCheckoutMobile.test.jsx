@@ -165,12 +165,21 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByText("This checkout is completed and cannot be edited.")).not.toBeNull();
   });
 
-  it("keeps internal handover receipt confirmation session-bound", async () => {
+  it("keeps configured receiver confirmation session-bound and acknowledgement-only", async () => {
     crewService.confirmCashCollection.mockResolvedValue({ status: "completed" });
-    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA" }] });
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Confirm" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm Received" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Confirm Received" })[1]);
     await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("opaque-session", "handover-1", 100));
+  });
+
+  it("always exposes Hand Over Cash to an authorized initiator, with canonical receiver choices", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Hand Over Cash" }));
+    expect(screen.getByRole("heading", { name: "Hand Over Cash" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Receiver" })).not.toBeNull();
+    expect(screen.queryByText("External receiver")).toBeNull();
   });
 
   it("opens a server-backed ledger with each entry balance", async () => {

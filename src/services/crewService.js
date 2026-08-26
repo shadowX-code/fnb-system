@@ -297,6 +297,12 @@ export const crewService = {
     return data;
   },
 
+  async saveCashHandoverReceivers(outletId, employeeIds, expectedVersion) {
+    const { data, error } = await supabase.rpc("crew_cash_save_handover_receivers", { p_outlet_id: outletId, p_employee_ids: employeeIds, p_expected_version: expectedVersion });
+    throwSupabaseError("crew.saveCashHandoverReceivers", error);
+    return data;
+  },
+
   async reviewCashCollection(collectionId, decision, note) {
     const { data, error } = await supabase.rpc("crew_cash_review_collection", { p_collection_id: collectionId, p_decision: decision, p_note: note });
     throwSupabaseError("crew.reviewCashCollection", error);

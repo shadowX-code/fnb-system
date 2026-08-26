@@ -30,7 +30,7 @@ The server calculates opening expectation, counted totals, variance, retained fl
 Floating Cash changes require authorized settings workflow and immutable adjustment evidence.
 
 The Deposit Ledger is append-only financial evidence derived from completed obligations, submitted collections, deposits, and explicit corrections. A submitted collection immediately posts its single debit; recipient confirmation is acknowledgement evidence and never posts a second debit.
-Internal handover remains pending confirmation until the intended receiver confirms through a valid Crew session when confirmation is required.
+Internal handover remains pending confirmation until the intended receiver confirms through a valid Crew session. New handovers may be addressed only to an active, outlet-scoped Crew account explicitly configured by an Admin as a Cash Handover Receiver; receiver configuration is versioned and audited, while removing a receiver never rewrites or strands existing assignments.
 Corrections cannot silently rewrite completed checkout or ledger history.
 
 ## Permissions, Snapshots, And Audit

@@ -4,6 +4,9 @@ import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826092703_crew_cash_collection_submission_ledger.sql"), "utf8").toLowerCase();
 const compatibilitySql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826094526_crew_cash_mobile_available_balance_compatibility.sql"), "utf8").toLowerCase();
+const handoverSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826103000_crew_cash_handover_receivers.sql"), "utf8").toLowerCase();
+const handoverProjectionSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826110821_crew_cash_handover_confirmation_projection.sql"), "utf8").toLowerCase();
+const handoverSessionFixSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826112806_fix_crew_cash_handover_session_context.sql"), "utf8").toLowerCase();
 
 describe("Cash Collection submission-ledger authority", () => {
   it("deducts at submission, projects one balance, and exposes pending confirmation only as audit context", () => {
@@ -31,5 +34,16 @@ describe("Cash Collection submission-ledger authority", () => {
   });
   it("retains token/session, permission, outlet lock, fixed search path, and explicit grants", () => {
     ["crew_operations_employee_context(p_token)", "crew_session_employee(p_token)", "pg_advisory_xact_lock", "security definer set search_path=public", "revoke all on function", "grant execute on function public.crew_cash_mobile(text,date) to anon,authenticated"].forEach((contract) => expect(sql).toContain(contract));
+  });
+  it("locks Cash Handover confirmation to the submitted amount and exposes audited handover parties without recalculating balances", () => {
+    expect(handoverSql).toContain("crew_cash_handover_receiver_configs");
+    expect(handoverSql).toContain("p_expected_version<>current_version");
+    expect(handoverSql).toContain("crew_cash_handover_receiver_config_audit");
+    expect(handoverProjectionSql).toContain("p_received_amount is distinct from row.amount");
+    expect(handoverProjectionSql).toContain("'handover_from'");
+    expect(handoverProjectionSql).toContain("'handover_to'");
+    expect(handoverProjectionSql).not.toContain("balance_after");
+    expect(handoverSessionFixSql).toContain("crew_operations_employee_context(p_token)");
+    expect(handoverSessionFixSql).not.toContain("crew_session_context(p_token)");
   });
 });
