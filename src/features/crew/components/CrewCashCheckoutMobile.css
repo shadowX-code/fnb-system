@@ -23,6 +23,48 @@
 @media (max-width: 360px) { .crew-cash-mobile { padding-inline: 14px; }.crew-cash-complete dl { grid-template-columns: 1fr; }.crew-cash-complete dl div { display: flex; justify-content: space-between; }.crew-cash-receipts article { grid-template-columns: 1fr 80px; }.crew-cash-receipts article button { grid-column: 1 / -1; }.crew-cash-today-summary > dl { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { .crew-cash-steps > span { transition: none; } }
 
+/* Summary is intentionally its own compact, read-only dashboard. */
+.crew-cash-summary { gap: 14px; margin: 14px 0 20px; }
+.crew-cash-summary article { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }
+.crew-cash-summary article + article { border-top: 1px solid var(--crew-color-border); }
+.crew-cash-summary .crew-cash-today-summary { display: grid; grid-template-columns: 1fr; gap: 16px; padding: 16px; }
+.crew-cash-today-summary > header { display: grid; grid-template-columns: 48px minmax(0, 1fr); align-items: start; gap: 12px; }
+.crew-cash-summary-icon { display: grid; width: 48px; height: 48px; place-items: center; border-radius: 14px; background: color-mix(in srgb, var(--crew-color-mist-mint) 46%, white); color: var(--crew-color-deep-teal); }
+.crew-cash-today-summary > header > div { display: grid; min-width: 0; gap: 3px; }
+.crew-cash-today-summary > header small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
+.crew-cash-today-summary h2 { margin: 0; color: var(--crew-color-text); font-size: var(--crew-type-section-title); line-height: 1.2; }
+.crew-cash-summary-status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.crew-cash-summary .crew-cash-today-summary > dl { grid-column: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 12px 0; border-block: 1px solid var(--crew-color-divider); }
+.crew-cash-today-summary > dl div { padding-inline: 10px; border-left: 1px solid var(--crew-color-divider); }
+.crew-cash-today-summary > dl div:first-child { padding-left: 0; border-left: 0; }
+.crew-cash-today-summary > dl div:last-child { padding-right: 0; }
+.crew-cash-today-summary > dl .is-deposit dd { color: var(--crew-color-deep-teal); font-size: var(--crew-type-card-title); }
+.crew-cash-today-summary dt { overflow: visible; font-size: var(--crew-type-meta); line-height: 1.25; text-overflow: clip; white-space: normal; }
+.crew-cash-today-summary dd { font-variant-numeric: tabular-nums; }
+.crew-cash-summary .crew-cash-today-summary > button { grid-column: auto; justify-content: center; min-height: 48px; width: 100%; border-radius: var(--crew-radius-control); background: var(--crew-color-deep-teal); color: white; }
+.crew-cash-summary .crew-cash-deposit-summary { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 16px; }
+.crew-cash-deposit-summary > div { display: grid; min-width: 0; gap: 2px; }
+.crew-cash-deposit-summary small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
+.crew-cash-deposit-summary strong { color: var(--crew-color-text); font-size: var(--crew-type-kpi-medium); font-variant-numeric: tabular-nums; line-height: 1.1; }
+.crew-cash-deposit-summary button { min-height: 44px; }
+.crew-cash-recent-activity { margin-top: 4px; }
+.crew-cash-recent-activity > header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.crew-cash-recent-activity h2 { margin: 0; font-size: var(--crew-type-section-title); }
+.crew-cash-recent-activity > header button { border: 0; background: transparent; color: var(--crew-color-deep-teal); font: inherit; font-size: var(--crew-type-label); font-weight: 650; }
+.crew-cash-recent-activity > div { overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }
+.crew-cash-activity-row { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto 24px; align-items: center; gap: 10px; padding: 14px; border-bottom: 1px solid var(--crew-color-divider); }
+.crew-cash-activity-row:last-child { border-bottom: 0; }
+.crew-cash-activity-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; }
+.crew-cash-activity-icon.is-in { background: color-mix(in srgb, var(--crew-color-mist-mint) 42%, white); color: var(--crew-color-deep-teal); }
+.crew-cash-activity-icon.is-out { background: color-mix(in srgb, var(--crew-color-danger) 9%, white); color: var(--crew-color-danger); }
+.crew-cash-activity-copy,.crew-cash-activity-amount { display: grid; min-width: 0; gap: 3px; }
+.crew-cash-activity-copy strong { color: var(--crew-color-text); font-size: var(--crew-type-label); }
+.crew-cash-activity-copy small,.crew-cash-activity-amount small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); line-height: 1.25; }
+.crew-cash-activity-amount { justify-items: end; text-align: right; }
+.crew-cash-activity-amount em { font-size: var(--crew-type-body); font-style: normal; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.crew-cash-activity-amount .is-in { color: var(--crew-color-deep-teal); }.crew-cash-activity-amount .is-out { color: var(--crew-color-danger); }
+.crew-cash-activity-row > button { display: grid; width: 24px; height: 44px; place-items: center; padding: 0; border: 0; background: transparent; color: var(--crew-color-text-secondary); }
+
 /* Cash Checkout refinement: a quiet operational ledger, using shared Crew tokens. */
 .crew-cash-opening-summary { grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 14px; margin: 2px 0 10px; padding: 12px 0; border-block: 1px solid var(--crew-color-divider); }
 .crew-cash-summary { gap: 0; margin: 8px 0 14px; }.crew-cash-summary article { border: 0; border-radius: 0; box-shadow: none; }.crew-cash-summary article + article { border-top: 1px solid var(--crew-color-divider); }.crew-cash-summary article:first-child { padding-inline: 0; }.crew-cash-summary article:last-child { padding-inline: 0; }
@@ -44,3 +86,10 @@
 .crew-cash-ledger > div article { align-items: flex-start; gap: 12px; }.crew-cash-ledger-amount { display: grid; flex: 0 0 auto; justify-items: end; gap: 3px; }.crew-cash-ledger-amount small { white-space: nowrap; }
 .crew-cash-ledger { overflow: visible; border: 0; border-radius: 0; background: transparent; }.crew-cash-ledger > header { padding-inline: 0; }.crew-cash-ledger > div article { padding-inline: 0; }
 @media (max-width: 360px) { .crew-cash-opening-summary { gap: 9px; }.crew-cash-opening-source { gap: 8px; }.crew-cash-opening-summary .is-expected { min-width: 82px; padding-left: 9px; }.crew-cash-denomination-row { grid-template-columns: minmax(43px,1fr) 120px minmax(67px,1fr); gap: 5px; }.crew-cash-stepper { grid-template-columns: 40px minmax(34px,1fr) 40px; }.crew-cash-stepper button { width: 40px; }.crew-cash-actions { padding-inline: 14px; }.crew-cash-action-total { min-width: 88px; }.crew-cash-actions-count,.crew-cash-actions-allocate,.crew-cash-actions-confirm { grid-template-columns: 1fr 1fr; }.crew-cash-actions-count .crew-cash-action-total,.crew-cash-actions-allocate .crew-cash-action-total,.crew-cash-actions-confirm .crew-cash-action-total { grid-column: 1 / -1; }.crew-cash-actions-count .crew-mobile-primary,.crew-cash-actions-allocate .crew-mobile-primary,.crew-cash-actions-confirm .crew-mobile-primary { grid-column: 2; }.crew-cash-actions-count .crew-mobile-secondary,.crew-cash-actions-allocate .crew-mobile-secondary,.crew-cash-actions-confirm .crew-mobile-secondary { grid-column: 1; } }
+
+/* Summary-only composition overrides the workflow's intentionally flat surfaces. */
+.crew-cash-summary { gap: 14px; margin: 14px 0 20px; }
+.crew-cash-summary article { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }
+.crew-cash-summary article + article { border-top: 1px solid var(--crew-color-border); }
+.crew-cash-summary article:first-child,.crew-cash-summary article:last-child { padding-inline: 16px; }
+@media (max-width: 360px) { .crew-cash-summary .crew-cash-today-summary > dl { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 12px; }.crew-cash-today-summary > dl div:nth-child(3) { padding-left: 0; border-left: 0; }.crew-cash-today-summary > dl div:nth-child(2) { padding-right: 0; }.crew-cash-activity-row { grid-template-columns: 38px minmax(0, 1fr) auto 20px; gap: 8px; padding: 12px; }.crew-cash-activity-icon { width: 38px; height: 38px; }.crew-cash-activity-row > button { width: 20px; } }

@@ -32,6 +32,24 @@ describe("Crew Cash Checkout mobile", () => {
     expect(crewService.cashCheckoutMobile).toHaveBeenCalledWith("opaque-session", expect.any(String));
   });
 
+  it("keeps the confirmed deposit balance primary and labels the pending-receipt-adjusted balance precisely", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, current_balance: 500, available_balance: 400 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByText("Cash Deposit Balance")).not.toBeNull();
+    expect(screen.getByText("RM 500.00")).not.toBeNull();
+    expect(screen.getByText("Available to collect: RM 400.00")).not.toBeNull();
+    expect(screen.queryByText("Available balance: RM 400.00")).toBeNull();
+  });
+
+  it("presents recent activity as a continuous audit list with a dedicated ledger control", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByRole("heading", { name: "Recent Activity" })).not.toBeNull();
+    expect(screen.getAllByText("Cash Checkout").length).toBeGreaterThan(1);
+    expect(screen.getByText("+RM 500.00")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Open Cash Checkout in ledger" }));
+    expect((await screen.findAllByRole("heading", { name: "Cash Deposit" })).length).toBeGreaterThan(1);
+  });
+
   it("calculates a live denomination preview but sends raw counts to server authority", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Start" }));

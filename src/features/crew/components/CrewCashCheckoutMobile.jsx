@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Banknote, Check, ChevronRight, HandCoins, History, Minus, Plus, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Banknote, CalendarCheck, Check, ChevronRight, HandCoins, History, Minus, Plus, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewEmptyState, CrewStatusBadge } from "./CrewMobileUI.jsx";
@@ -63,6 +63,8 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
   const expectedOpening = Number(cashContext.expected_opening_cash ?? data?.checkout?.expected_opening_cash ?? floating + previousCarry);
   const deposit = Math.max(0, counted - floating - carry);
   const requiresReview = Math.max(0, floating - counted) > 0 || (variance != null && Math.abs(variance) > Number(data?.settings?.variance_tolerance || 0));
+  const checkoutStatus = data?.checkout?.status;
+  const checkoutAction = completed ? t("cash.viewDetails") : data?.checkout?.review_required ? t("cash.continueReview") : data?.checkout ? t("cash.continueCheckout") : t("cash.startCheckout");
 
   async function save(action) {
     setSaving(true); setError("");
@@ -88,16 +90,24 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
   return <section className="crew-cash-mobile">
     <CrewMobileDetailHeader title={t("cash.title")} onBack={onBack} variant="workflow" />
     <section className="crew-cash-summary">
-      <article className="crew-cash-today-summary"><WalletCards size={21} /><span><small>{t("cash.todayCheckout")}</small><strong>{data?.checkout ? t(`cash.status.${data.checkout.status}`) : t("cash.notStarted")}</strong></span><CrewStatusBadge tone={completed ? "success" : data?.checkout?.review_required ? "warning" : "neutral"}>{data?.checkout?.review_required ? t("cash.reviewRequired") : completed ? t("status.completed") : t("cash.today")}</CrewStatusBadge><dl><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(floating)}</dd></div><div><dt>{t("cash.carryForward")}</dt><dd>{money(previousCarry)}</dd></div><div><dt>{t("cash.countedCash")}</dt><dd>{data?.checkout ? money(data.checkout.counted_cash) : "—"}</dd></div><div><dt>{t("cash.forDeposit")}</dt><dd>{data?.checkout ? money(data.checkout.amount_for_deposit) : "—"}</dd></div></dl><button type="button" onClick={() => completed ? setShowDetails(true) : openFlow()}>{completed ? t("cash.viewDetails") : data?.checkout ? t("cash.continueCheckout") : t("cash.startCheckout")}<ChevronRight size={15} /></button></article>
-      <article className="crew-cash-deposit-summary"><HandCoins size={21} /><span><small>{t("cash.depositBalance")}</small><strong>{money(data?.deposit?.current_balance)}</strong>{Number(data?.deposit?.available_balance) < Number(data?.deposit?.current_balance) && <small>{t("cash.availableBalanceShort", { amount: money(data.deposit.available_balance) })}</small>}</span><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}<ChevronRight size={15} /></button></article>
+      <article className="crew-cash-today-summary"><header><span className="crew-cash-summary-icon"><CalendarCheck size={22} /></span><div><small>{data?.business_date ? formatCrewOperationalDate(data.business_date) : t("cash.today")}</small><h2>{t("cash.todayCheckout")}</h2><div className="crew-cash-summary-status"><CrewStatusBadge tone={completed || checkoutStatus === "reconciled" ? "success" : "neutral"}>{data?.checkout ? t(`cash.status.${checkoutStatus}`) : t("cash.notStarted")}</CrewStatusBadge>{data?.checkout?.review_required && <CrewStatusBadge tone="warning">{t("cash.reviewRequired")}</CrewStatusBadge>}</div></div></header><dl><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(floating)}</dd></div><div><dt>{t("cash.previousCarryForward")}</dt><dd>{money(previousCarry)}</dd></div><div><dt>{t("cash.countedCash")}</dt><dd>{data?.checkout ? money(data.checkout.counted_cash) : "—"}</dd></div><div className="is-deposit"><dt>{t("cash.forDeposit")}</dt><dd>{data?.checkout ? money(data.checkout.amount_for_deposit) : "—"}</dd></div></dl><button type="button" onClick={() => completed ? setShowDetails(true) : openFlow()}>{checkoutAction}<ChevronRight size={17} /></button></article>
+      <article className="crew-cash-deposit-summary"><span className="crew-cash-summary-icon"><HandCoins size={22} /></span><div><small>{t("cash.cashDepositBalance")}</small><strong>{money(data?.deposit?.current_balance)}</strong>{Number(data?.deposit?.available_balance) < Number(data?.deposit?.current_balance) && <small>{t("cash.availableToCollect", { amount: money(data.deposit.available_balance) })}</small>}</div><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}<ChevronRight size={17} /></button></article>
     </section>
 
     {data?.pending_receipts?.length > 0 && <PendingReceipts rows={data.pending_receipts} token={token} onChanged={load} />}
 
     {completed && <p className="crew-cash-complete-note"><Check size={16} />{t("cash.completedAt", { time: time(data.checkout.completed_at) })}</p>}
-    <section className="crew-cash-ledger"><header><div><h2>{t("cash.depositLedger")}</h2><p>{t("cash.ledgerHelp")}</p></div><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}</button></header>{data?.deposit?.recent?.length ? <div>{data.deposit.recent.slice(0, 3).map((row) => <LedgerRow key={row.id} row={row} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
+    <section className="crew-cash-recent-activity"><header><h2>{t("cash.recentActivity")}</h2><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}</button></header>{data?.deposit?.recent?.length ? <div>{data.deposit.recent.slice(0, 3).map((row) => <RecentActivityRow key={row.id} row={row} onOpen={() => setLedgerOpen(true)} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
     {collectionOpen && <CollectionSheet data={data} token={token} onClose={() => setCollectionOpen(false)} onSaved={async () => { setCollectionOpen(false); await load(); }} />}
   </section>;
+}
+
+function RecentActivityRow({ row, onOpen }) {
+  const { t } = useTranslation();
+  const isOut = Number(row.signed_amount) < 0;
+  const checkout = row.entry_type === "checkout_due" || !isOut;
+  const actor = row.receiver_name || row.recorded_by || row.employee_name;
+  return <article className="crew-cash-activity-row"><span className={`crew-cash-activity-icon ${isOut ? "is-out" : "is-in"}`}>{isOut ? <ArrowDown size={20} /> : <ArrowUp size={20} />}</span><div className="crew-cash-activity-copy"><strong>{checkout ? t("cash.ledgerCheckout") : t("cash.ledgerCollection")}</strong><small>{formatCrewOperationalDateTime(row.occurred_at)}</small>{actor && <small>{formatCrewEmployee(actor)}{row.status ? ` · ${t(`cash.status.${row.status}`)}` : ""}</small>}</div><div className="crew-cash-activity-amount"><em className={isOut ? "is-out" : "is-in"}>{isOut ? "−" : "+"}{money(Math.abs(row.signed_amount))}</em><small>{t("cash.ledgerBalance", { amount: money(row.balance_after) })}</small></div><button type="button" aria-label={t("cash.openLedgerEntry", { activity: checkout ? t("cash.ledgerCheckout") : t("cash.ledgerCollection") })} onClick={onOpen}><ChevronRight size={18} /></button></article>;
 }
 
 function CheckoutFlow({ data, draft, setDraft, step, setStep, counted, posExpected, variance, deposit, floating, previousCarry, expectedOpening, requiresReview, saving, error, onBack, onSave }) {
