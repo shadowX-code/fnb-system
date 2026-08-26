@@ -29,6 +29,7 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.queryByText("Count outlet cash")).toBeNull();
     expect(screen.getByText("RM 300.00")).not.toBeNull();
     expect(screen.getByText("RM 50.00")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Start" }).classList.contains("crew-mobile-primary")).toBe(true);
     expect(crewService.cashCheckoutMobile).toHaveBeenCalledWith("opaque-session", expect.any(String));
   });
 
