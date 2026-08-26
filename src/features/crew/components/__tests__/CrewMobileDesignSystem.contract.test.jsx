@@ -250,6 +250,16 @@ describe("Crew Mobile design system contract", () => {
     expect(attendanceStyles).toContain("Attendance keeps a route-owned composition while consuming Crew Fundamental tokens.");
   });
 
+  it("keeps Schedule selection and empty-day hierarchy on canonical Mint and status owners", () => {
+    expect(schedule).toContain('className="crew-ui-segmented--mint crew-schedule-final-week"');
+    expect(schedule).toContain('className="crew-schedule-final-date-block"');
+    expect(schedule).not.toContain("CalendarDays");
+    expect(schedule).not.toContain("jumpToday");
+    expect(scheduleStyles).toContain("background: var(--crew-color-icon-default-bg)");
+    expect(scheduleStyles).toContain("button.is-selected i { background: var(--crew-color-deep-teal); }");
+    expect(scheduleStyles).not.toContain("button.is-selected { background: var(--crew-color-deep-teal)");
+  });
+
   it("keeps Attendance on shared page, segmented, icon, status, and divider owners", () => {
     expect(mobileApp).toContain('subtitle={t("attendance.subtitle")} variant="page"');
     expect(mobileApp).toContain("crew-ui-segmented crew-ui-segmented--mint crew-attendance-month-select");

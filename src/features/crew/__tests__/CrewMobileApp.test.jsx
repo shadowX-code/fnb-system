@@ -295,6 +295,9 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByText(/Hola Hola/)).not.toBeNull();
     expect(screen.getAllByText("OFF").length).toBeGreaterThan(0);
     expect(mocks.myRoster).toHaveBeenCalledWith("crew-token");
+    expect(screen.queryByRole("button", { name: "Jump to today" })).toBeNull();
+    expect(document.querySelector(".crew-schedule-final-week")?.classList.contains("crew-ui-segmented--mint")).toBe(true);
+    expect(document.querySelector(".crew-schedule-final-week .is-selected .crew-schedule-final-date-block")).not.toBeNull();
   });
 
   it("synchronizes the seven-day selector with working, OFF, MC and approved-leave schedule states", async () => {
@@ -322,7 +325,7 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-schedule-final-day").textContent).toContain("7 hrs");
     expect(document.querySelector(".crew-schedule-final-week .is-selected").textContent).toContain("17");
     expect(screen.getByRole("navigation", { name: "Crew navigation" }).querySelector("button.active").textContent).toBe("Home");
-    fireEvent.click(screen.getByRole("button", { name: "Jump to today" }));
+    fireEvent.click(screen.getByRole("button", { name: /Thursday, 13 August, Unpaid Leave/ }));
     expect(document.querySelector(".crew-schedule-final-day h2").textContent).toBe("Unpaid Leave");
   });
 

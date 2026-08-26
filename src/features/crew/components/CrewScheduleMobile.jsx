@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CalendarDays, MapPin } from "lucide-react";
+import { MapPin } from "lucide-react";
 import { crewLocale, formatCrewDate } from "../utils/crewI18n.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewStatusBadge } from "./CrewMobileUI.jsx";
@@ -57,7 +57,7 @@ export default function CrewScheduleMobile({ roster, employee, onBack }) {
 
   return (
     <section className="crew-schedule-final">
-      <CrewScheduleHeader onBack={onBack} onToday={() => selectDay(from)} />
+      <CrewScheduleHeader onBack={onBack} />
       <CrewScheduleWeekStrip days={days} selectedDate={selectedDate} onSelect={selectDay} />
       <CrewScheduleDayCard date={selectedDate} entry={selectedEntry} employee={employee} today={from} />
       <CrewScheduleList entries={upcoming} employee={employee} selectedDate={selectedDate} />
@@ -65,14 +65,14 @@ export default function CrewScheduleMobile({ roster, employee, onBack }) {
   );
 }
 
-export function CrewScheduleHeader({ onBack, onToday }) {
+export function CrewScheduleHeader({ onBack }) {
   const { t } = useTranslation();
-  return <CrewMobileDetailHeader className="crew-schedule-final-header" title={t("schedule.title")} onBack={onBack} action={<button type="button" className="crew-mobile-detail-icon-action" onClick={onToday} aria-label={t("schedule.jumpToday")}><CalendarDays size={20} /></button>} />;
+  return <CrewMobileDetailHeader className="crew-schedule-final-header" title={t("schedule.title")} onBack={onBack} />;
 }
 
 export function CrewScheduleWeekStrip({ days, selectedDate, onSelect }) {
   const { t } = useTranslation();
-  return <div className="crew-schedule-final-week" aria-label={t("schedule.title")}>{days.map(({ key, date, entry }) => <button key={key} type="button" className={selectedDate === key ? "is-selected" : ""} onClick={() => onSelect(key)} aria-label={`${formatCrewDate(date, { weekday: "long", day: "numeric", month: "long" })}, ${entry ? entryLabel(entry, t) : t("schedule.noSchedule")}`} aria-pressed={selectedDate === key}><small>{formatCrewDate(date, { weekday: "short" })}</small><strong>{date.getDate()}</strong><i className={`is-${entryTone(entry)}`} /></button>)}</div>;
+  return <div className="crew-ui-segmented--mint crew-schedule-final-week" aria-label={t("schedule.title")}>{days.map(({ key, date, entry }) => <button key={key} type="button" className={selectedDate === key ? "is-selected" : ""} onClick={() => onSelect(key)} aria-label={`${formatCrewDate(date, { weekday: "long", day: "numeric", month: "long" })}, ${entry ? entryLabel(entry, t) : t("schedule.noSchedule")}`} aria-pressed={selectedDate === key}><span className="crew-schedule-final-date-block"><small>{formatCrewDate(date, { weekday: "short" })}</small><strong>{date.getDate()}</strong></span><i className={`is-${entryTone(entry)}`} /></button>)}</div>;
 }
 
 export function CrewScheduleDayCard({ date, entry, employee, today }) {
@@ -82,7 +82,7 @@ export function CrewScheduleDayCard({ date, entry, employee, today }) {
   const hours = durationHours(entry);
   const title = entry ? working ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : entryLabel(entry, t) : t("schedule.noSchedule");
   const contextLabel = `${date === today ? `${t("common.today")}, ` : ""}${formatCrewDate(value, { weekday: "short", day: "numeric", month: "short" })}`;
-  return <article className={`crew-schedule-final-day is-${entryTone(entry)}`}><div className="crew-schedule-final-day-copy"><span className="crew-schedule-final-date-label">{contextLabel}</span><h2>{title}</h2>{entry ? <p><MapPin size={15} /> <span>{entryOutlet(entry, t)} · {entryRole(entry, employee, t)}{working && hours !== null ? ` · ${t("schedule.hours", { count: hours })}` : ""}</span></p> : <p>{t("schedule.noScheduleBody")}</p>}</div><CrewScheduleStatusBadge entry={entry} label={entry ? working ? t("schedule.upcomingStatus") : entryLabel(entry, t) : t("schedule.noSchedule")} /></article>;
+  return <article className={`crew-schedule-final-day is-${entryTone(entry)}`}><div className="crew-schedule-final-day-copy"><span className="crew-schedule-final-date-label">{contextLabel}</span><h2>{title}</h2>{entry ? <p><MapPin size={15} /> <span>{entryOutlet(entry, t)} · {entryRole(entry, employee, t)}{working && hours !== null ? ` · ${t("schedule.hours", { count: hours })}` : ""}</span></p> : <p>{t("schedule.noScheduleBody")}</p>}</div>{entry ? <CrewScheduleStatusBadge entry={entry} label={working ? t("schedule.upcomingStatus") : entryLabel(entry, t)} /> : null}</article>;
 }
 
 export function CrewScheduleList({ entries, employee, selectedDate }) {
