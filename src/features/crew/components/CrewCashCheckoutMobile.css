@@ -62,6 +62,16 @@
 .crew-cash-activity-amount .is-in { color: var(--crew-color-deep-teal); }.crew-cash-activity-amount .is-out { color: var(--crew-color-danger); }
 .crew-cash-activity-row > button { display: grid; width: 24px; height: 44px; place-items: center; padding: 0; border: 0; background: transparent; color: var(--crew-color-text-secondary); }
 
+/* Summary status metadata and pending handovers share the canonical operational surface system. */
+.crew-cash-completed-at { display: inline-flex; align-items: center; gap: 5px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); line-height: 1.3; }
+.crew-cash-completed-at svg { color: var(--crew-color-success); }.crew-cash-deposit-pending { display: inline-flex; margin-top: 4px; }
+.crew-cash-receipts { display: grid; gap: 0; padding: 0; border-color: var(--crew-color-border); background: var(--crew-color-surface); }
+.crew-cash-receipts > header { padding: 14px; border-bottom: 1px solid var(--crew-color-divider); }.crew-cash-receipts > header h2 { color: var(--crew-color-text); font-size: var(--crew-type-section-title); }
+.crew-cash-receipts > div > article { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: start; gap: 10px; margin: 0; padding: 13px 14px; }.crew-cash-receipts > div > article + article { border-top: 1px solid var(--crew-color-divider); }
+.crew-cash-receipt-copy { display: grid; min-width: 0; gap: 3px; }.crew-cash-receipt-copy strong { color: var(--crew-color-deep-teal); font-size: var(--crew-type-card-title); font-variant-numeric: tabular-nums; }.crew-cash-receipt-copy small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); line-height: 1.25; }
+.crew-cash-receipt-action { display: grid; justify-items: end; gap: 8px; }
+@media (max-width: 360px) { .crew-cash-receipts > div > article { grid-template-columns: 34px minmax(0, 1fr); }.crew-cash-receipt-action { grid-column: 2; grid-template-columns: minmax(0, 1fr) auto; align-items: center; justify-items: stretch; }.crew-cash-receipt-action .crew-ui-status { justify-self: start; } }
+
 /* Cash Checkout refinement: a quiet operational ledger, using shared Crew tokens. */
 .crew-cash-opening-summary { grid-template-columns: minmax(0, 1fr) auto; align-items: stretch; gap: 14px; margin: 2px 0 10px; padding: 12px 0; border-block: 1px solid var(--crew-color-divider); }
 .crew-cash-count-card > header,.crew-cash-allocation-card > header,.crew-cash-confirm-card > header { align-items: center; margin: 4px 0 16px; }.crew-cash-count-card > header h2,.crew-cash-allocation-card > header h2,.crew-cash-confirm-card > header h2 { color: var(--crew-color-deep-teal); font-size: var(--crew-type-detail-title); font-weight: 720; line-height: 1.2; }

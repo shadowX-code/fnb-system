@@ -39,6 +39,7 @@ describe("Crew Cash Checkout mobile", () => {
     expect(await screen.findByText("Cash Deposit Balance")).not.toBeNull();
     expect(screen.getByText("RM 400.00")).not.toBeNull();
     expect(screen.getByText("RM 100.00 pending confirmation")).not.toBeNull();
+    expect(screen.getByText("RM 100.00 pending confirmation").closest(".crew-ui-status.is-warning")).not.toBeNull();
     expect(screen.queryByText(/Available after pending receipt/)).toBeNull();
   });
 
@@ -195,9 +196,11 @@ describe("Crew Cash Checkout mobile", () => {
   });
 
   it("shows a compact immutable completion state and opens the server snapshot", async () => {
-    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 0, amount_for_deposit: 500 } });
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", review_required: true, completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 0, amount_for_deposit: 500 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    expect(await screen.findByText("Completed at 10:30 pm")).not.toBeNull();
+    const completedAt = await screen.findByText("Completed at 10:30 pm");
+    expect(completedAt.closest(".crew-cash-today-summary")).not.toBeNull();
+    expect(screen.queryByText("Review Required")).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByRole("heading", { name: "Checkout Details" })).not.toBeNull();
@@ -207,8 +210,15 @@ describe("Crew Cash Checkout mobile", () => {
 
   it("keeps configured receiver confirmation session-bound and acknowledgement-only", async () => {
     crewService.confirmCashCollection.mockResolvedValue({ status: "completed" });
-    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner", occurred_at: "2026-08-21T10:30:00+08:00", note: "Counter receipt" }] });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByRole("heading", { name: "Pending Confirmations" })).not.toBeNull();
+    expect(screen.getByText("Handed over by Sender QA")).not.toBeNull();
+    expect(screen.getByText("Friends Corner")).not.toBeNull();
+    expect(screen.queryByText("Bank run")).toBeNull();
+    const receipt = document.querySelector(".crew-cash-receipts article");
+    expect(receipt?.querySelector(".crew-ui-status.is-warning")).not.toBeNull();
+    expect(receipt?.querySelector(".crew-mobile-primary")?.textContent).toBe("Confirm Received");
     fireEvent.click(await screen.findByRole("button", { name: "Confirm Received" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Confirm Received" })[1]);
     await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("opaque-session", "handover-1", 100));
