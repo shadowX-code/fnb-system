@@ -251,7 +251,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps Schedule selection and empty-day hierarchy on canonical Mint and status owners", () => {
-    expect(schedule).toContain('className="crew-ui-segmented--mint crew-schedule-final-week"');
+    expect(schedule).toContain('className="crew-ui-segmented crew-ui-segmented--mint crew-schedule-final-week"');
     expect(schedule).toContain('className="crew-schedule-final-date-block"');
     expect(schedule).not.toContain("CalendarDays");
     expect(schedule).not.toContain("jumpToday");

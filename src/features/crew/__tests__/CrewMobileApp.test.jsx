@@ -296,6 +296,7 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getAllByText("OFF").length).toBeGreaterThan(0);
     expect(mocks.myRoster).toHaveBeenCalledWith("crew-token");
     expect(screen.queryByRole("button", { name: "Jump to today" })).toBeNull();
+    expect(document.querySelector(".crew-schedule-final-week")?.classList.contains("crew-ui-segmented")).toBe(true);
     expect(document.querySelector(".crew-schedule-final-week")?.classList.contains("crew-ui-segmented--mint")).toBe(true);
     expect(document.querySelector(".crew-schedule-final-week .is-selected .crew-schedule-final-date-block")).not.toBeNull();
   });

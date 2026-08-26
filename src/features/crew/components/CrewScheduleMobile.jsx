@@ -72,7 +72,7 @@ export function CrewScheduleHeader({ onBack }) {
 
 export function CrewScheduleWeekStrip({ days, selectedDate, onSelect }) {
   const { t } = useTranslation();
-  return <div className="crew-ui-segmented--mint crew-schedule-final-week" aria-label={t("schedule.title")}>{days.map(({ key, date, entry }) => <button key={key} type="button" className={selectedDate === key ? "is-selected" : ""} onClick={() => onSelect(key)} aria-label={`${formatCrewDate(date, { weekday: "long", day: "numeric", month: "long" })}, ${entry ? entryLabel(entry, t) : t("schedule.noSchedule")}`} aria-pressed={selectedDate === key}><span className="crew-schedule-final-date-block"><small>{formatCrewDate(date, { weekday: "short" })}</small><strong>{date.getDate()}</strong></span><i className={`is-${entryTone(entry)}`} /></button>)}</div>;
+  return <div className="crew-ui-segmented crew-ui-segmented--mint crew-schedule-final-week" aria-label={t("schedule.title")}>{days.map(({ key, date, entry }) => <button key={key} type="button" className={selectedDate === key ? "is-selected" : ""} onClick={() => onSelect(key)} aria-label={`${formatCrewDate(date, { weekday: "long", day: "numeric", month: "long" })}, ${entry ? entryLabel(entry, t) : t("schedule.noSchedule")}`} aria-pressed={selectedDate === key}><span className="crew-schedule-final-date-block"><small>{formatCrewDate(date, { weekday: "short" })}</small><strong>{date.getDate()}</strong></span><i className={`is-${entryTone(entry)}`} /></button>)}</div>;
 }
 
 export function CrewScheduleDayCard({ date, entry, employee, today }) {
