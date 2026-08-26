@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowRight, Banknote, Check, ChevronRight, HandCoins, History, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
+import { ArrowRight, Banknote, Check, ChevronRight, HandCoins, History, Info, Minus, Plus, RefreshCw, ShieldCheck, WalletCards } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewEmptyState, CrewStatusBadge } from "./CrewMobileUI.jsx";
@@ -12,8 +12,13 @@ const denominationKey = (value) => value < 1 ? value.toFixed(2) : String(value);
 const money = (value) => formatCrewMoney(value);
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date());
 const time = (value) => formatCrewTime(value, { hour12: true });
-const initialDraft = (checkout, settings) => ({
-  actual_opening_cash: checkout?.actual_opening_cash ?? settings?.floating_cash ?? "",
+const moneyCents = (value) => {
+  if (value === "" || value == null) return null;
+  const amount = Number(value);
+  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
+};
+const initialDraft = (checkout, cashContext, settings) => ({
+  actual_opening_cash: checkout?.actual_opening_cash ?? cashContext?.expected_opening_cash ?? settings?.floating_cash ?? "",
   opening_variance_reason: checkout?.opening_variance_reason || "",
   denomination_counts: checkout?.denomination_counts || {},
   pos_expected_cash: checkout?.pos_expected_cash ?? "",
@@ -38,7 +43,7 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange }) 
     setLoading(true); setError("");
     try {
       const result = await crewService.cashCheckoutMobile(token, today());
-      setData(result); setDraft(initialDraft(result?.checkout, result?.settings));
+      setData(result); setDraft(initialDraft(result?.checkout, result?.cash_context, result?.settings));
       if (result?.checkout?.status === "completed") setStep("complete");
       else if (result?.checkout?.status === "submitted") setStep("confirm");
       else if (result?.checkout?.status === "reconciled") setStep("allocate");
@@ -125,7 +130,36 @@ function CashLedger({ data, onBack, onCollection }) {
 
 function StepBar({ step }) { const { t } = useTranslation(); const steps = ["count", "allocate", "confirm"]; const active = Math.max(0, steps.indexOf(step)); return <nav className="crew-cash-steps" aria-label={t("cash.progress")}><span style={{ width: `${(active / 2) * 100}%` }} />{steps.map((item, index) => <div className={index <= active ? "is-active" : ""} key={item}><i>{index < active ? <Check size={13} /> : index + 1}</i><small>{t(`cash.steps.${item}`)}</small></div>)}</nav>; }
 
-function CountStep({ data, draft, setDraft, counted, expectedOpening, floating, previousCarry }) { const { t } = useTranslation(); const hasActualOpening = draft.actual_opening_cash !== "" && draft.actual_opening_cash != null; return <section className="crew-cash-card"><header><Banknote size={20} /><div><h2>{t("cash.countCash")}</h2><p>{t("cash.countHelp")}</p></div></header><div className="crew-cash-opening-context"><div><small>{t("cash.floatToKeep")}</small><strong>{money(floating)}</strong></div><div><small>{t("cash.carryForward")}</small><strong>{money(previousCarry)}</strong></div></div><div className="crew-cash-opening"><label>{t("cash.expectedOpening")}<strong>{money(expectedOpening)}</strong></label><label>{t("cash.actualOpening")}<input type="number" min="0" step="0.05" value={draft.actual_opening_cash} onChange={(event) => setDraft({ ...draft, actual_opening_cash: event.target.value })} /></label></div>{hasActualOpening && Number(draft.actual_opening_cash) !== expectedOpening && <label className="crew-cash-field">{t("cash.openingReason")}<textarea required value={draft.opening_variance_reason} onChange={(event) => setDraft({ ...draft, opening_variance_reason: event.target.value })} /></label>}<div className="crew-cash-denominations">{DENOMINATIONS.map((denomination) => { const key = denominationKey(denomination); const quantity = Number(draft.denomination_counts[key] || 0); return <label key={key}><b>RM {denomination.toFixed(denomination < 1 ? 2 : 0)}</b><input aria-label={`RM ${denomination}`} inputMode="numeric" type="number" min="0" step="1" value={draft.denomination_counts[key] || ""} onChange={(event) => setDraft({ ...draft, denomination_counts: { ...draft.denomination_counts, [key]: event.target.value } })} /><small>{money(denomination * quantity)}</small></label>; })}</div><div className="crew-cash-total"><span>{t("cash.countedCash")}</span><strong>{money(counted)}</strong></div><label className="crew-cash-field">{t("cash.posExpected")}<input type="number" min="0" step="0.05" value={draft.pos_expected_cash} onChange={(event) => setDraft({ ...draft, pos_expected_cash: event.target.value })} /></label></section>; }
+function CountStep({ draft, setDraft, counted, expectedOpening, floating, previousCarry }) {
+  const { t } = useTranslation();
+  const actualCents = moneyCents(draft.actual_opening_cash);
+  const expectedCents = moneyCents(expectedOpening);
+  const openingVarianceCents = actualCents == null || expectedCents == null ? null : actualCents - expectedCents;
+  const hasOpeningVariance = openingVarianceCents != null && openingVarianceCents !== 0;
+  const setActualOpening = (actual_opening_cash) => setDraft((current) => ({
+    ...current,
+    actual_opening_cash,
+    // A zero preview must immediately remove stale draft-only reason state.
+    opening_variance_reason: moneyCents(actual_opening_cash) === expectedCents ? "" : current.opening_variance_reason,
+  }));
+  const isMoneyInput = (value) => /^\d*(\.\d{0,2})?$/.test(value);
+  const setQuantity = (key, nextQuantity) => {
+    const normalized = String(nextQuantity ?? "").trim();
+    if (!/^\d*$/.test(normalized)) return;
+    setDraft((current) => {
+      const denomination_counts = { ...current.denomination_counts };
+      if (!normalized) delete denomination_counts[key];
+      else denomination_counts[key] = String(Math.max(0, Number.parseInt(normalized, 10) || 0));
+      return { ...current, denomination_counts };
+    });
+  };
+  return <section className="crew-cash-card crew-cash-count-card"><header><Banknote size={20} /><div><h2>{t("cash.countCash")}</h2><p>{t("cash.countHelp")}</p></div></header>
+    <div className="crew-cash-opening-summary" aria-label={t("cash.opening")}><div><small>{t("cash.floatToKeep")}</small><strong>{money(floating)}</strong></div><div><small>{t("cash.carryForward")}</small><strong>{money(previousCarry)}</strong></div><div className="is-expected"><small>{t("cash.expectedOpening")}</small><strong>{money(expectedOpening)}</strong></div></div>
+    <label className="crew-cash-field crew-cash-amount-field">{t("cash.actualOpening")}<input inputMode="decimal" pattern="[0-9]*[.]?[0-9]*" type="text" value={draft.actual_opening_cash} onChange={(event) => isMoneyInput(event.target.value) && setActualOpening(event.target.value)} /></label>
+    {hasOpeningVariance && <><aside className="crew-cash-opening-variance"><Info size={16} /><span><strong>{t("cash.openingVariance")}</strong><small>{t("cash.openingVarianceDetails", { expected: money(expectedOpening), actual: money(actualCents / 100), variance: `${openingVarianceCents > 0 ? "+" : ""}${money(openingVarianceCents / 100)}` })}</small></span></aside><label className="crew-cash-field">{t("cash.openingReason")}<textarea required value={draft.opening_variance_reason} onChange={(event) => setDraft({ ...draft, opening_variance_reason: event.target.value })} /></label></>}
+    <div className="crew-cash-denominations" aria-label={t("cash.denominationCount")}>{DENOMINATIONS.map((denomination) => { const key = denominationKey(denomination); const quantity = Number(draft.denomination_counts[key] || 0); return <div className="crew-cash-denomination-row" key={key}><b>RM {denomination.toFixed(denomination < 1 ? 2 : 0)}</b><div className="crew-cash-stepper"><button aria-label={`Decrease RM ${denomination}`} type="button" disabled={quantity === 0} onClick={() => setQuantity(key, quantity - 1)}><Minus size={16} /></button><input aria-label={`RM ${denomination}`} inputMode="numeric" type="text" value={quantity} onChange={(event) => setQuantity(key, event.target.value)} /><button aria-label={`Increase RM ${denomination}`} type="button" onClick={() => setQuantity(key, quantity + 1)}><Plus size={16} /></button></div><small>{money(denomination * quantity)}</small></div>; })}</div>
+    <div className="crew-cash-total"><span>{t("cash.countedCash")}</span><strong>{money(counted)}</strong></div><label className="crew-cash-field crew-cash-amount-field">{t("cash.posExpected")}<input inputMode="decimal" pattern="[0-9]*[.]?[0-9]*" type="text" value={draft.pos_expected_cash} onChange={(event) => isMoneyInput(event.target.value) && setDraft({ ...draft, pos_expected_cash: event.target.value })} /></label></section>;
+}
 
 function AllocateStep({ floating, counted, deposit, draft, setDraft }) { const { t } = useTranslation(); const shortfall = Math.max(0, floating - counted); return <section className="crew-cash-card"><header><WalletCards size={20} /><div><h2>{t("cash.allocateCash")}</h2><p>{t("cash.allocateHelp")}</p></div></header><dl className="crew-cash-breakdown"><div><dt>{t("cash.countedCash")}</dt><dd>{money(counted)}</dd></div><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(Math.min(floating, counted))}</dd></div><div><dt>{t("cash.carryForward")}</dt><dd><input type="number" min="0" max={Math.max(0, counted - floating)} step="0.05" value={draft.carry_forward} disabled={shortfall > 0} onChange={(event) => setDraft({ ...draft, carry_forward: event.target.value })} /></dd></div><div className="is-total"><dt>{t("cash.forDeposit")}</dt><dd>{money(deposit)}</dd></div></dl>{shortfall > 0 && <p className="crew-cash-warning">{t("cash.floatShortfall", { amount: money(shortfall) })}</p>}</section>; }
 

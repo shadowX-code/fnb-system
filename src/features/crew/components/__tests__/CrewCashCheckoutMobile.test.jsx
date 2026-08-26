@@ -46,6 +46,58 @@ describe("Crew Cash Checkout mobile", () => {
     expect(sent).not.toHaveProperty("variance");
   });
 
+  it("keeps a canonical zero opening variance clear, including a stale resumed reason", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "draft", actual_opening_cash: 350, opening_variance_reason: "stale explanation", denomination_counts: {}, carry_forward: 0 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(screen.queryByText("Opening Variance")).toBeNull();
+    expect(screen.queryByText("Explain the opening difference")).toBeNull();
+  });
+
+  it("requires an explanation only while the opening variance is non-zero and clears it on return to expected", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    const opening = screen.getByLabelText("Actual opening");
+    fireEvent.change(opening, { target: { value: "330" } });
+    expect(screen.getByText("Opening Variance")).not.toBeNull();
+    expect(screen.getByText("Opening Variance").parentElement.textContent).toContain("-RM");
+    expect(screen.getByText("Opening Variance").parentElement.textContent).toContain("20.00");
+    expect(screen.getByLabelText("Explain the opening difference")).not.toBeNull();
+    fireEvent.change(opening, { target: { value: "370" } });
+    expect(screen.getByText("Opening Variance").parentElement.textContent).toContain("+RM");
+    expect(screen.getByText("Opening Variance").parentElement.textContent).toContain("20.00");
+    fireEvent.change(opening, { target: { value: "350" } });
+    expect(screen.queryByText("Opening Variance")).toBeNull();
+    expect(screen.queryByLabelText("Explain the opening difference")).toBeNull();
+  });
+
+  it("uses touch-friendly denomination steppers without allowing negative quantities", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    const quantity = screen.getByLabelText("RM 100");
+    expect(quantity.value).toBe("0");
+    expect(screen.getByRole("button", { name: "Decrease RM 100" }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Increase RM 100" }));
+    fireEvent.click(screen.getByRole("button", { name: "Increase RM 100" }));
+    expect(quantity.value).toBe("2");
+    expect(screen.getAllByText("RM 200.00").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Decrease RM 100" }));
+    fireEvent.click(screen.getByRole("button", { name: "Decrease RM 100" }));
+    expect(quantity.value).toBe("0");
+    expect(screen.getByRole("button", { name: "Decrease RM 100" }).disabled).toBe(true);
+    fireEvent.change(quantity, { target: { value: "4" } });
+    expect(screen.getAllByText("RM 400.00").length).toBeGreaterThan(0);
+  });
+
+  it("restores saved count quantities through the existing checkout draft payload", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "draft", actual_opening_cash: 350, denomination_counts: { "100": 4, "0.50": 2 }, carry_forward: 0 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    expect(screen.getByLabelText("RM 100").value).toBe("4");
+    expect(screen.getByLabelText("RM 0.5").value).toBe("2");
+    expect(screen.getByText("RM 401.00")).not.toBeNull();
+  });
+
   it("shows a compact immutable completion state and opens the server snapshot", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 0, amount_for_deposit: 500 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
