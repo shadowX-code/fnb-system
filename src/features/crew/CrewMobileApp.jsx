@@ -221,7 +221,7 @@ function AttendanceHistoryScreen({ rows, loading, selectedMonth, onMonthChange, 
   const months = [0, 1, 2].map((offset) => {
     const date = new Date();
     date.setMonth(date.getMonth() - offset, 1);
-    return { value: malaysiaDateKey(date).slice(0, 7), label: formatCrewDate(date, { month: "long", year: "numeric" }) };
+    return { value: malaysiaDateKey(date).slice(0, 7), label: formatCrewDate(date, { month: "short", year: "numeric" }) };
   });
   const totalMinutes = rows.reduce((total, row) => total + (row.clock_in_at && row.clock_out_at ? Math.max(0, (new Date(row.clock_out_at) - new Date(row.clock_in_at)) / 60000) : 0), 0);
   const exceptions = rows.filter((row) => row.clock_in_location_exception || row.status === "open").length;
@@ -233,9 +233,9 @@ function AttendanceHistoryScreen({ rows, loading, selectedMonth, onMonthChange, 
       {months.map((month) => <button className={selectedMonth === month.value ? "is-active" : ""} type="button" key={month.value} aria-pressed={selectedMonth === month.value} onClick={() => onMonthChange(month.value)}><span>{month.label}</span>{selectedMonth === month.value && <CalendarCheck size={20} aria-hidden="true" />}</button>)}
     </nav>
     <section className="crew-attendance-month-summary" aria-label={t("attendance.monthSummary")}>
-      <div><span className="crew-ui-icon-container crew-ui-icon-container--round"><CalendarCheck size={22} /></span><small>{t("attendance.worked")}</small><strong>{rows.length}</strong><em>{t("common.shifts")}</em></div>
-      <div><span className="crew-ui-icon-container crew-ui-icon-container--round"><Clock3 size={22} /></span><small>{t("attendance.totalHours")}</small><strong>{durationLabel(totalMinutes)}</strong></div>
-      <div className={exceptions ? "is-warning" : ""}><span className={`crew-ui-icon-container crew-ui-icon-container--round${exceptions ? " is-warning" : ""}`}><TriangleAlert size={22} /></span><small>{t("attendance.exceptions")}</small><strong>{exceptions}</strong><em>{exceptions ? t("attendance.requiresReview") : t("status.completed")}</em></div>
+      <div><span className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck size={18} /></span><small>{t("attendance.worked")}</small><strong>{rows.length}</strong><em>{t("common.shifts")}</em></div>
+      <div><span className="crew-ui-icon-container crew-ui-icon-container--compact"><Clock3 size={18} /></span><small>{t("attendance.totalHours")}</small><strong>{durationLabel(totalMinutes)}</strong></div>
+      <div className={exceptions ? "is-warning" : ""}><span className={`crew-ui-icon-container crew-ui-icon-container--compact${exceptions ? " is-warning" : ""}`}><TriangleAlert size={18} /></span><small>{t("attendance.exceptions")}</small><strong>{exceptions}</strong><em>{exceptions ? t("attendance.requiresReview") : t("status.completed")}</em></div>
     </section>
     <section className="crew-attendance-history"><header><div><h2 className="crew-type-section-title">{t("attendance.history")}</h2><p>{t("attendance.recentRecords")}</p></div><span className="crew-ui-count">{rows.length} {t("common.shifts")}</span></header><div className="crew-attendance-history-list">{loading ? <div className="crew-attendance-loading">{t("common.loading")}</div> : rows.length ? rows.map((row) => {
       const completed = Boolean(row.clock_out_at);

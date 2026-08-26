@@ -253,7 +253,7 @@ describe("Crew Mobile design system contract", () => {
   it("keeps Attendance on shared page, segmented, icon, status, and divider owners", () => {
     expect(mobileApp).toContain('subtitle={t("attendance.subtitle")} variant="page"');
     expect(mobileApp).toContain("crew-ui-segmented crew-ui-segmented--mint crew-attendance-month-select");
-    expect(mobileApp).toContain("crew-ui-icon-container crew-ui-icon-container--round");
+    expect(mobileApp).toContain("crew-ui-icon-container crew-ui-icon-container--compact");
     expect(mobileApp).toContain('<CrewStatusBadge tone="warning">{t("attendance.requiresReview")}</CrewStatusBadge>');
     expect(mobileApp).toContain('<CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge>');
     expect(system).toContain(".crew-ui-segmented--mint");
@@ -261,7 +261,10 @@ describe("Crew Mobile design system contract", () => {
     ["#", "!important", "background:rgb", "background:rgba"].forEach((forbidden) => expect(attendanceStyles).not.toContain(forbidden));
     expect(attendanceStyles).toContain("var(--crew-color-icon-default-bg)");
     expect(attendanceStyles).toContain("var(--crew-color-divider)");
-    expect(attendanceStyles).toContain("@media (max-width: 374px)");
+    expect(mobileApp).toContain('month: "short", year: "numeric"');
+    expect(attendanceStyles).toContain("@media (max-width: 420px)");
+    expect(attendanceStyles).not.toContain("text-overflow");
+    expect(attendanceStyles).not.toContain("ellipsis");
   });
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {
