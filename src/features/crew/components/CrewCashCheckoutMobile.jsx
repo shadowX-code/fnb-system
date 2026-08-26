@@ -92,7 +92,7 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
     <section className="crew-cash-summary">
       <article className="crew-cash-today-summary"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><CalendarCheck size={22} /></span><div><small>{data?.business_date ? formatCrewOperationalDate(data.business_date) : t("cash.today")}</small><h2>{t("cash.todayCheckout")}</h2><div className="crew-cash-summary-status"><CrewStatusBadge tone={completed || checkoutStatus === "reconciled" ? "success" : "neutral"}>{data?.checkout ? t(`cash.status.${checkoutStatus}`) : t("cash.notStarted")}</CrewStatusBadge>{data?.checkout?.review_required && <CrewStatusBadge tone="warning">{t("cash.reviewRequired")}</CrewStatusBadge>}</div></div></header><dl><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(floating)}</dd></div><div><dt>{t("cash.previousCarryForward")}</dt><dd>{money(previousCarry)}</dd></div><div><dt>{t("cash.countedCash")}</dt><dd>{data?.checkout ? money(data.checkout.counted_cash) : "—"}</dd></div><div className="is-deposit"><dt>{t("cash.forDeposit")}</dt><dd>{data?.checkout ? money(data.checkout.amount_for_deposit) : "—"}</dd></div></dl><button className="crew-mobile-primary" type="button" onClick={() => completed ? setShowDetails(true) : openFlow()}>{checkoutAction}<ChevronRight size={17} /></button></article>
       <article className="crew-cash-deposit-summary"><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small>{t("cash.cashDepositBalance")}</small><strong>{money(data?.deposit?.current_balance)}</strong>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <small>{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</small>}</div><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}<ChevronRight size={17} /></button></article>
-      {data?.can_record_collection && <button className="crew-mobile-primary" type="button" disabled={Number(data?.deposit?.current_balance || 0) <= 0} onClick={() => setCollectionOpen(true)}>{t("cash.recordCollection")}</button>}
+      {data?.can_record_collection && <button className="crew-mobile-primary" type="button" disabled={Number(data?.deposit?.current_balance || 0) <= 0} onClick={() => setCollectionOpen(true)}>{t("cash.handOverCash")}</button>}
     </section>
 
     {data?.is_cash_handover_receiver && <PendingReceipts rows={data.pending_receipts || []} token={token} onChanged={load} />}
@@ -140,7 +140,7 @@ function CashLedger({ data, onBack, onCollection }) {
   const { t } = useTranslation();
   return <section className="crew-cash-mobile crew-cash-details">
     <CrewMobileDetailHeader title={t("cash.depositLedger")} onBack={onBack} />
-    <section className="crew-cash-ledger"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small>{t("cash.cashDepositBalance")}</small><h2>{money(data?.deposit?.current_balance)}</h2>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <small>{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</small>}</div>{data?.can_record_collection && <button className="crew-mobile-primary" type="button" disabled={Number(data?.deposit?.current_balance || 0) <= 0} onClick={onCollection}>{t("cash.recordCollection")}</button>}</header>{data?.deposit?.ledger?.length ? <div className="crew-cash-ledger-list">{data.deposit.ledger.map((row) => <RecentActivityRow key={row.id} row={row} interactive={false} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
+    <section className="crew-cash-ledger"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small className="crew-cash-ledger-balance-label">{t("cash.cashDepositBalance")}</small><h2>{money(data?.deposit?.current_balance)}</h2>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <small className="crew-cash-ledger-pending">{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</small>}</div>{data?.can_record_collection && <button className="crew-mobile-primary" type="button" disabled={Number(data?.deposit?.current_balance || 0) <= 0} onClick={onCollection}>{t("cash.handOverCash")}</button>}</header>{data?.deposit?.ledger?.length ? <div className="crew-cash-ledger-list">{data.deposit.ledger.map((row) => <RecentActivityRow key={row.id} row={row} interactive={false} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
   </section>;
 }
 
@@ -182,9 +182,11 @@ function CollectionSheet({ data, token, onClose, onSaved }) {
   const balance = data.deposit.current_balance;
   // The server still receives its existing canonical purpose constant; it is not a Crew input.
   const [form, setForm] = useState({ request_id: crypto.randomUUID(), receiver_employee_id: "", amount: "", purpose: "Cash deposit collection", note: "" });
+  const [review, setReview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const outletCrew = t("cash.outletCrew", { outlet: data?.outlet?.name || "FeedX" });
+  const receiver = data.receivers.find((row) => row.id === form.receiver_employee_id);
   async function submit() {
     setSaving(true); setError("");
     try { await crewService.recordCashCollection(token, form); await onSaved(); }
@@ -192,16 +194,13 @@ function CollectionSheet({ data, token, onClose, onSaved }) {
     finally { setSaving(false); }
   }
   return <div className="crew-ui-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <form className="crew-ui-modal crew-cash-collection-modal" aria-modal="true" aria-labelledby="crew-cash-collection-title" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-      <header className="crew-ui-modal-header"><div><h2 id="crew-cash-collection-title">{t("cash.recordCollection")}</h2><p>{t("cash.cashDepositBalance")}: {money(balance)}</p></div><button className="crew-ui-modal-close" type="button" aria-label={t("common.close")} onClick={onClose}><X size={18} /></button></header>
+    <form className="crew-ui-modal crew-cash-collection-modal" aria-modal="true" aria-labelledby="crew-cash-collection-title" onSubmit={(event) => { event.preventDefault(); review ? submit() : setReview(true); }}>
+      <header className="crew-ui-modal-header"><div><h2 id="crew-cash-collection-title">{t("cash.handOverCash")}</h2><p>{t("cash.cashDepositBalance")}: {money(balance)}</p></div><button className="crew-ui-modal-close" type="button" aria-label={t("common.close")} onClick={onClose}><X size={18} /></button></header>
       <div className="crew-ui-modal-content">
-        <div className="crew-cash-modal-field"><span>{t("cash.receiverType")}</span><strong>{outletCrew}</strong></div>
-        <SelectField label={t("cash.receiver")} ariaLabel={t("cash.receiver")} value={form.receiver_employee_id} placeholder={t("cash.chooseReceiver")} onChange={(receiver_employee_id) => setForm({ ...form, receiver_employee_id })} options={data.receivers.map((row) => ({ value: row.id, label: `${row.name} · ${row.position}` }))} searchable />
-        <label>{t("cash.amount")}<input required inputMode="decimal" type="number" min="0.05" max={Number(balance)} step="0.05" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></label>
-        <label>{t("cash.noteOptional")}<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></label>
+        {review ? <section className="crew-cash-handover-review"><p>{t("cash.amount")}: <strong>{money(form.amount)}</strong></p><p>{t("cash.from")}: <strong>{data.initiator_name || "—"}</strong></p><p>{t("cash.to")}: <strong>{receiver?.name || "—"}</strong></p>{form.note && <p>{t("cash.noteOptional")}: <strong>{form.note}</strong></p>}</section> : <><div className="crew-cash-modal-field"><span>{t("cash.receiverType")}</span><strong>{outletCrew}</strong></div><SelectField label={t("cash.receiver")} ariaLabel={t("cash.receiver")} value={form.receiver_employee_id} placeholder={t("cash.chooseReceiver")} onChange={(receiver_employee_id) => setForm({ ...form, receiver_employee_id })} options={data.receivers.map((row) => ({ value: row.id, label: `${row.name} · ${row.position}` }))} searchable /><label>{t("cash.amount")}<input required inputMode="decimal" type="number" min="0.05" max={Number(balance)} step="0.05" value={form.amount} onChange={(event) => setForm({ ...form, amount: event.target.value })} /></label><label>{t("cash.noteOptional")}<textarea value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></label></>}
         {error && <p className="crew-cash-error" role="alert">{error}</p>}
       </div>
-      <footer><button type="button" className="crew-mobile-secondary" onClick={onClose}>{t("common.cancel")}</button><button className="crew-mobile-primary" disabled={saving || !form.receiver_employee_id || !form.amount}>{saving ? t("common.saving") : t("cash.recordCollection")}</button></footer>
+      <footer><button type="button" className="crew-mobile-secondary" onClick={review ? () => setReview(false) : onClose}>{review ? t("common.back") : t("common.cancel")}</button><button className="crew-mobile-primary" disabled={saving || !form.receiver_employee_id || !form.amount}>{saving ? t("common.saving") : review ? t("cash.confirmHandover", { amount: money(form.amount) }) : t("common.continue")}</button></footer>
     </form>
   </div>;
 }

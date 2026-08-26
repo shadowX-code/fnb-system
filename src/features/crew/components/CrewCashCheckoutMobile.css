@@ -96,8 +96,11 @@
 
 /* Cash Deposit is a continuous ledger: the balance summary is compact, while rows sit directly on the page grid. */
 .crew-cash-ledger { margin-top: 14px; }
-.crew-cash-ledger > header { grid-template-columns: 48px minmax(0, 1fr) auto; padding-bottom: 16px; }
-.crew-cash-ledger > header .crew-mobile-primary { min-width: 0; white-space: nowrap; }
+.crew-cash-ledger > header { grid-template-columns: 48px minmax(0, 1fr); align-items: start; padding-bottom: 16px; }
+.crew-cash-ledger-balance-label { font-size: var(--crew-type-secondary); }
+.crew-cash-ledger > header h2 { color: var(--crew-color-deep-teal); font-size: var(--crew-type-page-title); font-weight: 720; line-height: 1.1; }
+.crew-cash-ledger-pending { font-size: var(--crew-type-helper); line-height: 1.35; }
+.crew-cash-ledger > header .crew-mobile-primary { grid-column: 1 / -1; width: 100%; margin-top: 2px; }
 .crew-cash-ledger-list { overflow: visible; border: 0; border-radius: 0; background: transparent; }
 .crew-cash-ledger-list .crew-cash-activity-row { padding-inline: 0; }
 .crew-cash-collection-modal { width: min(100%, 390px); }
@@ -107,6 +110,9 @@
 .crew-cash-collection-modal .crew-ui-modal-content > label,.crew-cash-modal-field { display: grid; gap: 6px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-label); font-weight: 650; }
 .crew-cash-modal-field { padding: 11px 12px; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); }
 .crew-cash-modal-field strong { color: var(--crew-color-text); font-size: var(--crew-type-body); font-weight: 650; }
+.crew-cash-handover-review { display: grid; gap: 10px; }
+.crew-cash-handover-review p { display: flex; justify-content: space-between; gap: 12px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
+.crew-cash-handover-review strong { color: var(--crew-color-text); font-size: var(--crew-type-body); font-weight: 650; text-align: right; }
 .crew-cash-collection-modal footer { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; border-top: 1px solid var(--crew-color-divider); padding: 12px 16px max(12px, env(safe-area-inset-bottom)); }
 .crew-cash-collection-modal footer > button { width: 100%; }
-@media (max-width: 360px) { .crew-cash-ledger > header { grid-template-columns: 42px minmax(0, 1fr); }.crew-cash-ledger > header .crew-mobile-primary { grid-column: 1 / -1; width: 100%; }.crew-cash-ledger-list .crew-cash-activity-row { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; } }
+@media (max-width: 360px) { .crew-cash-ledger > header { grid-template-columns: 42px minmax(0, 1fr); }.crew-cash-ledger-list .crew-cash-activity-row { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; } }
