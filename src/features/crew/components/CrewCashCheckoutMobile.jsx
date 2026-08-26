@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, Banknote, CalendarCheck, Check, ChevronRight, Clock3, HandCoins, History, Minus, Plus, RefreshCw, ShieldCheck, WalletCards, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, Banknote, CalendarCheck, Check, ChevronRight, Clock3, HandCoins, History, ListChecks, Minus, Plus, RefreshCw, ShieldCheck, UserRound, WalletCards, X } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewEmptyState, CrewStatusBadge } from "./CrewMobileUI.jsx";
@@ -198,11 +198,45 @@ function ConfirmStep({ data, draft, setDraft, counted, variance, deposit, floati
 
 function ManagerReviewNotice({ children }) { const { t } = useTranslation(); return <section className="crew-cash-warning"><span className="crew-ui-icon-container crew-ui-icon-container--small is-warning"><AlertTriangle size={15} /></span><div><CrewStatusBadge tone="warning">{t("cash.managerReview")}</CrewStatusBadge><span>{children}</span></div></section>; }
 
-function CheckoutDetails({ checkout, onBack }) { const { t } = useTranslation(); const counts = Object.entries(checkout?.denomination_counts || {}).filter(([, quantity]) => Number(quantity) > 0); const items = [
-  [t("cash.expectedOpening"), checkout.expected_opening_cash], [t("cash.countedCash"), checkout.counted_cash], [t("cash.posExpected"), checkout.pos_expected_cash], [t("cash.variance"), checkout.variance],
-];
-  return <section className="crew-cash-mobile crew-cash-details"><CrewMobileDetailHeader title={t("cash.checkoutDetails")} onBack={onBack} /><header className="crew-cash-detail-heading"><div><CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge><h2>{t("cash.businessDate", { date: formatCrewOperationalDate(checkout.business_date) })}</h2><p>{t("cash.completedAt", { time: formatCrewOperationalDateTime(checkout.completed_at) })}</p></div></header><section className="crew-cash-detail-card"><h3>{t("cash.checkedOutBy")}</h3><strong>{formatCrewEmployee(checkout.checked_out_by)}</strong><small>{checkout.position || t("common.role")}</small></section><DetailSection title={t("cash.cashSummary")} rows={items} /><DetailSection title={t("cash.openingBreakdown")} rows={[[t("cash.floatToKeep"), checkout.floating_cash], [t("cash.carryForward"), checkout.previous_carry_forward], [t("cash.expectedOpening"), checkout.expected_opening_cash]]} /><DetailSection title={t("cash.closingAllocation")} rows={[[t("cash.floatRetained"), checkout.floating_cash], [t("cash.carryForward"), checkout.carry_forward], [t("cash.forDeposit"), checkout.amount_for_deposit]]} /><section className="crew-cash-detail-card"><h3>{t("cash.denominationCount")}</h3>{counts.length ? <div className="crew-cash-detail-denominations">{counts.map(([denomination, quantity]) => <div key={denomination}><span>RM{Number(denomination).toFixed(Number(denomination) < 1 ? 2 : 0)} × {quantity}</span><strong>{money(Number(denomination) * Number(quantity))}</strong></div>)}</div> : <p>{t("cash.noDenominations")}</p>}</section>{(checkout.variance_reason || checkout.opening_variance_reason) && <section className="crew-cash-detail-card"><h3>{t("cash.varianceReason")}</h3><p>{checkout.variance_reason || checkout.opening_variance_reason}</p></section>}<p className="crew-cash-readonly"><ShieldCheck size={16} />{t("cash.completedReadonly")}</p></section>; }
-function DetailSection({ title, rows }) { return <section className="crew-cash-detail-card crew-cash-detail-section"><h3>{title}</h3><dl className="crew-cash-breakdown">{rows.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value == null ? "—" : money(value)}</dd></div>)}</dl></section>; }
+function CheckoutDetails({ checkout, onBack }) {
+  const { t } = useTranslation();
+  const counts = Object.entries(checkout?.denomination_counts || {}).filter(([, quantity]) => Number(quantity) > 0);
+  const varianceReason = checkout.variance_reason || checkout.opening_variance_reason;
+  const completedTime = formatCrewTime(checkout.completed_at, { hour12: true }).replace(/\b(am|pm)\b/gi, (meridiem) => meridiem.toUpperCase());
+  return <section className="crew-cash-mobile crew-cash-details">
+    <CrewMobileDetailHeader title={t("cash.checkoutDetails")} onBack={onBack} />
+    <section className="crew-cash-detail-card crew-cash-detail-snapshot">
+      <header className="crew-cash-detail-status"><CrewStatusBadge tone="success"><ShieldCheck size={16} />{t("status.completed")}</CrewStatusBadge><p><ShieldCheck size={18} />{t("cash.completedReadonly")}</p></header>
+      <section className="crew-cash-detail-meta" aria-label={t("cash.checkoutDetails")}>
+        <DetailMeta icon={CalendarCheck} label={t("cash.businessDateLabel")} value={formatCrewOperationalDate(checkout.business_date)} />
+        <DetailMeta icon={Clock3} label={t("cash.completedAtLabel")} value={completedTime} />
+        <DetailMeta icon={UserRound} label={t("cash.checkedOutBy")} value={formatCrewEmployee(checkout.checked_out_by)} supporting={checkout.position} />
+      </section>
+      <DetailSection icon={Banknote} title={t("cash.cashSummary")} rows={[
+        [t("cash.expectedOpening"), checkout.expected_opening_cash],
+        [t("cash.countedCash"), checkout.counted_cash],
+        [t("cash.posExpected"), checkout.pos_expected_cash],
+        [t("cash.variance"), checkout.variance, Number(checkout.variance) === 0 ? "is-balanced" : "is-warning"],
+      ]} note={varianceReason ? <CrewStatusBadge tone="warning"><AlertTriangle size={14} />{t("cash.varianceReasonBelow")}</CrewStatusBadge> : null} />
+      <DetailSection icon={WalletCards} title={t("cash.openingBreakdown")} rows={[
+        [t("cash.floatToKeep"), checkout.floating_cash],
+        [t("cash.previousCarryForward"), checkout.previous_carry_forward],
+        [t("cash.expectedOpening"), checkout.expected_opening_cash, "is-total"],
+      ]} />
+      <DetailSection icon={ArrowUp} title={t("cash.closingAllocation")} rows={[
+        [t("cash.floatRetained"), checkout.floating_cash],
+        [t("cash.carryForward"), checkout.carry_forward],
+        [t("cash.forDeposit"), checkout.amount_for_deposit, "is-total"],
+      ]} />
+      <section className="crew-cash-detail-section crew-cash-detail-denomination-section"><DetailSectionHeader icon={ListChecks} title={t("cash.denominationCount")} />{counts.length ? <div className="crew-cash-detail-denominations">{counts.map(([denomination, quantity]) => <div key={denomination}><span>RM{Number(denomination).toFixed(Number(denomination) < 1 ? 2 : 0)} × {quantity}</span><strong>{money(Number(denomination) * Number(quantity))}</strong></div>)}</div> : <p>{t("cash.noDenominations")}</p>}<div className="crew-cash-detail-result"><span>{t("cash.countedCash")}</span><strong>{money(checkout.counted_cash)}</strong></div></section>
+      {varianceReason && <section className="crew-cash-detail-section crew-cash-detail-reason"><DetailSectionHeader icon={AlertTriangle} tone="warning" title={t("cash.varianceReason")} /><p>{varianceReason}</p></section>}
+    </section>
+  </section>;
+}
+
+function DetailMeta({ icon: Icon, label, value, supporting }) { return <div><span className="crew-ui-icon-container crew-ui-icon-container--compact"><Icon size={18} /></span><span><small>{label}</small><strong>{value}</strong>{supporting && <em>{supporting}</em>}</span></div>; }
+function DetailSectionHeader({ icon: Icon, title, tone = "default" }) { return <header><span className={`crew-ui-icon-container crew-ui-icon-container--compact${tone === "warning" ? " is-warning" : ""}`}><Icon size={18} /></span><h2>{title}</h2></header>; }
+function DetailSection({ icon, title, rows, note = null }) { return <section className="crew-cash-detail-section"><DetailSectionHeader icon={icon} title={title} /><dl className="crew-cash-detail-rows">{rows.map(([label, value, tone = ""], index) => <div className={tone} key={`${label}-${index}`}><dt>{label}</dt><dd>{value == null ? "—" : money(value)}</dd></div>)}</dl>{note && <div className="crew-cash-detail-note">{note}</div>}</section>; }
 
 function PendingReceipts({ rows, token, onChanged }) { const { t } = useTranslation(); const [confirming, setConfirming] = useState(null); const [saving, setSaving] = useState(false); async function confirm() { setSaving(true); try { await crewService.confirmCashCollection(token, confirming.id, confirming.amount); await onChanged(); setConfirming(null); } finally { setSaving(false); } } return <section className="crew-cash-receipts"><header><h2>{t("cash.pendingConfirmations")}</h2></header>{rows.length ? <div>{rows.map((row) => <article key={row.id}><span className="crew-ui-icon-container crew-ui-icon-container--small"><HandCoins size={16} /></span><div className="crew-cash-receipt-copy"><strong>{money(row.amount)}</strong>{row.sender && <small>{t("cash.handedOverBy", { name: formatCrewEmployee(row.sender) })}</small>}{row.outlet_name && <small>{row.outlet_name}</small>}{row.occurred_at && <small>{formatCrewOperationalDateTime(row.occurred_at)}</small>}{row.note && <small>{row.note}</small>}</div><div className="crew-cash-receipt-action"><CrewStatusBadge tone="warning">{t("cash.confirmation.pending_confirmation")}</CrewStatusBadge><button className="crew-mobile-primary" type="button" onClick={() => setConfirming(row)}>{t("cash.confirmReceived")}</button></div></article>)}</div> : <CrewEmptyState title={t("cash.noPendingConfirmations")} />}{confirming && <div className="crew-cash-sheet-backdrop"><section className="crew-cash-sheet"><header><h2>{t("cash.confirmCashReceived")}</h2><p>{money(confirming.amount)} · {confirming.sender}</p></header><footer><button className="crew-mobile-secondary" type="button" onClick={() => setConfirming(null)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={saving} onClick={confirm}>{saving ? t("common.saving") : t("cash.confirmReceived")}</button></footer></section></div>}</section>; }
 

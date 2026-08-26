@@ -208,6 +208,24 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByText("This checkout is completed and cannot be edited.")).not.toBeNull();
   });
 
+  it("renders the completed checkout snapshot in the canonical read-only detail hierarchy", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: { full_name: "QA Crew" }, position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 5, 50: 1, 20: 1 }, counted_cash: 570, pos_expected_cash: 500, variance: 70, variance_reason: "Extra cash at close", carry_forward: 50, amount_for_deposit: 220 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View details" }));
+    const snapshot = screen.getByRole("heading", { name: "Checkout Details" }).closest("section.crew-cash-details")?.querySelector(".crew-cash-detail-snapshot");
+    expect(snapshot?.textContent).toContain("Completed");
+    expect(snapshot?.textContent).toContain("Business date");
+    expect(snapshot?.textContent).toContain("Completed at");
+    expect(snapshot?.textContent).toContain("Checked out by");
+    expect(snapshot?.textContent).toContain("QA Crew");
+    expect(snapshot?.textContent).toContain("Previous Carry Forward");
+    expect(snapshot?.textContent).toContain("For deposit");
+    expect(snapshot?.textContent).toContain("RM100 × 5");
+    expect(snapshot?.textContent).toContain("Variance reason below");
+    expect(snapshot?.querySelector(".crew-cash-detail-rows .is-total")).not.toBeNull();
+    expect(snapshot?.querySelector(".crew-ui-icon-container.is-warning")).not.toBeNull();
+  });
+
   it("keeps configured receiver confirmation session-bound and acknowledgement-only", async () => {
     crewService.confirmCashCollection.mockResolvedValue({ status: "completed" });
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner", occurred_at: "2026-08-21T10:30:00+08:00", note: "Counter receipt" }] });
