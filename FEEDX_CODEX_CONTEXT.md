@@ -119,6 +119,7 @@ Do not expose developer terminology, internal identifiers, or database mechanics
 The normal flow is local development to Staging to Production.
 Treat environment identity as explicit; never infer a Supabase or Vercel target from a branch name alone.
 Confirm the linked project and deployment target before environment-specific actions.
+FeedX Staging Vercel deployments target only `fnb-system-staging` (`prj_t6uJtKPDu9GuyefG6IqAfxh5YoIi`). Run `npm run verify:staging-vercel-target` immediately before every Staging deployment; it fails closed if `.vercel/project.json` is missing or resolves to any other project. Never implicitly run `vercel link` or create another FeedX Vercel project.
 Migrations are append-only after they have reached a shared environment.
 Fix an applied migration with a forward-only migration.
 
