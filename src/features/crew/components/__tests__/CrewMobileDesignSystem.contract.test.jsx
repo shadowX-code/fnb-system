@@ -312,6 +312,15 @@ describe("Crew Mobile design system contract", () => {
     ["!important", "#07865f", "#079566", "#0b9069", "linear-gradient", "radial-gradient", "conic-gradient"].forEach((token) => expect(leaveStyles).not.toContain(token));
   });
 
+  it("keeps Apply Leave selected, balance, and supporting-document surfaces on canonical Mint owners", () => {
+    expect(leave).toContain('className="crew-ui-icon-container crew-ui-icon-container--small is-selected"');
+    expect(leave).toContain('className={`crew-ui-note crew-leave-balance-preview ${insufficient ? "is-insufficient" : ""}`}');
+    expect(leave).toContain('<div className="crew-ui-note"><span className="crew-ui-icon-container crew-ui-icon-container--small"><FileText');
+    expect(leaveStyles).not.toMatch(/\.crew-leave-balance-preview\s*\{[^}]*background:/s);
+    expect(leaveStyles).not.toMatch(/\.crew-leave-balance-preview\.is-insufficient\s*\{[^}]*mist-mint/s);
+    expect(leaveStyles).not.toMatch(/\.crew-ui-icon-container[^\{]*\{[^}]*(?:background|color|border-radius|width|height)/s);
+  });
+
   it("gives Reward one token-based feature presentation owner", () => {
     expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
