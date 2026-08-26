@@ -22,19 +22,20 @@ describe("Crew Leave mobile", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /Medical Leave \/ MC/ }));
     const selectedType = screen.getByRole("button", { name: /Medical Leave \/ MC/ });
+    expect(selectedType.closest(".crew-ui-choice-list")?.classList.contains("crew-ui-choice-list--mint")).toBe(true);
     expect(selectedType.classList.contains("is-selected")).toBe(true);
     expect(selectedType.querySelector(".crew-ui-icon-container.is-selected")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     const balance = document.querySelector(".crew-leave-balance-preview");
-    expect(balance?.classList.contains("crew-ui-note")).toBe(true);
+    expect(balance?.classList.contains("crew-ui-note--mint")).toBe(true);
     expect(balance?.querySelector(".crew-ui-icon-container")).not.toBeNull();
     expect(screen.getByText("Available")).not.toBeNull();
     expect(screen.getByText("Requested")).not.toBeNull();
     expect(screen.getByText("After")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    const documentInfo = screen.getByText("Supporting document not uploaded").closest(".crew-ui-note");
+    const documentInfo = screen.getByText("Supporting document not uploaded").closest(".crew-ui-note--mint");
     expect(documentInfo?.querySelector(".crew-ui-icon-container")).not.toBeNull();
   });
 });

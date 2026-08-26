@@ -313,11 +313,15 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps Apply Leave selected, balance, and supporting-document surfaces on canonical Mint owners", () => {
+    expect(system).toContain(".crew-ui-choice-list--mint button.is-selected { border-color: var(--crew-color-mist-mint); background: var(--crew-color-icon-default-bg); }");
+    expect(system).toContain(".crew-ui-note--mint { background: var(--crew-color-icon-default-bg); }");
     expect(leave).toContain('className="crew-ui-icon-container crew-ui-icon-container--small is-selected"');
-    expect(leave).toContain('className={`crew-ui-note crew-leave-balance-preview ${insufficient ? "is-insufficient" : ""}`}');
-    expect(leave).toContain('<div className="crew-ui-note"><span className="crew-ui-icon-container crew-ui-icon-container--small"><FileText');
+    expect(leave).toContain('className="crew-ui-choice-list crew-ui-choice-list--mint"');
+    expect(leave).toContain('className={`crew-ui-note crew-ui-note--mint crew-leave-balance-preview ${insufficient ? "is-insufficient" : ""}`}');
+    expect(leave).toContain('<div className="crew-ui-note crew-ui-note--mint"><span className="crew-ui-icon-container crew-ui-icon-container--small"><FileText');
     expect(leaveStyles).not.toMatch(/\.crew-leave-balance-preview\s*\{[^}]*background:/s);
     expect(leaveStyles).not.toMatch(/\.crew-leave-balance-preview\.is-insufficient\s*\{[^}]*mist-mint/s);
+    expect(leaveStyles).not.toMatch(/\.crew-leave-(?:balance-preview|document|choice)[^\{]*\{[^}]*(?:cyan|mist-mint|icon-default-bg)/s);
     expect(leaveStyles).not.toMatch(/\.crew-ui-icon-container[^\{]*\{[^}]*(?:background|color|border-radius|width|height)/s);
   });
 
