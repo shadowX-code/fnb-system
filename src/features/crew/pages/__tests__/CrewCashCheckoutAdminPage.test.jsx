@@ -11,7 +11,7 @@ import CrewCashCheckoutAdminPage from "../CrewCashCheckoutAdminPage.jsx";
 const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
 const fixture = {
   settings: { floating_cash: 300, variance_tolerance: 5, required_positions: ["Cashier"] },
-  summary: { current_balance: 500, available_balance: 400, total_added: 1000, total_collected: 500 },
+  summary: { current_balance: 500, available_balance: 500, pending_handover: 100, total_added: 1000, total_collected: 500 },
   checkouts: [{ id: "checkout-1", business_date: "2026-08-20", checked_out_by: "QA Crew", expected_opening_cash: 300, counted_cash: 850, pos_expected_cash: 840, variance: 10, reconciliation_status: "over", carry_forward: 50, amount_for_deposit: 500, review_required: true, review_status: "pending", status: "submitted", denomination_counts: { 100: 8, 50: 1 } }],
   ledger: [{ id: "ledger-1", occurred_at: "2026-08-20T22:00:00+08:00", activity: "Cash Checkout · QA Crew", amount_in: 500, amount_out: 0, balance: 500, recorded_by: "QA Crew" }],
   collections: [], float_history: [], employees: [{ id: "employee-2", name: "Receiver QA", position: "Supervisor" }],
@@ -42,11 +42,15 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getByRole("button", { name: "Approve & Complete" })).not.toBeNull();
   });
 
-  it("records a collection against the server-provided available balance", async () => {
+  it("uses one canonical Cash Deposit Balance and keeps confirmation informational", async () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Cash Deposit" }));
+    expect(screen.getByText("Cash Deposit Balance")).not.toBeNull();
+    expect(screen.queryByText("Available Balance")).toBeNull();
+    expect(screen.getByText("Pending Confirmation")).not.toBeNull();
+    expect(screen.getByText("Already deducted; confirmation is audit-only")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Record Collection" }));
-    expect(screen.getByText("Available deposit balance: RM 400.00")).not.toBeNull();
+    expect(screen.getByText("Cash Deposit Balance: RM 500.00")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Receiver Name"), { target: { value: "Secure Logistics" } });
     fireEvent.change(screen.getByLabelText("Amount (RM)"), { target: { value: "300" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Record Collection" })[1]);
@@ -72,7 +76,7 @@ describe("Crew Cash Checkout Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Record Collection" }));
     fireEvent.click(screen.getByRole("button", { name: "External Receiver" }));
     fireEvent.click(screen.getByRole("button", { name: "Internal Receiver" }));
-    expect(screen.getByText("Receiver must confirm receipt before the collection is finalized.")).not.toBeNull();
+    expect(screen.getByText("The balance updates on submission; the receiver confirmation is acknowledgement only.")).not.toBeNull();
   });
 
   it("shows a recoverable error rather than an empty or crashed page", async () => {
