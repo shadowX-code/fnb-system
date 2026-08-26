@@ -174,8 +174,50 @@ describe("Crew Cash Checkout mobile", () => {
     await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("opaque-session", "handover-1", 100));
   });
 
-  it("uses the centered canonical Hand Over Cash modal with only approved receivers", async () => {
+  it("shows the canonical Hand Over Cash primary action to an authorized initiator in Cash Deposit", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    const action = await screen.findByRole("button", { name: "Hand Over Cash" });
+    expect(action.disabled).toBe(false);
+    expect(action.classList.contains("crew-mobile-primary")).toBe(true);
+  });
+
+  it("keeps Hand Over Cash available to an initiator with pending confirmations", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }], deposit: { ...payload.deposit, pending_confirmation_amount: 100 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(false);
+  });
+
+  it("does not grant handover initiation to a receiver-only Crew user", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, can_record_collection: false, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    const action = await screen.findByRole("button", { name: "Hand Over Cash" });
+    expect(action.disabled).toBe(true);
+    expect(screen.getByText("You do not have permission to hand over Cash Deposit funds.")).not.toBeNull();
+    fireEvent.click(action);
+    expect(screen.queryByRole("heading", { name: "Hand Over Cash" })).toBeNull();
+  });
+
+  it("keeps Hand Over Cash enabled for a Crew user with both receiver and initiation capabilities", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(false);
+  });
+
+  it("keeps Hand Over Cash visible but disabled when the Cash Deposit balance is zero", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, current_balance: 0, available_balance: 0 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(true);
+    expect(screen.getByText("No Cash Deposit balance is available to hand over.")).not.toBeNull();
+  });
+
+  it("opens the existing Amount, Receiver, Review, and Confirm Handover flow from Cash Deposit", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     fireEvent.click(await screen.findByRole("button", { name: "Hand Over Cash" }));
     expect(screen.getByRole("heading", { name: "Hand Over Cash" })).not.toBeNull();
     expect(document.querySelector(".crew-ui-modal.crew-cash-collection-modal")).not.toBeNull();

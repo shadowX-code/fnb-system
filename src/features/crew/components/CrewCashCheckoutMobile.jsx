@@ -92,7 +92,7 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
     <section className="crew-cash-summary">
       <article className="crew-cash-today-summary"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><CalendarCheck size={22} /></span><div><small>{data?.business_date ? formatCrewOperationalDate(data.business_date) : t("cash.today")}</small><h2>{t("cash.todayCheckout")}</h2><div className="crew-cash-summary-status"><CrewStatusBadge tone={completed || checkoutStatus === "reconciled" ? "success" : "neutral"}>{data?.checkout ? t(`cash.status.${checkoutStatus}`) : t("cash.notStarted")}</CrewStatusBadge>{data?.checkout?.review_required && <CrewStatusBadge tone="warning">{t("cash.reviewRequired")}</CrewStatusBadge>}</div></div></header><dl><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(floating)}</dd></div><div><dt>{t("cash.previousCarryForward")}</dt><dd>{money(previousCarry)}</dd></div><div><dt>{t("cash.countedCash")}</dt><dd>{data?.checkout ? money(data.checkout.counted_cash) : "—"}</dd></div><div className="is-deposit"><dt>{t("cash.forDeposit")}</dt><dd>{data?.checkout ? money(data.checkout.amount_for_deposit) : "—"}</dd></div></dl><button className="crew-mobile-primary" type="button" onClick={() => completed ? setShowDetails(true) : openFlow()}>{checkoutAction}<ChevronRight size={17} /></button></article>
       <article className="crew-cash-deposit-summary"><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small>{t("cash.cashDepositBalance")}</small><strong>{money(data?.deposit?.current_balance)}</strong>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <small>{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</small>}</div><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}<ChevronRight size={17} /></button></article>
-      {data?.can_record_collection && <button className="crew-mobile-primary" type="button" disabled={Number(data?.deposit?.current_balance || 0) <= 0} onClick={() => setCollectionOpen(true)}>{t("cash.handOverCash")}</button>}
+      <CashHandoverAction canInitiate={data?.can_record_collection} balance={data?.deposit?.current_balance} onOpen={() => setCollectionOpen(true)} />
     </section>
 
     {data?.is_cash_handover_receiver && <PendingReceipts rows={data.pending_receipts || []} token={token} onChanged={load} />}
@@ -140,8 +140,21 @@ function CashLedger({ data, onBack, onCollection }) {
   const { t } = useTranslation();
   return <section className="crew-cash-mobile crew-cash-details">
     <CrewMobileDetailHeader title={t("cash.depositLedger")} onBack={onBack} />
-    <section className="crew-cash-ledger"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small className="crew-cash-ledger-balance-label">{t("cash.cashDepositBalance")}</small><h2>{money(data?.deposit?.current_balance)}</h2>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <small className="crew-cash-ledger-pending">{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</small>}</div>{data?.can_record_collection && <button className="crew-mobile-primary" type="button" disabled={Number(data?.deposit?.current_balance || 0) <= 0} onClick={onCollection}>{t("cash.handOverCash")}</button>}</header>{data?.deposit?.ledger?.length ? <div className="crew-cash-ledger-list">{data.deposit.ledger.map((row) => <RecentActivityRow key={row.id} row={row} interactive={false} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
+    <section className="crew-cash-ledger"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small className="crew-cash-ledger-balance-label">{t("cash.cashDepositBalance")}</small><h2>{money(data?.deposit?.current_balance)}</h2>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <small className="crew-cash-ledger-pending">{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</small>}</div><CashHandoverAction canInitiate={data?.can_record_collection} balance={data?.deposit?.current_balance} onOpen={onCollection} /></header>{data?.deposit?.ledger?.length ? <div className="crew-cash-ledger-list">{data.deposit.ledger.map((row) => <RecentActivityRow key={row.id} row={row} interactive={false} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
   </section>;
+}
+
+function CashHandoverAction({ canInitiate, balance, onOpen }) {
+  const { t } = useTranslation();
+  const disabledReason = !canInitiate
+    ? t("cash.handoverUnavailablePermission")
+    : Number(balance || 0) <= 0
+      ? t("cash.handoverUnavailableNoBalance")
+      : null;
+  return <div className="crew-cash-handover-action">
+    <button className="crew-mobile-primary" type="button" disabled={Boolean(disabledReason)} onClick={onOpen}>{t("cash.handOverCash")}</button>
+    {disabledReason && <small>{disabledReason}</small>}
+  </div>;
 }
 
 function StepBar({ step }) { const { t } = useTranslation(); const steps = ["count", "allocate", "confirm"]; const active = Math.max(0, steps.indexOf(step)); return <nav className="crew-cash-steps" aria-label={t("cash.progress")}><span style={{ width: `${(active / 2) * 100}%` }} />{steps.map((item, index) => <div className={index <= active ? "is-active" : ""} key={item}><i>{index < active ? <Check size={13} /> : index + 1}</i><small>{t(`cash.steps.${item}`)}</small></div>)}</nav>; }

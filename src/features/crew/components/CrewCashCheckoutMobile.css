@@ -100,7 +100,7 @@
 .crew-cash-ledger-balance-label { font-size: var(--crew-type-secondary); }
 .crew-cash-ledger > header h2 { color: var(--crew-color-deep-teal); font-size: var(--crew-type-page-title); font-weight: 720; line-height: 1.1; }
 .crew-cash-ledger-pending { font-size: var(--crew-type-helper); line-height: 1.35; }
-.crew-cash-ledger > header .crew-mobile-primary { grid-column: 1 / -1; width: 100%; margin-top: 2px; }
+.crew-cash-handover-action { display: grid; gap: 6px; }.crew-cash-handover-action .crew-mobile-primary { width: 100%; }.crew-cash-handover-action small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.35; }.crew-cash-ledger > header .crew-cash-handover-action { grid-column: 1 / -1; margin-top: 2px; }
 .crew-cash-ledger-list { overflow: visible; border: 0; border-radius: 0; background: transparent; }
 .crew-cash-ledger-list .crew-cash-activity-row { padding-inline: 0; }
 .crew-cash-collection-modal { width: min(100%, 390px); }
