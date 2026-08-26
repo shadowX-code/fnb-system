@@ -255,7 +255,7 @@ function ProfileInformation({ profile, employee, context, firstName, t, onBack }
   </article></>;
 }
 
-export default function CrewMobileApp() {
+export default function CrewMobileApp({ onNotify }) {
   const { t, i18n } = useTranslation();
   const [session, setSession] = useState(readSession);
   const [screen, setScreen] = useState("home");
@@ -508,7 +508,7 @@ export default function CrewMobileApp() {
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} onViewReward={() => setScreen("reward")} onNavigate={(target) => setScreen(target)} />}
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={() => refresh()} onBack={(returnContext) => { setOperationTarget(null); setScreen("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => setScreen("me")} onChanged={() => refresh()} />}
-    {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => setScreen("me")} onFlowChange={setCashCheckoutFlow} />}
+    {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => setScreen("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
 
     {screen === "schedule" && <CrewScheduleMobile roster={roster} employee={employee} onBack={() => setScreen("home")} />}
 

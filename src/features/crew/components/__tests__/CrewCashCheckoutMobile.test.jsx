@@ -46,29 +46,33 @@ describe("Crew Cash Checkout mobile", () => {
     expect(sent).not.toHaveProperty("variance");
   });
 
-  it("keeps a canonical zero opening variance clear, including a stale resumed reason", async () => {
+  it("keeps the canonical opening context readable, removes Actual Opening, and places POS cash before denominations", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "draft", actual_opening_cash: 350, opening_variance_reason: "stale explanation", denomination_counts: {}, carry_forward: 0 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
-    expect(screen.queryByText("Opening Variance")).toBeNull();
-    expect(screen.queryByText("Explain the opening difference")).toBeNull();
+    expect(screen.getByText("Expected opening")).not.toBeNull();
+    expect(screen.queryByLabelText("Actual opening")).toBeNull();
+    expect(screen.queryByText("Enter each MYR denomination. FeedX calculates the total on the server.")).toBeNull();
+    const pos = screen.getByLabelText("POS closing cash");
+    const denominations = screen.getByLabelText("Denomination Count");
+    expect(Boolean(pos.compareDocumentPosition(denominations) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
-  it("requires an explanation only while the opening variance is non-zero and clears it on return to expected", async () => {
-    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+  it("announces a successful draft only after the server confirms it", async () => {
+    const onNotify = vi.fn();
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} onNotify={onNotify} />);
     fireEvent.click(await screen.findByRole("button", { name: "Start" }));
-    const opening = screen.getByLabelText("Actual opening");
-    fireEvent.change(opening, { target: { value: "330" } });
-    expect(screen.getByText("Opening Variance")).not.toBeNull();
-    expect(screen.getByText("Opening Variance").parentElement.textContent).toContain("-RM");
-    expect(screen.getByText("Opening Variance").parentElement.textContent).toContain("20.00");
-    expect(screen.getByLabelText("Explain the opening difference")).not.toBeNull();
-    fireEvent.change(opening, { target: { value: "370" } });
-    expect(screen.getByText("Opening Variance").parentElement.textContent).toContain("+RM");
-    expect(screen.getByText("Opening Variance").parentElement.textContent).toContain("20.00");
-    fireEvent.change(opening, { target: { value: "350" } });
-    expect(screen.queryByText("Opening Variance")).toBeNull();
-    expect(screen.queryByLabelText("Explain the opening difference")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(onNotify).toHaveBeenCalledWith({ title: "Saved to draft", tone: "success" }));
+  });
+
+  it("uses canonical error feedback when a draft save fails", async () => {
+    const onNotify = vi.fn();
+    crewService.saveCashCheckout.mockRejectedValueOnce(new Error("Draft rejected"));
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} onNotify={onNotify} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(onNotify).toHaveBeenCalledWith({ title: "Unable to save Cash Checkout", message: "Draft rejected", tone: "error" }));
   });
 
   it("uses touch-friendly denomination steppers without allowing negative quantities", async () => {

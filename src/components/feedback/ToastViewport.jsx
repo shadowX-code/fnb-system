@@ -4,9 +4,9 @@ const toneStyles = {
   info: "border-blue-200 bg-blue-50 text-blue-800",
 };
 
-export default function ToastViewport({ toasts, onDismiss }) {
+export default function ToastViewport({ toasts, onDismiss, style }) {
   return (
-    <div className="fixed bottom-5 right-5 z-toast-layer flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-3">
+    <div style={style} className="fixed bottom-5 right-5 z-toast-layer flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-3">
       {toasts.map((toast) => {
         return (
           <button
