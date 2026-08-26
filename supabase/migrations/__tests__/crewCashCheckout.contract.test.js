@@ -48,4 +48,17 @@ describe("Crew outlet Cash Checkout migration contract", () => {
     expect(sql).toContain("grant execute on function public.crew_cash_mobile(text,date) to anon,authenticated");
     expect(sql).toContain("grant execute on function public.crew_cash_admin_data(uuid,date,date) to authenticated");
   });
+
+  it("keeps checkout history snapshot-bound, outlet-scoped, and limited to the last 30 business days", () => {
+    const historySql = fs.readFileSync(path.resolve("supabase/migrations/20260826162112_crew_cash_checkout_history_projection.sql"), "utf8").toLowerCase();
+    expect(historySql).toContain("crew_operations_employee_context(p_token)");
+    expect(historySql).toContain("c.outlet_id = outlet");
+    expect(historySql).toContain("c.status = 'completed'");
+    expect(historySql).toContain("p_business_date - 29 and p_business_date");
+    expect(historySql).toContain("order by c.business_date desc, c.completed_at desc");
+    expect(historySql).toContain("set search_path=public");
+    expect(historySql).toContain("revoke all on function public.crew_cash_checkout_history(text, date) from public, anon, authenticated");
+    expect(historySql).toContain("grant execute on function public.crew_cash_checkout_history(text, date) to anon, authenticated");
+    expect(historySql).not.toContain("crew_cash_ledger_entries");
+  });
 });

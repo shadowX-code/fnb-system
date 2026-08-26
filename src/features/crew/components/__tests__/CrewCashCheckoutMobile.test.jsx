@@ -4,7 +4,7 @@ import CrewCashCheckoutMobile from "../CrewCashCheckoutMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
-  cashCheckoutMobile: vi.fn(), saveCashCheckout: vi.fn(), recordCashCollection: vi.fn(), confirmCashCollection: vi.fn(),
+  cashCheckoutMobile: vi.fn(), cashCheckoutHistory: vi.fn(), saveCashCheckout: vi.fn(), recordCashCollection: vi.fn(), confirmCashCollection: vi.fn(),
 } }));
 
 const payload = {
@@ -16,6 +16,7 @@ const payload = {
 
 beforeEach(() => {
   crewService.cashCheckoutMobile.mockResolvedValue(payload);
+  crewService.cashCheckoutHistory.mockResolvedValue([]);
   crewService.saveCashCheckout.mockResolvedValue({ checkout: { status: "reconciled" } });
 });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
@@ -195,17 +196,44 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByText("RM 401.00")).not.toBeNull();
   });
 
-  it("shows a compact immutable completion state and opens the server snapshot", async () => {
+  it("merges completed status and time into one compact treatment and opens the current snapshot", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", review_required: true, completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 0, amount_for_deposit: 500 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    const completedAt = await screen.findByText("Completed at 10:30 pm");
-    expect(completedAt.closest(".crew-cash-today-summary")).not.toBeNull();
+    const completed = await screen.findByText("Completed · 10:30 PM");
+    expect(completed.closest(".crew-ui-status.is-success")).not.toBeNull();
+    expect(screen.queryByText("Completed at 10:30 pm")).toBeNull();
     expect(screen.queryByText("Review Required")).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByRole("heading", { name: "Checkout Details" })).not.toBeNull();
     expect(screen.getByText("RM100 × 8")).not.toBeNull();
     expect(screen.getByText("This checkout is completed and cannot be edited.")).not.toBeNull();
+  });
+
+  it("opens a bounded checkout-snapshot history and returns through the existing details page", async () => {
+    crewService.cashCheckoutHistory.mockResolvedValue([
+      { id: "checkout-new", status: "completed", business_date: "2026-08-21", completed_at: "2026-08-21T22:30:00+08:00", checked_out_by: "QA Crew", amount_for_deposit: 220, variance: 0, denomination_counts: {}, counted_cash: 570, pos_expected_cash: 500, expected_opening_cash: 350, floating_cash: 300, previous_carry_forward: 50, carry_forward: 50 },
+      { id: "checkout-old", status: "completed", business_date: "2026-08-20", completed_at: "2026-08-20T22:15:00+08:00", checked_out_by: "A Very Long Crew Name", amount_for_deposit: 150, variance: 5, denomination_counts: {}, counted_cash: 505, pos_expected_cash: 500, expected_opening_cash: 350, floating_cash: 300, previous_carry_forward: 50, carry_forward: 50 },
+    ]);
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Checkout History" }));
+    expect(await screen.findByRole("heading", { name: "Checkout History" })).not.toBeNull();
+    const rows = document.querySelectorAll(".crew-cash-history-row");
+    expect(rows).toHaveLength(2);
+    expect(rows[0].textContent).toContain("21/08/2026");
+    expect(rows[1].textContent).toMatch(/Variance \+RM\s*5\.00/);
+    expect(screen.queryByText("Cash Handover")).toBeNull();
+    fireEvent.click(rows[1]);
+    expect(await screen.findByRole("heading", { name: "Checkout Details" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByRole("heading", { name: "Checkout History" })).not.toBeNull();
+  });
+
+  it("uses the canonical empty state when the server returns no completed checkout snapshots", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Checkout History" }));
+    expect(await screen.findByText("No checkout history in the last 30 days")).not.toBeNull();
+    expect(document.querySelector(".crew-cash-history-list")).toBeNull();
   });
 
   it("renders the completed checkout snapshot in the canonical read-only detail hierarchy", async () => {

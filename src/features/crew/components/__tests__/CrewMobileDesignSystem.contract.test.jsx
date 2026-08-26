@@ -335,6 +335,16 @@ describe("Crew Mobile design system contract", () => {
     expect(cashCheckout).toContain(".crew-cash-count-card > header h2,.crew-cash-allocation-card > header h2,.crew-cash-confirm-card > header h2 { color: var(--crew-color-deep-teal); font-size: var(--crew-type-detail-title);");
   });
 
+  it("keeps Checkout History on the canonical ghost action, icon, divider, and 360px layout owners", () => {
+    const cashCheckoutComponent = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.jsx"), "utf8");
+    expect(cashCheckoutComponent).toContain('className="crew-mobile-ghost" type="button" aria-label={t("cash.checkoutHistory")}');
+    expect(cashCheckoutComponent).toContain('className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck');
+    expect(cashCheckout).toContain(".crew-cash-history-list { margin-top: 2px; border-top: 1px solid var(--crew-color-divider);");
+    expect(cashCheckout).toContain("@media (max-width: 360px) { .crew-cash-history-row { grid-template-columns: 34px minmax(0, 1fr) auto;");
+    const historyStyles = cashCheckout.slice(cashCheckout.indexOf(".crew-cash-history"));
+    ["#", "var(--crew-color-cyan)", "linear-gradient", "!important"].forEach((token) => expect(historyStyles).not.toContain(token));
+  });
+
   it("gives Reward one token-based feature presentation owner", () => {
     expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");

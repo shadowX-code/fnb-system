@@ -255,6 +255,12 @@ export const crewService = {
     return data || { checkout: null, deposit: { current_balance: 0, recent: [] }, pending_receipts: [], receivers: [] };
   },
 
+  async cashCheckoutHistory(token, date = localBusinessDate()) {
+    const { data, error } = await supabase.rpc("crew_cash_checkout_history", { p_token: token, p_business_date: date });
+    throwSupabaseError("crew.cashCheckoutHistory", error);
+    return data || [];
+  },
+
   async saveCashCheckout(token, action, payload = {}) {
     const { data, error } = await supabase.rpc("crew_cash_save_checkout", { p_token: token, p_action: action, p_payload: payload });
     throwSupabaseError("crew.saveCashCheckout", error);

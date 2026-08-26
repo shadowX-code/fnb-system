@@ -16,6 +16,7 @@ const denominationKey = (value) => value < 1 ? value.toFixed(2) : String(value);
 const money = (value) => formatCrewMoney(value);
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date());
 const time = (value) => formatCrewTime(value, { hour12: true });
+const completionTime = (value) => time(value).replace(/\b(am|pm)\b/gi, (meridiem) => meridiem.toUpperCase());
 const ledgerMonth = (value) => {
   if (!value) return "";
   const parts = new Intl.DateTimeFormat("en-CA", { timeZone: MALAYSIA_TIME_ZONE, year: "numeric", month: "2-digit" }).formatToParts(new Date(value));
@@ -49,18 +50,24 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [collectionOpen, setCollectionOpen] = useState(false);
-  const [showDetails, setShowDetails] = useState(false);
+  const [detailCheckout, setDetailCheckout] = useState(null);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const [flowOpen, setFlowOpen] = useState(false);
   const [ledgerOpen, setLedgerOpen] = useState(false);
 
   async function load() {
     setLoading(true); setError("");
     try {
-      const result = await crewService.cashCheckoutMobile(token, today());
-      setData(result); setDraft(initialDraft(result?.checkout, result?.cash_context, result?.settings));
-      if (result?.checkout?.status === "completed") setStep("complete");
-      else if (result?.checkout?.status === "submitted") setStep("confirm");
-      else if (result?.checkout?.status === "reconciled") setStep("allocate");
+      const businessDate = today();
+      const [result, checkoutHistory] = await Promise.all([
+        crewService.cashCheckoutMobile(token, businessDate),
+        crewService.cashCheckoutHistory(token, businessDate),
+      ]);
+      const nextData = { ...result, checkout_history: checkoutHistory };
+      setData(nextData); setDraft(initialDraft(nextData?.checkout, nextData?.cash_context, nextData?.settings));
+      if (nextData?.checkout?.status === "completed") setStep("complete");
+      else if (nextData?.checkout?.status === "submitted") setStep("confirm");
+      else if (nextData?.checkout?.status === "reconciled") setStep("allocate");
     } catch (cause) { setError(cause.message || t("cash.unableLoad")); }
     finally { setLoading(false); }
   }
@@ -98,14 +105,15 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
   const openFlow = () => { setFlowOpen(true); onFlowChange?.(true); };
   const closeFlow = () => { setFlowOpen(false); onFlowChange?.(false); };
 
-  if (showDetails && completed) return <CheckoutDetails checkout={data.checkout} onBack={() => setShowDetails(false)} />;
+  if (detailCheckout) return <CheckoutDetails checkout={detailCheckout} onBack={() => setDetailCheckout(null)} />;
+  if (historyOpen) return <CheckoutHistory rows={data?.checkout_history || []} onBack={() => setHistoryOpen(false)} onOpen={(checkout) => setDetailCheckout(checkout)} />;
   if (ledgerOpen) return <CashLedger data={data} onBack={() => setLedgerOpen(false)} />;
   if (flowOpen) return <CheckoutFlow data={data} draft={draft} setDraft={setDraft} step={step} setStep={setStep} counted={counted} posExpected={posExpected} variance={variance} deposit={deposit} floating={floating} previousCarry={previousCarry} expectedOpening={expectedOpening} requiresReview={requiresReview} saving={saving} error={error} onBack={closeFlow} onSave={save} />;
 
   return <section className="crew-cash-mobile crew-cash-summary-page">
     <CrewMobileDetailHeader title={t("cash.title")} onBack={onBack} variant="workflow" />
     <section className="crew-cash-summary">
-      <article className="crew-cash-today-summary"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><CalendarCheck size={22} /></span><div><small>{data?.business_date ? formatCrewOperationalDate(data.business_date) : t("cash.today")}</small><h2>{t("cash.todayCheckout")}</h2><div className="crew-cash-summary-status"><CrewStatusBadge tone={completed || checkoutStatus === "reconciled" ? "success" : "neutral"}>{data?.checkout ? t(`cash.status.${checkoutStatus}`) : t("cash.notStarted")}</CrewStatusBadge>{!completed && data?.checkout?.review_required && <CrewStatusBadge tone="warning">{t("cash.reviewRequired")}</CrewStatusBadge>}</div>{completed && <small className="crew-cash-completed-at"><Check size={14} />{t("cash.completedAt", { time: time(data.checkout.completed_at) })}</small>}</div></header><dl><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(floating)}</dd></div><div><dt>{t("cash.previousCarryForward")}</dt><dd>{money(previousCarry)}</dd></div><div><dt>{t("cash.countedCash")}</dt><dd>{data?.checkout ? money(data.checkout.counted_cash) : "—"}</dd></div><div className="is-deposit"><dt>{t("cash.forDeposit")}</dt><dd>{data?.checkout ? money(data.checkout.amount_for_deposit) : "—"}</dd></div></dl><button className="crew-mobile-primary" type="button" onClick={() => completed ? setShowDetails(true) : openFlow()}>{checkoutAction}<ChevronRight size={17} /></button></article>
+      <article className="crew-cash-today-summary"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><CalendarCheck size={22} /></span><div><small>{data?.business_date ? formatCrewOperationalDate(data.business_date) : t("cash.today")}</small><h2>{t("cash.todayCheckout")}</h2><div className="crew-cash-summary-status">{completed ? <CrewStatusBadge tone="success"><Check size={14} />{t("cash.completedWithTime", { time: completionTime(data.checkout.completed_at) })}</CrewStatusBadge> : <><CrewStatusBadge tone={checkoutStatus === "reconciled" ? "success" : "neutral"}>{data?.checkout ? t(`cash.status.${checkoutStatus}`) : t("cash.notStarted")}</CrewStatusBadge>{data?.checkout?.review_required && <CrewStatusBadge tone="warning">{t("cash.reviewRequired")}</CrewStatusBadge>}</>}</div></div><button className="crew-mobile-ghost" type="button" aria-label={t("cash.checkoutHistory")} onClick={() => setHistoryOpen(true)}><History size={19} /></button></header><dl><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(floating)}</dd></div><div><dt>{t("cash.previousCarryForward")}</dt><dd>{money(previousCarry)}</dd></div><div><dt>{t("cash.countedCash")}</dt><dd>{data?.checkout ? money(data.checkout.counted_cash) : "—"}</dd></div><div className="is-deposit"><dt>{t("cash.forDeposit")}</dt><dd>{data?.checkout ? money(data.checkout.amount_for_deposit) : "—"}</dd></div></dl><button className="crew-mobile-primary" type="button" onClick={() => completed ? setDetailCheckout(data.checkout) : openFlow()}>{checkoutAction}<ChevronRight size={17} /></button></article>
       <article className="crew-cash-deposit-summary"><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small>{t("cash.cashDepositBalance")}</small><strong>{money(data?.deposit?.current_balance)}</strong>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <span className="crew-cash-deposit-pending"><CrewStatusBadge tone="warning"><Clock3 size={13} />{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</CrewStatusBadge></span>}</div><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}<ChevronRight size={17} /></button><CashHandoverAction canInitiate={data?.can_initiate_handover ?? data?.can_record_collection} balance={data?.deposit?.current_balance} onOpen={() => setCollectionOpen(true)} /></article>
     </section>
 
@@ -230,6 +238,19 @@ function CheckoutDetails({ checkout, onBack }) {
       <section className="crew-cash-detail-section crew-cash-detail-denomination-section"><DetailSectionHeader icon={ListChecks} title={t("cash.denominationCount")} />{counts.length ? <div className="crew-cash-detail-denominations">{counts.map(([denomination, quantity]) => <div key={denomination}><span>RM{Number(denomination).toFixed(Number(denomination) < 1 ? 2 : 0)} × {quantity}</span><strong>{money(Number(denomination) * Number(quantity))}</strong></div>)}</div> : <p>{t("cash.noDenominations")}</p>}<div className="crew-cash-detail-result"><span>{t("cash.countedCash")}</span><strong>{money(checkout.counted_cash)}</strong></div></section>
       {varianceReason && <section className="crew-cash-detail-section crew-cash-detail-reason"><DetailSectionHeader icon={AlertTriangle} tone="warning" title={t("cash.varianceReason")} /><p>{varianceReason}</p></section>}
     </section>
+  </section>;
+}
+
+function CheckoutHistory({ rows, onBack, onOpen }) {
+  const { t } = useTranslation();
+  return <section className="crew-cash-mobile crew-cash-history">
+    <CrewMobileDetailHeader title={t("cash.checkoutHistory")} onBack={onBack} />
+    {rows.length ? <div className="crew-cash-history-list">{rows.map((checkout) => <button className="crew-cash-history-row" key={checkout.id} type="button" onClick={() => onOpen(checkout)}>
+      <span className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck size={18} /></span>
+      <span className="crew-cash-history-copy"><strong>{formatCrewOperationalDate(checkout.business_date)}</strong><small>{completionTime(checkout.completed_at)} · {formatCrewEmployee(checkout.checked_out_by)}</small><CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge></span>
+      <span className="crew-cash-history-amount"><strong>{money(checkout.amount_for_deposit)}</strong><small>{t("cash.forDeposit")}</small>{Number(checkout.variance) !== 0 && <em>{t("cash.variance")} {Number(checkout.variance) > 0 ? "+" : ""}{money(checkout.variance)}</em>}</span>
+      <ChevronRight size={18} />
+    </button>)}</div> : <CrewEmptyState title={t("cash.noCheckoutHistory")} />}
   </section>;
 }
 

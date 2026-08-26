@@ -28,6 +28,7 @@ Completion and review transitions are server-controlled and preserve required ev
 Cash Checkout is an outlet/date lifecycle with controlled draft, submission, review, completion, and canonical calculation states.
 The server calculates opening expectation, counted totals, variance, retained float, carry-forward, and amount for deposit.
 Floating Cash changes require authorized settings workflow and immutable adjustment evidence.
+Crew Checkout History is a bounded, outlet-scoped read projection of completed Cash Checkout snapshots from the requested business date's preceding 30 calendar days; it never derives history from Deposit Ledger entries.
 
 The Deposit Ledger is append-only financial evidence derived from completed obligations, submitted collections, deposits, and explicit corrections. A submitted collection immediately posts its single debit; recipient confirmation is acknowledgement evidence and never posts a second debit.
 Internal handover remains pending confirmation until the intended receiver confirms through a valid Crew session. Cash Handover initiation requires the active, outlet-scoped Crew Access capability, independently of Admin roles and receiver eligibility. New handovers may be addressed only to an active, outlet-scoped Crew account explicitly configured by an Admin as a Cash Handover Receiver; receiver configuration is versioned and audited, while removing a receiver never rewrites or strands existing assignments.
