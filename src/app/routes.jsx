@@ -31,6 +31,7 @@ import CrewRewardAdminPage from "../features/crew/pages/CrewRewardAdminPage.jsx"
 import CrewOperationsAdminPage from "../features/crew/pages/CrewOperationsAdminPage.jsx";
 import CrewLeaveAdminPage from "../features/crew/pages/CrewLeaveAdminPage.jsx";
 import CrewCashCheckoutAdminPage from "../features/crew/pages/CrewCashCheckoutAdminPage.jsx";
+import { GuestAiDeveloperPage, GuestAiDevicesPage, GuestAiInteractionsPage, GuestAiOverviewPage, GuestAiStudioPage } from "../features/guest-ai/pages/GuestAiWorkspacePages.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -49,6 +50,31 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
 }
 
 export const routeDetails = {
+  guest_ai_overview: {
+    description: "Guest AI device, voice runtime, and foundation status overview.",
+    component: GuestAiOverviewPage,
+    permission: "guest_ai.access",
+  },
+  guest_ai_devices: {
+    description: "Canonical ownership view for Guest AI devices and local device health.",
+    component: GuestAiDevicesPage,
+    permission: "guest_ai.access",
+  },
+  guest_ai_interactions: {
+    description: "Privacy-first interaction domain with no persisted guest conversation history.",
+    component: GuestAiInteractionsPage,
+    permission: "guest_ai.access",
+  },
+  guest_ai_studio: {
+    description: "Current bounded Guest AI runtime configuration and provider status.",
+    component: GuestAiStudioPage,
+    permission: "guest_ai.access",
+  },
+  guest_ai_developer: {
+    description: "Developer-only Guest AI device, voice, and protocol diagnostics console.",
+    component: GuestAiDeveloperPage,
+    permission: "guest_ai.developer",
+  },
   dashboard: {
     description: "Monthly HQ management overview for outlet health, alerts, operations and team moments.",
     component: DashboardOverviewPage,

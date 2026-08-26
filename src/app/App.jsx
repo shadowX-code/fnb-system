@@ -19,8 +19,9 @@ import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import CrewMobileApp from "../features/crew/CrewMobileApp.jsx";
 import CrewGuestFeedback from "../features/crew/CrewGuestFeedback.jsx";
 import { CrewAdminOutletProvider } from "../features/crew/context/CrewAdminOutletContext.jsx";
+import { GuestAiDeviceRuntimeProvider } from "../features/guest-ai/device/session/GuestAiDeviceRuntimeContext.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
-import { getSidebarSections } from "../../config/modules.ts";
+import { getSidebarSections, workspaceSwitcherOptions } from "../../config/modules.ts";
 
 const outletCacheKey = "feedx.cachedOutlets";
 
@@ -160,6 +161,7 @@ const BOOTSTRAP_LOADS = [
 ];
 
 function workspaceForRoute(routeId) {
+  if (String(routeId || "").startsWith("guest_ai_")) return "guest_ai";
   if (String(routeId || "").startsWith("factory_")) return "factory";
   if (String(routeId || "").startsWith("crew_")) return "crew";
   return "restaurant";
@@ -281,10 +283,10 @@ export default function App() {
   );
   const [workspace, setWorkspace] = useState(() => {
     const routeWorkspace = workspaceForRoute(initialRouteId);
-    if (routeWorkspace === "factory") return "factory";
+    if (routeWorkspace !== "restaurant") return routeWorkspace;
     try {
       const saved = localStorage.getItem("feedx.workspace");
-      return ["restaurant", "factory", "crew"].includes(saved) ? saved : "restaurant";
+      return ["restaurant", "factory", "crew", "guest_ai"].includes(saved) ? saved : "restaurant";
     } catch {
       return "restaurant";
     }
@@ -308,6 +310,14 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [confirmRequest, setConfirmRequest] = useState(null);
   const accessibleRoutes = useMemo(() => filterRoutesByPermission(salesPurchaseRoutes, auth), [auth.permissions]);
+  const availableWorkspaceOptions = useMemo(
+    () => workspaceSwitcherOptions.filter((option) => !option.permission || auth.hasPermission(option.permission)),
+    [auth.permissions],
+  );
+  const availableWorkspaceIds = useMemo(
+    () => new Set(availableWorkspaceOptions.map((option) => option.id)),
+    [availableWorkspaceOptions],
+  );
   const workspaceSections = useMemo(() => getSidebarSections(workspace), [workspace]);
   const accessibleSections = useMemo(() => filterSectionsByPermission(workspaceSections, salesPurchaseRoutes, auth), [auth.permissions, workspaceSections]);
   const activeRoute = useMemo(
@@ -331,6 +341,17 @@ export default function App() {
     if (requestedRouteId && canonicalId !== requestedRouteId) {
       window.history.replaceState(null, "", `#${canonicalId}`);
     }
+  }, []);
+
+  useEffect(() => {
+    const syncRouteFromHistory = () => {
+      const requestedRouteId = String(window.location.hash || "").replace(/^#/, "").split("/")[0];
+      const routeId = canonicalRouteId(requestedRouteId);
+      if (salesPurchaseRoutes.some((route) => route.id === routeId)) setActiveRouteId(routeId);
+    };
+    window.addEventListener("popstate", syncRouteFromHistory);
+    window.addEventListener("hashchange", syncRouteFromHistory);
+    return () => { window.removeEventListener("popstate", syncRouteFromHistory); window.removeEventListener("hashchange", syncRouteFromHistory); };
   }, []);
 
   useEffect(() => {
@@ -530,13 +551,23 @@ export default function App() {
     }
   }, [workspace]);
 
+  useEffect(() => {
+    if (auth.loading || auth.contextLoading || availableWorkspaceIds.has(workspace)) return;
+    const fallback = availableWorkspaceOptions[0]?.id ?? "restaurant";
+    setWorkspace(fallback);
+    const fallbackSections = filterSectionsByPermission(getSidebarSections(fallback), salesPurchaseRoutes, auth);
+    const firstRoute = fallbackSections.flatMap((section) => section.items).find((item) => item.type !== "label");
+    if (firstRoute) navigate(firstRoute.id);
+  }, [auth.contextLoading, auth.loading, auth.permissions, availableWorkspaceIds, availableWorkspaceOptions, workspace]);
+
   function navigate(routeId) {
     const canonicalId = canonicalRouteId(routeId);
     setActiveRouteId(canonicalId);
-    window.history.replaceState(null, "", `#${canonicalId}`);
+    if (window.location.hash !== `#${canonicalId}`) window.history.pushState(null, "", `#${canonicalId}`);
   }
 
   function handleWorkspaceChange(nextWorkspace) {
+    if (!availableWorkspaceIds.has(nextWorkspace)) return;
     setWorkspace(nextWorkspace);
     const sections = getSidebarSections(nextWorkspace);
     const permittedSections = filterSectionsByPermission(sections, salesPurchaseRoutes, auth);
@@ -619,6 +650,7 @@ export default function App() {
         activeRouteId={activeRouteId}
         sections={accessibleSections}
         workspace={workspace}
+        workspaceOptions={availableWorkspaceOptions}
         onWorkspaceChange={handleWorkspaceChange}
         onNavigate={navigate}
         store={effectiveStore}
@@ -636,7 +668,9 @@ export default function App() {
         ) : null}
         <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
         <CrewAdminOutletProvider outlets={effectiveStore.outlets}>
-          <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />
+          {workspaceForRoute(activeRouteId) === "guest_ai" ? (
+            <GuestAiDeviceRuntimeProvider><ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} /></GuestAiDeviceRuntimeProvider>
+          ) : <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />}
         </CrewAdminOutletProvider>
       </AppShell>
       <ToastViewport

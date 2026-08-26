@@ -25,7 +25,9 @@ export type ModuleAction =
   | "record_collection"
   | "cancel"
   | "enable_login"
-  | "reset_password";
+  | "reset_password"
+  | "access"
+  | "developer";
 
 export type AppModule = {
   id: string;
@@ -36,7 +38,7 @@ export type AppModule = {
   sidebar: boolean;
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
-  workspace?: "restaurant" | "factory" | "crew";
+  workspace?: "restaurant" | "factory" | "crew" | "guest_ai";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -48,6 +50,8 @@ export const permissionActionOrder: ModuleAction[] = [
   "deactivate",
   "enable_login",
   "reset_password",
+  "access",
+  "developer",
   "approve",
   "review",
   "adjust",
@@ -78,6 +82,8 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   deactivate: "Deactivate",
   enable_login: "Enable Login",
   reset_password: "Reset Password",
+  access: "Access",
+  developer: "Developer Access",
   approve: "Approve",
   review: "Review",
   adjust: "Adjust",
@@ -100,13 +106,30 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export type WorkspaceKey = "restaurant" | "factory" | "crew";
+export type WorkspaceKey = "restaurant" | "factory" | "crew" | "guest_ai";
 
 export const workspaceLabels: Record<WorkspaceKey, string> = {
   restaurant: "Restaurant",
   factory: "Factory",
   crew: "Crew",
+  guest_ai: "Guest AI",
 };
+
+// Workspace ownership stays separate from the module registry.  A workspace
+// permission is only required where a domain explicitly defines one; existing
+// Restaurant, Factory, and Crew visibility continues to be driven by their
+// route-level permissions.
+export const workspaceSwitcherOptions: Array<{
+  id: WorkspaceKey;
+  label: string;
+  detail: string;
+  permission?: string;
+}> = [
+  { id: "restaurant", label: "Restaurant", detail: "Store Operations" },
+  { id: "factory", label: "Factory", detail: "Production Operations" },
+  { id: "crew", label: "Crew", detail: "People, learning & workforce" },
+  { id: "guest_ai", label: "Guest AI", detail: "AI Guest Experience", permission: "guest_ai.access" },
+];
 
 export const moduleSectionOrder = [
   "Overview",
@@ -127,9 +150,81 @@ export const moduleSectionOrder = [
   "Performance",
   "Reward",
   "Documents",
+  "Guest AI",
 ];
 
 export const moduleRegistry: AppModule[] = [
+  {
+    id: "guest_ai",
+    section: "Guest AI",
+    label: "Guest AI Workspace",
+    route: "/guest-ai",
+    sidebar: false,
+    routable: false,
+    workspace: "guest_ai",
+    permissions: { access: true, developer: true },
+  },
+  {
+    id: "guest_ai_overview",
+    section: "Guest AI",
+    label: "Overview",
+    route: "/guest-ai/overview",
+    icon: "guest-ai-overview",
+    sidebar: true,
+    workspace: "guest_ai",
+    permissions: {},
+  },
+  {
+    id: "guest_ai_devices",
+    section: "Guest AI",
+    label: "Devices",
+    route: "/guest-ai/devices",
+    icon: "guest-ai-devices",
+    sidebar: true,
+    workspace: "guest_ai",
+    permissions: {},
+  },
+  {
+    id: "guest_ai_interactions",
+    section: "Guest AI",
+    label: "Interactions",
+    route: "/guest-ai/interactions",
+    icon: "guest-ai-interactions",
+    sidebar: true,
+    workspace: "guest_ai",
+    permissions: {},
+  },
+  {
+    id: "guest_ai_studio",
+    section: "Guest AI",
+    label: "AI Studio",
+    route: "/guest-ai/studio",
+    icon: "guest-ai-studio",
+    sidebar: true,
+    workspace: "guest_ai",
+    permissions: {},
+  },
+  {
+    id: "guest_ai_developer",
+    section: "Guest AI",
+    label: "Developer",
+    route: "/guest-ai/developer",
+    icon: "guest-ai-developer",
+    sidebar: true,
+    workspace: "guest_ai",
+    permissions: {},
+  },
+  {
+    id: "guest_ai_device_console",
+    section: "Guest AI",
+    label: "Guest AI Device Console",
+    route: "/guest-ai/device-console",
+    icon: "guest-ai-device-console",
+    sidebar: false,
+    routable: false,
+    workspace: "guest_ai",
+    permissions: {},
+  },
   {
     id: "dashboard",
     section: "Overview",
