@@ -42,4 +42,5 @@ resources.cash = {
 };
 Object.assign(resources.cash, { openingVariance:"Opening Variance", openingVarianceDetails:"Expected {{expected}} · Actual {{actual}} · Variance {{variance}}" });
 Object.assign(resources.cash, { draftSaved:"Saved to draft" });
+Object.assign(resources.cash, { previousCarryForward:"Previous Carry Forward", carryForwardNextCycle:"Carry Forward for next cycle", crewDecision:"Crew decision", notes:"Notes", coins:"Coins", reconciliation:"Reconciliation", allocation:"Allocation", managerReview:"Manager review required", submitForReviewAmount:"Submit {{amount}} for Review" });
 export default resources;
