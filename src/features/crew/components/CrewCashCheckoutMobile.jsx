@@ -111,7 +111,7 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
 
     {data?.is_cash_handover_receiver && <section className="crew-cash-pending-confirmations"><CrewSectionHeader title={t("cash.pendingConfirmations")} /><PendingReceipts rows={data.pending_receipts || []} token={token} onChanged={load} /></section>}
 
-    <section className="crew-cash-recent-activity"><CrewSectionHeader title={t("cash.recentActivity")} />{data?.deposit?.recent?.length ? <div>{data.deposit.recent.slice(0, 3).map((row) => <RecentActivityRow key={row.id} row={row} onOpen={() => setLedgerOpen(true)} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
+    <section className="crew-cash-recent-activity"><CrewSectionHeader title={t("cash.recentActivity")} />{data?.deposit?.recent?.length ? <div className="crew-cash-recent-activity-list">{data.deposit.recent.slice(0, 3).map((row) => <RecentActivityRow key={row.id} row={row} onOpen={() => setLedgerOpen(true)} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
     {collectionOpen && <CollectionSheet data={data} token={token} onClose={() => setCollectionOpen(false)} onSaved={async () => { setCollectionOpen(false); await load(); }} />}
   </section>;
 }

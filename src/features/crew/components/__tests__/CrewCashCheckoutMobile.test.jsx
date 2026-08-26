@@ -233,7 +233,10 @@ describe("Crew Cash Checkout mobile", () => {
     const pendingHeading = await screen.findByRole("heading", { name: "Pending Confirmations" });
     expect(pendingHeading.closest(".crew-cash-pending-confirmations")).not.toBeNull();
     expect(pendingHeading.closest(".crew-cash-receipts")).toBeNull();
-    expect(pendingHeading.closest(".crew-ui-section-head")?.className).toBe(screen.getByRole("heading", { name: "Recent Activity" }).closest(".crew-ui-section-head")?.className);
+    const recentHeading = screen.getByRole("heading", { name: "Recent Activity" });
+    expect(pendingHeading.closest(".crew-ui-section-head")?.className).toBe(recentHeading.closest(".crew-ui-section-head")?.className);
+    expect(recentHeading.closest(".crew-cash-recent-activity-list")).toBeNull();
+    expect(document.querySelector(".crew-cash-recent-activity > .crew-cash-recent-activity-list")).not.toBeNull();
     expect(screen.getByText("Handed over by Sender QA")).not.toBeNull();
     expect(screen.getByText("Friends Corner")).not.toBeNull();
     expect(screen.queryByText("Bank run")).toBeNull();
