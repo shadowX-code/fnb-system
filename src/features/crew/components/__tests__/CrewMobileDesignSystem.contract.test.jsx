@@ -330,6 +330,11 @@ describe("Crew Mobile design system contract", () => {
     expect(cashCheckout).toContain(".crew-cash-warning > div { display: grid; min-width: 0; gap: 4px;");
   });
 
+  it("keeps all Cash Checkout workflow titles on one canonical detail-title owner", () => {
+    expect(cashCheckout).toContain(".crew-cash-count-card > header,.crew-cash-allocation-card > header,.crew-cash-confirm-card > header { align-items: center; margin: 4px 0 16px;");
+    expect(cashCheckout).toContain(".crew-cash-count-card > header h2,.crew-cash-allocation-card > header h2,.crew-cash-confirm-card > header h2 { color: var(--crew-color-deep-teal); font-size: var(--crew-type-detail-title);");
+  });
+
   it("gives Reward one token-based feature presentation owner", () => {
     expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");

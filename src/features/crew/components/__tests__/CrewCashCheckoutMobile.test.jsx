@@ -26,7 +26,7 @@ describe("Crew Cash Checkout mobile", () => {
     expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
     expect(screen.getByText("Today’s Checkout")).not.toBeNull();
     expect(screen.getByText("RM 500.00")).not.toBeNull();
-    expect(screen.queryByText("Count outlet cash")).toBeNull();
+    expect(screen.queryByText("Count Outlet Cash")).toBeNull();
     expect(screen.getByText("RM 300.00")).not.toBeNull();
     expect(screen.getByText("RM 50.00")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Start" }).classList.contains("crew-mobile-primary")).toBe(true);
@@ -55,7 +55,7 @@ describe("Crew Cash Checkout mobile", () => {
   it("calculates a live denomination preview but sends raw counts to server authority", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Start" }));
-    await screen.findByText("Count outlet cash");
+    await screen.findByText("Count Outlet Cash");
     fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "4" } });
     fireEvent.change(screen.getByLabelText("RM 0.5"), { target: { value: "2" } });
     expect(screen.getByText("RM 401.00")).not.toBeNull();
@@ -138,19 +138,26 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "5" } });
     fireEvent.change(screen.getByLabelText("RM 50"), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText("POS closing cash"), { target: { value: "500" } });
-    fireEvent.click(screen.getByRole("button", { name: /Next: Allocate/ }));
-    await screen.findByText("Allocate closing cash");
+    expect(screen.getByRole("heading", { name: "Count Outlet Cash" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Next" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Allocate Closing Cash");
+    expect(screen.getByRole("heading", { name: "Allocate Closing Cash" })).not.toBeNull();
     expect(screen.getByLabelText("Carry Forward for next cycle")).not.toBeNull();
     expect(screen.getAllByText("For deposit")).toHaveLength(1);
     expect(document.querySelector(".crew-cash-actions-allocate .crew-cash-action-total")).toBeNull();
     expect(screen.queryByText("Keep the outlet float, choose carry forward, and deposit the remainder.")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Review Cash Checkout");
+    expect(screen.getByRole("heading", { name: "Review Cash Checkout" })).not.toBeNull();
     expect(screen.queryByText("Variance and deposit are calculated by FeedX.")).toBeNull();
     expect(screen.getByRole("heading", { name: "Reconciliation" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Allocation" })).not.toBeNull();
     expect(screen.queryByText("Previous Carry Forward")).toBeNull();
     expect(screen.getByText("Carry Forward for next cycle")).not.toBeNull();
+    const allocation = screen.getByRole("heading", { name: "Allocation" }).closest("section");
+    expect(allocation?.textContent).toContain("Floating cash");
+    expect(allocation?.textContent).toMatch(/RM\s+300\.00/);
     expect(document.querySelector(".crew-cash-actions-confirm .crew-cash-action-total")).toBeNull();
     expect(screen.getByRole("button", { name: "Submit Review" })).not.toBeNull();
     const warning = document.querySelector(".crew-cash-confirm-card .crew-cash-warning");
@@ -167,8 +174,8 @@ describe("Crew Cash Checkout mobile", () => {
     expect(document.querySelectorAll(".crew-cash-steps .is-current")).toHaveLength(1);
     expect(document.querySelectorAll(".crew-cash-steps .is-completed")).toHaveLength(0);
     fireEvent.change(screen.getByLabelText("POS closing cash"), { target: { value: "500" } });
-    fireEvent.click(screen.getByRole("button", { name: /Next: Allocate/ }));
-    await screen.findByText("Allocate closing cash");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Allocate Closing Cash");
     expect(document.querySelectorAll(".crew-cash-steps .is-current")).toHaveLength(1);
     expect(document.querySelectorAll(".crew-cash-steps .is-completed")).toHaveLength(1);
     expect(document.querySelector(".crew-cash-steps > span")?.style.getPropertyValue("--crew-cash-step-progress")).toBe("0.5");
