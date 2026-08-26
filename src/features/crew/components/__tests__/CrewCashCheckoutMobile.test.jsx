@@ -156,6 +156,7 @@ describe("Crew Cash Checkout mobile", () => {
     const warning = document.querySelector(".crew-cash-confirm-card .crew-cash-warning");
     expect(warning?.querySelector(".crew-ui-icon-container.is-warning")).not.toBeNull();
     expect(warning?.querySelector(".crew-ui-status.is-warning")?.textContent).toBe("Manager review required");
+    expect(warning?.querySelector(":scope > div > span:not(.crew-ui-status)")?.textContent).toBeTruthy();
     expect(warning?.nextElementSibling?.classList.contains("crew-cash-field")).toBe(true);
   });
 

@@ -325,6 +325,11 @@ describe("Crew Mobile design system contract", () => {
     expect(leaveStyles).not.toMatch(/\.crew-ui-icon-container[^\{]*\{[^}]*(?:background|color|border-radius|width|height)/s);
   });
 
+  it("keeps the Cash Checkout manager-review notice in a canonical two-column warning layout", () => {
+    expect(cashCheckout).toContain(".crew-cash-warning { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start;");
+    expect(cashCheckout).toContain(".crew-cash-warning > div { display: grid; min-width: 0; gap: 4px;");
+  });
+
   it("gives Reward one token-based feature presentation owner", () => {
     expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
