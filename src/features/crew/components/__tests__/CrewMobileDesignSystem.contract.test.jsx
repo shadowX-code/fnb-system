@@ -240,14 +240,28 @@ describe("Crew Mobile design system contract", () => {
     expect(scheduleStyles).not.toContain(".crew-schedule-final-badge");
     expect(attendanceStyles).not.toContain("background: #f0f3f5");
     expect(attendanceStyles).not.toContain("color: #708096");
-    expect(attendanceStyles).toContain("background:var(--crew-color-mineral)");
+    expect(attendanceStyles).toContain("background: var(--crew-color-surface)");
     expect(rewardStyles).not.toContain(".crew-reward-history-empty .crew-ui-icon-container");
     expect(meStyles).not.toContain(".crew-me-status-icon, .crew-me-row-icon");
     expect(meStyles).not.toContain("background: #fff1d7");
     expect(cashCheckout).toContain("padding-inline: var(--crew-mobile-page-inline)");
     expect(cashCheckout).not.toMatch(/\.crew-cash-actions\s*\{[^}]*\b(?:position|bottom|padding-inline)/s);
     expect(rewardStyles).toContain("Reward hero remains a domain-specific premium surface.");
-    expect(attendanceStyles).toContain("Attendance hero/card composition remains domain-specific.");
+    expect(attendanceStyles).toContain("Attendance keeps a route-owned composition while consuming Crew Fundamental tokens.");
+  });
+
+  it("keeps Attendance on shared page, segmented, icon, status, and divider owners", () => {
+    expect(mobileApp).toContain('subtitle={t("attendance.subtitle")} variant="page"');
+    expect(mobileApp).toContain("crew-ui-segmented crew-ui-segmented--mint crew-attendance-month-select");
+    expect(mobileApp).toContain("crew-ui-icon-container crew-ui-icon-container--round");
+    expect(mobileApp).toContain('<CrewStatusBadge tone="warning">{t("attendance.requiresReview")}</CrewStatusBadge>');
+    expect(mobileApp).toContain('<CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge>');
+    expect(system).toContain(".crew-ui-segmented--mint");
+    expect(system).toContain(".crew-mobile-detail-header.is-page");
+    ["#", "!important", "background:rgb", "background:rgba"].forEach((forbidden) => expect(attendanceStyles).not.toContain(forbidden));
+    expect(attendanceStyles).toContain("var(--crew-color-icon-default-bg)");
+    expect(attendanceStyles).toContain("var(--crew-color-divider)");
+    expect(attendanceStyles).toContain("@media (max-width: 374px)");
   });
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {

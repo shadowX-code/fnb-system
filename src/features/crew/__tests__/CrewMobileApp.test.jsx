@@ -245,6 +245,25 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByRole("button", { name: "Clock In" })).toBeNull();
   });
 
+  it("renders Attendance as a three-month operational history without changing the month read model", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myAttendance.mockResolvedValueOnce([
+      { id: "attendance-1", clock_in_at: "2026-08-21T10:45:00+08:00", clock_out_at: "2026-08-21T18:28:00+08:00", status: "completed", clock_in_location_exception: true },
+      { id: "attendance-2", clock_in_at: "2026-08-19T09:00:00+08:00", clock_out_at: "2026-08-19T17:00:00+08:00", status: "completed", clock_in_location_verified: true },
+    ]);
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: /View Attendance/ }));
+
+    expect(screen.getByText("Track your shifts and attendance")).not.toBeNull();
+    expect(screen.queryByRole("combobox", { name: "Month" })).toBeNull();
+    expect(screen.getByRole("navigation", { name: "Month" }).querySelectorAll("button")).toHaveLength(3);
+    expect(screen.getByRole("region", { name: "Monthly attendance summary" })).not.toBeNull();
+    expect(screen.getByText("Attendance History")).not.toBeNull();
+    expect(await screen.findByText("Location exception")).not.toBeNull();
+    expect(screen.getAllByText("Requires review").length).toBeGreaterThan(0);
+    expect(document.querySelectorAll(".crew-attendance-history-row")).toHaveLength(2);
+  });
+
   it("keeps Home scoped to today while View all opens the Crew All Tasks read model", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);

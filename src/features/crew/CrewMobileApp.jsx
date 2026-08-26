@@ -9,6 +9,7 @@ import {
   CalendarCheck,
   CalendarDays,
   Check,
+  CircleCheck,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -29,6 +30,7 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
+  TriangleAlert,
   UserRound,
 } from "lucide-react";
 import { crewService } from "../../services/crewService.js";
@@ -215,29 +217,32 @@ function HomeScheduleRow({ entry, label, onClick }) {
   return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${scheduleLabel}`}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarDays size={19} /></i><span><strong className="crew-list-primary">{title}</strong>{!away && <small className="crew-home-schedule-time">{scheduleLabel}</small>}<small className="crew-list-secondary">{outlet}{entry.position ? ` · ${entry.position}` : ""}</small></span>{away && <CrewStatusBadge tone="warning">{scheduleLabel}</CrewStatusBadge>}<ChevronRight size={18} /></button>;
 }
 
-function AttendanceHistoryScreen({ employee, context, openShift, todayRoster, rows, loading, selectedMonth, onMonthChange, onBack, t }) {
+function AttendanceHistoryScreen({ rows, loading, selectedMonth, onMonthChange, onBack, t }) {
   const months = [0, 1, 2].map((offset) => {
     const date = new Date();
     date.setMonth(date.getMonth() - offset, 1);
-    return { value: date.toISOString().slice(0, 7), label: formatCrewDate(date, { month: "long", year: "numeric" }) };
+    return { value: malaysiaDateKey(date).slice(0, 7), label: formatCrewDate(date, { month: "long", year: "numeric" }) };
   });
   const totalMinutes = rows.reduce((total, row) => total + (row.clock_in_at && row.clock_out_at ? Math.max(0, (new Date(row.clock_out_at) - new Date(row.clock_in_at)) / 60000) : 0), 0);
   const exceptions = rows.filter((row) => row.clock_in_location_exception || row.status === "open").length;
   const formatMonthDate = (value) => formatCrewDate(value, { day: "2-digit", month: "2-digit", year: "numeric" });
-  const shift = todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : null;
+  const durationLabel = (minutes) => `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`;
   return <section className="crew-v2-attendance crew-attendance-history-page">
-    <CrewMobileDetailHeader title={t("attendance.title")} onBack={onBack} />
-    <div className="crew-attendance-month-select"><SelectField label={t("attendance.month")} ariaLabel={t("attendance.month")} value={selectedMonth} onChange={onMonthChange} options={months} /></div>
-    {openShift && <section className="crew-attendance-current-shift"><span className="crew-ui-icon-container"><Clock3 size={18} /></span><div><strong>{t("home.onShift")}</strong><small>{t("attendance.started", { time: formatTime(openShift.clock_in_at) })}{shift ? ` · ${shift}` : ""}</small></div><button type="button" onClick={onBack}>{t("home.goHome")}</button></section>}
+    <CrewMobileDetailHeader title={t("attendance.title")} subtitle={t("attendance.subtitle")} variant="page" onBack={onBack} />
+    <nav className="crew-ui-segmented crew-ui-segmented--mint crew-attendance-month-select" aria-label={t("attendance.month")}>
+      {months.map((month) => <button className={selectedMonth === month.value ? "is-active" : ""} type="button" key={month.value} aria-pressed={selectedMonth === month.value} onClick={() => onMonthChange(month.value)}><span>{month.label}</span>{selectedMonth === month.value && <CalendarCheck size={20} aria-hidden="true" />}</button>)}
+    </nav>
     <section className="crew-attendance-month-summary" aria-label={t("attendance.monthSummary")}>
-      <div><small>{t("attendance.worked")}</small><strong>{rows.length} {t("common.shifts")}</strong></div>
-      <div><small>{t("attendance.totalHours")}</small><strong>{Math.floor(totalMinutes / 60)}h {Math.round(totalMinutes % 60)}m</strong></div>
-      <div><small>{t("attendance.exceptions")}</small><strong className={exceptions ? "is-warning" : ""}>{exceptions}</strong></div>
+      <div><span className="crew-ui-icon-container crew-ui-icon-container--round"><CalendarCheck size={22} /></span><small>{t("attendance.worked")}</small><strong>{rows.length}</strong><em>{t("common.shifts")}</em></div>
+      <div><span className="crew-ui-icon-container crew-ui-icon-container--round"><Clock3 size={22} /></span><small>{t("attendance.totalHours")}</small><strong>{durationLabel(totalMinutes)}</strong></div>
+      <div className={exceptions ? "is-warning" : ""}><span className={`crew-ui-icon-container crew-ui-icon-container--round${exceptions ? " is-warning" : ""}`}><TriangleAlert size={22} /></span><small>{t("attendance.exceptions")}</small><strong>{exceptions}</strong><em>{exceptions ? t("attendance.requiresReview") : t("status.completed")}</em></div>
     </section>
-    <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>{t("attendance.history")}</h2><span>{rows.length} {t("common.shifts")}</span></div><div className="crew-v2-history">{loading ? <div className="crew-attendance-loading">{t("common.loading")}</div> : rows.length ? rows.map((row) => {
+    <section className="crew-attendance-history"><header><div><h2 className="crew-type-section-title">{t("attendance.history")}</h2><p>{t("attendance.recentRecords")}</p></div><span className="crew-ui-count">{rows.length} {t("common.shifts")}</span></header><div className="crew-attendance-history-list">{loading ? <div className="crew-attendance-loading">{t("common.loading")}</div> : rows.length ? rows.map((row) => {
       const completed = Boolean(row.clock_out_at);
       const minutes = completed ? Math.max(0, (new Date(row.clock_out_at) - new Date(row.clock_in_at)) / 60000) : 0;
-      return <div key={row.id}><span><strong>{formatMonthDate(row.clock_in_at)}</strong><small>{row.clock_in_location_verified ? t("attendance.locationVerified") : row.clock_in_location_exception ? t("attendance.locationException") : t("attendance.locationUnavailable")}</small></span><span><strong>{formatTime(row.clock_in_at)} – {completed ? formatTime(row.clock_out_at) : t("common.now")}</strong><small>{completed ? `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m · ${t("status.completed")}` : t("home.onShift")}</small></span></div>;
+      const exception = Boolean(row.clock_in_location_exception);
+      const evidence = row.clock_in_location_verified ? t("attendance.locationVerified") : exception ? t("attendance.locationException") : t("attendance.locationUnavailable");
+      return <article className={`crew-attendance-history-row${exception ? " is-warning" : ""}`} key={row.id}><time className="crew-attendance-date-block"><small>{formatCrewDate(row.clock_in_at, { month: "short" }).toUpperCase()}</small><strong>{formatCrewDate(row.clock_in_at, { day: "2-digit" })}</strong></time><div className="crew-attendance-history-main"><strong>{formatMonthDate(row.clock_in_at)}</strong><small className={exception ? "is-warning" : "is-verified"}>{exception ? <TriangleAlert size={17} /> : <CircleCheck size={17} />}{evidence}</small>{exception && <CrewStatusBadge tone="warning">{t("attendance.requiresReview")}</CrewStatusBadge>}</div><div className="crew-attendance-history-time"><strong>{formatTime(row.clock_in_at)} – {completed ? formatTime(row.clock_out_at) : t("common.now")}</strong><span>{completed ? <><small>{durationLabel(minutes)}</small><i>·</i><CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge></> : <CrewStatusBadge tone="info">{t("home.onShift")}</CrewStatusBadge>}</span></div><ChevronRight size={20} aria-hidden="true" /></article>;
     }) : <EmptyState title={t("attendance.noShifts")} body={t("attendance.completedAppear")} />}</div></section>
   </section>;
 }
@@ -511,7 +516,6 @@ export default function CrewMobileApp({ onNotify }) {
     {screen === "schedule" && <CrewScheduleMobile roster={roster} employee={employee} onBack={() => setScreen("home")} />}
 
     {screen === "attendance" && <AttendanceHistoryScreen
-      employee={employee} context={context} openShift={openShift} todayRoster={todayRoster}
       rows={attendanceMonth} loading={attendanceMonthLoading} selectedMonth={selectedAttendanceMonth}
       onMonthChange={setSelectedAttendanceMonth} onBack={() => setScreen("home")} t={t}
     />}
