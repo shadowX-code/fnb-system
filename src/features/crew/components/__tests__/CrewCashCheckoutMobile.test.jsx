@@ -93,6 +93,38 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getAllByText("RM 400.00").length).toBeGreaterThan(0);
   });
 
+  it("keeps Summary outside the three-step flow and groups denomination work for mobile counting", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    expect(screen.queryByRole("navigation", { name: "Cash Checkout progress" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    expect(screen.getByRole("navigation", { name: "Cash Checkout progress" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Notes" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Coins" })).not.toBeNull();
+    expect(screen.getByLabelText("RM 100").getAttribute("inputmode")).toBe("numeric");
+    expect(screen.getByText("Counted cash")).not.toBeNull();
+    expect(screen.getAllByText("RM 0.00").length).toBeGreaterThan(1);
+  });
+
+  it("keeps allocation and confirm carry-forward labels unambiguous", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValueOnce(payload).mockResolvedValueOnce({ ...payload, checkout: { status: "reconciled", denomination_counts: { "100": 5, "50": 1 }, pos_expected_cash: 500, carry_forward: 0 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "5" } });
+    fireEvent.change(screen.getByLabelText("RM 50"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("POS closing cash"), { target: { value: "500" } });
+    fireEvent.click(screen.getByRole("button", { name: /Next: Allocate/ }));
+    await screen.findByText("Allocate closing cash");
+    expect(screen.getByLabelText("Carry Forward for next cycle")).not.toBeNull();
+    expect(screen.getAllByText("For deposit").length).toBeGreaterThan(1);
+    fireEvent.click(screen.getByRole("button", { name: /Next: Confirm/ }));
+    await screen.findByText("Review Cash Checkout");
+    expect(screen.getByRole("heading", { name: "Reconciliation" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Allocation" })).not.toBeNull();
+    expect(screen.getByText("Previous Carry Forward")).not.toBeNull();
+    expect(screen.getByText("Carry Forward for next cycle")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Submit RM\s*250\.00 for Review/ })).not.toBeNull();
+  });
+
   it("restores saved count quantities through the existing checkout draft payload", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "draft", actual_opening_cash: 350, denomination_counts: { "100": 4, "0.50": 2 }, carry_forward: 0 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
