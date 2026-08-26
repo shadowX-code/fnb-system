@@ -9,7 +9,6 @@ import {
   CalendarCheck,
   CalendarDays,
   Check,
-  CircleCheck,
   ChevronDown,
   ChevronRight,
   ClipboardCheck,
@@ -226,6 +225,7 @@ function AttendanceHistoryScreen({ rows, loading, selectedMonth, onMonthChange, 
   const totalMinutes = rows.reduce((total, row) => total + (row.clock_in_at && row.clock_out_at ? Math.max(0, (new Date(row.clock_out_at) - new Date(row.clock_in_at)) / 60000) : 0), 0);
   const exceptions = rows.filter((row) => row.clock_in_location_exception || row.status === "open").length;
   const formatMonthDate = (value) => formatCrewDate(value, { day: "2-digit", month: "2-digit", year: "numeric" });
+  const formatAttendanceTime = (value) => formatCrewTime(value, { hour: "numeric", minute: "2-digit" }).replace(/\b(am|pm)\b/gi, (meridiem) => meridiem.toUpperCase());
   const durationLabel = (minutes) => `${Math.floor(minutes / 60)}h ${Math.round(minutes % 60)}m`;
   return <section className="crew-v2-attendance crew-attendance-history-page">
     <CrewMobileDetailHeader title={t("attendance.title")} subtitle={t("attendance.subtitle")} variant="page" onBack={onBack} />
@@ -241,8 +241,8 @@ function AttendanceHistoryScreen({ rows, loading, selectedMonth, onMonthChange, 
       const completed = Boolean(row.clock_out_at);
       const minutes = completed ? Math.max(0, (new Date(row.clock_out_at) - new Date(row.clock_in_at)) / 60000) : 0;
       const exception = Boolean(row.clock_in_location_exception);
-      const evidence = row.clock_in_location_verified ? t("attendance.locationVerified") : exception ? t("attendance.locationException") : t("attendance.locationUnavailable");
-      return <article className={`crew-attendance-history-row${exception ? " is-warning" : ""}`} key={row.id}><time className="crew-attendance-date-block"><small>{formatCrewDate(row.clock_in_at, { month: "short" }).toUpperCase()}</small><strong>{formatCrewDate(row.clock_in_at, { day: "2-digit" })}</strong></time><div className="crew-attendance-history-main"><strong>{formatMonthDate(row.clock_in_at)}</strong><small className={exception ? "is-warning" : "is-verified"}>{exception ? <TriangleAlert size={17} /> : <CircleCheck size={17} />}{evidence}</small>{exception && <CrewStatusBadge tone="warning">{t("attendance.requiresReview")}</CrewStatusBadge>}</div><div className="crew-attendance-history-time"><strong>{formatTime(row.clock_in_at)} – {completed ? formatTime(row.clock_out_at) : t("common.now")}</strong><span>{completed ? <><small>{durationLabel(minutes)}</small><i>·</i><CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge></> : <CrewStatusBadge tone="info">{t("home.onShift")}</CrewStatusBadge>}</span></div><ChevronRight size={20} aria-hidden="true" /></article>;
+      const evidence = exception ? t("attendance.exception") : row.clock_in_location_verified ? t("attendance.verified") : t("attendance.locationUnavailable");
+      return <article className={`crew-attendance-history-row${exception ? " is-warning" : ""}`} key={row.id}><time className="crew-attendance-date-block"><small>{formatCrewDate(row.clock_in_at, { month: "short" }).toUpperCase()}</small><strong>{formatCrewDate(row.clock_in_at, { day: "2-digit" })}</strong></time><div className="crew-attendance-history-main"><strong>{formatMonthDate(row.clock_in_at)}</strong><small className={`crew-attendance-location-status${exception ? " is-warning" : row.clock_in_location_verified ? " is-verified" : ""}`}><MapPin size={16} aria-hidden="true" />{evidence}</small>{exception && <CrewStatusBadge tone="warning">{t("attendance.requiresReview")}</CrewStatusBadge>}</div><div className="crew-attendance-history-time"><strong>{formatAttendanceTime(row.clock_in_at)} – {completed ? formatAttendanceTime(row.clock_out_at) : t("common.now")}</strong><span>{completed ? <><small>{durationLabel(minutes)}</small><i>·</i><CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge></> : <CrewStatusBadge tone="info">{t("home.onShift")}</CrewStatusBadge>}</span></div></article>;
     }) : <EmptyState title={t("attendance.noShifts")} body={t("attendance.completedAppear")} />}</div></section>
   </section>;
 }

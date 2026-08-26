@@ -249,7 +249,7 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myAttendance.mockResolvedValueOnce([
       { id: "attendance-1", clock_in_at: "2026-08-21T10:45:00+08:00", clock_out_at: "2026-08-21T18:28:00+08:00", status: "completed", clock_in_location_exception: true },
-      { id: "attendance-2", clock_in_at: "2026-08-19T09:00:00+08:00", clock_out_at: "2026-08-19T17:00:00+08:00", status: "completed", clock_in_location_verified: true },
+      { id: "attendance-2", clock_in_at: "2026-08-19T17:00:00+08:00", clock_out_at: "2026-08-20T01:00:00+08:00", status: "completed", clock_in_location_verified: true },
     ]);
     render(<CrewMobileApp />);
     fireEvent.click(await screen.findByRole("button", { name: /View Attendance/ }));
@@ -259,7 +259,11 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("navigation", { name: "Month" }).querySelectorAll("button")).toHaveLength(3);
     expect(screen.getByRole("region", { name: "Monthly attendance summary" })).not.toBeNull();
     expect(screen.getByText("Attendance History")).not.toBeNull();
-    expect(await screen.findByText("Location exception")).not.toBeNull();
+    expect(await screen.findByText("Exception")).not.toBeNull();
+    expect(screen.getByText("Verified")).not.toBeNull();
+    expect(screen.getByText("10:45 AM – 6:28 PM")).not.toBeNull();
+    expect(screen.getByText("5:00 PM – 1:00 AM")).not.toBeNull();
+    expect(document.querySelector(".crew-attendance-history-row svg.lucide-chevron-right")).toBeNull();
     expect(screen.getAllByText("Requires review").length).toBeGreaterThan(0);
     expect(document.querySelectorAll(".crew-attendance-history-row")).toHaveLength(2);
   });

@@ -265,6 +265,10 @@ describe("Crew Mobile design system contract", () => {
     expect(attendanceStyles).toContain("@media (max-width: 420px)");
     expect(attendanceStyles).not.toContain("text-overflow");
     expect(attendanceStyles).not.toContain("ellipsis");
+    expect(attendanceStyles).toContain("justify-items: center");
+    expect(attendanceStyles).toContain("crew-attendance-location-status");
+    expect(mobileApp).toContain('hour: "numeric", minute: "2-digit"');
+    expect(mobileApp).not.toContain("<ChevronRight size={20} aria-hidden=\"true\" /></article>");
   });
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {
