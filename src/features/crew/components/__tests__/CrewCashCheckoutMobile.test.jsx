@@ -230,7 +230,10 @@ describe("Crew Cash Checkout mobile", () => {
     crewService.confirmCashCollection.mockResolvedValue({ status: "completed" });
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner", occurred_at: "2026-08-21T10:30:00+08:00", note: "Counter receipt" }] });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    expect(await screen.findByRole("heading", { name: "Pending Confirmations" })).not.toBeNull();
+    const pendingHeading = await screen.findByRole("heading", { name: "Pending Confirmations" });
+    expect(pendingHeading.closest(".crew-cash-pending-confirmations")).not.toBeNull();
+    expect(pendingHeading.closest(".crew-cash-receipts")).toBeNull();
+    expect(pendingHeading.closest(".crew-ui-section-head")?.className).toBe(screen.getByRole("heading", { name: "Recent Activity" }).closest(".crew-ui-section-head")?.className);
     expect(screen.getByText("Handed over by Sender QA")).not.toBeNull();
     expect(screen.getByText("Friends Corner")).not.toBeNull();
     expect(screen.queryByText("Bank run")).toBeNull();
@@ -247,6 +250,8 @@ describe("Crew Cash Checkout mobile", () => {
     const action = await screen.findByRole("button", { name: "Hand Over Cash" });
     expect(action.disabled).toBe(false);
     expect(action.classList.contains("crew-mobile-primary")).toBe(true);
+    expect(action.closest(".crew-cash-deposit-summary")).not.toBeNull();
+    expect(document.querySelector(".crew-cash-summary > .crew-cash-handover-action")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "View ledger" }));
     expect(await screen.findByRole("heading", { name: "Cash Deposit" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Hand Over Cash" })).toBeNull();
