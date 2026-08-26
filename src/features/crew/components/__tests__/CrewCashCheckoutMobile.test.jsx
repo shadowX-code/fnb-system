@@ -174,25 +174,25 @@ describe("Crew Cash Checkout mobile", () => {
     await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("opaque-session", "handover-1", 100));
   });
 
-  it("shows the canonical Hand Over Cash primary action to an authorized initiator in Cash Deposit", async () => {
+  it("keeps the canonical Hand Over Cash primary action on Summary, not Cash Deposit", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     const action = await screen.findByRole("button", { name: "Hand Over Cash" });
     expect(action.disabled).toBe(false);
     expect(action.classList.contains("crew-mobile-primary")).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "View ledger" }));
+    expect(await screen.findByRole("heading", { name: "Cash Deposit" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Hand Over Cash" })).toBeNull();
   });
 
   it("keeps Hand Over Cash available to an initiator with pending confirmations", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }], deposit: { ...payload.deposit, pending_confirmation_amount: 100 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(false);
   });
 
   it("does not grant handover initiation to a receiver-only Crew user", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, can_initiate_handover: false, can_record_collection: false, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     const action = await screen.findByRole("button", { name: "Hand Over Cash" });
     expect(action.disabled).toBe(true);
     expect(screen.getByText("You do not have permission to hand over Cash Deposit funds.")).not.toBeNull();
@@ -203,28 +203,24 @@ describe("Crew Cash Checkout mobile", () => {
   it("keeps Hand Over Cash enabled for a Crew user with both receiver and initiation capabilities", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(false);
   });
 
   it("uses the Crew-owned handover capability when the legacy projection alias disagrees", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, can_initiate_handover: true, can_record_collection: false });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(false);
   });
 
   it("keeps Hand Over Cash visible but disabled when the Cash Deposit balance is zero", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, current_balance: 0, available_balance: 0 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(true);
     expect(screen.getByText("No Cash Deposit balance is available to hand over.")).not.toBeNull();
   });
 
   it("opens the existing Amount, Receiver, Review, and Confirm Handover flow from Cash Deposit", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     fireEvent.click(await screen.findByRole("button", { name: "Hand Over Cash" }));
     expect(screen.getByRole("heading", { name: "Hand Over Cash" })).not.toBeNull();
     expect(document.querySelector(".crew-ui-modal.crew-cash-collection-modal")).not.toBeNull();
@@ -242,11 +238,15 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByRole("button", { name: /Confirm Handover RM\s*25\.00/ })).not.toBeNull();
   });
 
-  it("opens a server-backed ledger with each entry balance", async () => {
+  it("opens a server-backed Cash Deposit ledger with balance, pending status, and no duplicate handover action", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, current_balance: 400, pending_confirmation_amount: 100 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     expect(await screen.findByRole("heading", { name: "Cash Deposit" })).not.toBeNull();
     expect(screen.getByText(/Balance.*500\.00/)).not.toBeNull();
+    expect(screen.getByText("RM 100.00 pending confirmation").classList.contains("crew-ui-status")).toBe(true);
+    expect(screen.getAllByRole("button", { name: /2026/ })).toHaveLength(3);
+    expect(screen.queryByRole("button", { name: "Hand Over Cash" })).toBeNull();
   });
 
   it("renders pending confirmation on a negative ledger row without a second balance", async () => {
@@ -256,5 +256,30 @@ describe("Crew Cash Checkout mobile", () => {
     expect(await screen.findByText(/Pending Confirmation/)).not.toBeNull();
     expect(screen.getByText(/100\.00/)).not.toBeNull();
     expect(screen.getByText(/Balance RM.*400\.00/)).not.toBeNull();
+  });
+
+  it("filters the bounded canonical ledger projection by one of the latest three calendar months", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, ledger: [
+      { id: "aug", occurred_at: "2026-08-20T10:00:00+08:00", activity: "Cash Checkout · August", signed_amount: 500, balance_after: 500 },
+      { id: "jul", occurred_at: "2026-07-20T10:00:00+08:00", activity: "Cash Checkout · July", signed_amount: 400, balance_after: 400 },
+      { id: "jun", occurred_at: "2026-06-20T10:00:00+08:00", activity: "Cash Checkout · June", signed_amount: 300, balance_after: 300 },
+    ] } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    expect(await screen.findByText("Cash Checkout")).not.toBeNull();
+    expect(screen.getByText("20/08/2026 · 10:00 AM")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Jul 2026" }));
+    expect(screen.getByText("20/07/2026 · 10:00 AM")).not.toBeNull();
+    expect(screen.queryByText("20/08/2026 · 10:00 AM")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Jun 2026" }));
+    expect(screen.getByText("20/06/2026 · 10:00 AM")).not.toBeNull();
+  });
+
+  it("uses the canonical empty state when the selected month has no cash activity", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, ledger: [{ id: "jul", occurred_at: "2026-07-20T10:00:00+08:00", activity: "Cash Checkout · July", signed_amount: 400, balance_after: 400 }] } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    expect(await screen.findByText("No cash activity this month")).not.toBeNull();
+    expect(document.querySelector(".crew-cash-ledger-list")).toBeNull();
   });
 });

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ArrowDown, ArrowRight, ArrowUp, Banknote, CalendarCheck, Check, ChevronRight, HandCoins, History, Minus, Plus, RefreshCw, ShieldCheck, WalletCards, X } from "lucide-react";
+import { ArrowDown, ArrowRight, ArrowUp, Banknote, CalendarCheck, Check, ChevronRight, Clock3, HandCoins, History, Minus, Plus, RefreshCw, ShieldCheck, WalletCards, X } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewEmptyState, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
-import { formatCrewEmployee, formatCrewMoney, formatCrewOperationalDate, formatCrewOperationalDateTime, formatCrewTime } from "../utils/crewI18n.js";
+import { crewLocale, formatCrewEmployee, formatCrewMoney, formatCrewOperationalDate, formatCrewOperationalDateTime, formatCrewTime, MALAYSIA_TIME_ZONE } from "../utils/crewI18n.js";
 
 const DENOMINATION_GROUPS = [
   { key: "notes", values: [100, 50, 20, 10, 5, 1] },
@@ -16,6 +16,21 @@ const denominationKey = (value) => value < 1 ? value.toFixed(2) : String(value);
 const money = (value) => formatCrewMoney(value);
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur" }).format(new Date());
 const time = (value) => formatCrewTime(value, { hour12: true });
+const ledgerMonth = (value) => {
+  if (!value) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: MALAYSIA_TIME_ZONE, year: "numeric", month: "2-digit" }).formatToParts(new Date(value));
+  const get = (type) => parts.find((part) => part.type === type)?.value;
+  return `${get("year")}-${get("month")}`;
+};
+const recentLedgerMonths = () => {
+  const current = ledgerMonth(new Date());
+  const [year, month] = current.split("-").map(Number);
+  return Array.from({ length: 3 }, (_, index) => {
+    const date = new Date(Date.UTC(year, month - 1 - index, 1, 12));
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+  });
+};
+const ledgerMonthLabel = (month) => new Intl.DateTimeFormat(crewLocale(), { timeZone: MALAYSIA_TIME_ZONE, month: "short", year: "numeric" }).format(new Date(`${month}-01T12:00:00+08:00`));
 const initialDraft = (checkout, cashContext, settings) => ({
   actual_opening_cash: checkout?.actual_opening_cash ?? cashContext?.expected_opening_cash ?? settings?.floating_cash ?? "",
   opening_variance_reason: checkout?.opening_variance_reason || "",
@@ -84,7 +99,7 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
   const closeFlow = () => { setFlowOpen(false); onFlowChange?.(false); };
 
   if (showDetails && completed) return <CheckoutDetails checkout={data.checkout} onBack={() => setShowDetails(false)} />;
-  if (ledgerOpen) return <CashLedger data={data} onBack={() => setLedgerOpen(false)} onCollection={() => { setLedgerOpen(false); setCollectionOpen(true); }} />;
+  if (ledgerOpen) return <CashLedger data={data} onBack={() => setLedgerOpen(false)} />;
   if (flowOpen) return <CheckoutFlow data={data} draft={draft} setDraft={setDraft} step={step} setStep={setStep} counted={counted} posExpected={posExpected} variance={variance} deposit={deposit} floating={floating} previousCarry={previousCarry} expectedOpening={expectedOpening} requiresReview={requiresReview} saving={saving} error={error} onBack={closeFlow} onSave={save} />;
 
   return <section className="crew-cash-mobile crew-cash-summary-page">
@@ -136,11 +151,14 @@ function CheckoutFlow({ data, draft, setDraft, step, setStep, counted, posExpect
   </section>;
 }
 
-function CashLedger({ data, onBack, onCollection }) {
+function CashLedger({ data, onBack }) {
   const { t } = useTranslation();
+  const [selectedMonth, setSelectedMonth] = useState(() => recentLedgerMonths()[0]);
+  const months = useMemo(() => recentLedgerMonths(), []);
+  const rows = (data?.deposit?.ledger || []).filter((row) => ledgerMonth(row.occurred_at) === selectedMonth);
   return <section className="crew-cash-mobile crew-cash-details">
     <CrewMobileDetailHeader title={t("cash.depositLedger")} onBack={onBack} />
-    <section className="crew-cash-ledger"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small className="crew-cash-ledger-balance-label">{t("cash.cashDepositBalance")}</small><h2>{money(data?.deposit?.current_balance)}</h2>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <small className="crew-cash-ledger-pending">{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</small>}</div><CashHandoverAction canInitiate={data?.can_initiate_handover ?? data?.can_record_collection} balance={data?.deposit?.current_balance} onOpen={onCollection} /></header>{data?.deposit?.ledger?.length ? <div className="crew-cash-ledger-list">{data.deposit.ledger.map((row) => <RecentActivityRow key={row.id} row={row} interactive={false} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
+    <section className="crew-cash-ledger"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small className="crew-cash-ledger-balance-label">{t("cash.cashDepositBalance")}</small><h2>{money(data?.deposit?.current_balance)}</h2>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <span className="crew-cash-ledger-pending"><CrewStatusBadge tone="warning"><Clock3 size={13} />{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</CrewStatusBadge></span>}</div></header><nav className="crew-ui-segmented crew-cash-ledger-months" aria-label={t("cash.ledgerMonth")}>{months.map((month) => <button className={selectedMonth === month ? "is-active" : ""} type="button" key={month} aria-pressed={selectedMonth === month} onClick={() => setSelectedMonth(month)}>{ledgerMonthLabel(month)}</button>)}</nav>{rows.length ? <div className="crew-cash-ledger-list">{rows.map((row) => <RecentActivityRow key={row.id} row={row} interactive={false} />)}</div> : <CrewEmptyState title={t("cash.noCashActivityThisMonth")} />}</section>
   </section>;
 }
 
