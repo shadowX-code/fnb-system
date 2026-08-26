@@ -1,0 +1,2 @@
+// This is transcription guidance only. It is intentionally short and has no restaurant knowledge.
+export const STT_FIDELITY_PROMPT = "Verbatim transcription only. Preserve Chinese, English, and Bahasa Malaysia code-switching exactly as spoken. Do not translate, rewrite, summarize, normalize, complete, or add words. Preserve audible colloquial particles such as hor, tak, tapi, ramai, and sikit exactly. 保留原话中的中英马来语混用，不要翻译、改写或补充。Jangan terjemah, ubah, atau tambah perkataan.";

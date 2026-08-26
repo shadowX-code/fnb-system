@@ -1,4 +1,5 @@
 export const legacyRouteRedirects = Object.freeze({
+  guest_ai_device_console: "guest_ai_developer",
   "duty-roster": "crew_roster",
   outlet_duty_roster: "crew_roster",
   // Pre-reset Learning navigation used this name. Keep old saved links on the
