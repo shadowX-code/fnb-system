@@ -33,13 +33,13 @@ describe("Crew Cash Checkout mobile", () => {
     expect(crewService.cashCheckoutMobile).toHaveBeenCalledWith("opaque-session", expect.any(String));
   });
 
-  it("keeps the confirmed deposit balance primary and labels the pending-receipt-adjusted balance precisely", async () => {
-    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, current_balance: 500, available_balance: 400 } });
+  it("shows one canonical deposit balance and keeps pending confirmation informational", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, current_balance: 400, pending_confirmation_amount: 100 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     expect(await screen.findByText("Cash Deposit Balance")).not.toBeNull();
-    expect(screen.getByText("RM 500.00")).not.toBeNull();
-    expect(screen.getByText("Available after pending receipt: RM 400.00")).not.toBeNull();
-    expect(screen.queryByText("Available balance: RM 400.00")).toBeNull();
+    expect(screen.getByText("RM 400.00")).not.toBeNull();
+    expect(screen.getByText("RM 100.00 pending confirmation")).not.toBeNull();
+    expect(screen.queryByText(/Available after pending receipt/)).toBeNull();
   });
 
   it("presents recent activity as a continuous audit list with a dedicated ledger control", async () => {
@@ -49,7 +49,7 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getAllByText("Cash Checkout").length).toBeGreaterThan(1);
     expect(screen.getByText("+RM 500.00")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Open Cash Checkout in ledger" }));
-    expect((await screen.findAllByRole("heading", { name: "Cash Deposit" })).length).toBeGreaterThan(1);
+    expect(await screen.findByRole("heading", { name: "Cash Deposit" })).not.toBeNull();
   });
 
   it("calculates a live denomination preview but sends raw counts to server authority", async () => {
@@ -176,7 +176,16 @@ describe("Crew Cash Checkout mobile", () => {
   it("opens a server-backed ledger with each entry balance", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
-    expect((await screen.findAllByRole("heading", { name: "Cash Deposit" })).length).toBe(2);
+    expect(await screen.findByRole("heading", { name: "Cash Deposit" })).not.toBeNull();
     expect(screen.getByText(/Balance.*500\.00/)).not.toBeNull();
+  });
+
+  it("renders pending confirmation on a negative ledger row without a second balance", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, current_balance: 400, ledger: [{ id: "collection-1", entry_type: "collection", occurred_at: "2026-08-20T10:00:00+08:00", signed_amount: -100, balance_after: 400, recorded_by: "Manager A", confirmation_status: "pending_confirmation" }] } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    expect(await screen.findByText(/Pending Confirmation/)).not.toBeNull();
+    expect(screen.getByText(/100\.00/)).not.toBeNull();
+    expect(screen.getByText(/Balance RM.*400\.00/)).not.toBeNull();
   });
 });

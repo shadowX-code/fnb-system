@@ -29,8 +29,8 @@ Cash Checkout is an outlet/date lifecycle with controlled draft, submission, rev
 The server calculates opening expectation, counted totals, variance, retained float, carry-forward, and amount for deposit.
 Floating Cash changes require authorized settings workflow and immutable adjustment evidence.
 
-The Deposit Ledger is append-only financial evidence derived from completed obligations, confirmed collections, deposits, and explicit corrections.
-Internal handover remains pending until the intended receiver confirms through a valid Crew session when confirmation is required.
+The Deposit Ledger is append-only financial evidence derived from completed obligations, submitted collections, deposits, and explicit corrections. A submitted collection immediately posts its single debit; recipient confirmation is acknowledgement evidence and never posts a second debit.
+Internal handover remains pending confirmation until the intended receiver confirms through a valid Crew session when confirmation is required.
 Corrections cannot silently rewrite completed checkout or ledger history.
 
 ## Permissions, Snapshots, And Audit
