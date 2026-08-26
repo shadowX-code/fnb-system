@@ -131,7 +131,7 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getAllByText("RM 0.00").length).toBeGreaterThan(1);
   });
 
-  it("keeps allocation and confirm carry-forward labels unambiguous", async () => {
+  it("keeps allocation decision-focused and confirm limited to final allocation values", async () => {
     crewService.cashCheckoutMobile.mockResolvedValueOnce(payload).mockResolvedValueOnce({ ...payload, checkout: { status: "reconciled", denomination_counts: { "100": 5, "50": 1 }, pos_expected_cash: 500, carry_forward: 0 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Start" }));
@@ -141,14 +141,34 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: /Next: Allocate/ }));
     await screen.findByText("Allocate closing cash");
     expect(screen.getByLabelText("Carry Forward for next cycle")).not.toBeNull();
-    expect(screen.getAllByText("For deposit").length).toBeGreaterThan(1);
+    expect(screen.getAllByText("For deposit")).toHaveLength(1);
+    expect(document.querySelector(".crew-cash-actions-allocate .crew-cash-action-total")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Next: Confirm/ }));
     await screen.findByText("Review Cash Checkout");
     expect(screen.getByRole("heading", { name: "Reconciliation" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Allocation" })).not.toBeNull();
-    expect(screen.getByText("Previous Carry Forward")).not.toBeNull();
+    expect(screen.queryByText("Previous Carry Forward")).toBeNull();
     expect(screen.getByText("Carry Forward for next cycle")).not.toBeNull();
+    expect(document.querySelector(".crew-cash-actions-confirm .crew-cash-action-total")).toBeNull();
     expect(screen.getByRole("button", { name: /Submit RM\s*250\.00 for Review/ })).not.toBeNull();
+  });
+
+  it("uses current and completed primary-brand step states without extending progress past Confirm", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValueOnce(payload).mockResolvedValueOnce({ ...payload, checkout: { status: "reconciled", denomination_counts: { "100": 5 }, pos_expected_cash: 500, carry_forward: 0 } });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    expect(document.querySelectorAll(".crew-cash-steps .is-current")).toHaveLength(1);
+    expect(document.querySelectorAll(".crew-cash-steps .is-completed")).toHaveLength(0);
+    fireEvent.change(screen.getByLabelText("POS closing cash"), { target: { value: "500" } });
+    fireEvent.click(screen.getByRole("button", { name: /Next: Allocate/ }));
+    await screen.findByText("Allocate closing cash");
+    expect(document.querySelectorAll(".crew-cash-steps .is-current")).toHaveLength(1);
+    expect(document.querySelectorAll(".crew-cash-steps .is-completed")).toHaveLength(1);
+    expect(document.querySelector(".crew-cash-steps > span")?.style.getPropertyValue("--crew-cash-step-progress")).toBe("0.5");
+    fireEvent.click(screen.getByRole("button", { name: /Next: Confirm/ }));
+    await screen.findByText("Review Cash Checkout");
+    expect(document.querySelectorAll(".crew-cash-steps .is-completed")).toHaveLength(2);
+    expect(document.querySelector(".crew-cash-steps > span")?.style.getPropertyValue("--crew-cash-step-progress")).toBe("1");
   });
 
   it("restores saved count quantities through the existing checkout draft payload", async () => {

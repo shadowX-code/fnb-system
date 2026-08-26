@@ -124,10 +124,20 @@ describe("Crew Mobile design system contract", () => {
 
   it("keeps Cash Checkout counting surfaces on canonical Mint owners", () => {
     expect(cashCheckout).toMatch(/\.crew-cash-steps i\s*\{[^}]*background:\s*var\(--crew-color-icon-default-bg\)/s);
-    expect(cashCheckout).toMatch(/\.crew-cash-steps \.is-active i\s*\{[^}]*background:\s*var\(--crew-color-mist-mint\)/s);
+    expect(cashCheckout).toMatch(/\.crew-cash-steps \.is-current i,\.crew-cash-steps \.is-completed i\s*\{[^}]*background:\s*var\(--crew-color-primary-bg\)/s);
     expect(cashCheckout).toMatch(/\.crew-cash-stepper\s*\{[^}]*background:\s*var\(--crew-color-icon-default-bg\)/s);
     expect(cashCheckout).toMatch(/\.crew-cash-counted-result\s*\{[^}]*background:\s*var\(--crew-color-icon-default-bg\)/s);
     expect(cashCheckout).not.toMatch(/\.crew-cash-(?:steps|stepper|counted-result)[^{]*\{[^}]*cyan/s);
+  });
+
+  it("keeps Cash Checkout Allocate and Confirm in the canonical Primary and Mint families", () => {
+    expect(system).toContain("--crew-color-primary-bg: var(--crew-color-cyan)");
+    expect(system).toContain("--crew-color-primary-fg: #fff");
+    expect(system).toContain(".crew-mobile-primary { border: 1px solid var(--crew-color-primary-bg); background: var(--crew-color-primary-bg); color: var(--crew-color-primary-fg); }");
+    expect(cashCheckout).toMatch(/\.crew-cash-steps > span\s*\{[^}]*background:\s*var\(--crew-color-primary-bg\)[^}]*transform:\s*scaleX\(var\(--crew-cash-step-progress/s);
+    expect(cashCheckout).toMatch(/\.crew-cash-steps \.is-current i,\.crew-cash-steps \.is-completed i\s*\{[^}]*background:\s*var\(--crew-color-primary-bg\)/s);
+    expect(cashCheckout).toMatch(/\.crew-cash-breakdown \.is-total\s*\{[^}]*background:\s*var\(--crew-color-icon-default-bg\)/s);
+    expect(cashCheckout).not.toContain("crew-cash-action-total");
   });
 
   it("blocks new shared-owner bypasses in the migrated feature shells", () => {
