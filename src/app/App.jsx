@@ -579,7 +579,7 @@ export default function App() {
   // Crew Mobile is an explicit employee entry point and must not be shadowed
   // by an unrelated Admin session in the same browser.
   if (window.location.hash === "#crew") {
-    return <CrewMobileApp />;
+    return <><CrewMobileApp onNotify={notify} /><ToastViewport toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} style={{ right: "max(16px, calc((100vw - 430px) / 2 + 16px))", bottom: "calc(var(--crew-mobile-nav-height) + env(safe-area-inset-bottom) + 82px)" }} /></>;
   }
 
   if (!auth.session) {
