@@ -1,4 +1,4 @@
-/* Reward-specific financial hierarchy and data visualization. Shared tokens, headings, modal, and buttons remain system-owned. */
+/* Reward-specific financial hierarchy and data visualization. Reward hero remains a domain-specific premium surface. Shared tokens, headings, modal, and buttons remain system-owned. */
 .crew-reward-final { display: grid; gap: 20px; padding-bottom: 32px; color: var(--crew-color-text); }
 
 .crew-reward-hero { position: relative; display: grid; min-height: 232px; gap: 10px; overflow: hidden; border: 0; border-radius: var(--crew-radius-focus); background: radial-gradient(circle at 76% 16%, rgb(0 183 199 / .055), transparent 29%), radial-gradient(circle at 62% 40%, rgb(0 87 112 / .055), transparent 43%), linear-gradient(126deg, #031827 0%, #031827 48%, #062235 100%); padding: 20px 22px; color: var(--crew-color-surface); isolation: isolate; }
@@ -80,7 +80,6 @@
 .crew-reward-history-row strong { color: var(--crew-color-text); font-size: var(--crew-type-card-title); }
 .crew-reward-history-row em { color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); font-style: normal; }
 .crew-reward-history-empty { display: grid; justify-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--crew-color-border) 70%, transparent); border-radius: var(--crew-radius-functional); padding: 24px 16px; text-align: center; }
-.crew-reward-history-empty .crew-ui-icon-container { width: 36px; height: 36px; border-radius: var(--crew-radius-icon); }
 .crew-reward-history-empty strong { color: var(--crew-color-text); font-size: var(--crew-type-label); }
 .crew-reward-history-empty p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-reward-unavailable { display: grid; justify-items: center; gap: 8px; border-radius: var(--crew-radius-functional); background: color-mix(in srgb, var(--crew-color-mist-mint) 25%, white); padding: 32px 20px; text-align: center; }

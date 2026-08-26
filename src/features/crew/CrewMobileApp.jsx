@@ -227,7 +227,7 @@ function AttendanceHistoryScreen({ employee, context, openShift, todayRoster, ro
   return <section className="crew-v2-attendance crew-attendance-history-page">
     <CrewMobileDetailHeader title={t("attendance.title")} onBack={onBack} />
     <div className="crew-attendance-month-select"><SelectField label={t("attendance.month")} ariaLabel={t("attendance.month")} value={selectedMonth} onChange={onMonthChange} options={months} /></div>
-    {openShift && <section className="crew-attendance-current-shift"><span><Clock3 size={18} /></span><div><strong>{t("home.onShift")}</strong><small>{t("attendance.started", { time: formatTime(openShift.clock_in_at) })}{shift ? ` · ${shift}` : ""}</small></div><button type="button" onClick={onBack}>{t("home.goHome")}</button></section>}
+    {openShift && <section className="crew-attendance-current-shift"><span className="crew-ui-icon-container"><Clock3 size={18} /></span><div><strong>{t("home.onShift")}</strong><small>{t("attendance.started", { time: formatTime(openShift.clock_in_at) })}{shift ? ` · ${shift}` : ""}</small></div><button type="button" onClick={onBack}>{t("home.goHome")}</button></section>}
     <section className="crew-attendance-month-summary" aria-label={t("attendance.monthSummary")}>
       <div><small>{t("attendance.worked")}</small><strong>{rows.length} {t("common.shifts")}</strong></div>
       <div><small>{t("attendance.totalHours")}</small><strong>{Math.floor(totalMinutes / 60)}h {Math.round(totalMinutes % 60)}m</strong></div>

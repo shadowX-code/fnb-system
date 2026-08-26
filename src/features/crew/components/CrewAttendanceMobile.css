@@ -1,8 +1,8 @@
-/* Attendance-specific chronology and month-summary composition. */
+/* Attendance hero/card composition remains domain-specific. Chronology and month-summary consume shared tokens. */
 .crew-attendance-history-page { padding-bottom: 16px; }
 .crew-attendance-month-select { margin: 4px 0 12px; }
 .crew-attendance-current-shift { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: color-mix(in srgb, var(--crew-color-mist-mint) 42%, white); padding: 11px; color: var(--crew-color-deep-teal); }
-.crew-attendance-current-shift > span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; background: var(--crew-color-surface); }.crew-attendance-current-shift > div { display: grid; min-width: 0; flex: 1; gap: 2px; }.crew-attendance-current-shift strong { font-size: var(--crew-type-card-title); }.crew-attendance-current-shift small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }.crew-attendance-current-shift button { border: 0; background: transparent; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 650; }
+.crew-attendance-current-shift > div { display: grid; min-width: 0; flex: 1; gap: 2px; }.crew-attendance-current-shift strong { font-size: var(--crew-type-card-title); }.crew-attendance-current-shift small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }.crew-attendance-current-shift button { border: 0; background: transparent; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 650; }
 .crew-attendance-month-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: hidden; margin-bottom: 16px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }.crew-attendance-month-summary > div { display: grid; min-width: 0; gap: 4px; padding: 12px 10px; }.crew-attendance-month-summary > div + div { border-left: 1px solid var(--crew-color-divider); }.crew-attendance-month-summary small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }.crew-attendance-month-summary strong { overflow: hidden; color: var(--crew-color-text); font-size: var(--crew-type-card-title); text-overflow: ellipsis; white-space: nowrap; }.crew-attendance-month-summary strong.is-warning { color: var(--crew-color-warning); }.crew-attendance-loading { padding: 18px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); text-align: center; }
 
 
@@ -23,8 +23,8 @@
   height: 58px;
   place-items: center;
   border-radius: 50%;
-  background: #f0f3f5;
-  color: #708096;
+  background: var(--crew-color-icon-neutral-bg);
+  color: var(--crew-color-icon-neutral-fg);
 
 }
 
@@ -36,7 +36,7 @@
 
 .crew-v2-attendance-hero small {
   margin-top: 13px;
-  color: #718097;
+  color: var(--crew-color-text-muted);
   font-size:var(--crew-type-helper);
 
 }
@@ -57,7 +57,7 @@
 
 .crew-v2-attendance-hero p {
   margin: 5px 0 0;
-  color: #5c6c82;
+  color: var(--crew-color-text-secondary);
   font-size:var(--crew-type-helper);
 
 }
@@ -69,7 +69,7 @@
 }
 
 .crew-v2-attendance-hero{
-  background:#f8fbfa
+  background:var(--crew-color-mineral)
 }
 
 .crew-v3-attendance-summary p,.crew-v3-attendance-summary>small,.crew-v3-attendance-summary>span{
@@ -82,7 +82,7 @@
   gap:4px;
   border:1px solid var(--crew-v2-border);
   border-radius:14px;
-  background:#f7fbf9;
+  background:var(--crew-color-mineral);
   padding:15px
 }
 

@@ -18,7 +18,7 @@
   --crew-color-info: #2563a6;
   --crew-color-info-surface: #eaf3fb;
   --crew-color-intelligence: #5f5aa4;
-  --crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 34%, white);
+  --crew-color-icon-default-bg: var(--crew-color-success-surface);
   --crew-color-icon-default-fg: var(--crew-color-deep-teal);
   --crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, white);
   --crew-color-icon-neutral-bg: #e6ebec;

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { CalendarDays, MapPin } from "lucide-react";
 import { crewLocale, formatCrewDate } from "../utils/crewI18n.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
+import { CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 const parseDate = (value) => new Date(`${value}T00:00:00`);
 const dateKey = (date) => {
@@ -98,5 +99,6 @@ export function CrewScheduleListItem({ entry, employee, selected }) {
 }
 
 export function CrewScheduleStatusBadge({ entry, label }) {
-  return <em className={`crew-schedule-final-badge is-${entryTone(entry)}`}>{label}</em>;
+  const tone = entryTone(entry);
+  return <CrewStatusBadge tone={tone === "working" ? "success" : tone === "leave" || tone === "medical" ? "warning" : "neutral"}>{label}</CrewStatusBadge>;
 }

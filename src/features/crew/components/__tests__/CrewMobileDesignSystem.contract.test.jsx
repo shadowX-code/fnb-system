@@ -73,13 +73,14 @@ describe("Crew Mobile design system contract", () => {
 
   it("owns ordinary icon-container color roles centrally", () => {
     [
-      "--crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 34%, white)",
+      "--crew-color-icon-default-bg: var(--crew-color-success-surface)",
       "--crew-color-icon-default-fg: var(--crew-color-deep-teal)",
       "--crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, white)",
       "--crew-color-icon-neutral-bg: #e6ebec",
       "--crew-color-icon-neutral-fg: #728086",
       ".crew-ui-icon-container.is-active, .crew-ui-icon-container.is-live",
     ].forEach((contract) => expect(system).toContain(contract));
+    expect(system).toContain(".crew-ui-status.is-success { background: var(--crew-color-success-surface);");
     expect(mobileApp).toContain('crew-ui-icon-container crew-ui-icon-container--compact');
     expect(learnHome).toContain("crew-ui-icon-container ${active ? \"is-selected is-active\" : \"\"}");
     expect(meStyles).not.toContain(".crew-me-list.is-neutral .crew-me-row-icon");
@@ -210,6 +211,22 @@ describe("Crew Mobile design system contract", () => {
     expect(home).not.toContain(".crew-v2-home .crew-home-task>.crew-ui-icon-container");
     ["#164b50", "#00b7c7", "#b1d5c9"].forEach((legacy) => expect(home).not.toContain(legacy));
     expect(home).toContain("Home attendance keeps its artwork and clock gradients as a domain-specific exception.");
+  });
+
+  it("keeps Phase 4 generic owners scoped while preserving Reward and Attendance domain composition", () => {
+    expect(schedule).toContain('import { CrewStatusBadge } from "./CrewMobileUI.jsx"');
+    expect(schedule).toContain("return <CrewStatusBadge tone={tone");
+    expect(scheduleStyles).not.toContain(".crew-schedule-final-badge");
+    expect(attendanceStyles).not.toContain("background: #f0f3f5");
+    expect(attendanceStyles).not.toContain("color: #708096");
+    expect(attendanceStyles).toContain("background:var(--crew-color-mineral)");
+    expect(rewardStyles).not.toContain(".crew-reward-history-empty .crew-ui-icon-container");
+    expect(meStyles).not.toContain(".crew-me-status-icon, .crew-me-row-icon");
+    expect(meStyles).not.toContain("background: #fff1d7");
+    expect(cashCheckout).toContain("padding-inline: var(--crew-mobile-page-inline)");
+    expect(cashCheckout).not.toMatch(/\.crew-cash-actions\s*\{[^}]*\b(?:position|bottom|padding-inline)/s);
+    expect(rewardStyles).toContain("Reward hero remains a domain-specific premium surface.");
+    expect(attendanceStyles).toContain("Attendance hero/card composition remains domain-specific.");
   });
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {

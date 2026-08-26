@@ -211,7 +211,7 @@
   border-radius: 999px;
   background: #e8fbf4;
   padding: 4px 8px;
-  color: #087a59;
+  color: var(--crew-color-success);
   font-size:var(--crew-type-helper);
   font-style: normal;
   font-weight: 800;
@@ -271,18 +271,6 @@
 
 }
 
-.crew-me-status-icon, .crew-me-row-icon {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-}
-
-.crew-me-status-icon {
-  width: 38px;
-  height: 38px;
-
-}
 
 .crew-me-quick-status button > span:last-child {
   display: grid;
@@ -361,11 +349,6 @@
 
 }
 
-.crew-me-row-icon {
-  width: 38px;
-  height: 38px;
-
-}
 
 .crew-me-list > * > span:nth-child(2) {
   display: grid;
@@ -394,9 +377,9 @@
 .crew-me-pending {
   flex: 0 0 auto;
   border-radius: 999px;
-  background: #fff1d7;
+  background: color-mix(in srgb, var(--crew-color-warning) 12%, white);
   padding: 5px 8px;
-  color: #a65f00;
+  color: var(--crew-color-warning);
   font-size:var(--crew-type-helper);
   font-style: normal;
   font-weight: 800;
@@ -415,9 +398,9 @@
   gap:6px;
   margin:0 0 10px;
   border-radius:10px;
-  background:#eaf8f1;
+  background:var(--crew-color-success-surface);
   padding:10px 12px;
-  color:#087a59;
+  color:var(--crew-color-success);
   font-size:var(--crew-type-helper);
   font-weight:750;
 
@@ -443,7 +426,7 @@
   width: min(100%, 340px);
   box-sizing: border-box;
   border-radius: 16px;
-  background: #fff;
+  background: var(--crew-color-surface);
   padding: 20px;
   box-shadow: 0 8px 24px rgb(8 21 43 / .18);
 
@@ -491,9 +474,9 @@
 }
 
 .crew-language-modal .crew-language-list button[aria-pressed="true"] {
-  border-color: #8bd8b5;
-  background: #eaf8f1;
-  color: #087d50;
+  border-color: color-mix(in srgb, var(--crew-color-success) 34%, var(--crew-color-border));
+  background: var(--crew-color-success-surface);
+  color: var(--crew-color-success);
 
 }
 
@@ -522,13 +505,6 @@
 }
 }
 
-@media (max-width: 380px) {
-.crew-me-status-icon {
-  width: 34px;
-  height: 34px;
-
-}
-}
 
 @media (max-width: 380px) {
 .crew-me-quick-status strong {
