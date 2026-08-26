@@ -10,7 +10,6 @@
 .crew-performance-detail-modal p { margin: 5px 0 0; }
 .crew-performance-component-modal { display: grid; gap: 20px; color: var(--crew-color-text); }
 .crew-performance-component-summary { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 10px; border-bottom: 1px solid var(--crew-color-divider); padding-bottom: 14px; }
-.crew-performance-component-summary > .crew-ui-icon-container { width: 42px; height: 42px; flex-basis: 42px; }
 .crew-performance-component-summary > span { display: grid; min-width: 0; gap: 3px; }
 .crew-performance-component-summary > span strong { font-size: var(--crew-type-card-title); font-weight: 650; line-height: 1.25; }
 .crew-performance-component-summary > span small, .crew-performance-component-summary > div small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.35; }
@@ -24,9 +23,7 @@
 .crew-performance-component-evidence span { display: grid; min-width: 0; gap: 3px; }
 .crew-performance-component-evidence strong { font-size: var(--crew-type-label); font-weight: 650; line-height: 1.25; }
 .crew-performance-component-evidence small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.35; }
-.crew-performance-component-evidence i { display: grid; width: 26px; height: 26px; flex: 0 0 26px; place-items: center; border-radius: 50%; background: var(--crew-color-mineral); color: var(--crew-color-text-muted); font-style: normal; }
-.crew-performance-component-evidence .is-success i { background: var(--crew-color-success-surface); color: var(--crew-color-success); }
-.crew-performance-component-evidence .is-warning i { background: color-mix(in srgb, var(--crew-color-warning) 12%, white); color: var(--crew-color-warning); }
+.crew-performance-component-evidence .crew-ui-icon-container { font-style: normal; }
 .crew-performance-component-section.is-improve { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: color-mix(in srgb, var(--crew-color-mist-mint) 22%, white); padding: 11px; }
 .crew-performance-component-section.is-improve.is-warning { background: color-mix(in srgb, var(--crew-color-warning) 6%, white); }
 .crew-performance-component-section ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }

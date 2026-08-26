@@ -76,9 +76,9 @@ const performanceLevel = (score, t) => {
 };
 
 const skillSummaryCards = [
-  { key: "certified", icon: BadgeCheck },
-  { key: "in_progress", icon: Clock3 },
-  { key: "ready_for_review", icon: Star },
+  { key: "certified", icon: BadgeCheck, tone: "success" },
+  { key: "in_progress", icon: Clock3, tone: "info" },
+  { key: "ready_for_review", icon: Star, tone: "warning" },
   { key: "not_started", icon: Circle },
 ];
 
@@ -87,8 +87,8 @@ function GrowthSkillSummary({ summary }) {
   return <section className="crew-growth-overview-summary" aria-label={t("growth.skillsOverview")}>
     <CrewSectionHeader title={t("growth.skillsOverview")} />
     <div className="crew-growth-overview-metrics">
-      {skillSummaryCards.map(({ key, icon: Icon }) => <article key={key}>
-        <i className="crew-ui-icon-container"><Icon size={20} /></i>
+      {skillSummaryCards.map(({ key, icon: Icon, tone }) => <article key={key}>
+        <i className={`crew-ui-icon-container crew-ui-icon-container--micro${tone ? ` is-${tone}` : ""}`}><Icon size={12} /></i>
         <strong>{summary?.[key] || 0}</strong>
         <span>{translateStatus(key, t)}</span>
       </article>)}
@@ -267,14 +267,14 @@ function PerformanceComponentModal({ component, onClose, onNavigate }) {
   return <PerformanceModal title={component.label} onClose={onClose}>
     <div className="crew-performance-component-modal">
       <header className="crew-performance-component-summary">
-        <i className="crew-ui-icon-container"><Icon size={22} /></i>
+        <i className="crew-ui-icon-container crew-ui-icon-container--emphasis"><Icon size={22} /></i>
         <span><strong>{guidance.level}</strong><small>{t("performance.current")}</small></span>
         <div><strong>{component.value ?? "—"}</strong><small>/ {component.max}</small></div>
       </header>
       <section className="crew-performance-component-section">
         <h3>{t("performance.whyScore")}</h3>
         <div className="crew-performance-component-evidence">
-          {guidance.why.map((row, index) => <div key={`${row.label}-${index}`} className={`is-${row.tone || "neutral"}`}><span><strong>{row.label}</strong><small>{row.value}</small></span><i>{row.tone === "success" ? <CheckCircle2 size={15} /> : row.tone === "warning" ? <CircleHelp size={15} /> : <Circle size={13} />}</i></div>)}
+          {guidance.why.map((row, index) => <div key={`${row.label}-${index}`}><span><strong>{row.label}</strong><small>{row.value}</small></span><i className={`crew-ui-icon-container crew-ui-icon-container--small${row.tone ? ` is-${row.tone}` : ""}`}>{row.tone === "success" ? <CheckCircle2 size={15} /> : row.tone === "warning" ? <CircleHelp size={15} /> : <Circle size={13} />}</i></div>)}
         </div>
       </section>
       <section className={`crew-performance-component-section is-improve ${component.value === component.max ? "is-success" : "is-warning"}`}>
@@ -316,14 +316,14 @@ function PerformanceBreakdown({ performance, onSelect, onExplain }) {
         const value = item.score == null ? null : Math.round(Number(item.score));
         const progress = value == null ? 0 : Math.min(100, value * 100 / max);
         return <button type="button" key={key} onClick={() => onSelect({ key, label, max, weight, icon: Icon, item, value })} aria-label={t("performance.viewEvidence", { label })}>
-          <i><Icon size={19} /></i>
+          <i className="crew-ui-icon-container crew-ui-icon-container--small"><Icon size={17} /></i>
           <span><strong>{label}</strong><small>{t("performance.weight", { weight })}</small></span>
           <div className="crew-performance-final-meter" aria-label={`${label} ${value ?? 0} of ${max}`}><span style={{ width: `${progress}%` }} /></div>
           <b>{value == null ? "—" : value} / {max}</b><ChevronRight size={17} />
         </button>;
       })}
     </div>
-    <button type="button" className="crew-performance-final-evidence" onClick={onExplain}><i className="crew-ui-icon-container"><ShieldCheck size={18} /></i><span><strong>{t("performance.verifiedEvidence")}</strong><small>{t("performance.learnCalculation")}</small></span><ChevronRight size={17} /></button>
+    <button type="button" className="crew-performance-final-evidence" onClick={onExplain}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><ShieldCheck size={18} /></i><span><strong>{t("performance.verifiedEvidence")}</strong><small>{t("performance.learnCalculation")}</small></span><ChevronRight size={17} /></button>
   </section>;
 }
 
@@ -335,7 +335,7 @@ function PerformanceStrengths({ performance }) {
     return score === definition.max && item.status !== "review_required" ? { ...definition, body: definition.strength } : null;
   }).filter(Boolean).slice(0, 3);
   if (!strengths.length) return null;
-  return <section className="crew-performance-final-strengths"><h2>{t("performance.strengthsTitle")}</h2><div>{strengths.map(({ key, label, icon: Icon, body }) => <article key={key}><i><Icon size={18} /></i><span><strong>{label}</strong><p>{body}</p></span></article>)}</div></section>;
+  return <section className="crew-performance-final-strengths"><h2>{t("performance.strengthsTitle")}</h2><div>{strengths.map(({ key, label, icon: Icon, body }) => <article key={key}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><Icon size={18} /></i><span><strong>{label}</strong><p>{body}</p></span></article>)}</div></section>;
 }
 
 function PerformanceTrend({ performance }) {
@@ -352,7 +352,7 @@ function PerformanceRewardImpact({ performance, onViewReward }) {
   const score = performance.score == null ? null : Math.round(Number(performance.score));
   const finalized = performance.status === "finalized";
   const rate = score == null ? null : rewardEarnRate(score);
-  return <section className="crew-performance-final-reward"><i className="crew-ui-icon-container"><Gift size={20} /></i><span><strong>{t("performance.rewardImpact")}</strong><small>{finalized ? t("performance.finalizedPerformance") : t("performance.estimatedPerformance")}</small></span><div><small>{t("growth.performance")}</small><strong>{score ?? "—"} / 100</strong></div><div><small>{t("performance.earnRate")}</small><strong>{rate == null ? "—" : `${rate}%`}</strong></div><button type="button" className="crew-mobile-ghost" onClick={onViewReward}>{t("performance.viewReward")} <ChevronRight size={17} /></button></section>;
+  return <section className="crew-performance-final-reward"><i className="crew-ui-icon-container crew-ui-icon-container--compact"><Gift size={20} /></i><span><strong>{t("performance.rewardImpact")}</strong><small>{finalized ? t("performance.finalizedPerformance") : t("performance.estimatedPerformance")}</small></span><div><small>{t("growth.performance")}</small><strong>{score ?? "—"} / 100</strong></div><div><small>{t("performance.earnRate")}</small><strong>{rate == null ? "—" : `${rate}%`}</strong></div><button type="button" className="crew-mobile-ghost" onClick={onViewReward}>{t("performance.viewReward")} <ChevronRight size={17} /></button></section>;
 }
 
 function CrewPerformanceDetail({ performance, onBack, onViewReward, onNavigate }) {

@@ -11,6 +11,7 @@ const sharedStyles = readFileSync(resolve(process.cwd(), "src/styles/index.css")
 const home = readFileSync(resolve(process.cwd(), "src/features/crew/CrewHome.css"), "utf8");
 const cashCheckout = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.css"), "utf8");
 const taskBlockStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewTaskBlockRenderer.css"), "utf8");
+const taskBlock = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewTaskBlockRenderer.jsx"), "utf8");
 const performanceModal = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewPerformanceComponentModal.css"), "utf8");
 const learningStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLearningMobile.css"), "utf8");
 const sopDocumentStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewSopDocument.css"), "utf8");
@@ -72,18 +73,73 @@ describe("Crew Mobile design system contract", () => {
 
   it("owns ordinary icon-container color roles centrally", () => {
     [
-      "--crew-color-icon-default-bg: #e0f6f8",
+      "--crew-color-icon-default-bg: color-mix(in srgb, var(--crew-color-mist-mint) 34%, white)",
+      "--crew-color-icon-default-fg: var(--crew-color-deep-teal)",
       "--crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, white)",
       "--crew-color-icon-neutral-bg: #e6ebec",
       "--crew-color-icon-neutral-fg: #728086",
       ".crew-ui-icon-container.is-active, .crew-ui-icon-container.is-live",
     ].forEach((contract) => expect(system).toContain(contract));
-    expect(mobileApp).toContain('className="crew-ui-icon-container"');
+    expect(mobileApp).toContain('crew-ui-icon-container crew-ui-icon-container--compact');
     expect(learnHome).toContain("crew-ui-icon-container ${active ? \"is-selected is-active\" : \"\"}");
     expect(meStyles).not.toContain(".crew-me-list.is-neutral .crew-me-row-icon");
     expect(meStyles).not.toContain(".crew-me-settings .crew-ui-row-icon{background");
     expect(growthStyles).not.toContain(".crew-v2-row-icon, .crew-v2-icon-token");
     expect(mobileApp).not.toContain("crew-me-row-icon crew-ui-icon-container is-neutral");
+  });
+
+  it("owns app gutters, Bottom Nav clearance, and sticky-action geometry in the Fundamental", () => {
+    ["--crew-mobile-page-inline: 16px", "--crew-mobile-page-bottom: calc(var(--crew-mobile-nav-height) + 28px + env(safe-area-inset-bottom))", ".crew-v2-app { width: min(100%, var(--crew-mobile-content-max))", ".crew-ui-sticky-actions", ".crew-ui-sticky-actions--with-nav", ".crew-ui-sticky-actions--sheet"].forEach((contract) => expect(system).toContain(contract));
+    expect(appStyles).not.toContain(".crew-v2-app");
+    expect(home).not.toContain(".crew-v2-app:has(");
+    [cashCheckout, leaveStyles].forEach((source) => {
+      expect(source).not.toMatch(/padding:[^;}]*var\(--crew-mobile-page-inline/);
+      expect(source).not.toMatch(/bottom:\s*(?:65|66|78)px/);
+    });
+    expect(operationsStyles).not.toMatch(/\.crew-ops-mobile\s*\{[^}]*padding:[^}]*var\(--crew-mobile-page-inline/);
+    expect(cashCheckout).not.toMatch(/\.crew-cash-actions\s*\{[^}]*position:/);
+    expect(leaveStyles).not.toMatch(/\.crew-leave-footer\s*\{[^}]*position:/);
+    expect(operationsStyles).not.toMatch(/\.crew-ops-sticky\s*\{[^}]*position:/);
+    expect(mobileApp).toContain("!cashCheckoutFlow && <CrewBottomNav");
+    expect(leave).toContain("crew-ui-sticky-actions--with-nav crew-leave-footer");
+    expect(taskBlock).toContain("crew-ui-sticky-actions--sheet");
+  });
+
+  it("keeps migrated operational icons on canonical foreground and surface owners", () => {
+    expect(system).toContain(".crew-ui-icon-container--large");
+    expect(system).toContain(".crew-ui-icon-container--round");
+    expect(system).toContain(".crew-ui-icon-container.is-danger");
+    expect(cashCheckout).not.toContain(".crew-cash-summary-icon");
+    [".crew-cash-activity-icon.is-in", ".crew-cash-activity-icon.is-out", "article > svg,.crew-cash-card > header svg { color: var(--crew-color-cyan)"] .forEach((legacy) => expect(cashCheckout).not.toContain(legacy));
+    expect(readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.jsx"), "utf8")).toContain("crew-ui-icon-container--large is-selected");
+    expect(readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.jsx"), "utf8")).toContain("crew-ui-icon-container--round crew-cash-activity-icon");
+    [cashCheckout, leaveStyles, operationsStyles, taskBlockStyles].forEach((source) => {
+      expect(source).not.toMatch(/\.crew-ui-icon-container[^\{]*\{[^}]*(?:background|color|border-radius|width|height)/s);
+    });
+  });
+
+  it("blocks new shared-owner bypasses in the migrated feature shells", () => {
+    const migratedStyles = [cashCheckout, leaveStyles, operationsStyles, taskBlockStyles];
+    migratedStyles.forEach((source) => {
+      ["#00b7c7", "#e0f6f8", "#164b50", "#b1d5c9", "!important", "linear-gradient", "radial-gradient", "conic-gradient"].forEach((token) => expect(source).not.toContain(token));
+      [".crew-mobile-primary", ".crew-mobile-secondary", ".crew-mobile-destructive", ".crew-mobile-ghost"].forEach((selector) => expect(source).not.toMatch(new RegExp(`${selector.replace(".", "\\.")}\\s*\\{[^}]*(?:min-height|border-radius|background|color)`, "s")));
+    });
+  });
+
+  it("keeps Operations and Task Renderer on shared tabs, badges, icons, fields, and documented sheets", () => {
+    const operations = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewOperationsMobile.jsx"), "utf8");
+    [operationsStyles, taskBlockStyles].forEach((source) => ["#", "!important", "linear-gradient", "radial-gradient", "conic-gradient"].forEach((token) => expect(source).not.toContain(token)));
+    expect(operations).toContain("crew-ui-tabs crew-ops-top-tabs");
+    expect(operations).toContain("CrewStatusBadge");
+    expect(operations).toContain("crew-ui-icon-container--compact");
+    expect(operationsStyles).not.toContain(".crew-ops-top-tabs button");
+    expect(operationsStyles).not.toContain(".crew-ops-task>span:first-child");
+    expect(taskBlock).toContain("crew-ui-status crew-task-block-result");
+    expect(taskBlock).toContain("crew-ui-icon-container--compact crew-task-block-number");
+    expect(taskBlock).toContain("crew-ui-choice-list crew-task-choice-list");
+    expect(taskBlockStyles).not.toContain(".crew-task-block-number.is-");
+    expect(taskBlockStyles).toContain("task-specific bottom sheet");
+    expect(operationsStyles).toContain("Legacy daily tasks remain a bottom sheet");
   });
 
   it("keeps shared and Auth presentation out of the route shell stylesheet", () => {
@@ -139,6 +195,21 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain(".crew-ui-status.is-info { background: var(--crew-color-info-surface); color: var(--crew-color-info);");
     expect(mobileApp).toContain('task.status === "completed" ? "success"');
     expect(learnHome).toContain('tone="success"');
+  });
+
+  it("keeps Growth, Performance, and Home generic primitives on canonical owners", () => {
+    [".crew-ui-icon-container--micro", ".crew-ui-icon-container--small", ".crew-ui-icon-container--emphasis", ".crew-ui-icon-container.is-info"].forEach((contract) => expect(system).toContain(contract));
+    ["crew-ui-icon-container--micro", "crew-ui-icon-container--emphasis", "crew-ui-icon-container--small", "crew-ui-icon-container--compact"].forEach((modifier) => expect(growth).toContain(modifier));
+    expect(growthStyles).not.toContain(".crew-growth-overview-metrics .crew-ui-icon-container{");
+    expect(growthStyles).not.toContain(".crew-performance-final-evidence>.crew-ui-icon-container{");
+    expect(performanceModal).not.toContain(".crew-performance-component-summary > .crew-ui-icon-container {");
+    expect(performanceModal).not.toContain(".crew-performance-component-evidence .is-success i");
+    expect(mobileApp).toContain("crew-home-task is-${task.status}");
+    expect(mobileApp).toContain("crew-ui-icon-container crew-ui-icon-container--compact");
+    expect(home).not.toContain(".crew-home-task > .crew-ui-icon-container");
+    expect(home).not.toContain(".crew-v2-home .crew-home-task>.crew-ui-icon-container");
+    ["#164b50", "#00b7c7", "#b1d5c9"].forEach((legacy) => expect(home).not.toContain(legacy));
+    expect(home).toContain("Home attendance keeps its artwork and clock gradients as a domain-specific exception.");
   });
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {

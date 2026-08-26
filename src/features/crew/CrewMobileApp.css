@@ -6,24 +6,9 @@
   font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 
 }
-.crew-v2-app {
-  padding: 16px 17px 94px;
-
-}
 /* Crew Me — employee profile and work hub */
-@media (max-width: 374px) {
-.crew-v2-app {
-  padding-right: 14px;
-  padding-left: 14px;
-
-}
-
-}
 /* Daily Operations keeps the approved Crew mobile document/list language. */
 /* Crew Mobile 2026 shared visual foundation. */
-.crew-v2-app{
-  padding:18px 16px 96px
-}
 /* Reward final — reference-matched, server-derived monthly reward story. */
 /* Reward responsive correction — mobile metrics, rings and centered dialogs. */
 /* Crew Mobile Home — attendance-first final composition. */

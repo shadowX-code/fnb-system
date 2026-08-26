@@ -6,6 +6,7 @@ import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
+import { CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { formatCrewDate, formatCrewTime, translateStatus } from "../utils/crewI18n.js";
 import { activeTaskResponsibilities, crewBusinessDate, formatTaskSchedule, historyTasks } from "../utils/taskSchedule.js";
 import { applySopLocalization, applyTaskLocalization } from "../utils/localizedContent.js";
@@ -202,7 +203,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   return <section className="crew-ops-mobile">
     <CrewMobileDetailHeader title={t("tasks.title")} onBack={onBack} variant="workflow" />
     <div className="crew-ops-context"><span><Store size={17} /><strong>{taskData?.outlet?.name || t("home.yourOutlet")}</strong></span><small>{(taskData?.attendance_context || data?.attendance_context)?.on_shift ? t("home.onShift") : t("tasks.outsideShift")}</small></div>
-    <div className="crew-ops-top-tabs" role="tablist" aria-label={t("tasks.title")}><button type="button" role="tab" aria-selected={taskView === "active"} className={taskView === "active" ? "is-active" : ""} onClick={() => setTaskView("active")}>{t("tasks.active")}</button><button type="button" role="tab" aria-selected={taskView === "history"} className={taskView === "history" ? "is-active" : ""} onClick={() => setTaskView("history")}>{t("tasks.history")}</button></div>
+    <div className="crew-ui-tabs crew-ops-top-tabs" role="tablist" aria-label={t("tasks.title")}><button type="button" role="tab" aria-selected={taskView === "active"} className={taskView === "active" ? "is-active" : ""} onClick={() => setTaskView("active")}>{t("tasks.active")}</button><button type="button" role="tab" aria-selected={taskView === "history"} className={taskView === "history" ? "is-active" : ""} onClick={() => setTaskView("history")}>{t("tasks.history")}</button></div>
     {taskView === "history" ? <>
       <div className="crew-ops-filters" role="tablist" aria-label={t("tasks.history")}>{filterOptions.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={historyFilter === value} className={historyFilter === value ? "is-active" : ""} onClick={() => setHistoryFilter(value)}>{label}</button>)}</div>
       {historyLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : historical.length ? <section className="crew-ops-group">{historical.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} history onOpen={() => openFromList(task, "history")} />)}</section> : <section className="crew-ops-group"><Empty text={t("tasks.noHistory")} /></section>}
@@ -248,10 +249,16 @@ function SopTaskReader({ sop, token, onBack }) {
 function LegacyTaskModal({ item, reason, setReason, note, setNote, saving, onClose, onSubmit }) {
   const { t } = useTranslation();
   const reasons = ["equipment_issue", "stock_unavailable", "area_unavailable", "manager_instruction", "other"];
-  return <div className="crew-ops-sheet-backdrop"><section className="crew-ops-sheet"><div><h2>{item.name || item.title}</h2><button onClick={onClose} aria-label={t("common.close")}>×</button></div><p>{item.description || t("tasks.legacyInstruction")}</p><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("completed")}>{t("status.completed")}</button><button className="crew-ops-choice is-warning" onClick={() => setReason(reason || "equipment_issue")}><AlertTriangle size={18} /> {t("tasks.recordException")}</button>{reason ? <><label>{t("tasks.chooseReason")}<select value={reason} onChange={(event) => setReason(event.target.value)}>{reasons.map((value) => <option key={value} value={value}>{t(`tasks.reasons.${value}`)}</option>)}</select></label><label>{t("tasks.note")}<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("exception")}>{t("tasks.submitException")}</button></> : null}</section></div>;
+  return <div className="crew-ops-sheet-backdrop"><section className="crew-ops-sheet" role="dialog" aria-modal="true" aria-label={item.name || item.title}><div><h2>{item.name || item.title}</h2><button className="crew-mobile-ghost" type="button" onClick={onClose} aria-label={t("common.close")}>×</button></div><p>{item.description || t("tasks.legacyInstruction")}</p><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("completed")}>{t("status.completed")}</button><button className="crew-ops-choice crew-mobile-secondary is-warning" type="button" onClick={() => setReason(reason || "equipment_issue")}><AlertTriangle size={18} /> {t("tasks.recordException")}</button>{reason ? <><label className="crew-ui-form-field">{t("tasks.chooseReason")}<select className="crew-ui-field" value={reason} onChange={(event) => setReason(event.target.value)}>{reasons.map((value) => <option key={value} value={value}>{t(`tasks.reasons.${value}`)}</option>)}</select></label><label className="crew-ui-form-field">{t("tasks.note")}<textarea className="crew-ui-field" value={note} onChange={(event) => setNote(event.target.value)} /></label><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("exception")}>{t("tasks.submitException")}</button></> : null}</section></div>;
 }
 
-function Empty({ text }) { return <div className="crew-ops-empty"><ClipboardCheck size={22} /><p>{text}</p></div>; }
+function Empty({ text }) { return <div className="crew-ui-functional-surface crew-ops-empty"><ClipboardCheck size={22} /><p>{text}</p></div>; }
+
+function taskStatusTone(status) {
+  if (["completed", "completed_with_exceptions"].includes(status)) return "success";
+  if (["exception", "needs_attention", "not_checked", "review_required", "overdue"].includes(status)) return "warning";
+  return "neutral";
+}
 
 function TaskRow({ task, t, history = false, onOpen }) {
   const hasProgress = Number(task.completed_count || 0) > 0 && Number(task.block_count || 0) > 0;
@@ -259,12 +266,13 @@ function TaskRow({ task, t, history = false, onOpen }) {
     task.business_date ? formatCrewDate(new Date(`${task.business_date}T00:00:00+08:00`), { day: "2-digit", month: "2-digit", year: "numeric" }) : null,
     task.completed_at ? t("tasks.completedAt", { time: formatCrewTime(task.completed_at).toLowerCase() }) : null,
   ].filter(Boolean).join(" · ");
+  const tone = taskStatusTone(task.status);
   return <button type="button" className={`crew-ops-task is-${task.status}`} onClick={onOpen}>
-    <span>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span>
+    <span className={`crew-ui-icon-container crew-ui-icon-container--compact${tone === "success" ? " is-success" : tone === "warning" ? " is-warning" : ""}`}>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span>
     <span><strong>{task.name}</strong>
       {history ? <small>{historyContext || task.description || String(task.task_type).replaceAll("_", " ")}</small> : hasProgress ? <small>{t("tasks.completedCount", { completed: task.completed_count, total: task.block_count })}</small> : task.description ? <small>{task.description}</small> : null}
       {!history ? <small className="crew-ops-schedule">{formatTaskSchedule(task, t)}</small> : null}
     </span>
-    <em>{translateStatus(task.status, t)}</em><ChevronRight aria-hidden="true" size={17} />
+    <CrewStatusBadge tone={tone}>{translateStatus(task.status, t)}</CrewStatusBadge><ChevronRight aria-hidden="true" size={17} />
   </button>;
 }
