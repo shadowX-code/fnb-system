@@ -143,14 +143,20 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByLabelText("Carry Forward for next cycle")).not.toBeNull();
     expect(screen.getAllByText("For deposit")).toHaveLength(1);
     expect(document.querySelector(".crew-cash-actions-allocate .crew-cash-action-total")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Next: Confirm/ }));
+    expect(screen.queryByText("Keep the outlet float, choose carry forward, and deposit the remainder.")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Review Cash Checkout");
+    expect(screen.queryByText("Variance and deposit are calculated by FeedX.")).toBeNull();
     expect(screen.getByRole("heading", { name: "Reconciliation" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Allocation" })).not.toBeNull();
     expect(screen.queryByText("Previous Carry Forward")).toBeNull();
     expect(screen.getByText("Carry Forward for next cycle")).not.toBeNull();
     expect(document.querySelector(".crew-cash-actions-confirm .crew-cash-action-total")).toBeNull();
-    expect(screen.getByRole("button", { name: /Submit RM\s*250\.00 for Review/ })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Submit Review" })).not.toBeNull();
+    const warning = document.querySelector(".crew-cash-confirm-card .crew-cash-warning");
+    expect(warning?.querySelector(".crew-ui-icon-container.is-warning")).not.toBeNull();
+    expect(warning?.querySelector(".crew-ui-status.is-warning")?.textContent).toBe("Manager review required");
+    expect(warning?.nextElementSibling?.classList.contains("crew-cash-field")).toBe(true);
   });
 
   it("uses current and completed primary-brand step states without extending progress past Confirm", async () => {
@@ -165,7 +171,7 @@ describe("Crew Cash Checkout mobile", () => {
     expect(document.querySelectorAll(".crew-cash-steps .is-current")).toHaveLength(1);
     expect(document.querySelectorAll(".crew-cash-steps .is-completed")).toHaveLength(1);
     expect(document.querySelector(".crew-cash-steps > span")?.style.getPropertyValue("--crew-cash-step-progress")).toBe("0.5");
-    fireEvent.click(screen.getByRole("button", { name: /Next: Confirm/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Review Cash Checkout");
     expect(document.querySelectorAll(".crew-cash-steps .is-completed")).toHaveLength(2);
     expect(document.querySelector(".crew-cash-steps > span")?.style.getPropertyValue("--crew-cash-step-progress")).toBe("1");
