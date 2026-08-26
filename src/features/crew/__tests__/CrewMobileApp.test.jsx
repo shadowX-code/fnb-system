@@ -330,6 +330,24 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-schedule-final-day h2").textContent).toBe("Unpaid Leave");
   });
 
+  it("keeps one selected date across the inline seven-day and full-month schedule calendar", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expand calendar" }));
+    expect(document.querySelector(".crew-schedule-final-calendar.is-expanded")).not.toBeNull();
+    expect(screen.getByText("August 2026")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Friday, 14 August, OFF/ }));
+    expect(document.querySelector(".crew-schedule-final-day h2").textContent).toBe("OFF");
+    fireEvent.click(screen.getByRole("button", { name: "Previous month" }));
+    expect(screen.getByText("July 2026")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    expect(screen.getByText("August 2026")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse calendar" }));
+    expect(document.querySelector(".crew-schedule-final-calendar.is-expanded")).toBeNull();
+    expect(document.querySelector(".crew-schedule-final-week .is-selected")?.textContent).toContain("14");
+  });
+
   it("opens a Home checklist directly without an intermediate task-list screen", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);

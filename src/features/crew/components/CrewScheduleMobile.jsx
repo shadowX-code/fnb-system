@@ -1,16 +1,23 @@
 import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { MapPin } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, MapPin } from "lucide-react";
 import { crewLocale, formatCrewDate } from "../utils/crewI18n.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 const parseDate = (value) => new Date(`${value}T00:00:00`);
+const startOfMonth = (date) => new Date(date.getFullYear(), date.getMonth(), 1);
+const addMonths = (date, amount) => new Date(date.getFullYear(), date.getMonth() + amount, 1);
 const dateKey = (date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+const weekStartFor = (value) => {
+  const date = parseDate(value);
+  date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+  return dateKey(date);
 };
 const formatRosterTime = (value) => {
   if (!value) return "—";
@@ -40,34 +47,71 @@ const durationHours = (entry) => {
 export default function CrewScheduleMobile({ roster, employee, onBack }) {
   const from = roster?.from || dateKey(new Date());
   const [selectedDate, setSelectedDate] = useState(from);
+  const [weekStart, setWeekStart] = useState(from);
+  const [isMonthExpanded, setIsMonthExpanded] = useState(false);
+  const [visibleMonth, setVisibleMonth] = useState(() => startOfMonth(parseDate(from)));
   const entries = roster?.entries || [];
   const entryByDate = useMemo(() => new Map(entries.map((entry) => [entry.date, entry])), [entries]);
   const selectedEntry = entryByDate.get(selectedDate) || (roster?.today?.date === selectedDate ? roster.today : null);
   const days = useMemo(() => Array.from({ length: 7 }, (_, index) => {
-    const date = parseDate(from);
+    const date = parseDate(weekStart);
     date.setDate(date.getDate() + index);
     const key = dateKey(date);
     return { key, date, entry: entryByDate.get(key) || (roster?.today?.date === key ? roster.today : null) };
-  }), [entryByDate, from, roster?.today]);
+  }), [entryByDate, roster?.today, weekStart]);
+  const monthDays = useMemo(() => {
+    const first = startOfMonth(visibleMonth);
+    const start = new Date(first);
+    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
+    const last = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth() + 1, 0);
+    const totalDays = Math.ceil((((last.getDay() + 6) % 7) + last.getDate()) / 7) * 7;
+    return Array.from({ length: totalDays }, (_, index) => {
+      const date = new Date(start);
+      date.setDate(start.getDate() + index);
+      const key = dateKey(date);
+      return { key, date, inMonth: date.getMonth() === visibleMonth.getMonth(), entry: entryByDate.get(key) || (roster?.today?.date === key ? roster.today : null) };
+    });
+  }, [entryByDate, roster?.today, visibleMonth]);
   const upcoming = entries.filter((entry) => entry.date > from);
 
   function selectDay(key) {
     setSelectedDate(key);
   }
 
+  function toggleCalendar() {
+    if (isMonthExpanded) {
+      setWeekStart(weekStartFor(selectedDate));
+      setIsMonthExpanded(false);
+      return;
+    }
+    setVisibleMonth(startOfMonth(parseDate(selectedDate)));
+    setIsMonthExpanded(true);
+  }
+
   return (
     <section className="crew-schedule-final">
-      <CrewScheduleHeader onBack={onBack} />
-      <CrewScheduleWeekStrip days={days} selectedDate={selectedDate} onSelect={selectDay} />
+      <CrewScheduleHeader onBack={onBack} expanded={isMonthExpanded} onToggleCalendar={toggleCalendar} />
+      <CrewScheduleCalendar expanded={isMonthExpanded} days={days} monthDays={monthDays} visibleMonth={visibleMonth} selectedDate={selectedDate} today={roster?.today?.date || from} onSelect={selectDay} onChangeMonth={(amount) => setVisibleMonth((month) => addMonths(month, amount))} />
       <CrewScheduleDayCard date={selectedDate} entry={selectedEntry} employee={employee} today={from} />
       <CrewScheduleList entries={upcoming} employee={employee} selectedDate={selectedDate} />
     </section>
   );
 }
 
-export function CrewScheduleHeader({ onBack }) {
+export function CrewScheduleHeader({ onBack, expanded, onToggleCalendar }) {
   const { t } = useTranslation();
-  return <CrewMobileDetailHeader className="crew-schedule-final-header" title={t("schedule.title")} onBack={onBack} />;
+  return <CrewMobileDetailHeader className="crew-schedule-final-header" title={t("schedule.title")} onBack={onBack} action={<button type="button" className="crew-mobile-detail-icon-action" onClick={onToggleCalendar} aria-label={expanded ? t("schedule.collapseCalendar") : t("schedule.expandCalendar")}><CalendarDays size={19} /></button>} />;
+}
+
+export function CrewScheduleCalendar({ expanded, days, monthDays, visibleMonth, selectedDate, today, onSelect, onChangeMonth }) {
+  const { t } = useTranslation();
+  if (!expanded) return <CrewScheduleWeekStrip days={days} selectedDate={selectedDate} onSelect={onSelect} />;
+  const weekDays = Array.from({ length: 7 }, (_, index) => new Date(2024, 0, 1 + index));
+  return <section className="crew-ui-segmented crew-ui-segmented--mint crew-schedule-final-calendar is-expanded" aria-label={t("schedule.title")}>
+    <header className="crew-schedule-month-header"><button type="button" className="crew-mobile-detail-icon-action" onClick={() => onChangeMonth(-1)} aria-label={t("schedule.previousMonth")}><ChevronLeft size={18} /></button><strong>{formatCrewDate(visibleMonth, { month: "long", year: "numeric" })}</strong><button type="button" className="crew-mobile-detail-icon-action" onClick={() => onChangeMonth(1)} aria-label={t("schedule.nextMonth")}><ChevronRight size={18} /></button></header>
+    <div className="crew-schedule-month-weekdays" aria-hidden="true">{weekDays.map((date) => <span key={date.getDay()}>{formatCrewDate(date, { weekday: "short" })}</span>)}</div>
+    <div className="crew-schedule-month-grid">{monthDays.map(({ key, date, inMonth, entry }) => inMonth ? <button key={key} type="button" className={`crew-schedule-month-cell${selectedDate === key ? " is-selected" : ""}${today === key ? " is-today" : ""}`} onClick={() => onSelect(key)} aria-label={`${formatCrewDate(date, { weekday: "long", day: "numeric", month: "long" })}, ${entry ? entryLabel(entry, t) : t("schedule.noSchedule")}`} aria-pressed={selectedDate === key} aria-current={today === key ? "date" : undefined}><span>{date.getDate()}</span><i className={`is-${entryTone(entry)}`} /></button> : <span key={key} className="crew-schedule-month-placeholder">{date.getDate()}</span>)}</div>
+  </section>;
 }
 
 export function CrewScheduleWeekStrip({ days, selectedDate, onSelect }) {
