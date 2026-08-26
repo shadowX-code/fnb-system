@@ -59,6 +59,12 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "4" } });
     fireEvent.change(screen.getByLabelText("RM 0.5"), { target: { value: "2" } });
     expect(screen.getByText("RM 401.00")).not.toBeNull();
+    const countedResult = document.querySelector(".crew-cash-counted-result");
+    const actions = document.querySelector(".crew-cash-actions-count");
+    expect(countedResult?.textContent).toContain("Counted cash");
+    expect(countedResult?.textContent).toContain("RM");
+    expect(Boolean(countedResult?.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
+    expect(actions?.querySelector(".crew-cash-action-total")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenCalledWith("opaque-session", "draft", expect.objectContaining({ denomination_counts: expect.objectContaining({ "100": "4", "0.50": "2" }) })));
     const sent = crewService.saveCashCheckout.mock.calls[0][2];

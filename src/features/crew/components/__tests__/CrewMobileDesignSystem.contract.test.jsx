@@ -122,6 +122,14 @@ describe("Crew Mobile design system contract", () => {
     });
   });
 
+  it("keeps Cash Checkout counting surfaces on canonical Mint owners", () => {
+    expect(cashCheckout).toMatch(/\.crew-cash-steps i\s*\{[^}]*background:\s*var\(--crew-color-icon-default-bg\)/s);
+    expect(cashCheckout).toMatch(/\.crew-cash-steps \.is-active i\s*\{[^}]*background:\s*var\(--crew-color-mist-mint\)/s);
+    expect(cashCheckout).toMatch(/\.crew-cash-stepper\s*\{[^}]*background:\s*var\(--crew-color-icon-default-bg\)/s);
+    expect(cashCheckout).toMatch(/\.crew-cash-counted-result\s*\{[^}]*background:\s*var\(--crew-color-icon-default-bg\)/s);
+    expect(cashCheckout).not.toMatch(/\.crew-cash-(?:steps|stepper|counted-result)[^{]*\{[^}]*cyan/s);
+  });
+
   it("blocks new shared-owner bypasses in the migrated feature shells", () => {
     const migratedStyles = [cashCheckout, leaveStyles, operationsStyles, taskBlockStyles];
     migratedStyles.forEach((source) => {
