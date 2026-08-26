@@ -38,13 +38,14 @@ describe("Crew Cash Checkout mobile", () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     expect(await screen.findByText("Cash Deposit Balance")).not.toBeNull();
     expect(screen.getByText("RM 500.00")).not.toBeNull();
-    expect(screen.getByText("Available to collect: RM 400.00")).not.toBeNull();
+    expect(screen.getByText("Available after pending receipt: RM 400.00")).not.toBeNull();
     expect(screen.queryByText("Available balance: RM 400.00")).toBeNull();
   });
 
   it("presents recent activity as a continuous audit list with a dedicated ledger control", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     expect(await screen.findByRole("heading", { name: "Recent Activity" })).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "View ledger" })).toHaveLength(1);
     expect(screen.getAllByText("Cash Checkout").length).toBeGreaterThan(1);
     expect(screen.getByText("+RM 500.00")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Open Cash Checkout in ledger" }));
@@ -174,8 +175,7 @@ describe("Crew Cash Checkout mobile", () => {
 
   it("opens a server-backed ledger with each entry balance", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    await screen.findAllByRole("button", { name: "View ledger" });
-    fireEvent.click(screen.getAllByRole("button", { name: "View ledger" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     expect((await screen.findAllByRole("heading", { name: "Cash Deposit" })).length).toBe(2);
     expect(screen.getByText(/Balance.*500\.00/)).not.toBeNull();
   });

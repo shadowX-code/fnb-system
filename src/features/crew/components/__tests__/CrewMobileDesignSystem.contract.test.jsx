@@ -112,8 +112,11 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain(".crew-ui-icon-container.is-danger");
     expect(cashCheckout).not.toContain(".crew-cash-summary-icon");
     [".crew-cash-activity-icon.is-in", ".crew-cash-activity-icon.is-out", "article > svg,.crew-cash-card > header svg { color: var(--crew-color-cyan)"] .forEach((legacy) => expect(cashCheckout).not.toContain(legacy));
-    expect(readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.jsx"), "utf8")).toContain("crew-ui-icon-container--large is-selected");
-    expect(readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.jsx"), "utf8")).toContain("crew-ui-icon-container--round crew-cash-activity-icon");
+    const cashCheckoutComponent = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.jsx"), "utf8");
+    expect(cashCheckoutComponent).toContain('className="crew-ui-icon-container crew-ui-icon-container--large"><CalendarCheck');
+    expect(cashCheckoutComponent).toContain('className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins');
+    expect(cashCheckoutComponent).toContain('crew-ui-icon-container--round crew-cash-activity-icon${isOut ? " is-danger" : ""}');
+    expect(cashCheckoutComponent).not.toContain("crew-ui-icon-container--large is-selected");
     [cashCheckout, leaveStyles, operationsStyles, taskBlockStyles].forEach((source) => {
       expect(source).not.toMatch(/\.crew-ui-icon-container[^\{]*\{[^}]*(?:background|color|border-radius|width|height)/s);
     });

@@ -41,5 +41,5 @@ resources.cash = {...en.cash,title:"现金结账",meSubtitle:"清点、核对并
 Object.assign(resources.cash, { openingVariance:"开场现金差额", openingVarianceDetails:"预计 {{expected}} · 实际 {{actual}} · 差额 {{variance}}" });
 Object.assign(resources.cash, { draftSaved:"已保存为草稿" });
 Object.assign(resources.cash, { previousCarryForward:"上期结转", carryForwardNextCycle:"下期结转", crewDecision:"由员工决定", notes:"纸币", coins:"硬币", reconciliation:"核对", allocation:"分配", managerReview:"需要经理审核", submitForReviewAmount:"提交 {{amount}} 供审核" });
-Object.assign(resources.cash, { cashDepositBalance:"现金存款余额", availableToCollect:"可收取：{{amount}}", recentActivity:"近期活动", continueReview:"继续审核", openLedgerEntry:"在账本中打开{{activity}}" });
+Object.assign(resources.cash, { cashDepositBalance:"现金存款余额", availableToCollect:"可收取：{{amount}}", availableAfterPendingReceipt:"待确认收款后可收取：{{amount}}", recentActivity:"近期活动", continueReview:"继续审核", openLedgerEntry:"在账本中打开{{activity}}" });
 export default resources;
