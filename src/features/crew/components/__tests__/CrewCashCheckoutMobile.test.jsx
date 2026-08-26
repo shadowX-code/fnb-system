@@ -174,11 +174,15 @@ describe("Crew Cash Checkout mobile", () => {
     await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("opaque-session", "handover-1", 100));
   });
 
-  it("always exposes Hand Over Cash to an authorized initiator, with canonical receiver choices", async () => {
+  it("uses the centered canonical Record Collection modal with only approved receivers", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Hand Over Cash" }));
-    expect(screen.getByRole("heading", { name: "Hand Over Cash" })).not.toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Record Collection" }));
+    expect(screen.getByRole("heading", { name: "Record Collection" })).not.toBeNull();
+    expect(document.querySelector(".crew-ui-modal.crew-cash-collection-modal")).not.toBeNull();
+    expect(screen.getByText("Friends Corner Crew")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Receiver" })).not.toBeNull();
+    expect(screen.getByLabelText("Amount (RM)").getAttribute("inputmode")).toBe("decimal");
+    expect(screen.queryByText("Purpose")).toBeNull();
     expect(screen.queryByText("External receiver")).toBeNull();
   });
 
