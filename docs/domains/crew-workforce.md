@@ -23,6 +23,7 @@ Crew Operations consumes workforce context but does not own roster or attendance
 
 Crew Access is a one-to-one extension of an eligible employee and remains separate from Admin access.
 Passcodes are protected, sessions are opaque and revocable, and sensitive requests revalidate access and employment state.
+Crew-scoped operational capabilities, including Cash Handover initiation, are owned by the employee's active Crew Access record and outlet rather than by Admin roles or Admin Access. Their changes use the controlled Crew Access administration path and retain audit evidence.
 
 Duty Roster drafts are editable by authorized Admins.
 Publishing creates an immutable revision for Crew consumption; later draft edits do not replace the last published view until republished.

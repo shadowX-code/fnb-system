@@ -1141,6 +1141,14 @@ export const crewService = {
     throwSupabaseError("crew.manageAccess", error);
     return data;
   },
+  async updateCashOperationsAccess(employeeId, canInitiateHandover) {
+    const { data, error } = await supabase.rpc("crew_update_cash_operations_access", {
+      p_employee_id: employeeId,
+      p_can_initiate_handover: Boolean(canInitiateHandover),
+    });
+    throwSupabaseError("crew.updateCashOperationsAccess", error);
+    return data;
+  },
 
   async signIn(mobile, passcode) {
     const { data, error } = await supabase.rpc("crew_authenticate", {

@@ -8,7 +8,7 @@ vi.mock("../../../../services/crewService.js", () => ({ crewService: {
 } }));
 
 const payload = {
-  outlet: { id: "outlet-1", name: "Friends Corner" }, business_date: "2026-08-21", can_perform: true, can_record_collection: true,
+  outlet: { id: "outlet-1", name: "Friends Corner" }, business_date: "2026-08-21", can_perform: true, can_initiate_handover: true, can_record_collection: true,
   settings: { floating_cash: 300, variance_tolerance: 5 }, cash_context: { floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350 }, checkout: null,
   deposit: { current_balance: 500, available_balance: 500, recent: [{ id: "l1", occurred_at: "2026-08-20T10:00:00+08:00", activity: "Cash Checkout · QA", signed_amount: 500, balance_after: 500 }], ledger: [{ id: "l1", occurred_at: "2026-08-20T10:00:00+08:00", activity: "Cash Checkout · QA", signed_amount: 500, balance_after: 500 }] },
   receivers: [{ id: "employee-2", name: "Receiver QA", position: "Supervisor" }], pending_receipts: [],
@@ -190,7 +190,7 @@ describe("Crew Cash Checkout mobile", () => {
   });
 
   it("does not grant handover initiation to a receiver-only Crew user", async () => {
-    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, can_record_collection: false, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, can_initiate_handover: false, can_record_collection: false, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     const action = await screen.findByRole("button", { name: "Hand Over Cash" });
@@ -202,6 +202,13 @@ describe("Crew Cash Checkout mobile", () => {
 
   it("keeps Hand Over Cash enabled for a Crew user with both receiver and initiation capabilities", async () => {
     crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, is_cash_handover_receiver: true, pending_receipts: [{ id: "handover-1", amount: 100, purpose: "Bank run", sender: "Sender QA", outlet_name: "Friends Corner" }] });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
+    expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(false);
+  });
+
+  it("uses the Crew-owned handover capability when the legacy projection alias disagrees", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, can_initiate_handover: true, can_record_collection: false });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     expect((await screen.findByRole("button", { name: "Hand Over Cash" })).disabled).toBe(false);
