@@ -105,6 +105,7 @@ function GrowthPerformanceScore({ score, label }) {
   const scoreLabel = useRef(null);
   const previousScore = useRef(Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Math.round(Number(score)))) : 0);
   const hasAnimated = useRef(false);
+  const initialFrame = useRef(null);
   const gradientId = `crew-growth-score-gradient-${useId().replaceAll(":", "")}`;
   const segmentIndexes = useMemo(() => Array.from({ length: 100 }, (_, index) => index), []);
   const safeScore = Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Math.round(Number(score)))) : 0;
@@ -112,7 +113,8 @@ function GrowthPerformanceScore({ score, label }) {
   useGSAP(() => {
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     const segments = Array.from(root.current?.querySelectorAll(".crew-growth-performance-segment") || []);
-    const priorScore = hasAnimated.current ? previousScore.current : 0;
+    const isInitialPresentation = !hasAnimated.current;
+    const priorScore = isInitialPresentation ? 0 : previousScore.current;
     const newlyActive = safeScore > priorScore ? segments.slice(priorScore, safeScore) : [];
     const newlyInactive = safeScore < priorScore ? segments.slice(safeScore, priorScore) : [];
 
@@ -131,7 +133,7 @@ function GrowthPerformanceScore({ score, label }) {
       if (scoreLabel.current) scoreLabel.current.textContent = String(priorScore);
       entrance.to(scoreValue, {
         value: safeScore,
-        duration: hasAnimated.current ? 0.46 : 0.86,
+        duration: isInitialPresentation ? 0.86 : 0.46,
         ease: "power2.out",
         onUpdate: () => {
           if (scoreLabel.current) scoreLabel.current.textContent = String(Math.round(scoreValue.value));
@@ -163,9 +165,17 @@ function GrowthPerformanceScore({ score, label }) {
         .to(sweepSegments, { opacity: 1, duration: 0.26, ease: "sine.inOut", stagger: 0.035 })
       : null;
 
-    previousScore.current = safeScore;
-    hasAnimated.current = true;
+    if (isInitialPresentation) {
+      initialFrame.current = requestAnimationFrame(() => {
+        previousScore.current = safeScore;
+        hasAnimated.current = true;
+        initialFrame.current = null;
+      });
+    } else {
+      previousScore.current = safeScore;
+    }
     return () => {
+      if (initialFrame.current) cancelAnimationFrame(initialFrame.current);
       entrance.kill();
       idleSweep?.kill();
     };
