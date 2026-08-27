@@ -68,6 +68,8 @@ describe("Crew Reward mobile reference UI", () => {
     expect(hero.querySelector(".crew-reward-hero-sheen")).not.toBeNull();
     expect(hero.querySelector(".crew-reward-hero-light-path path")).not.toBeNull();
     expect(hero.querySelector(".crew-reward-hero-light-pulse")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-light-bloom")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-light-core")).not.toBeNull();
     expect(hero.querySelector(".crew-reward-hero-orbit")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-total p")).toBeNull();
   });
@@ -120,6 +122,9 @@ describe("Crew Reward mobile reference UI", () => {
     expect(container.querySelector(".crew-reward-score-ring")).not.toBeNull();
     expect(container.querySelector(".crew-reward-score-ring-progress").getAttribute("stroke-dasharray")).toBe(`${score} 100`);
     expect(container.querySelector(".crew-reward-performance-connector")).not.toBeNull();
+    expect(container.querySelector(".crew-reward-performance.crew-reward-surface")).toBeNull();
+    expect(container.querySelector(".crew-reward-performance-rate-action")).toBeNull();
+    expect(screen.queryByText("How earn rate works")).toBeNull();
     expect(container.querySelectorAll(".crew-reward-performance-title")).toHaveLength(0);
     expect(container.querySelectorAll(".crew-reward-performance-insight")).toHaveLength(0);
   });

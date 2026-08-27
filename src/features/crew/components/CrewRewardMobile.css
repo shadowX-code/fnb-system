@@ -2,11 +2,12 @@
 .crew-reward-final { display: grid; gap: 20px; padding-bottom: 32px; color: var(--crew-color-text); }
 
 .crew-reward-hero { position: relative; display: grid; min-height: 210px; gap: 9px; overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background-color: var(--crew-color-surface); background-image: var(--crew-reward-hero-background); background-position: 57% 50%; background-repeat: no-repeat; background-size: cover; padding: 18px 20px 14px; color: var(--crew-color-deep-teal); isolation: isolate; }
-.crew-reward-hero-sheen { position: absolute; z-index: 0; top: -12%; right: -18%; width: 54%; height: 125%; background: linear-gradient(112deg, transparent 18%, color-mix(in srgb, var(--crew-color-surface) 56%, transparent) 47%, color-mix(in srgb, var(--crew-color-mist-mint) 32%, transparent) 54%, transparent 78%); opacity: .04; pointer-events: none; transform: translate3d(-12%, 0, 0); will-change: transform, opacity; }
-.crew-reward-hero-light-path { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; color: var(--crew-color-cyan); opacity: .52; pointer-events: none; }
+.crew-reward-hero-sheen { position: absolute; z-index: 0; top: -12%; right: -18%; width: 54%; height: 125%; background: linear-gradient(112deg, transparent 18%, color-mix(in srgb, var(--crew-color-surface) 50%, transparent) 47%, color-mix(in srgb, var(--crew-color-mist-mint) 38%, transparent) 54%, transparent 78%); opacity: .06; pointer-events: none; transform: translate3d(-12%, 0, 0); will-change: transform, opacity; }
+.crew-reward-hero-light-path { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; color: var(--crew-color-cyan); opacity: .68; pointer-events: none; }
 .crew-reward-hero-light-path path { fill: none; stroke: currentColor; stroke-opacity: .12; stroke-width: 1; }
 .crew-reward-hero-light-pulse { opacity: 0; will-change: transform, opacity; }
-.crew-reward-hero-light-pulse circle { fill: var(--crew-color-cyan); filter: drop-shadow(0 0 2px color-mix(in srgb, var(--crew-color-cyan) 56%, transparent)); }
+.crew-reward-hero-light-bloom { fill: color-mix(in srgb, var(--crew-color-cyan) 42%, transparent); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--crew-color-cyan) 68%, transparent)); }
+.crew-reward-hero-light-core { fill: var(--crew-color-cyan); filter: drop-shadow(0 0 2px color-mix(in srgb, var(--crew-color-cyan) 72%, transparent)); }
 .crew-reward-hero-kicker { z-index: 1; display: flex; align-items: center; gap: 10px; }
 .crew-reward-hero-kicker span { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 650; }
 .crew-reward-hero-kicker em { border-radius: 999px; background: color-mix(in srgb, var(--crew-color-mist-mint) 76%, transparent); padding: 4px 8px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-style: normal; font-weight: 650; }
@@ -30,30 +31,31 @@
 .crew-reward-surface { border: 1px solid color-mix(in srgb, var(--crew-color-border) 70%, transparent); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: 0 8px 16px rgb(15 57 62 / .045); padding: 22px; }
 .crew-reward-surface > header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; }
 .crew-reward-surface h2,.crew-reward-unavailable h2 { display: flex; min-width: 0; align-items: center; gap: 7px; margin: 0; color: var(--crew-color-text); font-size: var(--crew-type-section-title); font-weight: 650; line-height: 1.25; }
-.crew-reward-performance > header { justify-content: flex-end; margin-bottom: 6px; }
+.crew-reward-performance { display: grid; gap: 14px; padding: 2px 4px; }
+.crew-reward-performance > header { display: flex; align-items: center; justify-content: flex-end; margin: 0; }
 .crew-reward-projection > header h2 { flex: 1 1 auto; font-weight: 600; letter-spacing: 0; white-space: nowrap; }
 .crew-reward-performance > header button { font-size: var(--crew-type-helper); }
 .crew-reward-surface > header button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; border: 0; background: transparent; padding: 2px 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 600; text-align: right; }
 
-.crew-reward-performance-relationship { display: grid; grid-template-columns: 108px 20px minmax(0, 1fr); align-items: center; gap: 12px; }
+.crew-reward-performance-relationship { display: grid; width: min(100%, 330px); grid-template-columns: minmax(0, 1fr) 22px minmax(0, 1fr); align-items: center; gap: 10px; margin: 0 auto; }
 .crew-reward-performance-relationship > div { display: grid; min-width: 0; gap: 4px; }
 .crew-reward-performance-relationship > div > span { display: inline-flex; align-items: baseline; gap: 3px; }
-.crew-reward-performance-score { justify-items: center; }
-.crew-reward-score-ring { position: relative; display: grid; width: 86px; height: 86px; place-items: center; }
+.crew-reward-performance-score,.crew-reward-performance-rate { justify-items: center; text-align: center; }
+.crew-reward-score-ring { position: relative; display: grid; width: 80px; height: 80px; place-items: center; }
 .crew-reward-score-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .crew-reward-score-ring circle { fill: none; stroke-width: 5; }
 .crew-reward-score-ring-track { stroke: var(--crew-color-divider); }
 .crew-reward-score-ring-progress { stroke: var(--crew-color-cyan); stroke-linecap: round; }
 .crew-reward-score-ring > span { position: relative; display: inline-flex; align-items: baseline; gap: 2px; white-space: nowrap; }
-.crew-reward-score-ring strong { color: var(--crew-color-deep-teal); font-size: 28px; line-height: 1; letter-spacing: -.02em; }
+.crew-reward-score-ring strong { color: var(--crew-color-deep-teal); font-size: 27px; line-height: 1; letter-spacing: -.02em; }
 .crew-reward-score-ring b { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 600; }
 .crew-reward-performance-relationship small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.3; white-space: nowrap; }
 .crew-reward-performance-connector { display: grid; width: 20px; height: 20px; place-items: center; color: var(--crew-color-text-muted); }
-.crew-reward-performance-rate strong { color: var(--crew-color-text); }
-.crew-reward-performance-rate > span > strong { font-size: 30px; line-height: 1; letter-spacing: -.02em; }
+.crew-reward-performance-rate strong { color: var(--crew-color-deep-teal); }
+.crew-reward-performance-rate > span { justify-content: center; }
+.crew-reward-performance-rate > span > strong { font-size: 28px; line-height: 1; letter-spacing: -.02em; }
 .crew-reward-performance-rate .crew-reward-hero-info { color: var(--crew-color-deep-teal); }
 .crew-reward-performance-rate .crew-ui-status { margin-top: 2px; }
-.crew-reward-performance-rate-action { display: inline-flex; min-height: 36px; align-items: end; justify-self: start; gap: 4px; border: 0; background: transparent; padding: 8px 0 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 600; }
 
 .crew-reward-projection > header { margin-bottom: 16px; }
 .crew-reward-potential { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
@@ -117,7 +119,8 @@
   .crew-reward-surface { padding: 20px; }
   .crew-reward-surface > header { gap: 8px; }
   .crew-reward-surface > header button { max-width: 132px; }
-  .crew-reward-performance-relationship { grid-template-columns: 104px 18px minmax(0, 1fr); gap: 10px; }
+  .crew-reward-performance { gap: 12px; padding-inline: 0; }
+  .crew-reward-performance-relationship { grid-template-columns: minmax(0, 1fr) 18px minmax(0, 1fr); gap: 8px; }
   .crew-reward-score-ring { width: 78px; height: 78px; }
   .crew-reward-score-ring strong { font-size: 26px; }
   .crew-reward-performance-rate > span > strong { font-size: 28px; }

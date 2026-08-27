@@ -74,7 +74,7 @@ function RewardHeroMotion({ pathRef }) {
     <span className="crew-reward-hero-sheen" aria-hidden="true" />
     <svg className="crew-reward-hero-light-path" viewBox="0 0 390 232" preserveAspectRatio="none" aria-hidden="true">
       <path ref={pathRef} d="M194 169 C252 169 311 122 390 119" />
-      <g className="crew-reward-hero-light-pulse" transform="translate(194 169)"><circle r="2.25" /></g>
+      <g className="crew-reward-hero-light-pulse" transform="translate(194 169)"><circle className="crew-reward-hero-light-bloom" r="5" /><circle className="crew-reward-hero-light-core" r="2.35" /></g>
     </svg>
   </>;
 }
@@ -114,10 +114,10 @@ function RewardHero({ data, onOpenSheet }) {
       onUpdate: () => { if (amountRef.current) amountRef.current.textContent = money(value.amount); },
     });
     const sheen = root.querySelector(".crew-reward-hero-sheen");
-    const sheenSweep = gsap.timeline({ delay: .12, repeat: -1, repeatDelay: 2.2 })
-      .set(sheen, { xPercent: -12, opacity: .04 })
-      .to(sheen, { xPercent: 14, opacity: .28, duration: 5.2, ease: "sine.inOut" })
-      .to(sheen, { opacity: .05, duration: 4.1, ease: "sine.inOut" });
+    const sheenSweep = gsap.timeline({ delay: .12, repeat: -1, repeatDelay: 2.4 })
+      .set(sheen, { xPercent: -12, opacity: .06 })
+      .to(sheen, { xPercent: 16, opacity: .38, duration: 6.4, ease: "sine.inOut" })
+      .to(sheen, { opacity: .07, duration: 1.1, ease: "sine.inOut" });
     const path = pathRef.current;
     const pulse = root.querySelector(".crew-reward-hero-light-pulse");
     let pathSweep = null;
@@ -130,11 +130,11 @@ function RewardHero({ data, onOpenSheet }) {
         gsap.set(pulse, { x: point.x - start.x, y: point.y - start.y });
       };
       positionPulse();
-      pathSweep = gsap.timeline({ delay: .9, repeat: -1, repeatDelay: 3 })
+      pathSweep = gsap.timeline({ delay: .7, repeat: -1, repeatDelay: 2.6 })
         .set(pulse, { opacity: 0 })
-        .to(pulse, { opacity: .92, duration: .28, ease: "sine.out" })
-        .to(progress, { value: 1, duration: 6, ease: "none", onUpdate: positionPulse }, 0)
-        .to(pulse, { opacity: 0, duration: .32, ease: "sine.in" }, "<5.68");
+        .to(pulse, { opacity: 1, duration: .22, ease: "sine.out" })
+        .to(progress, { value: 1, duration: 5.2, ease: "none", onUpdate: positionPulse }, 0)
+        .to(pulse, { opacity: 0, duration: .28, ease: "sine.in" }, "<4.92");
     }
     previousAmountRef.current = amount;
     hasPresentedRef.current = true;
@@ -169,14 +169,13 @@ function ScoreRing({ score }) {
 function PerformanceOverview({ data, onViewPerformance }) {
   const { t } = useTranslation();
   const score = Math.max(0, Math.min(100, Number(data.performance_score || 0)));
-  return <section className="crew-reward-surface crew-reward-performance">
+  return <section className="crew-reward-performance">
     <header><button type="button" onClick={onViewPerformance}>{t("reward.viewPerformance")} <ChevronRight size={16} /></button></header>
     <div className="crew-reward-performance-relationship">
       <div className="crew-reward-performance-score"><ScoreRing score={score} /><small>{t("reward.performanceScoreLabel")}</small></div>
       <span className="crew-reward-performance-connector" aria-hidden="true"><ChevronRight size={16} /></span>
       <div className="crew-reward-performance-rate"><span><strong>{rate(data.earn_rate)}</strong><HeroInfoButton label={t("reward.currentRate")} onOpen={() => onViewPerformance?.("earn-rate")} /></span><small>{t("reward.currentRate")}</small><CrewStatusBadge tone="success">{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</CrewStatusBadge></div>
     </div>
-    <button className="crew-reward-performance-rate-action" type="button" onClick={() => onViewPerformance?.("earn-rate")}>{t("reward.earnRateWorks")} <ChevronRight size={15} /></button>
   </section>;
 }
 
