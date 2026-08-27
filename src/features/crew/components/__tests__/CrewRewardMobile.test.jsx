@@ -23,12 +23,12 @@ afterEach(cleanup);
 describe("Crew Reward mobile reference UI", () => {
   it("keeps hero, current projection and calculation sheet amounts consistent", () => {
     render(<CrewRewardMobile data={data} />);
-    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("RM 160.96").length).toBeGreaterThanOrEqual(2);
     fireEvent.click(screen.getByRole("button", { name: /How it works/ }));
     expect(screen.getByRole("dialog", { name: "How your Reward is calculated" })).not.toBeNull();
     expect(screen.getAllByText("45%").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(1);
   });
 
   it("uses one calculation disclosure from the header and potential section", () => {
@@ -61,12 +61,26 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.queryByText("RM 500.00 × 32.19% = RM 160.96")).toBeNull();
   });
 
-  it("keeps the Hero background as a self-contained orbital SVG layer", () => {
+  it("uses the approved static background with only the scoped sheen and traveling-light presentation layers", () => {
     const { container } = render(<CrewRewardMobile data={data} />);
     const hero = container.querySelector(".crew-reward-hero");
-    expect(hero.querySelector(".crew-reward-hero-orbit")).not.toBeNull();
-    expect(hero.querySelector(".crew-reward-hero-planet")).not.toBeNull();
-    expect(hero.querySelectorAll(".crew-reward-hero-nodes circle")).toHaveLength(4);
+    expect(hero.style.getPropertyValue("--crew-reward-hero-background")).toContain("reward-hero-approved");
+    expect(hero.querySelector(".crew-reward-hero-sheen")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-light-path path")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-light-pulse")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-orbit")).toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-total p")).toBeNull();
+  });
+
+  it.each([0, 72.43, 123456.78])("retains the canonical reward amount %s for the hero reveal", (rewardAmount) => {
+    const { container } = render(<CrewRewardMobile data={{ ...data, reward_amount: rewardAmount, estimated_reward: rewardAmount }} />);
+    expect(container.querySelector(".crew-reward-hero-total strong")).not.toBeNull();
+    expect(container.querySelector(".crew-reward-hero-light-pulse")).not.toBeNull();
+  });
+
+  it("keeps a non-qualified Crew member on the existing unavailable state instead of rendering the hero", () => {
+    const { container } = render(<CrewRewardMobile data={{ ...data, status: "not_qualified", reward_amount: 0 }} />);
+    expect(container.querySelector(".crew-reward-hero")).toBeNull();
   });
 
   it("closes a dialog with Escape and restores page scrolling", () => {

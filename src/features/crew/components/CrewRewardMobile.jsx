@@ -14,6 +14,7 @@ import {
 import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI18n.js";
 import { CrewMobilePageHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
+import rewardHeroBackground from "../assets/reward-hero-approved.png";
 
 gsap.registerPlugin(useGSAP);
 
@@ -68,45 +69,14 @@ function TierTable({ tiers }) {
   </div>;
 }
 
-function RewardHeroOrbit() {
-  return <svg className="crew-reward-hero-orbit" viewBox="0 0 500 300" aria-hidden="true">
-    <defs>
-      <radialGradient id="crew-reward-planet-depth" cx="18%" cy="18%" r="82%"><stop stopColor="#075265" stopOpacity=".28" /><stop offset=".34" stopColor="#052d3c" stopOpacity=".32" /><stop offset=".66" stopColor="#031827" stopOpacity=".9" /><stop offset="1" stopColor="#010b15" stopOpacity=".98" /></radialGradient>
-      <radialGradient id="crew-reward-orbit-bloom" cx="50%" cy="50%" r="54%"><stop stopColor="#60f5ff" stopOpacity=".14" /><stop offset=".23" stopColor="#00b7c7" stopOpacity=".07" /><stop offset=".62" stopColor="#007b99" stopOpacity=".025" /><stop offset="1" stopColor="#002235" stopOpacity="0" /></radialGradient>
-      <linearGradient id="crew-reward-orbit-cyan" x1="0" y1=".12" x2=".85" y2=".82"><stop stopColor="#00b7c7" stopOpacity="0" /><stop offset=".28" stopColor="#3defff" stopOpacity=".56" /><stop offset=".5" stopColor="#dffcff" stopOpacity=".94" /><stop offset=".72" stopColor="#00b7c7" stopOpacity=".36" /><stop offset="1" stopColor="#006e88" stopOpacity="0" /></linearGradient>
-      <filter id="crew-reward-orbit-glow" x="-40%" y="-40%" width="180%" height="180%"><feGaussianBlur stdDeviation="4.2" /></filter>
-    </defs>
-    <circle className="crew-reward-hero-bloom" cx="507" cy="-50" r="265" fill="url(#crew-reward-orbit-bloom)" />
-    <circle className="crew-reward-hero-planet" cx="507" cy="-50" r="278" fill="url(#crew-reward-planet-depth)" />
-    <g className="crew-reward-hero-orbit-rings crew-reward-hero-orbit-rings-a" fill="none" stroke="currentColor">
-      <circle cx="507" cy="-50" r="312" strokeOpacity=".24" strokeWidth=".9" />
-      <circle cx="507" cy="-50" r="284" strokeOpacity=".2" strokeWidth=".9" />
-      <circle cx="507" cy="-50" r="256" strokeOpacity=".16" strokeWidth=".85" />
-      <circle cx="507" cy="-50" r="230" strokeOpacity=".12" strokeWidth=".8" />
-      <circle cx="507" cy="-50" r="204" strokeOpacity=".09" strokeWidth=".75" />
-      <circle cx="507" cy="-50" r="284" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="2.2" strokeDasharray="272 1513" strokeDashoffset="-597" />
-      <circle cx="507" cy="-50" r="256" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1.35" strokeDasharray="214 1394" strokeDashoffset="-512" />
-      <circle cx="507" cy="-50" r="230" stroke="url(#crew-reward-orbit-cyan)" strokeWidth="1" strokeDasharray="148 1297" strokeDashoffset="-435" />
-    </g>
-    <g className="crew-reward-hero-orbit-rings crew-reward-hero-orbit-rings-b" fill="none" stroke="currentColor">
-      <circle className="crew-reward-hero-glow-arc" cx="507" cy="-50" r="284" stroke="#e8feff" strokeOpacity=".88" strokeWidth="4.2" strokeDasharray="224 1561" strokeDashoffset="-604" filter="url(#crew-reward-orbit-glow)" />
-      <circle cx="507" cy="-50" r="284" stroke="#9dfaff" strokeOpacity=".92" strokeWidth="2.4" strokeDasharray="208 1577" strokeDashoffset="-604" />
-      <circle cx="507" cy="-50" r="312" stroke="#3defff" strokeOpacity=".4" strokeWidth="1.4" strokeDasharray="142 1819" strokeDashoffset="-661" filter="url(#crew-reward-orbit-glow)" />
-      <circle cx="507" cy="-50" r="256" stroke="#00b7c7" strokeOpacity=".32" strokeWidth="1.2" strokeDasharray="92 1516" strokeDashoffset="-468" />
-    </g>
-    <g className="crew-reward-hero-nodes" fill="#81f7ef" stroke="none">
-      <circle cx="378" cy="-18" r="2.2" fillOpacity=".76" />
-      <circle cx="420" cy="32" r="3.1" fillOpacity=".9" />
-      <circle cx="330" cy="92" r="3.2" fillOpacity=".86" />
-      <circle cx="468" cy="154" r="2.4" fillOpacity=".7" />
-    </g>
-    <g className="crew-reward-hero-particles" fill="#81f7ef" stroke="none">
-      <circle cx="296" cy="6" r="1.5" fillOpacity=".44" />
-      <circle cx="366" cy="48" r="1.4" fillOpacity=".36" />
-      <circle cx="273" cy="116" r="1.2" fillOpacity=".32" />
-      <circle cx="447" cy="95" r="1.3" fillOpacity=".3" />
-    </g>
-  </svg>;
+function RewardHeroMotion({ pathRef }) {
+  return <>
+    <span className="crew-reward-hero-sheen" aria-hidden="true" />
+    <svg className="crew-reward-hero-light-path" viewBox="0 0 390 232" preserveAspectRatio="none" aria-hidden="true">
+      <path ref={pathRef} d="M194 169 C252 169 311 122 390 119" />
+      <g className="crew-reward-hero-light-pulse" transform="translate(194 169)"><circle r="2.25" /></g>
+    </svg>
+  </>;
 }
 
 function HeroInfoButton({ label, onOpen }) {
@@ -118,30 +88,66 @@ function RewardHero({ data, onOpenSheet }) {
   const { t } = useTranslation();
   const heroRef = useRef(null);
   const amountRef = useRef(null);
+  const pathRef = useRef(null);
+  const previousAmountRef = useRef(0);
+  const hasPresentedRef = useRef(false);
   const label = data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
   const amount = Number(data.reward_amount ?? data.estimated_reward ?? 0);
   useGSAP(() => {
     const root = heroRef.current;
-    if (!root || typeof window.matchMedia !== "function" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
-    const content = root.querySelectorAll(".crew-reward-hero-kicker, .crew-reward-hero-total small, .crew-reward-hero-total p, .crew-reward-hero-metrics > div");
-    const value = { amount: 0 };
-    const timeline = gsap.timeline({ defaults: { ease: "power2.out" } });
-    timeline
-      .fromTo(root, { autoAlpha: 0, y: 10 }, { autoAlpha: 1, y: 0, duration: .76 })
-      .fromTo(content, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: .34, stagger: .05 }, "<.18")
-      .fromTo(amountRef.current, { autoAlpha: 0, y: 7 }, { autoAlpha: 1, y: 0, duration: .38 }, "<.08")
-      .to(value, { amount, duration: .56, ease: "power1.out", onUpdate: () => { if (amountRef.current) amountRef.current.textContent = money(value.amount); } }, "<");
-    gsap.to(root.querySelector(".crew-reward-hero-planet"), { scale: 1.012, transformOrigin: "507px -50px", duration: 12, ease: "sine.inOut", repeat: -1, yoyo: true });
-    gsap.to(root.querySelector(".crew-reward-hero-orbit-rings-a"), { rotation: 1.2, svgOrigin: "507 -50", duration: 26, ease: "sine.inOut", repeat: -1, yoyo: true });
-    gsap.to(root.querySelector(".crew-reward-hero-orbit-rings-b"), { rotation: -.85, svgOrigin: "507 -50", duration: 31, ease: "sine.inOut", repeat: -1, yoyo: true });
-    gsap.to(root.querySelector(".crew-reward-hero-glow-arc"), { opacity: .45, duration: 9, ease: "sine.inOut", repeat: -1, yoyo: true });
-    gsap.to(root.querySelectorAll(".crew-reward-hero-nodes circle"), { x: (index) => index % 2 ? -3 : 3, y: (index) => index % 2 ? 2 : -2, opacity: .55, duration: 5.5, ease: "sine.inOut", stagger: .45, repeat: -1, yoyo: true });
-    return undefined;
-  }, { scope: heroRef });
-  return <article ref={heroRef} className="crew-reward-hero">
-    <RewardHeroOrbit />
+    if (!root || !amountRef.current) return undefined;
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const startAmount = hasPresentedRef.current ? previousAmountRef.current : 0;
+    if (reducedMotion) {
+      amountRef.current.textContent = money(amount);
+      previousAmountRef.current = amount;
+      hasPresentedRef.current = true;
+      return undefined;
+    }
+
+    const value = { amount: startAmount };
+    amountRef.current.textContent = money(startAmount);
+    const reveal = gsap.to(value, {
+      amount,
+      duration: hasPresentedRef.current ? .72 : .84,
+      ease: "power2.out",
+      onUpdate: () => { if (amountRef.current) amountRef.current.textContent = money(value.amount); },
+    });
+    const sheen = root.querySelector(".crew-reward-hero-sheen");
+    const sheenSweep = gsap.timeline({ delay: .12, repeat: -1, repeatDelay: 2.2 })
+      .set(sheen, { xPercent: -12, opacity: .04 })
+      .to(sheen, { xPercent: 14, opacity: .28, duration: 5.2, ease: "sine.inOut" })
+      .to(sheen, { opacity: .05, duration: 4.1, ease: "sine.inOut" });
+    const path = pathRef.current;
+    const pulse = root.querySelector(".crew-reward-hero-light-pulse");
+    let pathSweep = null;
+    if (path && pulse && typeof path.getTotalLength === "function" && typeof path.getPointAtLength === "function") {
+      const length = path.getTotalLength();
+      const start = path.getPointAtLength(0);
+      const progress = { value: 0 };
+      const positionPulse = () => {
+        const point = path.getPointAtLength(length * progress.value);
+        gsap.set(pulse, { x: point.x - start.x, y: point.y - start.y });
+      };
+      positionPulse();
+      pathSweep = gsap.timeline({ delay: .9, repeat: -1, repeatDelay: 3 })
+        .set(pulse, { opacity: 0 })
+        .to(pulse, { opacity: .92, duration: .28, ease: "sine.out" })
+        .to(progress, { value: 1, duration: 6, ease: "none", onUpdate: positionPulse }, 0)
+        .to(pulse, { opacity: 0, duration: .32, ease: "sine.in" }, "<5.68");
+    }
+    previousAmountRef.current = amount;
+    hasPresentedRef.current = true;
+    return () => {
+      reveal.kill();
+      sheenSweep.kill();
+      pathSweep?.kill();
+    };
+  }, { scope: heroRef, dependencies: [amount], revertOnUpdate: true });
+  return <article ref={heroRef} className="crew-reward-hero" style={{ "--crew-reward-hero-background": `url(${rewardHeroBackground})` }}>
+    <RewardHeroMotion pathRef={pathRef} />
     <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><em>{translateStatus(data.status, t)}</em></div>
-    <div className="crew-reward-hero-total"><small>{label}<HeroInfoButton label={t("reward.estimatedReward")} onOpen={() => onOpenSheet("estimated-reward")} /></small><strong ref={amountRef}>{money(amount)}</strong><p>{t("reward.scoreBasis", { score: data.performance_score == null ? "—" : Math.round(data.performance_score) })}</p></div>
+    <div className="crew-reward-hero-total"><small>{label}<HeroInfoButton label={t("reward.estimatedReward")} onOpen={() => onOpenSheet("estimated-reward")} /></small><strong aria-label={money(amount)}><span ref={amountRef} aria-hidden="true">{money(0)}</span><span className="sr-only" aria-hidden="true">{money(amount)}</span></strong></div>
     <div className="crew-reward-hero-metrics">
       <div><small>{t("reward.maximumShare")}<HeroInfoButton label={t("reward.maximumShare")} onOpen={() => onOpenSheet("maximum-share")} /></small><strong>{money(data.maximum_share)}</strong></div>
       <div><small>{t("reward.rewardPool")}<HeroInfoButton label={t("reward.rewardPool")} onOpen={() => onOpenSheet("reward-pool")} /></small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></div>
