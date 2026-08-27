@@ -531,20 +531,36 @@ describe("Crew Mobile redesign", () => {
     expect(mocks.clock).not.toHaveBeenCalled();
   });
 
-  it("shows true tasks inline, expands locally, and keeps an honest empty state", async () => {
+  it("shows every true task inline, exposes the canonical activity state, and keeps an honest empty state", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1 }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1 }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue" }] });
+    mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1 }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1 }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue" }, { id: "e", source: "legacy_daily", name: "Close register", status: "pending" }] });
     const first = render(<CrewMobileApp />);
     expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Open Stock shelves" })).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Open Late check" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Show remaining 1 tasks" }));
     expect(screen.getByRole("button", { name: "Open Late check" })).not.toBeNull();
+    expect(document.querySelector(".crew-home-task-activity.is-overdue")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /Show remaining/ })).toBeNull();
     first.unmount();
     mocks.operationsToday.mockResolvedValue({ tasks: [] });
     render(<CrewMobileApp />);
     expect(await screen.findByText("All clear today")).not.toBeNull();
     expect(screen.queryByText("Keep Growing")).toBeNull();
+  });
+
+  it("renders a static completed activity indicator only when every task is complete", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "complete", source: "instance", name: "Opening", status: "completed", block_count: 1, completed_count: 1 }] });
+    render(<CrewMobileApp />);
+    expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
+    expect(document.querySelector(".crew-home-task-activity.is-complete")).not.toBeNull();
+  });
+
+  it("uses the active task indicator when work remains without an overdue task", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "pending", source: "instance", name: "Cleaning", status: "in_progress", block_count: 3, completed_count: 1 }] });
+    render(<CrewMobileApp />);
+    expect(await screen.findByRole("button", { name: "Open Cleaning" })).not.toBeNull();
+    expect(document.querySelector(".crew-home-task-activity.is-pending")).not.toBeNull();
   });
 
   it("shows only the signed-in employee's transparent Reward result", async () => {

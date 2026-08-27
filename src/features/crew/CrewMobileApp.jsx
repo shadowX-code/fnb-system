@@ -42,6 +42,7 @@ import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import CrewCashCheckoutMobile from "./components/CrewCashCheckoutMobile.jsx";
 import CrewMobileDetailHeader from "./components/CrewMobileDetailHeader.jsx";
 import CrewHomeClockMotion from "./CrewHomeClockMotion.jsx";
+import CrewHomeTaskActivityMotion from "./CrewHomeTaskActivityMotion.jsx";
 import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import { formatCrewDate, formatCrewTime, crewLocale, translateStatus } from "./utils/crewI18n.js";
@@ -290,7 +291,6 @@ export default function CrewMobileApp({ onNotify }) {
   const [clockTransition, setClockTransition] = useState("");
   const [operationTarget, setOperationTarget] = useState(null);
   const homeScrollY = useRef(0);
-  const [tasksExpanded, setTasksExpanded] = useState(false);
   const [nowTick, setNowTick] = useState(Date.now());
   const [exception, setException] = useState("");
   const [otherReason, setOtherReason] = useState("");
@@ -456,7 +456,7 @@ export default function CrewMobileApp({ onNotify }) {
   const todayRoster = roster?.today;
   const upcomingRoster = (roster?.entries || []).filter((entry) => entry.date > (todayRoster?.date || roster?.from)).slice(0, 2);
   const homeTasks = (operations?.tasks || []).map((row) => ({ kind: row.source === "legacy_daily" ? "legacy_task" : "task", row, id: `${row.source || "task"}-${row.id}`, title: row.name || row.title, context: row.source === "legacy_daily" ? row.description || (row.due_at ? formatTime(row.due_at) : t("common.today")) : t("tasks.completedCount", { completed: row.completed_count || 0, total: row.block_count || 0 }) + (row.due_at ? ` · ${formatTime(row.due_at)}` : ""), status: row.status || "pending" }));
-  const visibleHomeTasks = tasksExpanded ? homeTasks : homeTasks.slice(0, 3);
+  const homeTaskActivity = homeTasks.length === 0 ? null : homeTasks.every((task) => task.status === "completed") ? "complete" : homeTasks.some((task) => task.status === "overdue" || task.status === "exception") ? "overdue" : "pending";
   const completedToday = attendance.find((item) => item.clock_out_at && malaysiaDateKey(item.clock_in_at) === malaysiaDateKey());
   const attendanceMode = openShift ? "on" : completedToday ? "completed" : "ready";
   const currentMonthAttendance = attendance.filter((item) => {
@@ -498,9 +498,8 @@ export default function CrewMobileApp({ onNotify }) {
         </div>
         <button type="button" className="crew-home-attendance-footer" onClick={() => setScreen("attendance")}><span><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck size={18} /></i><small>{t("home.todayShift")}</small><strong>{shiftLabel}</strong></span><em>{t("home.viewAttendance")} <ChevronRight size={16} /></em></button>
       </section>
-      <section className="crew-v2-home-section crew-home-tasks"><CrewSectionHeader density="operational" title={t("home.todaysTasks")} meta={homeTasks.length} action={t("common.viewAll")} actionLabel={t("tasks.title")} onAction={() => { setOperationTarget(null); setScreen("operations"); }} /><div className="crew-home-list">
-        {visibleHomeTasks.length ? visibleHomeTasks.map((task) => <button type="button" key={task.id} className={`crew-home-task is-${task.status}`} onClick={() => { homeScrollY.current = window.scrollY; setOperationTarget({ kind: task.kind, row: task.row, context: { from: "home", scrollY: homeScrollY.current } }); setScreen("operations"); }} aria-label={t("learn.openSop", { title: task.title })}><i className="crew-ui-icon-container crew-ui-icon-container--compact">{task.status === "completed" ? <Check size={19} /> : <ClipboardCheck size={18} />}</i><span><strong className="crew-list-primary">{task.title}</strong><small className="crew-list-secondary">{task.context}</small></span><CrewStatusBadge tone={task.status === "completed" ? "success" : task.status === "overdue" || task.status === "exception" ? "danger" : task.status === "in_progress" ? "info" : "warning"}>{translateStatus(task.status, t)}</CrewStatusBadge><ChevronRight size={18} /></button>) : <div className="crew-home-empty"><Check size={20} /><span><strong>{t("home.allClear")}</strong><small>{t("home.noTasks")}</small></span></div>}
-        {homeTasks.length > 3 && <button type="button" className="crew-home-show-more" onClick={() => setTasksExpanded((value) => !value)}>{tasksExpanded ? t("home.showFewer") : t("home.showRemaining", { count: homeTasks.length - 3 })}</button>}
+      <section className="crew-v2-home-section crew-home-tasks"><CrewSectionHeader density="operational" title={t("home.todaysTasks")} meta={homeTasks.length} trailing={homeTaskActivity ? <CrewHomeTaskActivityMotion state={homeTaskActivity} /> : null} action={t("common.viewAll")} actionLabel={t("tasks.title")} onAction={() => { setOperationTarget(null); setScreen("operations"); }} /><div className="crew-home-list">
+        {homeTasks.length ? homeTasks.map((task) => <button type="button" key={task.id} className={`crew-home-task is-${task.status}`} onClick={() => { homeScrollY.current = window.scrollY; setOperationTarget({ kind: task.kind, row: task.row, context: { from: "home", scrollY: homeScrollY.current } }); setScreen("operations"); }} aria-label={t("learn.openSop", { title: task.title })}><i className="crew-ui-icon-container crew-ui-icon-container--compact">{task.status === "completed" ? <Check size={19} /> : <ClipboardCheck size={18} />}</i><span><strong className="crew-list-primary">{task.title}</strong><small className="crew-list-secondary">{task.context}</small></span><CrewStatusBadge tone={task.status === "completed" ? "success" : task.status === "overdue" || task.status === "exception" ? "danger" : task.status === "in_progress" ? "info" : "warning"}>{translateStatus(task.status, t)}</CrewStatusBadge><ChevronRight size={18} /></button>) : <div className="crew-home-empty"><Check size={20} /><span><strong>{t("home.allClear")}</strong><small>{t("home.noTasks")}</small></span></div>}
       </div></section>
       <section className="crew-v2-home-section crew-home-schedule"><CrewSectionHeader density="operational" title={t("home.mySchedule")} action={t("common.viewAll")} onAction={() => setScreen("schedule")} /><div className="crew-home-list">{todayRoster ? <HomeScheduleRow entry={todayRoster} label="today" onClick={() => setScreen("schedule")} /> : <div className="crew-home-empty"><CalendarDays size={20} /><span><strong>{t("home.noPublishedShift")}</strong><small>{t("home.scheduleWillAppear")}</small></span></div>}{upcomingRoster.map((entry) => <HomeScheduleRow key={entry.id} entry={entry} onClick={() => setScreen("schedule")} />)}</div></section>
     </section>}
