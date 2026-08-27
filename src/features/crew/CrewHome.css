@@ -32,8 +32,8 @@
 .crew-home-attendance-copy dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); }
 .crew-home-attendance-copy dd { margin: 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; }
 .crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; block-size: 202px; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); grid-template-rows: 100px 15px; align-content: center; justify-items: center; gap: 9px; padding: 16px 10px 7px 0; transform: translate(-5px, 3px); }
-.crew-home-clock-halo { position: absolute; top: calc(50% - 64px); left: calc(50% - 58.5px); width: 113px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 52%, transparent); opacity: .5; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
-.crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { position: absolute; top: calc(50% - 62px); left: calc(50% - 56.5px); width: 109px; aspect-ratio: 1; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
+.crew-home-clock-halo { position: absolute; top: calc(50% - 72.5px); left: calc(50% - 67px); width: 130px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 52%, transparent); opacity: .5; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
+.crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { position: absolute; top: calc(50% - 69.5px); left: calc(50% - 64px); width: 124px; aspect-ratio: 1; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
 .crew-home-clock-semantic-ring { border: 2px solid var(--crew-color-deep-teal); opacity: .25; }
 .crew-home-clock-orbit-highlight { background: conic-gradient(from -12deg, color-mix(in srgb, var(--crew-color-cyan) 64%, transparent) 0deg, var(--crew-color-cyan) 25deg, color-mix(in srgb, var(--crew-color-cyan) 68%, transparent) 48deg, transparent 52deg 360deg); opacity: .74; -webkit-mask: radial-gradient(transparent 0 48%, #000 49% 52%, transparent 53%); mask: radial-gradient(transparent 0 48%, #000 49% 52%, transparent 53%); }
 .crew-home-clock-orbit-highlight::after { position: absolute; top: 5%; left: 68%; width: 4px; height: 4px; border-radius: 50%; background: var(--crew-color-cyan); content: ""; }
@@ -85,8 +85,8 @@
   .crew-home-attendance-copy { padding-left: 14px; }
   .crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { font-size: 34px; }
   .crew-home-clock-zone { block-size: 192px; grid-template-rows: 89px 15px; padding-top: 13px; transform: translate(-3px, 2px); }
-  .crew-home-clock-halo { top: calc(50% - 56px); left: calc(50% - 51.5px); width: 99px; }
-  .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { top: calc(50% - 55px); left: calc(50% - 50px); width: 96px; }
+  .crew-home-clock-halo { top: calc(50% - 66px); left: calc(50% - 59.5px); width: 117px; }
+  .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { top: calc(50% - 63px); left: calc(50% - 56px); width: 111px; }
   .crew-home-clock-action, .crew-home-complete-ring { top: calc(50% - 52px); left: calc(50% - 46.5px); width: 89px; }
   .crew-home-gps { top: calc(50% + 49px); left: calc(50% - 1px); }
   .crew-home-attendance-footer em { font-size: var(--crew-type-badge); }
