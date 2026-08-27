@@ -141,7 +141,7 @@ function GrowthPerformanceScore({ score, label }) {
       }, 0);
     }
     if (newlyActive.length) {
-      entrance.set(newlyActive, { opacity: 0.1 }).to(newlyActive, {
+      entrance.set(newlyActive, { opacity: 0.1 }, 0).to(newlyActive, {
         opacity: 1,
         duration: 0.38,
         ease: "power2.out",
