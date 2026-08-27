@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
 import {
   BookOpenCheck,
+  CircleAlert,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
@@ -16,7 +17,7 @@ import CrewLearningImage from "./CrewLearningImage.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewLearnHome, { CrewLearnHero } from "./CrewLearnHome.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
-import { CrewStatusBadge } from "./CrewMobileUI.jsx";
+import { CrewProgressBar, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import FeedXLoadingMark from "./FeedXLoadingMark.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 import { applyOnboardingLocalization, applySopLocalization } from "../utils/localizedContent.js";
@@ -30,15 +31,6 @@ function learnCacheKey(token, language) {
 
 export function resetCrewLearnCacheForTests() {
   learnHomeCache.clear();
-}
-
-function Progress({ value = 0 }) {
-  const safe = Math.max(0, Math.min(100, Number(value) || 0));
-  return (
-    <div className="crew-learning-progress" aria-label={`${safe}% complete`}>
-      <span style={{ width: `${safe}%` }} />
-    </div>
-  );
 }
 
 function plainBlock(block) {
@@ -387,27 +379,27 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
     <section className="crew-learning-home">
       <CrewMobileDetailHeader title={t("learn.title")} onBack={onBack} />
       {error && <p className="crew-mobile-error">{error}</p>}
-      <div className="crew-learning-hero">
-        <span>{t("learn.mandatory")}</span>
+      <article className="crew-learning-journey-hero crew-ui-functional-surface">
+        <CrewStatusBadge tone="mint">{t("learn.mandatory")}</CrewStatusBadge>
         <h2>{assignment.journey?.name || "New Crew Onboarding"}</h2>
         <p>{assignment.status === "completed" ? t("learn.completedReview") : assignment.journey?.description}</p>
-        <div>
+        <div className="crew-learning-journey-progress">
           <strong>{home?.assignment?.lessons_completed || 0}/{home?.assignment?.lessons_total || 0}</strong>
-          <Progress value={home?.assignment?.progress_percentage || 0} />
+          <CrewProgressBar value={home?.assignment?.progress_percentage || 0} />
         </div>
-      </div>
-      <div className="crew-learning-section-title"><h2>{t("learn.modulesTitle")}</h2><span>{assignment.modules?.length || 0}</span></div>
+      </article>
+      <CrewSectionHeader title={t("learn.modulesTitle")} meta={assignment.modules?.length || 0} />
       {assignment.modules?.map((module, index) => (
-        <section className={module.locked ? "crew-learning-module is-locked" : "crew-learning-module"} key={module.module?.id}>
+        <section className={module.locked ? "crew-learning-module crew-ui-functional-surface is-locked" : "crew-learning-module crew-ui-functional-surface"} key={module.module?.id}>
           <div className="crew-module-head">
             <span className="crew-module-order">{String(index + 1).padStart(2, "0")}</span>
             <div><h3>{module.module?.title}</h3><p>{t("learn.percentComplete", { count: module.progress_percentage })}</p></div>
-            {module.completed ? <CheckCircle2 size={20} /> : module.locked ? <LockKeyhole size={18} /> : <BookOpenCheck size={20} />}
+            <span className={module.completed ? "crew-ui-icon-container crew-ui-icon-container--compact is-success" : module.locked ? "crew-ui-icon-container crew-ui-icon-container--compact is-locked" : "crew-ui-icon-container crew-ui-icon-container--compact"}>{module.completed ? <CheckCircle2 size={17} /> : module.locked ? <LockKeyhole size={16} /> : <BookOpenCheck size={17} />}</span>
           </div>
-          <Progress value={module.progress_percentage} />
+          <CrewProgressBar value={module.progress_percentage} />
           {module.lessons?.map((item) => (
             <button key={item.lesson?.id} className={item.locked ? "crew-lesson-row is-locked" : "crew-lesson-row"} disabled={item.locked} onClick={() => onOpenLesson({ ...item, moduleTitle: module.module?.title })}>
-              <span className="crew-lesson-marker">{item.completed ? <CheckCircle2 size={16} /> : item.locked ? <LockKeyhole size={15} /> : <PlayCircle size={16} />}</span>
+              <span className={item.completed ? "crew-lesson-marker is-success" : item.locked ? "crew-lesson-marker is-locked" : "crew-lesson-marker"}>{item.completed ? <CheckCircle2 size={16} /> : item.locked ? <LockKeyhole size={15} /> : <PlayCircle size={16} />}</span>
               <span><strong>{item.lesson?.title}</strong><small>{item.completed ? t("learn.completedReview") : item.locked ? t("learn.completeEarlier") : item.quiz?.required ? t("learn.lessonQuiz") : t("learn.readyLearn")}</small></span>
               <ChevronRight size={17} />
             </button>
@@ -462,21 +454,23 @@ function LessonReader({ token, lesson, activeLesson, answers, result, saving, er
   return (
     <section className="crew-learning-reader">
       <CrewMobileDetailHeader title={t("learn.onboarding")} onBack={onBack} />
-      <span className="crew-learning-kicker">{lesson.moduleTitle || t("learn.moduleLesson")}</span>
-      <h2>{lesson.lesson.title}</h2>
-      <p className="crew-learning-summary">{lesson.lesson.estimated_minutes ? t("learn.minutes", { count: lesson.lesson.estimated_minutes }) : t("learn.ownPace")}</p>
+      <header className="crew-learning-lesson-header">
+        <span className="crew-learning-kicker">{lesson.moduleTitle || t("learn.moduleLesson")}</span>
+        <h2>{lesson.lesson.title}</h2>
+        <p className="crew-learning-summary">{lesson.lesson.estimated_minutes ? t("learn.minutes", { count: lesson.lesson.estimated_minutes }) : t("learn.ownPace")}</p>
+      </header>
       {lesson.blocks?.map((block) =>
         block.block_type === "sop_reference" ? (
-          <button key={block.id} className="crew-sop-link" onClick={() => onOpenSop(block.payload?.sop_version_id)}>
-            <FileText size={18} /><span><strong>{block.payload?.title || t("learn.requiredSop")}</strong><small>{t("learn.version", { version: block.payload?.version || "—" })}{block.payload?.required_acknowledgement ? ` · ${t("learn.acknowledgementRequired")}` : ""}</small></span><ChevronRight size={18} />
+          <button key={block.id} className="crew-learning-sop-reference crew-ui-functional-surface" onClick={() => onOpenSop(block.payload?.sop_version_id)}>
+            <span className="crew-ui-icon-container crew-ui-icon-container--compact"><FileText size={17} /></span><span><strong>{block.payload?.title || t("learn.requiredSop")}</strong><small>{t("learn.version", { version: block.payload?.version || "—" })}{block.payload?.required_acknowledgement ? ` · ${t("learn.acknowledgementRequired")}` : ""}</small></span><ChevronRight size={18} />
           </button>
         ) : (
-          <article key={block.id} className={`crew-content-block is-${block.block_type}`}><span>{block.block_type === "key_point" ? t("tasks.types.key_point") : t("learn.lesson")}</span><CrewRichContent html={richBlock(block)} />{block.payload?.media ? <CrewLearningImage token={token} media={block.payload.media} /> : null}</article>
+          <article key={block.id} className={block.block_type === "key_point" ? "crew-learning-content-block crew-ui-note crew-ui-note--mint is-key-point" : "crew-learning-content-block crew-ui-functional-surface"}>{block.block_type === "key_point" && <CircleAlert size={17} aria-hidden="true" />}<span><strong>{block.block_type === "key_point" ? t("tasks.types.key_point") : t("learn.lesson")}</strong><CrewRichContent html={richBlock(block)} />{block.payload?.media ? <CrewLearningImage token={token} media={block.payload.media} /> : null}</span></article>
         ),
       )}
       {activeLesson?.quiz && (
         <section className="crew-quiz">
-          <div><span className="crew-learning-kicker">{t("learn.knowledgeCheck")}</span><h3>{activeLesson.quiz.title}</h3><p>{t("learn.passScore", { score: activeLesson.quiz.passing_score })}</p></div>
+          <div className="crew-learning-quiz-header"><span className="crew-learning-kicker">{t("learn.knowledgeCheck")}</span><h3>{activeLesson.quiz.title}</h3><p>{t("learn.passScore", { score: activeLesson.quiz.passing_score })}</p></div>
           {activeLesson.quiz.questions?.map((question, index) => (
             <fieldset key={question.id}>
               <legend>{index + 1}. {question.prompt}</legend>
@@ -492,7 +486,7 @@ function LessonReader({ token, lesson, activeLesson, answers, result, saving, er
         </section>
       )}
       {error && <p className="crew-mobile-error">{error}</p>}
-      <button className="crew-mobile-primary crew-complete-lesson" disabled={saving || Boolean(activeLesson?.locked)} onClick={onComplete}>{lesson.completed ? t("status.completed") : saving ? t("common.saving") : t("learn.completeLesson")}</button>
+      {lesson.completed ? <div className="crew-learning-completed crew-ui-note crew-ui-note--mint" role="status"><span className="crew-ui-icon-container crew-ui-icon-container--small is-success"><CheckCircle2 size={16} /></span><span><strong>{t("status.completed")}</strong><small>{t("learn.completedReview")}</small></span></div> : <button className="crew-mobile-primary crew-complete-lesson" disabled={saving || Boolean(activeLesson?.locked)} onClick={onComplete}>{saving ? t("common.saving") : t("learn.completeLesson")}</button>}
     </section>
   );
 }

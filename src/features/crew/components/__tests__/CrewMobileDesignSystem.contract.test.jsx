@@ -200,9 +200,13 @@ describe("Crew Mobile design system contract", () => {
     expect(sopDocumentStyles).toContain("Shared SOP document composition");
     ["var(--crew-color-deep-teal", "var(--crew-color-divider", "var(--crew-color-text-secondary"].forEach((token) => expect(sopDocumentStyles).toContain(token));
     expect(sopDocumentStyles).not.toContain("!important");
-    expect(learning).toContain('import { CrewStatusBadge } from "./CrewMobileUI.jsx"');
+    expect(learning).toContain('CrewProgressBar, CrewSectionHeader, CrewStatusBadge');
     expect(learning).toContain('className="crew-ui-note crew-sop-acknowledged"');
     expect(learning).toContain('className="crew-sop-acknowledgement-action"');
+    expect(learning).toContain('crew-learning-journey-hero crew-ui-functional-surface');
+    expect(learning).toContain('crew-learning-content-block crew-ui-note crew-ui-note--mint is-key-point');
+    expect(learning).toContain('crew-learning-sop-reference crew-ui-functional-surface');
+    expect(learningStyles).toContain("Journey and lesson routes consume the same Mobile Fundamental");
   });
 
   it("keeps root, detail, and workflow header geometry canonical", () => {

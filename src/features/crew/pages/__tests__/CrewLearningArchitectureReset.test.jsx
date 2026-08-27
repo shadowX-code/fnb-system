@@ -518,4 +518,49 @@ describe("Crew mobile Learn reset", () => {
     expect(await screen.findByAltText("Greeting example")).not.toBeNull();
     expect(mocks.learningMediaUrl).toHaveBeenCalledWith("crew-token", "00000000-0000-4000-8000-000000000001");
   });
+
+  it("uses the shared journey, lesson, quiz, SOP, and completion presentation owners", async () => {
+    mocks.learningHome.mockResolvedValue({
+      assignment: { id: "assignment-1", status: "in_progress", progress_percentage: 50, lessons_completed: 1, lessons_total: 2 },
+    });
+    mocks.learningAssignment.mockResolvedValue({
+      id: "assignment-1",
+      status: "in_progress",
+      journey: { name: "New Crew Onboarding", description: "Essential onboarding" },
+      modules: [{
+        module: { id: "module-1", title: "Welcome" },
+        completed: false,
+        locked: false,
+        progress_percentage: 50,
+        lessons: [{
+          lesson: { id: "lesson-ui", title: "Service basics", estimated_minutes: 5 },
+          completed: false,
+          locked: false,
+          blocks: [
+            { id: "key-point", block_type: "key_point", payload: { body: "Keep guests informed." } },
+            { id: "sop-reference", block_type: "sop_reference", payload: { sop_version_id: "version-1", title: "Greeting Standard", version: 1, required_acknowledgement: true } },
+          ],
+          quiz: {
+            id: "quiz-ui",
+            title: "Service check",
+            passing_score: 80,
+            questions: [{ id: "question-ui", prompt: "Greet the guest?", question_type: "single_choice", options: [{ id: "yes", label: "Yes" }] }],
+          },
+        }],
+      }],
+    });
+
+    render(<CrewLearningMobile token="crew-token" />);
+    fireEvent.click(await screen.findByRole("button", { name: /New Crew Onboarding/ }));
+    expect(document.querySelector(".crew-learning-journey-hero.crew-ui-functional-surface")).not.toBeNull();
+    expect(document.querySelector(".crew-learning-module .crew-ui-progress")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Service basics/ }));
+
+    expect(await screen.findByText("Keep guests informed.")).not.toBeNull();
+    expect(document.querySelector(".crew-learning-content-block.crew-ui-note--mint.is-key-point")).not.toBeNull();
+    expect(document.querySelector(".crew-learning-sop-reference.crew-ui-functional-surface")).not.toBeNull();
+    expect(document.querySelector(".crew-quiz label")).not.toBeNull();
+    fireEvent.click(screen.getByLabelText("Yes"));
+    expect(document.querySelector(".crew-quiz label.is-selected")).not.toBeNull();
+  });
 });
