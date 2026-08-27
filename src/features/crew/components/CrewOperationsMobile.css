@@ -153,10 +153,10 @@
 .crew-ops-detail-head {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 4px 10px;
-  margin-bottom: 8px;
+  gap: 3px 10px;
+  margin-bottom: 6px;
   border-bottom: 1px solid var(--crew-color-divider);
-  padding: 0 2px 10px;
+  padding: 0 2px 8px;
 
 }
 .crew-ops-detail-head span,.crew-ops-detail-head small {
@@ -173,6 +173,12 @@
   grid-column: 1/-1;
 
 }
+.crew-ops-redo { justify-self: end; min-height: 44px; padding-inline: 6px; color: var(--crew-color-warning); font-size: var(--crew-type-helper); }
+.crew-ops-redo-dialog { display: grid; gap: 16px; }
+.crew-ops-redo-dialog p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-body); }
+.crew-ops-redo-dialog > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.crew-ops-redo-dialog button { width: 100%; }
+.crew-ops-redo-confirm { border-color: color-mix(in srgb, var(--crew-color-warning) 42%, var(--crew-color-border)); background: color-mix(in srgb, var(--crew-color-warning) 8%, white); color: var(--crew-color-warning); }
 .crew-ops-item {
   align-items: flex-start;
   padding: 13px 1px;

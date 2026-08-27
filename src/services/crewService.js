@@ -225,6 +225,12 @@ export const crewService = {
     return data;
   },
 
+  async resetTask(token, instanceId) {
+    const { data, error } = await supabase.rpc("crew_tasks_reset", { p_token: token, p_instance_id: instanceId });
+    throwSupabaseError("crew.resetTask", error);
+    return data;
+  },
+
   async completeOperationChecklist(token, instanceId) {
     const { data, error } = await supabase.rpc("crew_tasks_complete", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.completeOperationChecklist", error);

@@ -43,6 +43,15 @@ describe("CrewTaskBlockRenderer", () => {
     await waitFor(() => expect(onSubmit).toHaveBeenLastCalledWith(expect.objectContaining({ action: "good", response: { value: "good" } })));
   });
 
+  it("distinguishes completed direct actions and keeps health choices semantically compact", () => {
+    const { rerender, container } = render(<CrewTaskBlockRenderer block={base("checklist_item", { status: "completed", response: { value: true } })} mode="interactive" onSubmit={() => {}} />);
+    expect(screen.getByRole("button", { name: /complete checklist_item block/i }).textContent).toContain("Done");
+    expect(container.querySelector(".crew-task-direct-toggle.is-done")).not.toBeNull();
+    rerender(<CrewTaskBlockRenderer block={base("health_rating", { response: { value: "needs_attention" } })} mode="interactive" onSubmit={() => {}} />);
+    expect(container.querySelector(".is-needs-attention.is-selected")).not.toBeNull();
+    expect(container.querySelector(".is-not-checked")).not.toBeNull();
+  });
+
   it("keeps measurement and short text blocks on their explicit validated save path", async () => {
     const onSubmit = vi.fn().mockResolvedValue({ status: "completed" });
     const { rerender } = render(<CrewTaskBlockRenderer block={base("number")} mode="interactive" onSubmit={onSubmit} />);

@@ -7,8 +7,8 @@ import {
   Check,
   CheckCircle2,
   ClipboardCheck,
+  CircleMinus,
   FileText,
-  HeartPulse,
   Lightbulb,
   Thermometer,
   X,
@@ -209,8 +209,8 @@ function BlockControl({ block, response, setResponse, mode, saving, responded, c
       <FileText size={18} /><span><strong>{sop?.title || block.sop_title || t("tasks.publishedSop")}</strong><small>{sop?.version ? `v${sop.version}` : block.sop_version ? `v${block.sop_version}` : ""}</small></span><em>{mode === "preview" ? t("tasks.openPreview") : `${t("tasks.viewSop")} ›`}</em>
     </button>;
   }
-  if (type === "checklist_item") return <button type="button" aria-label={t("tasks.completeBlock", { title: block.title })} className="crew-task-direct-toggle" disabled={immediateDisabled} onClick={() => submit("completed", { value: true })}><ClipboardCheck size={18} /> <span>{t("tasks.markDone")}</span></button>;
-  if (type === "confirmation") return <button type="button" aria-label={`${t("tasks.confirmAction")} ${block.title}`} className="crew-mobile-primary crew-task-focused-action" disabled={immediateDisabled} onClick={() => submit("completed", { value: true })}><CheckCircle2 size={18} /> {t("tasks.confirmAction")}</button>;
+  if (type === "checklist_item") return <button type="button" aria-label={t("tasks.completeBlock", { title: block.title })} className={`crew-mobile-secondary crew-task-direct-toggle${responded ? " is-done" : ""}`} disabled={immediateDisabled} onClick={() => submit("completed", { value: true })}>{responded ? <Check size={17} /> : <ClipboardCheck size={17} />}<span>{responded ? t("tasks.done") : t("tasks.markDone")}</span></button>;
+  if (type === "confirmation") return <button type="button" aria-label={`${t("tasks.confirmAction")} ${block.title}`} className={`crew-mobile-secondary crew-task-focused-action${responded ? " is-done" : ""}`} disabled={immediateDisabled} onClick={() => submit("completed", { value: true })}>{responded ? <Check size={17} /> : <CheckCircle2 size={17} />} {responded ? t("tasks.confirmed") : t("tasks.confirmAction")}</button>;
   if (type === "yes_no") return <div className="crew-task-input-wrap"><div className="crew-ui-choice-list crew-task-choice-grid is-two">{[["yes", t("tasks.yes")], ["no", t("tasks.no")]].map(([choice, label]) => <button key={choice} className={value === choice ? "is-selected" : ""} type="button" aria-pressed={value === choice} disabled={immediateDisabled} onClick={() => {
     const nextResponse = { value: choice };
     setResponse(nextResponse);
@@ -227,12 +227,12 @@ function BlockControl({ block, response, setResponse, mode, saving, responded, c
     return <div className="crew-task-input-wrap"><label className="crew-ui-field crew-task-number-field"><span>{type === "temperature" ? <Thermometer size={15} /> : "#"}</span><input aria-label={taskTypeLabel(type, t)} type="number" min={block.config?.min ?? undefined} max={block.config?.max ?? undefined} value={value} disabled={disabled} onChange={(event) => setResponse({ value: event.target.value })} /><em>{unit}</em></label><RangeHint config={block.config} unit={unit} /><button type="button" className="crew-mobile-primary crew-task-submit" disabled={immediateDisabled || String(value).trim() === ""} onClick={() => submit("completed")}>{saving ? t("common.saving") : t("tasks.saveValue")}</button></div>;
   }
   if (type === "short_text") return <div className="crew-task-input-wrap"><textarea className="crew-ui-field crew-task-textarea" aria-label={taskTypeLabel(type, t)} value={value} disabled={disabled} onChange={(event) => setResponse({ value: event.target.value })} /><button type="button" className="crew-mobile-primary crew-task-submit" disabled={immediateDisabled || !String(value).trim()} onClick={() => submit("completed")}>{saving ? t("common.saving") : t("tasks.saveResponse")}</button></div>;
-  if (type === "health_rating") return <div className="crew-task-health"><div className="crew-ui-choice-list crew-task-choice-grid is-health">{[["good", t("tasks.good")], ["needs_attention", t("tasks.needsAttention")], ["not_checked", t("tasks.notChecked")]].map(([choice, choiceLabel]) => <button key={choice} className={value === choice ? "is-selected" : ""} type="button" aria-pressed={value === choice} disabled={immediateDisabled} onClick={() => {
+  if (type === "health_rating") return <div className="crew-task-health"><div className="crew-ui-choice-list crew-task-choice-grid is-health">{[["good", t("tasks.good")], ["needs_attention", t("tasks.needsAttention")], ["not_checked", t("tasks.notChecked")]].map(([choice, choiceLabel]) => <button key={choice} className={`${value === choice ? "is-selected" : ""} is-${choice.replaceAll("_", "-")}`} type="button" aria-pressed={value === choice} disabled={immediateDisabled} onClick={() => {
     const nextResponse = { value: choice };
     setResponse(nextResponse);
     if (choice === "needs_attention") { onNeedsAttention?.(); return; }
     submit(choice, nextResponse);
-  }}>{choice === "good" ? <Check size={15} /> : choice === "needs_attention" ? <AlertTriangle size={15} /> : <HeartPulse size={15} />}{choiceLabel}</button>)}</div></div>;
+  }}>{choice === "good" ? <CheckCircle2 size={15} /> : choice === "needs_attention" ? <AlertTriangle size={15} /> : <CircleMinus size={15} />}{choiceLabel}</button>)}</div></div>;
   return null;
 }
 

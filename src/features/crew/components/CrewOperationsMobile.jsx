@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
-import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, HeartPulse, ListChecks, Store } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, HeartPulse, ListChecks, RotateCcw, Store } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
+import CrewMobileModal from "./CrewMobileModal.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
 import { CrewStatusBadge } from "./CrewMobileUI.jsx";
@@ -22,6 +23,8 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [savingBlockId, setSavingBlockId] = useState(null);
+  const [redoOpen, setRedoOpen] = useState(false);
+  const [redoSaving, setRedoSaving] = useState(false);
   const [error, setError] = useState("");
   const [allTaskData, setAllTaskData] = useState(null);
   const [historyTaskData, setHistoryTaskData] = useState(null);
@@ -102,6 +105,16 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
       return saved;
     } catch (cause) { setError(cause.message); throw cause; }
     finally { setSavingBlockId(null); }
+  }
+  async function resetTask() {
+    if (!detail) return;
+    setRedoSaving(true); setError("");
+    try {
+      await crewService.resetTask(token, detail.id);
+      setRedoOpen(false);
+      await refreshDetail(detail);
+    } catch (cause) { setError(cause.message); }
+    finally { setRedoSaving(false); }
   }
   async function submitLegacy(action) {
     if (!legacyTask) return;
@@ -187,11 +200,13 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     const blocks = (detail.blocks || []).map(normalizeTaskBlock);
     const actionable = blocks.filter(isTaskBlockActionable);
     const completed = actionable.filter(isTaskBlockComplete).length;
+    const canRedo = detailContext?.view !== "history" && ["not_started", "in_progress"].includes(detail.status);
     return <section className="crew-ops-mobile">
       <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} variant="workflow" />
-      <div className="crew-ops-detail-head"><span>{String(detail.task_type || "task").replaceAll("_", " ")}</span><strong>{translateStatus(detail.status, t)}</strong><small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
-      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" ? "readonly" : "interactive"} allowException={detail.allow_exception} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
+      <div className="crew-ops-detail-head"><strong>{translateStatus(detail.status, t)}</strong>{canRedo ? <button type="button" className="crew-mobile-ghost crew-ops-redo" onClick={() => setRedoOpen(true)}><RotateCcw size={15} />{t("tasks.redo")}</button> : null}<small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
+      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
       {error ? <div className="crew-v2-error">{error}</div> : null}
+      {redoOpen ? <CrewMobileModal title={t("tasks.redoTitle")} onClose={() => !redoSaving && setRedoOpen(false)}><div className="crew-ops-redo-dialog"><p>{t("tasks.redoBody")}</p><div><button type="button" className="crew-mobile-secondary" disabled={redoSaving} onClick={() => setRedoOpen(false)}>{t("common.cancel")}</button><button type="button" className="crew-mobile-secondary crew-ops-redo-confirm" disabled={redoSaving} onClick={resetTask}><RotateCcw size={16} />{redoSaving ? t("common.saving") : t("tasks.redo")}</button></div></div></CrewMobileModal> : null}
     </section>;
   }
 

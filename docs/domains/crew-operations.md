@@ -22,7 +22,7 @@ Crew Localization owns translated content state and fallback behavior.
 ## Lifecycle And Business Rules
 
 Published or active task definitions create scheduled operational work according to current assignment rules.
-Crew receives only work applicable to its validated session, outlet/date/position context, and assignment.
+Crew receives only work applicable to its validated session, outlet/date/position context, and assignment. An unfinished personal Task may be redone only through the token-bound reset authority: it clears current response rows, returns the assignee to not started, and appends reset evidence without changing the frozen Task definition, assignment, or existing audit history.
 Completion and review transitions are server-controlled and preserve required evidence.
 
 Cash Checkout is an outlet/date lifecycle with controlled draft, submission, review, completion, and canonical calculation states.

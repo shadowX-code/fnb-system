@@ -161,6 +161,10 @@ describe("Crew Mobile design system contract", () => {
     expect(taskBlock).toContain("crew-ui-status crew-task-block-result");
     expect(taskBlock).toContain("crew-ui-icon-container--compact crew-task-block-number");
     expect(taskBlock).toContain("crew-ui-choice-list crew-task-choice-list");
+    expect(taskBlock).toContain("CircleMinus");
+    expect(taskBlockStyles).toContain(".crew-task-direct-toggle.is-done");
+    expect(taskBlockStyles).toContain(".crew-task-choice-grid.is-health button.is-needs-attention.is-selected");
+    expect(taskBlockStyles).toContain(".crew-task-report-link");
     expect(taskBlockStyles).not.toContain(".crew-task-block-number.is-");
     expect(taskBlockStyles).toContain("task-specific bottom sheet");
     expect(operationsStyles).toContain("Legacy daily tasks remain a bottom sheet");
