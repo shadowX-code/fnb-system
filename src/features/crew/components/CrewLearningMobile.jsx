@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
 import {
@@ -14,11 +14,22 @@ import { crewService } from "../../../services/crewService.js";
 import CrewRichContent from "./CrewRichContent.jsx";
 import CrewLearningImage from "./CrewLearningImage.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
-import CrewLearnHome from "./CrewLearnHome.jsx";
+import CrewLearnHome, { CrewLearnHero } from "./CrewLearnHome.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewStatusBadge } from "./CrewMobileUI.jsx";
+import FeedXLoadingMark from "./FeedXLoadingMark.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 import { applyOnboardingLocalization, applySopLocalization } from "../utils/localizedContent.js";
+
+const learnHomeCache = new Map();
+
+function learnCacheKey(token, language) {
+  return `${token}:${language}`;
+}
+
+export function resetCrewLearnCacheForTests() {
+  learnHomeCache.clear();
+}
 
 function Progress({ value = 0 }) {
   const safe = Math.max(0, Math.min(100, Number(value) || 0));
@@ -38,20 +49,24 @@ function richBlock(block) {
   return block?.payload?.body_html || plainTextToSopHtml(plainBlock(block));
 }
 
-export default function CrewLearningMobile({ token, onRefreshHome }) {
+export default function CrewLearningMobile({ token }) {
   const { t, i18n } = useTranslation();
-  const [home, setHome] = useState(null);
-  const [assignment, setAssignment] = useState(null);
-  const [library, setLibrary] = useState({ categories: [], sops: [] });
+  const initialLanguage = i18n.resolvedLanguage || i18n.language || "en";
+  const initialCache = learnHomeCache.get(learnCacheKey(token, initialLanguage));
+  const [home, setHome] = useState(() => initialCache?.home || null);
+  const [assignment, setAssignment] = useState(() => initialCache?.assignment || null);
+  const [library, setLibrary] = useState(() => initialCache?.library || { categories: [], sops: [] });
   const [screen, setScreen] = useState("home");
   const [lesson, setLesson] = useState(null);
   const [sop, setSop] = useState(null);
   const [sopLanguage, setSopLanguage] = useState(null);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !initialCache);
+  const [assignmentLoading, setAssignmentLoading] = useState(() => Boolean(initialCache?.home?.assignment?.id && !initialCache?.assignment));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const loadVersionRef = useRef(0);
 
   const activeLesson = useMemo(
     () =>
@@ -63,36 +78,80 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
   );
 
   async function loadHome() {
-    setLoading(true);
+    const loadVersion = ++loadVersionRef.current;
+    const language = i18n.resolvedLanguage || i18n.language || "en";
+    const cacheKey = learnCacheKey(token, language);
+    const cached = learnHomeCache.get(cacheKey);
+    setLoading(!cached);
+    setHome(cached?.home || null);
+    setLibrary(cached?.library || { categories: [], sops: [] });
+    setAssignment(cached?.assignment || null);
+    setAssignmentLoading(Boolean(cached?.home?.assignment?.id && !cached?.assignment));
     setError("");
     try {
       const [nextHome, nextLibrary] = await Promise.all([
         crewService.learningHome(token),
         crewService.sopLibrary(token),
       ]);
-      const language = i18n.resolvedLanguage || i18n.language || "en";
-      const sopVersionIds = (nextLibrary?.sops || []).map((item) => item.version_id).filter(Boolean);
-      const sopLocalizations = await crewService.localizedContentForCrew(token, "sop", sopVersionIds, language).catch(() => ({}));
+      if (loadVersion !== loadVersionRef.current) return;
+      const retainedAssignment = cached?.assignment?.id === nextHome?.assignment?.id ? cached.assignment : null;
       setHome(nextHome);
-      setLibrary({ ...nextLibrary, sops: (nextLibrary?.sops || []).map((item) => ({ ...item, title: sopLocalizations[item.version_id]?.["sop.title"] || item.title })) });
+      setLibrary(nextLibrary || { categories: [], sops: [] });
+      setAssignment(retainedAssignment);
+      setLoading(false);
+      learnHomeCache.set(cacheKey, { home: nextHome, library: nextLibrary || { categories: [], sops: [] }, assignment: retainedAssignment });
+
+      const sopVersionIds = (nextLibrary?.sops || []).map((item) => item.version_id).filter(Boolean);
+      void crewService.localizedContentForCrew(token, "sop", sopVersionIds, language).catch(() => ({})).then((sopLocalizations) => {
+        if (loadVersion !== loadVersionRef.current) return;
+        setLibrary({
+          ...nextLibrary,
+          sops: (nextLibrary?.sops || []).map((item) => ({
+            ...item,
+            title: sopLocalizations[item.version_id]?.["sop.title"] || item.title,
+          })),
+        });
+        const current = learnHomeCache.get(cacheKey);
+        if (current) learnHomeCache.set(cacheKey, {
+          ...current,
+          library: {
+            ...nextLibrary,
+            sops: (nextLibrary?.sops || []).map((item) => ({
+              ...item,
+              title: sopLocalizations[item.version_id]?.["sop.title"] || item.title,
+            })),
+          },
+        });
+      });
+
       if (nextHome?.assignment?.id) {
-        const nextAssignment = await crewService.learningAssignment(token, nextHome.assignment.id);
-        const journeyId = nextAssignment?.journey?.id;
-        const journeyLocalizations = journeyId ? await crewService.localizedContentForCrew(token, "onboarding", [journeyId], language).catch(() => ({})) : {};
-        setAssignment(applyOnboardingLocalization(nextAssignment, journeyLocalizations[journeyId] || {}));
-      } else {
-        setAssignment(null);
+        setAssignmentLoading(!retainedAssignment);
+        void crewService.learningAssignment(token, nextHome.assignment.id).then(async (nextAssignment) => {
+          const journeyId = nextAssignment?.journey?.id;
+          const journeyLocalizations = journeyId
+            ? await crewService.localizedContentForCrew(token, "onboarding", [journeyId], language).catch(() => ({}))
+            : {};
+          if (loadVersion !== loadVersionRef.current) return;
+          const localizedAssignment = applyOnboardingLocalization(nextAssignment, journeyLocalizations[journeyId] || {});
+          setAssignment(localizedAssignment);
+          const current = learnHomeCache.get(cacheKey);
+          if (current) learnHomeCache.set(cacheKey, { ...current, assignment: localizedAssignment });
+        }).catch((cause) => {
+          if (loadVersion === loadVersionRef.current) setError(cause.message || t("learn.unable"));
+        }).finally(() => {
+          if (loadVersion === loadVersionRef.current) setAssignmentLoading(false);
+        });
       }
-      onRefreshHome?.(nextHome);
     } catch (cause) {
+      if (loadVersion !== loadVersionRef.current) return;
       setError(cause.message || t("learn.unable"));
-    } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    loadHome();
+    void loadHome();
+    return () => { loadVersionRef.current += 1; };
   }, [token, i18n.resolvedLanguage]);
 
   useEffect(() => {
@@ -231,11 +290,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
   }
 
   if (loading) {
-    return (
-      <section className="crew-learning-loading" aria-live="polite">
-        {t("learn.loading")}
-      </section>
-    );
+    return <CrewLearnLoadingShell label={t("learn.loading")} />;
   }
 
   if (screen === "lesson-sop" || screen === "sop") {
@@ -286,11 +341,25 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
     <CrewLearnHome
       home={home}
       assignment={assignment}
+      assignmentLoading={assignmentLoading}
       library={library}
       error={error}
       onOpenOnboarding={() => setScreen("onboarding")}
       onOpenSop={(versionId) => openSop(versionId, "home")}
     />
+  );
+}
+
+function CrewLearnLoadingShell({ label }) {
+  return (
+    <section className="crew-learn-final-home crew-learn-loading-shell" aria-busy="true">
+      <CrewLearnHero />
+      <div className="crew-learn-loading-indicator"><FeedXLoadingMark label={label} /></div>
+      <div className="crew-learn-loading-search" aria-hidden="true" />
+      <div className="crew-learn-loading-onboarding" aria-hidden="true"><span /><div><b /><i /><em /></div></div>
+      <section className="crew-learn-loading-section" aria-hidden="true"><span /><div><i /><i /><i /></div></section>
+      <section className="crew-learn-loading-section crew-learn-loading-library" aria-hidden="true"><span /><div><i /><i /><i /></div></section>
+    </section>
   );
 }
 

@@ -41,7 +41,7 @@ function formatAcknowledgedDate(item) {
   return formatCrewDate(value, { day: "numeric", month: "short", year: "numeric" });
 }
 
-export default function CrewLearnHome({ home, assignment, library, error, onOpenOnboarding, onOpenSop }) {
+export default function CrewLearnHome({ home, assignment, assignmentLoading, library, error, onOpenOnboarding, onOpenSop }) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState("latest");
@@ -77,7 +77,9 @@ export default function CrewLearnHome({ home, assignment, library, error, onOpen
       <CrewLearnHero />
       {error && <p className="crew-mobile-error">{error}</p>}
       <CrewLearnSearch value={query} onChange={setQuery} onFilter={focusFilters} />
-      {home?.assignment && <CrewOnboardingProgressCard home={home} assignment={assignment} onOpen={onOpenOnboarding} />}
+      {home?.assignment && (assignmentLoading
+        ? <CrewLearnOnboardingSkeleton />
+        : <CrewOnboardingProgressCard home={home} assignment={assignment} onOpen={onOpenOnboarding} />)}
       <CrewSopCategoryCarousel
         ref={categoryRowRef}
         categories={categories}
@@ -94,6 +96,10 @@ export default function CrewLearnHome({ home, assignment, library, error, onOpen
       />
     </section>
   );
+}
+
+function CrewLearnOnboardingSkeleton() {
+  return <div className="crew-learn-loading-onboarding crew-learn-loading-onboarding--inline" aria-busy="true"><span /><div><b /><i /><em /></div></div>;
 }
 
 export function CrewLearnHero() {

@@ -274,7 +274,6 @@ export default function CrewMobileApp({ onNotify }) {
   const [selectedAttendanceMonth, setSelectedAttendanceMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [profile, setProfile] = useState(null);
   const [context, setContext] = useState(null);
-  const [learningHome, setLearningHome] = useState(null);
   const [growth, setGrowth] = useState(null);
   const [growthError, setGrowthError] = useState("");
   const [performance, setPerformance] = useState(null);
@@ -311,10 +310,9 @@ export default function CrewMobileApp({ onNotify }) {
   async function refresh(token = session?.token) {
     if (!token) return;
     setPageLoading(true);
-    const [historyResult, contextResult, learningResult, growthResult, performanceResult, rewardResult, operationsResult, rosterResult, leaveResult, profileResult] = await Promise.allSettled([
+    const [historyResult, contextResult, growthResult, performanceResult, rewardResult, operationsResult, rosterResult, leaveResult, profileResult] = await Promise.allSettled([
       crewService.myAttendance(token),
       crewService.attendanceContext(token),
-      crewService.learningHome(token),
       crewService.growthMobile(token),
       crewService.performanceMobile(token),
       crewService.rewardMobile(token),
@@ -323,8 +321,8 @@ export default function CrewMobileApp({ onNotify }) {
       crewService.myLeave(token),
       typeof crewService.myProfile === "function" ? crewService.myProfile(token) : Promise.resolve(null),
     ]);
-    if ([historyResult, contextResult, learningResult].some((result) => result.status === "rejected")) {
-      const cause = [historyResult, contextResult, learningResult].find((result) => result.status === "rejected")?.reason;
+    if ([historyResult, contextResult].some((result) => result.status === "rejected")) {
+      const cause = [historyResult, contextResult].find((result) => result.status === "rejected")?.reason;
       localStorage.removeItem(storageKey);
       setSession(null);
       setError(cause?.message || t("auth.unable"));
@@ -333,7 +331,6 @@ export default function CrewMobileApp({ onNotify }) {
     }
     setAttendance(historyResult.value || []);
     setContext(contextResult.value || null);
-    setLearningHome(learningResult.value || null);
     if (growthResult.status === "fulfilled") {
       setGrowth(growthResult.value);
       setGrowthError("");
@@ -508,7 +505,7 @@ export default function CrewMobileApp({ onNotify }) {
       <section className="crew-v2-home-section crew-home-schedule"><CrewSectionHeader density="operational" title={t("home.mySchedule")} action={t("common.viewAll")} onAction={() => setScreen("schedule")} /><div className="crew-home-list">{todayRoster ? <HomeScheduleRow entry={todayRoster} label="today" onClick={() => setScreen("schedule")} /> : <div className="crew-home-empty"><CalendarDays size={20} /><span><strong>{t("home.noPublishedShift")}</strong><small>{t("home.scheduleWillAppear")}</small></span></div>}{upcomingRoster.map((entry) => <HomeScheduleRow key={entry.id} entry={entry} onClick={() => setScreen("schedule")} />)}</div></section>
     </section>}
 
-    {screen === "learn" && <CrewLearningMobile token={session.token} onRefreshHome={setLearningHome} />}
+    {screen === "learn" && <CrewLearningMobile token={session.token} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={() => refresh()} onViewPerformance={() => { setGrowthInitialView("performance"); setScreen("growth"); }} />}
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} onViewReward={() => setScreen("reward")} onNavigate={(target) => setScreen(target)} />}
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={() => refresh()} onBack={(returnContext) => { setOperationTarget(null); setScreen("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />}

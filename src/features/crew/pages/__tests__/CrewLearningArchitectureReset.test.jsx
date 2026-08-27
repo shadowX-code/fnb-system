@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   listOnboarding: vi.fn(),
@@ -59,7 +59,7 @@ vi.mock("../../../../services/employeeService.js", () => ({
 }));
 
 import CrewLearningAdminResetPage from "../CrewLearningAdminResetPage.jsx";
-import CrewLearningMobile from "../../components/CrewLearningMobile.jsx";
+import CrewLearningMobile, { resetCrewLearnCacheForTests } from "../../components/CrewLearningMobile.jsx";
 
 const outlets = [
   { id: "outlet-1", name: "Hola Hola Kopitiam Ipoh", is_active: true },
@@ -155,7 +155,7 @@ beforeEach(() => {
   ui.confirm.mockReset().mockResolvedValue(true);
 });
 
-afterEach(cleanup);
+afterEach(() => { cleanup(); resetCrewLearnCacheForTests(); });
 
 describe("Crew Learning architecture reset UI", () => {
   it("shows one outlet-scoped management page with summary, eight modules and Crew Progress", async () => {
@@ -384,6 +384,45 @@ describe("Crew mobile Learn reset", () => {
     expect(screen.getByText("Required")).not.toBeNull();
     expect(screen.queryByText("I acknowledge this SOP")).toBeNull();
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
+  });
+
+  it("renders the Learn shell immediately and does not duplicate its primary reads", async () => {
+    let resolveHome;
+    let resolveLibrary;
+    mocks.learningHome.mockImplementation(() => new Promise((resolve) => { resolveHome = resolve; }));
+    mocks.sopLibrary.mockImplementation(() => new Promise((resolve) => { resolveLibrary = resolve; }));
+
+    render(<CrewLearningMobile token="crew-token" />);
+
+    expect(screen.getByRole("heading", { name: "Learn" })).not.toBeNull();
+    const loadingMark = screen.getByRole("status", { name: /Loading Learn/ });
+    expect(loadingMark.querySelector("img").getAttribute("src")).toBe("/logo-icon.jpg");
+    expect(screen.queryByText(/Loading Learn/)).toBeNull();
+    expect(mocks.learningHome).toHaveBeenCalledTimes(1);
+    expect(mocks.sopLibrary).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      resolveHome({ assignment: null, required_sops: [] });
+      resolveLibrary({ categories: [], sops: [] });
+    });
+
+    expect(await screen.findByRole("heading", { name: "SOPs (0)" })).not.toBeNull();
+    expect(mocks.learningHome).toHaveBeenCalledTimes(1);
+    expect(mocks.sopLibrary).toHaveBeenCalledTimes(1);
+    expect(mocks.learningAssignment).not.toHaveBeenCalled();
+  });
+
+  it("keeps the last safe Learn snapshot visible while a repeat visit refreshes in the background", async () => {
+    const first = render(<CrewLearningMobile token="crew-token" />);
+    expect(await screen.findByText("Welcome & Goodbye Standard")).not.toBeNull();
+    first.unmount();
+
+    render(<CrewLearningMobile token="crew-token" />);
+
+    expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
+    expect(screen.queryByRole("status", { name: /Loading Learn/ })).toBeNull();
+    await waitFor(() => expect(mocks.learningHome).toHaveBeenCalledTimes(2));
+    expect(mocks.sopLibrary).toHaveBeenCalledTimes(2);
   });
 
   it("synchronizes search, categories, counts and acknowledgement states", async () => {

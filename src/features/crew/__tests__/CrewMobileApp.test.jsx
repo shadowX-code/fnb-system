@@ -84,6 +84,18 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it("defers Learn reads until the Learn route is opened", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+
+    const navigation = await screen.findByRole("navigation", { name: "Crew navigation" });
+    expect(mocks.learningHome).not.toHaveBeenCalled();
+    fireEvent.click(navigation.querySelectorAll("button")[1]);
+
+    expect(await screen.findByRole("heading", { name: "Learn" })).not.toBeNull();
+    await waitFor(() => expect(mocks.learningHome).toHaveBeenCalledTimes(1));
+  });
+
   it("changes and persists the Crew system language from Me Settings", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
