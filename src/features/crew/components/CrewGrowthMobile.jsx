@@ -157,12 +157,27 @@ function GrowthPerformanceScore({ score, label }) {
       }, 0);
     }
 
-    const activeSegments = segments.slice(0, safeScore);
-    const sweepSegments = activeSegments.slice(Math.max(0, safeScore - 4));
-    const idleSweep = sweepSegments.length
-      ? gsap.timeline({ delay: 4.5, repeat: -1, repeatDelay: 7 })
-        .to(sweepSegments, { opacity: 0.56, duration: 0.18, ease: "sine.inOut", stagger: 0.035 })
-        .to(sweepSegments, { opacity: 1, duration: 0.26, ease: "sine.inOut", stagger: 0.035 })
+    const highlightSegments = Array.from(root.current?.querySelectorAll(".crew-growth-performance-highlight-segment") || []);
+    const sweepSpan = Math.min(7, Math.max(0, highlightSegments.length - 1));
+    const maxSweepStart = Math.max(0, highlightSegments.length - sweepSpan - 1);
+    const applySweep = (startIndex) => {
+      highlightSegments.forEach((segment, index) => {
+        const distance = index - startIndex;
+        const opacity = distance < 0 || distance > sweepSpan ? 0 : 0.24 + (distance / Math.max(sweepSpan, 1)) * 0.76;
+        gsap.set(segment, { opacity });
+      });
+    };
+    const sweepState = { index: 0 };
+    const idleSweep = highlightSegments.length > 1
+      ? gsap.timeline({ delay: 1.25, repeat: -1, repeatDelay: 1.1 })
+        .call(() => applySweep(0))
+        .to(sweepState, {
+          index: maxSweepStart,
+          duration: 4.2,
+          ease: "none",
+          onUpdate: () => applySweep(sweepState.index),
+        })
+        .set(highlightSegments, { opacity: 0 })
       : null;
 
     if (isInitialPresentation) {
@@ -202,8 +217,20 @@ function GrowthPerformanceScore({ score, label }) {
           stroke={index < safeScore ? `url(#${gradientId})` : undefined}
         />)}
       </g>
+      <g className="crew-growth-performance-highlight" aria-hidden="true">
+        {segmentIndexes.slice(0, safeScore).map((index) => <line
+          key={index}
+          className="crew-growth-performance-highlight-segment"
+          x1="80"
+          y1="11"
+          x2="80"
+          y2="17"
+          transform={`rotate(${index * 3.6 - 90} 80 80)`}
+          stroke={`url(#${gradientId})`}
+        />)}
+      </g>
     </svg>
-    <span><strong ref={scoreLabel}>{score == null ? "—" : safeScore}</strong><b>/100</b></span>
+    <span className="crew-growth-performance-score-readout"><strong ref={scoreLabel}>{score == null ? "—" : safeScore}</strong><b>/100</b></span>
   </div>;
 }
 

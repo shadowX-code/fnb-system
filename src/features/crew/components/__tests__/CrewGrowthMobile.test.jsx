@@ -51,6 +51,9 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.querySelectorAll(".crew-growth-performance-segment")).toHaveLength(100);
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(87);
     expect(document.querySelectorAll(".crew-growth-performance-segment:not(.is-active)")).toHaveLength(13);
+    expect(document.querySelectorAll(".crew-growth-performance-highlight-segment")).toHaveLength(87);
+    expect(document.querySelector(".crew-growth-performance-score-readout")).not.toBeNull();
+    expect(document.querySelector(".crew-growth-performance-score-disc")).toBeNull();
     expect(screen.getByText("Skills Overview")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "All Skills 4" })).not.toBeNull();
     expect(screen.getByText("Closing Responsibilities")).not.toBeNull();
@@ -72,10 +75,11 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.queryByText("Next Milestone")).toBeNull();
   });
 
-  it.each([0, 43, 87, 100])("renders exactly %s active score segments", (score) => {
+  it.each([0, 1, 50, 87, 100])("renders exactly %s active score segments", (score) => {
     render(<CrewGrowthMobile data={data} performance={{ score, trend: [] }} />);
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(score);
     expect(document.querySelectorAll(".crew-growth-performance-segment:not(.is-active)")).toHaveLength(100 - score);
+    expect(document.querySelectorAll(".crew-growth-performance-highlight-segment")).toHaveLength(score);
   });
 
   it("updates the same score ring when the canonical Performance score changes", () => {
@@ -83,6 +87,7 @@ describe("Crew Growth mobile final IA", () => {
     rerender(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
     expect(screen.getByLabelText("87 / 100")).not.toBeNull();
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(87);
+    expect(document.querySelectorAll(".crew-growth-performance-highlight-segment")).toHaveLength(87);
   });
 
   it("opens the centered accessible help dialog and closes with Escape", () => {
