@@ -168,12 +168,31 @@ function ScoreRing({ score }) {
 
 function PerformanceOverview({ data, onViewPerformance }) {
   const { t } = useTranslation();
+  const relationshipRef = useRef(null);
+  const hasPresentedRef = useRef(false);
   const score = Math.max(0, Math.min(100, Number(data.performance_score || 0)));
+  useGSAP(() => {
+    const root = relationshipRef.current;
+    if (!root || hasPresentedRef.current || window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches) return undefined;
+    const scoreGroup = root.querySelector(".crew-reward-performance-score");
+    const connectorFlow = root.querySelector(".crew-reward-performance-connector-flow");
+    const rateGroup = root.querySelector(".crew-reward-performance-rate");
+    if (!scoreGroup || !connectorFlow || !rateGroup) return undefined;
+    const timeline = gsap.timeline();
+    timeline
+      .to(scoreGroup, { scale: 1.018, duration: .16, ease: "power2.out" })
+      .to(scoreGroup, { scale: 1, duration: .18, ease: "power2.inOut" })
+      .fromTo(connectorFlow, { scaleX: .08, opacity: .1 }, { scaleX: 1, opacity: .94, duration: .26, ease: "power2.out" }, .14)
+      .to(connectorFlow, { opacity: .3, duration: .18, ease: "sine.out" })
+      .to(rateGroup, { scale: 1.025, duration: .16, ease: "power2.out" }, .38)
+      .to(rateGroup, { scale: 1, duration: .18, ease: "power2.inOut" });
+    hasPresentedRef.current = true;
+    return () => timeline.kill();
+  }, { scope: relationshipRef, dependencies: [score, data.earn_rate], revertOnUpdate: true });
   return <section className="crew-reward-performance">
-    <header><button type="button" onClick={onViewPerformance}>{t("reward.viewPerformance")} <ChevronRight size={16} /></button></header>
-    <div className="crew-reward-performance-relationship">
-      <div className="crew-reward-performance-score"><ScoreRing score={score} /><small>{t("reward.performanceScoreLabel")}</small></div>
-      <span className="crew-reward-performance-connector" aria-hidden="true"><ChevronRight size={16} /></span>
+    <div ref={relationshipRef} className="crew-reward-performance-relationship">
+      <button className="crew-reward-performance-score" type="button" aria-label={t("reward.viewPerformance")} onClick={onViewPerformance}><ScoreRing score={score} /><small>{t("reward.performanceScoreLabel")}<ChevronRight size={15} aria-hidden="true" /></small></button>
+      <span className="crew-reward-performance-connector" aria-hidden="true"><i className="crew-reward-performance-connector-track" /><i className="crew-reward-performance-connector-flow" /><ChevronRight className="crew-reward-performance-connector-arrow" size={15} /></span>
       <div className="crew-reward-performance-rate"><span><strong>{rate(data.earn_rate)}</strong><HeroInfoButton label={t("reward.currentRate")} onOpen={() => onViewPerformance?.("earn-rate")} /></span><small>{t("reward.currentRate")}</small><CrewStatusBadge tone="success">{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</CrewStatusBadge></div>
     </div>
   </section>;

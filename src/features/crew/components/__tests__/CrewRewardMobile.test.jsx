@@ -122,9 +122,13 @@ describe("Crew Reward mobile reference UI", () => {
     expect(container.querySelector(".crew-reward-score-ring")).not.toBeNull();
     expect(container.querySelector(".crew-reward-score-ring-progress").getAttribute("stroke-dasharray")).toBe(`${score} 100`);
     expect(container.querySelector(".crew-reward-performance-connector")).not.toBeNull();
+    expect(container.querySelector(".crew-reward-performance-connector-track")).not.toBeNull();
+    expect(container.querySelector(".crew-reward-performance-connector-flow")).not.toBeNull();
+    expect(container.querySelector(".crew-reward-performance-score").tagName).toBe("BUTTON");
     expect(container.querySelector(".crew-reward-performance.crew-reward-surface")).toBeNull();
     expect(container.querySelector(".crew-reward-performance-rate-action")).toBeNull();
     expect(screen.queryByText("How earn rate works")).toBeNull();
+    expect(screen.queryByText("View My Performance")).toBeNull();
     expect(container.querySelectorAll(".crew-reward-performance-title")).toHaveLength(0);
     expect(container.querySelectorAll(".crew-reward-performance-insight")).toHaveLength(0);
   });
