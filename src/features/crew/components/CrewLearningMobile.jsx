@@ -20,6 +20,7 @@ import { CrewStatusBadge } from "./CrewMobileUI.jsx";
 import FeedXLoadingMark from "./FeedXLoadingMark.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 import { applyOnboardingLocalization, applySopLocalization } from "../utils/localizedContent.js";
+import { formatCrewDate, formatCrewTime } from "../utils/crewI18n.js";
 
 const learnHomeCache = new Map();
 
@@ -217,16 +218,17 @@ export default function CrewLearningMobile({ token }) {
     setSaving(true);
     setError("");
     try {
-      await crewService.acknowledgeSop(
+      const acknowledgement = await crewService.acknowledgeSop(
         token,
         sop.id,
         screen === "lesson-sop" ? "journey" : "direct_library",
       );
-      setSop({ ...sop, acknowledged: true });
+      const acknowledgedAt = acknowledgement?.acknowledged_at || sop.acknowledged_at || null;
+      setSop({ ...sop, acknowledged: true, acknowledged_at: acknowledgedAt });
       setLibrary((current) => ({
         ...current,
         sops: current.sops.map((item) =>
-          item.version_id === sop.id ? { ...item, acknowledged: true } : item,
+          item.version_id === sop.id ? { ...item, acknowledged: true, acknowledged_at: acknowledgedAt } : item,
         ),
       }));
     } catch (cause) {
@@ -420,6 +422,9 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
 function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
   const { t } = useTranslation();
   if (!sop) return null;
+  const acknowledgedAt = sop.acknowledged_at
+    ? `${formatCrewDate(sop.acknowledged_at, { day: "numeric", month: "short", year: "numeric" })} · ${formatCrewTime(sop.acknowledged_at).toLowerCase()}`
+    : "";
   const acknowledgement = sop.acknowledgement_required
     ? sop.acknowledged ? t("learn.acknowledged") : t("learn.acknowledgementRequired")
     : t("learn.noAcknowledgement");
@@ -442,7 +447,7 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
               <span className="crew-ui-icon-container crew-sop-acknowledged-icon" aria-hidden="true"><CheckCircle2 size={20} /></span>
               <span>
                 <strong>{t("learn.acknowledgedTitle")}</strong>
-                <small>{t("learn.acknowledgedBody", { version: sop.version })}</small>
+                {acknowledgedAt && <small>{t("learn.acknowledgedAt", { timestamp: acknowledgedAt })}</small>}
               </span>
             </div>
           )

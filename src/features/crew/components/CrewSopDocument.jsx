@@ -1,4 +1,4 @@
-import { Star } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import CrewRichContent from "./CrewRichContent.jsx";
 import CrewSopImage from "./CrewSopImage.jsx";
 import { parseSopBody } from "../utils/sopDocumentContent.js";
@@ -51,9 +51,9 @@ export default function CrewSopDocument({
               {content.html ? <CrewRichContent html={content.html} /> : null}
               <CrewSopImage media={media} token={token} sopVersionId={sopVersionId} admin={admin} />
               {content.keyPointContent ? (
-                <aside className="crew-sop-reader-key-point" aria-label="Key point">
-                  <Star size={17} aria-hidden="true" />
-                  <p>{content.keyPointContent}</p>
+                <aside className="crew-ui-note crew-ui-note--mint crew-sop-reader-key-point" aria-label="Key point">
+                  <CircleAlert size={17} aria-hidden="true" />
+                  <span><p>{content.keyPointContent}</p></span>
                 </aside>
               ) : null}
             </div>

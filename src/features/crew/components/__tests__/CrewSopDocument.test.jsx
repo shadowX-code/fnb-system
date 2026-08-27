@@ -6,7 +6,7 @@ import { serializeSopBody } from "../../utils/sopDocumentContent.js";
 afterEach(cleanup);
 
 describe("shared Crew SOP document", () => {
-  it("renders ordered rich sections and icon-only key point callouts", () => {
+  it("renders ordered rich sections with the canonical Mint Key Point surface", () => {
     const { container } = render(<CrewSopDocument sections={[
       { id: "two", title: "Second", sort_order: 2, body: "<p>Second body</p>" },
       { id: "one", title: "First", sort_order: 1, body: serializeSopBody("<p><strong>First body</strong></p>", "Keep the workstation ready.") },
@@ -16,9 +16,10 @@ describe("shared Crew SOP document", () => {
     expect(container.querySelector("strong")?.textContent).toBe("First body");
     expect(screen.getByLabelText("Key point").textContent).toBe("Keep the workstation ready.");
     expect(screen.queryByText("Key Point")).toBeNull();
-    expect(container.querySelector(".crew-sop-reader-key-point.crew-ui-note")).toBeNull();
+    expect(container.querySelector(".crew-sop-reader-key-point.crew-ui-note.crew-ui-note--mint")).not.toBeNull();
     expect(container.querySelector(".crew-sop-reader-key-point .crew-ui-icon-container")).toBeNull();
-    expect(container.querySelector(".crew-sop-reader-key-point svg")).not.toBeNull();
+    expect(container.querySelector(".crew-sop-reader-key-point svg.lucide-circle-alert")).not.toBeNull();
+    expect(container.querySelector(".crew-sop-reader-key-point svg.lucide-star")).toBeNull();
     expect(container.querySelectorAll(".crew-sop-reader-number")[0].textContent).toContain("01");
   });
 

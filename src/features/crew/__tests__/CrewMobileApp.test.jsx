@@ -73,7 +73,7 @@ beforeEach(() => {
   mocks.updateDailyTask.mockReset().mockResolvedValue({});
   mocks.sopLibrary.mockReset().mockResolvedValue({ categories: [], sops: [] });
   mocks.sopVersion.mockReset().mockResolvedValue({ id: "sop-version-1", title: "Welcome Standard", category: "Service", version: 2, acknowledgement_required: true, acknowledged: false, summary: "Welcome every guest consistently.", sections: [] });
-  mocks.acknowledgeSop.mockReset().mockResolvedValue({ acknowledged: true });
+  mocks.acknowledgeSop.mockReset().mockResolvedValue({ acknowledged: true, acknowledged_at: "2026-08-27T10:42:00Z" });
   mocks.learningAssignment.mockReset().mockResolvedValue({ id: "assignment-1", journey: { name: "New Crew Onboarding" }, modules: [] });
   mocks.localizedContentForCrew.mockReset().mockResolvedValue({});
   mocks.myProfile.mockReset().mockResolvedValue({ employment_type: "full_time" });
@@ -434,9 +434,9 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.sopLibrary.mockResolvedValueOnce({
       categories: [{ id: "service", name: "Service" }],
-      sops: [{ id: "sop-1", version_id: "sop-version-1", title: "Personal Grooming Standard", category: "Service", category_id: "service", version: 2, acknowledgement_required: true, acknowledged: true }],
+      sops: [{ id: "sop-1", version_id: "sop-version-1", title: "Personal Grooming Standard", category: "Service", category_id: "service", version: 2, acknowledgement_required: true, acknowledged: true, acknowledged_at: "2026-08-27T10:42:00Z" }],
     });
-    mocks.sopVersion.mockResolvedValueOnce({ id: "sop-version-1", title: "Personal Grooming Standard", category: "Service", version: 2, acknowledgement_required: true, acknowledged: true, sections: [] });
+    mocks.sopVersion.mockResolvedValueOnce({ id: "sop-version-1", title: "Personal Grooming Standard", category: "Service", version: 2, acknowledgement_required: true, acknowledged: true, acknowledged_at: "2026-08-27T10:42:00Z", sections: [] });
 
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[1]);
@@ -444,7 +444,8 @@ describe("Crew Mobile redesign", () => {
 
     const status = await screen.findByRole("status", { name: "SOP acknowledged" });
     expect(status.textContent).toContain("SOP acknowledged");
-    expect(status.textContent).toContain("confirmed version 2");
+    expect(status.textContent).toContain("Acknowledged 27 Aug 2026 · 6:42 pm");
+    expect(status.textContent).not.toContain("confirmed version 2");
     expect(screen.queryByRole("button", { name: "I acknowledge this SOP" })).toBeNull();
   });
 

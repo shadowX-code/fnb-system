@@ -29,6 +29,7 @@ const meStyles = readFileSync(resolve(process.cwd(), "src/features/crew/componen
 const schedule = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewScheduleMobile.jsx"), "utf8");
 const growth = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewGrowthMobile.jsx"), "utf8");
 const learning = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLearningMobile.jsx"), "utf8");
+const sopDocument = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewSopDocument.jsx"), "utf8");
 
 describe("Crew Mobile design system contract", () => {
   it("owns the FeedX palette and shared foundation primitives centrally", () => {
@@ -371,6 +372,14 @@ describe("Crew Mobile design system contract", () => {
     expect(leaveStyles).not.toMatch(/\.crew-leave-balance-preview\.is-insufficient\s*\{[^}]*mist-mint/s);
     expect(leaveStyles).not.toMatch(/\.crew-leave-(?:balance-preview|document|choice)[^\{]*\{[^}]*(?:cyan|mist-mint|icon-default-bg)/s);
     expect(leaveStyles).not.toMatch(/\.crew-ui-icon-container[^\{]*\{[^}]*(?:background|color|border-radius|width|height)/s);
+  });
+
+  it("keeps SOP Key Points on the shared Mint note owner", () => {
+    expect(sopDocument).toContain('className="crew-ui-note crew-ui-note--mint crew-sop-reader-key-point"');
+    expect(sopDocument).toContain("<CircleAlert");
+    expect(sopDocument).not.toContain("<Star");
+    expect(sopDocumentStyles).not.toMatch(/\.crew-sop-reader-key-point\s*\{[^}]*background:/s);
+    expect(sopDocumentStyles).not.toMatch(/\.crew-sop-reader-key-point\s*\{[^}]*border-radius:/s);
   });
 
   it("keeps the Me employment-type badge on the shared Mint status owner", () => {

@@ -370,7 +370,7 @@ describe("Crew mobile Learn reset", () => {
       acknowledged: false,
       sections: [{ id: "section-1", title: "Greeting", body: "<p>Welcome every guest warmly.</p>" }],
     });
-    mocks.acknowledgeSop.mockReset().mockResolvedValue({ acknowledged: true });
+    mocks.acknowledgeSop.mockReset().mockResolvedValue({ acknowledged: true, acknowledged_at: "2026-08-27T10:42:00Z" });
   });
 
   it("keeps completed onboarding visible for review and exposes the outlet SOP knowledge base", async () => {
@@ -470,7 +470,9 @@ describe("Crew mobile Learn reset", () => {
     expect(screen.getByText("Welcome every guest warmly.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "I acknowledge this SOP" }));
     await waitFor(() => expect(mocks.acknowledgeSop).toHaveBeenCalledWith("crew-token", "version-1", "direct_library"));
-    expect(await screen.findByText("Acknowledged")).not.toBeNull();
+    const acknowledged = await screen.findByRole("status", { name: "SOP acknowledged" });
+    expect(acknowledged.textContent).toContain("Acknowledged 27 Aug 2026 · 6:42 pm");
+    expect(screen.queryByText(/confirmed version/i)).toBeNull();
   });
 
   it("renders safe rich lesson content and token-bound published media on mobile", async () => {

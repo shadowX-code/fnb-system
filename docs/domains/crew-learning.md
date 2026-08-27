@@ -34,7 +34,7 @@ Learning completion may produce evidence used for skills or certification, but t
 
 Admins require learning/content permissions and applicable outlet scope to author, publish, version, assign, or retire content.
 Crew access is token-bound to the current employee and safe content payloads.
-Published versions, pinned assignment snapshots, quiz attempts/scores, acknowledgements, and completed progress are immutable evidence.
+Published versions, pinned assignment snapshots, quiz attempts/scores, acknowledgements (including their canonical acknowledgement timestamp), and completed progress are immutable evidence.
 
 ## Admin And Crew Workflows
 
