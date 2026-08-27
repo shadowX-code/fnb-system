@@ -444,6 +444,10 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-home-ready-context small").textContent).toContain("Friends Corner");
     expect(document.querySelector(".crew-home-clock-action > span").textContent).toBe("Tap toClock In");
     expect(document.querySelector(".crew-home-clock-zone .crew-home-gps")).not.toBeNull();
+    expect(document.querySelector(".crew-home-attendance-art")).not.toBeNull();
+    expect(document.querySelector(".crew-home-clock-halo")).not.toBeNull();
+    expect(document.querySelector(".crew-home-clock-semantic-ring")).not.toBeNull();
+    expect(document.querySelector(".crew-home-radar-orbit")).toBeNull();
     expect(screen.getByRole("region", { name: "Attendance status" }).classList.contains("is-ready")).toBe(true);
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Clock Out" })).toBeNull();
@@ -455,6 +459,7 @@ describe("Crew Mobile redesign", () => {
     expect(await screen.findByText("On Shift")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Clock Out" })).not.toBeNull();
     expect(document.querySelector(".crew-home-worked").textContent).toMatch(/^01:05:/);
+    expect(document.querySelector(".crew-home-clock-zone").dataset.clockState).toBe("default");
     openRender.unmount();
 
     const clockIn = new Date();
@@ -464,6 +469,7 @@ describe("Crew Mobile redesign", () => {
     expect(await screen.findByText("Shift Completed")).not.toBeNull();
     expect(screen.getByText("Worked duration")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Clock Out" })).toBeNull();
+    expect(document.querySelector(".crew-home-clock-zone").dataset.clockState).toBe("success");
   });
 
   it("keeps geofence exception handling and refreshes Home after successful clock in", async () => {

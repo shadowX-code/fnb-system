@@ -13,48 +13,46 @@
 .crew-v2-home-header > div:last-child button::after { position: absolute; top: 4px; right: 4px; width: 6px; height: 6px; border: 2px solid var(--crew-color-surface); border-radius: 50%; background: var(--crew-color-cyan); content: ""; }
 .crew-v2-home-header .crew-v2-avatar { width: 40px; height: 40px; border: 0; background: color-mix(in srgb, var(--crew-color-mist-mint) 42%, white); color: var(--crew-color-deep-teal); font-size: 16px; }
 
-.crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0; box-sizing: border-box; overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); padding: 0; box-shadow: var(--crew-shadow-focus); }
-.crew-home-attendance-main { display: grid; width: 100%; min-width: 0; box-sizing: border-box; min-height: 174px; grid-template-columns: minmax(0, 56%) minmax(0, 44%); background: var(--crew-color-deep-teal); color: var(--crew-color-surface); }
-.crew-home-attendance-copy { display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; gap: 6px; padding: 16px; }
-.crew-home-attendance-copy > .crew-ui-status { display: inline-flex; min-height: 22px; align-items: center; border: 1px solid rgb(177 213 201 / .42); border-radius: 999px; background: transparent; padding: 0 8px; color: var(--crew-color-mist-mint); font-size: var(--crew-type-badge); font-weight: 600; letter-spacing: .05em; }
-.crew-home-attendance-copy > .crew-ui-status::before { width: 6px; height: 6px; margin-right: 5px; border-radius: 50%; background: var(--crew-color-cyan); content: ""; }
-.crew-home-attendance-kicker { margin-top: 6px; color: var(--crew-color-mist-mint); font-size: var(--crew-type-secondary); font-weight: 500; }
-.crew-home-ready-row { display: grid; width: 100%; grid-template-columns: minmax(0, 1fr) minmax(0, .84fr); align-items: end; gap: 10px; }
-.crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { display: flex; align-items: baseline; gap: 3px; margin: 4px 0 0; color: var(--crew-color-surface); font-size: 34px; font-weight: 700; line-height: .95; letter-spacing: -.045em; white-space: nowrap; }
-.crew-home-current-time b { color: var(--crew-color-mist-mint); font-size: 13px; letter-spacing: 0; }
-.crew-home-ready-context { display: grid; min-width: 0; gap: 4px; border-left: 1px solid rgb(255 255 255 / .22); padding-left: 10px; }
-.crew-home-ready-context b { color: var(--crew-color-surface); font-size: var(--crew-type-meta); font-weight: 600; white-space: nowrap; }
-.crew-home-ready-context small { display: flex; min-width: 0; align-items: center; gap: 4px; color: var(--crew-color-mist-mint); font-size: var(--crew-type-meta); }
+/* Home signature clock: the supplied Mint artwork is the only decorative background. */
+.crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: var(--crew-shadow-focus); }
+.crew-home-attendance-main { position: relative; display: grid; min-height: 202px; grid-template-columns: minmax(0, 1fr) 146px; align-items: stretch; overflow: hidden; background: var(--crew-color-surface); color: var(--crew-color-deep-teal); isolation: isolate; }
+.crew-home-attendance-art { position: absolute; z-index: 0; width: 100%; height: 100%; inset: 0; object-fit: cover; object-position: 50% 50%; pointer-events: none; }
+.crew-home-attendance-copy { position: relative; z-index: 1; display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; gap: 7px; padding: 18px 8px 18px 18px; }
+.crew-home-attendance-copy > .crew-ui-status { background: color-mix(in srgb, var(--crew-color-success-surface) 76%, white); color: var(--crew-color-success); }
+.crew-home-ready-row { display: grid; width: 100%; gap: 7px; }
+.crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { display: flex; align-items: baseline; gap: 3px; margin: 0; color: var(--crew-color-deep-teal); font-size: 40px; font-weight: 700; line-height: .96; letter-spacing: -.045em; white-space: nowrap; }
+.crew-home-current-time b { color: var(--crew-color-deep-teal); font-size: var(--crew-type-row-title); letter-spacing: 0; }
+.crew-home-ready-context { display: grid; min-width: 0; gap: 5px; }
+.crew-home-ready-context b { color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; white-space: nowrap; }
+.crew-home-ready-context small, .crew-home-attendance-copy > p { display: flex; min-width: 0; align-items: center; gap: 5px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); line-height: 1.3; }
 .crew-home-ready-context small span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.crew-home-attendance-copy > p { display: flex; width: 100%; align-items: center; gap: 6px; margin: 5px 0 0; border-top: 1px solid rgb(255 255 255 / .16); padding-top: 8px; color: var(--crew-color-mist-mint); font-size: var(--crew-type-meta); font-weight: 500; }
-.crew-home-attendance-copy > em { display: flex; max-width: 100%; align-items: center; gap: 5px; margin-top: auto; border-radius: 999px; background: rgb(177 213 201 / .16); padding: 4px 7px; color: var(--crew-color-surface); font-size: var(--crew-type-badge); font-style: normal; font-weight: 600; white-space: nowrap; }
-.crew-home-attendance-copy > em.is-exception { background: rgb(168 100 0 / .28); color: #ffe1ab; }
-.crew-home-attendance-copy > small { color: var(--crew-color-mist-mint); font-size: var(--crew-type-meta); }
+.crew-home-attendance-copy > p { margin-top: 2px; }
 .crew-home-attendance-copy dl { display: flex; gap: 12px; margin: 0; }
 .crew-home-attendance-copy dl div { display: grid; gap: 2px; }
-.crew-home-attendance-copy dt { color: var(--crew-color-mist-mint); font-size: var(--crew-type-badge); }
-.crew-home-attendance-copy dd { margin: 0; color: var(--crew-color-surface); font-size: var(--crew-type-meta); font-weight: 600; }
-
-.crew-home-clock-zone { position: relative; display: grid; place-items: center; background: color-mix(in srgb, var(--crew-color-mist-mint) 36%, white); }
-.crew-home-radar-orbit { position: absolute; width: 118px; height: 118px; border: 1px dashed color-mix(in srgb, var(--crew-color-cyan) 45%, transparent); border-radius: 50%; pointer-events: none; }
-.crew-home-radar-orbit > * { display: none; }
-.crew-home-clock-action, .crew-home-complete-ring { position: relative; display: grid; width: 106px; max-width: calc(100% - 18px); aspect-ratio: 1; place-items: center; border: 8px solid var(--crew-color-surface); border-radius: 50%; background: var(--crew-color-deep-teal); padding: 9px; color: var(--crew-color-surface); box-shadow: 0 0 0 2px var(--crew-color-cyan); transition: transform 160ms ease, box-shadow 160ms ease; }
-.crew-home-clock-action::before, .crew-home-clock-action::after, .crew-home-complete-ring::before, .crew-home-complete-ring::after, .crew-home-clock-rings { display: none; }
+.crew-home-attendance-copy dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); }
+.crew-home-attendance-copy dd { margin: 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; }
+.crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; align-content: center; justify-items: center; gap: 9px; padding: 13px 7px 9px 0; }
+.crew-home-clock-halo { position: absolute; width: 122px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 54%, transparent); opacity: .5; pointer-events: none; }
+.crew-home-clock-semantic-ring { position: absolute; width: 118px; aspect-ratio: 1; border: 3px solid var(--crew-color-deep-teal); border-radius: 50%; opacity: .34; pointer-events: none; }
+.crew-home-clock-action, .crew-home-complete-ring { position: relative; z-index: 1; display: grid; width: 108px; max-width: calc(100% - 16px); aspect-ratio: 1; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: color-mix(in srgb, var(--crew-color-surface) 88%, transparent); padding: 10px; color: var(--crew-color-deep-teal); box-shadow: 0 8px 18px color-mix(in srgb, var(--crew-color-deep-teal) 11%, transparent); }
+.crew-home-clock-rings { display: none; }
 .crew-home-clock-action > span, .crew-home-complete-ring > span { display: grid; place-items: center; gap: 3px; text-align: center; }
 .crew-home-clock-action svg, .crew-home-complete-ring svg { width: 25px; height: 25px; }
-.crew-home-clock-action strong, .crew-home-complete-ring strong { color: inherit; font-size: var(--crew-type-status); font-weight: 700; line-height: 1.05; text-transform: uppercase; white-space: nowrap; }
-.crew-home-clock-action small, .crew-home-complete-ring small { color: var(--crew-color-mist-mint); font-size: var(--crew-type-badge); font-weight: 500; line-height: 1.15; }
-.crew-home-clock-action:hover { transform: scale(1.025); box-shadow: 0 0 0 3px var(--crew-color-cyan); }
-.crew-home-clock-action:active { transform: scale(.975); }
-.crew-home-clock-action:focus-visible { outline: 3px solid color-mix(in srgb, var(--crew-color-cyan) 35%, transparent); outline-offset: 4px; }
-.crew-home-clock-zone.is-confirmed .crew-home-clock-action, .crew-home-complete-ring { background: var(--crew-color-success); box-shadow: 0 0 0 2px color-mix(in srgb, var(--crew-color-success) 50%, white); }
-
-.crew-home-attendance-footer { display: flex; width: 100%; box-sizing: border-box; min-height: 58px; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface); padding: 8px 14px; color: var(--crew-color-deep-teal); text-align: left; }
-.crew-home-attendance-footer > span { display: grid; min-width: 0; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 2px 8px; }
-.crew-home-attendance-footer > span > svg { grid-row: 1 / 3; box-sizing: content-box; border-radius: 10px; background: color-mix(in srgb, var(--crew-color-mist-mint) 34%, white); padding: 7px; color: var(--crew-color-deep-teal); }
+.crew-home-clock-action strong, .crew-home-complete-ring strong { color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 700; line-height: 1.05; text-transform: uppercase; white-space: nowrap; }
+.crew-home-clock-action small, .crew-home-complete-ring small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); font-weight: 550; line-height: 1.15; }
+.crew-home-clock-action:disabled { opacity: .72; }
+.crew-home-clock-action:focus-visible { outline: 3px solid color-mix(in srgb, var(--crew-color-deep-teal) 28%, transparent); outline-offset: 4px; }
+.crew-home-clock-zone.is-confirmed .crew-home-clock-semantic-ring, .crew-home-attendance.is-completed .crew-home-clock-semantic-ring { border-color: var(--crew-color-success); opacity: .72; }
+.crew-home-attendance.is-completed .crew-home-clock-halo { background: var(--crew-color-success-surface); }
+.crew-home-complete-ring { background: color-mix(in srgb, var(--crew-color-success-surface) 72%, var(--crew-color-surface)); }
+.crew-home-gps { position: relative; z-index: 1; display: flex; max-width: 132px; align-items: flex-start; justify-content: center; gap: 4px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); font-style: normal; line-height: 1.25; text-align: center; }
+.crew-home-gps.is-exception { color: var(--crew-color-warning); }
+.crew-home-attendance-footer { display: flex; width: 100%; min-height: 62px; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface); padding: 10px 14px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-home-attendance-footer > span { display: grid; min-width: 0; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 2px 9px; }
+.crew-home-attendance-footer > span > .crew-ui-icon-container { grid-row: 1 / 3; }
 .crew-home-attendance-footer small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
-.crew-home-attendance-footer strong { overflow: hidden; color: var(--crew-color-deep-teal); font-size: var(--crew-type-row-title); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.crew-home-attendance-footer em { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-style: normal; font-weight: 600; white-space: nowrap; }
+.crew-home-attendance-footer strong { overflow: hidden; color: var(--crew-color-deep-teal); font-size: var(--crew-type-row-title); font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.crew-home-attendance-footer em { display: flex; flex: 0 0 auto; align-items: center; gap: 2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-style: normal; font-weight: 650; white-space: nowrap; }
 
 .crew-v2-home .crew-v2-home-section { margin-top: 18px; }
 .crew-v2-home .crew-ui-section-head { min-height: 26px; margin: 0 4px 8px; }
@@ -79,34 +77,17 @@
 .crew-home-modal-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; margin-top: 18px; }.crew-home-modal-actions button { min-height: 44px; }
 
 @media (max-width: 374px) {
-  .crew-home-attendance-main { min-height: 166px; grid-template-columns: minmax(0, 58%) minmax(0, 42%); }
-  .crew-home-attendance-copy { padding: 14px; }
-  .crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { font-size: 31px; }
-  .crew-home-radar-orbit { width: 108px; height: 108px; }
-  .crew-home-clock-action, .crew-home-complete-ring { width: 98px; border-width: 7px; }
+  .crew-home-attendance-main { min-height: 192px; grid-template-columns: minmax(0, 1fr) 126px; }
+  .crew-home-attendance-copy { padding-left: 14px; }
+  .crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { font-size: 34px; }
+  .crew-home-clock-halo { width: 106px; }
+  .crew-home-clock-semantic-ring { width: 102px; }
+  .crew-home-clock-action, .crew-home-complete-ring { width: 94px; }
   .crew-home-attendance-footer em { font-size: var(--crew-type-badge); }
 }
 
 @media (prefers-reduced-motion: reduce) { .crew-home-clock-action { transition: none; } }
 
-
-/* FeedX brand refinement retained with the Home composition. */
-.crew-v2-home .crew-home-attendance { border-color: rgb(0 183 199 / .20); box-shadow: 0 8px 22px rgb(22 75 80 / .10); }
-.crew-v2-home .crew-home-attendance-main { background: linear-gradient(108deg, var(--crew-color-deep-teal) 0%, var(--crew-color-deep-teal) 54%, #103f44 54%, #0c5f66 100%); }
-.crew-v2-home .crew-home-attendance-main::before { width: 60%; background: linear-gradient(100deg, rgb(177 213 201 / .07), transparent 65%); }
-.crew-v2-home .crew-home-attendance-main::after { right: 39%; background: linear-gradient(90deg, transparent, rgb(0 183 199 / .08)); }
-.crew-v2-home .crew-home-attendance-copy, .crew-v2-home .crew-home-attendance-copy > .crew-ui-status, .crew-v2-home .crew-home-attendance .crew-home-attendance-kicker, .crew-v2-home .crew-home-attendance-copy > p, .crew-v2-home .crew-home-attendance-copy > em, .crew-v2-home .crew-home-attendance-copy > small, .crew-v2-home .crew-home-attendance-copy dt, .crew-v2-home .crew-home-attendance-copy dd { color: var(--crew-color-surface); }
-.crew-v2-home .crew-home-attendance-copy > .crew-ui-status { border-color: rgb(177 213 201 / .22); background: rgb(255 255 255 / .11); box-shadow: none; color: var(--crew-color-mist-mint); backdrop-filter: none; }
-.crew-v2-home .crew-home-attendance-copy > .crew-ui-status::before, .crew-v2-home .crew-home-clock-rings > span { background: var(--crew-color-cyan); }
-.crew-v2-home .crew-home-attendance-copy > p { border-color: rgb(255 255 255 / .17); color: var(--crew-color-mist-mint); }
-.crew-v2-home .crew-home-attendance-copy > em { background: rgb(177 213 201 / .14); box-shadow: none; color: #d9f4ed; backdrop-filter: none; }
-.crew-v2-home .crew-home-attendance-copy > em.is-exception { background: rgb(255 197 104 / .16); color: #ffd18a; }
-/* Home attendance keeps its artwork and clock gradients as a domain-specific exception. */
-.crew-v2-home .crew-home-clock-zone { background: radial-gradient(circle at 55% 50%, #fbffff 0 38%, #dcefeb 69%, var(--crew-color-mist-mint) 100%); }
-.crew-v2-home .crew-home-clock-zone::before { background: radial-gradient(circle, rgb(0 183 199 / .23), transparent 69%); }
-.crew-home-clock-action, .crew-home-complete-ring { box-shadow: 0 0 0 5px rgb(177 213 201 / .25), 0 8px 16px rgb(22 75 80 / .16); }
-.crew-home-clock-action::before, .crew-home-complete-ring::before { background: conic-gradient(from 18deg, var(--crew-color-cyan) 0 26%, var(--crew-color-mist-mint) 26% 34%, var(--crew-color-cyan) 34% 67%, #dcefeb 67% 83%, var(--crew-color-cyan) 83% 100%); }
-.crew-home-clock-action strong, .crew-home-complete-ring strong, .crew-v2-home .crew-home-clock-action strong, .crew-v2-home .crew-home-complete-ring strong { color: var(--crew-color-deep-teal); }
 
 /* Route residue migrated from CrewMobileApp.css. */
 .crew-v2-home-header {
@@ -544,232 +525,6 @@
   min-width:0
 }
 
-.crew-home-attendance{
-  overflow:hidden;
-  border:1px solid #dbe6e4;
-  border-radius:18px;
-  background:var(--crew-color-surface);
-  box-shadow:0 9px 25px rgb(10 54 45/.11)
-}
-
-.crew-home-attendance-main{
-  position:relative;
-  display:grid;
-  min-height:228px;
-  grid-template-columns:minmax(0,1fr) 142px;
-  align-items:center;
-  overflow:hidden;
-  background:var(--crew-color-deep-teal);
-  color:var(--crew-color-surface)
-}
-
-.crew-home-attendance-main::before,.crew-home-attendance-main::after{
-  position:absolute;
-  border:1px solid rgb(136 255 218/.22);
-  border-radius:50%;
-  content:""
-}
-
-.crew-home-attendance-main::before{
-  right:72px;
-  width:98px;
-  height:98px;
-  box-shadow:0 0 0 22px rgb(143 255 222/.04),0 0 0 46px rgb(143 255 222/.035)
-}
-
-.crew-home-attendance-main::after{
-  top:-62px;
-  left:42%;
-  width:210px;
-  height:210px;
-  border-style:dashed
-}
-
-.crew-home-attendance-copy{
-  position:relative;
-  z-index:1;
-  display:grid;
-  min-width:0;
-  align-content:center;
-  justify-items:start;
-  gap:7px;
-  padding:21px 4px 20px 18px
-}
-
-.crew-home-attendance-copy>strong{
-  font-size:35px;
-  line-height:1;
-  letter-spacing:-.045em
-}
-
-.crew-home-attendance-copy>small{
-  font-size:var(--crew-type-helper);
-  font-weight:700;
-  opacity:.88
-}
-
-.crew-home-attendance-copy>p,.crew-home-attendance-copy>em{
-  display:flex;
-  max-width:100%;
-  align-items:center;
-  gap:6px;
-  margin:6px 0 0;
-  font-size:var(--crew-type-helper);
-  font-style:normal;
-  font-weight:730
-}
-
-.crew-home-attendance-copy>p{
-  padding-top:10px;
-  border-top:1px solid rgb(255 255 255/.2)
-}
-
-.crew-home-attendance-copy>em{
-  margin-top:0;
-  border-radius:999px;
-  background:rgb(10 197 139/.3);
-  padding:5px 8px
-}
-
-.crew-home-attendance-copy dl{
-  display:flex;
-  gap:16px;
-  margin:2px 0
-}
-
-.crew-home-attendance-copy dl div{
-  display:grid;
-  gap:2px
-}
-
-.crew-home-attendance-copy dt{
-  font-size:var(--crew-type-helper);
-  opacity:.72
-}
-
-.crew-home-attendance-copy dd{
-  margin:0;
-  font-size:var(--crew-type-helper);
-  font-weight:800
-}
-
-.crew-home-clock-action{
-  position:relative;
-  z-index:2;
-  display:grid;
-  width:130px;
-  aspect-ratio:1;
-  place-items:center;
-  border:1px dashed rgb(21 174 123/.48);
-  border-radius:50%;
-  background:rgb(255 255 255/.96);
-  padding:9px;
-  color:#087b59;
-  box-shadow:0 0 0 10px rgb(255 255 255/.15),inset 0 0 0 8px #e7f7f1
-}
-
-.crew-home-clock-action::before{
-  position:absolute;
-  inset:4px;
-  border:6px solid #0ba675;
-  border-left-color:#bdeada;
-  border-radius:50%;
-  content:"";
-  transform:rotate(-36deg)
-}
-
-.crew-home-clock-action>span{
-  z-index:1;
-  display:grid;
-  place-items:center;
-  gap:3px
-}
-
-.crew-home-clock-action strong{
-  text-transform:uppercase;
-  font-size:13px;
-  line-height:1
-}
-
-.crew-home-clock-action small{
-  color:#69788c;
-  font-size:var(--crew-type-helper)
-}
-
-.crew-home-clock-action:disabled{
-  opacity:.75
-}
-
-.crew-home-complete-mark{
-  z-index:1;
-  display:grid;
-  width:96px;
-  height:96px;
-  place-items:center;
-  border:8px solid rgb(255 255 255/.2);
-  border-radius:50%;
-  background:rgb(255 255 255/.14)
-}
-
-.crew-home-attendance.is-completed .crew-home-attendance-main{
-  grid-template-columns:minmax(0,1fr) 110px;
-  background:var(--crew-color-deep-teal)
-}
-
-.crew-home-attendance.is-completed .crew-home-worked{
-  font-size:31px
-}
-
-.crew-home-attendance-footer{
-  display:flex;
-  width:100%;
-  min-height:63px;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  border:0;
-  background:var(--crew-color-surface);
-  padding:11px 14px;
-  color:var(--crew-v2-navy);
-  text-align:left
-}
-
-.crew-home-attendance-footer>span{
-  display:grid;
-  grid-template-columns:34px minmax(0,1fr);
-  align-items:center;
-  gap:1px 9px
-}
-
-.crew-home-attendance-footer>span>svg{
-  grid-row:1/3;
-  box-sizing:content-box;
-  border-radius:50%;
-  background:#e8f8f2;
-  padding:8px;
-  color:#098a63
-}
-
-.crew-home-attendance-footer small{
-  color:#63738a;
-  font-size:var(--crew-type-helper)
-}
-
-.crew-home-attendance-footer strong{
-  font-size:var(--crew-type-helper)
-}
-
-.crew-home-attendance-footer em{
-  display:flex;
-  align-items:center;
-  gap:3px;
-  color:var(--crew-v2-navy);
-  font-size:var(--crew-type-helper);
-  font-style:normal;
-  font-weight:800;
-  white-space:nowrap
-}
-
 .crew-home-list{
   overflow:hidden;
   border:1px solid var(--crew-v2-border);
@@ -1086,43 +841,6 @@
 }
 
 @media (max-width:390px) {
-.crew-home-attendance-main{
-  grid-template-columns:minmax(0,1fr) 126px;
-  min-height:218px
-}
-}
-
-@media (max-width:390px) {
-.crew-home-attendance-copy{
-  padding-left:15px
-}
-}
-
-@media (max-width:390px) {
-.crew-home-attendance-copy>strong{
-  font-size:32px
-}
-}
-
-@media (max-width:390px) {
-.crew-home-clock-action{
-  width:116px
-}
-}
-
-@media (max-width:390px) {
-.crew-home-clock-action strong{
-  font-size:var(--crew-type-helper)
-}
-}
-
-@media (max-width:390px) {
-.crew-home-attendance-footer{
-  padding-inline:11px
-}
-}
-
-@media (max-width:390px) {
 .crew-home-task,.crew-home-schedule-row{
   grid-template-columns:35px minmax(0,1fr) auto 16px;
   gap:7px;
@@ -1144,102 +862,14 @@
 }
 }
 
-@media (max-width:374px) {
-.crew-home-attendance-main{
-  grid-template-columns:minmax(0,1fr) 111px
-}
-}
-
-@media (max-width:374px) {
-.crew-home-clock-action{
-  width:104px
-}
-}
-
-@media (max-width:374px) {
-.crew-home-attendance-copy>strong{
-  font-size:29px
-}
-}
-
-@media (max-width:374px) {
-.crew-home-attendance-copy>p,.crew-home-attendance-copy>em{
-  font-size:var(--crew-type-helper)
-}
-}
-
-@media (max-width:374px) {
-.crew-home-attendance-footer em{
-  font-size:var(--crew-type-helper)
-}
-}
-
-/* Phase 2 — Home signature clock. The hero stays a single Deep Teal surface. */
-.crew-v2-home .crew-home-attendance{border-color:rgb(0 183 199/.2);box-shadow:0 7px 18px rgb(22 75 80/.12)}
-.crew-v2-home .crew-home-attendance-main{min-height:208px;background:radial-gradient(circle at 84% 47%,rgb(0 183 199/.16),transparent 28%),linear-gradient(135deg,var(--crew-color-deep-teal) 0%,#103f44 100%)}
-.crew-v2-home .crew-home-attendance-main::before,.crew-v2-home .crew-home-attendance-main::after{display:none}
-.crew-v2-home .crew-home-attendance-copy{gap:6px;padding:18px 5px 18px 18px}
-.crew-v2-home .crew-home-attendance-copy>small,.crew-v2-home .crew-home-attendance-copy>p{opacity:.76}
-.crew-v2-home .crew-home-attendance-copy>em{background:rgb(0 183 199/.14);color:var(--crew-color-mist-mint)}
-.crew-v2-home .crew-home-clock-zone{background:transparent}
-.crew-v2-home .crew-home-clock-zone::before{position:absolute;inset:18px;border:1px solid rgb(177 213 201/.3);border-radius:50%;background:transparent;content:""}
-.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:112px;max-width:calc(100% - 18px);border:1px solid rgb(177 213 201/.52);background:var(--crew-color-deep-teal);color:var(--crew-color-surface);box-shadow:0 0 0 7px rgb(0 183 199/.1),0 8px 18px rgb(0 0 0/.16);transition:transform 200ms ease,box-shadow 200ms ease}
-.crew-v2-home .crew-home-clock-action::before,.crew-v2-home .crew-home-clock-action::after,.crew-v2-home .crew-home-complete-ring::before,.crew-v2-home .crew-home-complete-ring::after{display:none}
-.crew-v2-home .crew-home-clock-action strong,.crew-v2-home .crew-home-complete-ring strong{color:var(--crew-color-surface)}
-.crew-v2-home .crew-home-clock-action small,.crew-v2-home .crew-home-complete-ring small{color:var(--crew-color-mist-mint)}
-.crew-v2-home .crew-home-clock-action:hover{transform:scale(1.025);box-shadow:0 0 0 9px rgb(0 183 199/.16),0 9px 19px rgb(0 0 0/.18)}
-.crew-v2-home .crew-home-clock-action:active{transform:scale(.97);box-shadow:0 0 0 5px rgb(0 183 199/.2),0 5px 12px rgb(0 0 0/.16)}
-.crew-v2-home .crew-home-attendance-footer{position:relative;z-index:1;box-shadow:inset 0 1px 0 rgb(22 75 80/.08)}
-@media (max-width:374px){.crew-v2-home .crew-home-attendance-main{min-height:196px}.crew-v2-home .crew-home-attendance-copy{padding-left:15px}.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:98px}}
-@media (prefers-reduced-motion:reduce){.crew-v2-home .crew-home-clock-action{transition:none}}
-
-/* Final Home polish: Home owns attendance and roster composition; semantic
-   status remains in the canonical badge contract. */
-.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 132px;min-height:214px;background:radial-gradient(circle at 83% 39%,rgb(0 183 199/.14),transparent 27%),linear-gradient(135deg,var(--crew-color-deep-teal),#103f44)}
-.crew-v2-home .crew-home-attendance-copy{justify-content:flex-start;gap:8px;padding:18px 8px 16px 18px}
-.crew-v2-home .crew-home-ready-row{grid-template-columns:minmax(0,1fr);align-items:start;gap:8px}
-.crew-v2-home .crew-home-current-time{margin-top:0;font-size:36px;line-height:1}
-.crew-v2-home .crew-home-ready-context{gap:5px;border-left:0;padding-left:0}
-.crew-v2-home .crew-home-ready-context b{font-size:var(--crew-type-meta)}
-.crew-v2-home .crew-home-ready-context small{font-size:var(--crew-type-helper)}
-.crew-v2-home .crew-home-clock-zone{align-content:center;justify-items:center;gap:9px;padding:12px 6px 8px}
-.crew-v2-home .crew-home-clock-zone::before{inset:13px 11px 33px}
-.crew-v2-home .crew-home-radar-orbit{width:118px;height:118px;border-color:rgb(0 183 199/.42)}
-.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:108px;box-shadow:0 0 0 5px rgb(0 183 199/.1),0 6px 14px rgb(0 0 0/.14);transition:transform 200ms ease-out,box-shadow 200ms ease-out}
-.crew-v2-home .crew-home-clock-action::after{position:absolute;inset:-8px;border:1px solid rgb(0 183 199/.55);border-radius:inherit;content:"";opacity:0;pointer-events:none}
-.crew-v2-home .crew-home-clock-action:active::after{animation:crew-home-clock-ripple 220ms ease-out}
-.crew-v2-home .crew-home-attendance.is-ready .crew-home-clock-action:not(:disabled){animation:crew-home-clock-pulse 2400ms ease-out infinite}
-.crew-v2-home .crew-home-gps{display:flex;max-width:122px;align-items:flex-start;justify-content:center;gap:4px;margin:0;color:var(--crew-color-mist-mint);font-size:var(--crew-type-badge);font-style:normal;line-height:1.25;text-align:center}
-.crew-v2-home .crew-home-gps svg{flex:0 0 auto;margin-top:1px;color:var(--crew-color-cyan)}
 .crew-v2-home .crew-home-task>.crew-ui-status{justify-self:end}
 .crew-v2-home .crew-home-schedule-row.is-working>em{max-width:none;background:transparent;padding:0;color:var(--crew-color-deep-teal);font-size:var(--crew-type-list-secondary);font-weight:650;white-space:normal;text-align:right}
 .crew-v2-home .crew-home-schedule-row.is-away>em{max-width:none;background:color-mix(in srgb,var(--crew-color-warning) 12%,white);color:var(--crew-color-warning)}
 .crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) minmax(82px,.9fr) 16px}
-@keyframes crew-home-clock-pulse{0%,72%,100%{box-shadow:0 0 0 5px rgb(0 183 199/.1),0 6px 14px rgb(0 0 0/.14)}84%{box-shadow:0 0 0 8px rgb(0 183 199/.16),0 6px 14px rgb(0 0 0/.14)}}
-@keyframes crew-home-clock-ripple{0%{transform:scale(.98);opacity:.75}100%{transform:scale(1.08);opacity:0}}
-@media (max-width:374px){.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 108px;min-height:210px}.crew-v2-home .crew-home-attendance-copy{padding-left:15px}.crew-v2-home .crew-home-current-time{font-size:32px}.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:94px}.crew-v2-home .crew-home-radar-orbit{width:104px;height:104px}.crew-v2-home .crew-home-gps{max-width:104px;font-size:10px}.crew-v2-home .crew-home-attendance-footer{gap:6px;padding-inline:10px}.crew-v2-home .crew-home-attendance-footer>span{grid-template-columns:30px minmax(0,1fr);gap:2px 6px}.crew-v2-home .crew-home-attendance-footer>span>svg{padding:6px}.crew-v2-home .crew-home-attendance-footer strong{line-height:1.2;white-space:normal}.crew-v2-home .crew-home-attendance-footer em{font-size:10px}.crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px}.crew-v2-home .crew-home-schedule-row>em{grid-column:2;grid-row:2;justify-self:start;margin-top:-1px;text-align:left}.crew-v2-home .crew-home-schedule-row.is-working>em{font-size:var(--crew-type-helper)}.crew-v2-home .crew-home-schedule-row.is-away>em{padding:2px 6px}.crew-home-task>.crew-ui-status{max-width:76px;overflow:hidden;text-overflow:ellipsis}}
-@media (prefers-reduced-motion:reduce){.crew-v2-home .crew-home-attendance.is-ready .crew-home-clock-action:not(:disabled),.crew-v2-home .crew-home-clock-action:active::after{animation:none}.crew-v2-home .crew-home-clock-action{transition:none}}
+@media (max-width:374px){.crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px}.crew-v2-home .crew-home-schedule-row>em{grid-column:2;grid-row:2;justify-self:start;margin-top:-1px;text-align:left}.crew-v2-home .crew-home-schedule-row.is-working>em{font-size:var(--crew-type-helper)}.crew-v2-home .crew-home-schedule-row.is-away>em{padding:2px 6px}.crew-home-task>.crew-ui-status{max-width:76px;overflow:hidden;text-overflow:ellipsis}}
 
-/* Home clock signal assets: a single decorative SVG per surface, never DOM decoration. */
-.crew-home-attendance-footer>span>.crew-ui-icon-container{grid-row:1/3}
-.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 154px;min-height:238px;background-image:linear-gradient(108deg,rgb(5 43 48/.22),rgb(5 43 48/.03) 68%),url("./assets/crew-home-clock-atmosphere.png");background-position:center,50% 54%;background-repeat:no-repeat;background-size:100% 100%,cover}
-.crew-v2-home .crew-home-current-time{font-size:42px;line-height:.96}
-.crew-v2-home .crew-home-clock-zone{align-content:start;gap:5px;padding:10px 1px 7px}
-.crew-v2-home .crew-home-clock-zone::before{display:none}
-.crew-v2-home .crew-home-radar-orbit{display:block;top:4px;width:150px;height:150px;border:0;border-radius:0;background:url("./assets/clock-orbit.svg") center/contain no-repeat;transform-origin:center}
-.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{box-sizing:border-box;width:132px;max-width:calc(100% - 2px);border:0;background:transparent;box-shadow:inset 0 0 24px rgb(0 183 199/.09),0 5px 14px rgb(0 0 0/.16)}
-.crew-v2-home .crew-home-clock-action::after{inset:-7px;border-color:rgb(0 183 199/.45)}
-.crew-v2-home .crew-home-clock-action>span,.crew-v2-home .crew-home-complete-ring>span{z-index:1}
-.crew-v2-home .crew-home-gps{width:150px;max-width:none;align-items:center;gap:3px;font-size:10px;line-height:1.15;white-space:nowrap}
-.crew-v2-home .crew-home-attendance.is-ready .crew-home-attendance-main{animation:crew-home-signal-drift 8s ease-in-out infinite}
-.crew-v2-home .crew-home-attendance.is-ready .crew-home-radar-orbit{animation:crew-home-orbit-breathe 5.6s ease-in-out infinite}
-.crew-v2-home .crew-home-clock-zone.is-confirmed .crew-home-radar-orbit{animation:crew-home-orbit-response 600ms ease-out both}
-@keyframes crew-home-signal-drift{0%,100%{background-position:center,50% 54%}50%{background-position:center,52% 55%}}
-@keyframes crew-home-orbit-breathe{0%,100%{filter:brightness(1);opacity:1;transform:scale(1)}50%{filter:brightness(1.12);opacity:.94;transform:scale(1.012)}}
-@keyframes crew-home-orbit-response{0%{filter:brightness(1);transform:scale(1)}42%{filter:brightness(1.28);transform:scale(1.045)}100%{filter:brightness(1);transform:scale(1)}}
 .crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px;align-items:start}.crew-v2-home .crew-home-schedule-row>span{gap:2px}.crew-v2-home .crew-home-schedule-time{color:var(--crew-color-deep-teal);font-size:var(--crew-type-helper);font-weight:600;line-height:1.25}.crew-v2-home .crew-home-schedule-row>svg{align-self:center}.crew-v2-home .crew-home-schedule-row>.crew-ui-status{grid-column:2;justify-self:start;margin-top:2px}
-@media (max-width:374px){.crew-v2-home .crew-home-attendance-main{grid-template-columns:minmax(0,1fr) 132px;min-height:224px;background-position:center,54% 52%}.crew-v2-home .crew-home-current-time{font-size:37px}.crew-v2-home .crew-home-clock-zone{padding-top:8px}.crew-v2-home .crew-home-radar-orbit{top:4px;width:128px;height:128px}.crew-v2-home .crew-home-clock-action,.crew-v2-home .crew-home-complete-ring{width:116px}.crew-v2-home .crew-home-gps{width:132px;font-size:9px;letter-spacing:-.01em}.crew-v2-home .crew-home-schedule-time{font-size:10px;line-height:1.2}}
-@media (prefers-reduced-motion:reduce){.crew-v2-home .crew-home-attendance.is-ready .crew-home-attendance-main,.crew-v2-home .crew-home-attendance.is-ready .crew-home-radar-orbit,.crew-v2-home .crew-home-clock-zone.is-confirmed .crew-home-radar-orbit{animation:none}}
+@media (max-width:374px){.crew-v2-home .crew-home-schedule-time{font-size:10px;line-height:1.2}}
 
 @media (max-width:374px) {
 .crew-home-task>em,.crew-home-schedule-row>em{

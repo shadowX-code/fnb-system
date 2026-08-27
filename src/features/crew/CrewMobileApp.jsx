@@ -41,6 +41,7 @@ import CrewLeaveMobile from "./components/CrewLeaveMobile.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import CrewCashCheckoutMobile from "./components/CrewCashCheckoutMobile.jsx";
 import CrewMobileDetailHeader from "./components/CrewMobileDetailHeader.jsx";
+import CrewHomeClockMotion from "./CrewHomeClockMotion.jsx";
 import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
 import SelectField from "../../components/forms/SelectField.jsx";
 import { formatCrewDate, formatCrewTime, crewLocale, translateStatus } from "./utils/crewI18n.js";
@@ -61,6 +62,7 @@ import "./components/CrewOperationsMobile.css";
 import "./components/CrewMeMobile.css";
 import "./components/CrewCashCheckoutMobile.css";
 import "./components/CrewTaskBlockRenderer.css";
+import crewHomeAttendanceMintBackground from "./assets/crew-home-attendance-mint-background.png";
 
 const storageKey = "feedx.crew.session";
 const reasonValues = {
@@ -486,16 +488,16 @@ export default function CrewMobileApp({ onNotify }) {
       <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName} <Hand size={18} aria-hidden="true" /></h1><small>{employee.position || t("home.crewMember")} · {context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small></div><div><button type="button" aria-label={t("me.notifications")}><Bell size={18} /></button><span className="crew-v2-avatar">{firstName.slice(0, 1)}</span></div></header>
       <section className={`crew-home-attendance is-${attendanceMode}`} aria-label={t("locationEvidence.attendanceStatus")}>
         <div className="crew-home-attendance-main">
+          <img className="crew-home-attendance-art" src={crewHomeAttendanceMintBackground} alt="" aria-hidden="true" />
           <div className="crew-home-attendance-copy">
             <CrewStatusBadge tone={attendanceMode === "completed" ? "neutral" : "success"}>{attendanceMode === "on" ? t("home.onShift") : attendanceMode === "completed" ? t("home.shiftCompleted") : t("home.ready")}</CrewStatusBadge>
             {attendanceMode === "completed" ? <><div className="crew-home-attendance-metric"><strong className="crew-home-worked">{formatDuration(completedToday.clock_in_at, completedToday.clock_out_at)}</strong><small>{t("home.workedDuration")}</small></div><dl><div><dt>{t("home.clockInAt")}</dt><dd>{formatTime(completedToday.clock_in_at)}</dd></div><div><dt>{t("home.clockOutAt")}</dt><dd>{formatTime(completedToday.clock_out_at)}</dd></div></dl></> : attendanceMode === "on" ? <div className="crew-home-attendance-metric"><strong className="crew-home-worked">{formatDuration(openShift.clock_in_at, nowTick)}</strong><small>{t("home.clockedInAt", { time: formatTime(openShift.clock_in_at) })}</small></div> : <div className="crew-home-ready-row"><strong className="crew-home-current-time"><span>{homeClock.time}</span><b>{homeClock.period.toLowerCase()}</b></strong><span className="crew-home-ready-context"><b>{formatHomeDate(nowTick)}</b><small title={attendanceOutlet}><MapPin size={12} /><span>{attendanceOutlet}</span></small></span></div>}
             {attendanceMode !== "ready" && <p title={attendanceOutlet}><MapPin size={15} /> {attendanceOutlet}</p>}
           </div>
-          <div className={`crew-home-clock-zone is-${attendanceMode}${clockTransition ? ` is-${clockTransition}` : ""}`}>
-            <span className="crew-home-radar-orbit" aria-hidden="true"><i /><b /></span>
+          <CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading}>
             {attendanceMode !== "completed" ? <button type="button" className="crew-home-clock-action" onClick={() => prepareClock(attendanceMode === "on" ? "out" : "in")} disabled={loading || Boolean(clockTransition)} aria-label={attendanceMode === "on" ? t("home.clockOut") : t("home.clockIn")}><i className="crew-home-clock-rings" aria-hidden="true"><span /><b /></i><span>{clockTransition === "confirmed" ? <Check size={28} /> : <Fingerprint size={28} />}<small>{clockTransition === "confirmed" ? t("home.attendanceSecured") : attendanceMode === "on" ? t("home.tapToFinish") : t("home.tapTo")}</small><strong>{clockTransition === "confirmed" ? t("home.confirmed") : loading ? t("home.locating") : attendanceMode === "on" ? t("home.clockOut") : t("home.clockIn")}</strong></span></button> : <div className="crew-home-complete-ring" aria-label={t("home.shiftCompleted")}><i className="crew-home-clock-rings" aria-hidden="true"><span /><b /></i><span><Check size={27} /><strong>{t("status.completed")}</strong><small>{formatDuration(completedToday.clock_in_at, completedToday.clock_out_at)}</small></span></div>}
             {attendanceMode !== "completed" && <em className={`crew-home-gps ${locationEvidence.tone}`} title={locationEvidence.title}><ShieldCheck size={13} /> {locationEvidence.label}</em>}
-          </div>
+          </CrewHomeClockMotion>
         </div>
         <button type="button" className="crew-home-attendance-footer" onClick={() => setScreen("attendance")}><span><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck size={18} /></i><small>{t("home.todayShift")}</small><strong>{shiftLabel}</strong></span><em>{t("home.viewAttendance")} <ChevronRight size={16} /></em></button>
       </section>

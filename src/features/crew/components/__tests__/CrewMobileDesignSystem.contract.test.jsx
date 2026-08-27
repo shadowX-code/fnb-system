@@ -231,7 +231,9 @@ describe("Crew Mobile design system contract", () => {
     expect(home).not.toContain(".crew-home-task > .crew-ui-icon-container");
     expect(home).not.toContain(".crew-v2-home .crew-home-task>.crew-ui-icon-container");
     ["#164b50", "#00b7c7", "#b1d5c9"].forEach((legacy) => expect(home).not.toContain(legacy));
-    expect(home).toContain("Home attendance keeps its artwork and clock gradients as a domain-specific exception.");
+    expect(home).toContain("Home signature clock: the supplied Mint artwork is the only decorative background.");
+    expect(home).not.toContain("crew-home-radar-orbit");
+    expect(home).not.toContain("crew-home-clock-atmosphere.png");
   });
 
   it("keeps Phase 4 generic owners scoped while preserving Reward and Attendance domain composition", () => {
@@ -288,8 +290,10 @@ describe("Crew Mobile design system contract", () => {
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {
     expect(sharedStyles).not.toContain(".crew-home-attendance {");
-    expect(home).toContain(".crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0; box-sizing: border-box;");
-    [".crew-home-attendance-main", "grid-template-columns: minmax(0, 56%) minmax(0, 44%)", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
+    expect(home).toContain(".crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0;");
+    [".crew-home-attendance-main", ".crew-home-attendance-art", ".crew-home-clock-halo", ".crew-home-clock-semantic-ring", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
+    expect(mobileApp).toContain('import crewHomeAttendanceMintBackground from "./assets/crew-home-attendance-mint-background.png"');
+    expect(mobileApp).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading}>');
     expect(home).not.toContain("!important");
   });
 
@@ -313,7 +317,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps Phase 2 signature presentation scoped to Home, Reward, and Growth owners", () => {
-    expect(home).toContain("Home signature clock");
+    expect(home).toContain("Home signature clock: the supplied Mint artwork is the only decorative background.");
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
     expect(growthStyles).toContain("Growth and performance use focused operational surfaces");
     expect(appStyles).not.toContain("Phase 2");
