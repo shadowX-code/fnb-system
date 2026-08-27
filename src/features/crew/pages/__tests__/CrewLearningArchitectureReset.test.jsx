@@ -155,7 +155,7 @@ beforeEach(() => {
   ui.confirm.mockReset().mockResolvedValue(true);
 });
 
-afterEach(() => { cleanup(); resetCrewLearnCacheForTests(); });
+afterEach(() => { cleanup(); resetCrewLearnCacheForTests(); vi.useRealTimers(); });
 
 describe("Crew Learning architecture reset UI", () => {
   it("shows one outlet-scoped management page with summary, eight modules and Crew Progress", async () => {
@@ -386,27 +386,38 @@ describe("Crew mobile Learn reset", () => {
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
   });
 
-  it("renders the Learn shell immediately and does not duplicate its primary reads", async () => {
+  it("renders a white Learn shell immediately and delays its compact loading mark without skeleton placeholders", async () => {
     let resolveHome;
     let resolveLibrary;
     mocks.learningHome.mockImplementation(() => new Promise((resolve) => { resolveHome = resolve; }));
     mocks.sopLibrary.mockImplementation(() => new Promise((resolve) => { resolveLibrary = resolve; }));
+    vi.useFakeTimers();
 
     render(<CrewLearningMobile token="crew-token" />);
 
     expect(screen.getByRole("heading", { name: "Learn" })).not.toBeNull();
-    const loadingMark = screen.getByRole("status", { name: /Loading Learn/ });
-    expect(loadingMark.querySelector("img").getAttribute("src")).toBe("/logo-icon.jpg");
-    expect(screen.queryByText(/Loading Learn/)).toBeNull();
+    expect(screen.queryByRole("status", { name: /Loading Learn content/ })).toBeNull();
+    expect(document.querySelector(".crew-learn-loading-search")).toBeNull();
+    expect(document.querySelector(".crew-learn-loading-onboarding")).toBeNull();
+    expect(document.querySelector(".crew-learn-loading-section")).toBeNull();
+    expect(screen.queryByText("Loading Learn...")).toBeNull();
     expect(mocks.learningHome).toHaveBeenCalledTimes(1);
     expect(mocks.sopLibrary).toHaveBeenCalledTimes(1);
+
+    await act(async () => { vi.advanceTimersByTime(299); });
+    expect(screen.queryByRole("status", { name: /Loading Learn content/ })).toBeNull();
+    await act(async () => { vi.advanceTimersByTime(1); });
+    const loadingMark = screen.getByRole("status", { name: /Loading Learn content/ });
+    expect(loadingMark.querySelector("img").getAttribute("src")).toBe("/logo-icon.jpg");
 
     await act(async () => {
       resolveHome({ assignment: null, required_sops: [] });
       resolveLibrary({ categories: [], sops: [] });
+      await Promise.resolve();
     });
 
-    expect(await screen.findByRole("heading", { name: "SOPs (0)" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "SOPs (0)" })).not.toBeNull();
+    expect(screen.queryByRole("status", { name: /Loading Learn content/ })).toBeNull();
     expect(mocks.learningHome).toHaveBeenCalledTimes(1);
     expect(mocks.sopLibrary).toHaveBeenCalledTimes(1);
     expect(mocks.learningAssignment).not.toHaveBeenCalled();

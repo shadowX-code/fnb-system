@@ -63,6 +63,7 @@ export default function CrewLearningMobile({ token }) {
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(() => !initialCache);
+  const [showLoadingMark, setShowLoadingMark] = useState(false);
   const [assignmentLoading, setAssignmentLoading] = useState(() => Boolean(initialCache?.home?.assignment?.id && !initialCache?.assignment));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -153,6 +154,15 @@ export default function CrewLearningMobile({ token }) {
     void loadHome();
     return () => { loadVersionRef.current += 1; };
   }, [token, i18n.resolvedLanguage]);
+
+  useEffect(() => {
+    if (!loading) {
+      setShowLoadingMark(false);
+      return undefined;
+    }
+    const timer = window.setTimeout(() => setShowLoadingMark(true), 300);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
 
   useEffect(() => {
     if (screen !== "sop" && screen !== "lesson-sop") return;
@@ -290,7 +300,7 @@ export default function CrewLearningMobile({ token }) {
   }
 
   if (loading) {
-    return <CrewLearnLoadingShell label={t("learn.loading")} />;
+    return <CrewLearnLoadingShell showLoadingMark={showLoadingMark} />;
   }
 
   if (screen === "lesson-sop" || screen === "sop") {
@@ -350,15 +360,11 @@ export default function CrewLearningMobile({ token }) {
   );
 }
 
-function CrewLearnLoadingShell({ label }) {
+function CrewLearnLoadingShell({ showLoadingMark }) {
   return (
     <section className="crew-learn-final-home crew-learn-loading-shell" aria-busy="true">
       <CrewLearnHero />
-      <div className="crew-learn-loading-indicator"><FeedXLoadingMark label={label} /></div>
-      <div className="crew-learn-loading-search" aria-hidden="true" />
-      <div className="crew-learn-loading-onboarding" aria-hidden="true"><span /><div><b /><i /><em /></div></div>
-      <section className="crew-learn-loading-section" aria-hidden="true"><span /><div><i /><i /><i /></div></section>
-      <section className="crew-learn-loading-section crew-learn-loading-library" aria-hidden="true"><span /><div><i /><i /><i /></div></section>
+      {showLoadingMark && <div className="crew-learn-loading-indicator"><FeedXLoadingMark label="Loading Learn content" /></div>}
     </section>
   );
 }

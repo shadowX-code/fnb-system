@@ -77,9 +77,7 @@ export default function CrewLearnHome({ home, assignment, assignmentLoading, lib
       <CrewLearnHero />
       {error && <p className="crew-mobile-error">{error}</p>}
       <CrewLearnSearch value={query} onChange={setQuery} onFilter={focusFilters} />
-      {home?.assignment && (assignmentLoading
-        ? <CrewLearnOnboardingSkeleton />
-        : <CrewOnboardingProgressCard home={home} assignment={assignment} onOpen={onOpenOnboarding} />)}
+      {home?.assignment && <CrewOnboardingProgressCard home={home} assignment={assignment} loading={assignmentLoading} onOpen={onOpenOnboarding} />}
       <CrewSopCategoryCarousel
         ref={categoryRowRef}
         categories={categories}
@@ -98,10 +96,6 @@ export default function CrewLearnHome({ home, assignment, assignmentLoading, lib
   );
 }
 
-function CrewLearnOnboardingSkeleton() {
-  return <div className="crew-learn-loading-onboarding crew-learn-loading-onboarding--inline" aria-busy="true"><span /><div><b /><i /><em /></div></div>;
-}
-
 export function CrewLearnHero() {
   const { t } = useTranslation();
   return <CrewMobilePageHeader className="crew-learn-final-hero" title={t("learn.title")} subtitle={t("learn.tagline")} />;
@@ -117,7 +111,7 @@ export function CrewLearnSearch({ value, onChange, onFilter }) {
   );
 }
 
-export function CrewOnboardingProgressCard({ home, assignment, onOpen }) {
+export function CrewOnboardingProgressCard({ home, assignment, loading = false, onOpen }) {
   const { t } = useTranslation();
   const onboarding = home.assignment;
   const complete = onboarding.status === "completed";
@@ -128,7 +122,7 @@ export function CrewOnboardingProgressCard({ home, assignment, onOpen }) {
   const total = moduleTotal || Number(onboarding.lessons_total || 0);
   const title = complete ? t("learn.onboardingComplete") : assignment?.journey?.name || "New Crew Onboarding";
   return (
-    <button type="button" className={`crew-learn-final-onboarding ${complete ? "is-complete" : ""}`} onClick={onOpen} aria-label={`${title}, ${done} of ${total}`}>
+    <button type="button" className={`crew-learn-final-onboarding ${complete ? "is-complete" : ""}`} onClick={onOpen} disabled={loading} aria-busy={loading || undefined} aria-label={`${title}, ${done} of ${total}`}>
       <span className="crew-ui-icon-container crew-learn-final-progress-icon"><CheckCircle2 size={23} /></span>
       <span className="crew-learn-final-onboarding-copy">
         <strong>{complete ? t("learn.onboardingComplete") : title}</strong>
