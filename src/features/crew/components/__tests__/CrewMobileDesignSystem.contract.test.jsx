@@ -291,9 +291,9 @@ describe("Crew Mobile design system contract", () => {
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {
     expect(sharedStyles).not.toContain(".crew-home-attendance {");
     expect(home).toContain(".crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0;");
-    [".crew-home-attendance-main", ".crew-home-attendance-art", ".crew-home-clock-halo", ".crew-home-clock-semantic-ring", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
+    [".crew-home-attendance-main", ".crew-home-attendance-art", ".crew-home-clock-halo", ".crew-home-clock-semantic-ring", ".crew-home-clock-orbit-highlight", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
     expect(mobileApp).toContain('import crewHomeAttendanceMintBackground from "./assets/crew-home-attendance-mint-background.png"');
-    expect(mobileApp).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading}>');
+    expect(mobileApp).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading} hasException={locationEvidence.tone === "is-exception"}>');
     expect(home).not.toContain("!important");
   });
 

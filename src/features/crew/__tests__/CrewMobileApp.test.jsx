@@ -447,6 +447,7 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-home-attendance-art")).not.toBeNull();
     expect(document.querySelector(".crew-home-clock-halo")).not.toBeNull();
     expect(document.querySelector(".crew-home-clock-semantic-ring")).not.toBeNull();
+    expect(document.querySelector(".crew-home-clock-orbit-highlight")).not.toBeNull();
     expect(document.querySelector(".crew-home-radar-orbit")).toBeNull();
     expect(screen.getByRole("region", { name: "Attendance status" }).classList.contains("is-ready")).toBe(true);
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();

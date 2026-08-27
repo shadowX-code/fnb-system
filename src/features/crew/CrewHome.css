@@ -16,7 +16,7 @@
 /* Home signature clock: the supplied Mint artwork is the only decorative background. */
 .crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: var(--crew-shadow-focus); }
 .crew-home-attendance-main { position: relative; display: grid; min-height: 202px; grid-template-columns: minmax(0, 1fr) 146px; align-items: stretch; overflow: hidden; background: var(--crew-color-surface); color: var(--crew-color-deep-teal); isolation: isolate; }
-.crew-home-attendance-art { position: absolute; z-index: 0; width: 100%; height: 100%; inset: 0; object-fit: cover; object-position: 50% 50%; pointer-events: none; }
+.crew-home-attendance-art { position: absolute; z-index: 0; width: 100%; height: 100%; inset: 0; object-fit: cover; object-position: 64% 50%; pointer-events: none; }
 .crew-home-attendance-copy { position: relative; z-index: 1; display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; gap: 7px; padding: 18px 8px 18px 18px; }
 .crew-home-attendance-copy > .crew-ui-status { background: color-mix(in srgb, var(--crew-color-success-surface) 76%, white); color: var(--crew-color-success); }
 .crew-home-ready-row { display: grid; width: 100%; gap: 7px; }
@@ -31,10 +31,12 @@
 .crew-home-attendance-copy dl div { display: grid; gap: 2px; }
 .crew-home-attendance-copy dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); }
 .crew-home-attendance-copy dd { margin: 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; }
-.crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; align-content: center; justify-items: center; gap: 9px; padding: 13px 7px 9px 0; }
-.crew-home-clock-halo { position: absolute; width: 122px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 54%, transparent); opacity: .5; pointer-events: none; }
-.crew-home-clock-semantic-ring { position: absolute; width: 118px; aspect-ratio: 1; border: 3px solid var(--crew-color-deep-teal); border-radius: 50%; opacity: .34; pointer-events: none; }
-.crew-home-clock-action, .crew-home-complete-ring { position: relative; z-index: 1; display: grid; width: 108px; max-width: calc(100% - 16px); aspect-ratio: 1; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: color-mix(in srgb, var(--crew-color-surface) 88%, transparent); padding: 10px; color: var(--crew-color-deep-teal); box-shadow: 0 8px 18px color-mix(in srgb, var(--crew-color-deep-teal) 11%, transparent); }
+.crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; align-content: center; justify-items: center; gap: 9px; padding: 16px 10px 7px 0; transform: translate(-5px, 3px); }
+.crew-home-clock-halo { position: absolute; width: 113px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 52%, transparent); opacity: .46; pointer-events: none; will-change: transform, opacity; }
+.crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { position: absolute; width: 109px; aspect-ratio: 1; border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.crew-home-clock-semantic-ring { border: 2px solid var(--crew-color-deep-teal); opacity: .25; }
+.crew-home-clock-orbit-highlight { border: 2px solid transparent; border-top-color: color-mix(in srgb, var(--crew-color-cyan) 82%, transparent); opacity: .58; }
+.crew-home-clock-action, .crew-home-complete-ring { position: relative; z-index: 1; display: grid; width: 100px; max-width: calc(100% - 16px); aspect-ratio: 1; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: color-mix(in srgb, var(--crew-color-surface) 88%, transparent); padding: 10px; color: var(--crew-color-deep-teal); box-shadow: 0 6px 14px color-mix(in srgb, var(--crew-color-deep-teal) 9%, transparent); }
 .crew-home-clock-rings { display: none; }
 .crew-home-clock-action > span, .crew-home-complete-ring > span { display: grid; place-items: center; gap: 3px; text-align: center; }
 .crew-home-clock-action svg, .crew-home-complete-ring svg { width: 25px; height: 25px; }
@@ -45,9 +47,10 @@
 .crew-home-clock-zone.is-confirmed .crew-home-clock-semantic-ring, .crew-home-attendance.is-completed .crew-home-clock-semantic-ring { border-color: var(--crew-color-success); opacity: .72; }
 .crew-home-attendance.is-completed .crew-home-clock-halo { background: var(--crew-color-success-surface); }
 .crew-home-complete-ring { background: color-mix(in srgb, var(--crew-color-success-surface) 72%, var(--crew-color-surface)); }
-.crew-home-gps { position: relative; z-index: 1; display: flex; max-width: 132px; align-items: flex-start; justify-content: center; gap: 4px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); font-style: normal; line-height: 1.25; text-align: center; }
+.crew-home-gps { position: relative; z-index: 1; display: flex; width: max-content; max-width: 100%; align-items: flex-start; justify-content: center; gap: 4px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); font-style: normal; line-height: 1.25; text-align: center; }
+.crew-home-gps span { white-space: nowrap; }
 .crew-home-gps.is-exception { color: var(--crew-color-warning); }
-.crew-home-attendance-footer { display: flex; width: 100%; min-height: 62px; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface); padding: 10px 14px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-home-attendance-footer { display: flex; width: 100%; min-height: 62px; align-items: center; justify-content: space-between; gap: 10px; border: 0; border-top: 1px solid color-mix(in srgb, var(--crew-color-divider) 64%, transparent); background: color-mix(in srgb, var(--crew-color-surface) 86%, var(--crew-color-mist-mint)); padding: 10px 14px; color: var(--crew-color-deep-teal); text-align: left; }
 .crew-home-attendance-footer > span { display: grid; min-width: 0; grid-template-columns: 36px minmax(0, 1fr); align-items: center; gap: 2px 9px; }
 .crew-home-attendance-footer > span > .crew-ui-icon-container { grid-row: 1 / 3; }
 .crew-home-attendance-footer small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
@@ -80,13 +83,14 @@
   .crew-home-attendance-main { min-height: 192px; grid-template-columns: minmax(0, 1fr) 126px; }
   .crew-home-attendance-copy { padding-left: 14px; }
   .crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { font-size: 34px; }
-  .crew-home-clock-halo { width: 106px; }
-  .crew-home-clock-semantic-ring { width: 102px; }
-  .crew-home-clock-action, .crew-home-complete-ring { width: 94px; }
+  .crew-home-clock-zone { padding-top: 13px; transform: translate(-3px, 2px); }
+  .crew-home-clock-halo { width: 99px; }
+  .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { width: 96px; }
+  .crew-home-clock-action, .crew-home-complete-ring { width: 89px; }
   .crew-home-attendance-footer em { font-size: var(--crew-type-badge); }
 }
 
-@media (prefers-reduced-motion: reduce) { .crew-home-clock-action { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .crew-home-clock-action { transition: none; } .crew-home-clock-halo, .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { will-change: auto; } }
 
 
 /* Route residue migrated from CrewMobileApp.css. */
