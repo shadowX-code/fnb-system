@@ -11,7 +11,6 @@ export default function CrewHomeClockMotion({ attendanceMode, transition, loadin
     const rootNode = root.current;
     if (!rootNode || window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return undefined;
 
-    const halo = rootNode.querySelector(".crew-home-clock-halo");
     const ring = rootNode.querySelector(".crew-home-clock-semantic-ring");
     const orbitHighlight = rootNode.querySelector(".crew-home-clock-orbit-highlight");
     const action = rootNode.querySelector(".crew-home-clock-action");
@@ -19,7 +18,6 @@ export default function CrewHomeClockMotion({ attendanceMode, transition, loadin
 
     const isReadyIdle = attendanceMode === "ready" && !loading && !transition && !hasException;
     if (isReadyIdle) {
-      gsap.to(halo, { opacity: 0.62, scale: 1.018, duration: 7, ease: "sine.inOut", repeat: -1, yoyo: true });
       gsap.to(orbitHighlight, { rotation: 360, duration: 5.8, ease: "none", repeat: -1, transformOrigin: "50% 50%" });
     }
 
@@ -49,7 +47,16 @@ export default function CrewHomeClockMotion({ attendanceMode, transition, loadin
     <span className="crew-home-clock-halo" aria-hidden="true" />
     <span className="crew-home-clock-semantic-ring" aria-hidden="true" />
     <svg className="crew-home-clock-orbit-highlight" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
-      <circle cx="60" cy="60" r="58" />
+      <defs>
+        <linearGradient id="crew-home-clock-energy-trail" x1="88" y1="112" x2="120" y2="60" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="var(--crew-color-cyan)" stopOpacity="0" />
+          <stop offset="0.54" stopColor="var(--crew-color-cyan)" stopOpacity="0.16" />
+          <stop offset="0.82" stopColor="var(--crew-color-cyan)" stopOpacity="0.62" />
+          <stop offset="1" stopColor="var(--crew-color-cyan)" stopOpacity="0.94" />
+        </linearGradient>
+      </defs>
+      <circle className="crew-home-clock-orbit-trail" cx="60" cy="60" r="59" />
+      <circle className="crew-home-clock-orbit-leading-edge" cx="119" cy="60" r="1.15" />
     </svg>
     {children}
   </div>;

@@ -32,12 +32,13 @@
 .crew-home-attendance-copy dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); }
 .crew-home-attendance-copy dd { margin: 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; }
 .crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; block-size: 202px; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); grid-template-rows: 100px 15px; align-content: center; justify-items: center; gap: 9px; padding: 16px 10px 7px 0; transform: translate(-5px, 3px); }
-.crew-home-clock-halo { position: absolute; top: calc(50% - 72.5px); left: calc(50% - 67px); width: 130px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 52%, transparent); opacity: .5; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
+.crew-home-clock-halo { position: absolute; top: calc(50% - 72.5px); left: calc(50% - 67px); width: 130px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 38%, transparent); opacity: .24; pointer-events: none; transform-origin: 50% 50%; }
 .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { position: absolute; top: calc(50% - 65.5px); left: calc(50% - 60px); width: 116px; aspect-ratio: 1; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
-.crew-home-clock-semantic-ring { border: 2px solid color-mix(in srgb, var(--crew-color-mist-mint) 72%, var(--crew-color-deep-teal)); opacity: .54; }
-.crew-home-clock-orbit-highlight { overflow: visible; fill: none; opacity: .82; }
-.crew-home-clock-orbit-highlight circle { fill: none; stroke: var(--crew-color-cyan); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 48 317; }
-.crew-home-clock-action, .crew-home-complete-ring { position: absolute; z-index: 1; top: calc(50% - 57.5px); left: calc(50% - 52px); display: grid; width: 100px; max-width: calc(100% - 16px); aspect-ratio: 1; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: color-mix(in srgb, var(--crew-color-surface) 88%, transparent); padding: 10px; color: var(--crew-color-deep-teal); transform-origin: 50% 50%; box-shadow: 0 6px 14px color-mix(in srgb, var(--crew-color-deep-teal) 9%, transparent); }
+.crew-home-clock-semantic-ring { border: 1.5px solid color-mix(in srgb, var(--crew-color-mist-mint) 78%, var(--crew-color-deep-teal)); opacity: .48; }
+.crew-home-clock-orbit-highlight { overflow: visible; fill: none; opacity: .78; transform: rotate(0deg); }
+.crew-home-clock-orbit-trail { fill: none; stroke: url(#crew-home-clock-energy-trail); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 56 315; }
+.crew-home-clock-orbit-leading-edge { fill: var(--crew-color-cyan); opacity: .42; }
+.crew-home-clock-action, .crew-home-complete-ring { position: absolute; z-index: 1; top: calc(50% - 57.5px); left: calc(50% - 52px); display: grid; width: 100px; max-width: calc(100% - 16px); aspect-ratio: 1; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: color-mix(in srgb, var(--crew-color-surface) 88%, transparent); padding: 10px; color: var(--crew-color-deep-teal); transform-origin: 50% 50%; box-shadow: 0 3px 8px color-mix(in srgb, var(--crew-color-deep-teal) 6%, transparent); }
 .crew-home-clock-rings { display: none; }
 .crew-home-clock-action > span, .crew-home-complete-ring > span { display: grid; place-items: center; gap: 3px; text-align: center; }
 .crew-home-clock-action svg, .crew-home-complete-ring svg { width: 25px; height: 25px; }
