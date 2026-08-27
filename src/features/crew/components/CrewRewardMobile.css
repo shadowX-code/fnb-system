@@ -33,6 +33,7 @@
 .crew-reward-surface h2,.crew-reward-unavailable h2 { display: flex; min-width: 0; align-items: center; gap: 7px; margin: 0; color: var(--crew-color-text); font-size: var(--crew-type-section-title); font-weight: 650; line-height: 1.25; }
 .crew-reward-performance { display: grid; gap: 14px; padding: 2px 4px; }
 .crew-reward-performance > header { display: flex; align-items: center; justify-content: flex-end; margin: 0; }
+.crew-reward-performance > header button { display: inline-flex; min-height: 44px; align-items: center; gap: 4px; border: 0; background: transparent; padding: 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 600; white-space: nowrap; }
 .crew-reward-projection > header h2 { flex: 1 1 auto; font-weight: 600; letter-spacing: 0; white-space: nowrap; }
 .crew-reward-performance > header button { font-size: var(--crew-type-helper); }
 .crew-reward-surface > header button { display: inline-flex; flex: 0 0 auto; align-items: center; gap: 4px; border: 0; background: transparent; padding: 2px 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 600; text-align: right; }
