@@ -255,7 +255,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps Phase 4 generic owners scoped while preserving Reward and Attendance domain composition", () => {
-    expect(schedule).toContain('import { CrewStatusBadge } from "./CrewMobileUI.jsx"');
+    expect(schedule).toContain('import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx"');
     expect(schedule).toContain("return <CrewStatusBadge tone={tone");
     expect(scheduleStyles).not.toContain(".crew-schedule-final-badge");
     expect(attendanceStyles).not.toContain("background: #f0f3f5");
@@ -271,6 +271,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps Schedule selection and empty-day hierarchy on canonical Mint and status owners", () => {
+    expect(schedule).toContain('import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx"');
     expect(schedule).toContain('className="crew-ui-segmented crew-ui-segmented--mint crew-schedule-final-week"');
     expect(schedule).toContain('className="crew-schedule-final-date-block"');
     expect(schedule).toContain("CalendarDays");
@@ -283,6 +284,11 @@ describe("Crew Mobile design system contract", () => {
     expect(scheduleStyles).toContain("button.is-selected i { background: var(--crew-color-deep-teal); }");
     expect(scheduleStyles).toContain(".crew-schedule-month-cell.is-selected { background: var(--crew-color-icon-default-bg)");
     expect(scheduleStyles).not.toContain("button.is-selected { background: var(--crew-color-deep-teal)");
+    expect(schedule).toContain('density="operational" title={t("schedule.upcoming")} trailing={<CrewStatusBadge tone="neutral">{t("schedule.nextDays")}</CrewStatusBadge>}');
+    expect(schedule).toContain('entry ? "crew-type-detail-title" : "crew-type-card-title"');
+    expect(schedule).toContain('className="crew-type-helper"');
+    expect(scheduleStyles).toContain(".crew-schedule-final-day.is-empty .crew-schedule-final-day-copy { gap: 4px; }");
+    expect(scheduleStyles).not.toContain(".crew-schedule-final-upcoming > header");
   });
 
   it("keeps Attendance on shared page, segmented, icon, status, and divider owners", () => {

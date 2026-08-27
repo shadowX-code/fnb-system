@@ -14,8 +14,8 @@ export function CrewHeroCard({ className = "", children }) {
   return <article className={`crew-ui-hero ${className}`.trim()}>{children}</article>;
 }
 
-export function CrewSectionHeader({ title, meta, action, actionLabel, onAction, density = "default" }) {
-  return <div className={`crew-ui-section-head is-${density}`}><h2 className="crew-type-section-title">{title}{meta !== undefined && <span>{meta}</span>}</h2>{action && <button type="button" aria-label={actionLabel} onClick={onAction}>{action}</button>}</div>;
+export function CrewSectionHeader({ title, meta, trailing = null, action, actionLabel, onAction, density = "default" }) {
+  return <div className={`crew-ui-section-head is-${density}`}><h2 className="crew-type-section-title">{title}{meta !== undefined && <span>{meta}</span>}</h2>{trailing}{action && <button type="button" aria-label={actionLabel} onClick={onAction}>{action}</button>}</div>;
 }
 
 export function CrewStatusBadge({ children, tone = "neutral" }) {
