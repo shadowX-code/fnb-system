@@ -17,7 +17,7 @@ import {
   Soup,
 } from "lucide-react";
 import { formatCrewDate } from "../utils/crewI18n.js";
-import { CrewMobilePageHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
+import { CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 const CATEGORY_ICONS = [
   [/service|guest|customer/i, ConciergeBell],
@@ -59,14 +59,6 @@ export default function CrewLearnHome({ home, assignment, assignmentLoading, lib
         : new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
   }, [category, query, sort, sops]);
 
-  function viewAll() {
-    setCategory("all");
-    setQuery("");
-    if (typeof categoryRowRef.current?.scrollTo === "function") {
-      categoryRowRef.current.scrollTo({ left: 0, behavior: "smooth" });
-    }
-  }
-
   function focusFilters() {
     categoryRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
     categoryRowRef.current?.querySelector("button")?.focus({ preventScroll: true });
@@ -84,7 +76,6 @@ export default function CrewLearnHome({ home, assignment, assignmentLoading, lib
         sops={sops}
         value={category}
         onChange={setCategory}
-        onViewAll={viewAll}
       />
       <CrewSopLibrary
         sops={visibleSops}
@@ -135,10 +126,10 @@ export function CrewOnboardingProgressCard({ home, assignment, loading = false, 
   );
 }
 
-export const CrewSopCategoryCarousel = ({ categories, sops, value, onChange, onViewAll, ref }) => {
+export const CrewSopCategoryCarousel = ({ categories, sops, value, onChange, ref }) => {
   const { t } = useTranslation();
   return <section className="crew-learn-final-categories">
-    <header><h2>{t("learn.browseCategory")}</h2><button type="button" onClick={onViewAll}>{t("common.viewAll")} <ChevronRight size={17} /></button></header>
+    <CrewSectionHeader density="operational" title={t("learn.category")} />
     <div className="crew-learn-final-category-scroll" ref={ref} aria-label={t("learn.filters")}>
       <CrewSopCategoryCard name={t("learn.all")} count={sops.length} icon={Grid2X2} active={value === "all"} onClick={() => onChange("all")} />
       {categories.map((item) => <CrewSopCategoryCard key={item.id} name={item.name} count={sops.filter((sop) => sop.category_id === item.id).length} icon={categoryIcon(item.name)} active={value === item.id} onClick={() => onChange(item.id)} />)}
@@ -147,15 +138,14 @@ export const CrewSopCategoryCarousel = ({ categories, sops, value, onChange, onV
 };
 
 export function CrewSopCategoryCard({ name, count, icon: Icon, active, onClick }) {
-  const { t } = useTranslation();
-  return <button type="button" className={`crew-learn-final-category ${active ? "is-active" : ""}`} aria-label={`${name}, ${count} ${t("learn.sops")}`} aria-pressed={active} onClick={onClick}><span className={`crew-ui-icon-container ${active ? "is-selected is-active" : ""}`}><Icon size={23} /></span><strong>{name}</strong><small>{count} {t("learn.sops")}</small></button>;
+  return <button type="button" className={`crew-learn-final-category ${active ? "is-active" : ""}`} aria-label={`${name}, ${count}`} aria-pressed={active} onClick={onClick}><span className="crew-learn-final-category-icon" aria-hidden="true"><Icon size={20} /></span><strong>{name}</strong><span className="crew-ui-count">{count}</span></button>;
 }
 
 export function CrewSopLibrary({ sops, sort, onSort, onOpen }) {
   const { t } = useTranslation();
   return (
     <section className="crew-learn-final-library">
-      <header><h2>{t("learn.sops")} ({sops.length})</h2><button type="button" onClick={onSort}>{sort === "latest" ? t("learn.latest") : t("learn.titleSort")} <ChevronDown size={16} /></button></header>
+      <CrewSectionHeader density="operational" title={<>{t("learn.sops")} <span className="crew-ui-count">{sops.length}</span></>} action={<>{sort === "latest" ? t("learn.latest") : t("learn.titleSort")} <ChevronDown size={16} /></>} actionLabel={t("learn.titleSort")} onAction={onSort} />
       <div className="crew-learn-final-list">
         {sops.map((item) => <CrewSopListItem key={item.version_id || item.id} item={item} onOpen={() => onOpen(item.version_id)} />)}
         {!sops.length && <p className="crew-learn-final-empty">{t("learn.noSops")}</p>}

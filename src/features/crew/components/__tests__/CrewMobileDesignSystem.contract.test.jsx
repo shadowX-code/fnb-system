@@ -85,7 +85,10 @@ describe("Crew Mobile design system contract", () => {
     ].forEach((contract) => expect(system).toContain(contract));
     expect(system).toContain(".crew-ui-status.is-success { background: var(--crew-color-success-surface);");
     expect(mobileApp).toContain('crew-ui-icon-container crew-ui-icon-container--compact');
-    expect(learnHome).toContain("crew-ui-icon-container ${active ? \"is-selected is-active\" : \"\"}");
+    expect(learnHome).toContain('CrewSectionHeader density="operational" title={t("learn.category")}');
+    expect(learnHome).toContain('className="crew-ui-count">{count}</span>');
+    expect(learningStyles).toContain(".crew-learn-final-category-icon");
+    expect(learningStyles).not.toContain(".crew-learn-final-category>.crew-ui-icon-container");
     expect(meStyles).not.toContain(".crew-me-list.is-neutral .crew-me-row-icon");
     expect(meStyles).not.toContain(".crew-me-settings .crew-ui-row-icon{background");
     expect(growthStyles).not.toContain(".crew-v2-row-icon, .crew-v2-icon-token");

@@ -378,8 +378,9 @@ describe("Crew mobile Learn reset", () => {
     await screen.findByRole("heading", { name: "Learn" });
     expect(screen.getByRole("button", { name: /Onboarding Completed/ })).not.toBeNull();
     expect(screen.getByPlaceholderText("Search SOP, topic or keyword")).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Browse by category" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "SOPs (1)" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Category" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "SOPs 1" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: /View all/ })).toBeNull();
     expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
     expect(screen.getByText("Required")).not.toBeNull();
     expect(screen.queryByText("I acknowledge this SOP")).toBeNull();
@@ -416,7 +417,7 @@ describe("Crew mobile Learn reset", () => {
       await Promise.resolve();
     });
 
-    expect(screen.getByRole("heading", { name: "SOPs (0)" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "SOPs 0" })).not.toBeNull();
     expect(screen.queryByRole("status", { name: /Loading Learn content/ })).toBeNull();
     expect(mocks.learningHome).toHaveBeenCalledTimes(1);
     expect(mocks.sopLibrary).toHaveBeenCalledTimes(1);
@@ -450,17 +451,18 @@ describe("Crew mobile Learn reset", () => {
     });
 
     render(<CrewLearningMobile token="crew-token" />);
-    expect(await screen.findByRole("heading", { name: "SOPs (3)" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "SOPs 3" })).not.toBeNull();
     expect(screen.getByText("Optional")).not.toBeNull();
     expect(screen.getByText("Acknowledged")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Cleaning, 1 SOP/ }));
-    expect(screen.getByRole("heading", { name: "SOPs (1)" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cleaning, 1" }));
+    expect(screen.getByRole("heading", { name: "SOPs 1" })).not.toBeNull();
     expect(screen.queryByText("Greeting Standard")).toBeNull();
     expect(screen.getByText("Kitchen Cleanliness")).not.toBeNull();
     fireEvent.change(screen.getByPlaceholderText("Search SOP, topic or keyword"), { target: { value: "missing" } });
-    expect(screen.getByRole("heading", { name: "SOPs (0)" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /View all/ }));
-    expect(screen.getByRole("heading", { name: "SOPs (3)" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "SOPs 0" })).not.toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("Search SOP, topic or keyword"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "All, 3" }));
+    expect(screen.getByRole("heading", { name: "SOPs 3" })).not.toBeNull();
   });
 
   it("opens an SOP from the compact library row and preserves the controlled acknowledgement flow", async () => {
