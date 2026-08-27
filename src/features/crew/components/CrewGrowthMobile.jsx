@@ -29,6 +29,7 @@ import { CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./Crew
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
+import growthPerformanceHeroBackground from "../assets/growth-performance-hero-approved.png";
 
 gsap.registerPlugin(useGSAP);
 
@@ -101,7 +102,8 @@ function GrowthSkillSummary({ summary }) {
 
 function GrowthPerformanceScore({ score, label }) {
   const root = useRef(null);
-  const previousScore = useRef(score);
+  const scoreLabel = useRef(null);
+  const previousScore = useRef(Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Math.round(Number(score)))) : 0);
   const hasAnimated = useRef(false);
   const gradientId = `crew-growth-score-gradient-${useId().replaceAll(":", "")}`;
   const segmentIndexes = useMemo(() => Array.from({ length: 100 }, (_, index) => index), []);
@@ -114,18 +116,35 @@ function GrowthPerformanceScore({ score, label }) {
     const newlyActive = safeScore > priorScore ? segments.slice(priorScore, safeScore) : [];
     const newlyInactive = safeScore < priorScore ? segments.slice(safeScore, priorScore) : [];
 
-    previousScore.current = safeScore;
-    hasAnimated.current = true;
-    if (reducedMotion || !segments.length) return undefined;
+    if (reducedMotion || !segments.length) {
+      previousScore.current = safeScore;
+      hasAnimated.current = true;
+      if (scoreLabel.current) scoreLabel.current.textContent = String(score == null ? "—" : safeScore);
+      return undefined;
+    }
 
     const entrance = gsap.timeline();
+    if (score == null) {
+      if (scoreLabel.current) scoreLabel.current.textContent = "—";
+    } else {
+      const scoreValue = { value: priorScore };
+      if (scoreLabel.current) scoreLabel.current.textContent = String(priorScore);
+      entrance.to(scoreValue, {
+        value: safeScore,
+        duration: hasAnimated.current ? 0.46 : 0.86,
+        ease: "power2.out",
+        onUpdate: () => {
+          if (scoreLabel.current) scoreLabel.current.textContent = String(Math.round(scoreValue.value));
+        },
+      }, 0);
+    }
     if (newlyActive.length) {
       entrance.set(newlyActive, { opacity: 0.1 }).to(newlyActive, {
         opacity: 1,
-        duration: 0.32,
+        duration: 0.38,
         ease: "power2.out",
-        stagger: { each: 0.0045, from: "start" },
-      });
+        stagger: { each: 0.006, from: "start" },
+      }, 0);
     }
     if (newlyInactive.length) {
       entrance.to(newlyInactive, {
@@ -144,6 +163,8 @@ function GrowthPerformanceScore({ score, label }) {
         .to(sweepSegments, { opacity: 1, duration: 0.26, ease: "sine.inOut", stagger: 0.035 })
       : null;
 
+    previousScore.current = safeScore;
+    hasAnimated.current = true;
     return () => {
       entrance.kill();
       idleSweep?.kill();
@@ -172,7 +193,7 @@ function GrowthPerformanceScore({ score, label }) {
         />)}
       </g>
     </svg>
-    <span><strong>{score == null ? "—" : safeScore}</strong><b>/100</b></span>
+    <span><strong ref={scoreLabel}>{score == null ? "—" : safeScore}</strong><b>/100</b></span>
   </div>;
 }
 
@@ -182,15 +203,7 @@ function GrowthPerformanceHero({ performance, onOpen }) {
   const trend = (performance?.trend || []).filter((item) => item.score != null).slice(-2);
   const delta = trend.length > 1 ? Number(trend.at(-1).score) - Number(trend.at(-2).score) : null;
   const trendText = delta == null ? t("growth.noTrend") : `${delta >= 0 ? "+" : ""}${delta} ${t("growth.recentTrend")}`;
-  return <article className="crew-growth-performance-hero">
-    <svg className="crew-growth-performance-instrument" viewBox="0 0 360 238" preserveAspectRatio="none" aria-hidden="true">
-      <path d="M0 42H76L112 8" />
-      <path d="M360 190h-53l-32 32" />
-      <path d="M18 216h66l15-15h52" />
-      <circle cx="112" cy="8" r="2.5" />
-      <circle cx="307" cy="222" r="2.5" />
-      <g className="crew-growth-performance-crosshair"><path d="M286 28v16M278 36h16" /><path d="M336 88v12M330 94h12" /></g>
-    </svg>
+  return <article className="crew-growth-performance-hero" style={{ "--crew-growth-performance-background": `url(${growthPerformanceHeroBackground})` }}>
     <div className="crew-growth-performance-copy">
       <small>{t("growth.performance")}</small>
       <h2>{performanceLevel(score, t)}</h2>
