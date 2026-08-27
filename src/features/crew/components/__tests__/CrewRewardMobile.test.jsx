@@ -61,6 +61,18 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.queryByText("RM 500.00 × 32.19% = RM 160.96")).toBeNull();
   });
 
+  it("uses canonical success status and the requested score-to-rate hierarchy", () => {
+    const { container } = render(<CrewRewardMobile data={{ ...data, performance_score: 87, earn_rate: .8, performance_level: "Strong" }} />);
+    const hero = container.querySelector(".crew-reward-hero");
+    const rate = container.querySelector(".crew-reward-performance-rate");
+    expect(hero.querySelector(".crew-ui-status.is-success").textContent).toBe("Qualified");
+    expect(container.querySelector(".crew-reward-score-ring")).not.toBeNull();
+    expect(rate.children[0].textContent).toBe("80%");
+    expect(rate.children[1].textContent).toBe("Strong");
+    expect(rate.children[2].textContent).toContain("Current Earn Rate");
+    expect(rate.children[2].querySelector(".crew-reward-hero-info")).not.toBeNull();
+  });
+
   it("uses the approved static background with only the scoped sheen and traveling-light presentation layers", () => {
     const { container } = render(<CrewRewardMobile data={data} />);
     const hero = container.querySelector(".crew-reward-hero");
@@ -146,8 +158,14 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.queryByText("Score 80")).toBeNull();
     expect(screen.queryByText("Score 85")).toBeNull();
     expect(screen.getByText("Score 95+")).not.toBeNull();
-    expect(container.querySelectorAll(".crew-reward-potential-scale > span")).toHaveLength(2);
-    expect(container.querySelector(".crew-reward-potential-scale").textContent).not.toContain("50%");
+    const current = container.querySelector(".crew-reward-potential .is-current");
+    const potential = container.querySelector(".crew-reward-potential .is-potential");
+    expect(current.textContent).toContain("Current");
+    expect(current.textContent).toContain("Score 87");
+    expect(current.textContent).toContain("45% earned");
+    expect(potential.textContent).toContain("Max Potential");
+    expect(potential.textContent).toContain("Score 95+");
+    expect(potential.textContent).toContain("100% earned");
   });
 
   it.each([

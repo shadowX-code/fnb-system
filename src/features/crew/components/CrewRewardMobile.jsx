@@ -74,7 +74,7 @@ function RewardHeroMotion({ pathRef }) {
     <span className="crew-reward-hero-sheen" aria-hidden="true" />
     <svg className="crew-reward-hero-light-path" viewBox="0 0 390 232" preserveAspectRatio="none" aria-hidden="true">
       <path ref={pathRef} d="M194 169 C252 169 311 122 390 119" />
-      <g className="crew-reward-hero-light-pulse" transform="translate(194 169)"><circle className="crew-reward-hero-light-bloom" r="5" /><circle className="crew-reward-hero-light-core" r="2.35" /></g>
+      <g className="crew-reward-hero-light-pulse" transform="translate(194 169)"><circle className="crew-reward-hero-light-bloom" r="7" /><circle className="crew-reward-hero-light-core" r="2.75" /></g>
     </svg>
   </>;
 }
@@ -146,7 +146,7 @@ function RewardHero({ data, onOpenSheet }) {
   }, { scope: heroRef, dependencies: [amount], revertOnUpdate: true });
   return <article ref={heroRef} className="crew-reward-hero" style={{ "--crew-reward-hero-background": `url(${rewardHeroBackground})` }}>
     <RewardHeroMotion pathRef={pathRef} />
-    <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><em>{translateStatus(data.status, t)}</em></div>
+    <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><CrewStatusBadge tone="success">{translateStatus(data.status, t)}</CrewStatusBadge></div>
     <div className="crew-reward-hero-total"><small>{label}<HeroInfoButton label={t("reward.estimatedReward")} onOpen={() => onOpenSheet("estimated-reward")} /></small><strong aria-label={money(amount)}><span ref={amountRef} aria-hidden="true">{money(0)}</span><span className="sr-only" aria-hidden="true">{money(amount)}</span></strong></div>
     <div className="crew-reward-hero-metrics">
       <div><small>{t("reward.maximumShare")}<HeroInfoButton label={t("reward.maximumShare")} onOpen={() => onOpenSheet("maximum-share")} /></small><strong>{money(data.maximum_share)}</strong></div>
@@ -193,7 +193,7 @@ function PerformanceOverview({ data, onViewPerformance }) {
     <div ref={relationshipRef} className="crew-reward-performance-relationship">
       <button className="crew-reward-performance-score" type="button" aria-label={t("reward.viewPerformance")} onClick={onViewPerformance}><ScoreRing score={score} /><small>{t("reward.performanceScoreLabel")}<ChevronRight size={15} aria-hidden="true" /></small></button>
       <span className="crew-reward-performance-connector" aria-hidden="true"><i className="crew-reward-performance-connector-track" /><i className="crew-reward-performance-connector-flow" /><ChevronRight className="crew-reward-performance-connector-arrow" size={15} /></span>
-      <div className="crew-reward-performance-rate"><span><strong>{rate(data.earn_rate)}</strong><HeroInfoButton label={t("reward.currentRate")} onOpen={() => onViewPerformance?.("earn-rate")} /></span><small>{t("reward.currentRate")}</small><CrewStatusBadge tone="success">{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</CrewStatusBadge></div>
+      <div className="crew-reward-performance-rate"><span><strong>{rate(data.earn_rate)}</strong></span><CrewStatusBadge tone="success">{translateRewardLevel(data.performance_level, t) || translateStatus("ready_for_review", t)}</CrewStatusBadge><small>{t("reward.currentRate")}<HeroInfoButton label={t("reward.currentRate")} onOpen={() => onViewPerformance?.("earn-rate")} /></small></div>
     </div>
   </section>;
 }
@@ -214,9 +214,8 @@ function RewardProjection({ data, onOpenSheet }) {
   return <section className="crew-reward-surface crew-reward-projection">
     <header><h2>{t("reward.estimatedReward")}</h2><button type="button" onClick={() => onOpenSheet("help")}>{t("reward.howWorks")} <Info size={15} /></button></header>
     <div className="crew-reward-potential" aria-label={t("reward.projection")}>
-      <div className="is-current"><strong>{money(currentProjection?.amount)}</strong><small>{translateProjectionLabel(currentProjection, t)}</small></div>
-      <div className="is-potential"><strong>{money(potentialProjection?.amount ?? currentProjection?.amount)}</strong><small>{t("reward.maxPotential")}</small></div>
-      <div className="crew-reward-potential-scale"><span>{t("reward.score", { score: Math.round(Number(currentProjection?.score || currentScore)) })}<em>{t("reward.rateEarned", { rate: rate(currentProjection?.earn_rate) })}</em></span><span>{t("reward.score", { score: potentialProjection?.key === "max" ? "95+" : Math.round(Number(potentialProjection?.score ?? currentProjection?.score ?? currentScore)) })}<em>{t("reward.rateEarned", { rate: rate(potentialProjection?.earn_rate ?? currentProjection?.earn_rate) })}</em></span></div>
+      <div className="is-current"><small className="crew-reward-potential-label">{translateProjectionLabel(currentProjection, t)}</small><strong>{money(currentProjection?.amount)}</strong><span>{t("reward.score", { score: Math.round(Number(currentProjection?.score || currentScore)) })}</span><em>{t("reward.rateEarned", { rate: rate(currentProjection?.earn_rate) })}</em></div>
+      <div className="is-potential"><small className="crew-reward-potential-label">{t("reward.maxPotential")}</small><strong>{money(potentialProjection?.amount ?? currentProjection?.amount)}</strong><span>{t("reward.score", { score: potentialProjection?.key === "max" ? "95+" : Math.round(Number(potentialProjection?.score ?? currentProjection?.score ?? currentScore)) })}</span><em>{t("reward.rateEarned", { rate: rate(potentialProjection?.earn_rate ?? currentProjection?.earn_rate) })}</em></div>
       <div className="crew-reward-potential-rail" style={{ "--crew-reward-progress": `${earnedRate * 100}%` }} aria-hidden="true"><i /><b /></div>
     </div>
     <p className="crew-reward-projection-note"><Info size={15} />{t("reward.projectionAssumption")}</p>

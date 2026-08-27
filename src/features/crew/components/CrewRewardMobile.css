@@ -4,13 +4,12 @@
 .crew-reward-hero { position: relative; display: grid; min-height: 210px; gap: 9px; overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background-color: var(--crew-color-surface); background-image: var(--crew-reward-hero-background); background-position: 57% 50%; background-repeat: no-repeat; background-size: cover; padding: 18px 20px 14px; color: var(--crew-color-deep-teal); isolation: isolate; }
 .crew-reward-hero-sheen { position: absolute; z-index: 0; top: -12%; right: -18%; width: 54%; height: 125%; background: linear-gradient(112deg, transparent 18%, color-mix(in srgb, var(--crew-color-surface) 50%, transparent) 47%, color-mix(in srgb, var(--crew-color-mist-mint) 38%, transparent) 54%, transparent 78%); opacity: .06; pointer-events: none; transform: translate3d(-12%, 0, 0); will-change: transform, opacity; }
 .crew-reward-hero-light-path { position: absolute; z-index: 0; inset: 0; width: 100%; height: 100%; color: var(--crew-color-cyan); opacity: .68; pointer-events: none; }
-.crew-reward-hero-light-path path { fill: none; stroke: currentColor; stroke-opacity: .12; stroke-width: 1; }
+.crew-reward-hero-light-path path { fill: none; stroke: currentColor; stroke-opacity: .15; stroke-width: 1; }
 .crew-reward-hero-light-pulse { opacity: 0; will-change: transform, opacity; }
-.crew-reward-hero-light-bloom { fill: color-mix(in srgb, var(--crew-color-cyan) 42%, transparent); filter: drop-shadow(0 0 4px color-mix(in srgb, var(--crew-color-cyan) 68%, transparent)); }
-.crew-reward-hero-light-core { fill: var(--crew-color-cyan); filter: drop-shadow(0 0 2px color-mix(in srgb, var(--crew-color-cyan) 72%, transparent)); }
+.crew-reward-hero-light-bloom { fill: color-mix(in srgb, var(--crew-color-cyan) 48%, transparent); filter: drop-shadow(0 0 6px color-mix(in srgb, var(--crew-color-cyan) 72%, transparent)); }
+.crew-reward-hero-light-core { fill: var(--crew-color-cyan); filter: drop-shadow(0 0 3px color-mix(in srgb, var(--crew-color-cyan) 76%, transparent)); }
 .crew-reward-hero-kicker { z-index: 1; display: flex; align-items: center; gap: 10px; }
 .crew-reward-hero-kicker span { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 650; }
-.crew-reward-hero-kicker em { border-radius: 999px; background: color-mix(in srgb, var(--crew-color-mist-mint) 76%, transparent); padding: 4px 8px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-style: normal; font-weight: 650; }
 .crew-reward-hero-total { z-index: 1; display: grid; gap: 5px; }
 .crew-reward-hero-total small,.crew-reward-hero-metrics small { display: inline-flex; width: fit-content; align-items: center; gap: 5px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 600; line-height: 1.25; }
 .crew-reward-hero-total strong { color: var(--crew-color-deep-teal); font-size: clamp(34px, 9.5vw, 38px); font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.025em; }
@@ -43,7 +42,7 @@
 .crew-reward-performance-score:focus-visible { border-radius: var(--crew-radius-control); outline: 2px solid color-mix(in srgb, var(--crew-color-cyan) 30%, transparent); outline-offset: 3px; }
 .crew-reward-performance-score small { display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
 .crew-reward-performance-score small svg { color: var(--crew-color-deep-teal); }
-.crew-reward-score-ring { position: relative; display: grid; width: 78px; height: 78px; place-items: center; }
+.crew-reward-score-ring { position: relative; display: grid; width: 86px; height: 86px; place-items: center; }
 .crew-reward-score-ring svg { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); }
 .crew-reward-score-ring circle { fill: none; stroke-width: 5; }
 .crew-reward-score-ring-track { stroke: var(--crew-color-divider); }
@@ -65,18 +64,18 @@
 
 .crew-reward-projection > header { margin-bottom: 16px; }
 .crew-reward-potential { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
-.crew-reward-potential > div:not(.crew-reward-potential-rail):not(.crew-reward-potential-scale) { display: grid; min-width: 0; gap: 3px; }
-.crew-reward-potential .is-potential { text-align: right; }
+.crew-reward-potential > div:not(.crew-reward-potential-rail) { display: grid; min-width: 0; gap: 4px; }
+.crew-reward-potential .is-potential { justify-items: end; text-align: right; }
 .crew-reward-potential strong { color: var(--crew-color-deep-teal); font-size: 18px; font-weight: 650; line-height: 1.2; white-space: nowrap; }
-.crew-reward-potential small { color: var(--crew-color-text-secondary); font-size: 13px; font-weight: 500; }
-.crew-reward-potential .is-current strong { color: var(--crew-color-cyan); }
+.crew-reward-potential .crew-reward-potential-label { color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 700; }
+.crew-reward-potential .is-current .crew-reward-potential-label,.crew-reward-potential .is-current strong { color: var(--crew-color-cyan); }
+.crew-reward-potential > div > span { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 600; }
+.crew-reward-potential em { display: inline-flex; width: fit-content; align-items: center; border-radius: 999px; background: color-mix(in srgb, var(--crew-color-mist-mint) 34%, white); padding: 3px 7px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-style: normal; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.crew-reward-potential .is-current em { background: color-mix(in srgb, var(--crew-color-cyan) 10%, white); color: var(--crew-color-cyan); }
 .crew-reward-potential-rail { position: relative; grid-column: 1 / -1; height: 4px; overflow: visible; margin: 10px 5px 0; border-radius: 999px; background: var(--crew-color-divider); }
 .crew-reward-potential-rail::before { display: block; width: var(--crew-reward-progress); max-width: 100%; height: 100%; border-radius: inherit; background: var(--crew-color-cyan); content: ""; }
 .crew-reward-potential-rail i { position: absolute; top: 50%; left: var(--crew-reward-progress); width: 16px; height: 16px; box-sizing: border-box; border: 2px solid var(--crew-color-cyan); border-radius: 50%; background: var(--crew-color-surface); transform: translate(-50%, -50%); }
 .crew-reward-potential-rail b { display: none; }
-.crew-reward-potential-scale { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; color: var(--crew-color-text-secondary); font-size: 13px; line-height: 1.35; }
-.crew-reward-potential-scale > span:last-child { text-align: right; }
-.crew-reward-potential-scale em { display: block; margin-top: 5px; color: var(--crew-color-text-secondary); font-size: inherit; font-style: normal; }
 .crew-reward-projection-note { display: flex; align-items: flex-start; gap: 7px; margin: 14px 0 0; color: var(--crew-color-text-muted); font-size: 13px; line-height: 1.32; }
 .crew-reward-projection-note svg { flex: 0 0 auto; color: var(--crew-color-text-secondary); }
 
@@ -127,8 +126,7 @@
   .crew-reward-surface > header button { max-width: 132px; }
   .crew-reward-performance { padding-inline: 0; }
   .crew-reward-performance-relationship { grid-template-columns: minmax(0, 1fr) 40px minmax(0, 1fr); gap: 6px; }
-  .crew-reward-score-ring { width: 78px; height: 78px; }
+  .crew-reward-score-ring { width: 86px; height: 86px; }
   .crew-reward-score-ring strong { font-size: 26px; }
   .crew-reward-performance-rate > span > strong { font-size: 28px; }
-  .crew-reward-potential-scale { font-size: 12.5px; }
 }
