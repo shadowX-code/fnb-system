@@ -48,6 +48,9 @@ describe("Crew Growth mobile final IA", () => {
     render(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
     expect(screen.getByText("Strong")).not.toBeNull();
     expect(screen.getByLabelText("87 / 100")).not.toBeNull();
+    expect(document.querySelectorAll(".crew-growth-performance-segment")).toHaveLength(100);
+    expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(87);
+    expect(document.querySelectorAll(".crew-growth-performance-segment:not(.is-active)")).toHaveLength(13);
     expect(screen.getByText("Skills Overview")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "All Skills 4" })).not.toBeNull();
     expect(screen.getByText("Closing Responsibilities")).not.toBeNull();
@@ -65,7 +68,14 @@ describe("Crew Growth mobile final IA", () => {
   it("keeps the hero score singular when there is no Performance data", () => {
     render(<CrewGrowthMobile data={data} performance={null} />);
     expect(screen.getByLabelText("Awaiting data")).not.toBeNull();
+    expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(0);
     expect(screen.queryByText("Next Milestone")).toBeNull();
+  });
+
+  it.each([0, 43, 87, 100])("renders exactly %s active score segments", (score) => {
+    render(<CrewGrowthMobile data={data} performance={{ score, trend: [] }} />);
+    expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(score);
+    expect(document.querySelectorAll(".crew-growth-performance-segment:not(.is-active)")).toHaveLength(100 - score);
   });
 
   it("opens the centered accessible help dialog and closes with Escape", () => {

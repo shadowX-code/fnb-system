@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useGSAP } from "@gsap/react";
+import { gsap } from "gsap";
 import "../../../i18n/index.js";
 import {
   ArrowUpRight,
@@ -27,7 +29,8 @@ import { CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./Crew
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
-import growthPerformanceAtmosphere from "../assets/growth-performance-atmosphere.png";
+
+gsap.registerPlugin(useGSAP);
 
 const statusCopy = {
   certified: "Certified",
@@ -96,21 +99,106 @@ function GrowthSkillSummary({ summary }) {
   </section>;
 }
 
+function GrowthPerformanceScore({ score, label }) {
+  const root = useRef(null);
+  const previousScore = useRef(score);
+  const hasAnimated = useRef(false);
+  const gradientId = `crew-growth-score-gradient-${useId().replaceAll(":", "")}`;
+  const segmentIndexes = useMemo(() => Array.from({ length: 100 }, (_, index) => index), []);
+  const safeScore = Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Math.round(Number(score)))) : 0;
+
+  useGSAP(() => {
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    const segments = Array.from(root.current?.querySelectorAll(".crew-growth-performance-segment") || []);
+    const priorScore = hasAnimated.current ? previousScore.current : 0;
+    const newlyActive = safeScore > priorScore ? segments.slice(priorScore, safeScore) : [];
+    const newlyInactive = safeScore < priorScore ? segments.slice(safeScore, priorScore) : [];
+
+    previousScore.current = safeScore;
+    hasAnimated.current = true;
+    if (reducedMotion || !segments.length) return undefined;
+
+    const entrance = gsap.timeline();
+    if (newlyActive.length) {
+      entrance.set(newlyActive, { opacity: 0.1 }).to(newlyActive, {
+        opacity: 1,
+        duration: 0.32,
+        ease: "power2.out",
+        stagger: { each: 0.0045, from: "start" },
+      });
+    }
+    if (newlyInactive.length) {
+      entrance.to(newlyInactive, {
+        opacity: 0.42,
+        duration: 0.22,
+        ease: "power1.out",
+        stagger: { each: 0.0035, from: "end" },
+      }, 0);
+    }
+
+    const activeSegments = segments.slice(0, safeScore);
+    const sweepSegments = activeSegments.slice(Math.max(0, safeScore - 4));
+    const idleSweep = sweepSegments.length
+      ? gsap.timeline({ delay: 4.5, repeat: -1, repeatDelay: 7 })
+        .to(sweepSegments, { opacity: 0.56, duration: 0.18, ease: "sine.inOut", stagger: 0.035 })
+        .to(sweepSegments, { opacity: 1, duration: 0.26, ease: "sine.inOut", stagger: 0.035 })
+      : null;
+
+    return () => {
+      entrance.kill();
+      idleSweep?.kill();
+    };
+  }, { scope: root, dependencies: [safeScore], revertOnUpdate: true });
+
+  return <div ref={root} className="crew-growth-performance-score" aria-label={label}>
+    <svg className="crew-growth-performance-score-ring" viewBox="0 0 160 160" aria-hidden="true">
+      <defs>
+        <linearGradient id={gradientId} x1="22" y1="22" x2="138" y2="138" gradientUnits="userSpaceOnUse">
+          <stop offset="0" stopColor="var(--crew-color-cyan)" />
+          <stop offset="1" stopColor="var(--crew-color-mist-mint)" />
+        </linearGradient>
+      </defs>
+      <circle className="crew-growth-performance-calibration" cx="80" cy="80" r="72" />
+      <g className="crew-growth-performance-segments">
+        {segmentIndexes.map((index) => <line
+          key={index}
+          className={`crew-growth-performance-segment${index < safeScore ? " is-active" : ""}`}
+          x1="80"
+          y1="11"
+          x2="80"
+          y2="17"
+          transform={`rotate(${index * 3.6 - 90} 80 80)`}
+          stroke={index < safeScore ? `url(#${gradientId})` : undefined}
+        />)}
+      </g>
+    </svg>
+    <span><strong>{score == null ? "—" : safeScore}</strong><b>/100</b></span>
+  </div>;
+}
+
 function GrowthPerformanceHero({ performance, onOpen }) {
   const { t } = useTranslation();
   const score = performance?.score == null ? null : Math.round(Number(performance.score));
   const trend = (performance?.trend || []).filter((item) => item.score != null).slice(-2);
   const delta = trend.length > 1 ? Number(trend.at(-1).score) - Number(trend.at(-2).score) : null;
   const trendText = delta == null ? t("growth.noTrend") : `${delta >= 0 ? "+" : ""}${delta} ${t("growth.recentTrend")}`;
-  return <article className="crew-growth-performance-hero" style={{ "--crew-growth-performance-art": `url(${growthPerformanceAtmosphere})` }}>
+  return <article className="crew-growth-performance-hero">
+    <svg className="crew-growth-performance-instrument" viewBox="0 0 360 238" preserveAspectRatio="none" aria-hidden="true">
+      <path d="M0 42H76L112 8" />
+      <path d="M360 190h-53l-32 32" />
+      <path d="M18 216h66l15-15h52" />
+      <circle cx="112" cy="8" r="2.5" />
+      <circle cx="307" cy="222" r="2.5" />
+      <g className="crew-growth-performance-crosshair"><path d="M286 28v16M278 36h16" /><path d="M336 88v12M330 94h12" /></g>
+    </svg>
     <div className="crew-growth-performance-copy">
       <small>{t("growth.performance")}</small>
       <h2>{performanceLevel(score, t)}</h2>
       <p>{t("growth.thisMonth")}</p>
       <span><TrendingUp size={17} />{trendText}</span>
-      <button type="button" onClick={onOpen}>{t("growth.viewPerformance")} <ChevronRight size={18} /></button>
+      <button type="button" className="crew-mobile-secondary" onClick={onOpen}>{t("growth.viewPerformance")} <ChevronRight size={18} /></button>
     </div>
-    <div className="crew-growth-performance-score" aria-label={score == null ? t("performance.awaitingData") : `${score} / 100`}><strong>{score ?? "—"}</strong><span>/100</span></div>
+    <GrowthPerformanceScore score={score} label={score == null ? t("performance.awaitingData") : `${score} / 100`} />
   </article>;
 }
 
