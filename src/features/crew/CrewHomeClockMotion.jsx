@@ -48,7 +48,9 @@ export default function CrewHomeClockMotion({ attendanceMode, transition, loadin
   return <div ref={root} className={`crew-home-clock-zone is-${attendanceMode}${transition ? ` is-${transition}` : ""}`}>
     <span className="crew-home-clock-halo" aria-hidden="true" />
     <span className="crew-home-clock-semantic-ring" aria-hidden="true" />
-    <span className="crew-home-clock-orbit-highlight" aria-hidden="true" />
+    <svg className="crew-home-clock-orbit-highlight" viewBox="0 0 120 120" aria-hidden="true" focusable="false">
+      <circle cx="60" cy="60" r="58" />
+    </svg>
     {children}
   </div>;
 }

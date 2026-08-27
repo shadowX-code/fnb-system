@@ -297,7 +297,8 @@ describe("Crew Mobile design system contract", () => {
     expect(mobileApp).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading} hasException={locationEvidence.tone === "is-exception"}>');
     expect(home).toContain("grid-template-rows: 100px 15px");
     expect(home).toContain("transform-origin: 50% 50%");
-    expect(home).toContain("background: conic-gradient");
+    expect(home).toContain("stroke-dasharray: 48 317");
+    expect(homeClockMotion).toContain('<svg className="crew-home-clock-orbit-highlight"');
     expect(homeClockMotion).not.toContain('clearProps: "transform,opacity"');
     expect(homeClockMotion).toContain("duration: 5.8");
     expect(home).not.toContain("!important");
