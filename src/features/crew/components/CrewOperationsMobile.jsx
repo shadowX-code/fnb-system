@@ -95,8 +95,11 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   async function submitBlock({ block, action, response, reason: exceptionReason, note: responseNote }) {
     setSavingBlockId(block.id); setError("");
     try {
-      await crewService.updateTaskBlock(token, block.id, action, response, exceptionReason || null, responseNote || null);
-      await refreshDetail();
+      const saved = await crewService.updateTaskBlock(token, block.id, action, response, exceptionReason || null, responseNote || null);
+      const optimisticDetail = applyTaskBlockResponse(detail, block.id, saved, response, exceptionReason, responseNote);
+      setDetail(optimisticDetail);
+      void refreshDetail(optimisticDetail).catch((cause) => setError(cause.message));
+      return saved;
     } catch (cause) { setError(cause.message); throw cause; }
     finally { setSavingBlockId(null); }
   }
@@ -184,11 +187,9 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     const blocks = (detail.blocks || []).map(normalizeTaskBlock);
     const actionable = blocks.filter(isTaskBlockActionable);
     const completed = actionable.filter(isTaskBlockComplete).length;
-    const taskComplete = ["completed", "completed_with_exceptions", "review_required"].includes(detail.status);
     return <section className="crew-ops-mobile">
       <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} variant="workflow" />
       <div className="crew-ops-detail-head"><span>{String(detail.task_type || "task").replaceAll("_", " ")}</span><strong>{translateStatus(detail.status, t)}</strong><small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
-      {taskComplete ? <TaskCompletionState status={detail.status} completed={completed} total={actionable.length} completedAt={detail.completed_at} /> : null}
       <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" ? "readonly" : "interactive"} allowException={detail.allow_exception} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
       {error ? <div className="crew-v2-error">{error}</div> : null}
     </section>;
@@ -239,6 +240,22 @@ function TaskCompletionState({ status, completed, total, completedAt }) {
   const review = status === "review_required";
   const time = completedAt ? formatCrewTime(completedAt).toLowerCase() : null;
   return <section className="crew-task-completion-state" aria-live="polite"><CheckCircle2 size={21} /><span><strong>{review ? t("tasks.submittedReview") : t("tasks.completed")}</strong><small>{t("tasks.completedCount", { completed, total })}{time ? ` · ${t("tasks.completedAt", { time })}` : ""}</small></span></section>;
+}
+
+function applyTaskBlockResponse(detail, blockId, saved, response, exceptionReason, note) {
+  if (!detail || !saved?.status) return detail;
+  return {
+    ...detail,
+    status: saved.task_status || detail.status,
+    completed_at: saved.task_completed_at || detail.completed_at,
+    blocks: (detail.blocks || []).map((block) => block.id === blockId ? {
+      ...block,
+      status: saved.status,
+      response: response || block.response,
+      exception_reason: saved.status === "exception" ? exceptionReason || null : block.exception_reason,
+      note: note || block.note,
+    } : block),
+  };
 }
 
 function SopTaskReader({ sop, token, onBack }) {

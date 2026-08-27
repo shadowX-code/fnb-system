@@ -391,15 +391,15 @@ describe("Crew Mobile redesign", () => {
     mocks.operationDetail
       .mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "pending" }] })
       .mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "completed", completed_at: "2026-08-16T02:30:00Z", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "completed", response: { value: true } }] });
+    mocks.updateTaskBlock.mockResolvedValueOnce({ block_id: "item-1", status: "completed", task_status: "completed", task_completed_at: "2026-08-16T02:30:00Z" });
 
     render(<CrewMobileApp />);
     fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
-    fireEvent.click(await screen.findByRole("button", { name: /Unlock guest entrance/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Confirm Unlock guest entrance" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm Unlock guest entrance" }));
 
     await waitFor(() => expect(mocks.updateTaskBlock).toHaveBeenCalledWith("crew-token", "item-1", "completed", { value: true }, null, null));
-    expect(await screen.findByText("Task completed")).not.toBeNull();
-    expect(screen.getAllByText(/1 of 1 completed/)).toHaveLength(2);
+    expect(await screen.findByText("1 of 1 completed")).not.toBeNull();
+    expect(screen.getAllByText(/1 of 1 completed/)).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Complete Task" })).toBeNull();
     expect(mocks.completeOperationChecklist).not.toHaveBeenCalled();
   });
