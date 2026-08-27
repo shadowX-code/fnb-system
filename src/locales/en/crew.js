@@ -36,6 +36,7 @@ Object.assign(resources.reward, {
 Object.assign(resources.common, { day_one: "day", day_other: "days" });
 Object.assign(resources.tasks, { viewSop: "View SOP", showLess: "Show less", readMore: "Read more" });
 Object.assign(resources.tasks, { redo: "Redo", redoTitle: "Redo this task?", redoBody: "Your current answers will be cleared." });
+Object.assign(resources.tasks, { availableAt: "Available at {{time}}", notAvailableYet: "Not available yet", availableWhenScheduled: "This task can be completed when its scheduled window begins." });
 Object.assign(resources.learn, { acknowledgedAt: "Acknowledged {{timestamp}}" });
 Object.assign(resources.growth, { subtitle: "Grow your skills. Achieve more.", skillsOverview: "Skills Overview", allSkills: "All Skills ({{count}})", allSkillsTitle: "All Skills", sortStatus: "Sort: Status" });
 Object.assign(resources.me, { confirmNewPasscode: "Confirm new passcode", passcodeSaved: "Passcode updated securely.", personal: "Personal", employment: "Employment", fullName: "Full Name", nickname: "Nickname", birthday: "Birthday", contact: "Contact", joinedDate: "Joined Date", position: "Position", languageHint: "System UI and available business content update immediately." });

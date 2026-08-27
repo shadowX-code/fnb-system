@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
-import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, HeartPulse, ListChecks, RotateCcw, Store } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, Clock3, HeartPulse, ListChecks, RotateCcw, Store } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
@@ -34,11 +34,18 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   const [historyFilter, setHistoryFilter] = useState("all");
   const [detailLoading, setDetailLoading] = useState(Boolean(initialTarget));
   const [detailContext, setDetailContext] = useState(initialTarget?.context || null);
+  const [availabilityNow, setAvailabilityNow] = useState(() => Date.now());
   const allTaskRequest = useRef(0);
   const historyTaskRequest = useRef(0);
   const listScrollY = useRef(0);
 
   useEffect(() => { setDetail(null); setDetailLanguage(null); setLegacyTask(null); setActiveSop(null); setActiveSopLanguage(null); setAllTaskData(null); setHistoryTaskData(null); setTaskView("active"); setHistoryFilter("all"); setDetailLoading(Boolean(initialTarget)); setDetailContext(initialTarget?.context || null); }, [token]);
+  useEffect(() => {
+    const availableAt = Date.parse(detail?.available_from || "");
+    if (!Number.isFinite(availableAt) || availableAt <= Date.now()) return undefined;
+    const timer = window.setTimeout(() => setAvailabilityNow(Date.now()), Math.max(availableAt - Date.now() + 25, 25));
+    return () => window.clearTimeout(timer);
+  }, [detail?.available_from, availabilityNow]);
   async function loadAllTasks() {
     const request = ++allTaskRequest.current;
     setAllTasksLoading(true); setError("");
@@ -74,7 +81,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   async function openTask(row, context = { from: "list" }) {
     setDetailContext(context);
     setDetailLoading(true);
-    setSaving(true); setError("");
+    setSaving(true); setError(""); setAvailabilityNow(Date.now());
     try {
       const nextDetail = await crewService.operationDetail(token, row.id);
       const language = i18n.resolvedLanguage || i18n.language || "en";
@@ -200,11 +207,13 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     const blocks = (detail.blocks || []).map(normalizeTaskBlock);
     const actionable = blocks.filter(isTaskBlockActionable);
     const completed = actionable.filter(isTaskBlockComplete).length;
-    const canRedo = detailContext?.view !== "history" && ["not_started", "in_progress"].includes(detail.status);
+    const unavailable = isCrewTaskUnavailable(detail, availabilityNow);
+    const canRedo = !unavailable && detailContext?.view !== "history" && ["not_started", "in_progress"].includes(detail.status);
     return <section className="crew-ops-mobile">
       <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} variant="workflow" />
       <div className="crew-ops-detail-head"><strong>{translateStatus(detail.status, t)}</strong>{canRedo ? <button type="button" className="crew-mobile-ghost crew-ops-redo" onClick={() => setRedoOpen(true)}><RotateCcw size={15} />{t("tasks.redo")}</button> : null}<small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
-      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
+      {unavailable ? <TaskAvailabilityNotice availableFrom={detail.available_from} /> : null}
+      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} unavailable={unavailable} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
       {error ? <div className="crew-v2-error">{error}</div> : null}
       {redoOpen ? <CrewMobileModal title={t("tasks.redoTitle")} onClose={() => !redoSaving && setRedoOpen(false)}><div className="crew-ops-redo-dialog"><p>{t("tasks.redoBody")}</p><div><button type="button" className="crew-mobile-secondary" disabled={redoSaving} onClick={() => setRedoOpen(false)}>{t("common.cancel")}</button><button type="button" className="crew-mobile-secondary crew-ops-redo-confirm" disabled={redoSaving} onClick={resetTask}><RotateCcw size={16} />{redoSaving ? t("common.saving") : t("tasks.redo")}</button></div></div></CrewMobileModal> : null}
     </section>;
@@ -242,11 +251,25 @@ export function CrewTaskPreview({ task, onBack }) {
   function previewSubmit({ block, action }) { setPreviewStatuses((statuses) => ({ ...statuses, [block.id]: action })); }
   return <section className="crew-ops-mobile crew-task-preview" aria-label={t("tasks.crewPreview")}>
     <div className="crew-task-preview-nav"><CrewMobileDetailHeader title={task.name || t("tasks.untitled")} onBack={onBack || (() => {})} variant="workflow" /></div>
-    <div className="crew-ops-detail-head"><span>{String(task.task_type || "task").replaceAll("_", " ")}</span><strong>{t("tasks.preview")}</strong><small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
+    <div className="crew-ops-detail-head"><strong>{t("tasks.preview")}</strong><small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
     {previewComplete ? <TaskCompletionState status={task.manager_review_required ? "review_required" : "completed"} completed={completed} total={actionable.length} /> : null}
     <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={{ ...block, status: previewStatuses[block.id] || "pending" }} index={index} mode="preview" allowException={task.allow_exception} onPreviewChange={previewSubmit} onOpenSop={(sop) => setSopMessage(t("tasks.sopReadOnly", { title: sop?.title || t("tasks.publishedSop") }))} />)}</div>
     {sopMessage ? <p className="crew-task-preview-only">{sopMessage}</p> : null}
     <p className="crew-task-preview-only">{t("tasks.previewOnly")}</p>
+  </section>;
+}
+
+export function isCrewTaskUnavailable(task, now = Date.now()) {
+  const availableAt = Date.parse(task?.available_from || "");
+  return Number.isFinite(availableAt) && availableAt > now;
+}
+
+function TaskAvailabilityNotice({ availableFrom }) {
+  const { t } = useTranslation();
+  const time = availableFrom ? formatCrewTime(availableFrom).toLowerCase() : null;
+  return <section className="crew-ui-note crew-ui-note--warning crew-ops-availability-notice" role="status">
+    <Clock3 size={17} aria-hidden="true" />
+    <span><strong>{time ? t("tasks.availableAt", { time }) : t("tasks.notAvailableYet")}</strong><small>{t("tasks.availableWhenScheduled")}</small></span>
   </section>;
 }
 

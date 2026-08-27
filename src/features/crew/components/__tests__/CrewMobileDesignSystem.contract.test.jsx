@@ -30,6 +30,7 @@ const schedule = readFileSync(resolve(process.cwd(), "src/features/crew/componen
 const growth = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewGrowthMobile.jsx"), "utf8");
 const learning = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLearningMobile.jsx"), "utf8");
 const sopDocument = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewSopDocument.jsx"), "utf8");
+const operations = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewOperationsMobile.jsx"), "utf8");
 
 describe("Crew Mobile design system contract", () => {
   it("owns the FeedX palette and shared foundation primitives centrally", () => {
@@ -151,7 +152,6 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps Operations and Task Renderer on shared tabs, badges, icons, fields, and documented sheets", () => {
-    const operations = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewOperationsMobile.jsx"), "utf8");
     [operationsStyles, taskBlockStyles].forEach((source) => ["#", "!important", "linear-gradient", "radial-gradient", "conic-gradient"].forEach((token) => expect(source).not.toContain(token)));
     expect(operations).toContain("crew-ui-tabs crew-ops-top-tabs");
     expect(operations).toContain("CrewStatusBadge");
@@ -168,6 +168,18 @@ describe("Crew Mobile design system contract", () => {
     expect(taskBlockStyles).not.toContain(".crew-task-block-number.is-");
     expect(taskBlockStyles).toContain("task-specific bottom sheet");
     expect(operationsStyles).toContain("Legacy daily tasks remain a bottom sheet");
+  });
+
+  it("keeps task availability expression and compact controls on canonical shared owners", () => {
+    expect(system).toContain(".crew-ui-note--warning { background: color-mix(in srgb, var(--crew-color-warning) 10%, white);");
+    expect(operations).toContain("isCrewTaskUnavailable(detail, availabilityNow)");
+    expect(operations).toContain("crew-ui-note crew-ui-note--warning crew-ops-availability-notice");
+    expect(operations).toContain("unavailable={unavailable}");
+    expect(taskBlock).toContain("unavailable = false");
+    expect(taskBlock).toContain("mode === \"readonly\" || saving || responded || unavailable");
+    expect(taskBlock).not.toContain("<small>{taskTypeLabel(block.block_type, t)}</small>");
+    expect(taskBlock).toContain("crew-ui-choice-list crew-task-choice-grid is-two");
+    expect(taskBlockStyles).toContain(".crew-task-choice-grid.is-two button { display: inline-flex;");
   });
 
   it("keeps shared and Auth presentation out of the route shell stylesheet", () => {

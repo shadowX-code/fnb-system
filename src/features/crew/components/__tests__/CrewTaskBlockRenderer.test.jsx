@@ -24,6 +24,19 @@ describe("CrewTaskBlockRenderer", () => {
     expect(screen.getByRole("button", { name: /Confirm confirmation block/ })).not.toBeNull();
   });
 
+  it("does not expose internal block type helper copy or type-only status badges", () => {
+    const { container } = render(<>
+      <CrewTaskBlockRenderer block={base("checklist_item")} mode="preview" />
+      <CrewTaskBlockRenderer block={base("yes_no")} mode="preview" />
+      <CrewTaskBlockRenderer block={base("confirmation")} mode="preview" />
+      <CrewTaskBlockRenderer block={base("health_rating")} mode="preview" />
+      <CrewTaskBlockRenderer block={base("text")} mode="preview" />
+      <CrewTaskBlockRenderer block={base("sop_reference", { sop_version_id: "sop-v1", sop_reference: { title: "Opening Standard", version: 1 } })} mode="preview" onOpenSop={() => {}} />
+    </>);
+    ["Checklist item", "Yes / No", "Confirmation", "Health rating", "Instruction", "SOP reference"].forEach((label) => expect(screen.queryByText(label)).toBeNull());
+    expect(container.querySelectorAll(".crew-task-block-result")).toHaveLength(4);
+  });
+
   it("persists checklist, confirmation, yes/no, and single choice on their first direct action", async () => {
     const onSubmit = vi.fn().mockResolvedValue({ status: "completed" });
     const { rerender } = render(<CrewTaskBlockRenderer block={base("checklist_item")} mode="interactive" onSubmit={onSubmit} />);
@@ -103,6 +116,22 @@ describe("CrewTaskBlockRenderer", () => {
     expect(onPreviewChange).toHaveBeenCalledWith(expect.objectContaining({ action: "completed" }));
   });
 
+  it("keeps unavailable task content readable while disabling every mutation control", () => {
+    const onSubmit = vi.fn();
+    const { rerender } = render(<CrewTaskBlockRenderer block={base("yes_no")} mode="interactive" unavailable allowException onSubmit={onSubmit} />);
+    expect(screen.getByRole("button", { name: "Yes" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "No" }).disabled).toBe(true);
+    rerender(<CrewTaskBlockRenderer block={base("checklist_item")} mode="interactive" unavailable onSubmit={onSubmit} />);
+    expect(screen.getByRole("button", { name: /Complete checklist_item block/ }).disabled).toBe(true);
+    rerender(<CrewTaskBlockRenderer block={base("health_rating")} mode="interactive" unavailable onSubmit={onSubmit} />);
+    expect(screen.getByRole("button", { name: "Good" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Needs Attention" }).disabled).toBe(true);
+    rerender(<CrewTaskBlockRenderer block={base("short_text")} mode="interactive" unavailable onSubmit={onSubmit} />);
+    expect(screen.getByLabelText("Short response").disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Save response" }).disabled).toBe(true);
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
   it("shows useful incomplete and unavailable linked-SOP states", () => {
     const { rerender } = render(<CrewTaskBlockRenderer block={base("text", { title: "" })} mode="preview" />);
     expect(screen.getByText("Add a title to preview this block.")).not.toBeNull();
@@ -116,4 +145,5 @@ describe("CrewTaskBlockRenderer", () => {
     expect(isTaskBlockActionable({ block_type: "text" })).toBe(false);
     expect(isTaskBlockActionable({ block_type: "confirmation" })).toBe(true);
   });
+
 });

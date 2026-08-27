@@ -3,7 +3,7 @@
 .crew-task-block:last-child { border-bottom: 0; }
 .crew-task-block-summary { display: grid; width: 100%; min-width: 0; grid-template-columns: 32px minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 13px 2px 8px; color: inherit; text-align: left; }
 .crew-task-block-number { font-size: var(--crew-type-status); font-weight: 850; }
-.crew-task-block-copy { display: grid; min-width: 0; gap: 3px; }
+.crew-task-block-copy { display: grid; min-width: 0; }
 .crew-task-block-copy > span { display: flex; min-width: 0; align-items: center; gap: 6px; }
 .crew-task-block-copy strong { overflow: hidden; color: var(--crew-color-text); font-size: var(--crew-type-card-title); font-weight: 760; line-height: 1.28; text-overflow: ellipsis; white-space: nowrap; }
 .crew-task-block-copy em { flex: 0 0 auto; font-size: var(--crew-type-status); font-style: normal; font-weight: 800; }
@@ -27,7 +27,7 @@
 .crew-task-sop-card strong { overflow: hidden; color: var(--crew-color-text); font-size: var(--crew-type-body); text-overflow: ellipsis; white-space: nowrap; }
 .crew-task-sop-card small,.crew-task-sop-card em { color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); font-style: normal; font-weight: 800; white-space: nowrap; }
 .crew-task-direct-toggle,.crew-task-focused-action,.crew-task-submit { width: 100%; }
-.crew-task-direct-toggle,.crew-task-focused-action { justify-content: center; font-weight: 750; }
+.crew-task-direct-toggle,.crew-task-focused-action { align-items: center; justify-content: center; padding-inline: 10px; font-weight: 750; line-height: 1.2; text-align: center; }
 .crew-task-direct-toggle { gap: 7px; }
 .crew-task-direct-toggle:not(:disabled) { cursor: pointer; }
 .crew-task-direct-toggle.is-done,.crew-task-focused-action.is-done { border-color: var(--crew-color-mist-mint); background: var(--crew-color-success-surface); color: var(--crew-color-success); opacity: 1; }
@@ -36,6 +36,7 @@
 .crew-task-choice-grid,.crew-task-choice-list { display: grid; gap: 7px; }
 .crew-task-choice-grid.is-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .crew-task-choice-grid button,.crew-task-choice-list button { min-height: 44px; font-size: var(--crew-type-body); font-weight: 750; }
+.crew-task-choice-grid.is-two button { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 0 10px; line-height: 1.2; text-align: center; }
 .crew-task-choice-list button { display: flex; align-items: center; gap: 9px; padding: 9px 11px; text-align: left; }
 .crew-task-choice-list i { width: 14px; height: 14px; flex: 0 0 auto; border: 1.5px solid var(--crew-color-text-muted); border-radius: 50%; }.crew-task-choice-list button[aria-checked="true"] i { border: 4px solid var(--crew-color-cyan); }
 .crew-task-number-field { display: flex; align-items: center; gap: 7px; }.crew-task-number-field input { min-width: 0; flex: 1; border: 0; outline: 0; color: var(--crew-color-text); font-size: var(--crew-type-body); }.crew-task-number-field > span,.crew-task-number-field > em { color: var(--crew-color-text-secondary); font-size: var(--crew-type-label); font-style: normal; }.crew-task-textarea { min-height: 72px; padding: 10px; resize: vertical; }.crew-task-range,.crew-task-evidence { color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); text-transform: none; }
