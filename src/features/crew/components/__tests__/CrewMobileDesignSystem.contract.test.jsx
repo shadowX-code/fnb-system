@@ -288,6 +288,7 @@ describe("Crew Mobile design system contract", () => {
     expect(schedule).toContain('entry ? "crew-type-detail-title" : "crew-type-card-title"');
     expect(schedule).toContain('className="crew-type-helper"');
     expect(scheduleStyles).toContain(".crew-schedule-final-day.is-empty .crew-schedule-final-day-copy { gap: 4px; }");
+    expect(scheduleStyles).toContain("@media (max-width: 480px) { .crew-schedule-final-row-copy > small { overflow: visible; text-overflow: clip; white-space: normal; } }");
     expect(scheduleStyles).not.toContain(".crew-schedule-final-upcoming > header");
   });
 
