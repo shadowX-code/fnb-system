@@ -78,6 +78,13 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.querySelectorAll(".crew-growth-performance-segment:not(.is-active)")).toHaveLength(100 - score);
   });
 
+  it("updates the same score ring when the canonical Performance score changes", () => {
+    const { rerender } = render(<CrewGrowthMobile data={data} performance={{ score: 43, trend: [] }} />);
+    rerender(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
+    expect(screen.getByLabelText("87 / 100")).not.toBeNull();
+    expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(87);
+  });
+
   it("opens the centered accessible help dialog and closes with Escape", () => {
     render(<CrewGrowthMobile data={data} performance={{ score: 75, trend: [] }} />);
     fireEvent.click(screen.getByRole("button", { name: "Growth help" }));
