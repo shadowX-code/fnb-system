@@ -16,18 +16,15 @@ export default function CrewHomeClockMotion({ attendanceMode, transition, loadin
     const orbitHighlight = rootNode.querySelector(".crew-home-clock-orbit-highlight");
     const action = rootNode.querySelector(".crew-home-clock-action");
     const state = attendanceMode === "completed" || transition === "confirmed" ? "success" : "default";
-    const targets = [halo, ring, orbitHighlight, action].filter(Boolean);
-    gsap.set(targets, { clearProps: "transform,opacity" });
 
     const isReadyIdle = attendanceMode === "ready" && !loading && !transition && !hasException;
     if (isReadyIdle) {
-      gsap.to(halo, { opacity: 0.66, scale: 1.025, duration: 3.25, ease: "sine.inOut", repeat: -1, yoyo: true });
-      gsap.to(orbitHighlight, { rotation: 360, duration: 8, ease: "none", repeat: -1, transformOrigin: "50% 50%" });
+      gsap.to(halo, { opacity: 0.62, scale: 1.018, duration: 7, ease: "sine.inOut", repeat: -1, yoyo: true });
+      gsap.to(orbitHighlight, { rotation: 360, duration: 5.8, ease: "none", repeat: -1, transformOrigin: "50% 50%" });
     }
 
     if (transition === "locating" || transition === "scanning") {
-      gsap.to(orbitHighlight, { rotation: 360, duration: 1.1, ease: "none", repeat: -1, transformOrigin: "50% 50%" });
-      gsap.to(ring, { opacity: 0.5, scale: 1.015, duration: 0.65, ease: "sine.inOut", repeat: -1, yoyo: true });
+      gsap.to(orbitHighlight, { opacity: 0.9, rotation: 360, duration: 0.95, ease: "none", repeat: -1, transformOrigin: "50% 50%" });
     }
 
     if (transition === "confirmed") {

@@ -31,11 +31,12 @@
 .crew-home-attendance-copy dl div { display: grid; gap: 2px; }
 .crew-home-attendance-copy dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); }
 .crew-home-attendance-copy dd { margin: 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; }
-.crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; align-content: center; justify-items: center; gap: 9px; padding: 16px 10px 7px 0; transform: translate(-5px, 3px); }
-.crew-home-clock-halo { position: absolute; top: calc(50% - 64px); left: calc(50% - 58.5px); width: 113px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 52%, transparent); opacity: .46; pointer-events: none; will-change: transform, opacity; }
-.crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { position: absolute; top: calc(50% - 62px); left: calc(50% - 56.5px); width: 109px; aspect-ratio: 1; border-radius: 50%; pointer-events: none; will-change: transform, opacity; }
+.crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; block-size: 202px; box-sizing: border-box; grid-template-rows: 100px 15px; align-content: center; justify-items: center; gap: 9px; padding: 16px 10px 7px 0; transform: translate(-5px, 3px); }
+.crew-home-clock-halo { position: absolute; top: calc(50% - 64px); left: calc(50% - 58.5px); width: 113px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 52%, transparent); opacity: .5; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
+.crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { position: absolute; top: calc(50% - 62px); left: calc(50% - 56.5px); width: 109px; aspect-ratio: 1; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
 .crew-home-clock-semantic-ring { border: 2px solid var(--crew-color-deep-teal); opacity: .25; }
-.crew-home-clock-orbit-highlight { border: 2px solid transparent; border-top-color: color-mix(in srgb, var(--crew-color-cyan) 82%, transparent); opacity: .58; }
+.crew-home-clock-orbit-highlight { background: conic-gradient(from -12deg, color-mix(in srgb, var(--crew-color-cyan) 64%, transparent) 0deg, var(--crew-color-cyan) 25deg, color-mix(in srgb, var(--crew-color-cyan) 68%, transparent) 48deg, transparent 52deg 360deg); opacity: .74; -webkit-mask: radial-gradient(transparent 0 48%, #000 49% 52%, transparent 53%); mask: radial-gradient(transparent 0 48%, #000 49% 52%, transparent 53%); }
+.crew-home-clock-orbit-highlight::after { position: absolute; top: 5%; left: 68%; width: 4px; height: 4px; border-radius: 50%; background: var(--crew-color-cyan); content: ""; }
 .crew-home-clock-action, .crew-home-complete-ring { position: relative; z-index: 1; display: grid; width: 100px; max-width: calc(100% - 16px); aspect-ratio: 1; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: color-mix(in srgb, var(--crew-color-surface) 88%, transparent); padding: 10px; color: var(--crew-color-deep-teal); box-shadow: 0 6px 14px color-mix(in srgb, var(--crew-color-deep-teal) 9%, transparent); }
 .crew-home-clock-rings { display: none; }
 .crew-home-clock-action > span, .crew-home-complete-ring > span { display: grid; place-items: center; gap: 3px; text-align: center; }
@@ -83,7 +84,7 @@
   .crew-home-attendance-main { min-height: 192px; grid-template-columns: minmax(0, 1fr) 126px; }
   .crew-home-attendance-copy { padding-left: 14px; }
   .crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { font-size: 34px; }
-  .crew-home-clock-zone { padding-top: 13px; transform: translate(-3px, 2px); }
+  .crew-home-clock-zone { block-size: 192px; grid-template-rows: 89px 15px; padding-top: 13px; transform: translate(-3px, 2px); }
   .crew-home-clock-halo { top: calc(50% - 56px); left: calc(50% - 51.5px); width: 99px; }
   .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { top: calc(50% - 55px); left: calc(50% - 50px); width: 96px; }
   .crew-home-clock-action, .crew-home-complete-ring { width: 89px; }

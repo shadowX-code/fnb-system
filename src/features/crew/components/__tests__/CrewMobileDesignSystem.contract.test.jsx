@@ -9,6 +9,7 @@ const mobileApp = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMob
 const authStyles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewAuthMobile.css"), "utf8");
 const sharedStyles = readFileSync(resolve(process.cwd(), "src/styles/index.css"), "utf8");
 const home = readFileSync(resolve(process.cwd(), "src/features/crew/CrewHome.css"), "utf8");
+const homeClockMotion = readFileSync(resolve(process.cwd(), "src/features/crew/CrewHomeClockMotion.jsx"), "utf8");
 const cashCheckout = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewCashCheckoutMobile.css"), "utf8");
 const taskBlockStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewTaskBlockRenderer.css"), "utf8");
 const taskBlock = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewTaskBlockRenderer.jsx"), "utf8");
@@ -294,6 +295,11 @@ describe("Crew Mobile design system contract", () => {
     [".crew-home-attendance-main", ".crew-home-attendance-art", ".crew-home-clock-halo", ".crew-home-clock-semantic-ring", ".crew-home-clock-orbit-highlight", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
     expect(mobileApp).toContain('import crewHomeAttendanceMintBackground from "./assets/crew-home-attendance-mint-background.png"');
     expect(mobileApp).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading} hasException={locationEvidence.tone === "is-exception"}>');
+    expect(home).toContain("grid-template-rows: 100px 15px");
+    expect(home).toContain("transform-origin: 50% 50%");
+    expect(home).toContain("background: conic-gradient");
+    expect(homeClockMotion).not.toContain('clearProps: "transform,opacity"');
+    expect(homeClockMotion).toContain("duration: 5.8");
     expect(home).not.toContain("!important");
   });
 
