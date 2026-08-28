@@ -123,11 +123,10 @@ function RewardHero({ data, onOpenSheet }) {
     let pathSweep = null;
     if (path && pulse && typeof path.getTotalLength === "function" && typeof path.getPointAtLength === "function") {
       const length = path.getTotalLength();
-      const start = path.getPointAtLength(0);
       const progress = { value: 0 };
       const positionPulse = () => {
         const point = path.getPointAtLength(length * progress.value);
-        gsap.set(pulse, { x: point.x - start.x, y: point.y - start.y });
+        gsap.set(pulse, { x: point.x, y: point.y });
       };
       positionPulse();
       pathSweep = gsap.timeline({ delay: .7, repeat: -1, repeatDelay: 2.6 })
