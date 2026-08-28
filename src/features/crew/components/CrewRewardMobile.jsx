@@ -73,8 +73,8 @@ function RewardHeroMotion() {
   return <svg className="crew-reward-hero-light-path" viewBox="0 0 390 232" preserveAspectRatio="none" aria-hidden="true">
     <path d="M194 169 C252 169 311 122 390 119" />
     <g className="crew-reward-hero-light-pulse">
-      <path className="crew-reward-hero-light-trail" d="M194 169 C252 169 311 122 390 119" pathLength="1" />
-      <path className="crew-reward-hero-light-leading-edge" d="M194 169 C252 169 311 122 390 119" pathLength="1" />
+      <path className="crew-reward-hero-light-trail" d="M194 169 C252 169 311 122 390 119" pathLength="100" strokeDasharray="7 100" strokeDashoffset="0" />
+      <path className="crew-reward-hero-light-leading-edge" d="M194 169 C252 169 311 122 390 119" pathLength="100" strokeDasharray="1.8 100" strokeDashoffset="-5.4" />
     </g>
   </svg>;
 }
@@ -119,12 +119,12 @@ function RewardHero({ data, onOpenSheet }) {
     if (pulse && trail && leadingEdge) {
       // The approved asset's cyan curve and this SVG share one viewBox. Dashing the
       // path keeps the sweep locked to that curve without moving a circular element.
-      gsap.set(trail, { strokeDashoffset: 0 });
-      gsap.set(leadingEdge, { strokeDashoffset: -.054 });
+      gsap.set(trail, { attr: { "stroke-dashoffset": 0 } });
+      gsap.set(leadingEdge, { attr: { "stroke-dashoffset": -5.4 } });
       pathSweep = gsap.timeline({ delay: .7, repeat: -1, repeatDelay: 2.6 })
         .set(pulse, { opacity: 0 })
         .to(pulse, { opacity: 1, duration: .22, ease: "sine.out" })
-        .to([trail, leadingEdge], { strokeDashoffset: "-=1", duration: 5.2, ease: "none" }, 0)
+        .to([trail, leadingEdge], { attr: { "stroke-dashoffset": "-=100" }, duration: 5.2, ease: "none" }, 0)
         .to(pulse, { opacity: 0, duration: .28, ease: "sine.in" }, "<4.92");
     }
     previousAmountRef.current = amount;

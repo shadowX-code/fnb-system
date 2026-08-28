@@ -7,8 +7,8 @@
 .crew-reward-hero-light-pulse { opacity: 0; will-change: opacity; }
 .crew-reward-hero-light-trail,.crew-reward-hero-light-leading-edge { will-change: stroke-dashoffset; }
 .crew-reward-hero-light-pulse path { stroke-linecap: round; }
-.crew-reward-hero-light-trail { stroke: var(--crew-color-cyan); stroke-dasharray: .07 1; stroke-opacity: .2; stroke-width: 1.45; }
-.crew-reward-hero-light-leading-edge { stroke: var(--crew-color-cyan); stroke-dasharray: .018 1; stroke-opacity: .9; stroke-width: 1.65; }
+.crew-reward-hero-light-trail { stroke: var(--crew-color-cyan); stroke-opacity: .2; stroke-width: 1.45; }
+.crew-reward-hero-light-leading-edge { stroke: var(--crew-color-cyan); stroke-opacity: .9; stroke-width: 1.65; }
 .crew-reward-hero-kicker { z-index: 1; display: flex; align-items: center; gap: 10px; }
 .crew-reward-hero-kicker span { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 650; }
 .crew-reward-hero-total { z-index: 1; display: grid; gap: 5px; }
