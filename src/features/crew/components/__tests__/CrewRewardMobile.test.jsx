@@ -73,11 +73,11 @@ describe("Crew Reward mobile reference UI", () => {
     expect(rate.children[2].querySelector(".crew-reward-hero-info")).not.toBeNull();
   });
 
-  it("uses the approved static background with only the scoped sheen and traveling-light presentation layers", () => {
+  it("uses the approved static background with only the traveling-light presentation layer", () => {
     const { container } = render(<CrewRewardMobile data={data} />);
     const hero = container.querySelector(".crew-reward-hero");
     expect(hero.style.getPropertyValue("--crew-reward-hero-background")).toContain("reward-hero-approved");
-    expect(hero.querySelector(".crew-reward-hero-sheen")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-sheen")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-light-path path")).not.toBeNull();
     expect(hero.querySelector(".crew-reward-hero-light-pulse")).not.toBeNull();
     expect(hero.querySelector(".crew-reward-hero-light-bloom")).not.toBeNull();

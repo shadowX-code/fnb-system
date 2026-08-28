@@ -70,13 +70,10 @@ function TierTable({ tiers }) {
 }
 
 function RewardHeroMotion({ pathRef }) {
-  return <>
-    <span className="crew-reward-hero-sheen" aria-hidden="true" />
-    <svg className="crew-reward-hero-light-path" viewBox="0 0 390 232" preserveAspectRatio="none" aria-hidden="true">
-      <path ref={pathRef} d="M194 169 C252 169 311 122 390 119" />
-      <g className="crew-reward-hero-light-pulse" transform="translate(194 169)"><circle className="crew-reward-hero-light-bloom" r="7" /><circle className="crew-reward-hero-light-core" r="2.75" /></g>
-    </svg>
-  </>;
+  return <svg className="crew-reward-hero-light-path" viewBox="0 0 390 232" preserveAspectRatio="none" aria-hidden="true">
+    <path ref={pathRef} d="M194 169 C252 169 311 122 390 119" />
+    <g className="crew-reward-hero-light-pulse" transform="translate(194 169)"><circle className="crew-reward-hero-light-bloom" r="7" /><circle className="crew-reward-hero-light-core" r="2.75" /></g>
+  </svg>;
 }
 
 function HeroInfoButton({ label, onOpen }) {
@@ -113,11 +110,6 @@ function RewardHero({ data, onOpenSheet }) {
       ease: "power2.out",
       onUpdate: () => { if (amountRef.current) amountRef.current.textContent = money(value.amount); },
     });
-    const sheen = root.querySelector(".crew-reward-hero-sheen");
-    const sheenSweep = gsap.timeline({ delay: .12, repeat: -1, repeatDelay: 2.4 })
-      .set(sheen, { xPercent: -12, opacity: .06 })
-      .to(sheen, { xPercent: 16, opacity: .38, duration: 6.4, ease: "sine.inOut" })
-      .to(sheen, { opacity: .07, duration: 1.1, ease: "sine.inOut" });
     const path = pathRef.current;
     const pulse = root.querySelector(".crew-reward-hero-light-pulse");
     let pathSweep = null;
@@ -139,7 +131,6 @@ function RewardHero({ data, onOpenSheet }) {
     hasPresentedRef.current = true;
     return () => {
       reveal.kill();
-      sheenSweep.kill();
       pathSweep?.kill();
     };
   }, { scope: heroRef, dependencies: [amount], revertOnUpdate: true });
