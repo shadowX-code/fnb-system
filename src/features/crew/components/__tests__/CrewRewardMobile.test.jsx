@@ -80,8 +80,9 @@ describe("Crew Reward mobile reference UI", () => {
     expect(hero.querySelector(".crew-reward-hero-sheen")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-light-path path")).not.toBeNull();
     expect(hero.querySelector(".crew-reward-hero-light-pulse")).not.toBeNull();
-    expect(hero.querySelector(".crew-reward-hero-light-bloom")).not.toBeNull();
-    expect(hero.querySelector(".crew-reward-hero-light-core")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-light-trail")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-light-leading-edge")).not.toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-light-pulse circle")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-orbit")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-total p")).toBeNull();
   });

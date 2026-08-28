@@ -69,10 +69,13 @@ function TierTable({ tiers }) {
   </div>;
 }
 
-function RewardHeroMotion({ pathRef }) {
+function RewardHeroMotion() {
   return <svg className="crew-reward-hero-light-path" viewBox="0 0 390 232" preserveAspectRatio="none" aria-hidden="true">
-    <path ref={pathRef} d="M194 169 C252 169 311 122 390 119" />
-    <g className="crew-reward-hero-light-pulse" transform="translate(194 169)"><circle className="crew-reward-hero-light-bloom" r="7" /><circle className="crew-reward-hero-light-core" r="2.75" /></g>
+    <path d="M194 169 C252 169 311 122 390 119" />
+    <g className="crew-reward-hero-light-pulse">
+      <path className="crew-reward-hero-light-trail" d="M194 169 C252 169 311 122 390 119" pathLength="1" />
+      <path className="crew-reward-hero-light-leading-edge" d="M194 169 C252 169 311 122 390 119" pathLength="1" />
+    </g>
   </svg>;
 }
 
@@ -85,7 +88,6 @@ function RewardHero({ data, onOpenSheet }) {
   const { t } = useTranslation();
   const heroRef = useRef(null);
   const amountRef = useRef(null);
-  const pathRef = useRef(null);
   const previousAmountRef = useRef(0);
   const hasPresentedRef = useRef(false);
   const label = data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
@@ -110,21 +112,19 @@ function RewardHero({ data, onOpenSheet }) {
       ease: "power2.out",
       onUpdate: () => { if (amountRef.current) amountRef.current.textContent = money(value.amount); },
     });
-    const path = pathRef.current;
     const pulse = root.querySelector(".crew-reward-hero-light-pulse");
+    const trail = root.querySelector(".crew-reward-hero-light-trail");
+    const leadingEdge = root.querySelector(".crew-reward-hero-light-leading-edge");
     let pathSweep = null;
-    if (path && pulse && typeof path.getTotalLength === "function" && typeof path.getPointAtLength === "function") {
-      const length = path.getTotalLength();
-      const progress = { value: 0 };
-      const positionPulse = () => {
-        const point = path.getPointAtLength(length * progress.value);
-        gsap.set(pulse, { x: point.x, y: point.y });
-      };
-      positionPulse();
+    if (pulse && trail && leadingEdge) {
+      // The approved asset's cyan curve and this SVG share one viewBox. Dashing the
+      // path keeps the sweep locked to that curve without moving a circular element.
+      gsap.set(trail, { strokeDashoffset: 0 });
+      gsap.set(leadingEdge, { strokeDashoffset: -.054 });
       pathSweep = gsap.timeline({ delay: .7, repeat: -1, repeatDelay: 2.6 })
         .set(pulse, { opacity: 0 })
         .to(pulse, { opacity: 1, duration: .22, ease: "sine.out" })
-        .to(progress, { value: 1, duration: 5.2, ease: "none", onUpdate: positionPulse }, 0)
+        .to([trail, leadingEdge], { strokeDashoffset: "-=1", duration: 5.2, ease: "none" }, 0)
         .to(pulse, { opacity: 0, duration: .28, ease: "sine.in" }, "<4.92");
     }
     previousAmountRef.current = amount;
@@ -135,7 +135,7 @@ function RewardHero({ data, onOpenSheet }) {
     };
   }, { scope: heroRef, dependencies: [amount], revertOnUpdate: true });
   return <article ref={heroRef} className="crew-reward-hero" style={{ "--crew-reward-hero-background": `url(${rewardHeroBackground})` }}>
-    <RewardHeroMotion pathRef={pathRef} />
+    <RewardHeroMotion />
     <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><CrewStatusBadge tone="success">{translateStatus(data.status, t)}</CrewStatusBadge></div>
     <div className="crew-reward-hero-total"><small>{label}<HeroInfoButton label={t("reward.estimatedReward")} onOpen={() => onOpenSheet("estimated-reward")} /></small><strong aria-label={money(amount)}><span ref={amountRef} aria-hidden="true">{money(0)}</span><span className="sr-only" aria-hidden="true">{money(amount)}</span></strong></div>
     <div className="crew-reward-hero-metrics">
