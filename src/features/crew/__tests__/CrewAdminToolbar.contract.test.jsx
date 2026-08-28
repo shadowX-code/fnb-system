@@ -32,4 +32,10 @@ describe("Crew Admin toolbar contract", () => {
     expect(app).toContain("<CrewAdminOutletProvider outlets={effectiveStore.outlets}>");
     expect(app).toContain("</CrewAdminOutletProvider>");
   });
+
+  it("uses the server-scoped Crew Access employee read instead of matching workplace text in the browser", () => {
+    const contents = source("src/features/crew/pages/CrewWorkspacePage.jsx");
+    expect(contents).toContain("employeeService.listCrewAccessEmployees(outletId)");
+    expect(contents).not.toContain("employee.workplace ===");
+  });
 });

@@ -25,6 +25,7 @@ Employee identity, job position, role, Admin access, and Crew Access are distinc
 Editing an employee must not silently replace role or Auth linkage.
 Role configuration is saved through the established trusted authority so permission replacement is atomic and auditable.
 Employment-state changes must be respected by downstream Admin and Crew authorities.
+The Employee Master workplace is the current canonical input to Crew outlet scope. Crew Workforce may mirror that resolved outlet for credentials, but does not own a competing employee-outlet mapping; an Employee Master workplace change is the authoritative transfer event.
 
 The module registry defines available capabilities; roles grant permission to them but do not redefine route ownership.
 UI gating mirrors authority for usability while RLS and trusted functions enforce access.
@@ -47,3 +48,4 @@ All Restaurant, Crew, and Factory domains consume role/permission/outlet decisio
 Employee Directory, Roles, Permissions, and audit-oriented views remain grouped here.
 Legacy fields or labels must not become competing role or Auth-link authorities.
 External identity providers, HRIS synchronization, and payroll identity are deferred unless explicitly introduced.
+An explicit UUID employee-outlet assignment is planned as a future compatibility hardening phase. Until then, the established Employee Master workplace resolver remains the canonical relationship consumed by Crew Workforce.

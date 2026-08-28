@@ -55,6 +55,15 @@ export const employeeService = {
     return (data ?? []).map(mapEmployee);
   },
 
+  async listCrewAccessEmployees(outletId) {
+    if (!outletId) return [];
+    const { data, error } = await supabase.rpc("crew_access_admin_list", {
+      p_outlet_id: outletId,
+    });
+    throwSupabaseError("crewAccess.list", error);
+    return (data ?? []).map(mapEmployee);
+  },
+
   async saveEmployee(employee) {
     let roleId = employee.role_id || null;
     if (!roleId && employee.role) {

@@ -22,7 +22,8 @@ Crew Operations consumes workforce context but does not own roster or attendance
 ## Lifecycle And Business Rules
 
 Crew Access is a one-to-one extension of an eligible employee and remains separate from Admin access.
-Passcodes are protected, sessions are opaque and revocable, and sensitive requests revalidate access and employment state.
+Employee Master workplace scope is the current canonical outlet authority: Crew Access mirrors its resolved outlet, and a workplace transfer updates that mirror, revokes active Crew sessions, and appends audit evidence. A request with a stale or mismatched Crew Access outlet fails closed; it is never silently re-scoped from a client or an old session.
+Passcodes are protected, sessions are opaque and revocable, and sensitive requests revalidate token validity, access state, employment state, and the current canonical outlet scope.
 Crew-scoped operational capabilities, including Cash Handover initiation, are owned by the employee's active Crew Access record and outlet rather than by Admin roles or Admin Access. Their changes use the controlled Crew Access administration path and retain audit evidence.
 
 Duty Roster drafts are editable by authorized Admins.
@@ -45,7 +46,7 @@ Roster publication revisions, original attendance evidence, leave decisions, and
 
 ## Admin And Crew Workflows
 
-Admins enable/reset/disable Crew Access, prepare and publish rosters, review attendance evidence, configure leave policy/entitlement, and decide leave requests.
+Admins enable/reset/disable Crew Access and configure per-account Crew capabilities through the separate Special Access workflow; those capabilities are not Admin roles. They also prepare and publish rosters, review attendance evidence, configure leave policy/entitlement, and decide leave requests.
 Crew sign in separately, view their own published schedule, clock in/out, review their attendance, change passcode, and manage their own leave requests and balances.
 
 ## Integrations
@@ -60,3 +61,4 @@ Crew Learning may use employee eligibility and assignment context without owning
 Legacy Restaurant Duty Roster routes are compatibility entries into Crew Workforce ownership.
 Withdrawn availability and shift-swap experiments are not current product scope.
 Payroll, overtime calculation, biometric verification, and automatic labor optimization remain deferred unless current contracts introduce them.
+The current Employee Master workplace-to-outlet resolver remains a temporary Phase A compatibility relationship. Replacing it with an explicit UUID employee-outlet assignment is deferred Phase B work and must preserve the fail-closed Crew session boundary.
