@@ -31,6 +31,10 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added deterministic Staging-only Reporting poster fixtures under an unmistakably labelled QA/demo outlet. A verified-Staging-only seed and RPC verifier cover complete, negative-profit, explicit-zero, missing-source, product-ranking/unavailable, long-name, and 12-month/YTD presentation states without copying Production business data or adding a mock runtime path. Reports outlet visibility now independently requires `reports.view` and existing server-enforced outlet scope.
 
+## Late August 2026 — Reporting Poster Downloads
+
+- Added controlled PNG and single-page PDF downloads for the currently generated Monthly Profit and Yearly/YTD P&L posters. `reports.export` gates the action; both files are rendered from the same fixed logical React/HTML poster canvas and already-generated outlet-scoped Reporting dataset, with no additional reporting read or financial recomputation. Report history, snapshots, sharing, scheduling, and AI insights remain out of scope.
+
 ## 2026-08-13
 
 ### Crew Leave Entitlement / Balance v1

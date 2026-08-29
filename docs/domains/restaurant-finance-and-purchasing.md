@@ -41,11 +41,11 @@ The Restaurant Admin `Reports` module is the current Reporting consumer. It uses
 
 Staging-only poster QA uses a deterministic, explicitly labelled `QA Demo — Reporting Posters` outlet and ordinary Staging source evidence (sales, purchase, expense, and completed Product Analytics records). The guarded seed and verifier scripts refuse any Supabase target other than the canonical Staging ref and verify the existing Reporting RPC outputs; they do not become a Reporting authority, a browser mock mode, a Production runtime dependency, or a source of Production business data.
 
-Monthly and Yearly posters share a fixed-canvas editorial visual system: presentation primitives own the poster typography, financial story, ranking, trend, table, status, and FeedX signature treatment while the Admin page continues to own controls and preview containment. PNG/PDF export, report history/snapshots, sharing, scheduling, and AI insights remain deferred. `reports.export` remains reserved for that future controlled export action.
+Monthly and Yearly posters share a fixed-canvas editorial visual system: presentation primitives own the poster typography, financial story, ranking, trend, table, status, and FeedX signature treatment while the Admin page continues to own controls and preview containment. An Admin with `reports.export` can download the currently generated poster as a high-resolution PNG or single-page PDF. Both formats capture that same fixed logical React/HTML poster canvas and its current `reportingService` dataset; export neither re-queries Reporting nor recalculates finance. Report history/snapshots, sharing, scheduling, and AI insights remain deferred.
 
 ## Permissions And Audit
 
-Admin access requires the relevant finance, purchasing, import, supplier, or reporting permission plus outlet scope. Reporting reads and the Reports page require `reports.view`; `reports.export` is reserved for a future controlled export action.
+Admin access requires the relevant finance, purchasing, import, supplier, or reporting permission plus outlet scope. Reporting reads and the Reports page require `reports.view`; downloading a generated report requires `reports.export`.
 Cross-outlet comparisons must return only outlets visible to the caller.
 Material imports, snapshot transitions, configuration changes, and protected purchasing actions retain business audit evidence.
 
