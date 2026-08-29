@@ -129,6 +129,23 @@ Do not copy Staging fixtures or data into Production.
 Deploy dependent UI, schema, RPC, RLS, and Edge Function changes in a compatible order.
 Do not deploy, migrate, merge, commit, or push unless the task authorizes it.
 
+## Git Branch & Worktree Hygiene
+
+Canonical long-lived branches are `main` for Production and `dev` for Staging/integration. Codex may create short-lived local `codex/*` or `hotfix/*` branches and worktrees for task isolation; they are not long-lived branches.
+
+After each development task:
+
+1. Confirm the final code is in `origin/dev`.
+2. Complete required tests, `npm run build`, `git diff --check`, and any required authenticated Staging QA.
+3. Check the temporary branch/worktree for cleanliness and unique or unreconciled required patches.
+4. If safe, remove the temporary worktree and local branch; completed temporary branches/worktrees must not accumulate.
+
+Before deleting a non-ancestor branch, check patch equivalence and unique work; ancestry alone is insufficient. Never automatically delete, reset, clean, stash, overwrite, or prune a dirty worktree, a branch with unique/unreconciled work, a protected Guest AI workspace, or a workspace with unclear ownership or purpose. Keep Guest AI protected workspaces isolated unless the user explicitly authorizes action.
+
+Production deployment and merging `main` require explicit authorization. Routine cleanup must not force-push `main` or `dev`. Deliberately reconcile Production hotfixes back into `dev` after completion to prevent Production/Staging drift.
+
+Normal lifecycle: `temporary branch/worktree → integrate origin/dev → Staging QA → cleanup temporary branch/worktree`.
+
 ## Codex Implementation Discipline
 
 Read the relevant code, migrations, tests, and canonical domain docs before changing behavior.
