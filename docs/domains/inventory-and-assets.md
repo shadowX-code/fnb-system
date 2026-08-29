@@ -28,6 +28,14 @@ Asset creation and lifecycle transitions use the existing asset authorities.
 Status, location, assignment, and retirement history must remain traceable.
 Inventory and asset records are related operational concerns but retain their own entity lifecycles.
 
+### Asset Tracking Application Read Boundary
+
+`assetTrackingService` remains the approved Asset Tracking application boundary for Supabase reads and lifecycle RPC intent. Imports use `asset_import_row`; the browser must not create an independent movement-log import path.
+
+Asset condition normalization, missing/low-quantity semantics, attention, maintenance due state, inspection ordering/progress, operational KPIs, and activity projection use the shared Asset read-model selectors. A zero quantity with no positive minimum is **Missing**, not also Low Quantity. Maintenance eligibility is derived from the category setting plus the per-asset `maintenance_override`; Admin editor entry points share the same form state and validation rules.
+
+Inspection item and evidence reads are constrained to inspection headers already returned under the current outlet/RLS scope. Actor display lookup is a limited Asset service projection; it is not a page-level employee-directory query. The existing direct Admin condition and inspection-draft mutations remain deployed compatibility boundaries and should be replaced only by an explicitly scoped server-authoritative lifecycle change.
+
 ## Permissions, Snapshots, And Audit
 
 Admin access requires inventory or asset permissions and outlet/record scope.

@@ -7,6 +7,7 @@ import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../constants
 import { buildAlerts, getPreviousPeriod, getSupplierName, percentageChange, toPercent } from "../features/sales-purchase/utils/analytics.js";
 import { formatDateTime } from "../lib/dateTime.js";
 import { supabase } from "../lib/supabase";
+import { isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue } from "../features/sales-purchase/utils/assetReadModel.js";
 import { canAccessOutlet, hasPermission } from "../utils/accessControl.js";
 
 const iconMap = {
@@ -364,10 +365,10 @@ function buildNotificationItems(store, auth, context = {}, readIds = new Set()) 
   });
 
   (context.maintenanceRecords || [])
-    .filter((record) => record.status !== "completed" && daysFromToday(record.scheduled_date || record.date) !== null && daysFromToday(record.scheduled_date || record.date) <= 1)
+    .filter((record) => isMaintenanceDueWithin(record, 1))
     .slice(0, 8)
     .forEach((record) => {
-      const days = daysFromToday(record.scheduled_date || record.date);
+      const days = isMaintenanceOverdue(record) ? -1 : 0;
       candidates.push({
         id: `asset-maintenance-${record.id}`,
         type: "asset_maintenance_due",
@@ -386,7 +387,7 @@ function buildNotificationItems(store, auth, context = {}, readIds = new Set()) 
     });
 
   (context.inspections || [])
-    .filter((inspection) => ["draft", "in_progress", "pending_review"].includes(inspection.status))
+    .filter(isDraftInspection)
     .slice(0, 6)
     .forEach((inspection) => {
       candidates.push({
