@@ -28,6 +28,7 @@ function mount(permissions) {
 }
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "/");
   mocks.employees.listEmployees.mockReset().mockResolvedValue([employee]);
   mocks.employees.saveEmployee.mockReset();
   mocks.positions.listJobPositions.mockReset().mockResolvedValue([{ id: "position-1", name: "Supervisor", department: "Operations", status: "active" }]);
@@ -53,6 +54,17 @@ describe("Users page employee/auth lifecycle guards", () => {
     expect(screen.queryByText("Disable Access")).toBeNull();
     expect(mocks.employees.saveEmployee).not.toHaveBeenCalled();
     expect(mocks.onboarding.sendLoginSetupEmail).not.toHaveBeenCalled();
+  });
+
+  it("routes Crew credential management to the canonical Crew Access workspace", async () => {
+    mount(["employees.view", "crew_employees.view"]);
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manage Crew Access" }));
+
+    expect(window.location.hash).toBe("#crew_employees");
+    expect(screen.queryByText("Generate Crew Passcode")).toBeNull();
+    expect(screen.queryByText("Disable Crew Access")).toBeNull();
   });
 
   it("uses exact employee permissions to expose employee create and login lifecycle actions", async () => {

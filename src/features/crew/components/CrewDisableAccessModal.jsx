@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { crewService } from "../../../services/crewService.js";
+import { crewAccessMutationError } from "../utils/crewAccessErrors.js";
 
 export default function CrewDisableAccessModal({ employee, onClose, onSaved }) {
   const [saving, setSaving] = useState(false);
@@ -13,7 +14,7 @@ export default function CrewDisableAccessModal({ employee, onClose, onSaved }) {
       onSaved?.(await crewService.manageAccess(employee.id, "disable"));
       onClose();
     } catch (cause) {
-      setError(cause.message || "Unable to disable Crew Access.");
+      setError(crewAccessMutationError(cause, "Unable to disable Crew Access."));
     } finally {
       setSaving(false);
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, ShieldCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -20,9 +20,31 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   const [specialAccessEmployee, setSpecialAccessEmployee] = useState(null);
   const [disableEmployee, setDisableEmployee] = useState(null);
   const [query, setQuery] = useState("");
+  const refreshGeneration = useRef(0);
   const canManage = auth.hasPermission("crew_employees.manage");
-  async function refresh() { if (!outletId) { setEmployees([]); return; } setLoading(true); try { setEmployees(await employeeService.listCrewAccessEmployees(outletId)); } catch (error) { ui.notify({ title: "Unable to load Crew access", message: error.message, tone: "error" }); } finally { setLoading(false); } }
-  useEffect(() => { refresh(); }, [outletId]);
+  const refresh = useCallback(async () => {
+    const generation = ++refreshGeneration.current;
+    if (!outletId) {
+      setEmployees([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    try {
+      const nextEmployees = await employeeService.listCrewAccessEmployees(outletId);
+      if (generation === refreshGeneration.current) setEmployees(nextEmployees);
+    } catch (error) {
+      if (generation === refreshGeneration.current) {
+        ui.notify({ title: "Unable to load Crew access", message: error.message, tone: "error" });
+      }
+    } finally {
+      if (generation === refreshGeneration.current) setLoading(false);
+    }
+  }, [outletId, ui]);
+  useEffect(() => {
+    refresh();
+    return () => { refreshGeneration.current += 1; };
+  }, [refresh]);
   const scopedEmployees = useMemo(() => employees.filter((employee) => {
     const searchMatches = !query || `${employee.full_name} ${employee.position || ""} ${employee.employee_code || ""}`.toLowerCase().includes(query.toLowerCase());
     return searchMatches;
@@ -51,7 +73,7 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
 }
 
 function employmentLabel(row) {
-  const type = { full_time: "Full-Time", part_time: "Part-Time", contract: "Contract", probation: "Probation" }[row.employment_type] || row.employment_type || "—";
+  const type = { full_time: "Full-Time", part_time: "Part-Time", contract: "Contract", probation: "Probation", intern: "Intern" }[row.employment_type] || row.employment_type || "—";
   const status = row.is_active === false ? "Inactive" : { active: "Active", inactive: "Inactive", resigned: "Resigned", terminated: "Terminated" }[row.employment_status] || row.employment_status || "Active";
   return <div><div className="font-medium text-text-primary">{type}</div><div className="text-xs text-text-secondary">{status}</div></div>;
 }

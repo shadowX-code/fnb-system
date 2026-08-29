@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260828125052_crew_access_employee_outlet_session_hardening.sql"), "utf8");
 const backfill = readFileSync(resolve(process.cwd(), "supabase/migrations/20260828130508_crew_access_outlet_scope_backfill.sql"), "utf8");
+const outletMetadataReconciliation = readFileSync(resolve(process.cwd(), "supabase/migrations/20260829034058_crew_access_outlet_metadata_reconciliation.sql"), "utf8");
 
 describe("Crew Access Employee Master outlet and session authority", () => {
   it("synchronizes Crew Access scope from Employee Master workplace changes and revokes sessions", () => {
@@ -18,6 +19,13 @@ describe("Crew Access Employee Master outlet and session authority", () => {
     expect(backfill).toContain("crew_access_outlet_scope_backfilled");
     expect(backfill).toContain("ca.primary_outlet_id is distinct from public.crew_resolve_employee_outlet(ca.employee_id)");
     expect(backfill).toContain("update public.crew_sessions");
+  });
+
+  it("reconciles the Phase A mirror when outlet name or code changes the Employee Master resolver", () => {
+    expect(outletMetadataReconciliation).toContain("after update of name, code on public.outlets");
+    expect(outletMetadataReconciliation).toContain("crew_access_outlet_metadata_scope_reconciled");
+    expect(outletMetadataReconciliation).toContain("v_current_outlet_id := public.crew_resolve_employee_outlet(v_access.employee_id)");
+    expect(outletMetadataReconciliation).toContain("update public.crew_sessions");
   });
 
   it("fails closed when a session, employee, Crew Access record, or canonical outlet no longer matches", () => {

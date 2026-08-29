@@ -2,9 +2,10 @@ import { useState } from "react";
 import { Copy, ShieldCheck } from "lucide-react";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { crewService } from "../../../services/crewService.js";
+import { crewAccessMutationError } from "../utils/crewAccessErrors.js";
 
 function validPasscode(value) {
-  return /^\d{4}$/.test(value) && !["0000", "1111", "1234", "4321"].includes(value);
+  return /^\d{4}$/.test(value);
 }
 
 export default function CrewAccessManagerModal({ employee, mode = "enable", onClose, onSaved }) {
@@ -32,14 +33,14 @@ export default function CrewAccessManagerModal({ employee, mode = "enable", onCl
       setResult(data);
       onSaved?.(data);
     } catch (submitError) {
-      setError(submitError.message || "Unable to update Crew Access.");
+      setError(crewAccessMutationError(submitError, "Unable to update Crew Access."));
     } finally { setSaving(false); }
   }
 
   if (result) {
-    return <Modal title="Crew Access Enabled" description="This temporary passcode is shown once only." size="sm" onClose={onClose} footer={<button className="btn-primary" type="button" onClick={onClose}>Done</button>}>
+    return <Modal title={reset ? "Passcode Reset" : "Crew Access Activated"} description="This temporary passcode is shown once only." size="sm" onClose={onClose} footer={<button className="btn-primary" type="button" onClick={onClose}>Done</button>}>
       <div className="space-y-4">
-        <div className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800"><ShieldCheck className="mr-2 inline" size={16} />Crew Access is active for {employee.full_name}.</div>
+        <div className="rounded-xl bg-emerald-50 p-3 text-sm font-semibold text-emerald-800"><ShieldCheck className="mr-2 inline" size={16} />{reset ? `A new passcode is ready for ${employee.full_name}.` : `Crew Access is active for ${employee.full_name}.`}</div>
         <div className="rounded-xl border border-border bg-slate-50 p-4">
           <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Mobile</div><div className="mt-1 text-sm font-bold text-text-primary">{result.mobile_number}</div>
           <div className="mt-4 text-xs font-semibold uppercase tracking-wide text-text-muted">Temporary Passcode</div>

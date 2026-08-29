@@ -22,8 +22,7 @@ import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 import { canCreate, canEdit, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
-import CrewAccessManagerModal from "../../crew/components/CrewAccessManagerModal.jsx";
-import { crewAccessState, crewService, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
+import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
@@ -1321,7 +1320,6 @@ export default function UsersPage({ ui, store, auth }) {
   const [setupLink, setSetupLink] = useState(null);
   const [setupFallback, setSetupFallback] = useState(null);
   const [setupFallbackGenerating, setSetupFallbackGenerating] = useState(false);
-  const [crewAccessRequest, setCrewAccessRequest] = useState(null);
   const canCreateEmployee = canCreate(auth, "employees");
   const canEditEmployee = canEdit(auth, "employees");
   const canDeactivateEmployee = hasPermission(auth, "employees.deactivate");
@@ -1685,12 +1683,8 @@ export default function UsersPage({ ui, store, auth }) {
   }
 
   function renderCrewAccessAction(row) {
-    if (!hasPermission(auth, "crew_employees.manage")) return null;
-    const state = crewAccessState(row.crew_access);
-    if (state === "active" || state === "locked") {
-      return <><button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setCrewAccessRequest({ employee: row, mode: "reset" }); setActionMenuUserId(null); }}><KeyRound size={14} /> Generate Crew Passcode</button><button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={async () => { setActionMenuUserId(null); if (await ui.confirm({ title: "Disable Crew Access?", description: `${row.full_name} will be signed out of Crew on all devices.`, confirmLabel: "Disable Access", tone: "danger" })) { try { await crewService.manageAccess(row.id, "disable"); setUsers(await employeeService.listEmployees()); ui.notify({ title: "Crew Access disabled." }); } catch (error) { ui.notify({ title: "Unable to disable Crew Access", message: error.message, tone: "error" }); } } }}><Power size={14} /> Disable Crew Access</button></>;
-    }
-    return <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setCrewAccessRequest({ employee: row, mode: "enable" }); setActionMenuUserId(null); }}><ShieldCheck size={14} /> Manage Crew Access</button>;
+    if (!hasPermission(auth, "crew_employees.view")) return null;
+    return <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setActionMenuUserId(null); window.location.hash = "#crew_employees"; }}><ShieldCheck size={14} /> Manage Crew Access</button>;
   }
 
   const columns = [
@@ -1920,7 +1914,6 @@ export default function UsersPage({ ui, store, auth }) {
           onSubmit={saveUser}
         />
       ) : null}
-      {crewAccessRequest ? <CrewAccessManagerModal employee={crewAccessRequest.employee} mode={crewAccessRequest.mode} onClose={() => setCrewAccessRequest(null)} onSaved={async () => { const refreshed = await employeeService.listEmployees(); setUsers(refreshed); }} /> : null}
       {setupLink ? (
         <Modal
           title="Login Setup Link Generated"
