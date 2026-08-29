@@ -128,6 +128,8 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByRole("region", { name: "Work status summary" })).toBeNull();
     expect(screen.getByText("Alex Tan")).not.toBeNull();
     expect(screen.getByText("Full-Time")).not.toBeNull();
+    const profileHero = document.querySelector(".crew-me-profile-hero");
+    expect(profileHero?.querySelector("img.crew-me-profile-credential-art[aria-hidden='true']")).not.toBeNull();
     expect(screen.getByText("1 Pending")).not.toBeNull();
     expect(screen.getAllByText("Employment Documents")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Work" })).not.toBeNull();

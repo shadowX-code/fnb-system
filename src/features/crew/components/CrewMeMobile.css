@@ -137,48 +137,52 @@
 
 .crew-me-profile-hero {
   position: relative;
+  isolation: isolate;
   display: grid;
   width: 100%;
   min-width: 0;
-  grid-template-columns: 72px minmax(0, 1fr);
+  grid-template-columns: 62px minmax(0, 1fr);
   align-items: center;
-  gap: 15px;
+  gap: 13px;
   overflow: hidden;
-  border: 0;
+  border: 1px solid var(--crew-color-border);
   border-radius: var(--crew-radius-focus);
-  background: var(--crew-color-deep-teal);
-  padding: 20px 18px;
-  color: #fff;
+  background: color-mix(in srgb, var(--crew-color-mist-mint) 18%, var(--crew-color-surface));
+  padding: 18px;
+  box-shadow: var(--crew-shadow-focus);
+  color: var(--crew-color-deep-teal);
   text-align: left;
-
 }
 
-.crew-me-profile-hero::after {
+.crew-me-profile-credential-art {
   position: absolute;
-  right: -28px;
-  bottom: -64px;
-  width: 148px;
-  height: 184px;
-  border-radius: 52px;
-  background: rgb(255 255 255 / .04);
-  content: "";
-  transform: rotate(29deg);
-
+  z-index: 0;
+  top: 50%;
+  right: -72px;
+  width: 430px;
+  max-width: none;
+  height: auto;
+  pointer-events: none;
+  user-select: none;
+  transform: translateY(-50%);
 }
 
 .crew-me-profile-copy {
+  position: relative;
   z-index: 1;
   display: grid;
   min-width: 0;
   gap: 4px;
-  padding-right: 1px;
+  padding-right: 34px;
 
 }
 
 .crew-me-profile-copy strong {
   overflow: hidden;
-  font-size: 16px;
-  line-height: 1.25;
+  color: var(--crew-color-deep-teal);
+  font-size: var(--crew-type-card-title);
+  font-weight: 720;
+  line-height: 1.28;
   text-overflow: ellipsis;
   white-space: nowrap;
 
@@ -186,10 +190,11 @@
 
 .crew-me-profile-copy small {
   overflow: hidden;
+  color: var(--crew-color-text-secondary);
   font-size:var(--crew-type-helper);
   font-weight: 650;
   line-height: 1.35;
-  opacity: .94;
+  opacity: 1;
   text-overflow: ellipsis;
   white-space: nowrap;
 
@@ -379,33 +384,26 @@
 
 @media (max-width: 380px) {
 .crew-me-profile-hero {
-  grid-template-columns: 62px minmax(0, 1fr);
-  gap: 12px;
-  padding: 18px 15px;
+  grid-template-columns: 58px minmax(0, 1fr);
+  gap: 11px;
+  padding: 16px 15px;
 
 }
 }
 
-/* Me selectors retained from a legacy mixed rule. */
 .crew-me-profile-hero .crew-v2-avatar.is-large {
+  position: relative;
   z-index: 1;
-  width: 70px;
-  height: 70px;
-  border: 2px solid rgb(255 255 255 / .82);
-  background: rgb(218 249 238 / .55);
-  color: #fff;
-  font-size: 27px;
-
+  width: 56px;
+  height: 56px;
+  border: 1px solid var(--crew-color-border);
+  background: color-mix(in srgb, var(--crew-color-mist-mint) 34%, var(--crew-color-surface));
+  color: var(--crew-color-deep-teal);
+  font-size: 25px;
 }
 
 .crew-me-profile-detail > .crew-v2-avatar,.crew-me-profile-detail > h2,.crew-me-profile-detail > p,.crew-me-profile-detail > strong {
   justify-self:center;
   text-align:center;
-
-}
-
-.crew-me-profile-hero .crew-v2-avatar.is-large {
-  width: 60px;
-  height: 60px;
 
 }
