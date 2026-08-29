@@ -43,6 +43,17 @@ describe("Factory master-data modal contracts", () => {
     expect(screen.getByLabelText("Customer Name *").value).toBe("");
   });
 
+  it("renders both Factory category empty states without a runtime reference error", () => {
+    const finishedView = render(<FinishedGoodCategoryModal categories={[]} onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("No categories")).not.toBeNull();
+    expect(screen.getByText("Create a category before saving finished good products.")).not.toBeNull();
+    finishedView.unmount();
+
+    render(<RawMaterialCategoryModal categories={[]} onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("No categories")).not.toBeNull();
+    expect(screen.getByText("Create a category before saving raw material master records.")).not.toBeNull();
+  });
+
   it("preserves Finished Good, packaging SKU, and category identity at their callback boundaries", async () => {
     const saveGroup = vi.fn().mockResolvedValue(undefined);
     const archiveGroup = vi.fn().mockResolvedValue(undefined);
