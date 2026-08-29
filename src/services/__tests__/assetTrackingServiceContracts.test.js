@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), audit: vi.fn(), upload: vi.fn(), isImageDataUrl: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), audit: vi.fn(), upload: vi.fn(), isImageDataUrl: vi.fn() }));
 
 vi.mock("../../lib/supabase.ts", () => ({
   supabase: {
     rpc: mocks.rpc,
+    from: mocks.from,
     auth: { getUser: vi.fn(async () => ({ data: { user: { id: "auth-1" } } })) },
     storage: { from: vi.fn(() => ({ remove: vi.fn(), upload: vi.fn(), getPublicUrl: vi.fn() })) },
   },
@@ -27,6 +28,7 @@ const inspection = {
 
 beforeEach(() => {
   mocks.rpc.mockReset();
+  mocks.from.mockReset();
   mocks.audit.mockReset().mockResolvedValue(undefined);
   mocks.upload.mockReset();
   mocks.isImageDataUrl.mockReset().mockReturnValue(false);
@@ -34,6 +36,32 @@ beforeEach(() => {
 });
 
 describe("Asset Tracking trusted lifecycle RPC contracts", () => {
+  it("does not expose obsolete import or condition-template mutation paths", () => {
+    expect(assetTrackingService).not.toHaveProperty("logImportMovement");
+    expect(assetTrackingService).not.toHaveProperty("listConditionTemplates");
+    expect(assetTrackingService).not.toHaveProperty("saveConditionTemplate");
+  });
+
+  it("scopes inspection-item reads to the authorized inspection headers", async () => {
+    const inspectionIds = ["inspection-1", "inspection-2"];
+    const inspectionRows = inspectionIds.map((id) => ({ id, inspection_date: "2026-08-10", created_at: "2026-08-10T00:00:00Z", updated_at: "2026-08-10T00:00:00Z" }));
+    const itemRows = [{ id: "item-1", inspection_id: "inspection-1", asset_id: "asset-1", created_at: "2026-08-10T00:00:00Z" }];
+    const inCalls = [];
+    const chain = (result) => {
+      const value = { select: () => value, order: () => value, eq: () => value, in: (column, ids) => { inCalls.push([column, ids]); return value; } };
+      value.then = (resolve) => Promise.resolve(result).then(resolve);
+      return value;
+    };
+    mocks.from.mockImplementation((table) => chain(table === "asset_inspections"
+      ? { data: inspectionRows, error: null }
+      : table === "asset_inspection_items"
+        ? { data: itemRows, error: null }
+        : { data: [], error: null }));
+
+    await assetTrackingService.listInspections("", "outlet-1");
+    expect(inCalls).toContainEqual(["inspection_id", inspectionIds]);
+  });
+
   it("maps maintenance create and its condition transition to one trusted RPC", async () => {
     mocks.rpc.mockResolvedValueOnce({ data: { record: { id: "maintenance-1", status: "in_progress" }, condition: "under_maintenance" }, error: null });
     await assetTrackingService.saveMaintenanceRecord(asset, { requestId: "maintenance-request-1", date: "2026-08-10", maintenance_type: "repair", priority: "high", issue: "Motor", action_taken: "Diagnosing", vendor: "Vendor", cost: 20, status: "in_progress", remark: "Urgent" });

@@ -13,13 +13,13 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import { supabase } from "../../../lib/supabase.js";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
 import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
 import { IMAGE_UPLOAD_ACCEPT, optimizeImageFileForPreview } from "../../../utils/imageUpload.js";
+import { assetConditions, buildAssetActivityProjection, buildAssetOperationalKpis, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
+import { useMaintenanceRecordForm } from "../hooks/useMaintenanceRecordForm.js";
 
-const assetConditions = ["healthy", "needs_attention", "under_maintenance", "low_quantity", "damaged", "missing", "disposed"];
 const inspectionConditionOptions = ["healthy", "needs_attention", "damaged", "missing"];
 const reduceReasons = ["broken", "missing", "disposed", "stolen", "transferred", "correction", "other"];
 const maintenancePriorities = ["low", "medium", "high", "critical"];
@@ -185,13 +185,6 @@ function LifecycleProgress({ status }) {
   );
 }
 
-function isMaintenanceOverdue(record) {
-  if (!record?.scheduled_date || record.status === "completed") return false;
-  const scheduled = new Date(record.scheduled_date);
-  const today = new Date();
-  return scheduled < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-}
-
 function daysUntil(value) {
   if (!value) return null;
   const date = new Date(value);
@@ -239,14 +232,6 @@ function maintenanceTimelineGroup(record) {
   return "Older";
 }
 
-function normalizeAssetCondition(value) {
-  const normalized = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
-  if (normalized === "good" || normalized === "active") return "healthy";
-  if (["needs_review", "review", "need_repair", "need_repairs"].includes(normalized)) return "needs_attention";
-  if (normalized === "inactive") return "disposed";
-  return assetConditions.includes(normalized) ? normalized : "healthy";
-}
-
 function assetConditionInsight(condition) {
   const insights = {
     healthy: "No active operational issues.",
@@ -280,14 +265,6 @@ function getQuantityHealth(asset) {
   return { label: "Good", tone: "success", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" };
 }
 
-function assetNeedsAttention(asset) {
-  const condition = normalizeAssetCondition(asset.condition);
-  if (condition === "disposed" || asset.status === "archived") return false;
-  return condition !== "healthy" ||
-    Number(asset.current_quantity || 0) <= 0 ||
-    (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
-}
-
 function latestMovementSummary(movement) {
   if (!movement) return "—";
   const amount = Math.abs(Number(movement.quantity_change || 0));
@@ -298,23 +275,6 @@ function latestMovementSummary(movement) {
   if (movement.movement_type === "transfer_in") return "Transfer · Received";
   if (movement.movement_type === "transfer_out") return "Transfer · Sent";
   return "Quantity adjusted";
-}
-
-function nextMaintenanceInfo(records = []) {
-  const candidates = records
-    .filter((record) => record.status !== "completed")
-    .map((record) => ({ record, date: record.scheduled_date || record.date }))
-    .filter((entry) => entry.date)
-    .sort((first, second) => new Date(first.date) - new Date(second.date));
-  if (!candidates.length) return { label: "No schedule", tone: "neutral", days: null, date: null };
-  const next = candidates[0];
-  const days = daysUntil(next.date);
-  if (days === null) return { label: "No schedule", tone: "neutral", days: null, date: null };
-  if (days < 0) return { label: `Overdue ${Math.abs(days)}d`, tone: "danger", days, date: next.date };
-  if (days === 0) return { label: "Due Today", tone: "warning", days, date: next.date };
-  if (days === 1) return { label: "Tomorrow", tone: "warning", days, date: next.date };
-  if (days <= 7) return { label: formatFullDate(next.date).replace(/\s\d{4}$/, ""), tone: "warning", days, date: next.date };
-  return { label: formatFullDate(next.date).replace(/\s\d{4}$/, ""), tone: "success", days, date: next.date };
 }
 
 function maintenanceCompletedDate(record) {
@@ -464,23 +424,10 @@ function DateText({ value }) {
   return <span title={formatRelativeDate(value)}>{formatFullDate(value)}</span>;
 }
 
-function inspectionProgress(inspection) {
-  const summary = inspection?.summary || {};
-  if (Number.isFinite(Number(inspection?.completion_percentage)) && Number(inspection.completion_percentage) > 0) return Math.round(Number(inspection.completion_percentage));
-  if (Number.isFinite(Number(summary.completion_percentage))) return Math.round(Number(summary.completion_percentage));
-  const total = Number(summary.total_assets || summary.totalAssets || 0);
-  const checked = Number(summary.checked_assets || summary.checkedAssets || summary.matched_assets || 0);
-  return total ? Math.round((checked / total) * 100) : 0;
-}
-
 function draftStatusLabel(status) {
   if (status === "in_progress") return "In Progress";
   if (status === "pending_review") return "Pending Review";
   return titleCase(status || "draft");
-}
-
-function isDraftInspection(inspection) {
-  return ["draft", "in_progress", "pending_review"].includes(inspection.status);
 }
 
 function canonical(value = "") {
@@ -1317,24 +1264,7 @@ function AdjustQuantityModal({ asset, onClose, onSubmit, saving }) {
 }
 
 function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
-  const [values, setValues] = useState({
-    id: record?.id || "",
-    date: record?.date || new Date().toISOString().slice(0, 10),
-    scheduled_date: record?.scheduled_date || (record?.status === "completed" ? "" : new Date().toISOString().slice(0, 10)),
-    completed_date: record?.completed_date || (record?.status === "completed" ? new Date().toISOString().slice(0, 10) : ""),
-    next_service_date: record?.next_service_date || "",
-    maintenance_type: record?.maintenance_type || "repair",
-    priority: record?.priority || "medium",
-    issue: record?.issue || "",
-    action_taken: record?.action_taken || "",
-    vendor: record?.vendor || "",
-    cost: record?.cost ? String(record.cost) : "",
-    status: maintenanceStatuses.includes(record?.status) ? record.status : "scheduled",
-    remark: record?.remark || "",
-    photo_url: record?.photo_url || "",
-    set_condition_good: false,
-  });
-  const [photoError, setPhotoError] = useState("");
+  const { values, update, handlePhoto, photoError, invalid } = useMaintenanceRecordForm(record);
   const [previewOpen, setPreviewOpen] = useState(false);
   const showPriority = values.status !== "completed";
   const showScheduledDate = values.status !== "completed";
@@ -1343,42 +1273,6 @@ function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
   const showActionTaken = values.status !== "scheduled";
   const costLabel = values.status === "completed" ? "Final Cost" : values.status === "in_progress" ? "Current Cost" : "Estimated Cost";
   const ctaLabel = values.status === "completed" ? "Complete Maintenance" : values.status === "in_progress" ? "Update Progress" : "Save Scheduled Record";
-  const invalid = !values.issue.trim() ||
-    !values.maintenance_type ||
-    (showActionTaken && !values.action_taken.trim()) ||
-    (showScheduledDate && !values.scheduled_date) ||
-    (showCompletedDate && !values.completed_date);
-
-  function update(key, value) {
-    setValues((current) => {
-      const next = { ...current, [key]: value };
-      if (key === "status") {
-        if (value === "completed") {
-          next.scheduled_date = "";
-          next.priority = current.priority || "medium";
-          next.completed_date = current.completed_date || new Date().toISOString().slice(0, 10);
-        } else {
-          next.completed_date = "";
-          next.next_service_date = "";
-          next.scheduled_date = current.scheduled_date || new Date().toISOString().slice(0, 10);
-        }
-      }
-      return next;
-    });
-  }
-
-  async function handlePhoto(file) {
-    setPhotoError("");
-    if (!file) return;
-    try {
-      const optimized = await optimizeImageFileForPreview(file);
-      update("photo_url", optimized.dataUrl);
-      update("previous_photo_url", record?.photo_url || "");
-    } catch (error) {
-      setPhotoError(error.message || "Unable to read this image.");
-    }
-  }
-
   return (
     <Modal
       title={record ? "Edit Maintenance Record" : "Add Maintenance Record"}
@@ -1484,24 +1378,7 @@ function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
 }
 
 function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving }) {
-  const [values, setValues] = useState({
-    id: record?.id || "",
-    date: record?.date || new Date().toISOString().slice(0, 10),
-    scheduled_date: record?.scheduled_date || (record?.status === "completed" ? "" : new Date().toISOString().slice(0, 10)),
-    completed_date: record?.completed_date || (record?.status === "completed" ? new Date().toISOString().slice(0, 10) : ""),
-    next_service_date: record?.next_service_date || "",
-    maintenance_type: record?.maintenance_type || "repair",
-    priority: record?.priority || "medium",
-    issue: record?.issue || "",
-    action_taken: record?.action_taken || "",
-    vendor: record?.vendor || "",
-    cost: record?.cost ? String(record.cost) : "",
-    status: maintenanceStatuses.includes(record?.status) ? record.status : "scheduled",
-    remark: record?.remark || "",
-    photo_url: record?.photo_url || "",
-    set_condition_good: false,
-  });
-  const [photoError, setPhotoError] = useState("");
+  const { values, update, handlePhoto, photoError, invalid } = useMaintenanceRecordForm(record);
   const [previewOpen, setPreviewOpen] = useState(false);
   const showPriority = values.status !== "completed";
   const showScheduledDate = values.status !== "completed";
@@ -1510,41 +1387,6 @@ function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving 
   const showActionTaken = values.status !== "scheduled";
   const costLabel = values.status === "completed" ? "Final Cost" : values.status === "in_progress" ? "Current Cost" : "Estimated Cost";
   const ctaLabel = values.status === "completed" ? "Complete Maintenance" : values.status === "in_progress" ? "Update Progress" : "Save Scheduled Record";
-  const invalid = !values.issue.trim() ||
-    !values.maintenance_type ||
-    (showActionTaken && !values.action_taken.trim()) ||
-    (showScheduledDate && !values.scheduled_date) ||
-    (showCompletedDate && !values.completed_date);
-
-  function update(key, value) {
-    setValues((current) => {
-      const next = { ...current, [key]: value };
-      if (key === "status") {
-        if (value === "completed") {
-          next.scheduled_date = "";
-          next.completed_date = current.completed_date || new Date().toISOString().slice(0, 10);
-        } else {
-          next.completed_date = "";
-          next.next_service_date = "";
-          next.scheduled_date = current.scheduled_date || new Date().toISOString().slice(0, 10);
-        }
-      }
-      return next;
-    });
-  }
-
-  async function handlePhoto(file) {
-    setPhotoError("");
-    if (!file) return;
-    try {
-      const optimized = await optimizeImageFileForPreview(file);
-      update("photo_url", optimized.dataUrl);
-      update("previous_photo_url", record?.photo_url || "");
-    } catch (error) {
-      setPhotoError(error.message || "Unable to read this image.");
-    }
-  }
-
   return (
     <div className="flex min-h-full flex-col">
       <div className="sticky top-0 z-20 border-b border-border bg-white/95 p-5 backdrop-blur">
@@ -1806,7 +1648,7 @@ function isSuggestedForInspectionType(asset, type) {
   const condition = normalizeAssetCondition(asset.condition);
   if (inspectionType === "spot_check") return false;
   if (inspectionType === "maintenance_verification") {
-    return asset.maintenance_allowed || asset.maintenance_override === "enabled" || condition === "under_maintenance" || condition === "damaged" || condition === "needs_attention";
+    return isAssetMaintenanceEligible(asset) || condition === "under_maintenance" || condition === "damaged" || condition === "needs_attention";
   }
   if (inspectionType === "incident_follow_up") {
     return ["needs_attention", "under_maintenance", "low_quantity", "damaged", "missing"].includes(condition) || Number(asset.current_quantity || 0) <= 0;
@@ -1961,8 +1803,6 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
       draftId: draftInspection?.id || "",
       outletId,
       inspectionDate,
-      checkedBy,
-      checkedByEmployeeId,
       categoryScope,
       notes,
       remark: notes,
@@ -1974,8 +1814,6 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
         inspectionType,
         scopeType,
         selectedCategoryIds,
-        checkedBy,
-        checkedByEmployeeId,
         inspectionDate,
         notes,
         rows: draftRows,
@@ -2271,7 +2109,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
   const latestDifference = Number(latestInspectionItem?.difference || 0);
   const latestEvidenceCount = latestInspectionItem?.evidence_status === "complete" ? 1 : 0;
   const latestNotesCount = [latestInspectionItem?.remark, latestInspection?.notes, latestInspection?.remark].filter(Boolean).length;
-  const maintenanceEnabled = safeAsset.maintenance_allowed === true;
+  const maintenanceEnabled = isAssetMaintenanceEligible(safeAsset);
   const detailTabs = ["overview", "movement", "inspection", ...(maintenanceEnabled ? ["maintenance"] : [])];
   const activeMaintenance = maintenanceRecords.filter((record) => ["scheduled", "in_progress"].includes(record.status));
   const overdueMaintenance = maintenanceRecords.filter(isMaintenanceOverdue);
@@ -2652,25 +2490,6 @@ function inspectionVarianceCount(inspection) {
   return (inspection.items || []).filter((item) => Number(item.difference || 0) !== 0).length;
 }
 
-function inspectionSortTime(inspection) {
-  const inspectionDate = inspection?.inspection_date ? new Date(inspection.inspection_date).getTime() : 0;
-  const createdAt = inspection?.created_at ? new Date(inspection.created_at).getTime() : 0;
-  const updatedAt = inspection?.updated_at ? new Date(inspection.updated_at).getTime() : 0;
-  return {
-    inspectionDate: Number.isNaN(inspectionDate) ? 0 : inspectionDate,
-    createdAt: Number.isNaN(createdAt) ? 0 : createdAt,
-    updatedAt: Number.isNaN(updatedAt) ? 0 : updatedAt,
-  };
-}
-
-function sortInspectionsNewestFirst(first, second) {
-  const firstTime = inspectionSortTime(first);
-  const secondTime = inspectionSortTime(second);
-  return secondTime.inspectionDate - firstTime.inspectionDate ||
-    secondTime.createdAt - firstTime.createdAt ||
-    secondTime.updatedAt - firstTime.updatedAt;
-}
-
 function InspectionDetailModal({ inspection, outlet, currentProfile, actorNameResolver, onClose }) {
   const rows = inspection.items || [];
   return createPortal(
@@ -2959,10 +2778,13 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         setActorEmployees([]);
         return;
       }
-      const { data, error } = await supabase
-        .from("employees")
-        .select("id,auth_user_id,nickname,full_name,email")
-        .or(`id.in.(${assetActorIds.join(",")}),auth_user_id.in.(${assetActorIds.join(",")})`);
+      let data;
+      let error;
+      try {
+        data = await assetTrackingService.listActivityActors(assetActorIds);
+      } catch (loadError) {
+        error = loadError;
+      }
       if (ignore) return;
       if (error) {
         if (import.meta.env.DEV) console.warn("[AssetActorMapDebug]", error);
@@ -3019,8 +2841,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     map.set(asset.id, {
       nextMaintenance: nextMaintenanceInfo(assetMaintenance),
       maintenanceDue: assetMaintenance.some((record) => {
-        const info = nextMaintenanceInfo([record]);
-        return info.days !== null && info.days <= 1;
+        return isMaintenanceDueWithin(record, 1);
       }),
       overdue: assetMaintenance.some(isMaintenanceOverdue),
       highVariance: (latestInspection?.items || []).some((item) => item.asset_id === asset.id && Math.abs(Number(item.difference || 0)) > 0),
@@ -3098,84 +2919,13 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }, [inspections, scopedAssets]);
 
   const operationalKpis = useMemo(() => {
-    const operationalAssets = scopedAssets.filter((asset) => normalizeAssetCondition(asset.condition) !== "disposed");
-    const operationalAssetIds = new Set(operationalAssets.map((asset) => asset.id));
-    const scheduledMaintenance = maintenanceRecords.filter((record) => record.status === "scheduled" && operationalAssetIds.has(record.asset_id)).length;
-    const activeMaintenanceAssetIds = new Set(maintenanceRecords
-      .filter((record) => record.status === "in_progress")
-      .map((record) => record.asset_id));
-    const underMaintenance = operationalAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "under_maintenance" || activeMaintenanceAssetIds.has(asset.id)).length;
-    const missingLowQuantity = operationalAssets.filter((asset) => {
-      const quantity = Number(asset.current_quantity || 0);
-      const minimum = Number(asset.minimum_quantity || 0);
-      const condition = normalizeAssetCondition(asset.condition);
-      return condition === "missing" || condition === "low_quantity" || quantity <= 0 || (minimum > 0 && quantity <= minimum);
-    }).length;
-    const needsAttention = operationalAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "needs_attention").length;
-    const inspectedTodayAssetIds = new Set();
-    inspections
-      .filter((inspection) => formatRelativeDate(inspection.inspection_date) === "Today")
-      .forEach((inspection) => {
-        (inspection.items || []).forEach((item) => inspectedTodayAssetIds.add(item.asset_id));
-      });
-    const recentlyInspected = operationalAssets.filter((asset) => inspectedTodayAssetIds.has(asset.id) || formatRelativeDate(asset.last_inspection_at) === "Today").length;
-    const missingAssets = operationalAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "missing" || Number(asset.current_quantity || 0) <= 0).length;
-    const lowQuantity = operationalAssets.filter((asset) => {
-      const quantity = Number(asset.current_quantity || 0);
-      const minimum = Number(asset.minimum_quantity || 0);
-      return normalizeAssetCondition(asset.condition) === "low_quantity" || (minimum > 0 && quantity <= minimum);
-    }).length;
-    const disposed = scopedAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "disposed").length;
-    return { scheduledMaintenance, underMaintenance, missingLowQuantity, needsAttention, recentlyInspected, missingAssets, lowQuantity, disposed };
+    return buildAssetOperationalKpis({ assets: scopedAssets, inspections, maintenanceRecords });
   }, [scopedAssets, inspections, maintenanceRecords]);
 
-  const recentActivityRows = useMemo(() => {
-    const importedAssetIds = new Set(movements.filter((movement) => movement.reason === "import").map((movement) => movement.asset_id));
-    const assetRows = assets
-      .filter((asset) => asset.created_at && !importedAssetIds.has(asset.id))
-      .slice(0, 6)
-      .map((asset) => ({
-        id: `asset-created-${asset.id}`,
-        date: asset.created_at,
-        title: "Asset Added",
-        detail: `${asset.name} was added to Asset Tracking.`,
-        type: "created",
-        actor: activityActorLabel("Created", asset.created_by, auth, actorDisplayName),
-      }));
-    const movementRows = movements.slice(0, 8).map((movement) => {
-      const assetName = assetNameById(assets, movement.asset_id);
-      const meta = movementActivityMeta(movement, assetName);
-      return {
-        id: `movement-${movement.id}`,
-        date: activityTimestamp(movement),
-        title: meta.title,
-        detail: meta.description,
-        type: meta.type,
-        actor: activityActorLabel(meta.actorPrefix, movement.created_by, auth, actorDisplayName),
-      };
-    });
-    const maintenanceRows = maintenanceRecords.slice(0, 6).map((record) => ({
-      id: `maintenance-${record.id}`,
-      date: activityTimestamp(record) || record.completed_date || record.scheduled_date || record.date,
-      title: record.status === "completed" ? "Maintenance Completed" : "Maintenance Scheduled",
-      detail: record.issue || maintenanceTypeLabel(record.maintenance_type),
-      type: "maintenance",
-      actor: activityActorLabel(record.status === "completed" ? "Completed" : "Scheduled", record.created_by, auth, actorDisplayName),
-      metadata: assetNameById(assets, record.asset_id),
-    }));
-    const inspectionRows = inspections.slice(0, 6).map((inspection) => ({
-      id: `inspection-${inspection.id}`,
-      date: activityTimestamp(inspection) || inspection.inspection_date,
-      title: "Inspection Completed",
-      detail: `${inspection.summary?.total_assets || (inspection.items || []).length || 0} assets checked`,
-      type: "inspection",
-      actor: inspectionActorLabel(inspection, auth, actorDisplayName),
-    }));
-    return [...movementRows, ...maintenanceRows, ...inspectionRows, ...assetRows]
-      .filter((row) => row.date)
-      .sort((first, second) => new Date(second.date) - new Date(first.date))
-      .slice(0, 8);
-  }, [actorEmployees, assets, auth, inspections, maintenanceRecords, movements]);
+  const recentActivityRows = useMemo(() => buildAssetActivityProjection({ assets, movements, inspections, maintenanceRecords }).map((row) => ({
+    ...row,
+    actor: activityActorLabel(row.actorPrefix, row.actorId, auth, actorDisplayName),
+  })), [actorEmployees, assets, auth, inspections, maintenanceRecords, movements]);
 
   async function saveAsset(asset) {
     if ((asset.id && !canEditAsset) || (!asset.id && !canAdd)) {
@@ -3792,9 +3542,9 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           <FloatingActionItem icon={<Eye size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setDetailAsset(asset); }}>View</FloatingActionItem>
           {canManageAsset ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setAdjustAsset(asset); }}>Adjust Quantity</FloatingActionItem> : null}
           {canManageAsset ? <FloatingActionItem icon={<ClipboardCheck size={13} />} onClick={() => { setActionMenu(null); setInspectionOpen(true); }}>Start Inspection</FloatingActionItem> : null}
-          {(canEditAsset || (canManageAsset && actionMenu?.asset?.maintenance_allowed)) ? <div className="my-1 border-t border-border" /> : null}
+          {(canEditAsset || (canManageAsset && isAssetMaintenanceEligible(actionMenu?.asset))) ? <div className="my-1 border-t border-border" /> : null}
           {canEditAsset ? <FloatingActionItem icon={<PackageCheck size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setAssetModal(asset); }}>Edit Asset</FloatingActionItem> : null}
-          {canManageAsset && actionMenu?.asset?.maintenance_allowed ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setMaintenanceContext({ asset, record: null }); }}>Add Maintenance Record</FloatingActionItem> : null}
+          {canManageAsset && isAssetMaintenanceEligible(actionMenu?.asset) ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setMaintenanceContext({ asset, record: null }); }}>Add Maintenance Record</FloatingActionItem> : null}
           {canDeleteAsset ? <div className="my-1 border-t border-border" /> : null}
           {canDeleteAsset ? <FloatingActionItem tone="warning" icon={<AlertTriangle size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) archiveAsset(asset); }}>Archive</FloatingActionItem> : null}
         </div>

@@ -34,6 +34,7 @@ import {
   toPercent,
 } from "../utils/analytics.js";
 import { getAccessibleOutletOptions } from "../../../utils/accessControl.js";
+import { isAssetLowQuantity, isAssetMissing, isDraftInspection, isMaintenanceOverdue } from "../utils/assetReadModel.js";
 
 const cogsTarget = 35;
 const outletColors = ["#16a34a", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6"];
@@ -489,15 +490,12 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     .sort((a, b) => a.quantity - b.quantity || a.nett_sales - b.nett_sales)[0];
 
   const today = useMemo(() => todayDate(), []);
-  const inspectionDrafts = opsData.inspections.filter((inspection) => ["draft", "in_progress", "pending_review"].includes(inspection.status));
-  const overdueMaintenance = opsData.maintenance.filter((record) => {
-    const scheduled = new Date(`${record.scheduled_date || record.date}T00:00:00`);
-    return scheduled < today && record.status !== "completed";
-  });
+  const inspectionDrafts = opsData.inspections.filter(isDraftInspection);
+  const overdueMaintenance = opsData.maintenance.filter((record) => isMaintenanceOverdue(record, today));
   const openRepairs = opsData.maintenance.filter((record) => ["scheduled", "in_progress"].includes(record.status));
   const scheduledMaintenance = opsData.maintenance.filter((record) => record.status === "scheduled");
-  const lowQuantityAssets = opsData.assets.filter((asset) => Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0) || asset.condition === "low_quantity");
-  const missingAssets = opsData.assets.filter((asset) => asset.condition === "missing" || Number(asset.current_quantity || 0) === 0);
+  const lowQuantityAssets = opsData.assets.filter(isAssetLowQuantity);
+  const missingAssets = opsData.assets.filter(isAssetMissing);
   const rosterIssueOutlets = outletMonthlyRows.filter((row) => row.staffing !== "Published");
   const pendingActions = [
     { label: "Purchase drafts", count: 0, route: "purchase-input" },

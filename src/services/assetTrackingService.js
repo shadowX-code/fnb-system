@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { isImageDataUrl, removeStorageObjectFromPublicUrl, uploadOptimizedDataUrl } from "../utils/imageUpload.js";
+import { isAssetMaintenanceEligible, normalizeAssetCondition, sortInspectionsNewestFirst } from "../features/sales-purchase/utils/assetReadModel.js";
 
 const categoryBaseFields = "id,name,description,sort_order,is_active,created_at,updated_at";
 const categoryFields = "id,name,description,sort_order,is_active,maintenance_enabled,created_at,updated_at";
@@ -12,42 +13,7 @@ const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quan
 const maintenanceFields = "id,asset_id,outlet_id,date,maintenance_type,priority,issue,action_taken,vendor,cost,status,scheduled_date,completed_date,next_service_date,remark,photo_url,created_by,created_at,updated_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,checked_by_employee_id,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
-const conditionFields = "id,category_id,name,severity,color,requires_photo,requires_remark,affects_health,triggers_alert,active,sort_order,created_at,updated_at";
 const evidenceFields = "id,inspection_item_id,image_url,caption,created_at";
-const assetConditionValues = new Set(["healthy", "needs_attention", "under_maintenance", "low_quantity", "damaged", "missing", "disposed"]);
-
-function normalizeConditionValue(value) {
-  const normalized = String(value || "")
-    .trim()
-    .toLowerCase()
-    .replace(/[\s-]+/g, "_");
-  const aliases = {
-    good: "healthy",
-    active: "healthy",
-    healthy: "healthy",
-    needs_attention: "needs_attention",
-    attention: "needs_attention",
-    needs_review: "needs_attention",
-    review: "needs_attention",
-    need_repair: "needs_attention",
-    need_repairs: "needs_attention",
-    damaged: "damaged",
-    missing: "missing",
-    under_maintenance: "under_maintenance",
-    maintenance: "under_maintenance",
-    low_quantity: "low_quantity",
-    low: "low_quantity",
-    disposed: "disposed",
-    inactive: "disposed",
-  };
-  const mapped = aliases[normalized] || normalized;
-  if (!assetConditionValues.has(mapped)) {
-    console.warn("[AssetTracking] Unknown asset condition normalized to healthy", { value });
-    return "healthy";
-  }
-  return mapped;
-}
-
 function isDataUrl(value) {
   return isImageDataUrl(value);
 }
@@ -127,7 +93,7 @@ function mapAsset(row) {
     category_name: row.category?.name ?? "",
     maintenance_enabled: categoryMaintenanceEnabled,
     maintenance_override: maintenanceOverride,
-    maintenance_allowed: maintenanceOverride === "enabled" || (maintenanceOverride === "inherit" && categoryMaintenanceEnabled),
+    maintenance_allowed: isAssetMaintenanceEligible({ maintenance_override: maintenanceOverride, maintenance_enabled: categoryMaintenanceEnabled }),
     name: row.name,
     description: row.description ?? "",
     asset_code: row.asset_code ?? "",
@@ -139,7 +105,7 @@ function mapAsset(row) {
     thumbnail_url: row.thumbnail_url ?? row.image_url ?? "",
     health_status: row.health_status ?? "healthy",
     last_inspection_at: row.last_inspection_at ?? null,
-    condition: normalizeConditionValue(row.condition ?? (["damaged", "missing", "disposed"].includes(row.status) ? row.status : "healthy")),
+    condition: normalizeAssetCondition(row.condition ?? (["damaged", "missing", "disposed"].includes(row.status) ? row.status : "healthy")),
     unit: row.unit ?? "unit",
     current_quantity: Number(row.current_quantity ?? 0),
     minimum_quantity: Number(row.minimum_quantity ?? 0),
@@ -231,8 +197,8 @@ function mapInspection(row, items = []) {
     ...item,
     asset: item.asset ?? fallbackAssetForItem(item),
     evidence: item.evidence ?? [],
-    condition: normalizeConditionValue(item.condition ?? item.condition_status),
-    condition_status: normalizeConditionValue(item.condition_status ?? item.condition),
+    condition: normalizeAssetCondition(item.condition ?? item.condition_status),
+    condition_status: normalizeAssetCondition(item.condition_status ?? item.condition),
   }));
   return {
     id: row.id,
@@ -255,43 +221,6 @@ function mapInspection(row, items = []) {
     created_at: row.created_at,
     updated_at: row.updated_at,
     items: normalizedItems,
-  };
-}
-
-function inspectionSortTime(row) {
-  const inspectionDate = row?.inspection_date ? new Date(row.inspection_date).getTime() : 0;
-  const createdAt = row?.created_at ? new Date(row.created_at).getTime() : 0;
-  const updatedAt = row?.updated_at ? new Date(row.updated_at).getTime() : 0;
-  return {
-    inspectionDate: Number.isNaN(inspectionDate) ? 0 : inspectionDate,
-    createdAt: Number.isNaN(createdAt) ? 0 : createdAt,
-    updatedAt: Number.isNaN(updatedAt) ? 0 : updatedAt,
-  };
-}
-
-function sortInspectionsNewestFirst(first, second) {
-  const firstTime = inspectionSortTime(first);
-  const secondTime = inspectionSortTime(second);
-  return secondTime.inspectionDate - firstTime.inspectionDate ||
-    secondTime.createdAt - firstTime.createdAt ||
-    secondTime.updatedAt - firstTime.updatedAt;
-}
-
-function mapConditionTemplate(row) {
-  return {
-    id: row.id,
-    category_id: row.category_id,
-    name: row.name,
-    severity: row.severity ?? "healthy",
-    color: row.color ?? "emerald",
-    requires_photo: row.requires_photo === true,
-    requires_remark: row.requires_remark === true,
-    affects_health: row.affects_health === true,
-    triggers_alert: row.triggers_alert === true,
-    active: row.active !== false,
-    sort_order: Number(row.sort_order ?? 0),
-    created_at: row.created_at,
-    updated_at: row.updated_at,
   };
 }
 
@@ -427,48 +356,17 @@ export const assetTrackingService = {
     return mapCategory(data);
   },
 
-  async listConditionTemplates(categoryId = "") {
-    const fallback = [
-      { name: "Good", severity: "healthy", color: "emerald", requires_photo: false, requires_remark: false, affects_health: false, triggers_alert: false, active: true, sort_order: 1 },
-      { name: "Damaged", severity: "high", color: "orange", requires_photo: true, requires_remark: true, affects_health: true, triggers_alert: true, active: true, sort_order: 2 },
-      { name: "Missing", severity: "critical", color: "rose", requires_photo: true, requires_remark: true, affects_health: true, triggers_alert: true, active: true, sort_order: 3 },
-    ];
-    let query = supabase
-      .from("asset_condition_templates")
-      .select(conditionFields)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
-    if (categoryId) query = query.eq("category_id", categoryId);
-    const { data, error } = await query;
-    if (error && isMissingInspectionV2Field(error)) {
-      console.warn("Asset condition template table is not available yet. Using default inspection conditions.", error);
-      return fallback.map((row, index) => ({ ...row, id: `fallback-${row.name.toLowerCase()}`, category_id: categoryId || "", sort_order: index + 1 }));
-    }
-    throwSupabaseError("asset_condition_templates.list", error);
-    return (data ?? []).map(mapConditionTemplate);
-  },
-
-  async saveConditionTemplate(condition) {
-    const payload = {
-      category_id: condition.category_id,
-      name: condition.name,
-      severity: condition.severity ?? "healthy",
-      color: condition.color ?? "emerald",
-      requires_photo: condition.requires_photo === true,
-      requires_remark: condition.requires_remark === true,
-      affects_health: condition.affects_health === true,
-      triggers_alert: condition.triggers_alert === true,
-      active: condition.active !== false,
-      sort_order: Number(condition.sort_order ?? 0),
-      updated_at: new Date().toISOString(),
-    };
-    const query = condition.id && !String(condition.id).startsWith("fallback-")
-      ? supabase.from("asset_condition_templates").update(payload).eq("id", condition.id)
-      : supabase.from("asset_condition_templates").insert(payload);
-    const { data, error } = await query.select(conditionFields).single();
-    throwSupabaseError("asset_condition_templates.save", error);
-    await logAssetAudit(condition.id ? "asset_condition_edited" : "asset_condition_created", "-", data.name, data);
-    return mapConditionTemplate(data);
+  // Deliberately limited employee projection for Asset activity attribution.
+  // RLS still decides which employee rows the current Admin can read.
+  async listActivityActors(actorIds = []) {
+    const ids = [...new Set(actorIds.map(String).filter(Boolean))];
+    if (!ids.length) return [];
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id,auth_user_id,nickname,full_name")
+      .or(`id.in.(${ids.join(",")}),auth_user_id.in.(${ids.join(",")})`);
+    throwSupabaseError("asset_activity_actors.list", error);
+    return data ?? [];
   },
 
   async listAssets(outletId = "") {
@@ -503,7 +401,7 @@ export const assetTrackingService = {
         console.warn("[AssetTracking] Unable to remove asset photo", removeError);
       }
     }
-    const condition = normalizeConditionValue(asset.condition);
+    const condition = normalizeAssetCondition(asset.condition);
     console.info("[AssetTracking] Saving asset", { assetId: asset.id || "new", name: asset.name, condition, hasImage: Boolean(imageUrl) });
     const payload = {
       outlet_id: asset.outlet_id,
@@ -549,7 +447,7 @@ export const assetTrackingService = {
 
   async updateAssetCondition(asset, conditionValue) {
     const userId = await currentUserId();
-    const condition = normalizeConditionValue(conditionValue);
+    const condition = normalizeAssetCondition(conditionValue);
     let { data, error } = await supabase
       .from("asset_items")
       .update({ condition, updated_by: userId, updated_at: new Date().toISOString() })
@@ -686,7 +584,7 @@ export const assetTrackingService = {
         thumbnail_url: asset.thumbnail_url ?? asset.image_url ?? "",
         health_status: asset.health_status ?? "healthy",
         maintenance_override: ["inherit", "enabled", "disabled"].includes(asset.maintenance_override) ? asset.maintenance_override : "inherit",
-        condition: normalizeConditionValue(asset.condition),
+        condition: normalizeAssetCondition(asset.condition),
         unit: asset.unit || "unit",
         current_quantity: Number(asset.current_quantity ?? 0),
         minimum_quantity: Number(asset.minimum_quantity ?? 0),
@@ -726,31 +624,6 @@ export const assetTrackingService = {
     return result;
   },
 
-  async logImportMovement(asset, { beforeQuantity = 0, afterQuantity = 0, remark = "Imported from Asset Tracking import" } = {}) {
-    if (!asset?.id || !asset?.outlet_id) return null;
-    const userId = await currentUserId();
-    const movementPayload = {
-      asset_id: asset.id,
-      outlet_id: asset.outlet_id,
-      movement_type: "correction",
-      quantity_change: Number(afterQuantity || 0) - Number(beforeQuantity || 0),
-      quantity_before: Number(beforeQuantity || 0),
-      quantity_after: Number(afterQuantity || 0),
-      reason: "import",
-      remark,
-      movement_date: new Date().toISOString().slice(0, 10),
-      created_by: userId,
-    };
-    const { data, error } = await supabase
-      .from("asset_movement_logs")
-      .insert(movementPayload)
-      .select(movementFields)
-      .single();
-    throwSupabaseError("asset_movement_logs.import_insert", error);
-    await logAssetAudit("asset_imported", asset.outlet_id, asset.name, movementPayload);
-    return mapMovement(data);
-  },
-
   async listInspections(assetId = "", outletId = "") {
     let inspectionQuery = supabase
       .from("asset_inspections")
@@ -770,10 +643,15 @@ export const assetTrackingService = {
       if (outletId && outletId !== "all") fallbackInspectionQuery = fallbackInspectionQuery.eq("outlet_id", outletId);
       const { data: fallbackInspections, error: fallbackError } = await fallbackInspectionQuery;
       throwSupabaseError("asset_inspections.list", fallbackError);
-      const { data: fallbackItems, error: fallbackItemError } = await supabase
+      const headerInspectionIds = (fallbackInspections ?? []).map((inspection) => inspection.id).filter(Boolean);
+      if (!headerInspectionIds.length) return [];
+      let fallbackItemsQuery = supabase
         .from("asset_inspection_items")
         .select("id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))")
+        .in("inspection_id", headerInspectionIds)
         .order("created_at", { ascending: false });
+      if (assetId) fallbackItemsQuery = fallbackItemsQuery.eq("asset_id", assetId);
+      const { data: fallbackItems, error: fallbackItemError } = await fallbackItemsQuery;
       throwSupabaseError("asset_inspection_items.list", fallbackItemError);
       const filteredItems = assetId ? (fallbackItems ?? []).filter((item) => item.asset_id === assetId) : (fallbackItems ?? []);
       const itemIds = filteredItems.map((item) => item.id).filter(Boolean);
@@ -799,15 +677,23 @@ export const assetTrackingService = {
     }
     throwSupabaseError("asset_inspections.list", error);
 
-    let { data: items, error: itemError } = await supabase
+    const inspectionIds = (inspections ?? []).map((inspection) => inspection.id).filter(Boolean);
+    if (!inspectionIds.length) return [];
+    let itemQuery = supabase
       .from("asset_inspection_items")
       .select(inspectionItemFields)
+      .in("inspection_id", inspectionIds)
       .order("created_at", { ascending: false });
+    if (assetId) itemQuery = itemQuery.eq("asset_id", assetId);
+    let { data: items, error: itemError } = await itemQuery;
     if (itemError && isMissingInspectionV2Field(itemError)) {
-      const fallbackResult = await supabase
+      let fallbackItemQuery = supabase
         .from("asset_inspection_items")
         .select("id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))")
+        .in("inspection_id", inspectionIds)
         .order("created_at", { ascending: false });
+      if (assetId) fallbackItemQuery = fallbackItemQuery.eq("asset_id", assetId);
+      const fallbackResult = await fallbackItemQuery;
       items = fallbackResult.data;
       itemError = fallbackResult.error;
     }
@@ -828,14 +714,14 @@ export const assetTrackingService = {
         item.evidence = evidenceByItem.get(item.id) ?? [];
       });
     }
-    const inspectionIds = new Set(filteredItems.map((item) => item.inspection_id));
+    const itemInspectionIds = new Set(filteredItems.map((item) => item.inspection_id));
     return (inspections ?? [])
-      .filter((inspection) => !assetId || inspectionIds.has(inspection.id))
+      .filter((inspection) => !assetId || itemInspectionIds.has(inspection.id))
       .map((inspection) => mapInspection(inspection, filteredItems.filter((item) => item.inspection_id === inspection.id)))
       .sort(sortInspectionsNewestFirst);
   },
 
-  async submitInspection({ requestId: suppliedRequestId, draftId = "", outletId, inspectionDate, checkedBy, checkedByEmployeeId = null, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 3, draftData = {}, autoSaved = false, applyCorrections = true }) {
+  async submitInspection({ requestId: suppliedRequestId, draftId = "", outletId, inspectionDate, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 3, draftData = {}, autoSaved = false, applyCorrections = true }) {
     const userId = await currentUserId();
     console.info("[AssetTracking] Submit inspection payload", {
       draftId,
@@ -843,7 +729,7 @@ export const assetTrackingService = {
       inspectionDate,
       status,
       rowCount: rows.length,
-      conditions: rows.map((row) => normalizeConditionValue(row.condition_status || row.condition)),
+      conditions: rows.map((row) => normalizeAssetCondition(row.condition_status || row.condition)),
       summary,
     });
     const submissionRows = (rows ?? []).filter((row) => row?.asset?.id || row?.asset_id);
@@ -867,8 +753,8 @@ export const assetTrackingService = {
         expected_qty: expectedQuantity,
         counted_qty: countedQuantity,
         difference: countedQuantity - expectedQuantity,
-        condition: normalizeConditionValue(row.condition_status || row.condition || "healthy"),
-        condition_status: normalizeConditionValue(row.condition_status || row.condition || "healthy"),
+        condition: normalizeAssetCondition(row.condition_status || row.condition || "healthy"),
+        condition_status: normalizeAssetCondition(row.condition_status || row.condition || "healthy"),
         condition_template_id: row.condition_template_id && !String(row.condition_template_id).startsWith("fallback-") ? row.condition_template_id : null,
         evidence_required: row.evidence_required === true,
         evidence_status: row.evidence_required ? ((row.evidence || []).length ? "complete" : "pending") : "not_required",
