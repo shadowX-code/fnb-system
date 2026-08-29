@@ -30,9 +30,9 @@ describe("ReportsPage", () => {
     expect(screen.getByText("Generate a report preview")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     await waitFor(() => expect(getMonthlyOutletReport).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a" })));
-    expect(screen.getByLabelText("Monthly Profit Report poster")).toBeTruthy();
-    expect(screen.getByText(/Product performance unavailable/)).toBeTruthy();
-    expect(screen.getByText(/No completed Product Analytics report exists/)).toBeTruthy();
+    expect(screen.getAllByLabelText("Monthly Profit Report poster")).toHaveLength(2);
+    expect(screen.getAllByText(/Product performance unavailable/)).toHaveLength(2);
+    expect(screen.getAllByText(/No completed Product Analytics report exists/)).toHaveLength(2);
     expect(screen.queryByText("Completed Product Analytics report")).toBeNull();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
@@ -44,7 +44,7 @@ describe("ReportsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Yearly P&L" }));
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     await waitFor(() => expect(getYearlyOutletFinancialReport).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a" })));
-    expect(screen.getByLabelText("Yearly P&L Report poster")).toBeTruthy();
+    expect(screen.getAllByLabelText("Yearly P&L Report poster")).toHaveLength(2);
     expect(screen.getAllByText("Jan").length).toBeGreaterThan(0);
     expect(screen.getAllByText("YTD / Incomplete").length).toBeGreaterThan(0);
   });
@@ -55,7 +55,7 @@ describe("ReportsPage", () => {
     render(<ReportsPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(screen.queryByRole("button", { name: "Download PNG" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
-    await screen.findByLabelText("Monthly Profit Report poster");
+    await waitFor(() => expect(screen.getAllByLabelText("Monthly Profit Report poster")).toHaveLength(2));
     fireEvent.click(screen.getByRole("button", { name: "Download PNG" }));
     await waitFor(() => expect(exportPoster).toHaveBeenCalledWith(expect.objectContaining({ reportType: "monthly", dataset: monthlyDataset, format: "png", element: expect.anything() })));
     expect(screen.getByRole("status").textContent).toContain("monthly-profit-report_outlet-a_2026-08.png");
@@ -66,7 +66,7 @@ describe("ReportsPage", () => {
     const noExportAuth = { ...auth, hasPermission: (permission) => permission !== "reports.export" };
     const { rerender } = render(<ReportsPage auth={noExportAuth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
-    await screen.findByLabelText("Monthly Profit Report poster");
+    await waitFor(() => expect(screen.getAllByLabelText("Monthly Profit Report poster")).toHaveLength(2));
     expect(screen.getByRole("button", { name: "Download PDF" }).disabled).toBe(true);
     expect(screen.getByText((_, node) => node?.textContent === "Download controls require the reports.export permission.")).toBeTruthy();
 
@@ -74,6 +74,17 @@ describe("ReportsPage", () => {
     exportPoster.mockRejectedValue(new Error("Capture failed"));
     fireEvent.click(screen.getByRole("button", { name: "Download PDF" }));
     await waitFor(() => expect(screen.getByRole("alert").textContent).toContain("Capture failed"));
+  });
+
+  it("renders an unscaled fixed logical poster surface for export", async () => {
+    getMonthlyOutletReport.mockResolvedValue(monthlyDataset);
+    render(<ReportsPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
+    await waitFor(() => expect(screen.getAllByLabelText("Monthly Profit Report poster")).toHaveLength(2));
+    const exportHost = document.querySelector('[aria-hidden="true"][style*="1200px"]');
+    expect(exportHost).toBeTruthy();
+    expect(exportHost.style.left).toBe("-10000px");
+    expect(exportHost.querySelector(".report-poster")).toBeTruthy();
   });
 
   it("keeps poster components free of direct Supabase dependencies", async () => {

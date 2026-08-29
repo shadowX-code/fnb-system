@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { outletSlug, reportExportFilename } from "../reportPosterExport.js";
+import { getPosterNode, outletSlug, reportExportFilename } from "../reportPosterExport.js";
 
 describe("reportPosterExport filenames", () => {
   it("creates stable safe filenames for monthly reports", () => {
@@ -13,5 +13,17 @@ describe("reportPosterExport filenames", () => {
       .toBe("yearly-pnl-report_outlet-a_2026-ytd.pdf");
     expect(reportExportFilename({ reportType: "yearly", outletName: "Outlet A", year: 2025, periodMode: "yearly", format: "png" }))
       .toBe("yearly-pnl-report_outlet-a_2025.png");
+  });
+});
+
+describe("reportPosterExport capture surface", () => {
+  it("selects the poster canvas rather than its preview or export host wrapper", () => {
+    const host = document.createElement("div");
+    host.className = "preview-scale-wrapper";
+    const poster = document.createElement("article");
+    poster.className = "report-poster report-poster--monthly";
+    host.appendChild(poster);
+    expect(getPosterNode(host)).toBe(poster);
+    expect(getPosterNode(poster)).toBe(poster);
   });
 });

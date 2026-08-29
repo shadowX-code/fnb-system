@@ -16,42 +16,56 @@ export function reportExportFilename({ reportType, outletName, year, month, peri
   return `yearly-pnl-report_${outlet}_${year}${ytd}.${extension}`;
 }
 
-function getPosterNode(element) {
+export function getPosterNode(element) {
   if (element?.matches?.(".report-poster")) return element;
   return element?.querySelector?.(".report-poster") ?? null;
+}
+
+function waitForLayout() {
+  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+}
+
+function assertLogicalPosterSurface(poster) {
+  const { width, height } = poster.getBoundingClientRect();
+  if (Math.round(width) !== REPORT_POSTER_LOGICAL_WIDTH || Math.round(height) !== REPORT_POSTER_LOGICAL_HEIGHT) {
+    throw new Error("The export poster did not reach its fixed logical canvas size.");
+  }
+}
+
+function assertCanvasHasPosterContent(canvas) {
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  if (!context || !canvas.width || !canvas.height) throw new Error("The poster image could not be created.");
+
+  const stepX = Math.max(1, Math.floor(canvas.width / 180));
+  const stepY = Math.max(1, Math.floor(canvas.height / 225));
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  let meaningfulPixels = 0;
+  for (let y = 0; y < canvas.height; y += stepY) {
+    for (let x = 0; x < canvas.width; x += stepX) {
+      const offset = (y * canvas.width + x) * 4;
+      const difference = Math.abs(pixels[offset] - 247) + Math.abs(pixels[offset + 1] - 251) + Math.abs(pixels[offset + 2] - 250);
+      if (pixels[offset + 3] > 20 && difference > 28) meaningfulPixels += 1;
+    }
+  }
+  if (meaningfulPixels < 120) throw new Error("The poster capture was blank. No file was downloaded.");
 }
 
 async function capturePoster(element) {
   const poster = getPosterNode(element);
   if (!poster) throw new Error("The generated poster is no longer available for export.");
-
-  const exportCanvas = poster.cloneNode(true);
-  exportCanvas.setAttribute("aria-hidden", "true");
-  Object.assign(exportCanvas.style, {
-    position: "fixed",
-    left: "-20000px",
-    top: "0",
-    width: `${REPORT_POSTER_LOGICAL_WIDTH}px`,
-    height: `${REPORT_POSTER_LOGICAL_HEIGHT}px`,
-    maxWidth: "none",
-    aspectRatio: "4 / 5",
-    pointerEvents: "none",
+  await document.fonts?.ready;
+  await waitForLayout();
+  assertLogicalPosterSurface(poster);
+  const { toCanvas } = await import("html-to-image");
+  const canvas = await toCanvas(poster, {
+    backgroundColor: "#f7fbfa",
+    cacheBust: true,
+    pixelRatio: 2,
+    width: REPORT_POSTER_LOGICAL_WIDTH,
+    height: REPORT_POSTER_LOGICAL_HEIGHT,
   });
-  document.body.appendChild(exportCanvas);
-
-  try {
-    await document.fonts?.ready;
-    const { toPng } = await import("html-to-image");
-    return await toPng(exportCanvas, {
-      backgroundColor: "#f7fbfa",
-      cacheBust: true,
-      pixelRatio: 2,
-      width: REPORT_POSTER_LOGICAL_WIDTH,
-      height: REPORT_POSTER_LOGICAL_HEIGHT,
-    });
-  } finally {
-    exportCanvas.remove();
-  }
+  assertCanvasHasPosterContent(canvas);
+  return canvas;
 }
 
 function downloadDataUrl(dataUrl, filename) {
@@ -73,7 +87,8 @@ export async function exportPoster({ element, reportType, dataset, filters, form
     periodMode: dataset?.periodMode,
     format,
   });
-  const png = await capturePoster(element);
+  const posterCanvas = await capturePoster(element);
+  const png = posterCanvas.toDataURL("image/png");
 
   if (format === "pdf") {
     const { jsPDF } = await import("jspdf");
