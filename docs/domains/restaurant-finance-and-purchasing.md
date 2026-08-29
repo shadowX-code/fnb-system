@@ -39,6 +39,8 @@ Product Analytics remains a separate authority: completed product-sales reports/
 
 The Restaurant Admin `Reports` module is the current Reporting consumer. It uses `reports.view`, requires an explicitly selected accessible outlet, and generates a Monthly Profit or Yearly/YTD P&L poster preview only when the Admin selects Generate. The fixed-ratio React/HTML posters consume the `reportingService` dataset without direct Supabase queries or financial recomputation. Incomplete financial inputs and unavailable product data remain visible states, rather than being coerced to RM0 or blocking financial output.
 
+Staging-only poster QA uses a deterministic, explicitly labelled `QA Demo — Reporting Posters` outlet and ordinary Staging source evidence (sales, purchase, expense, and completed Product Analytics records). The guarded seed and verifier scripts refuse any Supabase target other than the canonical Staging ref and verify the existing Reporting RPC outputs; they do not become a Reporting authority, a browser mock mode, a Production runtime dependency, or a source of Production business data.
+
 PNG/PDF export, report history/snapshots, sharing, scheduling, AI insights, and final poster-designer styling remain deferred. `reports.export` remains reserved for that future controlled export action.
 
 ## Permissions And Audit

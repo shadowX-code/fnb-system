@@ -27,6 +27,10 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Added the Restaurant Admin `Reports` module with permission-gated, outlet-scoped Monthly Profit and Yearly/YTD P&L poster previews. Filter changes are intentionally draft-only until an Admin selects Generate.
 - Established separate fixed-ratio React/HTML poster canvases that consume only the canonical `reportingService` datasets. They retain missing versus RM0, complete/incomplete, product-unavailable, and 12-month/YTD semantics without adding export, history, snapshot, share, scheduling, or AI-insight scope.
 
+## Late August 2026 — Reporting Poster Staging QA Fixtures
+
+- Added deterministic Staging-only Reporting poster fixtures under an unmistakably labelled QA/demo outlet. A verified-Staging-only seed and RPC verifier cover complete, negative-profit, explicit-zero, missing-source, product-ranking/unavailable, long-name, and 12-month/YTD presentation states without copying Production business data or adding a mock runtime path.
+
 ## 2026-08-13
 
 ### Crew Leave Entitlement / Balance v1
