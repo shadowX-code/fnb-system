@@ -10,5 +10,15 @@ src/features/guest-ai/hardware/firmware/dev-tools/recovery/.device-backups/
 src/features/guest-ai/hardware/firmware/.pio/
 src/features/guest-ai/hardware/firmware/k151-idf/build/
 src/features/guest-ai/hardware/firmware/k151-idf/build-*/
+# ESP-IDF Component Manager restores these from dependencies.lock.
+src/features/guest-ai/hardware/firmware/k151-idf/managed_components/
+# Generated resolved ESP-IDF configurations; retain sdkconfig*.defaults.
+src/features/guest-ai/hardware/firmware/k151-idf/sdkconfig
+src/features/guest-ai/hardware/firmware/k151-idf/sdkconfig.normal
+src/features/guest-ai/hardware/firmware/k151-idf/sdkconfig.fault-test
+# Generated Guest AI firmware artifacts only; do not use repository-wide rules.
+src/features/guest-ai/hardware/firmware/**/*.bin
+src/features/guest-ai/hardware/firmware/**/*.elf
+src/features/guest-ai/hardware/firmware/**/*.map
 .vercel
 .env*

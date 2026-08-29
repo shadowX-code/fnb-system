@@ -1,0 +1,4 @@
+# The Vercel project hosts the Vite frontend only. K151 firmware is built and
+# flashed independently; packaging its managed ESP-IDF sources exceeds the
+# deployment file limit and cannot affect the web bundle.
+src/features/guest-ai/hardware/firmware/
