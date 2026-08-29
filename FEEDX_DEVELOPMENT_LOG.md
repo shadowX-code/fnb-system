@@ -29,7 +29,7 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 ## Late August 2026 — Reporting Poster Staging QA Fixtures
 
-- Added deterministic Staging-only Reporting poster fixtures under an unmistakably labelled QA/demo outlet. A verified-Staging-only seed and RPC verifier cover complete, negative-profit, explicit-zero, missing-source, product-ranking/unavailable, long-name, and 12-month/YTD presentation states without copying Production business data or adding a mock runtime path.
+- Added deterministic Staging-only Reporting poster fixtures under an unmistakably labelled QA/demo outlet. A verified-Staging-only seed and RPC verifier cover complete, negative-profit, explicit-zero, missing-source, product-ranking/unavailable, long-name, and 12-month/YTD presentation states without copying Production business data or adding a mock runtime path. Reports outlet visibility now independently requires `reports.view` and existing server-enforced outlet scope.
 
 ## 2026-08-13
 
