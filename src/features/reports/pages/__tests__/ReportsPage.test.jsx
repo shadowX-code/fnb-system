@@ -30,6 +30,8 @@ describe("ReportsPage", () => {
     await waitFor(() => expect(getMonthlyOutletReport).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a" })));
     expect(screen.getByLabelText("Monthly Profit Report poster")).toBeTruthy();
     expect(screen.getByText(/Product sales data is unavailable/)).toBeTruthy();
+    expect(screen.getByText("Product Analytics unavailable")).toBeTruthy();
+    expect(screen.queryByText("Completed Product Analytics report")).toBeNull();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 
