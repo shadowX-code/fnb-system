@@ -23,6 +23,18 @@ begin
     address = excluded.address, status = excluded.status, is_active = excluded.is_active,
     updated_at = now();
 
+  -- Selected-scope Admin roles that can open Reports must receive the QA outlet
+  -- in Staging so the authenticated UI exercises its ordinary outlet guard.
+  -- Roles with all-outlet scope need no fixture-specific assignment.
+  insert into public.role_outlets(role_id, outlet_id)
+  select distinct r.id, v_outlet
+  from public.roles r
+  join public.role_permissions rp on rp.role_id = r.id
+  join public.permissions p on p.id = rp.permission_id
+  where p.code = 'reports.view'
+    and coalesce(lower(r.outlet_access_type), 'selected') in ('selected', 'selected_outlets')
+  on conflict do nothing;
+
   insert into public.sales_channels(id, name, type, sort_order, status, is_active)
   values
     (v_revenue_channel, 'QA Fixture — Poster Revenue', 'channel', 9901, 'active', true),

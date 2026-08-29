@@ -12,6 +12,8 @@ describe("Reporting poster Staging QA fixtures", () => {
     expect(seed).toContain("STAGING ONLY; never a migration");
     expect(seed).toContain("QA Demo — Reporting Posters");
     expect(seed).toContain("QA-RPT-POSTER-2026");
+    expect(seed).toContain("p.code = 'reports.view'");
+    expect(seed).toContain("public.role_outlets");
   });
 
   it("uses ordinary Reporting source evidence and verifies it through canonical RPCs", () => {
@@ -31,5 +33,6 @@ describe("Reporting poster Staging QA fixtures", () => {
     expect(verify).toContain("May missing-COGS fixture");
     expect(verify).toContain("June missing-OpEx fixture");
     expect(verify).toContain("July product-unavailable fixture");
+    expect(verify).toContain("selected-scope Reports role");
   });
 });

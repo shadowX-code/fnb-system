@@ -18,6 +18,17 @@ begin
   if not exists(select 1 from public.outlets where id = v_outlet and name = 'QA Demo — Reporting Posters' and code = 'QA-RPT-POSTER-2026') then
     raise exception 'Reporting QA fixture outlet is unavailable or mislabeled.';
   end if;
+  if exists(
+    select 1
+    from public.roles r
+    join public.role_permissions rp on rp.role_id = r.id
+    join public.permissions p on p.id = rp.permission_id
+    where p.code = 'reports.view'
+      and coalesce(lower(r.outlet_access_type), 'selected') in ('selected', 'selected_outlets')
+      and not exists(select 1 from public.role_outlets ro where ro.role_id = r.id and ro.outlet_id = v_outlet)
+  ) then
+    raise exception 'Reporting QA fixture outlet is not assigned to every selected-scope Reports role.';
+  end if;
   select e.auth_user_id into v_owner
   from public.employees e join public.roles r on r.id = e.role_id
   where lower(r.name) in ('owner', 'admin') and e.auth_user_id is not null and e.is_active
