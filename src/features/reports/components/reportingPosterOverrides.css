@@ -1,0 +1,1 @@
+.poster-table-row { grid-template-columns: 32px repeat(4, minmax(0, 1fr)); }
