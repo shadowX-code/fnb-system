@@ -210,7 +210,11 @@ describe("Crew Mobile design system contract", () => {
     expect(learning).toContain('crew-learning-sop-reference crew-ui-functional-surface');
     expect(learningStyles).toContain('.crew-learning-context { color:var(--crew-color-deep-teal); font-size:var(--crew-type-secondary);');
     expect(learningStyles).toContain('.crew-learning-section-label { color:var(--crew-color-deep-teal); font-size:var(--crew-type-label);');
+    expect(learningStyles).toContain('.crew-learning-home .crew-module-head h3 { margin:0; color:var(--crew-color-deep-teal); font-size:var(--crew-type-section-title);');
+    expect(learningStyles).toContain('.crew-learning-home .crew-module-head p { margin:3px 0 0; color:var(--crew-color-text-secondary); font-size:var(--crew-type-secondary);');
+    expect(learningStyles).toContain('.crew-learning-home .crew-module-order { display:grid; width:30px; height:30px;');
     expect(learningStyles).toContain('.crew-learning-reader .crew-learning-lesson-header h2 { margin:0; color:var(--crew-color-deep-teal);');
+    expect(learningStyles).toContain('.crew-learning-reader .crew-learning-summary { margin:0; color:var(--crew-color-text-secondary); font-size:var(--crew-type-secondary);');
     expect(learningStyles).toContain('.crew-learning-reader .crew-quiz h3 { margin:0; color:var(--crew-color-deep-teal);');
     expect(learningStyles).not.toContain('.crew-learning-kicker');
     expect(learningStyles).toContain("Journey and lesson routes consume the same Mobile Fundamental");
