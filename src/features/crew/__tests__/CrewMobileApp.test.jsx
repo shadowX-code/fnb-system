@@ -533,14 +533,15 @@ describe("Crew Mobile redesign", () => {
     expect(mocks.clock).not.toHaveBeenCalled();
   });
 
-  it("shows every true task inline, exposes the canonical activity state, and keeps an honest empty state", async () => {
+  it("shows every true task inline, exposes the canonical reminder badge, and keeps an honest empty state", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1 }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1 }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue" }, { id: "e", source: "legacy_daily", name: "Close register", status: "pending" }] });
     const first = render(<CrewMobileApp />);
     expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Open Stock shelves" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Open Late check" })).not.toBeNull();
-    expect(document.querySelector(".crew-home-task-activity.is-overdue")).not.toBeNull();
+    expect(document.querySelector(".crew-home-task-count.is-alert")?.textContent).toBe("5");
+    expect(document.querySelector(".crew-home-task-activity")).toBeNull();
     expect(screen.queryByRole("button", { name: /Show remaining/ })).toBeNull();
     first.unmount();
     mocks.operationsToday.mockResolvedValue({ tasks: [] });
@@ -549,20 +550,29 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByText("Keep Growing")).toBeNull();
   });
 
-  it("renders a static completed activity indicator only when every task is complete", async () => {
+  it("renders a static completed task-count badge only when every task is complete", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "complete", source: "instance", name: "Opening", status: "completed", block_count: 1, completed_count: 1 }] });
     render(<CrewMobileApp />);
     expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
-    expect(document.querySelector(".crew-home-task-activity.is-complete")).not.toBeNull();
+    expect(document.querySelector(".crew-home-task-count.is-complete")?.textContent).toBe("1");
+    expect(document.querySelector(".crew-home-task-count.is-alert")).toBeNull();
   });
 
-  it("uses the active task indicator when work remains without an overdue task", async () => {
+  it("uses the alert task-count badge when work remains", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "pending", source: "instance", name: "Cleaning", status: "in_progress", block_count: 3, completed_count: 1 }] });
     render(<CrewMobileApp />);
     expect(await screen.findByRole("button", { name: "Open Cleaning" })).not.toBeNull();
-    expect(document.querySelector(".crew-home-task-activity.is-pending")).not.toBeNull();
+    expect(document.querySelector(".crew-home-task-count.is-alert")?.textContent).toBe("1");
+  });
+
+  it("uses the compact shift-status icon instead of the decorative hand in the Home header", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    await screen.findByText("Today’s Tasks");
+    expect(document.querySelector(".crew-v2-home-header h1 .crew-home-shift-status-icon")).not.toBeNull();
+    expect(document.querySelector(".crew-v2-home-header h1 .lucide-hand")).toBeNull();
   });
 
   it("shows only the signed-in employee's transparent Reward result", async () => {

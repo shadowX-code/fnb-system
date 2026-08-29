@@ -95,6 +95,17 @@ describe("Crew Mobile design system contract", () => {
     expect(mobileApp).not.toContain("crew-me-row-icon crew-ui-icon-container is-neutral");
   });
 
+  it("keeps Home task reminders data-driven, motion-safe, and free of a separate activity icon", () => {
+    expect(mobileApp).toContain('crew-home-task-count is-${homeTaskBadgeState}');
+    expect(mobileApp).toContain('homeTasks.every((task) => task.status === "completed") ? "complete" : "alert"');
+    expect(mobileApp).toContain('className="crew-home-shift-status-icon"');
+    expect(mobileApp).not.toContain("CrewHomeTaskActivityMotion");
+    expect(home).toContain(".crew-home-task-count.is-alert::after");
+    expect(home).toContain("animation: crew-home-task-reminder 2s ease-in-out infinite");
+    expect(home).toContain(".crew-home-task-count.is-alert::after { animation: none;");
+    expect(home).not.toContain("crew-home-task-activity");
+  });
+
   it("owns app gutters, Bottom Nav clearance, and sticky-action geometry in the Fundamental", () => {
     ["--crew-mobile-page-inline: 16px", "--crew-mobile-page-bottom: calc(var(--crew-mobile-nav-height) + 28px + env(safe-area-inset-bottom))", ".crew-v2-app { width: min(100%, var(--crew-mobile-content-max))", ".crew-ui-sticky-actions", ".crew-ui-sticky-actions--with-nav", ".crew-ui-sticky-actions--sheet"].forEach((contract) => expect(system).toContain(contract));
     expect(appStyles).not.toContain(".crew-v2-app");
