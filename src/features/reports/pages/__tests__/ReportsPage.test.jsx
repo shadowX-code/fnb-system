@@ -29,8 +29,8 @@ describe("ReportsPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     await waitFor(() => expect(getMonthlyOutletReport).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a" })));
     expect(screen.getByLabelText("Monthly Profit Report poster")).toBeTruthy();
-    expect(screen.getByText(/Product sales data is unavailable/)).toBeTruthy();
-    expect(screen.getByText("Product Analytics unavailable")).toBeTruthy();
+    expect(screen.getByText(/Product performance unavailable/)).toBeTruthy();
+    expect(screen.getByText(/No completed Product Analytics report exists/)).toBeTruthy();
     expect(screen.queryByText("Completed Product Analytics report")).toBeNull();
     expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
