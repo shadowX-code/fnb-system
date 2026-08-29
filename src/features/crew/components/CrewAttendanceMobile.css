@@ -20,7 +20,7 @@
 .crew-attendance-history p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.35; }
 .crew-attendance-history > header > .crew-ui-count { flex: 0 0 auto; min-height: 32px; padding-inline: 10px; font-size: var(--crew-type-helper); }
 .crew-attendance-history-list { overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); }
-.crew-attendance-history-row { display: grid; min-width: 0; grid-template-columns: 56px minmax(0, 1fr) minmax(0, 1.22fr); align-items: center; gap: 10px; padding: 12px; }
+.crew-attendance-history-row { display: grid; min-width: 0; grid-template-columns: 56px minmax(0, 1fr) max-content; align-items: center; gap: 10px; padding: 12px; }
 .crew-attendance-history-row + .crew-attendance-history-row { border-top: 1px solid var(--crew-color-divider); }
 .crew-attendance-date-block { display: grid; width: 56px; height: 76px; place-items: center; align-content: center; border-radius: var(--crew-radius-functional); background: var(--crew-color-icon-default-bg); color: var(--crew-color-deep-teal); }
 .crew-attendance-date-block small { font-size: var(--crew-type-helper); font-weight: 700; line-height: 1.1; }
@@ -31,8 +31,8 @@
 .crew-attendance-location-status.is-verified { color: var(--crew-color-success); }
 .crew-attendance-location-status.is-warning { color: var(--crew-color-warning); }
 .crew-attendance-history-main .crew-ui-status { justify-self: start; }
-.crew-attendance-history-time { display: grid; min-width: 0; align-content: center; gap: 5px; border-left: 1px solid var(--crew-color-divider); padding-left: 10px; }
-.crew-attendance-history-time > span { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.crew-attendance-history-time { display: grid; min-width: 0; justify-items: end; align-content: center; gap: 5px; border-left: 1px solid var(--crew-color-divider); padding-left: 10px; }
+.crew-attendance-history-time > span { display: flex; min-width: 0; align-items: center; gap: 6px; white-space: nowrap; }
 .crew-attendance-history-time small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); white-space: nowrap; }
 .crew-attendance-history-time i { color: var(--crew-color-text-muted); font-style: normal; }
 
@@ -43,9 +43,9 @@
   .crew-attendance-month-select button svg { width: 16px; height: 16px; }
   .crew-attendance-month-summary { margin-bottom: 24px; }
   .crew-attendance-month-summary > div { gap: 3px; padding: 14px 8px 12px; }
-  .crew-attendance-history-row { grid-template-columns: 48px minmax(0, 1fr); gap: 8px; padding: 11px 10px; }
+  .crew-attendance-history-row { grid-template-columns: 48px minmax(0, 1fr) max-content; gap: 8px; padding: 11px 10px; }
   .crew-attendance-date-block { width: 48px; height: 66px; border-radius: var(--crew-radius-control); }
   .crew-attendance-history-main { gap: 4px; }
-  .crew-attendance-history-time { grid-column: 2; grid-row: 2; border-left: 0; padding-left: 0; }
+  .crew-attendance-history-time { border-left: 1px solid var(--crew-color-divider); padding-left: 8px; }
   .crew-attendance-history > header > .crew-ui-count { min-height: 30px; padding-inline: 8px; }
 }

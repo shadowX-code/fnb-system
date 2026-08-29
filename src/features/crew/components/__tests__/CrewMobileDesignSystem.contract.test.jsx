@@ -323,6 +323,12 @@ describe("Crew Mobile design system contract", () => {
     expect(attendanceStyles).toContain("var(--crew-color-divider)");
     expect(mobileApp).toContain('month: "short", year: "numeric"');
     expect(attendanceStyles).toContain("@media (max-width: 420px)");
+    [
+      "grid-template-columns: 56px minmax(0, 1fr) max-content",
+      "grid-template-columns: 48px minmax(0, 1fr) max-content",
+      ".crew-attendance-history-time > span { display: flex; min-width: 0; align-items: center; gap: 6px; white-space: nowrap; }",
+    ].forEach((contract) => expect(attendanceStyles).toContain(contract));
+    expect(attendanceStyles).not.toContain("grid-column: 2; grid-row: 2");
     expect(attendanceStyles).not.toContain("text-overflow");
     expect(attendanceStyles).not.toContain("ellipsis");
     expect(attendanceStyles).toContain("justify-items: center");
