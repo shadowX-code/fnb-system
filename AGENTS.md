@@ -2,35 +2,28 @@
 
 ## FeedX Guest AI Development Context
 
-Before development, read and follow `FEEDX_CODEX_CONTEXT.md`. It is canonical for Git/worktree workflow, `dev` integration, environment boundaries, and Guest AI integration.
+Before any task, read and follow `FEEDX_CODEX_CONTEXT.md`; it is the detailed canonical rule source. Guest AI is a self-contained bounded module in the FeedX repository during prototype and validation. Keep coupling to Crew, Factory, and other features minimal: use shared components, service/API boundaries, and public contracts rather than private business logic. Preserve this boundary for future extraction into an independent repository or service.
 
-Keep Guest AI development isolated in this worktree. Do not overwrite, reset, or force-push `dev`. For Staging, integrate only intended Guest AI changes into latest `origin/dev`, preserving newer FeedX work. Never reset, clean, stash, or discard Guest AI dirty/untracked work without explicit approval. Never deploy Production or merge `main` without approval.
+## Git & Worktree Safety
 
-## Project Structure & Module Organization
+The normal Guest AI worktree is `/Users/deron/Dev/feedx-guest-ai` on `guest-ai/dev`. Before every write, commit, or push, confirm the worktree, branch, and target. Normal Guest AI work goes only to `origin/guest-ai/dev`; never overwrite, reset, or force-push canonical `dev`.
 
-FeedX is a Vite/React operations platform. Entry and styling are in `src/main.jsx` and `src/styles/`; reusable UI is in `src/components/`, layouts in `src/layouts/`, and domain logic in `src/services/`. Features are grouped under `src/features/` (for example, `factory/`, `crew/`, and `guest-ai/`). Supabase access is centralized in `src/lib/supabase.ts` and established services.
+For a Guest AI Staging milestone: inspect current `origin/dev`; integrate only intended Guest AI changes while preserving newer FeedX work; run relevant regression tests, `npm run build`, and `git diff --check`; then push canonical `dev`, verify `fnb-system-staging`, and complete authenticated QA. Fix, redeploy, and retest any defect. Never deploy Production, merge `main`, or reset, clean, stash, or discard Guest AI dirty/untracked work without explicit approval.
 
-## Build, Test, and Development Commands
+## Project Structure
 
-- `npm install` installs dependencies.
-- `npm run dev` starts the local Vite development server.
-- `npm test` runs the complete Vitest suite with local placeholder Supabase variables.
-- `npm run test:factory` runs only Factory feature tests.
-- `npm run build` creates a production build.
-- `git diff --check` catches whitespace errors before handoff.
+Guest AI ownership is rooted at `src/features/guest-ai/`. Keep device, protocol, runtime, firmware, tests, tools, and technical documentation in Guest AI-owned paths where practical. Reuse existing Supabase service, RPC, RLS, audit, and versioning boundaries; clients submit intent rather than becoming protected-state authorities.
 
-## Coding Style & Naming Conventions
+## Build & Test
 
-Use ES modules, function components, two-space indentation, and double quotes. Use PascalCase for pages/components (for example, `GuestAiDeviceConsolePage.jsx`) and camelCase for services/utilities (for example, `deviceProtocol.js`). Reuse shared components and service boundaries. No lint or formatter command is configured; match nearby code.
+Use `npm ci` for a clean dependency install; do not install or upgrade dependencies unless needed. Start with focused Guest AI tests, widening to shared regression only when a shared contract is affected. Run `npm run build` for integration risk and `git diff --check` before handoff.
 
-## Testing Guidelines
+Frontend tests use Vitest and React Testing Library. Use the existing Guest AI native/firmware test approach for firmware. Cover protocol, reconnect/session lifecycle, failure paths, permissions, and hardware boundaries. Do not claim device, firmware, or Staging QA passed unless it actually ran.
 
-Vitest runs in `jsdom` with React Testing Library. Place tests in `__tests__/` or feature test folders; use `*.test.js`, `*.test.jsx`, or `*.contract.test.js`. Test changed behavior, contracts, permissions, and lifecycles. No coverage threshold is stated.
+## Firmware & Device Safety
 
-## Commit & Pull Request Guidelines
-
-Recent history uses concise imperative subjects, often scoped Conventional Commit style such as `feat(guest-ai): restore independent workspace`; UI work may use `Refine Crew ...` or `Fix ...`. Keep commits narrow. PRs should state scope and verification, link issues, include UI screenshots, and call out migrations, RPC/RLS changes, or environment assumptions.
+Do not automatically flash firmware, erase flash/NVS, overwrite OTA or recovery partitions, change partition layouts, alter secure boot or flash encryption, modify `.device-backups`, or run destructive serial/device commands. First review the existing firmware and recovery documentation; default to build, test, and dry-run before any physical write. Keep `.device-backups` local and uncommitted. Generated firmware, build/cache output, binaries, managed dependencies, and secrets remain excluded by `.gitignore`.
 
 ## Security & Configuration
 
-Do not commit secrets or log credentials, tokens, passcodes, or provider material. Supabase remains the authority for protected business state: honor RLS and existing RPC/service boundaries, and use forward-only migrations for shared environments.
+Never commit credentials, tokens, passcodes, `.env` files, or device recovery dumps. Use minimal forward-only migrations for shared-environment database changes. Security-sensitive RPC, RLS, authentication, session, or device-identity changes require authorization and auditability verification.
