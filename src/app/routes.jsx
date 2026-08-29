@@ -10,6 +10,7 @@ import SalesComparisonPage from "../features/sales-purchase/pages/SalesCompariso
 import OutletPnlPage from "../features/sales-purchase/pages/OutletPnlPage.jsx";
 import ProductAnalyticsPage from "../features/sales-purchase/pages/ProductAnalyticsPage.jsx";
 import OutletDutyRosterPage from "../features/sales-purchase/pages/OutletDutyRosterPage.jsx";
+import ReportsPage from "../features/reports/pages/ReportsPage.jsx";
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
 import DutyRosterPage from "../features/sales-purchase/pages/DutyRosterPage.jsx";
 import AssetTrackingPage from "../features/sales-purchase/pages/AssetTrackingPage.jsx";
@@ -112,6 +113,10 @@ export const routeDetails = {
   "outlet-pnl": {
     description: "Yearly management P&L performance by outlet.",
     component: OutletPnlPage,
+  },
+  reports: {
+    description: "Generate outlet-scoped Monthly Profit and Yearly P&L poster previews from the canonical Reporting read contract.",
+    component: ReportsPage,
   },
   product_analytics: {
     description: "Monthly POS product sales report upload and product performance analytics.",

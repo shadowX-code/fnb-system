@@ -37,11 +37,13 @@ The canonical Reporting read boundary is the authenticated, outlet-scoped server
 
 Product Analytics remains a separate authority: completed product-sales reports/items provide product ranking only, never Financial Revenue. Rankings preserve category/product/variant identity; Top 10 is sales revenue descending, and Lowest 10 is ascending after excluding non-positive sales. Missing or incomplete Product Analytics data does not block a financial report.
 
-Phase 1 establishes the Reporting foundation only. Admin poster rendering, PNG/PDF export implementation, report history, and any direct Reporting UI remain deferred; future consumers must not query source tables directly from Poster components.
+The Restaurant Admin `Reports` module is the current Reporting consumer. It uses `reports.view`, requires an explicitly selected accessible outlet, and generates a Monthly Profit or Yearly/YTD P&L poster preview only when the Admin selects Generate. The fixed-ratio React/HTML posters consume the `reportingService` dataset without direct Supabase queries or financial recomputation. Incomplete financial inputs and unavailable product data remain visible states, rather than being coerced to RM0 or blocking financial output.
+
+PNG/PDF export, report history/snapshots, sharing, scheduling, AI insights, and final poster-designer styling remain deferred. `reports.export` remains reserved for that future controlled export action.
 
 ## Permissions And Audit
 
-Admin access requires the relevant finance, purchasing, import, supplier, or reporting permission plus outlet scope. Reporting reads require `reports.view`; `reports.export` is reserved for a future controlled export action.
+Admin access requires the relevant finance, purchasing, import, supplier, or reporting permission plus outlet scope. Reporting reads and the Reports page require `reports.view`; `reports.export` is reserved for a future controlled export action.
 Cross-outlet comparisons must return only outlets visible to the caller.
 Material imports, snapshot transitions, configuration changes, and protected purchasing actions retain business audit evidence.
 
