@@ -455,7 +455,7 @@ function LessonReader({ token, lesson, activeLesson, answers, result, saving, er
     <section className="crew-learning-reader">
       <CrewMobileDetailHeader title={t("learn.onboarding")} onBack={onBack} />
       <header className="crew-learning-lesson-header">
-        <span className="crew-learning-kicker">{lesson.moduleTitle || t("learn.moduleLesson")}</span>
+        <span className="crew-learning-context">{lesson.moduleTitle || t("learn.moduleLesson")}</span>
         <h2>{lesson.lesson.title}</h2>
         <p className="crew-learning-summary">{lesson.lesson.estimated_minutes ? t("learn.minutes", { count: lesson.lesson.estimated_minutes }) : t("learn.ownPace")}</p>
       </header>
@@ -470,7 +470,7 @@ function LessonReader({ token, lesson, activeLesson, answers, result, saving, er
       )}
       {activeLesson?.quiz && (
         <section className="crew-quiz">
-          <div className="crew-learning-quiz-header"><span className="crew-learning-kicker">{t("learn.knowledgeCheck")}</span><h3>{activeLesson.quiz.title}</h3><p>{t("learn.passScore", { score: activeLesson.quiz.passing_score })}</p></div>
+          <div className="crew-learning-quiz-header"><span className="crew-learning-section-label">{t("learn.knowledgeCheck")}</span><h3>{activeLesson.quiz.title}</h3><p>{t("learn.passScore", { score: activeLesson.quiz.passing_score })}</p></div>
           {activeLesson.quiz.questions?.map((question, index) => (
             <fieldset key={question.id}>
               <legend>{index + 1}. {question.prompt}</legend>

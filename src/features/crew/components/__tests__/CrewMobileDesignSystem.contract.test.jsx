@@ -204,8 +204,13 @@ describe("Crew Mobile design system contract", () => {
     expect(learning).toContain('className="crew-ui-note crew-sop-acknowledged"');
     expect(learning).toContain('className="crew-sop-acknowledgement-action"');
     expect(learning).toContain('crew-learning-journey-hero crew-ui-functional-surface');
+    expect(learning).toContain('className="crew-learning-context"');
+    expect(learning).toContain('className="crew-learning-section-label"');
     expect(learning).toContain('crew-learning-content-block crew-ui-note crew-ui-note--mint is-key-point');
     expect(learning).toContain('crew-learning-sop-reference crew-ui-functional-surface');
+    expect(learningStyles).toContain('.crew-learning-context { color:var(--crew-color-deep-teal); font-size:var(--crew-type-secondary);');
+    expect(learningStyles).toContain('.crew-learning-section-label { color:var(--crew-color-deep-teal); font-size:var(--crew-type-label);');
+    expect(learningStyles).not.toContain('.crew-learning-kicker');
     expect(learningStyles).toContain("Journey and lesson routes consume the same Mobile Fundamental");
   });
 

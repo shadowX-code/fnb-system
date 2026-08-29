@@ -554,9 +554,12 @@ describe("Crew mobile Learn reset", () => {
     fireEvent.click(await screen.findByRole("button", { name: /New Crew Onboarding/ }));
     expect(document.querySelector(".crew-learning-journey-hero.crew-ui-functional-surface")).not.toBeNull();
     expect(document.querySelector(".crew-learning-module .crew-ui-progress")).not.toBeNull();
+    expect(document.querySelector(".crew-module-head h3")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Service basics/ }));
 
     expect(await screen.findByText("Keep guests informed.")).not.toBeNull();
+    expect(document.querySelector(".crew-learning-context")).not.toBeNull();
+    expect(document.querySelector(".crew-learning-section-label")).not.toBeNull();
     expect(document.querySelector(".crew-learning-content-block.crew-ui-note--mint.is-key-point")).not.toBeNull();
     expect(document.querySelector(".crew-learning-sop-reference.crew-ui-functional-surface")).not.toBeNull();
     expect(document.querySelector(".crew-quiz label")).not.toBeNull();
