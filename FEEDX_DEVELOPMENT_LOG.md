@@ -15,6 +15,12 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Hardened Crew Access outlet/session authority: Employee Master workplace remains canonical, mismatched or stale Crew outlet context fails closed, and authority changes revoke affected Crew sessions with audit evidence.
 - Established the canonical documentation system: Context governs development and documentation impact, System Master maps the ecosystem, domain/architecture docs own current knowledge, and the legacy Master remains historical reference.
 
+## Late August 2026 — Reporting Foundation
+
+- Added the authenticated, outlet-scoped Reporting read contracts for monthly financials and completed Product Analytics product rankings, with `reportingService` as the sole browser access layer for future monthly, yearly/YTD, and poster consumers.
+- Established explicit financial semantics: Financial Revenue is sales-channel aggregation, `purchase_based_cogs` is monthly purchase evidence, and server-derived Net Profit is Revenue minus purchase-based COGS and OpEx. Source absence remains distinct from explicit RM0; a period is complete only when all three sources are present.
+- Added fixed 12-month yearly/YTD assembly with null missing/future months, present-month totals, and no implied month-close/finalization authority. Poster UI, generated exports, and report history remain intentionally out of scope.
+
 ## 2026-08-13
 
 ### Crew Leave Entitlement / Balance v1

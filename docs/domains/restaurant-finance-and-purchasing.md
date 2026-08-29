@@ -31,13 +31,17 @@ Server authority owns protected totals, tax treatment, period calculations, snap
 Reporting and analytics are read models over canonical finance and purchasing evidence.
 Alerts may identify risk but do not become an alternative source for underlying values.
 
-Current operational P&L semantics are explicit: net sales are sales-channel amounts less recorded adjustments; the current COGS estimate is the matching-period purchase total; operating expenses are separately recorded; and net profit is net sales less that COGS estimate and operating expenses. These are management reporting projections over source records, not an accounting ledger or a substitute for inventory valuation.
+Current operational P&L semantics are explicit: Financial Revenue is the sales-channel aggregation (channel amounts less recorded adjustments); `purchase_based_cogs` is the matching-period `purchase_records` total; operating expenses are separately recorded; and Net Profit is server-derived as `revenue - purchase_based_cogs - opex`. These are management reporting projections over source records, not an accounting ledger or a substitute for inventory valuation. There is no month-close/finalization authority: missing source evidence is not RM0 and makes the financial period incomplete.
 
-The current reporting surface remains distributed across the Sales & Purchase Dashboard, comparisons, Outlet P&L, Product Analytics, and source-domain dashboards. A consolidated Admin Reporting module is not yet a canonical capability; its future architecture must be documented only when its business rules and ownership are implemented.
+The canonical Reporting read boundary is the authenticated, outlet-scoped server contract exposed through `reportingService`. Its monthly financial contract returns each source as an amount plus `present`/`missing` state and returns `complete` only when Revenue, purchase-based COGS, and OpEx are all present. The yearly/YTD dataset reuses that monthly contract for a fixed January–December grid; missing or future months remain null, and incomplete years are explicitly YTD/incomplete rather than finalized yearly P&L.
+
+Product Analytics remains a separate authority: completed product-sales reports/items provide product ranking only, never Financial Revenue. Rankings preserve category/product/variant identity; Top 10 is sales revenue descending, and Lowest 10 is ascending after excluding non-positive sales. Missing or incomplete Product Analytics data does not block a financial report.
+
+Phase 1 establishes the Reporting foundation only. Admin poster rendering, PNG/PDF export implementation, report history, and any direct Reporting UI remain deferred; future consumers must not query source tables directly from Poster components.
 
 ## Permissions And Audit
 
-Admin access requires the relevant finance, purchasing, import, supplier, or reporting permission plus outlet scope.
+Admin access requires the relevant finance, purchasing, import, supplier, or reporting permission plus outlet scope. Reporting reads require `reports.view`; `reports.export` is reserved for a future controlled export action.
 Cross-outlet comparisons must return only outlets visible to the caller.
 Material imports, snapshot transitions, configuration changes, and protected purchasing actions retain business audit evidence.
 

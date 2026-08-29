@@ -26,7 +26,7 @@ The shared Admin shell composes workspace navigation, route visibility, and comm
 | Capability | Status | System role |
 |---|---|---|
 | Restaurant finance, sales, purchasing, and analytics | Active | Outlet-period inputs, purchasing, financial read models, and alerts. |
-| Reporting | Planned | A consolidated Admin reporting capability is not yet a canonical module. Existing analytics remain owned by their source domains. |
+| Reporting | In Development | Server-authoritative, outlet-scoped financial and product-performance read contracts are available; Admin poster UI and export are deferred. |
 | Inventory and assets | Active | Restaurant stock evidence, reconciliation, recipes/usage, and asset lifecycle. |
 | People, identity, and RBAC | Active | Employee master, Admin identity, roles, permissions, and outlet scope. |
 | Crew workforce | Active | Crew Access, roster, attendance, leave, entitlement, and workforce context. |
