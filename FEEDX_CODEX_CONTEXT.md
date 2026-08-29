@@ -146,6 +146,24 @@ Production deployment and merging `main` require explicit authorization. Routine
 
 Normal lifecycle: `temporary branch/worktree → integrate origin/dev → Staging QA → cleanup temporary branch/worktree`.
 
+## Guest AI Development & Staging Integration
+
+Guest AI development is isolated in `/Users/deron/Dev/feedx-guest-ai` on its Guest AI worktree/branch for independent development and commits. Do not use that branch to directly overwrite, reset, replace, or force-push `dev`; `dev` is FeedX Staging's only canonical integration branch.
+
+When a Guest AI milestone enters Staging:
+
+1. Confirm the latest `origin/dev`.
+2. Integrate only the valid Guest AI changes into current `dev`.
+3. Preserve newer Crew, Admin, Factory, and other FeedX work.
+4. Run relevant Guest AI and regression tests, `npm run build`, and `git diff --check`.
+5. Push current `dev` to `origin/dev`.
+6. Deploy and verify through canonical `fnb-system-staging`.
+7. Report completion only after authenticated Staging QA passes.
+
+Do not replace Staging directly from the Guest AI branch. Production deployment or merging `main` still requires explicit authorization. During prototype and validation, Guest AI remains a bounded FeedX module; consider an independent repository or service only after validation.
+
+`FEEDX_CODEX_CONTEXT.md` is sourced from canonical `dev`. Every other FeedX worktree, including Guest AI, must synchronize to its latest canonical version and must not maintain divergent long-term rules.
+
 ## Codex Implementation Discipline
 
 Read the relevant code, migrations, tests, and canonical domain docs before changing behavior.
