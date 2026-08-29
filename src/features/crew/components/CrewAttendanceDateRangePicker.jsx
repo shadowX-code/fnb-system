@@ -13,13 +13,6 @@ function moveMonth(date, amount) { return new Date(date.getFullYear(), date.getM
 
 const MONTHS = Array.from({ length: 12 }, (_, month) => new Date(2020, month, 1).toLocaleDateString("en-MY", { month: "short" }));
 
-function yearOptions(selectedYear, today) {
-  const currentYear = parse(today).getFullYear();
-  const start = Math.min(currentYear - 10, selectedYear - 10);
-  const end = Math.max(currentYear + 10, selectedYear + 10);
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-}
-
 function calendarDays(month) {
   const first = new Date(month.getFullYear(), month.getMonth(), 1);
   const offset = (first.getDay() + 6) % 7;
@@ -66,16 +59,19 @@ function presetRanges(today) {
 
 function MonthYearSelector({ month, today, onChange, onClose }) {
   const selectedYear = month.getFullYear();
+  const currentYear = parse(today).getFullYear();
+  const years = Array.from({ length: 5 }, (_, index) => selectedYear - 2 + index);
   return <div className="crew-attendance-month-selector" aria-label="Choose month and year">
-    <label>
-      <span>Year</span>
-      <span className="crew-attendance-year-select">
-        <select aria-label={`Year for ${month.toLocaleDateString("en-MY", { month: "long" })}`} value={selectedYear} onChange={(event) => onChange(new Date(Number(event.target.value), month.getMonth(), 1))}>
-          {yearOptions(selectedYear, today).map((year) => <option key={year} value={year}>{year}</option>)}
-        </select>
-        <ChevronDown size={14} aria-hidden="true" />
-      </span>
-    </label>
+    <header>
+      <button type="button" aria-label="Previous year" onClick={() => onChange(new Date(selectedYear - 1, month.getMonth(), 1))}><ChevronLeft size={14} /></button>
+      <strong>{selectedYear}</strong>
+      <button type="button" aria-label="Next year" onClick={() => onChange(new Date(selectedYear + 1, month.getMonth(), 1))}><ChevronRight size={14} /></button>
+    </header>
+    <div className="crew-attendance-year-grid" aria-label="Choose year">
+      {years.map((year) => <button key={year} type="button" className={year === selectedYear ? "is-selected" : ""} aria-pressed={year === selectedYear} onClick={() => onChange(new Date(year, month.getMonth(), 1))}>
+        {year}{year === currentYear ? <span aria-label="Current year" /> : null}
+      </button>)}
+    </div>
     <div className="crew-attendance-month-grid">
       {MONTHS.map((label, monthIndex) => {
         const selected = monthIndex === month.getMonth();
@@ -160,7 +156,7 @@ export default function CrewAttendanceDateRangePicker({ from, to, today, onApply
     <button ref={anchorRef} type="button" aria-label="Date Range" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
       <CalendarDays size={16} /><strong>{rangeLabel(from, to, today)}</strong><ChevronDown size={15} />
     </button>
-    <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" width={756} estimatedHeight={480} maxHeight={560} className="crew-attendance-range-popover" contentClassName="crew-attendance-range-popover-content">
+    <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" width={560} estimatedHeight={360} maxHeight={420} className="crew-attendance-range-popover" contentClassName="crew-attendance-range-popover-content">
       <div className="crew-attendance-range-layout">
         <aside aria-label="Date range presets">{presets.map(([label, start, end]) => <button key={label} type="button" className={draftFrom === start && draftTo === end ? "is-active" : ""} onClick={() => choosePreset(start, end)}>{label}</button>)}</aside>
         <main>

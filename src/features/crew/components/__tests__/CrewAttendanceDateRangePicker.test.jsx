@@ -57,7 +57,8 @@ describe("Crew Attendance Date Range Picker", () => {
     render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={onApply} />);
     fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
     fireEvent.click(screen.getByRole("button", { name: "Choose month and year, August 2026" }));
-    fireEvent.change(screen.getByRole("combobox", { name: "Year for August" }), { target: { value: "2027" } });
+    expect(screen.queryByRole("combobox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "2027" }));
     fireEvent.click(screen.getByRole("button", { name: "Dec" }));
 
     expect(screen.getByRole("region", { name: "December 2027" })).toBeTruthy();
