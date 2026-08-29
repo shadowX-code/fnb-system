@@ -210,6 +210,8 @@ describe("Crew Mobile design system contract", () => {
     expect(learning).toContain('crew-learning-sop-reference crew-ui-functional-surface');
     expect(learningStyles).toContain('.crew-learning-context { color:var(--crew-color-deep-teal); font-size:var(--crew-type-secondary);');
     expect(learningStyles).toContain('.crew-learning-section-label { color:var(--crew-color-deep-teal); font-size:var(--crew-type-label);');
+    expect(learningStyles).toContain('.crew-learning-reader .crew-learning-lesson-header h2 { margin:0; color:var(--crew-color-deep-teal);');
+    expect(learningStyles).toContain('.crew-learning-reader .crew-quiz h3 { margin:0; color:var(--crew-color-deep-teal);');
     expect(learningStyles).not.toContain('.crew-learning-kicker');
     expect(learningStyles).toContain("Journey and lesson routes consume the same Mobile Fundamental");
   });
