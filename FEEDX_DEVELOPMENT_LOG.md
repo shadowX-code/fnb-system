@@ -2,6 +2,12 @@
 
 Purpose: milestone changelog for meaningful FeedX development sessions. This file preserves delivery history but is not architecture or current-system authority. Current code and migrations take precedence, followed by tests/contracts and the canonical documentation routed from `docs/README.md`. Release notes under `docs/releases/` document Production releases.
 
+## Late August 2026 — Crew Mobile Operations, Cash, And Localized Content
+
+- Completed the durable Crew task execution baseline: versioned task definitions and scheduled assignment produce token-bound mobile work, canonical completion evidence, controlled reset/redo, and roster-aware schedule visibility.
+- Added the outlet/date Cash Checkout authority with server-derived count, variance, opening/retained cash, collection, append-only ledger, controlled handover receiver/confirmation, and bounded checkout-history read model.
+- Established the Crew localized-content layer for SOP, onboarding, and task content with source ownership, provider-bound translation, deterministic fallback, and frozen localized snapshots. Crew Mobile now consumes the shared localization and mobile read-model foundation without changing source-domain authority.
+
 ## Late August 2026 — Delivery, Security, And Documentation Governance
 
 - Established canonical `main`/`dev` branch and worktree hygiene, including guarded canonical Staging promotion from clean `dev` only and explicit Production approval boundaries.

@@ -31,6 +31,10 @@ Server authority owns protected totals, tax treatment, period calculations, snap
 Reporting and analytics are read models over canonical finance and purchasing evidence.
 Alerts may identify risk but do not become an alternative source for underlying values.
 
+Current operational P&L semantics are explicit: net sales are sales-channel amounts less recorded adjustments; the current COGS estimate is the matching-period purchase total; operating expenses are separately recorded; and net profit is net sales less that COGS estimate and operating expenses. These are management reporting projections over source records, not an accounting ledger or a substitute for inventory valuation.
+
+The current reporting surface remains distributed across the Sales & Purchase Dashboard, comparisons, Outlet P&L, Product Analytics, and source-domain dashboards. A consolidated Admin Reporting module is not yet a canonical capability; its future architecture must be documented only when its business rules and ownership are implemented.
+
 ## Permissions And Audit
 
 Admin access requires the relevant finance, purchasing, import, supplier, or reporting permission plus outlet scope.

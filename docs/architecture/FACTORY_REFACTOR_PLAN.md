@@ -1,8 +1,12 @@
 # Factory Refactor Plan
 
-Priority: P1 maintainability. This plan records behavior-preserving frontend ownership work only.
+> **HISTORICAL MAINTAINABILITY REFERENCE**
+>
+> This plan records behavior-preserving frontend ownership work from a prior refactor phase. It does not define current Factory business architecture, lifecycle authority, route ownership, or delivery status. Use the Factory domain documents, `docs/architecture/platform.md`, current code, migrations, and contracts for current truth.
 
-## Current Checkpoint
+Priority at time of writing: P1 maintainability. This plan records behavior-preserving frontend ownership work only.
+
+## Historical Checkpoint
 
 - `src/features/factory/pages/FactoryWorkspacePage.jsx` remains the orchestration point for centralized lifecycle workflows and master-data mutation modals.
 - `src/services/factoryService.js` remains unchanged by this refactor checkpoint.

@@ -24,6 +24,8 @@ The shared application shell owns workspace selection, navigation composition, r
 Domain features own their pages, business states, and workflows inside that shell.
 Shared components and formatting utilities should be reused where semantics match.
 
+Admin uses one shared UI vocabulary for layout, page headers, cards, filters, tables, feedback, permissions, and outlet-scoped controls. Crew Admin may use its shared toolbar pattern for dense operational controls while keeping page identity in the common header. Crew Mobile uses its specialized shell and shared mobile design primitives for touch-oriented flows, status, detail headers, and safe modal interactions. These reusable systems standardize presentation and accessibility; they do not create a second query, mutation, or business authority.
+
 The Crew mobile experience may use a specialized mobile shell because its identity, navigation, and interaction model differ from Admin workspaces.
 That shell difference does not create a separate business authority.
 
@@ -45,6 +47,7 @@ Current examples include legacy roster, Crew learning/operations, and Guest AI a
 - Supabase owns persistent business state and enforced access boundaries.
 - Admin Auth and Crew token-bound sessions are distinct authority surfaces.
 - Guest AI may share repository and infrastructure hosting while retaining separate service, device, and data boundaries.
+- Environment and delivery identity are explicit contracts: branch names alone never select a Supabase or Vercel target. Canonical Staging and Production controls are governed by `FEEDX_CODEX_CONTEXT.md`, not duplicated in feature documentation.
 
 Cross-workspace reporting may read several domains, but underlying lifecycle and write ownership stays with the source domain.
 Moving a menu item does not transfer business ownership unless its authority, data, and contracts are deliberately migrated.
