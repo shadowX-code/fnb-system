@@ -22,6 +22,11 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Added fixed 12-month yearly/YTD assembly with null missing/future months, present-month totals, and no implied month-close/finalization authority. Poster UI, generated exports, and report history remain intentionally out of scope.
 - Restored the canonical environment linkage: `dev` Git Integration deploys to the verified `fnb-system-staging` Vercel project, whose internal deployment label does not redefine FeedX business environment; canonical Supabase linkage is explicitly `fnb-system-staging`, never Production. Applied and authenticated-RPC/RLS-verified the Reporting read-contract migration on Staging.
 
+## Late August 2026 — Reporting Preview Foundation
+
+- Added the Restaurant Admin `Reports` module with permission-gated, outlet-scoped Monthly Profit and Yearly/YTD P&L poster previews. Filter changes are intentionally draft-only until an Admin selects Generate.
+- Established separate fixed-ratio React/HTML poster canvases that consume only the canonical `reportingService` datasets. They retain missing versus RM0, complete/incomplete, product-unavailable, and 12-month/YTD semantics without adding export, history, snapshot, share, scheduling, or AI-insight scope.
+
 ## 2026-08-13
 
 ### Crew Leave Entitlement / Balance v1

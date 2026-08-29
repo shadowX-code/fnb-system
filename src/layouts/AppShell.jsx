@@ -28,6 +28,7 @@ const iconMap = {
   "purchase-categories": Settings,
   alerts: BarChart3,
   "outlet-pnl": BarChart3,
+  reports: FileText,
   product_analytics: PieChart,
   "operating-expenses": Wallet,
   "duty-roster": CalendarDays,

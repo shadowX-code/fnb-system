@@ -244,14 +244,12 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, export: true },
   },
   {
-    // Reporting is an internal contract in Phase 1. A routable Admin surface
-    // will be registered only when the reporting UI is implemented.
     id: "reports",
     section: "Overview",
     label: "Reports",
     route: "/reports",
-    sidebar: false,
-    routable: false,
+    icon: "reports",
+    sidebar: true,
     permissions: { view: true, export: true },
   },
   {
