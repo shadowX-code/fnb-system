@@ -20,6 +20,7 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Added the authenticated, outlet-scoped Reporting read contracts for monthly financials and completed Product Analytics product rankings, with `reportingService` as the sole browser access layer for future monthly, yearly/YTD, and poster consumers.
 - Established explicit financial semantics: Financial Revenue is sales-channel aggregation, `purchase_based_cogs` is monthly purchase evidence, and server-derived Net Profit is Revenue minus purchase-based COGS and OpEx. Source absence remains distinct from explicit RM0; a period is complete only when all three sources are present.
 - Added fixed 12-month yearly/YTD assembly with null missing/future months, present-month totals, and no implied month-close/finalization authority. Poster UI, generated exports, and report history remain intentionally out of scope.
+- Restored the canonical environment linkage: `dev` Git Integration deploys to the verified `fnb-system-staging` Vercel project, whose internal deployment label does not redefine FeedX business environment; canonical Supabase linkage is explicitly `fnb-system-staging`, never Production. Applied and authenticated-RPC/RLS-verified the Reporting read-contract migration on Staging.
 
 ## 2026-08-13
 

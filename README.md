@@ -11,6 +11,8 @@ FeedX is an internal F&B operations platform spanning Restaurant, Crew, Factory,
 
 Production and Staging are migrated through the current Factory and trusted-authority migration chain. Confirm the actual Vercel and Supabase target before any environment-specific action; never infer it from a branch name alone.
 
+The normal Staging application flow is `origin/dev` → Vercel Git Integration → `fnb-system-staging` → authenticated QA. The Vercel deployment label `target=production` does not make it Production when the verified project is `fnb-system-staging`; FeedX business environment is determined by the project identity.
+
 ## Workspaces
 
 - **Restaurant**: outlet finance, purchasing, inventory, assets, people administration, and reporting.
