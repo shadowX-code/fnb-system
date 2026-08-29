@@ -1,20 +1,20 @@
-# FeedX Project Master Document
+# FeedX Project Master Document — Legacy Deep Reference
 
-> **LEGACY DEEP REFERENCE / ARCHIVE**
+> **LEGACY DEEP REFERENCE / HISTORICAL SPECIFICATION**
 >
-> This document is retained for historical requirements, implementation context, and targeted deep reference. It is no longer the canonical architecture or current-system authority. Current code and migrations take precedence, followed by current tests/contracts and the canonical documentation routed from `docs/README.md`. Future Codex tasks should not read this file in full by default.
+> This document is retained for historical requirements, implementation context, and targeted deep reference. It is not the canonical architecture or current-system authority, and is not a daily synchronization target. Read [`FEEDX_SYSTEM_MASTER.md`](FEEDX_SYSTEM_MASTER.md), [`FEEDX_CODEX_CONTEXT.md`](FEEDX_CODEX_CONTEXT.md), and the documentation routed from [`docs/README.md`](docs/README.md) first. Current code, migrations, contracts, and verified runtime behavior prevail.
 
 Last updated: 2026-08-13
 Document owner: FeedX product / engineering workspace  
 Document purpose: Historical deep reference and archive for prior requirements, architecture, business rules, implementation phases, and development plans.
 
-## Legacy Maintenance Rule Superseded
+## Historical Maintenance Rule (Non-Normative)
 
-The automatic maintenance rule below is retired. Current documentation governance lives in `FEEDX_CODEX_CONTEXT.md` and `docs/README.md`.
+The automatic maintenance rule below is retired and must not be followed for new work. Current documentation governance lives in `FEEDX_CODEX_CONTEXT.md`, `FEEDX_SYSTEM_MASTER.md`, and `docs/README.md`.
 Canonical domain documents plus current code, migrations, and tests take precedence over this file.
 Consult only the specific historical section needed after reading current sources.
 
-Historical rule preserved for archive context:
+Historical rule preserved only for archive context:
 
 - Product requirements
 - Sidebar or module architecture
@@ -5335,7 +5335,7 @@ Service rules:
 
 ### 17.1 Historical Production Readiness Status — 1 June 2026
 
-Historical recommendation: **NOT READY for production cutover until release gates are completed.** This June 2026 status is retained as historical evidence only and is superseded by Section 19's current Production release state.
+Historical recommendation: **NOT READY for production cutover until release gates are completed.** This June 2026 status is retained as historical evidence only and is superseded by later verified release records and current canonical documentation.
 
 This is not a feature-readiness failure. Core FeedX modules are implemented in the staging codebase and `npm run build` is expected to pass, but production cutover requires environment-level verification that was not completed by static code review alone.
 
@@ -5433,7 +5433,7 @@ Every new module or feature must answer:
 - Are audit logs added only for business-critical actions?
 - Does refresh preserve created/edited records?
 - Does `npm run build` pass?
-- Is this document updated?
+- Has Documentation Impact been classified and have the appropriate current canonical documents been updated?
 
 ## Roles and Permission Configuration Authority
 
@@ -5451,9 +5451,9 @@ Every new module or feature must answer:
 
 ---
 
-## 19. Current System Baseline — 11 August 2026
+## 19. Historical System Snapshot — 11 August 2026
 
-This is the canonical current-state summary for new development work, release review, and future Codex tasks. It supersedes prior historical phase notes, former release-gate status, old test counts, obsolete browser multi-write descriptions, and legacy file-path references elsewhere in this document.
+This is a historical snapshot from 11 August 2026. It is retained as a targeted legacy reference and may contain superseded assumptions, release state, test counts, and file paths. It does not override `FEEDX_SYSTEM_MASTER.md`, `FEEDX_CODEX_CONTEXT.md`, canonical domain/architecture documents, or current implementation evidence.
 
 ### 19.1 Environments and release status
 

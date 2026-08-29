@@ -2,6 +2,13 @@
 
 Purpose: milestone changelog for meaningful FeedX development sessions. This file preserves delivery history but is not architecture or current-system authority. Current code and migrations take precedence, followed by tests/contracts and the canonical documentation routed from `docs/README.md`. Release notes under `docs/releases/` document Production releases.
 
+## Late August 2026 — Delivery, Security, And Documentation Governance
+
+- Established canonical `main`/`dev` branch and worktree hygiene, including guarded canonical Staging promotion from clean `dev` only and explicit Production approval boundaries.
+- Restored Guest AI as a bounded, independently developed workspace on `guest-ai/dev`; only stable milestones integrate into current `dev`, preserving newer FeedX work and canonical Staging ownership.
+- Hardened Crew Access outlet/session authority: Employee Master workplace remains canonical, mismatched or stale Crew outlet context fails closed, and authority changes revoke affected Crew sessions with audit evidence.
+- Established the canonical documentation system: Context governs development and documentation impact, System Master maps the ecosystem, domain/architecture docs own current knowledge, and the legacy Master remains historical reference.
+
 ## 2026-08-13
 
 ### Crew Leave Entitlement / Balance v1

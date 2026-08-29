@@ -5,12 +5,16 @@ It minimizes task context by directing contributors to only the documents releva
 
 ## Default Task Reading Order
 
-1. [`FEEDX_CODEX_CONTEXT.md`](../FEEDX_CODEX_CONTEXT.md)
-2. This documentation map
-3. The relevant canonical domain document or documents below
-4. Current implementation, tests, migrations, and verified runtime evidence
+1. [`AGENTS.md`](../AGENTS.md) for the concise agent entry point.
+2. [`FEEDX_CODEX_CONTEXT.md`](../FEEDX_CODEX_CONTEXT.md) for development workflow, safety, and documentation governance.
+3. [`FEEDX_SYSTEM_MASTER.md`](../FEEDX_SYSTEM_MASTER.md) when system-level orientation, ecosystem status, or ownership context is needed.
+4. This documentation map.
+5. Only the relevant architecture document and canonical domain document or documents below.
+6. Current implementation, tests, migrations, and verified runtime evidence.
 
 Current code and migrations override stale documentation. Do not read the full legacy Master Document by default.
+
+Choose documents by durable ownership: use an architecture document for workspace, route, platform, authority, or security foundations; use a domain document for business rules, lifecycle, data, permission, and integration behavior. A cross-domain page is not automatically a new documentation domain.
 
 ## Cross-Domain Architecture
 
@@ -49,6 +53,7 @@ Read these only when the task changes or depends on the corresponding cross-doma
 
 - [`../README.md`](../README.md): concise repository and development entrypoint.
 - [`../PRODUCT.md`](../PRODUCT.md): high-level product audience, purpose, and design direction.
+- [`../FEEDX_SYSTEM_MASTER.md`](../FEEDX_SYSTEM_MASTER.md): concise system ecosystem, capability, ownership, and status map.
 - [`../FEEDX_PROJECT_MASTER_DOCUMENT.md`](../FEEDX_PROJECT_MASTER_DOCUMENT.md): legacy deep reference and archive; use targeted sections only.
 - [`../FEEDX_DEVELOPMENT_LOG.md`](../FEEDX_DEVELOPMENT_LOG.md): milestone changelog, not architecture authority.
 - [`architecture/FACTORY_REFACTOR_PLAN.md`](architecture/FACTORY_REFACTOR_PLAN.md): historical Factory refactor plan and deep reference.
@@ -66,6 +71,6 @@ Technical Markdown inside `src/features/guest-ai/` remains a deeper Guest AI imp
 - Route work by business ownership, not the page where a behavior is displayed.
 - A page that combines data from several domains does not become a new domain.
 - Update an existing domain document when lifecycle, business rules, permissions, data ownership, integrations, or public contracts change.
-- Update the global context only for project-wide foundations.
+- Update the System Master for durable ecosystem, major capability, or system-level ownership/status changes; update the global Context only for project-wide development or governance foundations.
 - Create a new domain document only for a genuinely independent bounded domain, then add it to this map.
 - Do not update architecture docs for cosmetic, routine bug, QA-only, or test-only changes.

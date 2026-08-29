@@ -7,8 +7,8 @@ It explores guest-facing AI interaction without coupling its lifecycle to Restau
 
 ## Canonical Ownership
 
-Current `src/features/guest-ai/` code and technical Markdown, Guest AI routes, permissions migration, Edge Functions, service contracts, and tests are authoritative.
-This document owns the bounded-domain intent and integration limits; feature-local Markdown owns deeper protocol and implementation detail.
+The Guest AI-owned feature/workspace implementation, its technical Markdown, routes, permissions migration, Edge Functions, service contracts, and tests are authoritative.
+This FeedX-side document owns bounded-domain intent and integration limits; Guest AI-owned documentation owns firmware, device-protocol, session, branch, and detailed Staging implementation procedures.
 
 ## Core Boundaries
 

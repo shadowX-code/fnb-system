@@ -187,10 +187,11 @@ Report anything not tested or verified.
 
 Default reading order for a new task:
 
-1. `FEEDX_CODEX_CONTEXT.md`.
-2. `docs/README.md`.
-3. Only the relevant canonical domain document or documents.
-4. Current implementation, tests, and migrations for the affected behavior.
+1. `AGENTS.md`.
+2. `FEEDX_CODEX_CONTEXT.md`.
+3. `docs/README.md` and, when system orientation is needed, `FEEDX_SYSTEM_MASTER.md`.
+4. Only the relevant canonical architecture and domain document or documents.
+5. Current implementation, tests, migrations, and verified runtime behavior for the affected behavior.
 
 Read `docs/architecture/platform.md` for workspace, module, shell, route, or compatibility ownership changes.
 Read `docs/architecture/trusted-authorities.md` for RLS, RPC, Edge Function, token, grant, audit, version, or snapshot changes.
@@ -199,12 +200,32 @@ Use the Development Log and release/archive records as evidence of past mileston
 
 ## Documentation Update Rules
 
-At the end of every development task, classify documentation impact:
+Codex must independently classify Documentation Impact for every development task, whether or not the user requests documentation updates.
+
+Documentation **must** be updated when a durable change affects:
+
+- business rules, lifecycle, or state machine;
+- canonical ownership or source of truth;
+- schema, migration, RPC, Edge Function, or read-model contract;
+- permission, RLS, Auth, session, or outlet scope;
+- module, route, workspace, or cross-domain compatibility ownership;
+- integration, deployment, or Staging/Production contract;
+- durable reusable UI/system pattern; or
+- system-level module or capability architecture.
+
+Documentation Impact may be `None` for visual-only spacing, typography, or color polish; test-only changes; a bug fix restoring already documented intended behavior; or a refactor without durable contract or behavior change.
+
+Use the narrowest owner that describes the durable change:
 
 - Global foundation changed: update `FEEDX_CODEX_CONTEXT.md`.
+- System-level ecosystem, architecture, module ownership, major capability, or current-status change: update `FEEDX_SYSTEM_MASTER.md`.
+- Cross-domain/platform architecture change: update the relevant `docs/architecture/*.md`.
 - Existing domain architecture or business behavior changed: update that canonical domain document.
 - New bounded domain introduced: create `docs/domains/<domain>.md` and update `docs/README.md`.
-- Cosmetic UI, typography, spacing, routine bug, QA-only, or test-only change: no architecture documentation update.
+- Meaningful milestone, cross-domain change, schema/authority/security milestone, or major integration/deployment architecture change: add a concise `FEEDX_DEVELOPMENT_LOG.md` entry.
+
+`FEEDX_PROJECT_MASTER_DOCUMENT.md` is a legacy deep reference and historical specification. It is not a daily synchronization target.
+`FEEDX_DEVELOPMENT_LOG.md` records meaningful milestones only; do not add routine UI polish, minor bug fixes, or test-only work.
 
 A new bounded-domain document is justified only when the area has meaningful independent business rules, lifecycle, data ownership, authority, or integrations.
 Prefer updating an existing domain document over creating overlapping documentation.
@@ -213,10 +234,10 @@ Do not duplicate global rules in every domain document; link to the architecture
 
 Future Codex final reports should include one short line:
 
-`Documentation Impact: None.`
+`Documentation Impact: None — <short reason>.`
 
 or
 
-`Documentation Impact: Updated docs/domains/<domain>.md.`
+`Documentation Impact: Updated <doc path>.`
 
 Use a longer documentation report only when explicitly requested.
