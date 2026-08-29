@@ -1,4 +1,5 @@
 import "./reportingPoster.css";
+import "./reportingPosterOverrides.css";
 export function PosterShell({kind,children,label}){return <article className={`report-poster report-poster--${kind}`} aria-label={label}><div className="report-poster__inside">{children}</div></article>;}
 export function PosterHeader({type,title,period,status,incomplete}){return <header className="report-poster__head"><div><div className="report-poster__brand">FeedX</div><div className="report-poster__type">{type}</div><h2 className="report-poster__title">{title}</h2><p className="report-poster__period">{period}</p></div><span className={`report-poster__status ${incomplete?"is-incomplete":""}`}>{status}</span></header>;}
 export function PosterFooter({period}){return <footer className="report-poster__footer"><span>Server-authoritative financial report</span><strong>FEEDX</strong><span>{period}</span></footer>;}
