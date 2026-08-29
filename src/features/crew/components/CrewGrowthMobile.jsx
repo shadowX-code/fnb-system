@@ -15,7 +15,6 @@ import {
   Circle,
   CircleHelp,
   Clock3,
-  Gift,
   ShieldCheck,
   SmilePlus,
   Sparkles,
@@ -30,6 +29,7 @@ import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 import growthPerformanceHeroBackground from "../assets/growth-performance-hero-approved.png";
+import performanceDetailHeroBackground from "../assets/performance-detail-hero-approved.png";
 
 gsap.registerPlugin(useGSAP);
 
@@ -280,7 +280,6 @@ const performanceComponents = (t) => [
 
 const performanceStatus = (status, t) => status === "finalized" ? t("status.finalized") : status === "draft" ? t("performance.draft") : t("performance.inReview");
 const performanceMessage = (score, t) => score >= 95 ? t("performance.messages.excellent") : score >= 85 ? t("performance.messages.strong") : score >= 75 ? t("performance.messages.meets") : score >= 70 ? t("performance.messages.progress") : t("performance.messages.improve");
-const rewardEarnRate = (score) => score >= 95 ? 100 : score >= 90 ? 90 : score >= 85 ? 80 : score >= 80 ? 65 : score >= 75 ? 45 : score >= 70 ? 20 : 0;
 const monthLabel = (value, style = "long", t) => value ? formatCrewDate(`${value}T00:00:00`, { month: style, year: "numeric" }) : t("growth.thisMonth");
 
 const readableTag = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
@@ -431,8 +430,7 @@ function PerformanceHero({ performance }) {
   const finalizedTrend = (performance.trend || []).filter((item) => item.status === "finalized" && item.score != null).sort((a, b) => String(a.period_start).localeCompare(String(b.period_start)));
   const previous = [...finalizedTrend].reverse().find((item) => item.period_start !== performance.period_start);
   const delta = score != null && previous ? score - Math.round(Number(previous.score)) : null;
-  return <article className="crew-performance-final-hero">
-    <span className="crew-performance-final-signal" aria-hidden="true"><i /><i /><i /></span>
+  return <article className="crew-performance-final-hero" style={{ "--crew-performance-detail-background": `url(${performanceDetailHeroBackground})` }}>
     <div className="crew-performance-final-hero-copy">
       <div className="crew-performance-final-period"><strong>{monthLabel(performance.period_start, "long", t)}</strong><span className={`is-${performance.status}`}>{performanceStatus(performance.status, t)}</span></div>
       <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong><span>/100</span></div>
@@ -443,7 +441,7 @@ function PerformanceHero({ performance }) {
   </article>;
 }
 
-function PerformanceBreakdown({ performance, onSelect, onExplain }) {
+function PerformanceBreakdown({ performance, onSelect }) {
   const { t } = useTranslation();
   const total = performance.score == null ? null : Math.round(Number(performance.score));
   return <section className="crew-performance-final-breakdown">
@@ -461,7 +459,6 @@ function PerformanceBreakdown({ performance, onSelect, onExplain }) {
         </button>;
       })}
     </div>
-    <button type="button" className="crew-performance-final-evidence" onClick={onExplain}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><ShieldCheck size={18} /></i><span><strong>{t("performance.verifiedEvidence")}</strong><small>{t("performance.learnCalculation")}</small></span><ChevronRight size={17} /></button>
   </section>;
 }
 
@@ -473,43 +470,33 @@ function PerformanceStrengths({ performance }) {
     return score === definition.max && item.status !== "review_required" ? { ...definition, body: definition.strength } : null;
   }).filter(Boolean).slice(0, 3);
   if (!strengths.length) return null;
-  return <section className="crew-performance-final-strengths"><h2>{t("performance.strengthsTitle")}</h2><div>{strengths.map(({ key, label, icon: Icon, body }) => <article key={key}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><Icon size={18} /></i><span><strong>{label}</strong><p>{body}</p></span></article>)}</div></section>;
+  return <section className="crew-performance-final-strengths"><CrewSectionHeader title={t("performance.strengthsTitle")} /><div>{strengths.map(({ key, label, icon: Icon, body }) => <article key={key}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><Icon size={18} /></i><span><strong>{label}</strong><p>{body}</p></span></article>)}</div></section>;
 }
 
 function PerformanceTrend({ performance }) {
   const { t } = useTranslation();
   const trend = (performance.trend || []).filter((item) => item.status === "finalized" && item.score != null).sort((a, b) => String(a.period_start).localeCompare(String(b.period_start))).slice(-4).map((item) => ({ ...item, score: Math.round(Number(item.score)), month: formatCrewDate(`${item.period_start}T00:00:00`, { month: "short", year: "numeric" }) }));
   if (!trend.length) return null;
-  return <section className="crew-performance-final-trend-section"><header><h2>{t("performance.trend")}</h2><span className="crew-performance-final-trend-context">{t("performance.lastMonths")}</span></header>
+  return <section className="crew-performance-final-trend-section"><CrewSectionHeader title={t("performance.trend")} trailing={<span className="crew-performance-final-trend-context">{t("performance.lastMonths")}</span>} />
     {trend.length > 1 ? <div className="crew-performance-final-chart" aria-label={t("performance.finalizedTrend")}><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend} margin={{ top: 20, right: 12, bottom: 2, left: 12 }}><defs><linearGradient id="performanceTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#00b7c7" stopOpacity=".24"/><stop offset="100%" stopColor="#00b7c7" stopOpacity=".02"/></linearGradient></defs><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#52627a", fontSize: 9 }} /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Area type="monotone" dataKey="score" stroke="#00b7c7" strokeWidth={2.5} fill="url(#performanceTrendFill)" dot={{ r: 3.5, fill: "#00b7c7", strokeWidth: 0 }} activeDot={false} label={{ position: "top", fill: "#1d2a44", fontSize: 9, fontWeight: 800 }} /></AreaChart></ResponsiveContainer></div> : <article className="crew-performance-final-single-trend"><strong>{trend[0].score} · {monthLabel(trend[0].period_start, "long", t)}</strong><p>{t("performance.trendMore")}</p></article>}
   </section>;
 }
 
-function PerformanceRewardImpact({ performance, onViewReward }) {
-  const { t } = useTranslation();
-  const score = performance.score == null ? null : Math.round(Number(performance.score));
-  const finalized = performance.status === "finalized";
-  const rate = score == null ? null : rewardEarnRate(score);
-  return <section className="crew-performance-final-reward"><i className="crew-ui-icon-container crew-ui-icon-container--compact"><Gift size={20} /></i><span><strong>{t("performance.rewardImpact")}</strong><small>{finalized ? t("performance.finalizedPerformance") : t("performance.estimatedPerformance")}</small></span><div><small>{t("growth.performance")}</small><strong>{score ?? "—"} / 100</strong></div><div><small>{t("performance.earnRate")}</small><strong>{rate == null ? "—" : `${rate}%`}</strong></div><button type="button" className="crew-mobile-ghost" onClick={onViewReward}>{t("performance.viewReward")} <ChevronRight size={17} /></button></section>;
-}
-
-function CrewPerformanceDetail({ performance, onBack, onViewReward, onNavigate }) {
+function CrewPerformanceDetail({ performance, onBack, onNavigate }) {
   const { t } = useTranslation();
   const [modal, setModal] = useState(null);
   return <section className="crew-v2-growth crew-performance-final">
     <PageHeader title={t("performance.title")} onBack={onBack} action={<button type="button" className="crew-performance-final-help" aria-label={t("performance.help")} onClick={() => setModal({ type: "help" })}><CircleHelp size={22} /></button>} />
     <PerformanceHero performance={performance} />
-    <PerformanceBreakdown performance={performance} onSelect={(component) => setModal({ type: "component", component })} onExplain={() => setModal({ type: "calculation" })} />
+    <PerformanceBreakdown performance={performance} onSelect={(component) => setModal({ type: "component", component })} />
     <PerformanceStrengths performance={performance} />
     <PerformanceTrend performance={performance} />
-    <PerformanceRewardImpact performance={performance} onViewReward={onViewReward} />
     {modal?.type === "component" ? <PerformanceComponentModal component={modal.component} onClose={() => setModal(null)} onNavigate={(target) => { setModal(null); onNavigate?.(target); }} /> : null}
-    {modal?.type === "calculation" ? <PerformanceModal title={t("performance.calculationTitle")} onClose={() => setModal(null)}>{performanceComponents(t).map(({ key, label, weight }) => <section key={key}><strong>{label} · {weight}%</strong><p>{performance.breakdown?.[key]?.explanation || t("performance.componentCalculation")}</p></section>)}</PerformanceModal> : null}
-    {modal?.type === "help" ? <PerformanceModal title={t("performance.about")} onClose={() => setModal(null)}><section><strong>{t("performance.monthlyScore")}</strong><p>{t("performance.monthlyScoreHelp")}</p></section><section><strong>{t("performance.scoreBreakdown")}</strong><p>{t("performance.breakdownHelp")}</p></section><section><strong>{t("performance.rewardImpact")}</strong><p>{t("performance.rewardHelp")}</p></section></PerformanceModal> : null}
+    {modal?.type === "help" ? <PerformanceModal title={t("performance.about")} onClose={() => setModal(null)}><section><strong>{t("performance.monthlyScore")}</strong><p>{t("performance.monthlyScoreHelp")}</p></section><section><strong>{t("performance.scoreBreakdown")}</strong><p>{t("performance.breakdownHelp")}</p></section></PerformanceModal> : null}
   </section>;
 }
 
-export default function CrewGrowthMobile({ data, performance, loading, error, onRetry, onViewReward, onNavigate, initialView = "overview" }) {
+export default function CrewGrowthMobile({ data, performance, loading, error, onRetry, onNavigate, initialView = "overview" }) {
   const { t } = useTranslation();
   const [view, setView] = useState(initialView);
   const [selectedSkill, setSelectedSkill] = useState(null);
@@ -584,7 +571,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   }
 
   if (view === "performance") {
-    return performance ? <CrewPerformanceDetail performance={performance} onBack={() => setView("overview")} onViewReward={onViewReward} onNavigate={(target) => target === "skills" || target === "growth" ? setView("overview") : onNavigate?.(target)} /> : <section className="crew-v2-growth crew-v2-performance"><PageHeader title={t("performance.title")} onBack={() => setView("overview")} /><section className="crew-v2-performance-empty"><Target size={28} /><h2>{t("performance.unavailable")}</h2><p>{t("performance.unavailableBody")}</p></section></section>;
+    return performance ? <CrewPerformanceDetail performance={performance} onBack={() => setView("overview")} onNavigate={(target) => target === "skills" || target === "growth" ? setView("overview") : onNavigate?.(target)} /> : <section className="crew-v2-growth crew-v2-performance"><PageHeader title={t("performance.title")} onBack={() => setView("overview")} /><section className="crew-v2-performance-empty"><Target size={28} /><h2>{t("performance.unavailable")}</h2><p>{t("performance.unavailableBody")}</p></section></section>;
   }
 
   return <section className="crew-v2-growth crew-growth-overview">

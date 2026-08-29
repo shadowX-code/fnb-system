@@ -125,20 +125,24 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByRole("heading", { name: "All Skills 4" })).not.toBeNull();
   });
 
-  it("renders the finalized Performance hero, unified breakdown, strengths, real trend and Reward impact", () => {
-    const onViewReward = vi.fn();
-    render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" onViewReward={onViewReward} />);
+  it("renders the approved light Performance hero, shared section headings, breakdown, strengths and trend without duplicate Reward content", () => {
+    render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" />);
     expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
+    const hero = document.querySelector(".crew-performance-final-hero");
+    expect(hero.style.getPropertyValue("--crew-performance-detail-background")).toContain("performance-detail-hero-approved");
+    expect(document.querySelector(".crew-performance-final-signal")).toBeNull();
     expect(screen.getByText("Finalized")).not.toBeNull();
     expect(screen.getByText("Outstanding")).not.toBeNull();
     expect(screen.getByText("+13 vs July 2026")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Score Breakdown" })).not.toBeNull();
     expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Conduct) evidence$/ })).toHaveLength(5);
+    expect(document.querySelector(".crew-performance-final-evidence")).toBeNull();
     expect(screen.getByRole("heading", { name: "Your Strengths" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Performance Trend" })).not.toBeNull();
+    expect(screen.getByText("Last 4 months", { selector: ".crew-performance-final-trend-context" })).not.toBeNull();
     expect(screen.getByLabelText("Finalized monthly performance trend")).not.toBeNull();
-    expect(screen.getByText("100%", { selector: ".crew-performance-final-reward strong" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /View Reward/ }));
-    expect(onViewReward).toHaveBeenCalledTimes(1);
+    expect(document.querySelector(".crew-performance-final-reward")).toBeNull();
+    expect(screen.queryByRole("button", { name: /View Reward/ })).toBeNull();
   });
 
   it("opens safe centered component and help dialogs without manager-private content", () => {
@@ -154,7 +158,7 @@ describe("Crew Growth mobile final IA", () => {
     fireEvent.click(screen.getByRole("button", { name: "Close Attendance" }));
     fireEvent.click(screen.getByRole("button", { name: "Performance help" }));
     expect(screen.getByRole("dialog", { name: "About My Performance" })).not.toBeNull();
-    expect(screen.getByText(/Maximum Reward Share/)).not.toBeNull();
+    expect(screen.queryByText(/Maximum Reward Share/)).toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "About My Performance" })).toBeNull();
   });
@@ -222,11 +226,12 @@ describe("Crew Growth mobile final IA", () => {
   });
 
   it.each([
-    [100, "Outstanding", "100%"], [87, "Strong", "80%"], [75, "Meets Standard", "45%"], [68, "Below Standard", "0%"],
-  ])("maps score %s to %s and the existing Reward earn-rate tier", (score, level, earnRate) => {
+    [100, "Outstanding"], [87, "Strong"], [75, "Meets Standard"], [68, "Below Standard"],
+  ])("maps score %s to %s without duplicating Reward earn-rate information", (score, level) => {
     render(<CrewGrowthMobile data={data} performance={{ ...fullPerformance, score, breakdown: {}, trend: [{ period_start: "2026-08-01", status: "finalized", score }] }} initialView="performance" />);
     expect(screen.getByText(level)).not.toBeNull();
-    expect(screen.getByText(earnRate, { selector: ".crew-performance-final-reward strong" })).not.toBeNull();
+    expect(document.querySelector(".crew-performance-final-reward")).toBeNull();
+    expect(document.body.textContent).not.toContain("Earn Rate");
     expect(screen.queryByRole("heading", { name: "Your Strengths" })).toBeNull();
     expect(screen.getByText(/monthly trend will appear/)).not.toBeNull();
   });
@@ -234,7 +239,7 @@ describe("Crew Growth mobile final IA", () => {
   it("labels non-finalized performance honestly and does not fabricate a delta or strengths", () => {
     render(<CrewGrowthMobile data={data} performance={{ ...fullPerformance, status: "review_required", score: 87, breakdown: {}, trend: [] }} initialView="performance" />);
     expect(screen.getByText("In Review")).not.toBeNull();
-    expect(screen.getByText("Estimated · not finalized")).not.toBeNull();
+    expect(document.querySelector(".crew-performance-final-reward")).toBeNull();
     expect(screen.queryByText(/ vs /)).toBeNull();
     expect(screen.queryByRole("heading", { name: "Your Strengths" })).toBeNull();
   });
