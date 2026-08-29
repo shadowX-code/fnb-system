@@ -24,7 +24,7 @@ export default function CrewAccessManagerModal({ employee, mode = "enable", onCl
     event.preventDefault();
     setError("");
     if (manual && !validPasscode(passcode)) {
-      setError("Use four digits that are not a common or repeated passcode.");
+      setError("Enter a four-digit passcode.");
       return;
     }
     setSaving(true);

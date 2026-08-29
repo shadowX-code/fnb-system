@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import CrewAccessManagerModal from "../CrewAccessManagerModal.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
@@ -33,5 +33,13 @@ describe("Crew Access credential management", () => {
     expect(await screen.findByRole("heading", { name: "Passcode Reset" })).not.toBeNull();
     expect(screen.getByText(/A new passcode is ready for Crew QA/)).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Crew Access Enabled" })).toBeNull();
+  });
+
+  it("validates only the required four-digit format before leaving policy checks to the server", () => {
+    render(<CrewAccessManagerModal employee={employee} mode="reset" onClose={() => {}} onSaved={() => {}} />);
+    screen.getByLabelText("Enter manually").click();
+    fireEvent.submit(document.getElementById("crew-access-form"));
+    expect(screen.getByText("Enter a four-digit passcode.")).not.toBeNull();
+    expect(crewService.manageAccess).not.toHaveBeenCalled();
   });
 });
