@@ -1,0 +1,5 @@
+config FEEDX_GUEST_AI_FAULT_INJECTION
+    bool "Enable Guest AI on-device reliability fault injection"
+    default n
+    help
+        Test-firmware only. Enables RAM-only one-shot camera/USB faults.

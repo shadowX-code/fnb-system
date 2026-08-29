@@ -1,0 +1,9 @@
+dependencies:
+  idf:
+    version: ">=5.5.4,<5.5.5"
+  espressif/esp_video:
+    override_path: "../components/esp_video"
+  espressif/esp32-camera: "==2.1.4"
+  espressif/esp_codec_dev: "==1.5.4"
+  espressif/esp_audio_codec: "==2.4.1"
+  espressif/esp_lcd_ili9341: "==1.2.0"

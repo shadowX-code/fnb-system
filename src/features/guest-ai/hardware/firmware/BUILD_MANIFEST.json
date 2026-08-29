@@ -1,0 +1,36 @@
+{
+  "bridge_version": "0.1.0",
+  "protocol_version": "1.0",
+  "built_at": "2026-08-22",
+  "build_command": "/private/tmp/feedx-pio-env/bin/pio run -d src/features/guest-ai/hardware/firmware -e k151_bridge",
+  "target": "M5Stack CoreS3 / StackChan K151",
+  "framework": "Arduino-ESP32 3.20017.241212+sha.dcc1105b",
+  "platformio_platform": "espressif32@6.12.0",
+  "toolchain": "xtensa-esp32s3 8.4.0+2021r2-patch5",
+  "esptool": "4.9.0",
+  "sources": {
+    "stackchan_bsp": "f7ed40e6f5d9a1d08440cb926f3a0865b81882f8",
+    "m5unified": "774d920cd6851a5231748b56ece1b073645f313f",
+    "m5gfx": "93b480bb349749202c8a2a953065c8ae95f58320",
+    "arduinojson": "1cd478f48e7c4cd142a0bd26ee17d63d70d04e3f"
+  },
+  "artifacts": {
+    "firmware_bin": {
+      "path": ".pio/build/k151_bridge/firmware.bin",
+      "size_bytes": 533456,
+      "sha256": "22f4187a0edac02edc832abe23f52e816b0c73d42d2291fe2a4ff43d9964d5f3",
+      "flash_offset_candidate": "0x20000"
+    },
+    "bootloader_bin": {
+      "path": ".pio/build/k151_bridge/bootloader.bin",
+      "sha256": "2a71d69b471e20c2bac7fb469f3c6a807b3ebee780e348e5889db0da849ca363",
+      "flash_offset_candidate": "0x0000"
+    },
+    "partitions_bin": {
+      "path": ".pio/build/k151_bridge/partitions.bin",
+      "sha256": "48da0866f56d9d8eb1fe786412984d8f1a4a01b3f13f965621fcb916761e1a4b",
+      "flash_offset_candidate": "0x8000"
+    }
+  },
+  "first_flash_status": "FLASHED_OTA_0_AND_BOOT_VALIDATED_2026-08-22"
+}
