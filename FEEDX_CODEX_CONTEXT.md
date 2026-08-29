@@ -119,6 +119,7 @@ Do not expose developer terminology, internal identifiers, or database mechanics
 The normal flow is local development to Staging to Production.
 Treat environment identity as explicit; never infer a Supabase or Vercel target from a branch name alone.
 Confirm the linked project and deployment target before environment-specific actions.
+FeedX Staging Vercel deployments target only `fnb-system-staging` (`prj_t6uJtKPDu9GuyefG6IqAfxh5YoIi`). Canonical Staging is permitted only from a clean `dev` worktree whose local `HEAD` exactly equals current `origin/dev`; the deployment SHA must be that same SHA. Run `npm run verify:staging-vercel-target` immediately before every canonical Staging deployment. It fails closed if `.vercel/project.json` is missing or resolves to any other project, the worktree is dirty, the branch is not `dev`, or local/deployment SHA differs from `origin/dev`. Use `npm run promote:staging -- <verified-deployment-url> <origin-dev-sha>` for a guarded alias promotion. Feature and Guest AI worktrees may use `npm run deploy:preview` for isolated QA only; they must never use `vercel --prod`, a production target, or a direct promotion to alter `fnb-system-staging.vercel.app`. Never implicitly run `vercel link` or create another FeedX Vercel project.
 Migrations are append-only after they have reached a shared environment.
 Fix an applied migration with a forward-only migration.
 
@@ -127,6 +128,41 @@ Production actions require explicit approval.
 Do not copy Staging fixtures or data into Production.
 Deploy dependent UI, schema, RPC, RLS, and Edge Function changes in a compatible order.
 Do not deploy, migrate, merge, commit, or push unless the task authorizes it.
+
+## Git Branch & Worktree Hygiene
+
+Canonical long-lived branches are `main` for Production and `dev` for Staging/integration. Codex may create short-lived local `codex/*` or `hotfix/*` branches and worktrees for task isolation; they are not long-lived branches.
+
+After each development task:
+
+1. Confirm the final code is in `origin/dev`.
+2. Complete required tests, `npm run build`, `git diff --check`, and any required authenticated Staging QA.
+3. Check the temporary branch/worktree for cleanliness and unique or unreconciled required patches.
+4. If safe, remove the temporary worktree and local branch; completed temporary branches/worktrees must not accumulate.
+
+Before deleting a non-ancestor branch, check patch equivalence and unique work; ancestry alone is insufficient. Never automatically delete, reset, clean, stash, overwrite, or prune a dirty worktree, a branch with unique/unreconciled work, a protected Guest AI workspace, or a workspace with unclear ownership or purpose. Keep Guest AI protected workspaces isolated unless the user explicitly authorizes action.
+
+Production deployment and merging `main` require explicit authorization. Routine cleanup must not force-push `main` or `dev`. Deliberately reconcile Production hotfixes back into `dev` after completion to prevent Production/Staging drift.
+
+Normal lifecycle: `temporary branch/worktree → integrate origin/dev → Staging QA → cleanup temporary branch/worktree`.
+
+## Guest AI Development & Staging Integration
+
+Guest AI development is isolated in `/Users/deron/Dev/feedx-guest-ai` on its Guest AI worktree/branch for independent development and commits. Do not use that branch to directly overwrite, reset, replace, or force-push `dev`; `dev` is FeedX Staging's only canonical integration branch.
+
+When a Guest AI milestone enters Staging:
+
+1. Confirm the latest `origin/dev`.
+2. Integrate only the valid Guest AI changes into current `dev`.
+3. Preserve newer Crew, Admin, Factory, and other FeedX work.
+4. Run relevant Guest AI and regression tests, `npm run build`, and `git diff --check`.
+5. Push current `dev` to `origin/dev`.
+6. Deploy and verify through canonical `fnb-system-staging`.
+7. Report completion only after authenticated Staging QA passes.
+
+Do not replace Staging directly from the Guest AI branch. Production deployment or merging `main` still requires explicit authorization. During prototype and validation, Guest AI remains a bounded FeedX module; consider an independent repository or service only after validation.
+
+`FEEDX_CODEX_CONTEXT.md` is sourced from canonical `dev`. Every other FeedX worktree, including Guest AI, must synchronize to its latest canonical version and must not maintain divergent long-term rules.
 
 ## Codex Implementation Discipline
 
