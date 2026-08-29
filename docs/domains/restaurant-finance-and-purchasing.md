@@ -41,7 +41,7 @@ The Restaurant Admin `Reports` module is the current Reporting consumer. It uses
 
 Staging-only poster QA uses a deterministic, explicitly labelled `QA Demo — Reporting Posters` outlet and ordinary Staging source evidence (sales, purchase, expense, and completed Product Analytics records). The guarded seed and verifier scripts refuse any Supabase target other than the canonical Staging ref and verify the existing Reporting RPC outputs; they do not become a Reporting authority, a browser mock mode, a Production runtime dependency, or a source of Production business data.
 
-PNG/PDF export, report history/snapshots, sharing, scheduling, AI insights, and final poster-designer styling remain deferred. `reports.export` remains reserved for that future controlled export action.
+Monthly and Yearly posters share a fixed-canvas editorial visual system: presentation primitives own the poster typography, financial story, ranking, trend, table, status, and FeedX signature treatment while the Admin page continues to own controls and preview containment. PNG/PDF export, report history/snapshots, sharing, scheduling, and AI insights remain deferred. `reports.export` remains reserved for that future controlled export action.
 
 ## Permissions And Audit
 
