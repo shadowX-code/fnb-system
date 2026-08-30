@@ -215,7 +215,7 @@ function HomeScheduleRow({ entry, label, onClick }) {
   const dateLabel = label || formatCrewDate(`${entry.date}T12:00:00+08:00`, { weekday: "short", day: "numeric", month: "short" });
   const scheduleLabel = away ? rosterEntryLabel(entry, t) : `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}`;
   const title = label === "today" ? t("common.today") : dateLabel;
-  return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${scheduleLabel}`}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarDays size={19} /></i><span><strong className="crew-list-primary">{title}</strong>{!away && <small className="crew-home-schedule-time">{scheduleLabel}</small>}<small className="crew-list-secondary">{outlet}{entry.position ? ` · ${entry.position}` : ""}</small></span>{away && <CrewStatusBadge tone="warning">{scheduleLabel}</CrewStatusBadge>}<ChevronRight size={18} /></button>;
+  return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${scheduleLabel}`}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarDays size={19} /></i><span><strong className="crew-list-primary">{title}</strong>{!away && <small className="crew-home-schedule-time">{scheduleLabel}</small>}<small className="crew-list-secondary">{outlet}</small></span>{away && <CrewStatusBadge tone="warning">{scheduleLabel}</CrewStatusBadge>}<ChevronRight size={18} /></button>;
 }
 
 function AttendanceHistoryScreen({ rows, loading, selectedMonth, onMonthChange, onBack, t }) {
@@ -510,7 +510,7 @@ export default function CrewMobileApp({ onNotify }) {
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => setScreen("me")} onChanged={() => refresh()} />}
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => setScreen("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
 
-    {screen === "schedule" && <CrewScheduleMobile roster={roster} employee={employee} onBack={() => setScreen("home")} />}
+    {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => setScreen("home")} />}
 
     {screen === "attendance" && <AttendanceHistoryScreen
       rows={attendanceMonth} loading={attendanceMonthLoading} selectedMonth={selectedAttendanceMonth}

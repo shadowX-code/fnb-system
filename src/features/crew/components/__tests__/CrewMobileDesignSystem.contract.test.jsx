@@ -316,8 +316,13 @@ describe("Crew Mobile design system contract", () => {
     expect(schedule).toContain('density="operational" title={t("schedule.upcoming")} trailing={<CrewStatusBadge tone="neutral">{t("schedule.nextDays")}</CrewStatusBadge>}');
     expect(schedule).toContain('entry ? "crew-type-detail-title" : "crew-type-card-title"');
     expect(schedule).toContain('className="crew-type-helper"');
+    expect(schedule).toContain('className="crew-schedule-final-day-meta"');
+    expect(schedule).toContain('className="crew-schedule-final-row-meta"');
+    expect(schedule).toContain('className="crew-schedule-final-duration crew-type-helper"');
+    expect(schedule).not.toContain("entryRole");
     expect(scheduleStyles).toContain(".crew-schedule-final-day.is-empty .crew-schedule-final-day-copy { gap: 4px; }");
-    expect(scheduleStyles).toContain("@media (max-width: 480px) { .crew-schedule-final-row-copy > small { overflow: visible; text-overflow: clip; white-space: normal; } }");
+    expect(scheduleStyles).toContain(".crew-schedule-final-row-meta { display: flex; min-width: 0; align-items: center; gap: 8px; }");
+    expect(scheduleStyles).toContain(".crew-schedule-final-duration { flex: 0 0 auto;");
     expect(scheduleStyles).not.toContain(".crew-schedule-final-upcoming > header");
   });
 

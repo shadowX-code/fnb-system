@@ -315,6 +315,29 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-schedule-final-week .is-selected .crew-schedule-final-date-block")).not.toBeNull();
   });
 
+  it("keeps Schedule outlet and duration separate from repeated position metadata", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myRoster.mockResolvedValueOnce({
+      from: "2026-08-13",
+      to: "2026-08-26",
+      today: { id: "today", date: "2026-08-13", outlet_name: "Friends Corner", start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew" },
+      entries: [
+        { id: "today", date: "2026-08-13", outlet: { name: "Friends Corner" }, start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew" },
+        { id: "upcoming", date: "2026-08-14", outlet: { name: "Friends Corner" }, start_time: "10:00", end_time: "18:30", entry_type: "working", position: "Service Crew" },
+        { id: "leave", date: "2026-08-15", outlet: { name: "Friends Corner" }, entry_type: "annual_leave", position: "Service Crew" },
+      ],
+    });
+    render(<CrewMobileApp />);
+    await screen.findAllByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/);
+    expect(document.querySelector(".crew-home-schedule-row .crew-list-secondary")?.textContent).toBe("Friends Corner");
+    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    expect(document.querySelector(".crew-schedule-final-day-meta")?.textContent).toContain("Friends Corner");
+    expect(document.querySelector(".crew-schedule-final-day-meta .crew-schedule-final-duration")?.textContent).toContain("8 hrs");
+    expect(document.querySelector(".crew-schedule-final-row-meta")?.textContent).toContain("Friends Corner");
+    expect(document.querySelector(".crew-schedule-final-row-meta .crew-schedule-final-duration")?.textContent).toContain("8.5 hrs");
+    expect(screen.queryByText("Service Crew")).toBeNull();
+  });
+
   it("synchronizes the seven-day selector with working, OFF, MC and approved-leave schedule states", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myRoster.mockResolvedValueOnce({
