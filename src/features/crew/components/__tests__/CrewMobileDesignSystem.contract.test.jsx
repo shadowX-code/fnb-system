@@ -104,6 +104,9 @@ describe("Crew Mobile design system contract", () => {
     expect(home).toContain("animation: crew-home-task-reminder 2s ease-in-out infinite");
     expect(home).toContain(".crew-home-task-count.is-alert::after { animation: none;");
     expect(home).not.toContain("crew-home-task-activity");
+    expect(mobileApp).toContain('t("tasks.dueAt", { time: formatTime(row.due_at) })');
+    expect(mobileApp).toContain('className="crew-list-secondary crew-home-task-meta"');
+    expect(home).toContain(".crew-home-task .crew-home-task-meta { display: flex;");
   });
 
   it("owns app gutters, Bottom Nav clearance, and sticky-action geometry in the Fundamental", () => {
@@ -362,6 +365,7 @@ describe("Crew Mobile design system contract", () => {
     expect(home).toContain("grid-template-rows: 100px 15px");
     expect(home).toContain("transform-origin: 50% 50%");
     expect(home).toContain("stroke-dasharray: 56 315");
+    expect(home).toContain('grid-template-areas: "icon label action" "icon time time"');
     expect(homeClockMotion).toContain('<svg className="crew-home-clock-orbit-highlight"');
     expect(homeClockMotion).toContain("crew-home-clock-energy-trail");
     expect(homeClockMotion).not.toContain('clearProps: "transform,opacity"');

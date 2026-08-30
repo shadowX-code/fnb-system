@@ -558,7 +558,7 @@ describe("Crew Mobile redesign", () => {
 
   it("shows every true task inline, exposes the canonical reminder badge, and keeps an honest empty state", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1 }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1 }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue" }, { id: "e", source: "legacy_daily", name: "Close register", status: "pending" }] });
+    mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1, due_at: "2026-08-13T02:00:00Z" }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1, due_at: "2026-08-13T10:00:00Z" }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue", due_at: "2026-08-13T02:00:00Z" }, { id: "e", source: "legacy_daily", name: "Close register", status: "pending" }] });
     const first = render(<CrewMobileApp />);
     expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Open Stock shelves" })).not.toBeNull();
@@ -566,6 +566,9 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-home-task-count.is-alert")?.textContent).toBe("5");
     expect(document.querySelector(".crew-home-task-activity")).toBeNull();
     expect(screen.queryByRole("button", { name: /Show remaining/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Open Cleaning" }).querySelector(".crew-home-task-meta")?.textContent).toMatch(/\d of 3 completed.*Due 06:00 pm/i);
+    expect(screen.getByRole("button", { name: "Open Late check" }).querySelector(".crew-home-task-meta")?.textContent).toMatch(/^Due 10:00 am$/i);
+    expect(screen.getByRole("button", { name: "Open Stock shelves" }).querySelector(".crew-home-task-meta")).toBeNull();
     first.unmount();
     mocks.operationsToday.mockResolvedValue({ tasks: [] });
     render(<CrewMobileApp />);
@@ -588,6 +591,16 @@ describe("Crew Mobile redesign", () => {
     render(<CrewMobileApp />);
     expect(await screen.findByRole("button", { name: "Open Cleaning" })).not.toBeNull();
     expect(document.querySelector(".crew-home-task-count.is-alert")?.textContent).toBe("1");
+  });
+
+  it("keeps the Home shift footer time on its own readable row", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    const footer = await screen.findByRole("button", { name: /Today’s shift.*View Attendance/ });
+    expect(footer.querySelector(".crew-ui-icon-container")).not.toBeNull();
+    expect(footer.querySelector("small")?.textContent).toBe("Today’s shift");
+    expect(footer.querySelector("strong")?.textContent).toMatch(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/);
+    expect(footer.querySelector("em")?.textContent).toContain("View Attendance");
   });
 
   it("uses the compact shift-status icon instead of the decorative hand in the Home header", async () => {
