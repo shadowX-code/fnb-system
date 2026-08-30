@@ -22,6 +22,7 @@ import FeedXLoadingMark from "./FeedXLoadingMark.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 import { applyOnboardingLocalization, applySopLocalization } from "../utils/localizedContent.js";
 import { formatCrewDate, formatCrewTime } from "../utils/crewI18n.js";
+import onboardingJourneyHero from "../../../assets/crew/onboarding-journey-hero-approved.png";
 
 const learnHomeCache = new Map();
 
@@ -380,11 +381,12 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
       <CrewMobileDetailHeader title={t("learn.title")} onBack={onBack} />
       {error && <p className="crew-mobile-error">{error}</p>}
       <article className="crew-learning-journey-hero crew-ui-functional-surface">
+        <img className="crew-learning-journey-art" src={onboardingJourneyHero} alt="" aria-hidden="true" />
         <CrewStatusBadge tone="mint">{t("learn.mandatory")}</CrewStatusBadge>
         <h2>{assignment.journey?.name || "New Crew Onboarding"}</h2>
         <p>{assignment.status === "completed" ? t("learn.completedReview") : assignment.journey?.description}</p>
         <div className="crew-learning-journey-progress">
-          <strong>{home?.assignment?.lessons_completed || 0}/{home?.assignment?.lessons_total || 0}</strong>
+          <strong><b>{home?.assignment?.lessons_completed || 0}</b><span>{t("learn.journeyProgress", { total: home?.assignment?.lessons_total || 0 })}</span></strong>
           <CrewProgressBar value={home?.assignment?.progress_percentage || 0} />
         </div>
       </article>

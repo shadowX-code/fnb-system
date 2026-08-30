@@ -47,4 +47,5 @@ Object.assign(resources.cash, { cashDepositBalance:"Baki Deposit Tunai", pending
 Object.assign(resources.cash, { completedWithTime:"Selesai · {{time}}", checkoutHistory:"Sejarah Penutupan", noCheckoutHistory:"Tiada sejarah penutupan dalam 30 hari yang lalu" });
 Object.assign(resources.tasks, { redo:"Buat semula", redoTitle:"Buat semula tugas ini?", redoBody:"Jawapan semasa anda akan dikosongkan.", dueAt:"Perlu sebelum {{time}}" });
 Object.assign(resources.tasks, { availableAt:"Tersedia pada {{time}}", notAvailableYet:"Belum tersedia", availableWhenScheduled:"Tugas ini boleh diselesaikan apabila tempoh jadualnya bermula." });
+Object.assign(resources.learn, { journeyProgress: "daripada {{total}} selesai" });
 export default resources;
