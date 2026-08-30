@@ -566,8 +566,13 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-home-task-count.is-alert")?.textContent).toBe("5");
     expect(document.querySelector(".crew-home-task-activity")).toBeNull();
     expect(screen.queryByRole("button", { name: /Show remaining/ })).toBeNull();
-    expect(screen.getByRole("button", { name: "Open Cleaning" }).querySelector(".crew-home-task-meta")?.textContent).toMatch(/\d of 3 completed.*Due 06:00 pm/i);
-    expect(screen.getByRole("button", { name: "Open Late check" }).querySelector(".crew-home-task-meta")?.textContent).toMatch(/^Due 10:00 am$/i);
+    const cleaningDue = screen.getByRole("button", { name: "Open Cleaning" }).querySelector(".crew-home-task-due");
+    const lateCheckDue = screen.getByRole("button", { name: "Open Late check" }).querySelector(".crew-home-task-due");
+    expect(screen.getByRole("button", { name: "Open Cleaning" }).querySelector(".crew-home-task-progress")?.textContent).toMatch(/\d of 3 completed/i);
+    expect(cleaningDue?.textContent).toMatch(/^Due06:00 pm$/i);
+    expect(cleaningDue?.classList.contains("is-overdue")).toBe(false);
+    expect(lateCheckDue?.textContent).toMatch(/^Due10:00 am$/i);
+    expect(lateCheckDue?.classList.contains("is-overdue")).toBe(true);
     expect(screen.getByRole("button", { name: "Open Stock shelves" }).querySelector(".crew-home-task-meta")).toBeNull();
     first.unmount();
     mocks.operationsToday.mockResolvedValue({ tasks: [] });

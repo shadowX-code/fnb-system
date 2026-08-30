@@ -104,9 +104,11 @@ describe("Crew Mobile design system contract", () => {
     expect(home).toContain("animation: crew-home-task-reminder 2s ease-in-out infinite");
     expect(home).toContain(".crew-home-task-count.is-alert::after { animation: none;");
     expect(home).not.toContain("crew-home-task-activity");
-    expect(mobileApp).toContain('t("tasks.dueAt", { time: formatTime(row.due_at) })');
+    expect(mobileApp).toContain('t("tasks.dueLabel")');
     expect(mobileApp).toContain('className="crew-list-secondary crew-home-task-meta"');
-    expect(home).toContain(".crew-home-task .crew-home-task-meta { display: flex;");
+    expect(mobileApp).toContain('className={`crew-home-task-due${task.deadline.overdue ? " is-overdue" : ""}`}');
+    expect(home).toContain(".crew-home-task .crew-home-task-meta { display: grid;");
+    expect(home).toContain(".crew-home-task .crew-home-task-due.is-overdue");
   });
 
   it("owns app gutters, Bottom Nav clearance, and sticky-action geometry in the Fundamental", () => {

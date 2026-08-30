@@ -37,7 +37,7 @@ Object.assign(resources.attendance, { month:"月份", monthSummary:"月度考勤
 Object.assign(resources.reward, { currentProjection:"当前", greatProjection:"表现优秀", maxPotential:"最高潜力" });
 Object.assign(resources.common, { day_one:"天", day_other:"天" });
 Object.assign(resources.tasks, { viewSop:"查看 SOP", showLess:"收起", readMore:"阅读更多" });
-Object.assign(resources.tasks, { redo:"重新填写", redoTitle:"重新填写此任务？", redoBody:"当前答案将被清除。", dueAt:"截止 {{time}}" });
+Object.assign(resources.tasks, { redo:"重新填写", redoTitle:"重新填写此任务？", redoBody:"当前答案将被清除。", dueAt:"截止 {{time}}", dueLabel:"截止" });
 Object.assign(resources.tasks, { availableAt:"{{time}} 后可执行", notAvailableYet:"暂不可执行", availableWhenScheduled:"任务将在排定的可执行时段开始后开放。" });
 Object.assign(resources.learn, { acknowledgedAt:"确认时间 {{timestamp}}" });
 Object.assign(resources.leave, { availableDays:"可用 {{count}} 天" });

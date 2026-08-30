@@ -56,7 +56,7 @@
 .crew-home-attendance-footer { display: grid; width: 100%; min-height: 70px; grid-template-columns: 36px minmax(0, 1fr) auto; grid-template-areas: "icon label action" "icon time time"; align-items: center; gap: 3px 9px; border: 0; border-top: 1px solid color-mix(in srgb, var(--crew-color-divider) 64%, transparent); background: color-mix(in srgb, var(--crew-color-surface) 86%, var(--crew-color-mist-mint)); padding: 10px 14px; color: var(--crew-color-deep-teal); text-align: left; }
 .crew-home-attendance-footer > .crew-ui-icon-container { grid-area: icon; }
 .crew-home-attendance-footer small { grid-area: label; min-width: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
-.crew-home-attendance-footer strong { grid-area: time; color: var(--crew-color-deep-teal); font-size: var(--crew-type-row-title); font-weight: 650; line-height: 1.2; white-space: nowrap; }
+.crew-home-attendance-footer strong { grid-area: time; color: var(--crew-color-deep-teal); font-size: var(--crew-type-body); font-weight: 650; line-height: 1.2; white-space: nowrap; }
 .crew-home-attendance-footer em { display: flex; grid-area: action; align-items: center; justify-self: end; gap: 2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-style: normal; font-weight: 650; white-space: nowrap; }
 
 .crew-v2-home .crew-v2-home-section { margin-top: 18px; }
@@ -78,8 +78,12 @@
 .crew-home-task > span, .crew-home-schedule-row > span { display: grid; min-width: 0; gap: 3px; }
 .crew-home-task strong, .crew-home-schedule-row strong { display: -webkit-box; overflow: hidden; color: var(--crew-color-deep-teal); font-size: var(--crew-type-list-primary); font-weight: 600; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .crew-home-task small, .crew-home-schedule-row small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-list-secondary); line-height: 1.32; }
-.crew-home-task .crew-home-task-meta { display: flex; flex-wrap: wrap; gap: 0 5px; overflow: visible; text-overflow: clip; white-space: normal; }
-.crew-home-task .crew-home-task-meta span + span::before { margin-right: 5px; color: var(--crew-color-text-muted); content: "·"; }
+.crew-home-task .crew-home-task-meta { display: grid; gap: 2px; overflow: visible; color: var(--crew-color-text-secondary); font-size: var(--crew-type-list-secondary); line-height: 1.32; text-overflow: clip; white-space: normal; }
+.crew-home-task .crew-home-task-progress { color: var(--crew-color-text-secondary); }
+.crew-home-task .crew-home-task-due { display: inline-flex; width: fit-content; align-items: center; gap: 4px; color: var(--crew-color-text-secondary); }
+.crew-home-task .crew-home-task-due svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--crew-color-cyan); }
+.crew-home-task .crew-home-task-due b { color: var(--crew-color-cyan); font-weight: 700; }
+.crew-home-task .crew-home-task-due.is-overdue, .crew-home-task .crew-home-task-due.is-overdue span, .crew-home-task .crew-home-task-due.is-overdue b, .crew-home-task .crew-home-task-due.is-overdue svg { color: var(--crew-color-danger); }
 .crew-home-task > em, .crew-home-schedule-row > em { max-width: 100px; overflow: hidden; border-radius: 999px; background: #fff3df; padding: 4px 7px; color: var(--crew-color-warning); font-size: var(--crew-type-list-status); font-style: normal; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .crew-home-task.is-completed > em, .crew-home-schedule-row > em { background: var(--crew-color-success-surface); color: var(--crew-color-success); }
 .crew-home-task.is-overdue > em, .crew-home-task.is-exception > em { background: #fbecee; color: var(--crew-color-danger); }
@@ -549,7 +553,7 @@
   box-shadow:0 5px 15px rgb(17 29 61/.055)
 }
 
-.crew-home-task,.crew-home-schedule-row{
+.crew-home-schedule-row{
   display:grid;
   width:100%;
   min-width:0;
@@ -565,31 +569,31 @@
   text-align:left
 }
 
-.crew-home-task:last-child,.crew-home-schedule-row:last-child{
+.crew-home-schedule-row:last-child{
   border-bottom:0
 }
 
-.crew-home-task>.crew-ui-icon-container,.crew-home-schedule-row>.crew-ui-icon-container{
+.crew-home-schedule-row>.crew-ui-icon-container{
   width:36px;
   height:36px;
   border-radius:50%;
   font-style:normal
 }
 
-.crew-home-task>span,.crew-home-schedule-row>span{
+.crew-home-schedule-row>span{
   display:grid;
   min-width:0;
   gap:3px
 }
 
-.crew-home-task strong,.crew-home-schedule-row strong{
+.crew-home-schedule-row strong{
   overflow:hidden;
   font-size:var(--crew-type-helper);
   text-overflow:ellipsis;
   white-space:nowrap
 }
 
-.crew-home-task small,.crew-home-schedule-row small{
+.crew-home-schedule-row small{
   overflow:hidden;
   color:#68788f;
   font-size:var(--crew-type-helper);
@@ -598,7 +602,7 @@
   white-space:nowrap
 }
 
-.crew-home-task>em,.crew-home-schedule-row>em{
+.crew-home-schedule-row>em{
   border-radius:999px;
   background:#fff2d9;
   padding:5px 7px;
@@ -610,25 +614,9 @@
   white-space:nowrap
 }
 
-.crew-home-task>svg,.crew-home-schedule-row>svg{
+.crew-home-schedule-row>svg{
   color:#64748a
 }
-
-.crew-home-task.is-completed>em{
-  background:var(--crew-color-success-surface);
-  color:var(--crew-color-success)
-}
-
-.crew-home-task.is-in_progress>em{
-  background:var(--crew-color-info-surface);
-  color:var(--crew-color-info)
-}
-
-.crew-home-task.is-overdue>em,.crew-home-task.is-exception>em{
-  background:#fdeced;
-  color:#b72f40
-}
-
 
 .crew-home-schedule-row>em{
   background:transparent;
@@ -848,7 +836,7 @@
 }
 
 @media (max-width:390px) {
-.crew-home-task,.crew-home-schedule-row{
+.crew-home-schedule-row{
   grid-template-columns:35px minmax(0,1fr) auto 16px;
   gap:7px;
   padding-inline:10px
@@ -856,14 +844,14 @@
 }
 
 @media (max-width:390px) {
-.crew-home-task>i,.crew-home-schedule-row>i{
+.crew-home-schedule-row>i{
   width:33px;
   height:33px
 }
 }
 
 @media (max-width:390px) {
-.crew-home-task>em,.crew-home-schedule-row>em{
+.crew-home-schedule-row>em{
   padding-inline:6px;
   font-size:var(--crew-type-helper)
 }
@@ -879,7 +867,7 @@
 @media (max-width:374px){.crew-v2-home .crew-home-schedule-time{font-size:10px;line-height:1.2}}
 
 @media (max-width:374px) {
-.crew-home-task>em,.crew-home-schedule-row>em{
+.crew-home-schedule-row>em{
   max-width:76px;
   overflow:hidden;
   text-overflow:ellipsis
@@ -887,7 +875,7 @@
 }
 
 @media (max-width:374px) {
-.crew-home-task strong,.crew-home-schedule-row strong{
+.crew-home-schedule-row strong{
   font-size:var(--crew-type-helper)
 }
 }
