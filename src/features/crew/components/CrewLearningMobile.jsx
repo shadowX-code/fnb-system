@@ -30,6 +30,12 @@ function learnCacheKey(token, language) {
   return `${token}:${language}`;
 }
 
+function onboardingJourneyDescription(description) {
+  return String(description || "")
+    .replace(/\s*FeedX Crew Onboarding Full Demo\s*·\s*Staging only\s*/i, "")
+    .trim();
+}
+
 export function resetCrewLearnCacheForTests() {
   learnHomeCache.clear();
 }
@@ -376,6 +382,9 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
       </section>
     );
   }
+  const journeyDescription = assignment.status === "completed"
+    ? t("learn.completedReview")
+    : onboardingJourneyDescription(assignment.journey?.description);
   return (
     <section className="crew-learning-home">
       <CrewMobileDetailHeader title={t("learn.title")} onBack={onBack} />
@@ -384,7 +393,7 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
         <img className="crew-learning-journey-art" src={onboardingJourneyHero} alt="" aria-hidden="true" />
         <CrewStatusBadge tone="mint">{t("learn.mandatory")}</CrewStatusBadge>
         <h2>{assignment.journey?.name || "New Crew Onboarding"}</h2>
-        <p>{assignment.status === "completed" ? t("learn.completedReview") : assignment.journey?.description}</p>
+        {journeyDescription && <p>{journeyDescription}</p>}
         <div className="crew-learning-journey-progress">
           <strong><b>{home?.assignment?.lessons_completed || 0}</b><span>{t("learn.journeyProgress", { total: home?.assignment?.lessons_total || 0 })}</span></strong>
           <CrewProgressBar value={home?.assignment?.progress_percentage || 0} />

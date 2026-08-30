@@ -220,6 +220,9 @@ describe("Crew Mobile design system contract", () => {
     expect(learning).toContain('crew-learning-journey-hero crew-ui-functional-surface');
     expect(learning).toContain('import onboardingJourneyHero from "../../../assets/crew/onboarding-journey-hero-approved.png"');
     expect(learning).toContain('className="crew-learning-journey-art"');
+    expect(learning).toContain("function onboardingJourneyDescription(description)");
+    expect(learning).toContain("FeedX Crew Onboarding Full Demo");
+    expect(learning).toContain("{journeyDescription && <p>{journeyDescription}</p>}");
     expect(learning).toContain('t("learn.journeyProgress", { total: home?.assignment?.lessons_total || 0 })');
     expect(learning).toContain('className="crew-learning-context"');
     expect(learning).toContain('className="crew-learning-section-label"');
