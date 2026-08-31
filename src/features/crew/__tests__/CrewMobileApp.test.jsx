@@ -267,6 +267,17 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByText("Active")).toBeNull();
   });
 
+  it("omits Profile identity metadata when Employee Master supplies no employment type", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify({ ...session, employee: { ...session.employee, employment_type: "" } }));
+    mocks.myProfile.mockResolvedValueOnce(null);
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: "Profile Information" }));
+
+    expect(document.querySelector(".crew-me-profile-summary .crew-ui-status")).toBeNull();
+    expect(screen.queryByText("Active")).toBeNull();
+  });
+
   it("routes Attendance, Leave and Profile from Me and confirms logout", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
@@ -302,14 +313,17 @@ describe("Crew Mobile redesign", () => {
 
   it("keeps profile information master-data backed and scopes photo replacement to the current Crew session", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    mocks.myProfile.mockResolvedValueOnce({ full_name: "Alex Tan", position: "Service Crew", outlet_name: "Friends Corner", employment_status: "active", birthday: null, profile_photo_path: null });
+    mocks.myProfile.mockResolvedValueOnce({ full_name: "Alex Tan", position: "Service Crew", outlet_name: "Friends Corner", employment_type: "full_time", employment_status: "active", birthday: null, profile_photo_path: null });
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
     fireEvent.click(screen.getByRole("button", { name: "Profile Information" }));
     expect(screen.getAllByText("Not provided").length).toBeGreaterThan(0);
     expect(screen.getByRole("button", { name: "Upload or replace profile photo" })).not.toBeNull();
     expect(screen.queryByText("Full Name")).toBeNull();
-    expect(screen.getByText("Service Crew · Friends Corner")).not.toBeNull();
+    expect(screen.getByText("Service Crew")).not.toBeNull();
+    expect(screen.getByText("Friends Corner")).not.toBeNull();
+    expect(await screen.findByText("Full-Time")).not.toBeNull();
+    expect(screen.queryByText("active")).toBeNull();
   });
 
   it("uses a two-step mobile and custom passcode login that auto-submits four digits", async () => {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Banknote, Bell, BriefcaseBusiness, Camera, Check, ChevronRight, Clock3, Eye, EyeOff, FileText, HelpCircle, Languages, LoaderCircle, LockKeyhole, LogOut, Plane, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { Banknote, Bell, BriefcaseBusiness, Camera, Check, ChevronRight, Clock3, Eye, EyeOff, FileText, HelpCircle, Languages, LoaderCircle, LockKeyhole, LogOut, MapPin, Plane, Settings, ShieldCheck, UserRound } from "lucide-react";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
@@ -27,9 +27,9 @@ function ProfileInformation({ profile, employee, context, firstName, t, onBack, 
   const name = profile.full_name || employee.full_name || firstName;
   const position = profile.position || employee.position || t("home.crewMember");
   const outlet = profile.outlet_name || context?.outlet_name || employee.workplace || t("me.notAssigned");
-  const employmentStatus = profile.employment_status ? String(profile.employment_status).replace(/_/g, " ") : t("status.active");
+  const employmentType = profile.employment_type || employee.employment_type || "";
   return <><CrewMobileDetailHeader title={t("me.profile")} onBack={onBack} /><article className="crew-me-profile-detail">
-    <header className="crew-me-profile-summary"><CrewProfileAvatar name={name} photoUrl={profile.profile_photo_url} onChoose={onChoosePhoto} uploading={uploadingPhoto} t={t} /><span><h2>{name}</h2><p>{position} · {outlet}</p><CrewStatusBadge tone="success">{employmentStatus}</CrewStatusBadge></span></header>
+    <header className="crew-me-profile-summary"><CrewProfileAvatar name={name} photoUrl={profile.profile_photo_url} onChoose={onChoosePhoto} uploading={uploadingPhoto} t={t} /><span className="crew-me-profile-identity"><h2>{name}</h2><p className="crew-me-profile-position">{position}</p><small className="crew-me-profile-outlet"><MapPin size={14} />{outlet}</small>{employmentType && <CrewStatusBadge tone="mint">{formatEmploymentType(employmentType)}</CrewStatusBadge>}</span></header>
     {photoError && <p className="crew-v2-error" role="alert">{photoError}</p>}
     <section><h2>{t("me.personal")}</h2><dl>{field(t("me.nickname"), profile.nickname || employee.nickname)}{field(t("me.birthday"), date(profile.birthday))}{field(t("me.contact"), profile.contact || employee.contact)}</dl></section>
     <section><h2>{t("me.employment")}</h2><dl>{field(t("me.joinedDate"), date(profile.joined_date))}</dl></section>

@@ -542,6 +542,14 @@ describe("Crew Mobile design system contract", () => {
     expect(meStyles).not.toContain("#e8fbf4");
     expect(meStyles).toContain("@media (max-width: 380px) {");
     expect(meStyles).toContain(".crew-me-profile-hero {");
+    expect(meComponent).toContain('const employmentType = profile.employment_type || employee.employment_type || "";');
+    expect(meComponent).toContain('className="crew-me-profile-identity"');
+    expect(meComponent).toContain('<MapPin size={14} />{outlet}');
+    expect(meComponent).not.toContain('employmentStatus');
+    expect(meStyles).toContain('.crew-me-profile-outlet{display:flex;min-width:0;align-items:center;gap:4px');
+    expect(meStyles).toContain('.crew-language-modal .crew-language-segmented { min-height: 48px; margin: 0; gap: 3px; border-radius: var(--crew-radius-control); background: var(--crew-color-icon-default-bg);');
+    expect(meStyles).not.toContain('crew-language-list');
+    expect(meStyles).not.toContain('color-mix(in srgb, var(--crew-color-mist-mint) 78%, var(--crew-color-mineral))');
   });
 
   it("keeps the Cash Checkout manager-review notice in a canonical two-column warning layout", () => {

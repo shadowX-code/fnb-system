@@ -290,7 +290,7 @@
 }
 
 .crew-me-settings{overflow:hidden;margin-top:2px}.crew-me-settings .crew-ui-action-row{min-height:64px}
-.crew-me-profile-detail{display:grid;gap:20px;padding:0 0 12px}.crew-me-profile-summary{display:flex;align-items:center;gap:12px;padding:4px 0 2px}.crew-me-profile-summary>.crew-v2-avatar{width:56px;height:56px;flex:0 0 56px;background:var(--crew-color-deep-teal);color:var(--crew-color-surface)}.crew-me-profile-summary>span:last-child{display:grid;min-width:0;gap:3px}.crew-me-profile-summary h2{margin:0;color:var(--crew-color-text);font-size:var(--crew-type-card-title);line-height:1.25}.crew-me-profile-summary p,.crew-me-profile-summary small{margin:0;color:var(--crew-color-text-secondary);font-size:var(--crew-type-secondary);line-height:1.35}.crew-me-profile-summary .crew-ui-status{margin-top:3px}
+.crew-me-profile-detail{display:grid;gap:20px;padding:0 0 12px}.crew-me-profile-summary{display:flex;align-items:center;gap:12px;padding:4px 0 2px}.crew-me-profile-summary>.crew-v2-avatar{width:56px;height:56px;flex:0 0 56px;background:var(--crew-color-deep-teal);color:var(--crew-color-surface)}.crew-me-profile-identity{display:grid;min-width:0;gap:3px}.crew-me-profile-summary h2{margin:0;color:var(--crew-color-text);font-size:var(--crew-type-card-title);line-height:1.25}.crew-me-profile-position{margin:0;color:var(--crew-color-text-secondary);font-size:var(--crew-type-secondary);font-weight:600;line-height:1.35}.crew-me-profile-outlet{display:flex;min-width:0;align-items:center;gap:4px;margin:0;color:var(--crew-color-text-muted);font-size:var(--crew-type-helper);font-weight:600;line-height:1.35;overflow-wrap:anywhere}.crew-me-profile-outlet svg{flex:0 0 auto}.crew-me-profile-summary .crew-ui-status{justify-self:start;margin-top:3px}
 
 .crew-me-profile-detail>section{margin:0}.crew-me-profile-detail>section h2{margin:0 0 8px;color:var(--crew-color-text);font-size:var(--crew-type-section-title);font-weight:650}.crew-me-profile-detail dl{margin:0;overflow:hidden;border-top:1px solid var(--crew-color-divider);border-bottom:1px solid var(--crew-color-divider)}.crew-me-profile-detail dl>div{display:grid;grid-template-columns:minmax(92px,.8fr) minmax(0,1.2fr);align-items:start;gap:12px;padding:12px 0;border-top:1px solid var(--crew-color-divider)}.crew-me-profile-detail dl>div:first-child{border-top:0}.crew-me-profile-detail dt{color:var(--crew-color-text-secondary);font-size:var(--crew-type-secondary);line-height:1.4}.crew-me-profile-detail dd{min-width:0;margin:0;color:var(--crew-color-text);font-size:var(--crew-type-body);font-weight:600;line-height:1.4;overflow-wrap:anywhere;text-align:right}.crew-me-profile-detail dd .crew-ui-status{vertical-align:top}
 
@@ -313,31 +313,6 @@
 
 }
 
-
-.crew-language-modal .crew-language-list {
-  display: grid;
-  gap: 8px;
-  margin: 0 0 18px;
-
-}
-
-.crew-language-modal .crew-language-list button {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  min-height: 44px;
-  font-size: 13px;
-  text-align: left;
-
-}
-
-.crew-language-modal .crew-language-list button[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--crew-color-success) 34%, var(--crew-color-border));
-  background: var(--crew-color-success-surface);
-  color: var(--crew-color-success);
-
-}
 
 @media (max-width: 380px) {
 .crew-me-profile-hero {
@@ -404,7 +379,7 @@
 
 .crew-language-modal .crew-ui-bottom-sheet-header { padding-block: 10px; }
 .crew-language-modal .crew-ui-bottom-sheet-close { width: 44px; height: 44px; border-radius: 0; background: transparent; }
-.crew-language-modal .crew-language-segmented { min-height: 48px; margin: 0; gap: 3px; border-radius: var(--crew-radius-control); background: color-mix(in srgb, var(--crew-color-mist-mint) 78%, var(--crew-color-mineral)); padding: 3px; }
+.crew-language-modal .crew-language-segmented { min-height: 48px; margin: 0; gap: 3px; border-radius: var(--crew-radius-control); background: var(--crew-color-icon-default-bg); padding: 3px; }
 .crew-language-modal .crew-language-segmented button { min-width: 0; min-height: 42px; padding: 6px 5px; color: var(--crew-color-text-secondary); font-size: clamp(11px, 3.15vw, var(--crew-type-label)); font-weight: 650; line-height: 1.15; white-space: normal; transition: background-color 170ms ease, box-shadow 170ms ease, color 170ms ease; }
 .crew-language-modal .crew-language-segmented button.is-active { background: var(--crew-color-surface); color: var(--crew-color-deep-teal); box-shadow: 0 1px 3px rgb(22 75 80 / .08); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .crew-language-modal .crew-language-segmented button { transition: none; } }

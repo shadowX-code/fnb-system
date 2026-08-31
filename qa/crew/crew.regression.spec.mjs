@@ -184,6 +184,7 @@ test("language selector stays compact, complete, and tappable across Crew locale
   await page.getByRole("button", { name: t("me.language"), exact: true }).click();
   const selector = page.locator(".crew-language-segmented");
   await expect(selector).toBeVisible();
+  await expect(selector).toHaveCSS("background-color", "rgb(229, 246, 245)");
   await expect(selector.locator("button")).toHaveCount(3);
   await expect(selector.locator("svg")).toHaveCount(0);
   for (const language of ["English", "简体中文", "Bahasa Melayu"]) {
@@ -191,12 +192,28 @@ test("language selector stays compact, complete, and tappable across Crew locale
     await option.click();
     await expect(option).toHaveAttribute("aria-pressed", "true");
     await expect(option).toHaveClass(/is-active/);
+    await expect(option).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(option).toHaveCSS("color", "rgb(22, 75, 80)");
     expect(await option.evaluate(element => {
       const size = parseFloat(getComputedStyle(element).fontSize);
       return size >= 11 && size <= 14;
     })).toBe(true);
     expect(await option.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   }
+  await assertMobileLayout(page);
+});
+
+test("Profile identity preserves hierarchy and only renders canonical employment type", async ({ page }, info) => {
+  await open(page, info, "crew/me");
+  await page.getByRole("button", { name: t("me.profile"), exact: true }).click();
+  const identity = page.locator(".crew-me-profile-summary");
+  await expect(identity).toBeVisible();
+  await expect(identity.locator("h2")).toBeVisible();
+  await expect(identity.locator(".crew-me-profile-position")).toBeVisible();
+  await expect(identity.locator(".crew-me-profile-outlet svg")).toHaveCount(1);
+  await expect(identity.locator(".crew-ui-status.is-mint")).toHaveText("Full-Time");
+  await expect(identity.locator(".crew-ui-status.is-success")).toHaveCount(0);
+  expect(await identity.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
   await assertMobileLayout(page);
 });
 
