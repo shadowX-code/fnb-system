@@ -34,6 +34,7 @@ Object.assign(resources.growth, { subtitle:"提升你的技能，成就更多。
 Object.assign(resources.me, { shiftsThisMonth_one:"本月 {{count}} 个班次", shiftsThisMonth_other:"本月 {{count}} 个班次", pendingCount:"{{count}} 项待处理", enterPasscodes:"请输入当前和新的四位数密码。", unablePasscode:"无法更改密码。" });
 Object.assign(resources.me, { confirmNewPasscode:"确认新密码", passcodeSaved:"密码已安全更新。", personal:"个人资料", employment:"任职信息", fullName:"姓名", nickname:"昵称", birthday:"生日", contact:"联系方式", joinedDate:"入职日期", position:"职位", languageHint:"系统界面和可用业务内容会立即更新。" });
 Object.assign(resources.attendance, { month:"月份", monthSummary:"月度考勤摘要", worked:"已工作", totalHours:"总工时", exceptions:"例外", subtitle:"记录班次与考勤", recentRecords:"最近记录", requiresReview:"需要审核" });
+Object.assign(resources.attendance, { locationDistance:"您距离门店 {{distance}} 米。", locationAllowed:"允许范围 {{meters}} 米。", selectReasonTitle:"选择原因", selectReasonHelp:"请帮助我们了解您为何在此位置打卡。" });
 Object.assign(resources.reward, { currentProjection:"当前", greatProjection:"表现优秀", maxPotential:"最高潜力" });
 Object.assign(resources.common, { day_one:"天", day_other:"天" });
 Object.assign(resources.tasks, { viewSop:"查看 SOP", showLess:"收起", readMore:"阅读更多" });

@@ -32,6 +32,7 @@ const learning = readFileSync(resolve(process.cwd(), "src/features/crew/componen
 const sopDocument = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewSopDocument.jsx"), "utf8");
 const operations = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewOperationsMobile.jsx"), "utf8");
 const help = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewHelp.jsx"), "utf8");
+const bottomSheet = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewBottomSheet.jsx"), "utf8");
 
 describe("Crew Mobile design system contract", () => {
   it("owns the FeedX palette and shared foundation primitives centrally", () => {
@@ -502,6 +503,18 @@ describe("Crew Mobile design system contract", () => {
     ["#", "var(--crew-color-cyan)", "linear-gradient", "!important"].forEach((token) => expect(historyStyles).not.toContain(token));
   });
 
+  it("shares one mobile sheet shell between explanatory help and Clock In reason selection", () => {
+    expect(bottomSheet).toContain("export default function CrewBottomSheet");
+    expect(bottomSheet).toContain('role="dialog"');
+    expect(bottomSheet).toContain("aria-modal=\"true\"");
+    expect(help).toContain('import CrewBottomSheet from "./CrewBottomSheet.jsx"');
+    expect(mobileApp).toContain('import CrewBottomSheet from "./components/CrewBottomSheet.jsx"');
+    expect(mobileApp).toContain("function ClockReasonSheet");
+    expect(mobileApp).toContain('className="crew-clock-reason-sheet"');
+    expect(mobileApp).not.toContain("<SelectField");
+    expect(home).toContain(".crew-clock-reason-options");
+  });
+
   it("gives Reward one token-based feature presentation owner", () => {
     expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
@@ -514,6 +527,16 @@ describe("Crew Mobile design system contract", () => {
     expect(help).toContain("export function CrewHelpSheet");
     expect(reward).not.toContain("HeroInfoButton");
     expect(rewardStyles).not.toContain("!important");
+  });
+
+  it("routes Growth and My Performance explanatory help through the canonical shared sheet", () => {
+    expect(growth).toContain('import { CrewHelpSheet, CrewHelpTrigger } from "./CrewHelp.jsx"');
+    expect(growth).toContain('variant="header" label={t("growth.help")}');
+    expect(growth).toContain('variant="header" label={t("performance.help")}');
+    ["GrowthHelpModal", "crew-growth-final-help", "crew-performance-final-help", "crew-growth-help-section"].forEach((legacy) => {
+      expect(growth).not.toContain(legacy);
+      expect(growthStyles).not.toContain(`.${legacy}`);
+    });
   });
 
   it("keeps the complete Growth and My Performance presentation out of the app shell", () => {

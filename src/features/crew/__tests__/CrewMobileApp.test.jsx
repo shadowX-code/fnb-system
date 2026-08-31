@@ -583,6 +583,24 @@ describe("Crew Mobile redesign", () => {
     expect(mocks.clock).not.toHaveBeenCalled();
   });
 
+  it("uses the shared selection sheet for a geofence exception reason before confirming", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 50 });
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.2, longitude: 101.8, accuracy: 8 } }) } });
+    render(<CrewMobileApp />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
+    expect(await screen.findByRole("dialog", { name: "Confirm Clock In" })).not.toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: /Select/ }));
+    expect(await screen.findByRole("dialog", { name: "Select reason" })).not.toBeNull();
+    expect(screen.getByText(/Help us understand why you.?re clocking in from this location/)).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("option", { name: "Working off-site" }));
+    expect(await screen.findByRole("dialog", { name: "Confirm Clock In" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm" }).disabled).toBe(false);
+    expect(screen.getByRole("button", { name: "Working off-site" })).not.toBeNull();
+  });
+
   it("shows every true task inline, exposes the canonical reminder badge, and keeps an honest empty state", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1, due_at: "2026-08-13T02:00:00Z" }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1, due_at: "2026-08-13T10:00:00Z" }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue", due_at: "2026-08-13T02:00:00Z" }, { id: "e", source: "legacy_daily", name: "Close register", status: "pending" }] });
@@ -649,7 +667,7 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[2]);
     expect(screen.getAllByText("RM 120.72").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Qualified")).not.toBeNull();
-    expect(screen.getByText(/235.0h of 730.0h/)).not.toBeNull();
+    expect(screen.getByText("Score 75")).not.toBeNull();
     expect(screen.getAllByText("32.19%").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /View My Performance/ }));
     expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();

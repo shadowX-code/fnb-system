@@ -90,11 +90,12 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.querySelectorAll(".crew-growth-performance-highlight-segment")).toHaveLength(87);
   });
 
-  it("opens the centered accessible help dialog and closes with Escape", () => {
+  it("uses the shared bottom-sheet help surface and closes with Escape", () => {
     render(<CrewGrowthMobile data={data} performance={{ score: 75, trend: [] }} />);
     fireEvent.click(screen.getByRole("button", { name: "Growth help" }));
     const dialog = screen.getByRole("dialog", { name: "About Growth" });
     expect(dialog).not.toBeNull();
+    expect(dialog.classList.contains("crew-ui-help-sheet")).toBe(true);
     expect(dialog.parentElement.parentElement).toBe(document.body);
     expect(document.body.style.position).toBe("fixed");
     expect(screen.getByText("Your monthly performance score reflects your verified work evidence.")).not.toBeNull();
@@ -145,7 +146,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.queryByRole("button", { name: /View Reward/ })).toBeNull();
   });
 
-  it("opens safe centered component and help dialogs without manager-private content", () => {
+  it("keeps the rich component detail dialog while using the shared sheet for explanatory help", () => {
     render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" />);
     fireEvent.click(screen.getByRole("button", { name: "View Attendance evidence" }));
     expect(screen.getByRole("dialog", { name: "Attendance" })).not.toBeNull();
@@ -157,7 +158,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.body.textContent).not.toContain("Manager note");
     fireEvent.click(screen.getByRole("button", { name: "Close Attendance" }));
     fireEvent.click(screen.getByRole("button", { name: "Performance help" }));
-    expect(screen.getByRole("dialog", { name: "About My Performance" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "About My Performance" }).classList.contains("crew-ui-help-sheet")).toBe(true);
     expect(screen.queryByText(/Maximum Reward Share/)).toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "About My Performance" })).toBeNull();

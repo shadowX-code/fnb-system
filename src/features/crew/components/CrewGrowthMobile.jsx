@@ -26,7 +26,7 @@ import {
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
-import CrewMobileModal from "./CrewMobileModal.jsx";
+import { CrewHelpSheet, CrewHelpTrigger } from "./CrewHelp.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 import growthPerformanceHeroBackground from "../assets/growth-performance-hero-approved.png";
 import performanceDetailHeroBackground from "../assets/performance-detail-hero-approved.png";
@@ -59,13 +59,13 @@ function PageHeader({ title, subtitle, onBack, action }) {
   return <CrewMobilePageHeader title={title} action={action} />;
 }
 
-function GrowthHelpModal({ onClose }) {
+function GrowthHelpSheet({ onClose }) {
   const { t } = useTranslation();
-  return <CrewMobileModal title={t("growth.about")} onClose={onClose}>
-    <section className="crew-growth-help-section"><strong>{t("growth.skills")}</strong><p>{t("growth.helpSkills")}</p></section>
-    <section className="crew-growth-help-section"><strong>{t("growth.readyForReview")}</strong><p>{t("growth.helpReview")}</p></section>
-    <section className="crew-growth-help-section"><strong>{t("growth.performance")}</strong><p>{t("growth.helpPerformance")}</p></section>
-  </CrewMobileModal>;
+  return <CrewHelpSheet title={t("growth.about")} onClose={onClose}>
+    <section className="crew-ui-help-section"><strong>{t("growth.skills")}</strong><p>{t("growth.helpSkills")}</p></section>
+    <section className="crew-ui-help-section"><strong>{t("growth.readyForReview")}</strong><p>{t("growth.helpReview")}</p></section>
+    <section className="crew-ui-help-section"><strong>{t("growth.performance")}</strong><p>{t("growth.helpPerformance")}</p></section>
+  </CrewHelpSheet>;
 }
 
 const performanceLevel = (score, t) => {
@@ -486,13 +486,13 @@ function CrewPerformanceDetail({ performance, onBack, onNavigate }) {
   const { t } = useTranslation();
   const [modal, setModal] = useState(null);
   return <section className="crew-v2-growth crew-performance-final">
-    <PageHeader title={t("performance.title")} onBack={onBack} action={<button type="button" className="crew-performance-final-help" aria-label={t("performance.help")} onClick={() => setModal({ type: "help" })}><CircleHelp size={22} /></button>} />
+    <PageHeader title={t("performance.title")} onBack={onBack} action={<CrewHelpTrigger variant="header" label={t("performance.help")} onClick={() => setModal({ type: "help" })} />} />
     <PerformanceHero performance={performance} />
     <PerformanceBreakdown performance={performance} onSelect={(component) => setModal({ type: "component", component })} />
     <PerformanceStrengths performance={performance} />
     <PerformanceTrend performance={performance} />
     {modal?.type === "component" ? <PerformanceComponentModal component={modal.component} onClose={() => setModal(null)} onNavigate={(target) => { setModal(null); onNavigate?.(target); }} /> : null}
-    {modal?.type === "help" ? <PerformanceModal title={t("performance.about")} onClose={() => setModal(null)}><section><strong>{t("performance.monthlyScore")}</strong><p>{t("performance.monthlyScoreHelp")}</p></section><section><strong>{t("performance.scoreBreakdown")}</strong><p>{t("performance.breakdownHelp")}</p></section></PerformanceModal> : null}
+    {modal?.type === "help" ? <CrewHelpSheet title={t("performance.about")} onClose={() => setModal(null)}><section className="crew-ui-help-section"><strong>{t("performance.monthlyScore")}</strong><p>{t("performance.monthlyScoreHelp")}</p></section><section className="crew-ui-help-section"><strong>{t("performance.scoreBreakdown")}</strong><p>{t("performance.breakdownHelp")}</p></section></CrewHelpSheet> : null}
   </section>;
 }
 
@@ -575,10 +575,10 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   }
 
   return <section className="crew-v2-growth crew-growth-overview">
-    <PageHeader title={t("growth.title")} subtitle={t("growth.subtitle")} action={<button type="button" className="crew-growth-final-help" aria-label={t("growth.help")} onClick={() => setHelpOpen(true)}><CircleHelp size={23} /></button>} />
+    <PageHeader title={t("growth.title")} subtitle={t("growth.subtitle")} action={<CrewHelpTrigger variant="header" label={t("growth.help")} onClick={() => setHelpOpen(true)} />} />
     <GrowthPerformanceHero performance={performance} onOpen={() => setView("performance")} />
     <GrowthSkillSummary summary={summary} />
     <GrowthSkillList skills={skills} onOpen={openSkill} />
-    {helpOpen ? <GrowthHelpModal onClose={() => setHelpOpen(false)} /> : null}
+    {helpOpen ? <GrowthHelpSheet onClose={() => setHelpOpen(false)} /> : null}
   </section>;
 }

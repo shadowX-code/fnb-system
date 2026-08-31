@@ -40,10 +40,10 @@ import CrewLeaveMobile from "./components/CrewLeaveMobile.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import CrewCashCheckoutMobile from "./components/CrewCashCheckoutMobile.jsx";
 import CrewMobileDetailHeader from "./components/CrewMobileDetailHeader.jsx";
+import CrewBottomSheet from "./components/CrewBottomSheet.jsx";
 import CrewHomeClockMotion from "./CrewHomeClockMotion.jsx";
 import crewMeProfileCredentialAsset from "./assets/crew-me-profile-credential-approved.png";
 import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
-import SelectField from "../../components/forms/SelectField.jsx";
 import { formatCrewDate, formatCrewTime, crewLocale, translateStatus } from "./utils/crewI18n.js";
 import { SUPPORTED_CREW_LANGUAGES } from "../../i18n/index.js";
 import "./CrewMobileSystem.css";
@@ -263,6 +263,29 @@ function ProfileInformation({ profile, employee, context, firstName, t, onBack }
   </article></>;
 }
 
+function ClockReasonSheet({ options, selectedReason, onSelect, onClose }) {
+  const { t } = useTranslation();
+  const reasonIcons = {
+    outlet_gps: MapPin,
+    off_site: BriefcaseBusiness,
+    another_location: Navigation,
+    accuracy: TriangleAlert,
+    permission: LockKeyhole,
+    unavailable: TriangleAlert,
+    forgot_clock_out: Clock3,
+    other: FileText,
+  };
+  return <CrewBottomSheet title={t("attendance.selectReasonTitle")} description={t("attendance.selectReasonHelp")} onClose={onClose} className="crew-clock-reason-sheet" contentClassName="crew-clock-reason-sheet-content">
+    <div className="crew-clock-reason-options" role="listbox" aria-label={t("attendance.reason")}>
+      {options.map((option) => {
+        const Icon = reasonIcons[option] || FileText;
+        const selected = selectedReason === reasonValues[option];
+        return <button key={option} type="button" role="option" aria-selected={selected} className={selected ? "is-selected" : ""} onClick={() => { onSelect(reasonValues[option]); onClose(); }}><Icon size={18} aria-hidden="true" /><span>{t(`attendanceReasons.${option}`)}</span>{selected ? <Check size={18} aria-hidden="true" /> : null}</button>;
+      })}
+    </div>
+  </CrewBottomSheet>;
+}
+
 export default function CrewMobileApp({ onNotify }) {
   const { t, i18n } = useTranslation();
   const [session, setSession] = useState(readSession);
@@ -293,6 +316,8 @@ export default function CrewMobileApp({ onNotify }) {
   const [nowTick, setNowTick] = useState(Date.now());
   const [exception, setException] = useState("");
   const [otherReason, setOtherReason] = useState("");
+  const [reasonSheetOpen, setReasonSheetOpen] = useState(false);
+  const reasonTriggerRef = useRef(null);
   const [meView, setMeView] = useState("main");
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(false);
@@ -375,6 +400,7 @@ export default function CrewMobileApp({ onNotify }) {
     setClockDraft(null);
     setException("");
     setOtherReason("");
+    setReasonSheetOpen(false);
     try {
       const location = await getLocation();
       const distance = context?.location_enabled ? distanceMeters(location.latitude, location.longitude, Number(context.latitude), Number(context.longitude)) : null;
@@ -550,18 +576,15 @@ export default function CrewMobileApp({ onNotify }) {
       {logoutConfirmOpen && <div className="crew-me-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmOpen(false); }}><section className="crew-me-confirm" role="dialog" aria-modal="true" aria-labelledby="crew-logout-title"><h2 id="crew-logout-title">{t("me.logoutTitle")}</h2><p>{t("me.logoutBody")}</p><div><button type="button" className="crew-mobile-ghost" onClick={() => setLogoutConfirmOpen(false)}>{t("common.cancel")}</button><button type="button" className="crew-mobile-destructive" onClick={logout}>{t("me.logout")}</button></div></section></div>}
     </section>}
 
-    {clockDraft && <div className="crew-home-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !loading) setClockDraft(null); }}>
-      <section className="crew-home-clock-modal" role="dialog" aria-modal="true" aria-labelledby="crew-clock-confirm-title">
-        <header><span><Navigation size={19} /></span><div><h2 id="crew-clock-confirm-title">{t("attendance.confirmClock", { action: clockDraft.action === "out" ? t("home.clockOut") : t("home.clockIn") })}</h2><p>{context?.outlet_name || t("common.outlet")}</p></div></header>
-        {!exceptionRequired && <p className="is-safe"><Check size={16} /> {t("attendance.locationVerified")}</p>}
-        {outside && <p className="is-warning">{t("attendance.outsideRange", { distance: Math.round(clockDraft.distance), meters: context.radius_meters })}</p>}
-        {!clockDraft.location && <p className="is-warning">{t("attendance.locationUnavailable")}</p>}
-        {exceptionRequired && <div className="crew-home-modal-select"><SelectField label={t("attendance.reason")} ariaLabel={t("attendance.reason")} value={exception} onChange={setException} placeholder={t("attendance.selectReason")} options={options.map((option) => ({ value: reasonValues[option], label: t(`attendanceReasons.${option}`) }))} /></div>}
-        {exception === reasonValues.other && <input value={otherReason} maxLength="280" onChange={(event) => setOtherReason(event.target.value)} placeholder={t("attendance.briefReason")} />}
-        {error && <div className="crew-v2-error">{error}</div>}
-        <div className="crew-v2-actions"><button type="button" className="crew-mobile-ghost" onClick={() => setClockDraft(null)} disabled={loading}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" onClick={submitClock} disabled={loading || (exceptionRequired && (!exception || (exception === reasonValues.other && !otherReason.trim())))}>{loading ? t("common.saving") : clockDraft.action === "out" ? t("home.clockOut") : t("common.confirm")}</button></div>
-      </section>
-    </div>}
+    {clockDraft && !reasonSheetOpen && <CrewBottomSheet title={t("attendance.confirmClock", { action: clockDraft.action === "out" ? t("home.clockOut") : t("home.clockIn") })} description={context?.outlet_name || t("common.outlet")} headerIcon={<Navigation size={19} />} onClose={() => setClockDraft(null)} closeDisabled={loading} allowBackdropClose={!loading} initialFocusRef={exceptionRequired ? reasonTriggerRef : undefined} className="crew-clock-confirm-sheet" contentClassName="crew-clock-confirm-content" footer={<><button type="button" className="crew-mobile-ghost" onClick={() => setClockDraft(null)} disabled={loading}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" onClick={submitClock} disabled={loading || (exceptionRequired && (!exception || (exception === reasonValues.other && !otherReason.trim())))}>{loading ? t("common.saving") : clockDraft.action === "out" ? t("home.clockOut") : t("common.confirm")}</button></>}>
+      {!exceptionRequired && <div className="crew-clock-location-callout is-verified"><Check size={17} /><span>{t("attendance.locationVerified")}</span></div>}
+      {outside && <div className="crew-clock-location-callout is-warning"><MapPin size={17} /><span><strong>{t("attendance.locationDistance", { distance: Math.round(clockDraft.distance) })}</strong><small>{t("attendance.locationAllowed", { meters: context.radius_meters })}</small></span></div>}
+      {!clockDraft.location && <div className="crew-clock-location-callout is-warning"><TriangleAlert size={17} /><span>{t("attendance.locationUnavailable")}</span></div>}
+      {exceptionRequired && <label className="crew-clock-reason-field"><span>{t("attendance.reason")}</span><button ref={reasonTriggerRef} type="button" onClick={() => setReasonSheetOpen(true)} aria-label={exception || t("attendance.selectReason")} aria-haspopup="dialog" aria-expanded={reasonSheetOpen}><strong>{exception || t("attendance.selectReason")}</strong><ChevronRight size={18} /></button></label>}
+      {exception === reasonValues.other && <label className="crew-clock-other-reason"><span>{t("attendance.briefReason")}</span><input value={otherReason} maxLength="280" onChange={(event) => setOtherReason(event.target.value)} placeholder={t("attendance.briefReason")} /></label>}
+      {error && <div className="crew-v2-error">{error}</div>}
+    </CrewBottomSheet>}
+    {clockDraft && reasonSheetOpen ? <ClockReasonSheet options={options} selectedReason={exception} onSelect={setException} onClose={() => setReasonSheetOpen(false)} /> : null}
     {clockSuccess && <div className="crew-home-modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setClockSuccess(null); }}><section className="crew-home-success-modal" role="dialog" aria-modal="true" aria-labelledby="crew-clock-success-title"><span><Check size={28} /></span><h2 id="crew-clock-success-title">{t("home.clockedInSuccess")}</h2><dl><div><dt>{t("home.clockInTime")}</dt><dd>{formatTime(clockSuccess.time)}</dd></div><div><dt>{t("common.outlet")}</dt><dd>{clockSuccess.outlet}</dd></div><div><dt>{t("common.role")}</dt><dd>{clockSuccess.role}</dd></div></dl><div className="crew-home-modal-actions"><button type="button" className="crew-mobile-primary" onClick={() => { setClockSuccess(null); setScreen("home"); }}>{t("home.goHome")}</button><button type="button" className="crew-mobile-secondary" onClick={() => { setClockSuccess(null); setScreen("attendance"); }}>{t("home.viewAttendance")}</button></div></section></div>}
 
     {!cashCheckoutFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout"].includes(screen) ? "me" : screen} onChange={(next) => { if (next === "growth") setGrowthInitialView("overview"); setScreen(next); if (next === "me") setMeView("main"); }} />}

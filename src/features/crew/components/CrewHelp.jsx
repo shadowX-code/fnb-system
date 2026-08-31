@@ -1,8 +1,6 @@
-import { useEffect, useId, useRef } from "react";
-import { CircleHelp, Info, X } from "lucide-react";
-import { createPortal } from "react-dom";
-import { useTranslation } from "react-i18next";
+import { CircleHelp, Info } from "lucide-react";
 import "../../../i18n/index.js";
+import CrewBottomSheet from "./CrewBottomSheet.jsx";
 
 export function CrewHelpTrigger({ label, onClick, variant = "inline" }) {
   const Icon = variant === "header" ? CircleHelp : Info;
@@ -21,44 +19,7 @@ export function CrewHelpRows({ rows }) {
 }
 
 export function CrewHelpSheet({ title, body, onClose, children }) {
-  const { t } = useTranslation();
-  const sheetRef = useRef(null);
-  const closeRef = useRef(null);
-  const bodyId = useId();
-
-  useEffect(() => {
-    const previousFocus = document.activeElement;
-    const previousBodyStyles = { overflow: document.body.style.overflow, position: document.body.style.position, top: document.body.style.top, width: document.body.style.width };
-    const scrollY = window.scrollY;
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    closeRef.current?.focus();
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") return onClose();
-      if (event.key !== "Tab") return;
-      const focusable = [...(sheetRef.current?.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])") || [])];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      Object.assign(document.body.style, previousBodyStyles);
-      document.removeEventListener("keydown", onKeyDown);
-      if (!navigator.userAgent.includes("jsdom")) window.scrollTo(0, scrollY);
-      previousFocus?.focus?.();
-    };
-  }, [onClose]);
-
-  if (typeof document === "undefined") return null;
-  return createPortal(<div className="crew-ui-help-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section ref={sheetRef} className="crew-ui-help-sheet" role="dialog" aria-modal="true" aria-labelledby={`${bodyId}-title`} aria-describedby={body ? bodyId : undefined} onMouseDown={(event) => event.stopPropagation()}>
-      <header className="crew-ui-help-sheet-header"><h2 id={`${bodyId}-title`}>{title}</h2><button ref={closeRef} className="crew-ui-help-sheet-close" type="button" onClick={onClose} aria-label={t("common.close")}><X size={19} /></button></header>
-      <div className="crew-ui-help-sheet-content">{body ? <p id={bodyId} className="crew-ui-help-sheet-body">{body}</p> : null}{children}</div>
-    </section>
-  </div>, document.body);
+  return <CrewBottomSheet title={title} description={body} onClose={onClose} className="crew-ui-help-sheet" contentClassName="crew-ui-help-sheet-content" backdropClassName="crew-ui-help-backdrop">
+    {children}
+  </CrewBottomSheet>;
 }

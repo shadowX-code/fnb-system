@@ -2,7 +2,7 @@
 
 ## Crew Mobile Explanatory Help
 
-Crew Mobile uses the shared `CrewHelpTrigger` and `CrewHelpSheet` primitives for explanatory, non-mutating help. Pages provide only title, body, and optional structured content; the primitive owns the one-layer icon treatment, accessible bottom-sheet behavior, focus handling, backdrop close, and reduced-motion presentation. Operation, confirmation, and error dialogs remain owned by their existing workflows.
+Crew Mobile uses the shared `CrewHelpTrigger` and `CrewHelpSheet` primitives for explanatory, non-mutating help. Pages provide only title, body, and optional structured content; the helper owns the one-layer icon treatment while `CrewBottomSheet` owns accessible bottom-sheet behavior, focus handling, backdrop close, and reduced-motion presentation. Selectable action flows may reuse the shell without adopting the helper content model. Operation, confirmation, and error dialogs remain owned by their existing workflows.
 
 ## Purpose And Scope
 
