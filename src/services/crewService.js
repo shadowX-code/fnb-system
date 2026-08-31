@@ -521,6 +521,21 @@ export const crewService = {
     return data;
   },
 
+  async submitPublicFeedbackV2(payload) {
+    const { data, error } = await supabase.rpc("crew_feedback_submit_public_v2", {
+      p_outlet_token: payload.outletToken,
+      p_scope: payload.scope,
+      p_employee_id: payload.employeeId || null,
+      p_experience: payload.experience,
+      p_positive_tags: payload.positiveTags || [],
+      p_improvement_tags: payload.improvementTags || [],
+      p_comment: payload.comment || "",
+      p_client_token: payload.clientToken,
+    });
+    throwSupabaseError("crew.submitPublicFeedbackV2", error);
+    return data;
+  },
+
   async learningAssignment(token, assignmentId) {
     const { data, error } = await supabase.rpc("crew_learning_assignment", { p_token: token, p_assignment_id: assignmentId });
     throwSupabaseError("crew.learningAssignment", error);

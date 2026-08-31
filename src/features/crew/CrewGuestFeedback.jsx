@@ -1,98 +1,43 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ChevronLeft, MessageCircleHeart, Send, UserRound } from "lucide-react";
+import { CheckCircle2, ChevronLeft, MessageCircleHeart, Send, Store, Utensils, UserRound } from "lucide-react";
 import { crewService } from "../../services/crewService.js";
 import "./CrewGuestFeedback.css";
 
-const experiences = [
-  { value: "great", label: "Great", hint: "A positive experience" },
-  { value: "okay", label: "Okay", hint: "Everything was fine" },
-  { value: "needs_improvement", label: "Needs Improvement", hint: "Something could be better" },
+const scopes = [
+  { value: "crew", label: "Crew Member", description: "Recognise someone who looked after you", icon: UserRound },
+  { value: "food", label: "Food & Drinks", description: "Tell us about what you ordered", icon: Utensils },
+  { value: "outlet", label: "Overall Visit", description: "Share how your visit felt", icon: Store },
 ];
-const positiveTags = ["Friendly", "Helpful", "Attentive", "Fast", "Knowledgeable"];
-const improvementTags = ["Greeting", "Response Time", "Accuracy", "Cleanliness", "Product Knowledge"];
+const experiences = [{ value: "great", label: "Great", hint: "Loved it" }, { value: "okay", label: "Okay", hint: "It was fine" }, { value: "needs_improvement", label: "Needs Improvement", hint: "Could be better" }];
+const tags = {
+  crew: { great: ["Friendly", "Helpful", "Attentive", "Fast", "Knowledgeable"], okay: ["Friendly", "Helpful", "Attentive", "Fast", "Knowledgeable"], needs_improvement: ["Greeting", "Response Time", "Accuracy", "Cleanliness", "Product Knowledge"] },
+  food: { great: ["Taste", "Portion", "Temperature", "Presentation", "Value", "Freshness"], okay: ["Taste", "Portion", "Temperature", "Presentation", "Value", "Freshness"], needs_improvement: ["Taste", "Portion", "Temperature", "Presentation", "Value", "Freshness"] },
+  outlet: { great: ["Cleanliness", "Service Speed", "Atmosphere", "Ordering", "Waiting Time", "Comfort", "Overall Value"], okay: ["Cleanliness", "Service Speed", "Atmosphere", "Ordering", "Waiting Time", "Comfort", "Overall Value"], needs_improvement: ["Cleanliness", "Service Speed", "Atmosphere", "Ordering", "Waiting Time", "Comfort", "Overall Value"] },
+};
 
-function outletFromHash() {
-  const query = String(window.location.hash || "").split("?")[1] || "";
-  return new URLSearchParams(query).get("outlet") || "";
-}
-
-function outletTokenFromPath() {
-  const match = window.location.pathname.match(/^\/feedback\/([^/]+)\/?$/);
-  return match ? decodeURIComponent(match[1]).toLowerCase() : "";
-}
-
-export function isPublicFeedbackRoute() {
-  return Boolean(outletTokenFromPath()) || window.location.hash.startsWith("#feedback");
-}
-
-function publicFeedbackPath(token) {
-  return `/feedback/${encodeURIComponent(token)}`;
-}
-
-function feedbackToken() {
-  const key = "feedx_guest_feedback_token";
-  let token = window.sessionStorage.getItem(key);
-  if (!token) { token = crypto.randomUUID(); window.sessionStorage.setItem(key, token); }
-  return token;
-}
+function outletFromHash() { const query = String(window.location.hash || "").split("?")[1] || ""; return new URLSearchParams(query).get("outlet") || ""; }
+function outletTokenFromPath() { const match = window.location.pathname.match(/^\/feedback\/([^/]+)\/?$/); return match ? decodeURIComponent(match[1]).toLowerCase() : ""; }
+export function isPublicFeedbackRoute() { return Boolean(outletTokenFromPath()) || window.location.hash.startsWith("#feedback"); }
+function publicFeedbackPath(token) { return `/feedback/${encodeURIComponent(token)}`; }
+function feedbackToken() { const key = "feedx_guest_feedback_token"; let token = window.sessionStorage.getItem(key); if (!token) { token = crypto.randomUUID(); window.sessionStorage.setItem(key, token); } return token; }
+function scopeLabel(scope) { return scopes.find((item) => item.value === scope)?.label || "Feedback"; }
 
 export default function CrewGuestFeedback() {
   const entry = useMemo(() => ({ outletId: outletFromHash(), outletToken: outletTokenFromPath() }), []);
-  const [data, setData] = useState(null);
-  const [step, setStep] = useState("crew");
-  const [employee, setEmployee] = useState(null);
-  const [experience, setExperience] = useState("");
-  const [positive, setPositive] = useState([]);
-  const [improvement, setImprovement] = useState([]);
-  const [comment, setComment] = useState("");
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    const request = entry.outletToken ? crewService.publicFeedbackEntry(entry.outletToken) : crewService.publicFeedbackCrew(entry.outletId);
-    request.then((value) => {
-      if (!active) return;
-      setData(value);
-      const token = value?.outlet?.public_feedback_token;
-      if (!entry.outletToken && token) window.history.replaceState(null, "", publicFeedbackPath(token));
-    }).catch((cause) => { if (active) setError(cause.message); }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
-  }, [entry.outletId, entry.outletToken]);
-
-  function toggle(list, value, setter) { setter(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]); }
-  async function submit() {
-    if (!employee || !experience) return;
-    setSubmitting(true); setError("");
-    try {
-      const payload = { employeeId: employee.id, experience, positiveTags: positive, improvementTags: improvement, comment, clientToken: feedbackToken() };
-      if (entry.outletToken) await crewService.submitPublicFeedbackByToken({ ...payload, outletToken: entry.outletToken });
-      else await crewService.submitPublicFeedback({ ...payload, outletId: entry.outletId });
-      setStep("done");
-    } catch (cause) { setError(cause.message); }
-    finally { setSubmitting(false); }
-  }
-
-  if (loading) return <main className="guest-feedback-shell"><div className="guest-feedback-state">Loading Crew…</div></main>;
+  const [data, setData] = useState(null); const [step, setStep] = useState("scope"); const [scope, setScope] = useState(""); const [employee, setEmployee] = useState(null); const [experience, setExperience] = useState(""); const [selectedTags, setSelectedTags] = useState([]); const [comment, setComment] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(true); const [submitting, setSubmitting] = useState(false);
+  useEffect(() => { let active = true; const request = entry.outletToken ? crewService.publicFeedbackEntry(entry.outletToken) : crewService.publicFeedbackCrew(entry.outletId); request.then((value) => { if (!active) return; setData(value); const token = value?.outlet?.public_feedback_token; if (!entry.outletToken && token) window.history.replaceState(null, "", publicFeedbackPath(token)); }).catch((cause) => { if (active) setError(cause.message); }).finally(() => { if (active) setLoading(false); }); return () => { active = false; }; }, [entry.outletId, entry.outletToken]);
+  const availableTags = experience ? tags[scope]?.[experience] || [] : [];
+  function chooseScope(value) { setScope(value); setEmployee(null); setExperience(""); setSelectedTags([]); setComment(""); setStep(value === "crew" ? "crew" : "feedback"); }
+  function toggleTag(tag) { setSelectedTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : current.length >= 5 ? current : [...current, tag]); }
+  function back() { if (step === "crew") { setScope(""); setStep("scope"); } else if (scope === "crew") { setEmployee(null); setExperience(""); setSelectedTags([]); setStep("crew"); } else { setScope(""); setExperience(""); setSelectedTags([]); setStep("scope"); } }
+  async function submit() { if (!scope || !experience || (scope === "crew" && !employee)) return; setSubmitting(true); setError(""); try { const payload = { outletToken: entry.outletToken || data.outlet.public_feedback_token, scope, employeeId: scope === "crew" ? employee.id : null, experience, positiveTags: experience === "needs_improvement" ? [] : selectedTags, improvementTags: experience === "needs_improvement" ? selectedTags : [], comment, clientToken: feedbackToken() }; if (payload.outletToken) await crewService.submitPublicFeedbackV2(payload); else await crewService.submitPublicFeedback({ ...payload, outletId: entry.outletId }); setStep("done"); } catch (cause) { setError(cause.message); } finally { setSubmitting(false); } }
+  if (loading) return <main className="guest-feedback-shell"><div className="guest-feedback-state">Loading feedback form...</div></main>;
   if (!data?.outlet) return <main className="guest-feedback-shell"><div className="guest-feedback-state"><strong>Feedback link unavailable</strong><span>{error || "Please scan the outlet QR code again."}</span></div></main>;
-  if (step === "done") return <main className="guest-feedback-shell"><section className="guest-feedback-done"><CheckCircle2 size={44} /><h1>Thank you</h1><p>Your feedback helps {data.outlet.name} recognise great service and coach with care.</p></section></main>;
-
-  return <main className="guest-feedback-shell">
-    <header><div className="guest-feedback-brand"><MessageCircleHeart size={20} /> FeedX</div><span>{data.outlet.name}</span></header>
-    {step === "crew" ? <section className="guest-feedback-panel">
-      <div className="guest-feedback-copy"><small>Guest feedback</small><h1>Who helped you today?</h1><p>Select a Crew member who served you recently.</p></div>
-      <div className="guest-feedback-crew">{data.crew.map((row) => <button key={row.id} type="button" onClick={() => { setEmployee(row); setStep("feedback"); }}><span><UserRound size={19} /></span><strong>{row.name}</strong><small>{row.position || "Crew"}{row.on_shift ? " · On shift" : ""}</small></button>)}</div>
-      {!data.crew.length ? <div className="guest-feedback-empty">No recent Crew are available for feedback.</div> : null}
-    </section> : <section className="guest-feedback-panel">
-      <button className="guest-feedback-back" type="button" onClick={() => setStep("crew")}><ChevronLeft size={16} /> Choose another Crew member</button>
-      <div className="guest-feedback-copy"><small>Feedback for {employee.name}</small><h1>How was your experience?</h1><p>Simple, honest feedback is most helpful.</p></div>
-      <div className="guest-feedback-experience">{experiences.map((item) => <button type="button" className={experience === item.value ? "is-active" : ""} aria-pressed={experience === item.value} key={item.value} onClick={() => setExperience(item.value)}><strong>{item.label}</strong><small>{item.hint}</small></button>)}</div>
-      <fieldset><legend>What stood out?</legend><div className="guest-feedback-tags">{positiveTags.map((tag) => <button type="button" className={positive.includes(tag) ? "is-active" : ""} aria-pressed={positive.includes(tag)} key={tag} onClick={() => toggle(positive, tag, setPositive)}>{tag}</button>)}</div></fieldset>
-      <fieldset><legend>What could improve?</legend><div className="guest-feedback-tags is-improvement">{improvementTags.map((tag) => <button type="button" className={improvement.includes(tag) ? "is-active" : ""} aria-pressed={improvement.includes(tag)} key={tag} onClick={() => toggle(improvement, tag, setImprovement)}>{tag}</button>)}</div></fieldset>
-      <label className="guest-feedback-comment">Optional comment<textarea maxLength={500} value={comment} onChange={(event) => setComment(event.target.value)} placeholder="Share a short detail" /><span>{comment.length}/500</span></label>
-      {error ? <div className="guest-feedback-error">{error}</div> : null}
-      <button className="guest-feedback-submit" type="button" disabled={!experience || submitting} onClick={submit}><Send size={16} /> {submitting ? "Submitting…" : "Submit Feedback"}</button>
-    </section>}
-  </main>;
+  if (step === "done") return <main className="guest-feedback-shell"><section className="guest-feedback-done"><span className="guest-feedback-done-icon"><CheckCircle2 size={34} /></span><p className="guest-feedback-eyebrow">Feedback received</p><h1>Thank you for sharing.</h1><p>Your feedback helps {data.outlet.name} keep the good things going and improve the moments that matter.</p></section></main>;
+  return <main className="guest-feedback-shell"><header><div className="guest-feedback-brand"><MessageCircleHeart size={20} /> FeedX</div><span>{data.outlet.name}</span></header><section className="guest-feedback-panel">
+    {step !== "scope" ? <button className="guest-feedback-back" type="button" onClick={back}><ChevronLeft size={16} /> Back</button> : null}
+    {step === "scope" ? <><div className="guest-feedback-copy"><small>Guest feedback</small><h1>How would you like to share?</h1><p>Choose the part of your visit you want to tell us about.</p></div><div className="guest-feedback-scope">{scopes.map((item) => { const Icon = item.icon; return <button key={item.value} type="button" onClick={() => chooseScope(item.value)}><span><Icon size={20} /></span><strong>{item.label}</strong><small>{item.description}</small></button>; })}</div></> : null}
+    {step === "crew" ? <><div className="guest-feedback-copy"><small>Crew feedback</small><h1>Who looked after you?</h1><p>Select a Crew member who served you recently.</p></div><div className="guest-feedback-crew">{data.crew.map((row) => <button key={row.id} type="button" onClick={() => { setEmployee(row); setStep("feedback"); }}><span><UserRound size={19} /></span><strong>{row.name}</strong><small>{row.position || "Crew"}{row.on_shift ? " · On shift" : ""}</small></button>)}</div>{!data.crew.length ? <div className="guest-feedback-empty">No recent Crew are available for feedback right now.</div> : null}</> : null}
+    {step === "feedback" ? <><div className="guest-feedback-copy"><small>{scope === "crew" ? `Crew feedback · ${employee?.name || ""}` : scopeLabel(scope)}</small><h1>How was it?</h1><p>Quick, honest feedback is always welcome.</p></div>{scope === "crew" && employee ? <div className="guest-feedback-selected"><UserRound size={16} /><span><small>Feedback for</small><strong>{employee.name}</strong></span></div> : null}<div className="guest-feedback-experience">{experiences.map((item) => <button type="button" className={experience === item.value ? "is-active" : ""} aria-pressed={experience === item.value} key={item.value} onClick={() => { setExperience(item.value); setSelectedTags([]); }}><strong>{item.label}</strong><small>{item.hint}</small></button>)}</div>{experience ? <fieldset><legend>{experience === "great" ? "What stood out?" : experience === "okay" ? "What felt right?" : "What could improve?"}</legend><div className={`guest-feedback-tags ${experience === "needs_improvement" ? "is-improvement" : ""}`}>{availableTags.map((tag) => <button type="button" className={selectedTags.includes(tag) ? "is-active" : ""} aria-pressed={selectedTags.includes(tag)} key={tag} onClick={() => toggleTag(tag)}>{tag}</button>)}</div><small className="guest-feedback-tag-hint">Choose up to 5</small></fieldset> : null}<label className="guest-feedback-comment">Anything else? <span>Optional</span><textarea maxLength={500} value={comment} onChange={(event) => setComment(event.target.value)} placeholder={experience === "needs_improvement" ? "What would have made this better?" : "Share a short detail"} /><em>{comment.length}/500</em></label>{error ? <div className="guest-feedback-error">{error}</div> : null}<button className="guest-feedback-submit" type="button" disabled={!experience || submitting} onClick={submit}><Send size={16} /> {submitting ? "Sending..." : "Send Feedback"}</button></> : null}
+  </section></main>;
 }
