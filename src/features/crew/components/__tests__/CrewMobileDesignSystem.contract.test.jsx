@@ -31,6 +31,7 @@ const growth = readFileSync(resolve(process.cwd(), "src/features/crew/components
 const learning = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLearningMobile.jsx"), "utf8");
 const sopDocument = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewSopDocument.jsx"), "utf8");
 const operations = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewOperationsMobile.jsx"), "utf8");
+const help = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewHelp.jsx"), "utf8");
 
 describe("Crew Mobile design system contract", () => {
   it("owns the FeedX palette and shared foundation primitives centrally", () => {
@@ -507,6 +508,10 @@ describe("Crew Mobile design system contract", () => {
     [".crew-reward-", ".crew-v2-reward-"].forEach((selector) => expect(appStyles).not.toContain(selector));
     [".crew-reward-hero-metrics", ".crew-reward-surface", ".crew-reward-performance-relationship", ".crew-reward-potential", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
     expect(system).toContain(".crew-ui-modal");
+    expect(system).toContain(".crew-ui-help-sheet");
+    expect(help).toContain("export function CrewHelpTrigger");
+    expect(help).toContain("export function CrewHelpSheet");
+    expect(reward).not.toContain("HeroInfoButton");
     expect(rewardStyles).not.toContain("!important");
   });
 

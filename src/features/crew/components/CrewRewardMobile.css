@@ -12,16 +12,14 @@
 .crew-reward-hero-kicker { z-index: 1; display: flex; align-items: center; gap: 10px; }
 .crew-reward-hero-kicker span { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 650; }
 .crew-reward-hero-total { z-index: 1; display: grid; gap: 5px; }
-.crew-reward-hero-total small,.crew-reward-hero-metrics small { display: inline-flex; width: fit-content; align-items: center; gap: 5px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 600; line-height: 1.25; }
+.crew-reward-hero-total small,.crew-reward-hero-metrics small { display: inline-flex; width: fit-content; align-items: center; gap: 7px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 600; line-height: 1.25; }
 .crew-reward-hero-total strong { color: var(--crew-color-deep-teal); font-size: clamp(34px, 9.5vw, 38px); font-variant-numeric: tabular-nums; line-height: 1; letter-spacing: -.025em; }
-.crew-reward-hero-info { display: inline-grid; width: 17px; height: 17px; flex: 0 0 auto; place-items: center; border: 1px solid currentColor; border-radius: 50%; background: transparent; padding: 0; color: inherit; font-family: inherit; font-size: 11px; font-weight: 700; line-height: 1; }
 .crew-reward-hero-metrics { z-index: 1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; margin-top: auto; border-top: 1px solid var(--crew-color-divider); padding-top: 8px; }
 .crew-reward-hero-metrics > div { display: grid; min-width: 0; gap: 2px; padding: 0 6px; }
 .crew-reward-hero-metrics > div:first-child { padding-left: 0; }
 .crew-reward-hero-metrics > div + div { border-left: 1px solid var(--crew-color-divider); }
 .crew-reward-hero-metrics small { width: auto; color: var(--crew-color-text-secondary); font-size: 10px; font-weight: 600; white-space: nowrap; }
 .crew-reward-hero-metrics strong { color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 700; line-height: 1.2; white-space: nowrap; }
-.crew-reward-hero-metrics .crew-reward-hero-info { width: 14px; height: 14px; align-self: center; font-size: 9px; }
 
 @media (prefers-reduced-motion: reduce) {
   .crew-reward-hero-light-pulse { opacity: 0; will-change: auto; }
@@ -60,7 +58,8 @@
 .crew-reward-performance-rate strong { color: var(--crew-color-deep-teal); }
 .crew-reward-performance-rate > span { justify-content: center; }
 .crew-reward-performance-rate > span > strong { font-size: 28px; line-height: 1; letter-spacing: -.02em; }
-.crew-reward-performance-rate .crew-reward-hero-info { color: var(--crew-color-deep-teal); }
+.crew-reward-performance-rate > small { display: inline-flex; align-items: center; gap: 7px; }
+.crew-reward-performance-rate > small .crew-ui-help-trigger { top: 1px; color: var(--crew-color-deep-teal); }
 .crew-reward-performance-rate .crew-ui-status { margin-top: 2px; }
 
 .crew-reward-projection > header { margin-bottom: 16px; }
@@ -95,14 +94,6 @@
 .crew-reward-unavailable p { max-width: 280px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.45; }
 .crew-reward-finalized { display: flex; align-items: center; gap: 12px; color: var(--crew-color-success); }
 
-.crew-reward-modal-section + .crew-reward-modal-section { margin-top: 15px; }
-.crew-reward-modal-section strong { display: block; color: var(--crew-color-text); font-size: var(--crew-type-helper); font-weight: 700; }
-.crew-reward-modal-section p { margin: 4px 0 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.55; }
-.crew-reward-tier-table { overflow: hidden; margin-top: 14px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); }
-.crew-reward-tier-table > div { display: grid; min-height: 28px; grid-template-columns: .8fr 1.25fr .7fr; align-items: center; border-bottom: 1px solid var(--crew-color-divider); color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); text-align: center; }
-.crew-reward-tier-table > div:first-child { background: var(--crew-color-mineral); color: var(--crew-color-text); }
-.crew-reward-tier-table > div:last-child { border-bottom: 0; }
-.crew-reward-tier-table strong { color: var(--crew-color-deep-teal); }
 .crew-reward-formula { display: grid; gap: 4px; margin-top: 12px; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); padding: 10px 12px; }
 .crew-reward-formula small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-reward-formula strong { color: var(--crew-color-text); font-size: var(--crew-type-helper); font-weight: 600; line-height: 1.45; }
@@ -120,8 +111,7 @@
   .crew-reward-hero-total strong { font-size: 34px; }
   .crew-reward-hero-metrics > div { padding: 0 5px; }
   .crew-reward-hero-metrics strong { font-size: 12px; }
-  .crew-reward-hero-metrics small { gap: 2px; font-size: 9px; letter-spacing: -.015em; }
-  .crew-reward-hero-metrics .crew-reward-hero-info { width: 12px; height: 12px; font-size: 8px; }
+  .crew-reward-hero-metrics small { gap: 5px; font-size: 9px; letter-spacing: -.015em; }
   .crew-reward-surface { padding: 20px; }
   .crew-reward-surface > header { gap: 8px; }
   .crew-reward-surface > header button { max-width: 132px; }

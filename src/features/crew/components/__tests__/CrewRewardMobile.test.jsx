@@ -70,7 +70,7 @@ describe("Crew Reward mobile reference UI", () => {
     expect(rate.children[0].textContent).toBe("80%");
     expect(rate.children[1].textContent).toBe("Strong");
     expect(rate.children[2].textContent).toContain("Current Earn Rate");
-    expect(rate.children[2].querySelector(".crew-reward-hero-info")).not.toBeNull();
+    expect(rate.children[2].querySelector(".crew-ui-help-trigger.is-inline")).not.toBeNull();
   });
 
   it("uses the approved static background with only the traveling-light presentation layer", () => {
@@ -110,11 +110,22 @@ describe("Crew Reward mobile reference UI", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
+  it("uses the shared helper sheet for metric explanations and closes it from the backdrop", () => {
+    render(<CrewRewardMobile data={data} />);
+    const trigger = screen.getByRole("button", { name: "Maximum Share" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    expect(document.querySelector(".crew-ui-help-sheet")).not.toBeNull();
+    fireEvent.mouseDown(document.querySelector(".crew-ui-help-backdrop"));
+    expect(screen.queryByRole("dialog", { name: "Maximum Share" })).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
   it("ports long helper content to the viewport-level scroll container", () => {
     render(<CrewRewardMobile data={data} />);
     fireEvent.click(screen.getAllByRole("button", { name: "Reward help" })[0]);
     const dialog = screen.getByRole("dialog", { name: "How your Reward is calculated" });
-    const content = dialog.querySelector(".crew-ui-modal-content");
+    const content = dialog.querySelector(".crew-ui-help-sheet-content");
     Object.defineProperties(content, {
       clientHeight: { configurable: true, value: 120 },
       scrollHeight: { configurable: true, value: 480 },
