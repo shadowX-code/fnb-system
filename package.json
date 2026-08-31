@@ -10,6 +10,9 @@
     "verify:staging-vercel-target": "bash scripts/verifyFeedxStagingVercelProject.sh --deployment-sha \"$(git rev-parse HEAD)\"",
     "deploy:preview": "bash scripts/deployFeedxPreview.sh",
     "promote:staging": "bash scripts/promoteFeedxStagingDeployment.sh",
+    "test:staging-smoke-harness": "node qa/staging/runStagingSmoke.mjs harness",
+    "qa:staging:crew-smoke": "node qa/staging/runStagingSmoke.mjs crew",
+    "qa:staging:admin-smoke": "node qa/staging/runStagingSmoke.mjs admin",
     "test": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run",
     "test:factory": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run src/features/factory"
   },
@@ -29,6 +32,7 @@
     "vite": "^7.0.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@testing-library/react": "^16.3.2",
     "autoprefixer": "^10.4.20",

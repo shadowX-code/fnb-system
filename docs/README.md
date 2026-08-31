@@ -58,6 +58,7 @@ Read these only when the task changes or depends on the corresponding cross-doma
 - [`../FEEDX_DEVELOPMENT_LOG.md`](../FEEDX_DEVELOPMENT_LOG.md): milestone changelog, not architecture authority.
 - [`architecture/FACTORY_REFACTOR_PLAN.md`](architecture/FACTORY_REFACTOR_PLAN.md): historical Factory refactor plan and deep reference.
 - [`testing/FACTORY_RUNTIME_ROUTE_COVERAGE.md`](testing/FACTORY_RUNTIME_ROUTE_COVERAGE.md): focused test/route evidence.
+- [`testing/AUTHENTICATED_STAGING_UI_SMOKE.md`](testing/AUTHENTICATED_STAGING_UI_SMOKE.md): Staging-only real-login browser smoke fallback, credential boundary, and artifact policy.
 - [`audits/FACTORY_V1_STAGING_SIGNOFF.md`](audits/FACTORY_V1_STAGING_SIGNOFF.md): historical staging certification evidence.
 - [`releases/README.md`](releases/README.md): production release records.
 - [`archive/README.md`](archive/README.md): archived reports and readiness evidence.

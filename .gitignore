@@ -12,3 +12,6 @@ src/features/guest-ai/hardware/firmware/k151-idf/build/
 src/features/guest-ai/hardware/firmware/k151-idf/build-*/
 .vercel
 .env*
+
+# Ephemeral authenticated Staging UI smoke artifacts. Never persist auth state here.
+/qa-artifacts/
