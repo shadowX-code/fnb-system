@@ -364,3 +364,47 @@
   text-align:center;
 
 }
+
+/* Account settings retain the shared Crew primitives, but use a compact
+   operational density rather than page-specific card treatments. */
+.crew-me-settings .crew-ui-action-row { min-height: 52px; padding-block: 6px; }
+
+.crew-me-profile-avatar {
+  position: relative;
+  display: grid;
+  width: 64px;
+  height: 64px;
+  flex: 0 0 64px;
+  place-items: center;
+  overflow: visible;
+  border: 1px solid var(--crew-color-border);
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--crew-color-mist-mint) 38%, var(--crew-color-surface));
+  color: var(--crew-color-deep-teal);
+}
+.crew-me-profile-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.crew-me-profile-avatar-initial { font-size: 25px; font-weight: 750; }
+.crew-me-profile-avatar.has-image .crew-me-profile-avatar-initial { display: none; }
+.crew-me-profile-avatar-edit { position: absolute; right: -2px; bottom: -2px; display: grid; width: 25px; height: 25px; place-items: center; border: 2px solid var(--crew-color-surface); border-radius: 50%; background: var(--crew-color-deep-teal); color: var(--crew-color-surface); }
+.crew-me-profile-avatar:focus-visible { outline: 2px solid var(--crew-color-deep-teal); outline-offset: 3px; }
+.crew-me-profile-avatar:disabled { cursor: progress; opacity: .7; }
+.crew-me-profile-avatar-spinner { animation: crew-me-spin .8s linear infinite; }
+@keyframes crew-me-spin { to { transform: rotate(1turn); } }
+.crew-me-profile-photo-input { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.crew-me-profile-summary > .crew-me-profile-avatar { width: 64px; height: 64px; flex-basis: 64px; }
+.crew-me-profile-hero .crew-me-profile-avatar { position: relative; z-index: 1; width: 56px; height: 56px; flex-basis: 56px; }
+.crew-me-profile-summary p { overflow-wrap: anywhere; }
+
+.crew-me-passcode-page .crew-v2-passcode-form { margin-top: 4px; border: 0; border-radius: 0; background: transparent; padding: 0; gap: 14px; }
+.crew-me-passcode-page .crew-v2-passcode-form > p { margin: 0 0 2px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); line-height: 1.45; }
+.crew-me-passcode-field > span { position: relative; display: block; }
+.crew-me-passcode-field input { width: 100%; min-height: 48px; box-sizing: border-box; padding-right: 48px; font-size: 16px; letter-spacing: .14em; }
+.crew-me-passcode-field button { position: absolute; top: 0; right: 0; display: grid; width: 48px; height: 48px; place-items: center; border: 0; background: transparent; color: var(--crew-color-text-secondary); }
+.crew-me-inline-error { color: var(--crew-color-danger); font-size: var(--crew-type-helper); font-weight: 600; }
+
+.crew-language-modal .crew-ui-bottom-sheet-header { padding-block: 10px; }
+.crew-language-modal .crew-ui-bottom-sheet-close { width: 44px; height: 44px; border-radius: 0; background: transparent; }
+.crew-language-modal .crew-language-list { gap: 0; margin: 0; border-top: 1px solid var(--crew-color-divider); border-bottom: 1px solid var(--crew-color-divider); }
+.crew-language-modal .crew-language-list button { min-height: 50px; padding: 0 4px; color: var(--crew-color-text); font-size: var(--crew-type-body); }
+.crew-language-modal .crew-language-list button + button { border-top: 1px solid var(--crew-color-divider); }
+.crew-language-modal .crew-language-list button[aria-pressed="true"] { border-color: transparent; background: var(--crew-color-mist-mint); color: var(--crew-color-deep-teal); font-weight: 700; }

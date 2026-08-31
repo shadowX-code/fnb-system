@@ -54,6 +54,16 @@ export default function useCrewSession(screen = "home") {
     return true;
   }, [session?.token, replaceSession]);
 
+  const updateProfilePhoto = useCallback(async (file) => {
+    const original = currentSession.current;
+    if (!original || original.token !== session?.token || !mounted.current) return false;
+    const updated = await crewService.updateMyProfilePhoto(original.token, file);
+    if (!mounted.current || currentSession.current !== original) return false;
+    setData((previous) => ({ ...previous, profile: { ...(previous.profile || {}), profile_photo_path: updated?.profile_photo_path || null, profile_photo_url: updated?.profile_photo_url || null } }));
+    setLoaded((previous) => ({ ...previous, profile: true }));
+    return updated;
+  }, [session?.token]);
+
   const load = useCallback((key, force = false) => {
     const token = session?.token;
     if (!token || currentSession.current?.token !== token || !mounted.current) return Promise.resolve(false);
@@ -99,5 +109,5 @@ export default function useCrewSession(screen = "home") {
   }, []);
 
   const pageLoading = Boolean(session) && required.some((key) => !loaded[key]);
-  return { session, replaceSession, changePasscode, refresh, data, pageLoading, passcodeSuccess };
+  return { session, replaceSession, changePasscode, updateProfilePhoto, refresh, data, pageLoading, passcodeSuccess };
 }

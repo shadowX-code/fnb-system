@@ -49,6 +49,7 @@ Roster publication revisions, original attendance evidence, leave decisions, and
 
 Admins enable/reset/disable Crew Access and configure per-account Crew capabilities through the separate Special Access workflow; those capabilities are not Admin roles. They also prepare and publish rosters, review attendance evidence, configure leave policy/entitlement, and decide leave requests.
 Crew sign in separately, view their own published schedule, clock in/out, review their attendance, change passcode, and manage their own leave requests and balances.
+Crew may also replace its own profile photo through the token-bound profile-photo authority. Employee Master retains the canonical photo reference, while private Storage delivery remains server-scoped and short-lived; Crew does not receive a cross-employee profile mutation path.
 
 ## Integrations
 

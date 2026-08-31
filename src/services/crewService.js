@@ -3,6 +3,7 @@ import { throwSupabaseError } from "./supabaseError";
 import {
   IMAGE_UPLOAD_MAX_BYTES,
   optimizeImageBlob,
+  validateImageFile,
   validateLearningImageFile,
 } from "../utils/imageUpload.js";
 
@@ -1220,7 +1221,27 @@ export const crewService = {
   async myProfile(token) {
     const { data, error } = await supabase.rpc("crew_my_profile", { p_token: token });
     throwSupabaseError("crew.myProfile", error);
-    return data || null;
+    if (!data) return null;
+    if (!data.profile_photo_path) return data;
+    try {
+      const { data: photo, error: photoError } = await supabase.functions.invoke("crew-profile-photo", { body: { action: "read", token } });
+      throwSupabaseError("crew.myProfilePhoto", photoError);
+      return { ...data, profile_photo_url: photo?.profile_photo_url || null };
+    } catch {
+      return { ...data, profile_photo_url: null };
+    }
+  },
+
+  async updateMyProfilePhoto(token, file) {
+    validateImageFile(file);
+    const optimized = await optimizeImageBlob(file);
+    if (optimized.blob.size > IMAGE_UPLOAD_MAX_BYTES) throw new Error("Profile photo must be 5 MB or smaller.");
+    const body = new FormData();
+    body.append("token", token);
+    body.append("file", optimized.blob, "profile.webp");
+    const { data, error } = await supabase.functions.invoke("crew-profile-photo", { body });
+    throwSupabaseError("crew.updateMyProfilePhoto", error);
+    return data;
   },
 
   async listAttendance({ from: requestedFrom, to: requestedTo, outletId = null } = {}) {

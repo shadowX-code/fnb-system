@@ -5,7 +5,7 @@ import useCrewSession from "../hooks/useCrewSession.js";
 import { crewService } from "../../../services/crewService.js";
 import "../../../i18n/index.js";
 
-vi.mock("../../../services/crewService.js", () => ({ crewService: Object.fromEntries(["changePasscode", "myAttendance", "attendanceContext", "growthMobile", "performanceMobile", "rewardMobile", "operationsToday", "myRoster", "myLeave", "myProfile"].map((name) => [name, vi.fn()])) }));
+vi.mock("../../../services/crewService.js", () => ({ crewService: Object.fromEntries(["changePasscode", "updateMyProfilePhoto", "myAttendance", "attendanceContext", "growthMobile", "performanceMobile", "rewardMobile", "operationsToday", "myRoster", "myLeave", "myProfile"].map((name) => [name, vi.fn()])) }));
 const session = (token) => ({ token, expires_at: "2099-01-01", employee: { id: token } });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 beforeEach(() => {
@@ -149,6 +149,19 @@ describe("Crew session orchestration", () => {
     else act(() => result.current.replaceSession(mode === "logout" ? null : session("B")));
     await act(async () => { pending.resolve(session("stale-rotation")); expect(await request).toBe(false); });
     expect(JSON.parse(localStorage.getItem("feedx.crew.session"))?.token).toBe(mode === "logout" ? undefined : mode === "replacement" ? "B" : "A");
+  });
+
+  it("does not apply an old session's profile photo after token replacement", async () => {
+    const pending = deferred();
+    crewService.updateMyProfilePhoto.mockReturnValueOnce(pending.promise);
+    const { result } = renderHook(() => useCrewSession("me"));
+    await waitFor(() => expect(result.current.data.profile?.owner).toBe("A"));
+    let request;
+    act(() => { request = result.current.updateProfilePhoto(new File(["photo"], "photo.webp", { type: "image/webp" })); });
+    act(() => result.current.replaceSession(session("B")));
+    await act(async () => { pending.resolve({ profile_photo_path: "A/profile.webp", profile_photo_url: "https://old.example/photo.webp" }); expect(await request).toBe(false); });
+    await waitFor(() => expect(result.current.data.profile?.owner).toBe("B"));
+    expect(result.current.data.profile.profile_photo_url).toBeUndefined();
   });
 
   it.each(["success", "failure"])("discards stale A %s after replacement and clears every projection", async (outcome) => {

@@ -10,6 +10,7 @@ It does not own Crew passcode/session lifecycle, which belongs to Crew Workforce
 Current employee, role, permission, Auth-link, role-configuration, RLS, and audit contracts are authoritative.
 `employees.role_id` is the canonical employee-role assignment.
 `employees.auth_user_id` is the canonical employee-to-Supabase-Auth link.
+`employees.profile_photo_path` is the canonical reference for an employee profile photo; the image itself is private Crew presentation data, not a second employee profile.
 
 ## Core Entities
 
@@ -36,6 +37,7 @@ Only authorized Admins may manage employee, role, access, or scope relationships
 All affected outlet and record scopes must be validated.
 Security-sensitive changes derive actor identity server-side and retain meaningful audit evidence.
 Secrets, password material, passcode hashes, and tokens are never exposed in employee payloads or audit details.
+Crew may update only the profile-photo object path derived for the employee resolved from its current opaque token. The private Storage object is read through the approved server boundary using a short-lived signed URL; neither employee ID nor arbitrary Storage path is accepted from Crew clients.
 
 ## Workflows And Integrations
 

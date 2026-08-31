@@ -4,6 +4,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 ## August 2026 — Async Workspace And Admin Feature Ownership
 
+- Added the employee-master-backed Crew profile-photo contract: a private Storage object is resolved exclusively from the current opaque Crew token, persisted only as the employee's canonical path, delivered through a short-lived signed URL, and recorded as an audit event. No arbitrary employee or object-path mutation is available to the browser.
+
 - Established separate asynchronous Admin/Crew Mobile entries and delayed Factory, Inventory Control and Asset Tracking management implementations. Admin Auth/master-data bootstrap now mounts only in Admin; Crew retains its token-bound session lifecycle. Shared previews, services and localization remain canonical single implementations, with production dependency-closure guards enforcing the loading boundary. No domain contract, permission, RPC or schema change is involved.
 
 - Hardened the Crew Mobile session boundary: a lightweight canonical Crew hash map now preserves principal and operational screen identity across refresh/history, and generation-plus-token guards prevent stale employee refresh responses from crossing logout or session replacement. Crew startup now bypasses the Admin bootstrap loader.

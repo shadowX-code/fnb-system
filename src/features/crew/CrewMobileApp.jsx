@@ -45,7 +45,7 @@ export default function CrewMobileApp({ onNotify }) {
   return crew.session ? <CrewWorkspace key={crew.session.token} {...crew} route={route} onNotify={onNotify} /> : <CrewLogin onSignedIn={crew.replaceSession} />;
 }
 
-function CrewWorkspace({ session, replaceSession, changePasscode, data, pageLoading, passcodeSuccess, refresh, route, onNotify }) {
+function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, route, onNotify }) {
   const { t } = useTranslation();
   const { screen, growthInitialView, entry, navigate } = route;
   const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave } = data;
@@ -67,7 +67,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, data, pageLoad
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
     {screen === "attendance" && <CrewAttendanceMobile rows={clock.attendanceMonth} loading={clock.attendanceMonthLoading} selectedMonth={clock.selectedAttendanceMonth} onMonthChange={clock.setSelectedAttendanceMonth} onBack={() => navigate("home")} t={t} />}
-    {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} onChangePasscode={changePasscode} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
+    {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
     {!cashCheckoutFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout"].includes(screen) ? "me" : screen} onChange={navigate} />}

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Bell, BriefcaseBusiness, Check, ChevronRight, Clock3, FileText, HelpCircle, Languages, LockKeyhole, LogOut, Plane, Settings, ShieldCheck, UserRound, Banknote } from "lucide-react";
+import { Banknote, Bell, BriefcaseBusiness, Camera, Check, ChevronRight, Clock3, Eye, EyeOff, FileText, HelpCircle, Languages, LoaderCircle, LockKeyhole, LogOut, Plane, Settings, ShieldCheck, UserRound } from "lucide-react";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
@@ -10,22 +10,34 @@ import { formatCrewDate } from "../utils/crewI18n.js";
 import { formatEmploymentType } from "../utils/crewMobile.js";
 import crewMeProfileCredentialAsset from "../assets/crew-me-profile-credential-approved.webp";
 
-function ProfileInformation({ profile, employee, context, firstName, t, onBack }) {
-  const date = (value) => value ? formatCrewDate(value, { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";
-  const field = (label, value) => <div><dt>{label}</dt><dd>{value || "—"}</dd></div>;
+function CrewProfileAvatar({ name, photoUrl, onChoose, uploading, t }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => setFailed(false), [photoUrl]);
+  const initial = name?.trim().slice(0, 1) || "?";
+  return <button type="button" className={`crew-me-profile-avatar${photoUrl && !failed ? " has-image" : ""}`} onClick={onChoose} disabled={uploading} aria-label={t("me.profilePhotoAction")}>
+    {photoUrl && !failed && <img src={photoUrl} alt="" onError={() => setFailed(true)} />}
+    <span className="crew-me-profile-avatar-initial">{initial}</span>
+    <span className="crew-me-profile-avatar-edit" aria-hidden="true">{uploading ? <LoaderCircle size={14} className="crew-me-profile-avatar-spinner" /> : <Camera size={14} />}</span>
+  </button>;
+}
+
+function ProfileInformation({ profile, employee, context, firstName, t, onBack, onChoosePhoto, uploadingPhoto, photoError }) {
+  const date = (value) => value ? formatCrewDate(value, { day: "2-digit", month: "2-digit", year: "numeric" }) : t("me.notProvided");
+  const field = (label, value) => <div><dt>{label}</dt><dd>{value || t("me.notProvided")}</dd></div>;
   const name = profile.full_name || employee.full_name || firstName;
   const position = profile.position || employee.position || t("home.crewMember");
   const outlet = profile.outlet_name || context?.outlet_name || employee.workplace || t("me.notAssigned");
   const employmentStatus = profile.employment_status ? String(profile.employment_status).replace(/_/g, " ") : t("status.active");
   return <><CrewMobileDetailHeader title={t("me.profile")} onBack={onBack} /><article className="crew-me-profile-detail">
-    <header className="crew-me-profile-summary"><span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span><span><h2>{name}</h2><p>{position}</p><small>{outlet}</small><CrewStatusBadge tone="success">{employmentStatus}</CrewStatusBadge></span></header>
-    <section><h2>{t("me.personal")}</h2><dl>{field(t("me.fullName"), name)}{field(t("me.nickname"), profile.nickname || employee.nickname)}{field(t("me.birthday"), date(profile.birthday))}{field(t("me.contact"), profile.contact || employee.contact)}</dl></section>
-    <section><h2>{t("me.employment")}</h2><dl>{field(t("me.joinedDate"), date(profile.joined_date))}{field(t("me.position"), position)}{field(t("common.outlet"), outlet)}{field(t("me.employmentStatus"), <CrewStatusBadge tone="success">{employmentStatus}</CrewStatusBadge>)}</dl></section>
+    <header className="crew-me-profile-summary"><CrewProfileAvatar name={name} photoUrl={profile.profile_photo_url} onChoose={onChoosePhoto} uploading={uploadingPhoto} t={t} /><span><h2>{name}</h2><p>{position} · {outlet}</p><CrewStatusBadge tone="success">{employmentStatus}</CrewStatusBadge></span></header>
+    {photoError && <p className="crew-v2-error" role="alert">{photoError}</p>}
+    <section><h2>{t("me.personal")}</h2><dl>{field(t("me.nickname"), profile.nickname || employee.nickname)}{field(t("me.birthday"), date(profile.birthday))}{field(t("me.contact"), profile.contact || employee.contact)}</dl></section>
+    <section><h2>{t("me.employment")}</h2><dl>{field(t("me.joinedDate"), date(profile.joined_date))}</dl></section>
   </article></>;
 }
 
 
-export default function CrewMeMobile({ session, context, profile, attendance, leave, onChangePasscode, passcodeSuccess, navigate, onLogout }) {
+export default function CrewMeMobile({ session, context, profile, attendance, leave, onChangePasscode, onUpdateProfilePhoto, passcodeSuccess, navigate, onLogout }) {
   const { t, i18n } = useTranslation();
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
@@ -37,6 +49,11 @@ export default function CrewMeMobile({ session, context, profile, attendance, le
   const [confirmPasscode, setConfirmPasscode] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPasscodes, setShowPasscodes] = useState({ current: false, next: false, confirm: false });
+  const [attempted, setAttempted] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoError, setPhotoError] = useState("");
+  const photoInput = useRef(null);
   const employee = session.employee || {};
   const firstName = employee.nickname || employee.full_name?.split(" ")[0] || t("auth.crew");
   const employmentType = profile?.employment_type || employee.employment_type || "";
@@ -50,7 +67,8 @@ export default function CrewMeMobile({ session, context, profile, attendance, le
   async function changePasscode(event) {
     event.preventDefault();
     setError("");
-    if (!/^\d{4}$/.test(currentPasscode) || !/^\d{4}$/.test(newPasscode) || newPasscode !== confirmPasscode) return setError(t("me.enterPasscodes"));
+    setAttempted(true);
+    if (!/^\d{4}$/.test(currentPasscode) || !/^\d{4}$/.test(newPasscode) || newPasscode !== confirmPasscode) return;
     setLoading(true);
     try {
       const changed = await onChangePasscode(currentPasscode, newPasscode);
@@ -67,12 +85,29 @@ export default function CrewMeMobile({ session, context, profile, attendance, le
     }
   }
 
+  async function updatePhoto(event) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || !onUpdateProfilePhoto) return;
+    setPhotoError("");
+    setUploadingPhoto(true);
+    try {
+      await onUpdateProfilePhoto(file);
+    } catch (cause) {
+      if (active.current) setPhotoError(cause.message || t("me.profilePhotoFailed"));
+    } finally {
+      if (active.current) setUploadingPhoto(false);
+    }
+  }
+  const passcodeInvalid = !/^\d{4}$/.test(currentPasscode) || !/^\d{4}$/.test(newPasscode) || newPasscode !== confirmPasscode;
+  const passcodeField = (key, label, value, setValue, autoComplete, inlineError) => <label className="crew-me-passcode-field">{label}<span><input type={showPasscodes[key] ? "text" : "password"} inputMode="numeric" autoComplete={autoComplete} maxLength="4" value={value} onChange={(event) => setValue(event.target.value.replace(/\D/g, ""))} aria-invalid={Boolean(inlineError)} /><button type="button" onClick={() => setShowPasscodes((previous) => ({ ...previous, [key]: !previous[key] }))} aria-label={showPasscodes[key] ? t("me.hidePasscode") : t("me.showPasscode")}>{showPasscodes[key] ? <EyeOff size={18} /> : <Eye size={18} />}</button></span>{inlineError && <small className="crew-me-inline-error">{inlineError}</small>}</label>;
+
   return <section className="crew-v2-me">
-      {meView === "settings" ? <><CrewMobileDetailHeader title={t("me.settings")} onBack={() => setMeView("main")} /><section className="crew-me-settings crew-ui-functional-surface"><CrewActionRow icon={Bell} title={t("me.notifications")} /><CrewActionRow icon={Languages} title={t("me.language")} subtitle={t(`languages.${i18n.resolvedLanguage || i18n.language}`)} ariaLabel={t("me.language")} onClick={() => setLanguageOpen(true)} /><CrewActionRow icon={ShieldCheck} title={t("me.privacy")} /><CrewActionRow icon={FileText} title={t("me.terms")} /><CrewActionRow icon={HelpCircle} title={t("me.about")} /></section></> : meView === "profile" ? <ProfileInformation profile={profile || employee} employee={employee} context={context} firstName={firstName} t={t} onBack={() => setMeView("main")} /> : meView === "passcode" ? <section className="crew-me-passcode-page"><CrewMobileDetailHeader title={t("me.changePasscode")} onBack={() => setMeView("main")} /><form className="crew-v2-passcode-form" onSubmit={changePasscode}><label>{t("me.currentPasscode")}<input inputMode="numeric" autoComplete="current-password" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>{t("me.newPasscode")}<input inputMode="numeric" autoComplete="new-password" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>{t("me.confirmNewPasscode")}<input inputMode="numeric" autoComplete="new-password" maxLength="4" value={confirmPasscode} onChange={(event) => setConfirmPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-mobile-primary" disabled={loading}>{t("me.savePasscode")}</button></form></section> : <>
+      {meView === "settings" ? <><CrewMobileDetailHeader title={t("me.settings")} onBack={() => setMeView("main")} /><section className="crew-me-settings crew-ui-functional-surface"><CrewActionRow icon={Bell} title={t("me.notifications")} /><CrewActionRow icon={Languages} title={t("me.language")} subtitle={t(`languages.${i18n.resolvedLanguage || i18n.language}`)} ariaLabel={t("me.language")} onClick={() => setLanguageOpen(true)} /><CrewActionRow icon={ShieldCheck} title={t("me.privacy")} /><CrewActionRow icon={FileText} title={t("me.terms")} /><CrewActionRow icon={HelpCircle} title={t("me.about")} /></section></> : meView === "profile" ? <ProfileInformation profile={profile || employee} employee={employee} context={context} firstName={firstName} t={t} onBack={() => setMeView("main")} onChoosePhoto={() => photoInput.current?.click()} uploadingPhoto={uploadingPhoto} photoError={photoError} /> : meView === "passcode" ? <section className="crew-me-passcode-page"><CrewMobileDetailHeader title={t("me.changePasscode")} onBack={() => setMeView("main")} /><form className="crew-v2-passcode-form" onSubmit={changePasscode}><p>{t("me.passcodeHelp")}</p>{passcodeField("current", t("me.currentPasscode"), currentPasscode, setCurrentPasscode, "current-password", attempted && !/^\d{4}$/.test(currentPasscode) ? t("me.enterPasscodes") : "")}{passcodeField("next", t("me.newPasscode"), newPasscode, setNewPasscode, "new-password", attempted && !/^\d{4}$/.test(newPasscode) ? t("me.enterPasscodes") : "")}{passcodeField("confirm", t("me.confirmNewPasscode"), confirmPasscode, setConfirmPasscode, "new-password", confirmPasscode && newPasscode !== confirmPasscode ? t("me.passcodeMismatch") : "")}{error && <div className="crew-v2-error" role="alert">{error}</div>}<button className="crew-mobile-primary" disabled={loading || passcodeInvalid}>{loading ? t("common.saving") : t("me.savePasscode")}</button></form></section> : <>
         <CrewMobilePageHeader title={t("me.title")} />{passcodeSuccess && <p className="crew-me-success" role="status"><Check size={16} /> {t("me.passcodeSaved")}</p>}
         <section className="crew-me-profile-hero">
           <img className="crew-me-profile-credential-art" src={crewMeProfileCredentialAsset} alt="" aria-hidden="true" />
-          <span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span>
+          <CrewProfileAvatar name={employee.full_name || firstName} photoUrl={profile?.profile_photo_url} onChoose={() => photoInput.current?.click()} uploading={uploadingPhoto} t={t} />
           <span className="crew-me-profile-copy"><strong>{employee.full_name || firstName}</strong><small>{employee.position || t("home.crewMember")}</small><small className="crew-me-outlet"><BriefcaseBusiness size={14} />{context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small>{employmentType && <CrewStatusBadge tone="mint">{formatEmploymentType(employmentType)}</CrewStatusBadge>}</span>
         </section>
         <section className="crew-me-section"><h2>{t("me.work")}</h2><div className="crew-me-list">
@@ -88,6 +123,7 @@ export default function CrewMeMobile({ session, context, profile, attendance, le
         </div></section>
         <button className="crew-v2-logout crew-mobile-destructive" type="button" onClick={() => setLogoutConfirmOpen(true)}><LogOut size={20} /> {t("me.logout")}</button>
       </>}
+      <input ref={photoInput} className="crew-me-profile-photo-input" type="file" accept="image/jpeg,image/png,image/webp" onChange={updatePhoto} tabIndex="-1" aria-hidden="true" />
       {languageOpen && <CrewBottomSheet title={t("me.languageTitle")} description={t("me.languageHint")} onClose={() => setLanguageOpen(false)} className="crew-language-modal"><div className="crew-language-list">{SUPPORTED_CREW_LANGUAGES.map((language) => <button type="button" key={language} aria-pressed={(i18n.resolvedLanguage || i18n.language) === language} onClick={() => { i18n.changeLanguage(language); setLanguageOpen(false); }}><span>{t(`languages.${language}`)}</span>{(i18n.resolvedLanguage || i18n.language) === language && <Check size={18} />}</button>)}</div></CrewBottomSheet>}
       {logoutConfirmOpen && <CrewMobileModal title={t("me.logoutTitle")} description={t("me.logoutBody")} onClose={() => setLogoutConfirmOpen(false)} footer={<><button type="button" className="crew-mobile-ghost" onClick={() => setLogoutConfirmOpen(false)}>{t("common.cancel")}</button><button type="button" className="crew-mobile-destructive" onClick={onLogout}>{t("me.logout")}</button></>} />}
     </section>;

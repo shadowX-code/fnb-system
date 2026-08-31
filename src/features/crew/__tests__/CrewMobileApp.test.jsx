@@ -25,6 +25,7 @@ const mocks = vi.hoisted(() => ({
   learningAssignment: vi.fn(),
   clock: vi.fn(),
   changePasscode: vi.fn(),
+  updateMyProfilePhoto: vi.fn(),
   localizedContentForCrew: vi.fn(),
   myProfile: vi.fn(),
 }));
@@ -82,6 +83,7 @@ beforeEach(() => {
   mocks.myProfile.mockReset().mockResolvedValue({ employment_type: "full_time" });
   mocks.clock.mockReset().mockResolvedValue({});
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
+  mocks.updateMyProfilePhoto.mockReset().mockResolvedValue({ profile_photo_path: "employee-a/profile.webp", profile_photo_url: "https://example.test/profile.webp" });
 });
 
 afterEach(async () => { cleanup(); await i18n.changeLanguage("en"); });
@@ -283,6 +285,18 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.queryByRole("button", { name: "Passcode" })).toBeNull();
     expect(screen.getByRole("button", { name: "Language" })).not.toBeNull();
+  });
+
+  it("keeps profile information master-data backed and scopes photo replacement to the current Crew session", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myProfile.mockResolvedValueOnce({ full_name: "Alex Tan", position: "Service Crew", outlet_name: "Friends Corner", employment_status: "active", birthday: null, profile_photo_path: null });
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: "Profile Information" }));
+    expect(screen.getAllByText("Not provided").length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Upload or replace profile photo" })).not.toBeNull();
+    expect(screen.queryByText("Full Name")).toBeNull();
+    expect(screen.getByText("Service Crew · Friends Corner")).not.toBeNull();
   });
 
   it("uses a two-step mobile and custom passcode login that auto-submits four digits", async () => {
