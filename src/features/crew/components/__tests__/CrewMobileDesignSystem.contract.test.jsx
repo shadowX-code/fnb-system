@@ -157,6 +157,14 @@ describe("Crew Mobile design system contract", () => {
     expect(home).toContain(".crew-home-task .crew-home-task-due.is-overdue");
   });
 
+  it("keeps Today’s Tasks as an open operational list while Schedule retains its functional surface", () => {
+    expect(home).toContain(".crew-home-tasks .crew-home-list { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }");
+    expect(home).toContain(".crew-home-task { min-height: var(--crew-mobile-row-min);");
+    expect(home).toContain("background: transparent; padding: 8px 4px; box-shadow: none;");
+    expect(home).toContain(".crew-home-task:last-child, .crew-home-schedule-row:last-child { border-bottom: 0; }");
+    expect(home).toContain(".crew-home-list { overflow: hidden; border: 1px solid var(--crew-color-border);");
+  });
+
   it("owns app gutters, Bottom Nav clearance, and sticky-action geometry in the Fundamental", () => {
     ["--crew-mobile-page-inline: 16px", "--crew-mobile-page-bottom: calc(var(--crew-mobile-nav-height) + 28px + env(safe-area-inset-bottom))", ".crew-v2-app { width: min(100%, var(--crew-mobile-content-max))", ".crew-ui-sticky-actions", ".crew-ui-sticky-actions--with-nav", ".crew-ui-sticky-actions--sheet"].forEach((contract) => expect(system).toContain(contract));
     expect(appStyles).not.toContain(".crew-v2-app");

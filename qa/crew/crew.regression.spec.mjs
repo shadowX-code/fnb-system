@@ -90,7 +90,9 @@ test("Home tasks share one dense list without truncating title or status", async
   await open(page, info, "crew/home");
   const rows = page.locator(".crew-home-task");
   await expect(rows.first()).toBeVisible();
-  expect(await page.locator(".crew-home-tasks .crew-home-list").evaluate(element => parseFloat(getComputedStyle(element).borderRadius))).toBeGreaterThan(0);
+  await expect(page.locator(".crew-home-tasks .crew-home-list")).toHaveCSS("border-top-width", "0px");
+  await expect(page.locator(".crew-home-tasks .crew-home-list")).toHaveCSS("border-radius", "0px");
+  await expect(page.locator(".crew-home-tasks .crew-home-list")).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   for (const row of await rows.all()) {
     await expect(row).toHaveCSS("border-radius", "0px");
     await expect(row).toHaveCSS("box-shadow", "none");
