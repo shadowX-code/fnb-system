@@ -370,6 +370,12 @@ function CrewLearnLoadingShell({ showLoadingMark }) {
   );
 }
 
+function onboardingModuleState(module) {
+  if (module.completed) return "completed";
+  if (module.locked) return "locked";
+  return module.status === "in_progress" || Number(module.progress_percentage) > 0 ? "in-progress" : "available";
+}
+
 function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
   const { t } = useTranslation();
   if (!assignment) {
@@ -395,28 +401,34 @@ function OnboardingDetail({ assignment, home, error, onBack, onOpenLesson }) {
         <h2>{assignment.journey?.name || "New Crew Onboarding"}</h2>
         {journeyDescription && <p>{journeyDescription}</p>}
         <div className="crew-learning-journey-progress">
-          <strong><b>{home?.assignment?.lessons_completed || 0}</b><span>{t("learn.journeyProgress", { total: home?.assignment?.lessons_total || 0 })}</span></strong>
+          <strong><b>{home?.assignment?.lessons_completed || 0}</b><span className="crew-learning-journey-progress-total">{t("learn.journeyProgressOf", { total: home?.assignment?.lessons_total || 0 })}</span><small>{t("learn.journeyProgressCompleted")}</small></strong>
           <CrewProgressBar value={home?.assignment?.progress_percentage || 0} />
         </div>
       </article>
-      <CrewSectionHeader title={t("learn.modulesTitle")} meta={assignment.modules?.length || 0} />
-      {assignment.modules?.map((module, index) => (
-        <section className={module.locked ? "crew-learning-module crew-ui-functional-surface is-locked" : "crew-learning-module crew-ui-functional-surface"} key={module.module?.id}>
+      <CrewSectionHeader title={<><span>{t("learn.modulesTitle")}</span>{" "}<span className="crew-ui-count crew-learning-modules-count">{assignment.modules?.length || 0}</span></>} />
+      {assignment.modules?.map((module, index) => {
+        const state = onboardingModuleState(module);
+        const currentLessonId = state === "in-progress"
+          ? module.lessons?.find((item) => !item.completed && !item.locked)?.lesson?.id
+          : null;
+        return (
+        <section className={`crew-learning-module crew-ui-functional-surface is-${state}`} key={module.module?.id}>
           <div className="crew-module-head">
             <span className="crew-module-order">{String(index + 1).padStart(2, "0")}</span>
             <div><h3>{module.module?.title}</h3><p>{t("learn.percentComplete", { count: module.progress_percentage })}</p></div>
-            <span className={module.completed ? "crew-ui-icon-container crew-ui-icon-container--compact is-success" : module.locked ? "crew-ui-icon-container crew-ui-icon-container--compact is-locked" : "crew-ui-icon-container crew-ui-icon-container--compact"}>{module.completed ? <CheckCircle2 size={17} /> : module.locked ? <LockKeyhole size={16} /> : <BookOpenCheck size={17} />}</span>
+            <span className={state === "completed" ? "crew-ui-icon-container crew-ui-icon-container--compact is-success" : state === "locked" ? "crew-ui-icon-container crew-ui-icon-container--compact is-locked" : state === "in-progress" ? "crew-ui-icon-container crew-ui-icon-container--compact is-active" : "crew-ui-icon-container crew-ui-icon-container--compact"}>{state === "completed" ? <CheckCircle2 size={17} /> : state === "locked" ? <LockKeyhole size={16} /> : <BookOpenCheck size={17} />}</span>
           </div>
           <CrewProgressBar value={module.progress_percentage} />
           {module.lessons?.map((item) => (
-            <button key={item.lesson?.id} className={item.locked ? "crew-lesson-row is-locked" : "crew-lesson-row"} disabled={item.locked} onClick={() => onOpenLesson({ ...item, moduleTitle: module.module?.title })}>
+            <button key={item.lesson?.id} className={`crew-lesson-row${item.locked ? " is-locked" : ""}${item.lesson?.id === currentLessonId ? " is-current" : ""}`} disabled={item.locked} onClick={() => onOpenLesson({ ...item, moduleTitle: module.module?.title })}>
               <span className={item.completed ? "crew-lesson-marker is-success" : item.locked ? "crew-lesson-marker is-locked" : "crew-lesson-marker"}>{item.completed ? <CheckCircle2 size={16} /> : item.locked ? <LockKeyhole size={15} /> : <PlayCircle size={16} />}</span>
               <span><strong>{item.lesson?.title}</strong><small>{item.completed ? t("learn.completedReview") : item.locked ? t("learn.completeEarlier") : item.quiz?.required ? t("learn.lessonQuiz") : t("learn.readyLearn")}</small></span>
               <ChevronRight size={17} />
             </button>
           ))}
         </section>
-      ))}
+        );
+      })}
     </section>
   );
 }

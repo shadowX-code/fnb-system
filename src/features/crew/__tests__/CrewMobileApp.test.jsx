@@ -96,6 +96,33 @@ describe("Crew Mobile redesign", () => {
     await waitFor(() => expect(mocks.learningHome).toHaveBeenCalledTimes(1));
   });
 
+  it("keeps onboarding progress and module states visually distinct without changing lesson access", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.learningHome.mockResolvedValueOnce({ assignment: { id: "assignment-1", progress_percentage: 50, lessons_completed: 2, lessons_total: 4 }, required_sops: [] });
+    mocks.learningAssignment.mockResolvedValueOnce({
+      id: "assignment-1",
+      journey: { name: "New Crew Onboarding", description: "Essential learning for your first shifts." },
+      modules: [
+        { module: { id: "module-completed", title: "Welcome" }, status: "completed", progress_percentage: 100, completed: true, locked: false, lessons: [{ lesson: { id: "lesson-completed", title: "Welcome to Friends Corner" }, completed: true, locked: false }] },
+        { module: { id: "module-current", title: "Service basics" }, status: "in_progress", progress_percentage: 50, completed: false, locked: false, lessons: [{ lesson: { id: "lesson-done", title: "Greeting basics" }, completed: true, locked: false }, { lesson: { id: "lesson-current", title: "First 5 Seconds" }, completed: false, locked: false }] },
+        { module: { id: "module-available", title: "Taking orders" }, status: "not_started", progress_percentage: 0, completed: false, locked: false, lessons: [{ lesson: { id: "lesson-ready", title: "Taking an order" }, completed: false, locked: false }] },
+      ],
+    });
+    render(<CrewMobileApp />);
+
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[1]);
+    fireEvent.click(await screen.findByRole("button", { name: /New Crew Onboarding/ }));
+
+    expect(await screen.findByRole("heading", { name: /Modules/ })).not.toBeNull();
+    expect(document.querySelector(".crew-learning-modules-count")?.textContent).toBe("3");
+    expect(document.querySelector(".crew-learning-journey-progress-total")?.textContent).toBe("of 4");
+    expect(document.querySelector(".crew-learning-module.is-completed")).not.toBeNull();
+    expect(document.querySelector(".crew-learning-module.is-in-progress")).not.toBeNull();
+    expect(document.querySelector(".crew-learning-module.is-available")).not.toBeNull();
+    expect(screen.getByRole("button", { name: /First 5 Seconds/ }).classList.contains("is-current")).toBe(true);
+    expect(screen.getByRole("button", { name: /Taking an order/ }).classList.contains("is-current")).toBe(false);
+  });
+
   it("changes and persists the Crew system language from Me Settings", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);

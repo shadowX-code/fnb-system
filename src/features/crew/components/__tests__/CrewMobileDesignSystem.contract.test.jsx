@@ -225,7 +225,11 @@ describe("Crew Mobile design system contract", () => {
     expect(learning).toContain("function onboardingJourneyDescription(description)");
     expect(learning).toContain("FeedX Crew Onboarding Full Demo");
     expect(learning).toContain("{journeyDescription && <p>{journeyDescription}</p>}");
-    expect(learning).toContain('t("learn.journeyProgress", { total: home?.assignment?.lessons_total || 0 })');
+    expect(learning).toContain('t("learn.journeyProgressOf", { total: home?.assignment?.lessons_total || 0 })');
+    expect(learning).toContain('t("learn.journeyProgressCompleted")');
+    expect(learning).toContain('crew-ui-count crew-learning-modules-count');
+    expect(learning).toContain('function onboardingModuleState(module)');
+    expect(learning).toContain('crew-lesson-row${item.locked ? " is-locked" : ""}${item.lesson?.id === currentLessonId ? " is-current" : ""}');
     expect(learning).toContain('className="crew-learning-context"');
     expect(learning).toContain('className="crew-learning-section-label"');
     expect(learning).toContain('crew-learning-content-block crew-ui-note crew-ui-note--mint is-key-point');
@@ -235,9 +239,12 @@ describe("Crew Mobile design system contract", () => {
     expect(learningStyles).toContain('.crew-learning-home .crew-module-head h3 { margin:0; color:var(--crew-color-deep-teal); font-size:var(--crew-type-section-title);');
     expect(learningStyles).toContain('.crew-learning-journey-art { position:absolute; z-index:-2; inset:0; width:100%; height:100%; object-fit:cover; object-position:72% 50%; pointer-events:none; }');
     expect(learningStyles).toContain('.crew-learning-home > .crew-ui-section-head h2 { display:flex; align-items:center; gap:8px; }');
+    expect(learningStyles).toContain('.crew-learning-modules-count { flex:0 0 auto; }');
+    expect(learningStyles).toContain('.crew-learning-module.is-in-progress .crew-module-head p { color:var(--crew-color-deep-teal); font-weight:700; }');
     expect(learningStyles).toContain('.crew-learning-home .crew-module-head p { margin:3px 0 0; color:var(--crew-color-text-secondary); font-size:var(--crew-type-body);');
     expect(learningStyles).toContain('.crew-lesson-row strong { color:var(--crew-color-text); font-size:var(--crew-type-row-title);');
     expect(learningStyles).toContain('.crew-lesson-row small { color:var(--crew-color-text-secondary); font-size:var(--crew-type-secondary);');
+    expect(learningStyles).toContain('.crew-lesson-row.is-current { background:color-mix(in srgb,var(--crew-color-mist-mint) 30%,white); }');
     expect(learningStyles).toContain('.crew-learning-home .crew-module-order { display:grid; width:30px; height:30px;');
     expect(learningStyles).toContain('.crew-learning-reader .crew-learning-lesson-header h2 { margin:0; color:var(--crew-color-deep-teal);');
     expect(learningStyles).toContain('.crew-learning-reader .crew-learning-summary { margin:0; color:var(--crew-color-text-secondary); font-size:var(--crew-type-secondary);');
