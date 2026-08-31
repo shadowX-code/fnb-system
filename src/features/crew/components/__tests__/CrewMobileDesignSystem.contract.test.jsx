@@ -515,6 +515,16 @@ describe("Crew Mobile design system contract", () => {
     expect(home).toContain(".crew-clock-reason-options");
   });
 
+  it("keeps Performance evidence detail content feature-owned while sharing the bottom-sheet shell", () => {
+    expect(growth).toContain('import CrewBottomSheet from "./CrewBottomSheet.jsx"');
+    expect(growth).toContain("function PerformanceDetailSheet");
+    expect(growth).toContain('className="crew-performance-detail-sheet"');
+    expect(growth).not.toContain("function PerformanceModal");
+    expect(performanceModal).toContain(".crew-performance-detail-sheet");
+    expect(performanceModal).not.toContain(".crew-performance-final-modal-backdrop");
+    expect(performanceModal).not.toContain(".crew-performance-detail-modal");
+  });
+
   it("gives Reward one token-based feature presentation owner", () => {
     expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
@@ -522,7 +532,8 @@ describe("Crew Mobile design system contract", () => {
     [".crew-reward-hero-metrics", ".crew-reward-surface", ".crew-reward-performance-relationship", ".crew-reward-potential", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
     expect(system).toContain(".crew-ui-modal");
     expect(system).toContain(".crew-ui-help-sheet");
-    expect(system).toContain(".crew-mobile-page-header-action > .crew-ui-help-trigger.is-header");
+    expect(system).toContain(".crew-mobile-page-header-action>button:not(.crew-ui-help-trigger)");
+    expect(system).not.toContain(".crew-mobile-page-header-action > .crew-ui-help-trigger.is-header");
     expect(help).toContain("export function CrewHelpTrigger");
     expect(help).toContain("export function CrewHelpSheet");
     expect(reward).not.toContain("HeroInfoButton");

@@ -21,11 +21,11 @@ import {
   Star,
   Target,
   TrendingUp,
-  X,
 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
+import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import { CrewHelpSheet, CrewHelpTrigger } from "./CrewHelp.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 import growthPerformanceHeroBackground from "../assets/growth-performance-hero-approved.png";
@@ -363,45 +363,17 @@ function buildComponentGuidance(component, t) {
   return { why, improve, whatCounts, cta, level: value == null ? (item?.status === "review_required" ? t("status.review_required") : t("performance.awaitingEvidence")) : performanceLevel(Math.round(value * 100 / max), t) };
 }
 
-function PerformanceModal({ title, onClose, children }) {
-  const { t } = useTranslation();
-  const modalRef = useRef(null);
-  const closeRef = useRef(null);
-  useEffect(() => {
-    const previousFocus = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    closeRef.current?.focus();
-    const handleKeyDown = (event) => {
-      if (event.key === "Escape") return onClose();
-      if (event.key !== "Tab") return;
-      const focusable = [...modalRef.current.querySelectorAll("button, [href], [tabindex]:not([tabindex='-1'])")];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener("keydown", handleKeyDown);
-      previousFocus?.focus?.();
-    };
-  }, [onClose]);
-  return <div className="crew-performance-final-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section ref={modalRef} className="crew-performance-final-modal crew-performance-detail-modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
-      <header><h2>{title}</h2><button ref={closeRef} type="button" aria-label={t("common.closeNamed", { title })} onClick={onClose}><X size={19} /></button></header>
-      <div>{children}</div>
-    </section>
-  </div>;
+function PerformanceDetailSheet({ title, onClose, children }) {
+  return <CrewBottomSheet title={title} onClose={onClose} className="crew-performance-detail-sheet" contentClassName="crew-performance-detail-sheet-content">
+    {children}
+  </CrewBottomSheet>;
 }
 
 function PerformanceComponentModal({ component, onClose, onNavigate }) {
   const { t } = useTranslation();
   const Icon = component.icon;
   const guidance = buildComponentGuidance(component, t);
-  return <PerformanceModal title={component.label} onClose={onClose}>
+  return <PerformanceDetailSheet title={component.label} onClose={onClose}>
     <div className="crew-performance-component-modal">
       <header className="crew-performance-component-summary">
         <i className="crew-ui-icon-container crew-ui-icon-container--emphasis"><Icon size={22} /></i>
@@ -421,7 +393,7 @@ function PerformanceComponentModal({ component, onClose, onNavigate }) {
       <section className="crew-performance-component-section is-counts"><h3>{t("performance.whatCounts")}</h3><p>{guidance.whatCounts}</p></section>
       {guidance.cta ? <button type="button" className="crew-mobile-primary crew-performance-component-cta" onClick={() => onNavigate(guidance.cta.action)}>{guidance.cta.label} <ArrowUpRight size={17} /></button> : null}
     </div>
-  </PerformanceModal>;
+  </PerformanceDetailSheet>;
 }
 
 function PerformanceHero({ performance }) {

@@ -146,17 +146,19 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.queryByRole("button", { name: /View Reward/ })).toBeNull();
   });
 
-  it("keeps the rich component detail dialog while using the shared sheet for explanatory help", () => {
+  it("keeps the rich component detail viewer distinct from explanatory help while sharing the mobile sheet shell", () => {
     render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" />);
     fireEvent.click(screen.getByRole("button", { name: "View Attendance evidence" }));
-    expect(screen.getByRole("dialog", { name: "Attendance" })).not.toBeNull();
+    const detailSheet = screen.getByRole("dialog", { name: "Attendance" });
+    expect(detailSheet.classList.contains("crew-performance-detail-sheet")).toBe(true);
+    expect(detailSheet.classList.contains("crew-ui-bottom-sheet")).toBe(true);
     expect(screen.getByText("15 of 15 completed")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Why this score" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Keep it up" })).not.toBeNull();
     expect(screen.getByText(/Location exceptions are not automatically penalized/)).not.toBeNull();
     expect(screen.getByRole("button", { name: "View Attendance" })).not.toBeNull();
     expect(document.body.textContent).not.toContain("Manager note");
-    fireEvent.click(screen.getByRole("button", { name: "Close Attendance" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: "Performance help" }));
     expect(screen.getByRole("dialog", { name: "About My Performance" }).classList.contains("crew-ui-help-sheet")).toBe(true);
     expect(screen.queryByText(/Maximum Reward Share/)).toBeNull();
@@ -185,7 +187,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText("Needs Improvement")).not.toBeNull();
     expect(screen.getByText(/Keep your assigned work area clean/)).not.toBeNull();
     expect(document.body.textContent).not.toContain("private coaching");
-    fireEvent.click(screen.getByRole("button", { name: "Close Service Standards" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: "View Conduct evidence" }));
     expect(screen.getByText(/Take ownership of assigned tasks/)).not.toBeNull();
     expect(document.body.textContent).not.toContain("private conduct note");
@@ -200,7 +202,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText("Respond to guest requests quickly.")).not.toBeNull();
     expect(screen.queryByText(/★/)).toBeNull();
     expect(screen.queryByRole("button", { name: /feedback/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Close Customer Experience" }));
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
     rerender(<CrewGrowthMobile data={data} performance={{ ...fullPerformance, breakdown: { ...fullPerformance.breakdown, customer: { score: 12, sample_count: 0, positive_count: 0, improvement_count: 0, confidence: "insufficient_data" } } }} initialView="performance" />);
     fireEvent.click(screen.getByRole("button", { name: "View Customer Experience evidence" }));
     expect(screen.getAllByText("Insufficient data").length).toBeGreaterThan(0);
