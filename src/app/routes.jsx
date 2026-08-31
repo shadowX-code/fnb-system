@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOverviewPage.jsx";
 import SPDashboardPage from "../features/sales-purchase/pages/SPDashboardPage.jsx";
 import AlertsInsightsPage from "../features/sales-purchase/pages/AlertsInsightsPage.jsx";
@@ -12,8 +13,6 @@ import ProductAnalyticsPage from "../features/sales-purchase/pages/ProductAnalyt
 import ReportsPage from "../features/reports/pages/ReportsPage.jsx";
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
 import SharedDutyRosterPage from "../features/roster/pages/SharedDutyRosterPage.jsx";
-import AssetTrackingPage from "../features/sales-purchase/pages/AssetTrackingPage.jsx";
-import InventoryControlPage from "../features/sales-purchase/pages/InventoryControlPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
@@ -21,7 +20,6 @@ import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.j
 import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
 import RolesPage from "../features/company-users/pages/RolesPage.jsx";
 import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
-import FactoryWorkspacePage from "../features/factory/pages/FactoryWorkspacePage.jsx";
 import CrewWorkspacePage from "../features/crew/pages/CrewWorkspacePage.jsx";
 import CrewAttendanceAdminPage from "../features/crew/pages/CrewAttendanceAdminPage.jsx";
 import CrewLearningAdminResetPage from "../features/crew/pages/CrewLearningAdminResetPage.jsx";
@@ -34,6 +32,11 @@ import CrewLeaveAdminPage from "../features/crew/pages/CrewLeaveAdminPage.jsx";
 import CrewCashCheckoutAdminPage from "../features/crew/pages/CrewCashCheckoutAdminPage.jsx";
 import { GuestAiDeveloperPage, GuestAiDevicesPage, GuestAiInteractionsPage, GuestAiOverviewPage, GuestAiStudioPage } from "../features/guest-ai/pages/GuestAiWorkspacePages.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
+
+// Keep one component identity per feature, including all of its route aliases.
+const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
+const InventoryControlPage = lazy(() => import("../features/sales-purchase/pages/InventoryControlPage.jsx"));
+const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/AssetTrackingPage.jsx"));
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
   const isFactoryModule = String(moduleId).startsWith("factory_");

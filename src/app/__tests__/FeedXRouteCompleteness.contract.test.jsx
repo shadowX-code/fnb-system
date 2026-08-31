@@ -16,7 +16,7 @@ describe("FeedX route completeness contract", () => {
       const route = salesPurchaseRoutes.find((candidate) => candidate.id === module.id);
 
       expect(detail, `${module.id} must have explicit route details`).toBeTruthy();
-      expect(detail.component, `${module.id} must resolve to a component`).toEqual(expect.any(Function));
+      expect(typeof detail.component === "function" || detail.component?.$$typeof === Symbol.for("react.lazy"), `${module.id} must resolve to a component or lazy component`).toBe(true);
       expect(route, `${module.id} must be registered as a runtime route`).toBeTruthy();
       expect(route.component, `${module.id} must not use the generic placeholder`).toBe(detail.component);
       expect(route.permission, `${module.id} must use route or registry view permission`).toBe(detail.permission ?? viewPermission(module.id));

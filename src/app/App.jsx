@@ -5,6 +5,7 @@ import AppShell from "../layouts/AppShell.jsx";
 import { operationsService } from "../features/sales-purchase/services/operationsService.js";
 import { salesPurchaseRoutes } from "./routes.jsx";
 import { canonicalRouteId } from "./routeOwnership.js";
+import AdminRouteBoundary from "./AdminRouteBoundary.jsx";
 import { outletService } from "../services/outletService.js";
 import { supplierService } from "../services/supplierService.js";
 import { purchaseCategoryService } from "../services/purchaseCategoryService.js";
@@ -670,9 +671,11 @@ export default function App() {
         ) : null}
         <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
         <CrewAdminOutletProvider outlets={effectiveStore.outlets}>
-          {workspaceForRoute(activeRouteId) === "guest_ai" ? (
-            <GuestAiDeviceRuntimeProvider><ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} /></GuestAiDeviceRuntimeProvider>
-          ) : <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />}
+          <AdminRouteBoundary routeKey={activeRouteId} label={activeRoute.label}>
+            {workspaceForRoute(activeRouteId) === "guest_ai" ? (
+              <GuestAiDeviceRuntimeProvider><ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} /></GuestAiDeviceRuntimeProvider>
+            ) : <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />}
+          </AdminRouteBoundary>
         </CrewAdminOutletProvider>
       </AppShell>
       <ToastViewport

@@ -43,6 +43,14 @@ Growth/Performance, Reward, Learn, Cash Checkout, and Leave components use route
 
 ## Canonical Routing
 
+### Admin Async Feature Boundaries
+
+The route registry owns one React lazy component identity each for Factory Workspace, Inventory Control, and Asset Tracking. Existing aliases/subroutes reuse that identity and pass their existing route props; Factory remains one workspace implementation, not a collection of independently owned route fragments. Dashboard-required services and read projections remain shared rather than copied into the delayed management pages.
+
+`src/app/AdminRouteBoundary.jsx` owns Admin route loading and render/chunk failure presentation inside the existing shell, after the established route/permission selection. Its Suspense fallback reserves page content space while navigation stays available. A failed load offers explicit full-page reload (retaining the URL and fetching the current entry) or navigation to another route; it does not auto-reload or loop retries of React's cached rejected lazy import. Changing routes clears a failed boundary without key-remounting healthy Factory/Inventory subroute state. Crew retains its own loading boundary.
+
+`node scripts/verifyAppBundle.mjs` builds in memory and verifies the production initial static dependency closure excludes these three implementations and the Recharts/D3/Redux/Immer chart family. This is a loading-ownership guard, not a new routing, service, or permission authority. Shared async dependencies are left to Vite/Rollup rather than forced vendor chunks. See [App bundle evidence](../testing/APP_BUNDLE_BOUNDARIES.md) for measurements and regression scope.
+
 Every active capability has one canonical route owner and one implementation owner.
 Navigation links should target canonical routes.
 Permissions may hide or deny a route but must not redefine its ownership.
