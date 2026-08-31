@@ -121,6 +121,37 @@ test("Home tasks share one dense list without truncating title or status", async
   await expect(sopTitle).toHaveCSS("font-weight", "600");
 });
 
+test("Clock exception, SOP status, and Cash session headers preserve their mobile layout boundaries", async ({ page }, info) => {
+  await open(page, info, "crew/home");
+  const exception = page.locator(".crew-home-location-exception");
+  const orb = page.locator(".crew-home-clock-action");
+  await expect(orb).toBeVisible();
+  if (await exception.count()) {
+    expect(await exception.evaluate(element => element.closest(".crew-home-attendance-copy") !== null && element.closest(".crew-home-clock-zone") === null)).toBe(true);
+    expect(await exception.evaluate((element, selector) => {
+      const exceptionRect = element.getBoundingClientRect();
+      const orbRect = document.querySelector(selector).getBoundingClientRect();
+      return exceptionRect.right <= orbRect.left || exceptionRect.left >= orbRect.right || exceptionRect.bottom <= orbRect.top || exceptionRect.top >= orbRect.bottom;
+    }, ".crew-home-clock-action")).toBe(true);
+  }
+
+  await page.getByRole("navigation").getByRole("button", { name: t("nav.learn"), exact: true }).click();
+  const sopRow = page.locator(".crew-learn-final-sop").first();
+  await expect(sopRow).toBeVisible();
+  expect(await sopRow.evaluate(element => {
+    const badge = element.querySelector(".crew-learn-final-ack .crew-ui-status").getBoundingClientRect();
+    const chevron = element.querySelector(".crew-learn-final-chevron").getBoundingClientRect();
+    return chevron.left - badge.right >= 12;
+  })).toBe(true);
+
+  await page.evaluate(() => { window.location.hash = "crew/me/cash-checkout"; });
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(t("cash.title"));
+  await expect(page.getByText(t("cash.todayCheckout"), { exact: true })).toHaveCount(0);
+  await expect(page.locator(".crew-cash-today-summary > header small")).toBeVisible();
+  await expect(page.locator(".crew-cash-summary-status")).toBeVisible();
+  await assertMobileLayout(page);
+});
+
 test("shared navigation keeps five line icons and stable active geometry", async ({ page }, info) => {
   await open(page, info, "crew/home");
   const nav = page.getByRole("navigation", { name: t("nav.label") });

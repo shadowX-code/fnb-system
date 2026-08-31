@@ -25,7 +25,8 @@ describe("Crew Cash Checkout mobile", () => {
   it("renders the server-scoped checkout and deposit summary", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
-    expect(screen.getByText("Today’s Checkout")).not.toBeNull();
+    expect(screen.queryByText("Today’s Checkout")).toBeNull();
+    expect(screen.getByText(/21 Aug 2026/)).not.toBeNull();
     expect(screen.getByText("RM 500.00")).not.toBeNull();
     expect(screen.queryByText("Count Outlet Cash")).toBeNull();
     expect(screen.getByText("RM 300.00")).not.toBeNull();

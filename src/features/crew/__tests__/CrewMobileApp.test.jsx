@@ -729,6 +729,8 @@ describe("Crew Mobile redesign", () => {
     mocks.myAttendance.mockResolvedValue([{ id: "open-exception", status: "open", clock_in_at: "2026-08-14T02:00:00Z", clock_in_location_verified: false, clock_in_location_exception: true }]);
     render(<CrewMobileApp />);
     expect(await screen.findByText("Location exception recorded")).not.toBeNull();
+    expect(screen.getByText("Location exception recorded").closest(".crew-home-attendance-copy")).not.toBeNull();
+    expect(screen.getByText("Location exception recorded").closest(".crew-home-clock-zone")).toBeNull();
     expect(screen.queryByText("Within area · GPS Verified")).toBeNull();
   });
 

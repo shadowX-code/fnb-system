@@ -32,8 +32,7 @@
 .crew-cash-today-summary > header > div { display: grid; min-width: 0; gap: 3px; }
 .crew-cash-today-summary > header > .crew-mobile-ghost { min-width: 44px; padding-inline: 0; }
 .crew-cash-today-summary > header small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); font-weight: 650; letter-spacing: .035em; text-transform: uppercase; }
-.crew-cash-today-summary h2 { margin: 0; color: var(--crew-color-text); font-size: var(--crew-type-section-title); line-height: 1.2; }
-.crew-cash-summary-status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.crew-cash-summary-status { display: flex; flex-wrap: wrap; gap: 6px; }
 .crew-cash-summary .crew-cash-today-summary > dl { grid-column: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 10px 0; border-block: 1px solid var(--crew-color-divider); }
 .crew-cash-today-summary > dl div { padding-inline: 10px; border-left: 1px solid var(--crew-color-divider); }
 .crew-cash-today-summary > dl div:first-child { padding-left: 0; border-left: 0; }
