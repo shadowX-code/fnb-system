@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import crewEnglish from "../../src/locales/en/crew.js";
 import { assertNoPageHorizontalOverflow, captureScreenshot, crewCredentials, installBrowserErrorCapture, loginCrew } from "./stagingSmokeHelpers.mjs";
 
 test("Crew can sign in and navigate without page-level mobile overflow", async ({ page, baseURL }, testInfo) => {
@@ -11,7 +12,7 @@ test("Crew can sign in and navigate without page-level mobile overflow", async (
   await assertNoPageHorizontalOverflow(page);
   // Real account + real contracts only. These routes are read-only; fixture data
   // belongs to qa/crew and is never injected into Staging.
-  for (const [route, heading] of [["me/attendance", "Attendance"], ["schedule", "My Schedule"], ["tasks", "All Tasks"], ["me/cash-checkout", "Cash Checkout"], ["growth", "Growth"], ["growth/performance", "Performance"], ["reward", "Reward"], ["me", "Me"]]) {
+  for (const [route, heading] of [["me/attendance", crewEnglish.attendance.title], ["schedule", crewEnglish.schedule.title], ["tasks", crewEnglish.tasks.title], ["me/cash-checkout", crewEnglish.cash.title], ["growth", crewEnglish.growth.title], ["growth/performance", crewEnglish.performance.title], ["reward", crewEnglish.reward.title], ["me", crewEnglish.me.title]]) {
     await page.goto(`${baseURL}/#crew/${route}`);
     await expect(page.getByRole("heading", { level: 1, name: heading, exact: true })).toBeVisible();
     await assertNoPageHorizontalOverflow(page);
