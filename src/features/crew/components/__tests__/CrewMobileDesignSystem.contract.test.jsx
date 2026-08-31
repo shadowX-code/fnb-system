@@ -333,7 +333,7 @@ describe("Crew Mobile design system contract", () => {
     expect(learningStyles).not.toContain(".crew-learn-final-onboarding{display:grid;width:100%;grid-template-columns:56px minmax(0,1fr) 36px;align-items:center;gap:12px;border:1px solid var(--crew-color-border);border-radius:var(--crew-radius-functional);background:var(--crew-color-mist-mint)");
     expect(learnHome).toContain("CrewStatusBadge");
     expect(learnHome).not.toContain('<strong>{t("learn.acknowledge")}</strong>');
-    expect(learningStyles).toContain("grid-template-columns:40px minmax(0,1fr) minmax(64px,92px) 24px;align-items:center;column-gap:12px");
+    expect(learningStyles).toContain("grid-template-columns:40px minmax(0,1fr) minmax(64px,92px) 24px;align-items:center;column-gap:13px");
     expect(learningStyles).toContain("grid-template-columns:43px minmax(0,1fr) minmax(76px,104px) 24px");
     expect(learningStyles).toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);text-overflow:ellipsis;white-space:nowrap");
     expect(learningStyles).not.toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);font-size:");
