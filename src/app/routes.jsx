@@ -466,10 +466,10 @@ export const routeDetails = {
     props: { initialTab: "overview" },
   },
   crew_growth_reviews: {
-    description: "Review practical assessments and issue controlled certifications.",
+    description: "Compatibility route for integrated Growth Overview certification review.",
     component: CrewGrowthAdminPage,
     permission: "crew_growth.view",
-    props: { initialTab: "reviews" },
+    props: { initialTab: "overview" },
   },
   crew_performance: {
     description: "Review explainable monthly Crew performance and evidence.",

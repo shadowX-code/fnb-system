@@ -66,7 +66,7 @@ Restaurant `Reports` is the canonical Admin route for Reporting preview composit
 
 Compatibility routes preserve old bookmarks or prior module locations by redirecting or resolving to the canonical owner.
 They must not fork page implementations, mutation behavior, or documentation ownership.
-Current examples include legacy roster, Crew learning/operations, and Guest AI aliases resolved by `src/app/routeOwnership.js`.
+Current examples include legacy roster, Crew learning/operations, Growth people/review aliases, and Guest AI aliases resolved by `src/app/routeOwnership.js`.
 
 Crew Mobile uses a small hash sub-route map rather than inheriting Admin route state: `#crew/home`, `learn`, `reward`, `growth`, `growth/performance`, `me`, `me/attendance`, `me/cash-checkout`, `me/leave`, `tasks`, and `schedule`. `#crew` and an invalid Crew sub-route normalize to `#crew/home`. The Crew branch is selected before Admin Auth's bootstrap presentation, so Admin copy and shell do not flash while a Crew token-bound session restores.
 

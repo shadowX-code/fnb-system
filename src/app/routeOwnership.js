@@ -7,6 +7,7 @@ export const legacyRouteRedirects = Object.freeze({
   crew_onboarding: "crew_learning",
   crew_operation_templates: "crew_operations",
   crew_growth_people: "crew_growth",
+  crew_growth_reviews: "crew_growth",
   crew_performance_reviews: "crew_performance",
   crew_reward_cycles: "crew_reward",
 });

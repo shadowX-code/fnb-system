@@ -43,6 +43,7 @@ Evidence snapshots, finalized scoring, review decisions, reward calculations, ap
 ## Admin And Crew Workflows
 
 Admins configure or initiate periods/cycles where supported, review evidence, moderate feedback, finalize outcomes, manage certifications, and control reward approval or payout transitions.
+Growth Overview is the canonical Admin operational surface for Crew skill progress and actionable certification review. Standalone Certification Review navigation is retained only as a compatibility route into Growth Overview; it must not become a second review workflow or mutation authority.
 Crew view permitted growth, performance, certification, and reward outcomes and provide allowed input without controlling final calculations.
 
 ## Integrations

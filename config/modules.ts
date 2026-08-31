@@ -956,7 +956,7 @@ export const moduleRegistry: AppModule[] = [
     label: "Certification Review",
     route: "/crew/growth/reviews",
     icon: "crew-growth-reviews",
-    sidebar: true,
+    sidebar: false,
     workspace: "crew",
     permissions: {},
   },

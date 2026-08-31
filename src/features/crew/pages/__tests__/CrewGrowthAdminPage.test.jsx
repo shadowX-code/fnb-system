@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), evidence: vi.fn(), save: vi.fn(), assess: vi.fn(), certify: vi.fn() }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), evidence: vi.fn(), save: vi.fn(), assess: vi.fn(), certify: vi.fn(), positions: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: { growthAdminData: mocks.data, growthAdminEvidence: mocks.evidence, saveGrowthSkill: mocks.save, submitGrowthAssessment: mocks.assess, certifyGrowthSkill: mocks.certify } }));
+vi.mock("../../../../services/jobPositionService.js", () => ({ jobPositionService: { listJobPositions: mocks.positions } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 import CrewGrowthAdminPage from "../CrewGrowthAdminPage.jsx";
 
@@ -13,7 +14,7 @@ const fixture = { skills: [skill], crew: [{ employee: { id: "employee-1", full_n
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn(), navigate: vi.fn() };
 
-beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.evidence.mockReset().mockResolvedValue([]); mocks.save.mockReset().mockResolvedValue("skill-1"); mocks.assess.mockReset().mockResolvedValue("assessment-1"); mocks.certify.mockReset().mockResolvedValue("cert-1"); ui.notify.mockReset(); ui.navigate.mockReset(); });
+beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.evidence.mockReset().mockResolvedValue([{ type: "module", id: "module-1", label: "Service Basics · Greeting" }]); mocks.save.mockReset().mockResolvedValue("skill-1"); mocks.assess.mockReset().mockResolvedValue("assessment-1"); mocks.certify.mockReset().mockResolvedValue("cert-1"); mocks.positions.mockReset().mockResolvedValue([{ id: "position-1", name: "Service Crew", status: "active" }, { id: "position-2", name: "Cashier", status: "active" }]); ui.notify.mockReset(); ui.navigate.mockReset(); });
 afterEach(cleanup);
 
 describe("Crew Growth Admin", () => {
@@ -24,8 +25,8 @@ describe("Crew Growth Admin", () => {
     expect(screen.getByText("Certified Crew")).not.toBeNull();
     expect(screen.getByText("Crew Growth")).not.toBeNull();
     expect(screen.getAllByText("Alex Tan").length).toBeGreaterThan(0);
-    expect(screen.getByText("Assessment pending")).not.toBeNull();
-    expect(screen.getByText("1 applicable Crew skill records")).not.toBeNull();
+    expect(screen.getByText("Needs Review")).not.toBeNull();
+    expect(screen.getByText("1 certification review ready")).not.toBeNull();
     expect(mocks.evidence).not.toHaveBeenCalled();
   });
 
@@ -48,13 +49,11 @@ describe("Crew Growth Admin", () => {
     expect(screen.getAllByText("Alex Tan").length).toBeGreaterThan(0);
   });
 
-  it("links overview context to Skills and Certification Review", async () => {
+  it("opens the integrated review workflow from Growth Overview", async () => {
     render(<CrewGrowthAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByRole("heading", { name: "Growth Overview" });
-    fireEvent.click(screen.getByRole("button", { name: /View all skills/ }));
-    fireEvent.click(screen.getByRole("button", { name: /View all reviews/ }));
-    expect(ui.navigate).toHaveBeenNthCalledWith(1, "crew_growth_skills");
-    expect(ui.navigate).toHaveBeenNthCalledWith(2, "crew_growth_reviews");
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    expect(screen.getByRole("dialog", { name: "Practical Assessment" })).not.toBeNull();
   });
 
   it("renders Skills filters and opens the requirement editor", async () => {
@@ -64,6 +63,7 @@ describe("Crew Growth Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "View / Edit" }));
     expect(screen.getByRole("dialog", { name: "Edit Skill" })).not.toBeNull();
     expect(screen.getByText("Certification Requirements")).not.toBeNull();
+    expect(screen.getByText("Applicability")).not.toBeNull();
   });
 
   it("creates a skill through the controlled save authority", async () => {
@@ -72,6 +72,19 @@ describe("Crew Growth Admin", () => {
     fireEvent.change(screen.getByLabelText("Skill Name"), { target: { value: "Taking Orders" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Skill" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ name: "Taking Orders", outlet_id: "outlet-1" })));
+  });
+
+  it("validates structured expiry months before saving", async () => {
+    render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "New Skill" }));
+    fireEvent.change(screen.getByLabelText("Skill Name"), { target: { value: "Taking Orders" } });
+    fireEvent.click(screen.getByRole("button", { name: "No Expiry" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expiry after X months" }));
+    expect(screen.getByRole("button", { name: "Save Skill" }).disabled).toBe(true);
+    expect(screen.getByText("Expiry must be 1 to 120 months.")).not.toBeNull();
+    fireEvent.change(screen.getByLabelText("Expiry Months"), { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Skill" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ validity_months: "12" })));
   });
 
   it("shows employee skill profile without client-side status derivation", async () => {
