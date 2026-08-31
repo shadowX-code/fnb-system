@@ -32,7 +32,7 @@
 .crew-home-attendance-copy dl div { display: grid; gap: 2px; }
 .crew-home-attendance-copy dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); }
 .crew-home-attendance-copy dd { margin: 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; }
-.crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; block-size: 202px; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); grid-template-rows: 100px 15px; align-content: center; justify-items: center; gap: 9px; padding: 16px 10px 7px 0; transform: translate(-5px, 3px); }
+.crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; block-size: 202px; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); grid-template-rows: 100px minmax(18px, auto); align-content: center; justify-items: center; gap: 9px; padding: 16px 10px 7px 0; transform: translate(-5px, 3px); }
 .crew-home-clock-halo { position: absolute; top: calc(50% - 72.5px); left: calc(50% - 67px); width: 130px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 38%, transparent); opacity: .24; pointer-events: none; transform-origin: 50% 50%; }
 .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { position: absolute; top: calc(50% - 65.5px); left: calc(50% - 60px); width: 116px; aspect-ratio: 1; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
 .crew-home-clock-semantic-ring { border: 1.5px solid color-mix(in srgb, var(--crew-color-mist-mint) 78%, var(--crew-color-deep-teal)); opacity: .48; }
@@ -53,6 +53,9 @@
 .crew-home-gps { position: absolute; z-index: 1; top: calc(50% + 51.5px); left: calc(50% - 2px); display: flex; width: max-content; max-width: 100%; align-items: flex-start; justify-content: center; gap: 4px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); font-style: normal; line-height: 1.25; text-align: center; transform: translateX(-50%); }
 .crew-home-gps span { white-space: nowrap; }
 .crew-home-gps.is-exception { color: var(--crew-color-warning); }
+.crew-home-location-exception { display: flex; width: min(100%, 126px); min-width: 0; align-items: flex-start; justify-content: center; gap: 4px; border-radius: 999px; background: color-mix(in srgb, var(--crew-color-warning) 10%, var(--crew-color-surface)); padding: 4px 7px; color: var(--crew-color-warning); font-size: var(--crew-type-badge); font-style: normal; font-weight: 650; line-height: 1.2; text-align: center; }
+.crew-home-location-exception svg { flex: 0 0 auto; margin-top: 1px; }
+.crew-home-location-exception span { min-width: 0; overflow-wrap: anywhere; }
 .crew-home-attendance-footer { display: grid; width: 100%; min-height: 70px; grid-template-columns: 36px minmax(0, 1fr) auto; grid-template-areas: "icon label action" "icon time time"; align-items: center; gap: 3px 9px; border: 0; border-top: 1px solid color-mix(in srgb, var(--crew-color-divider) 64%, transparent); background: color-mix(in srgb, var(--crew-color-surface) 86%, var(--crew-color-mist-mint)); padding: 10px 14px; color: var(--crew-color-deep-teal); text-align: left; }
 .crew-home-attendance-footer > .crew-ui-icon-container { grid-area: icon; }
 .crew-home-attendance-footer small { grid-area: label; min-width: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
@@ -354,7 +357,7 @@
 }
 
 /* Clock success content; the shared modal owns the overlay and scrolling. */
-.crew-home-success-content > span { margin: 0 auto; width: 54px; height: 54px; border-radius: 50%; background: var(--crew-color-success); color: var(--crew-color-surface); }
+.crew-home-success-content > span { width: 42px; height: 42px; margin: 0 auto; }
 .crew-home-success-content dl { width: 100%; margin: 16px 0 0; }
 .crew-home-success-content dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; }
 .crew-home-success-content dl > div + div { border-top: 1px solid var(--crew-color-divider); }

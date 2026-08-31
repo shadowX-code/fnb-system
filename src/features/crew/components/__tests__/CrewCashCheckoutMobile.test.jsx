@@ -348,9 +348,9 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.click(await screen.findByText("Receiver QA · Supervisor"));
     fireEvent.change(screen.getByLabelText("Amount (RM)"), { target: { value: "25" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(screen.getByText("From:")).not.toBeNull();
-    expect(screen.getByText("To:")).not.toBeNull();
-    expect(screen.getByRole("button", { name: /Confirm Handover RM\s*25\.00/ })).not.toBeNull();
+    expect(screen.getByText("From")).not.toBeNull();
+    expect(screen.getByText("To")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm Handover" })).not.toBeNull();
   });
 
   it("opens a server-backed Cash Deposit ledger with balance, pending status, and no duplicate handover action", async () => {

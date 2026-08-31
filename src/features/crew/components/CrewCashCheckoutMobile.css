@@ -31,7 +31,7 @@
 .crew-cash-today-summary > header { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; align-items: start; gap: 12px; }
 .crew-cash-today-summary > header > div { display: grid; min-width: 0; gap: 3px; }
 .crew-cash-today-summary > header > .crew-mobile-ghost { min-width: 44px; padding-inline: 0; }
-.crew-cash-today-summary > header small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
+.crew-cash-today-summary > header small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); font-weight: 650; letter-spacing: .035em; text-transform: uppercase; }
 .crew-cash-today-summary h2 { margin: 0; color: var(--crew-color-text); font-size: var(--crew-type-section-title); line-height: 1.2; }
 .crew-cash-summary-status { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
 .crew-cash-summary .crew-cash-today-summary > dl { grid-column: auto; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; padding: 10px 0; border-block: 1px solid var(--crew-color-divider); }
@@ -116,12 +116,7 @@
 .crew-cash-ledger-list .crew-cash-activity-row { padding-inline: 0; }
 .crew-cash-collection-modal { width: min(100%, 390px); }
 .crew-cash-collection-modal .crew-ui-modal-content { display: grid; gap: 14px; }
-.crew-cash-collection-modal .crew-ui-modal-content > label,.crew-cash-modal-field { display: grid; gap: 6px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-label); font-weight: 650; }
-.crew-cash-modal-field { padding: 11px 12px; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); }
-.crew-cash-modal-field strong { color: var(--crew-color-text); font-size: var(--crew-type-body); font-weight: 650; }
-.crew-cash-handover-review { display: grid; gap: 10px; }
-.crew-cash-handover-review p { display: flex; justify-content: space-between; gap: 12px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
-.crew-cash-handover-review strong { color: var(--crew-color-text); font-size: var(--crew-type-body); font-weight: 650; text-align: right; }
+.crew-cash-handover-meta { display: flex; min-width: 0; align-items: baseline; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--crew-color-divider); padding: 0 0 10px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }.crew-cash-handover-meta strong { min-width: 0; overflow-wrap: anywhere; color: var(--crew-color-text); font-size: var(--crew-type-label); font-weight: 650; text-align: right; }.crew-cash-currency-field { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; min-height: 46px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); overflow: hidden; }.crew-cash-currency-field b { padding-left: 12px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-label); font-variant-numeric: tabular-nums; }.crew-cash-currency-field input { min-height: 44px; border: 0; border-radius: 0; padding-left: 8px; outline-offset: -2px; }.crew-cash-collection-modal textarea { min-height: 84px; resize: vertical; }.crew-cash-handover-review { display: grid; gap: 0; margin: 0; }.crew-cash-handover-review > div { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 12px; border-top: 1px solid var(--crew-color-divider); padding: 10px 0; }.crew-cash-handover-review > div:first-child { border-top: 0; padding-top: 0; }.crew-cash-handover-review dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }.crew-cash-handover-review dd { margin: 0; max-width: 220px; overflow-wrap: anywhere; color: var(--crew-color-text); font-size: var(--crew-type-body); font-weight: 650; text-align: right; }.crew-cash-handover-review .is-amount dd { color: var(--crew-color-deep-teal); font-size: var(--crew-type-detail-title); font-variant-numeric: tabular-nums; }
 @media (max-width: 360px) { .crew-cash-ledger > header { grid-template-columns: 42px minmax(0, 1fr); }.crew-cash-ledger-months { gap: 3px; padding: 3px; }.crew-cash-ledger-months button { padding-inline: 3px; font-size: var(--crew-type-status); }.crew-cash-ledger-list .crew-cash-activity-row { grid-template-columns: 40px minmax(0, 1fr) auto; gap: 8px; } }
 
 /* Completed checkout snapshot follows the shared card, status, icon, and finance-result owners. */

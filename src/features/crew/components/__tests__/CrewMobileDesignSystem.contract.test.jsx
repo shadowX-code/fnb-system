@@ -333,10 +333,11 @@ describe("Crew Mobile design system contract", () => {
     expect(learningStyles).not.toContain(".crew-learn-final-onboarding{display:grid;width:100%;grid-template-columns:56px minmax(0,1fr) 36px;align-items:center;gap:12px;border:1px solid var(--crew-color-border);border-radius:var(--crew-radius-functional);background:var(--crew-color-mist-mint)");
     expect(learnHome).toContain("CrewStatusBadge");
     expect(learnHome).not.toContain('<strong>{t("learn.acknowledge")}</strong>');
-    expect(learningStyles).toContain("grid-template-columns:40px minmax(0,1fr) minmax(72px,96px) 18px");
+    expect(learningStyles).toContain("grid-template-columns:40px minmax(0,1fr) minmax(64px,92px) 24px");
+    expect(learningStyles).toContain("grid-template-columns:43px minmax(0,1fr) minmax(76px,104px) 24px");
     expect(learningStyles).toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);text-overflow:ellipsis;white-space:nowrap");
     expect(learningStyles).not.toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);font-size:");
-    expect(learningStyles).toContain(".crew-learn-final-ack>.crew-ui-status{justify-self:end;max-width:100%;white-space:normal");
+    expect(learningStyles).toContain(".crew-learn-final-ack>.crew-ui-status{justify-self:end;max-width:100%;padding-inline:6px;white-space:normal");
   });
 
   it("keeps completed and acknowledged states on the shared success treatment", () => {
@@ -439,7 +440,7 @@ describe("Crew Mobile design system contract", () => {
     [".crew-home-attendance-main", ".crew-home-attendance-art", ".crew-home-clock-halo", ".crew-home-clock-semantic-ring", ".crew-home-clock-orbit-highlight", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
     expect(homeComponent).toContain('import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.webp"');
     expect(homeComponent).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading} hasException={locationEvidence.tone === "is-exception"}>');
-    expect(home).toContain("grid-template-rows: 100px 15px");
+    expect(home).toContain("grid-template-rows: 100px minmax(18px, auto)");
     expect(home).toContain("transform-origin: 50% 50%");
     expect(home).toContain("stroke-dasharray: 56 315");
     expect(home).toContain('grid-template-areas: "icon label action" "icon time time"');

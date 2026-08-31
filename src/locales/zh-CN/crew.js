@@ -48,6 +48,7 @@ Object.assign(resources.cash, { draftSaved:"已保存为草稿" });
 Object.assign(resources.cash, { previousCarryForward:"上期结转", carryForwardNextCycle:"下期结转", crewDecision:"由员工决定", notes:"纸币", coins:"硬币", reconciliation:"核对", allocation:"分配", managerReview:"需要经理审核", submitForReviewAmount:"提交 {{amount}} 供审核", next:"下一步", submitReview:"提交审核" });
 Object.assign(resources.cash, { cashDepositBalance:"现金存款余额", pendingConfirmationAmount:"{{amount}} 待确认", confirmation:{pending_confirmation:"待确认",confirmed:"已确认",review_required:"需要审核"}, availableToCollect:"可收取：{{amount}}", availableAfterPendingReceipt:"待确认收款后可收取：{{amount}}", recentActivity:"近期活动", continueReview:"继续审核", openLedgerEntry:"在账本中打开{{activity}}", handoverUnavailablePermission:"您没有移交现金存款资金的权限。", handoverUnavailableNoBalance:"没有可移交的现金存款余额。", ledgerMonth:"现金活动月份", noCashActivityThisMonth:"本月暂无现金活动" });
 Object.assign(resources.cash, { completedWithTime:"已完成 · {{time}}", checkoutHistory:"结账历史", noCheckoutHistory:"过去 30 天没有结账历史" });
+Object.assign(resources.cash, { confirmHandoverAction:"确认交接" });
 Object.assign(resources.learn, { journeyProgress: "共 {{total}} 节已完成", journeyProgressOf: "共 {{total}} 节", journeyProgressCompleted: "已完成", moduleProgress: "已完成 {{completed}}/{{total}} 节" });
 Object.assign(resources.tasks, { summary:"任务摘要", assignedTo:"负责人", completedBy:"完成者", you:"你", positionTeam:"{{label}} 团队", groupTeam:"{{label}} 团队", outletTeam:"{{label}} 门店团队", sharedTask:"共享团队任务", schedule:{ ...resources.tasks.schedule, weekdaysLabel:"工作日" } });
 export default resources;
