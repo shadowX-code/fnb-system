@@ -1,52 +1,22 @@
-import { useEffect, useRef } from "react";
+import { useId } from "react";
 import { useTranslation } from "react-i18next";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import useCrewOverlay from "../hooks/useCrewOverlay.js";
 
-export default function CrewMobileModal({ title, onClose, children }) {
+export default function CrewMobileModal({ title, description, onClose, children, footer, className = "", contentClassName = "", closeDisabled = false, allowBackdropClose = true, initialFocusRef, onSubmit }) {
   const { t } = useTranslation();
-  const modalRef = useRef(null);
-  const closeRef = useRef(null);
-
-  useEffect(() => {
-    const previousFocus = document.activeElement;
-    const previousBodyStyles = {
-      overflow: document.body.style.overflow,
-      position: document.body.style.position,
-      top: document.body.style.top,
-      width: document.body.style.width,
-    };
-    const scrollY = window.scrollY;
-    document.body.style.overflow = "hidden";
-    document.body.style.position = "fixed";
-    document.body.style.top = `-${scrollY}px`;
-    document.body.style.width = "100%";
-    closeRef.current?.focus();
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") return onClose();
-      if (event.key !== "Tab") return;
-      const focusable = [...modalRef.current.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")];
-      if (!focusable.length) return;
-      const first = focusable[0];
-      const last = focusable.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      Object.assign(document.body.style, previousBodyStyles);
-      document.removeEventListener("keydown", onKeyDown);
-      if (!navigator.userAgent.includes("jsdom")) window.scrollTo(0, scrollY);
-      previousFocus?.focus?.();
-    };
-  }, [onClose]);
-
+  const { surfaceRef, closeRef } = useCrewOverlay({ onClose, closeDisabled, initialFocusRef });
+  const titleId = useId();
+  const descriptionId = useId();
+  const Surface = onSubmit ? "form" : "section";
   if (typeof document === "undefined") return null;
 
-  return createPortal(<div className="crew-ui-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section ref={modalRef} className="crew-ui-modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
-      <header className="crew-ui-modal-header"><h2>{title}</h2><button ref={closeRef} className="crew-ui-modal-close" type="button" onClick={onClose} aria-label={t("common.close")}><X size={19} /></button></header>
-      <div className="crew-ui-modal-content">{children}</div>
-    </section>
+  return createPortal(<div className="crew-ui-modal-backdrop" role="presentation" onMouseDown={(event) => allowBackdropClose && !closeDisabled && event.target === event.currentTarget && onClose()}>
+    <Surface ref={surfaceRef} tabIndex={-1} className={`crew-ui-modal ${className}`} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} onSubmit={onSubmit}>
+      <header className="crew-ui-modal-header"><div><h2 id={titleId}>{title}</h2>{description && <p id={descriptionId}>{description}</p>}</div><button ref={closeRef} className="crew-ui-modal-close" type="button" onClick={onClose} disabled={closeDisabled} aria-label={t("common.close")}><X size={19} /></button></header>
+      <div className={`crew-ui-modal-content ${contentClassName}`}>{children}</div>
+      {footer && <footer className="crew-ui-modal-footer">{footer}</footer>}
+    </Surface>
   </div>, document.body);
 }

@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI18n.js";
 import { CrewMobilePageHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
-import CrewMobileModal from "./CrewMobileModal.jsx";
+import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import { CrewHelpSheet, CrewHelpTable, CrewHelpTrigger } from "./CrewHelp.jsx";
 import rewardHeroBackground from "../assets/reward-hero-approved.png";
 
@@ -235,6 +235,6 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
     {sheet === "reward-pool" && <CrewHelpSheet title={t("reward.rewardPool")} body={t("reward.rewardPoolHelp")} onClose={() => setSheet(null)} />}
     {sheet === "contribution" && <CrewHelpSheet title={t("reward.contribution")} body={t("reward.contributionHelp")} onClose={() => setSheet(null)} />}
     {sheet === "earn-rate" && <CrewHelpSheet title={t("reward.currentRate")} body={t("reward.performanceEarnRateHelp")} onClose={() => setSheet(null)}><TierTable tiers={tiers} /></CrewHelpSheet>}
-    {sheet === "history" && <CrewMobileModal title={t("reward.history")} onClose={() => setSheet(null)}><div className="crew-reward-modal-history">{(data.history || []).map((item) => <div key={item.period_start}><time>{formatCrewDate(`${item.period_start}T00:00:00`, { month: "long", year: "numeric" })}</time><span><strong>{money(item.amount)}</strong><small>{translateStatus(item.status, t)}</small></span></div>)}</div></CrewMobileModal>}
+    {sheet === "history" && <CrewBottomSheet title={t("reward.history")} onClose={() => setSheet(null)}><div className="crew-reward-modal-history">{(data.history || []).map((item) => <div key={item.period_start}><time>{formatCrewDate(`${item.period_start}T00:00:00`, { month: "long", year: "numeric" })}</time><span><strong>{money(item.amount)}</strong><small>{translateStatus(item.status, t)}</small></span></div>)}</div></CrewBottomSheet>}
   </section>;
 }

@@ -6,6 +6,9 @@ const system = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobile
 const typography = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileTypography.css"), "utf8");
 const appStyles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.css"), "utf8");
 const mobileApp = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.jsx"), "utf8");
+const homeComponent = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewHomeMobile.jsx"), "utf8");
+const meComponent = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewMeMobile.jsx"), "utf8");
+const attendanceComponent = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewAttendanceMobile.jsx"), "utf8");
 const authStyles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewAuthMobile.css"), "utf8");
 const sharedStyles = readFileSync(resolve(process.cwd(), "src/styles/index.css"), "utf8");
 const home = readFileSync(resolve(process.cwd(), "src/features/crew/CrewHome.css"), "utf8");
@@ -86,7 +89,7 @@ describe("Crew Mobile design system contract", () => {
       ".crew-ui-icon-container.is-active, .crew-ui-icon-container.is-live",
     ].forEach((contract) => expect(system).toContain(contract));
     expect(system).toContain(".crew-ui-status.is-success { background: var(--crew-color-success-surface);");
-    expect(mobileApp).toContain('crew-ui-icon-container crew-ui-icon-container--compact');
+    expect(homeComponent).toContain('crew-ui-icon-container crew-ui-icon-container--compact');
     expect(learnHome).toContain('CrewSectionHeader density="operational" title={t("learn.category")}');
     expect(learnHome).toContain('className="crew-ui-count">{count}</span>');
     expect(learningStyles).toContain(".crew-learn-final-category-icon");
@@ -94,21 +97,21 @@ describe("Crew Mobile design system contract", () => {
     expect(meStyles).not.toContain(".crew-me-list.is-neutral .crew-me-row-icon");
     expect(meStyles).not.toContain(".crew-me-settings .crew-ui-row-icon{background");
     expect(growthStyles).not.toContain(".crew-v2-row-icon, .crew-v2-icon-token");
-    expect(mobileApp).not.toContain("crew-me-row-icon crew-ui-icon-container is-neutral");
+    expect(meComponent).not.toContain("crew-me-row-icon crew-ui-icon-container is-neutral");
   });
 
   it("keeps Home task reminders data-driven, motion-safe, and free of a separate activity icon", () => {
-    expect(mobileApp).toContain('crew-home-task-count is-${homeTaskBadgeState}');
-    expect(mobileApp).toContain('homeTasks.every((task) => task.status === "completed") ? "complete" : "alert"');
-    expect(mobileApp).toContain('className="crew-home-shift-status-icon"');
-    expect(mobileApp).not.toContain("CrewHomeTaskActivityMotion");
+    expect(homeComponent).toContain('crew-home-task-count is-${homeTaskBadgeState}');
+    expect(homeComponent).toContain('homeTasks.every((task) => task.status === "completed") ? "complete" : "alert"');
+    expect(homeComponent).toContain('className="crew-home-shift-status-icon"');
+    expect(homeComponent).not.toContain("CrewHomeTaskActivityMotion");
     expect(home).toContain(".crew-home-task-count.is-alert::after");
     expect(home).toContain("animation: crew-home-task-reminder 2s ease-in-out infinite");
     expect(home).toContain(".crew-home-task-count.is-alert::after { animation: none;");
     expect(home).not.toContain("crew-home-task-activity");
-    expect(mobileApp).toContain('t("tasks.dueLabel")');
-    expect(mobileApp).toContain('className="crew-list-secondary crew-home-task-meta"');
-    expect(mobileApp).toContain('className={`crew-home-task-due${task.deadline.overdue ? " is-overdue" : ""}`}');
+    expect(homeComponent).toContain('t("tasks.dueLabel")');
+    expect(homeComponent).toContain('className="crew-list-secondary crew-home-task-meta"');
+    expect(homeComponent).toContain('className={`crew-home-task-due${task.deadline.overdue ? " is-overdue" : ""}`}');
     expect(home).toContain(".crew-home-task .crew-home-task-meta { display: grid;");
     expect(home).toContain(".crew-home-task .crew-home-task-due.is-overdue");
   });
@@ -127,7 +130,8 @@ describe("Crew Mobile design system contract", () => {
     expect(operationsStyles).not.toMatch(/\.crew-ops-sticky\s*\{[^}]*position:/);
     expect(mobileApp).toContain("!cashCheckoutFlow && <CrewBottomNav");
     expect(leave).toContain("crew-ui-sticky-actions--with-nav crew-leave-footer");
-    expect(taskBlock).toContain("crew-ui-sticky-actions--sheet");
+    expect(taskBlock).toContain("<CrewBottomSheet");
+    expect(bottomSheet).toContain("crew-ui-bottom-sheet-footer");
   });
 
   it("keeps migrated operational icons on canonical foreground and surface owners", () => {
@@ -187,8 +191,8 @@ describe("Crew Mobile design system contract", () => {
     expect(taskBlockStyles).toContain(".crew-task-choice-grid.is-health button.is-needs-attention.is-selected");
     expect(taskBlockStyles).toContain(".crew-task-report-link");
     expect(taskBlockStyles).not.toContain(".crew-task-block-number.is-");
-    expect(taskBlockStyles).toContain("task-specific bottom sheet");
-    expect(operationsStyles).toContain("Legacy daily tasks remain a bottom sheet");
+    expect(taskBlock).toContain('import CrewBottomSheet from "./CrewBottomSheet.jsx"');
+    expect(operationsStyles).toContain("Legacy task action content consumes the canonical CrewBottomSheet shell");
   });
 
   it("keeps task availability expression and compact controls on canonical shared owners", () => {
@@ -260,7 +264,7 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain(".crew-mobile-detail-header.is-workflow");
     expect(reward).toContain("<CrewMobilePageHeader");
     expect(growth).toContain("<CrewMobilePageHeader title={title} action={action} />");
-    expect(mobileApp).toContain("<CrewMobilePageHeader title={t(\"me.title\")} />");
+    expect(meComponent).toContain("<CrewMobilePageHeader title={t(\"me.title\")} />");
     [rewardStyles, growthStyles, meStyles].forEach((source) => expect(source).not.toContain("crew-v2-page-header"));
     [rewardStyles, meStyles].forEach((source) => expect(source).not.toMatch(/crew-(reward|me)-header\s*\{/));
   });
@@ -286,7 +290,7 @@ describe("Crew Mobile design system contract", () => {
   it("keeps completed and acknowledged states on the shared success treatment", () => {
     expect(system).toContain(".crew-ui-status.is-success { background: var(--crew-color-success-surface); color: var(--crew-color-success);");
     expect(system).toContain(".crew-ui-status.is-info { background: var(--crew-color-info-surface); color: var(--crew-color-info);");
-    expect(mobileApp).toContain('task.status === "completed" ? "success"');
+    expect(homeComponent).toContain('task.status === "completed" ? "success"');
     expect(learnHome).toContain('tone="success"');
   });
 
@@ -297,8 +301,8 @@ describe("Crew Mobile design system contract", () => {
     expect(growthStyles).not.toContain(".crew-performance-final-evidence>.crew-ui-icon-container{");
     expect(performanceModal).not.toContain(".crew-performance-component-summary > .crew-ui-icon-container {");
     expect(performanceModal).not.toContain(".crew-performance-component-evidence .is-success i");
-    expect(mobileApp).toContain("crew-home-task is-${task.status}");
-    expect(mobileApp).toContain("crew-ui-icon-container crew-ui-icon-container--compact");
+    expect(homeComponent).toContain("crew-home-task is-${task.status}");
+    expect(homeComponent).toContain("crew-ui-icon-container crew-ui-icon-container--compact");
     expect(home).not.toContain(".crew-home-task > .crew-ui-icon-container");
     expect(home).not.toContain(".crew-v2-home .crew-home-task>.crew-ui-icon-container");
     ["#164b50", "#00b7c7", "#b1d5c9"].forEach((legacy) => expect(home).not.toContain(legacy));
@@ -351,17 +355,17 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps Attendance on shared page, segmented, icon, status, and divider owners", () => {
-    expect(mobileApp).toContain('subtitle={t("attendance.subtitle")} variant="page"');
-    expect(mobileApp).toContain("crew-ui-segmented crew-ui-segmented--mint crew-attendance-month-select");
-    expect(mobileApp).toContain("crew-ui-icon-container crew-ui-icon-container--compact");
-    expect(mobileApp).toContain('<CrewStatusBadge tone="warning">{t("attendance.requiresReview")}</CrewStatusBadge>');
-    expect(mobileApp).toContain('<CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge>');
+    expect(attendanceComponent).toContain('subtitle={t("attendance.subtitle")} variant="page"');
+    expect(attendanceComponent).toContain("crew-ui-segmented crew-ui-segmented--mint crew-attendance-month-select");
+    expect(attendanceComponent).toContain("crew-ui-icon-container crew-ui-icon-container--compact");
+    expect(attendanceComponent).toContain('<CrewStatusBadge tone="warning">{t("attendance.requiresReview")}</CrewStatusBadge>');
+    expect(attendanceComponent).toContain('<CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge>');
     expect(system).toContain(".crew-ui-segmented--mint");
     expect(system).toContain(".crew-mobile-detail-header.is-page");
     ["#", "!important", "background:rgb", "background:rgba"].forEach((forbidden) => expect(attendanceStyles).not.toContain(forbidden));
     expect(attendanceStyles).toContain("var(--crew-color-icon-default-bg)");
     expect(attendanceStyles).toContain("var(--crew-color-divider)");
-    expect(mobileApp).toContain('month: "short", year: "numeric"');
+    expect(attendanceComponent).toContain('month: "short", year: "numeric"');
     expect(attendanceStyles).toContain("@media (max-width: 420px)");
     [
       "grid-template-columns: 56px minmax(0, 1fr) max-content",
@@ -373,16 +377,16 @@ describe("Crew Mobile design system contract", () => {
     expect(attendanceStyles).not.toContain("ellipsis");
     expect(attendanceStyles).toContain("justify-items: center");
     expect(attendanceStyles).toContain("crew-attendance-location-status");
-    expect(mobileApp).toContain('hour: "numeric", minute: "2-digit"');
-    expect(mobileApp).not.toContain("<ChevronRight size={20} aria-hidden=\"true\" /></article>");
+    expect(attendanceComponent).toContain('hour: "numeric", minute: "2-digit"');
+    expect(attendanceComponent).not.toContain("<ChevronRight size={20} aria-hidden=\"true\" /></article>");
   });
 
   it("keeps the complete Home hero contract in its feature owner without override chains", () => {
     expect(sharedStyles).not.toContain(".crew-home-attendance {");
     expect(home).toContain(".crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0;");
     [".crew-home-attendance-main", ".crew-home-attendance-art", ".crew-home-clock-halo", ".crew-home-clock-semantic-ring", ".crew-home-clock-orbit-highlight", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
-    expect(mobileApp).toContain('import crewHomeAttendanceMintBackground from "./assets/crew-home-attendance-mint-background.png"');
-    expect(mobileApp).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading} hasException={locationEvidence.tone === "is-exception"}>');
+    expect(homeComponent).toContain('import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.png"');
+    expect(homeComponent).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading} hasException={locationEvidence.tone === "is-exception"}>');
     expect(home).toContain("grid-template-rows: 100px 15px");
     expect(home).toContain("transform-origin: 50% 50%");
     expect(home).toContain("stroke-dasharray: 56 315");
@@ -472,10 +476,10 @@ describe("Crew Mobile design system contract", () => {
 
   it("keeps the Me employment-type badge on the shared Mint status owner", () => {
     expect(system).toContain(".crew-ui-status.is-mint { background: var(--crew-color-icon-default-bg); color: var(--crew-color-icon-default-fg); }");
-    expect(mobileApp).toContain('<CrewStatusBadge tone="mint">{formatEmploymentType(employmentType)}</CrewStatusBadge>');
-    expect(mobileApp).toContain('const employmentType = profile?.employment_type || employee.employment_type || "";');
-    expect(mobileApp).not.toContain('aria-label={t("me.viewProfile")}');
-    expect(mobileApp).not.toContain('className="crew-me-quick-status"');
+    expect(meComponent).toContain('<CrewStatusBadge tone="mint">{formatEmploymentType(employmentType)}</CrewStatusBadge>');
+    expect(meComponent).toContain('const employmentType = profile?.employment_type || employee.employment_type || "";');
+    expect(meComponent).not.toContain('aria-label={t("me.viewProfile")}');
+    expect(meComponent).not.toContain('className="crew-me-quick-status"');
     expect(meStyles).not.toContain(".crew-me-profile-copy em");
     expect(meStyles).not.toContain(".crew-me-quick-status");
     expect(meStyles).not.toContain("#e8fbf4");
@@ -508,10 +512,10 @@ describe("Crew Mobile design system contract", () => {
     expect(bottomSheet).toContain('role="dialog"');
     expect(bottomSheet).toContain("aria-modal=\"true\"");
     expect(help).toContain('import CrewBottomSheet from "./CrewBottomSheet.jsx"');
-    expect(mobileApp).toContain('import CrewBottomSheet from "./components/CrewBottomSheet.jsx"');
-    expect(mobileApp).toContain("function ClockReasonSheet");
-    expect(mobileApp).toContain('className="crew-clock-reason-sheet"');
-    expect(mobileApp).not.toContain("<SelectField");
+    expect(attendanceComponent).toContain('import CrewBottomSheet from "./CrewBottomSheet.jsx"');
+    expect(attendanceComponent).toContain("function ClockReasonSheet");
+    expect(attendanceComponent).toContain('className="crew-clock-reason-sheet"');
+    expect(attendanceComponent).not.toContain("<SelectField");
     expect(home).toContain(".crew-clock-reason-options");
   });
 

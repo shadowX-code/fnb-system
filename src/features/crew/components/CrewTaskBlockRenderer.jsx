@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
-import { createPortal } from "react-dom";
+import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import {
   AlertTriangle,
   Check,
@@ -11,7 +11,6 @@ import {
   FileText,
   Lightbulb,
   Thermometer,
-  X,
 } from "lucide-react";
 import "./CrewTaskBlockRenderer.css";
 
@@ -148,7 +147,7 @@ export default function CrewTaskBlockRenderer({
       {block.evidence_requirement && block.evidence_requirement !== "none" ? <small className="crew-task-evidence">{t("tasks.evidence", { type: String(block.evidence_requirement).replaceAll("_", " ") })}</small> : null}
     </div>
 
-    {exceptionOpen && typeof document !== "undefined" ? createPortal(<ExceptionSheet
+    {exceptionOpen ? <ExceptionSheet
       title={title}
       reason={exceptionReason}
       setReason={setExceptionReason}
@@ -160,7 +159,7 @@ export default function CrewTaskBlockRenderer({
       action={issueAction}
       requiresReason={issueAction === "exception"}
       onSubmit={() => submit(issueAction, response, issueAction === "exception" ? exceptionReason : null, note)}
-    />, document.body) : null}
+    /> : null}
   </section>;
 }
 
@@ -245,17 +244,11 @@ function InstructionContent({ content, readMore, setReadMore }) {
 
 function ExceptionSheet({ title, reason, setReason, note, setNote, saving, readonly, action, requiresReason, onClose, onSubmit }) {
   const { t } = useTranslation();
-  return <div className="crew-task-exception-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="crew-task-exception-sheet" role="dialog" aria-modal="true" aria-label={t("tasks.reportIssueFor", { title })}>
-      <header><div><strong>{t("tasks.reportIssue")}</strong><span>{title}</span></div><button className="crew-mobile-ghost crew-task-exception-close" type="button" aria-label={t("common.close")} onClick={onClose}><X size={19} /></button></header>
-      <div className="crew-task-exception-body">
+  return <CrewBottomSheet title={t("tasks.reportIssueFor", { title })} onClose={onClose} closeDisabled={saving} contentClassName="crew-task-exception-body" footer={<><button type="button" className="crew-mobile-ghost" disabled={saving} onClick={onClose}>{t("common.cancel")}</button><button type="button" className="crew-mobile-primary" disabled={(requiresReason && !reason) || (!requiresReason && String(note).trim().length < 3) || saving || readonly} onClick={onSubmit}>{saving ? t("common.saving") : action === "needs_attention" ? t("tasks.reportIssue") : t("tasks.submitException")}</button></>}>
         {requiresReason ? <label className="crew-ui-form-field">{t("attendance.reason")}<select className="crew-ui-field" value={reason} disabled={readonly || saving} onChange={(event) => setReason(event.target.value)}><option value="">{t("tasks.chooseReason")}</option>{exceptionReasons.map((reasonValue) => <option key={reasonValue} value={reasonValue}>{t(`tasks.reasons.${reasonValue}`)}</option>)}</select></label> : null}
         <label className="crew-ui-form-field">{t("tasks.note")}<textarea className="crew-ui-field crew-task-exception-textarea" value={note} disabled={readonly || saving} onChange={(event) => setNote(event.target.value)} placeholder={t("tasks.explainIssue")} /></label>
         <small>{t("tasks.evidenceUnavailable")}</small>
-      </div>
-      <footer className="crew-ui-sticky-actions crew-ui-sticky-actions--sheet"><button type="button" className="crew-mobile-ghost" onClick={onClose}>{t("common.cancel")}</button><button type="button" className="crew-mobile-primary" disabled={(requiresReason && !reason) || (!requiresReason && String(note).trim().length < 3) || saving || readonly} onClick={onSubmit}>{saving ? t("common.saving") : action === "needs_attention" ? t("tasks.reportIssue") : t("tasks.submitException")}</button></footer>
-    </section>
-  </div>;
+  </CrewBottomSheet>;
 }
 
 function RangeHint({ config, unit }) {

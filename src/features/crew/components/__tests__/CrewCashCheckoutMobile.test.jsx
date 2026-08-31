@@ -334,6 +334,17 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.queryByText("Purpose")).toBeNull();
     expect(screen.queryByText("External receiver")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Receiver" }));
+    const receiverPicker = screen.getByRole("dialog", { name: "Choose Crew" });
+    expect(receiverPicker).not.toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog", { name: "Choose Crew" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Hand Over Cash" })).not.toBeNull();
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.click(screen.getByRole("button", { name: "Receiver" }));
+    const receiverSearch = screen.getByRole("textbox", { name: "Receiver" });
+    receiverSearch.focus();
+    fireEvent.change(receiverSearch, { target: { value: "Receiver QA" } });
+    expect(document.activeElement).toBe(receiverSearch);
     fireEvent.click(await screen.findByText("Receiver QA · Supervisor"));
     fireEvent.change(screen.getByLabelText("Amount (RM)"), { target: { value: "25" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));

@@ -313,49 +313,6 @@
 
 }
 
-.crew-me-confirm-backdrop {
-  position: fixed;
-  z-index: 40;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgb(8 21 43 / .42);
-  padding: 20px;
-
-}
-
-.crew-me-confirm {
-  width: min(100%, 340px);
-  box-sizing: border-box;
-  border-radius: 16px;
-  background: var(--crew-color-surface);
-  padding: 20px;
-  box-shadow: 0 8px 24px rgb(8 21 43 / .18);
-
-}
-
-.crew-me-confirm h2 {
-  margin: 0;
-  color: var(--crew-v2-navy);
-  font-size: 17px;
-
-}
-
-.crew-me-confirm p {
-  margin: 8px 0 20px;
-  color: var(--crew-v2-muted);
-  font-size:var(--crew-type-helper);
-  line-height: 1.5;
-
-}
-
-.crew-me-confirm > div {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-
-}
-
 
 .crew-language-modal .crew-language-list {
   display: grid;

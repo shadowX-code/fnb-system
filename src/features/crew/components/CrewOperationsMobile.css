@@ -237,48 +237,7 @@
   width: 100%;
 
 }
-/* Legacy daily tasks remain a bottom sheet because their action sequence is task-specific. */
-.crew-ops-sheet-backdrop {
-  position: fixed;
-  z-index: calc(var(--crew-v2-z-nav) + 5);
-  inset: 0;
-  display: flex;
-  width: min(100%,430px);
-  align-items: flex-end;
-  margin: 0 auto;
-  background: rgb(22 75 80 / .35);
-
-}
-.crew-ops-sheet {
-  width: 100%;
-  max-height: 82dvh;
-  overflow-y: auto;
-  border-radius: var(--crew-radius-focus) var(--crew-radius-focus) 0 0;
-  background: var(--crew-color-surface);
-  padding: 18px var(--crew-mobile-page-inline) calc(18px + env(safe-area-inset-bottom));
-  box-shadow: 0 -12px 35px rgb(22 75 80 / .16);
-
-}
-.crew-ops-sheet>div:first-child {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-
-}
-.crew-ops-sheet h2 {
-  margin: 0;
-  color: var(--crew-color-text);
-  font-size: var(--crew-type-card-title);
-
-}
-.crew-ops-sheet>p {
-  margin: 7px 0 14px;
-  color: var(--crew-color-text-secondary);
-  font-size:var(--crew-type-helper);
-  line-height: 1.5;
-
-}
+/* Legacy task action content consumes the canonical CrewBottomSheet shell. */
 .crew-ops-choice {
   display: flex;
   width: 100%;
@@ -301,14 +260,14 @@
   color: var(--crew-color-warning);
 
 }
-.crew-ops-sheet label { margin-top: 12px; }
-.crew-ops-sheet select,.crew-ops-sheet textarea { font: inherit; }
-.crew-ops-sheet textarea {
+.crew-ops-legacy-content label { margin-top: 12px; }
+.crew-ops-legacy-content select,.crew-ops-legacy-content textarea { font: inherit; }
+.crew-ops-legacy-content textarea {
   min-height: 76px;
   resize: vertical;
 
 }
-.crew-ops-sheet .crew-mobile-primary {
+.crew-ops-legacy-content .crew-mobile-primary {
   width: 100%;
   margin-top: 12px;
 

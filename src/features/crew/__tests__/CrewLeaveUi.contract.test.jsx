@@ -5,12 +5,13 @@ import { describe, expect, it } from "vitest";
 const mobile = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLeaveMobile.jsx"), "utf8");
 const admin = readFileSync(resolve(process.cwd(), "src/features/crew/pages/CrewLeaveAdminPage.jsx"), "utf8");
 const app = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.jsx"), "utf8");
+const me = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewMeMobile.jsx"), "utf8");
 const service = readFileSync(resolve(process.cwd(), "src/services/crewService.js"), "utf8");
 
 describe("Crew Leave v1 UI contracts", () => {
   it("keeps Leave under Me without changing the five-tab bottom navigation", () => {
-    expect(app).toContain('setScreen("leave")');
-    expect(app).toContain('t("me.leave")');
+    expect(me).toContain('navigate("leave")');
+    expect(me).toContain('t("me.leave")');
     expect(app).toContain('{ id: "home", label: "Home"');
     expect(app).not.toContain('{ id: "leave", label: "Leave"');
   });

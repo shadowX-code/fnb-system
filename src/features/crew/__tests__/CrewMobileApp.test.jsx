@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
   signIn: vi.fn(),
@@ -85,6 +85,23 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it("retains a server-rotated token when Me unmounts during passcode change", async () => {
+    let resolveChange;
+    mocks.changePasscode.mockReturnValueOnce(new Promise((resolve) => { resolveChange = resolve; }));
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "Me" }));
+    fireEvent.click(screen.getByRole("button", { name: "Change Passcode" }));
+    const inputs = document.querySelectorAll(".crew-v2-passcode-form input");
+    ["1234", "5678", "5678"].forEach((value, index) => fireEvent.change(inputs[index], { target: { value } }));
+    fireEvent.submit(document.querySelector(".crew-v2-passcode-form"));
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    await act(async () => { resolveChange({ token: "rotated-token", expires_at: session.expires_at }); });
+    await waitFor(() => expect(mocks.myAttendance).toHaveBeenCalledWith("rotated-token"));
+    expect(JSON.parse(localStorage.getItem("feedx.crew.session")).token).toBe("rotated-token");
+    expect(window.location.hash).toBe("#crew/home");
+  });
+
   it("restores a canonical Crew deep link and follows browser hash navigation", async () => {
     window.history.replaceState(null, "", "#crew/reward");
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
