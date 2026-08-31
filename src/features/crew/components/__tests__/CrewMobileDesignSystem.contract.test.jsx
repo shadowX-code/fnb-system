@@ -296,6 +296,7 @@ describe("Crew Mobile design system contract", () => {
     expect(learningStyles).toContain('.crew-learning-home > .crew-ui-section-head h2 { display:flex; align-items:center; gap:8px; }');
     expect(learningStyles).toContain('.crew-learning-modules-count { flex:0 0 auto; }');
     expect(learningStyles).toContain('.crew-learning-module.is-in-progress .crew-module-head p { color:var(--crew-color-deep-teal); font-weight:700; }');
+    expect(learningStyles).toContain('.crew-module-head { display:grid; grid-template-columns:30px minmax(0,1fr) 30px; justify-content:start; justify-items:stretch;');
     expect(learningStyles).toContain('.crew-learning-home .crew-module-head p { display:flex; align-items:center; gap:4px; margin:3px 0 0; color:var(--crew-color-text-secondary); font-size:var(--crew-type-helper);');
     expect(learningStyles).toContain('.crew-module-head.is-completed { grid-template-columns:30px minmax(0,1fr); }');
     expect(learningStyles).toContain('.crew-module-head.is-completed .crew-module-progress { color:var(--crew-color-success); }');
