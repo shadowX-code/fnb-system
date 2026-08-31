@@ -53,6 +53,33 @@ assert(!initialModules.some((id) => chartFamily.test(id)), "Chart family must re
 assert(!modules(admin).some((id) => chartFamily.test(id)), "Chart family must remain outside Admin initial");
 assert(!modules(crew).some((id) => chartFamily.test(id)), "Chart family must remain outside Crew initial");
 const sizes = (code) => ({ bytes: Buffer.byteLength(code), gzipBytes: gzipSync(code).length });
+const cssAssets = new Map(outputs.filter((item) => item.type === "asset" && item.fileName.endsWith(".css")).map((item) => [item.fileName, item]));
+const cssClosure = (files) => new Set([...files].flatMap((file) => [...(chunks.get(file).viteMetadata?.importedCss ?? [])]));
+const initialCss = cssClosure(initial);
+const cssFeatures = [
+  ["CrewCashCheckoutMobile", ["CrewCashCheckoutMobile"]],
+  ["CrewGrowthMobile", ["CrewGrowthMobile", "CrewPerformanceComponentModal"]],
+  ["CrewRewardMobile", ["CrewRewardMobile"]],
+  ["CrewLeaveMobile", ["CrewLeaveMobile"]],
+];
+const featureCss = cssFeatures.map(([feature, styles]) => {
+  const owner = [...chunks.values()].find((chunk) => Object.keys(chunk.modules).some((id) => id.endsWith(`/${feature}.jsx`)));
+  assert(owner, `${feature} must exist in output`);
+  const ownedCss = [...(owner.viteMetadata?.importedCss ?? [])];
+  assert.equal(ownedCss.length, 1, `${feature} must load one feature stylesheet (Growth includes Performance detail)`);
+  for (const file of ownedCss) {
+    assert(cssAssets.has(file), `${feature} stylesheet must be emitted`);
+    for (const scope of [initial, admin, crew]) assert(!cssClosure(scope).has(file), `${feature} CSS must not load with either workspace initial closure`);
+  }
+  for (const style of styles) {
+    for (const [scope, label] of [[initial, "Bootstrap"], [admin, "Admin initial"], [crew, "Crew initial"]]) excludes(scope, [`/${style}.css`], label);
+    assert(Object.keys(owner.modules).some((id) => id.endsWith(`/${style}.css`)), `${style} CSS must belong to ${feature}, not a separate eager owner`);
+  }
+  return { feature, styles, files: ownedCss.map((file) => ({ file, ...sizes(cssAssets.get(file).source) })) };
+});
+for (const shared of ["CrewMobileSystem", "CrewMobileTypography", "CrewTaskBlockRenderer", "CrewSopDocument", "CrewLearningMobile"]) {
+  assert(modules(initial).some((id) => id.endsWith(`/${shared}.css`)), `${shared} CSS must remain shared/eager`);
+}
 const describeClosure = (files) => ({
   ...[...files].reduce((sum, file) => {
     const size = sizes(chunks.get(file).code);
@@ -67,5 +94,7 @@ console.log(JSON.stringify({
   initial: [...initial].map((file) => ({ file, ...sizes(chunks.get(file).code) })),
   async: [...chunks.values()].filter((chunk) => !initial.has(chunk.fileName)).map((chunk) => ({ file: chunk.fileName, ...sizes(chunk.code), imports: chunk.imports, chartModules: Object.keys(chunk.modules).filter((id) => chartFamily.test(id)).length })),
   css: outputs.filter((item) => item.type === "asset" && item.fileName.endsWith(".css")).map((item) => ({ file: item.fileName, ...sizes(item.source) })),
-  assertions: "PASS: isolated workspace entries/auth/GSAP, Crew secondary lazy boundaries, three Admin async features and chart family",
+  initialCss: [...initialCss].map((file) => ({ file, ...sizes(cssAssets.get(file).source) })),
+  featureCss,
+  assertions: "PASS: workspace entries/auth/GSAP, Crew lazy JS/CSS ownership, shared CSS, Admin async features and chart family",
 }, null, 2));

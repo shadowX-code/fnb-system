@@ -19,13 +19,8 @@ import "./CrewHome.css";
 import "./components/CrewAttendanceMobile.css";
 import "./components/CrewScheduleMobile.css";
 import "./components/CrewLearningMobile.css";
-import "./components/CrewLeaveMobile.css";
-import "./components/CrewRewardMobile.css";
-import "./components/CrewGrowthMobile.css";
-import "./components/CrewPerformanceComponentModal.css";
 import "./components/CrewOperationsMobile.css";
 import "./components/CrewMeMobile.css";
-import "./components/CrewCashCheckoutMobile.css";
 import "./components/CrewTaskBlockRenderer.css";
 
 const navItems = [

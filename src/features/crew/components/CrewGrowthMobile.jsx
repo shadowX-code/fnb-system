@@ -1,5 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "./CrewGrowthMobile.css";
+import "./CrewPerformanceComponentModal.css";
 import { useGSAP } from "@gsap/react";
 import { gsap } from "gsap";
 import "../../../i18n/index.js";

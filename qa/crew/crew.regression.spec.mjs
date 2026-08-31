@@ -38,6 +38,43 @@ const screens = [
   ["crew/growth", "growth.title"], ["crew/growth/performance", "performance.title"], ["crew/reward", "reward.title"],
   ["crew/me", "me.title"], ["crew/me/leave", "leave.title"],
 ];
+// Exercise the real lazy route renderers and stylesheet requests, not a second
+// styled fixture. The production graph guard separately verifies emitted CSS.
+for (const [route, title, css, selector, property, expected] of [
+  ["crew/me/cash-checkout", "cash.title", "CrewCashCheckoutMobile", ".crew-cash-summary-page", "min-height", "100%"],
+  ["crew/growth", "growth.title", "CrewGrowthMobile", ".crew-growth-performance-hero", "display", "grid"],
+  ["crew/reward", "reward.title", "CrewRewardMobile", ".crew-reward-final", "display", "grid"],
+  ["crew/me/leave", "leave.title", "CrewLeaveMobile", ".crew-leave-page", "min-height", "100%"],
+]) test(`lazy CSS first/repeated entry and refresh: ${route}`, async ({ page }, info) => {
+  const requestedStyles = [];
+  page.on("request", request => { if (request.url().includes(".css")) requestedStyles.push(request.url()); });
+  await open(page, info, "crew/home");
+  await expect(page.locator(".crew-v2-home")).toBeVisible();
+  expect(requestedStyles.some(url => url.includes(`/${css}.css`))).toBe(false);
+  // Address-bar hash navigation uses the canonical hash listener/history, not a
+  // test-only screen switch or invocation of component event handlers.
+  await page.evaluate(hash => { window.location.hash = hash; }, route);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(t(title));
+  await expect(page.locator(selector)).toHaveCSS(property, expected);
+  expect(requestedStyles.some(url => url.includes(`/${css}.css`))).toBe(true);
+  if (css === "CrewGrowthMobile") expect(requestedStyles.some(url => url.includes("/CrewPerformanceComponentModal.css"))).toBe(true);
+  const styles = () => page.locator(selector).evaluate(element => {
+    const computed = getComputedStyle(element);
+    return Object.fromEntries(["display", "color", "font-size", "padding", "gap", "border-radius", "min-height", "background-image", "grid-template-columns"].map(key => [key, computed.getPropertyValue(key)]));
+  });
+  const first = await styles();
+  await assertMobileLayout(page);
+  await page.goBack();
+  await expect(page.locator(".crew-v2-home")).toBeVisible();
+  await page.goForward();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(t(title));
+  expect(await styles()).toEqual(first);
+  await page.reload();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(t(title));
+  expect(await styles()).toEqual(first);
+  await assertMobileLayout(page);
+});
+
 for (const [route, title] of screens) test(`long-copy layout: ${route}`, async ({ page }, info) => {
   await open(page, info, route);
   if (title) await expect(page.getByRole("heading", { level: 1 })).toHaveText(t(title));
@@ -98,6 +135,8 @@ test("Performance detail delegates to one shared sheet", async ({ page }, info) 
   const dialog = page.getByRole("dialog");
   await expect(dialog).toHaveCount(1);
   await expect(dialog).toHaveClass(/crew-ui-bottom-sheet/);
+  await expect(dialog.locator(".crew-performance-component-modal")).toHaveCSS("display", "grid");
+  await expect(dialog.locator(".crew-performance-component-modal")).toHaveCSS("gap", "18px");
   await assertMobileLayout(page);
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);

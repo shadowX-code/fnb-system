@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "./CrewLeaveMobile.css";
 import { CalendarDays, Check, ChevronRight, FileText, Info, Plus, X } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import { CrewEmptyState, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";

@@ -38,7 +38,29 @@ const help = readFileSync(resolve(process.cwd(), "src/features/crew/components/C
 const bottomSheet = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewBottomSheet.jsx"), "utf8");
 
 describe("Crew Mobile design system contract", () => {
-  it("defers secondary implementations without moving Home, session, navigation or CSS into a lazy boundary", () => {
+  it("loads scoped feature CSS only with its lazy owner, keeping Performance with Growth", () => {
+    const globalImports = readFileSync(resolve(process.cwd(), "src/styles/workspaceStyles.js"), "utf8");
+    for (const [owner, styles] of [
+      ["CrewCashCheckoutMobile", ["CrewCashCheckoutMobile"]],
+      ["CrewGrowthMobile", ["CrewGrowthMobile", "CrewPerformanceComponentModal"]],
+      ["CrewRewardMobile", ["CrewRewardMobile"]],
+      ["CrewLeaveMobile", ["CrewLeaveMobile"]],
+    ]) {
+      const component = readFileSync(resolve(process.cwd(), `src/features/crew/components/${owner}.jsx`), "utf8");
+      let previous = -1;
+      for (const style of styles) {
+        expect(mobileApp + globalImports).not.toContain(`${style}.css`);
+        const position = component.indexOf(`import "./${style}.css"`);
+        expect(position).toBeGreaterThan(previous);
+        previous = position;
+      }
+    }
+    for (const shared of ["CrewMobileSystem", "CrewMobileTypography", "CrewTaskBlockRenderer", "CrewSopDocument", "CrewLearningMobile"]) {
+      expect(globalImports).toContain(`${shared}.css`);
+    }
+  });
+
+  it("defers secondary implementations without moving Home, session or navigation into a lazy boundary", () => {
     for (const name of ["CrewGrowthMobile", "CrewRewardMobile", "CrewLearningMobile", "CrewCashCheckoutMobile", "CrewLeaveMobile"]) {
       expect(mobileApp).toContain(`const ${name} = lazy(() => import("./components/${name}.jsx"))`);
       expect(mobileApp).not.toContain(`import ${name} from`);
@@ -77,8 +99,8 @@ describe("Crew Mobile design system contract", () => {
   it("loads canonical and feature presentation in an explicit cascade order", () => {
     const imports = [
       "./CrewMobileSystem.css", "./CrewAuthMobile.css", "./CrewMobileTypography.css", "./CrewMobileApp.css", "./CrewHome.css",
-      "./components/CrewAttendanceMobile.css", "./components/CrewScheduleMobile.css", "./components/CrewLearningMobile.css", "./components/CrewLeaveMobile.css",
-      "./components/CrewRewardMobile.css", "./components/CrewGrowthMobile.css", "./components/CrewPerformanceComponentModal.css", "./components/CrewOperationsMobile.css", "./components/CrewMeMobile.css", "./components/CrewCashCheckoutMobile.css",
+      "./components/CrewAttendanceMobile.css", "./components/CrewScheduleMobile.css", "./components/CrewLearningMobile.css",
+      "./components/CrewOperationsMobile.css", "./components/CrewMeMobile.css",
     ];
     imports.reduce((previous, current) => {
       const position = mobileApp.indexOf(`import \"${current}\"`);
@@ -461,7 +483,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("gives Leave one feature presentation owner and no legacy selector fallback", () => {
-    expect(mobileApp).toContain('import "./components/CrewLeaveMobile.css"');
+    expect(leave).toContain('import "./CrewLeaveMobile.css"');
     expect(leaveStyles).toContain("Leave-specific flow composition");
     expect(leaveStyles).toContain("--crew-color-deep-teal");
     expect(leaveStyles).toContain("--crew-color-cyan");
@@ -549,7 +571,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("gives Reward one token-based feature presentation owner", () => {
-    expect(mobileApp).toContain('import "./components/CrewRewardMobile.css"');
+    expect(reward).toContain('import "./CrewRewardMobile.css"');
     expect(rewardStyles).toContain("Reward-specific financial hierarchy and data visualization");
     [".crew-reward-", ".crew-v2-reward-"].forEach((selector) => expect(appStyles).not.toContain(selector));
     [".crew-reward-hero-metrics", ".crew-reward-surface", ".crew-reward-performance-relationship", ".crew-reward-potential", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
@@ -574,7 +596,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps the complete Growth and My Performance presentation out of the app shell", () => {
-    expect(mobileApp).toContain('import "./components/CrewGrowthMobile.css"');
+    expect(growth).toContain('import "./CrewGrowthMobile.css"');
     [".crew-growth-final", ".crew-performance-final", ".crew-v2-skill-hero", ".crew-v2-requirements", ".crew-v2-path-hero", ".crew-v2-performance-"].forEach((selector) => expect(appStyles).not.toContain(selector));
     ["!important", "#07865f", "#079566", "#0b9069", "linear-gradient", "radial-gradient"].forEach((token) => expect(growthStyles).not.toContain(token));
     expect(growthStyles).toContain("Growth-specific layout and data visualization");

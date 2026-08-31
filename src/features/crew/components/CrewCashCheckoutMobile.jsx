@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import "./CrewCashCheckoutMobile.css";
 import { AlertTriangle, ArrowDown, ArrowRight, ArrowUp, Banknote, CalendarCheck, Check, ChevronRight, Clock3, HandCoins, History, ListChecks, Minus, Plus, RefreshCw, ShieldCheck, UserRound, WalletCards } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileModal from "./CrewMobileModal.jsx";
