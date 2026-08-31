@@ -193,6 +193,19 @@ describe("Crew Mobile redesign", () => {
     expect(localStorage.getItem("feedx.crew.language")).toBe("zh-CN");
   });
 
+  it("uses the shared segmented-control treatment for the three Crew languages", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: "Language" }));
+    const selector = screen.getByRole("group", { name: "Language" });
+    expect(selector.classList.contains("crew-ui-segmented")).toBe(true);
+    expect(selector.querySelectorAll("button")).toHaveLength(3);
+    expect(selector.querySelector("svg")).toBeNull();
+    expect(screen.getByRole("button", { name: "English" }).getAttribute("aria-pressed")).toBe("true");
+  });
+
   it("keeps Me as an identity-only profile hub with grouped navigation", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myAttendance.mockResolvedValueOnce([
