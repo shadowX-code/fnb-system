@@ -337,7 +337,7 @@ describe("Crew Mobile design system contract", () => {
     expect(learningStyles).toContain("grid-template-columns:43px minmax(0,1fr) minmax(76px,104px) 24px");
     expect(learningStyles).toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);text-overflow:ellipsis;white-space:nowrap");
     expect(learningStyles).not.toContain(".crew-learn-final-sop-copy>strong{overflow:hidden;color:var(--crew-color-text);font-size:");
-    expect(learningStyles).toContain(".crew-learn-final-ack>.crew-ui-status{justify-self:end;max-width:100%;padding-inline:5px;white-space:normal");
+    expect(learningStyles).toContain(".crew-learn-final-ack>.crew-ui-status{min-width:0;justify-self:end;max-width:100%;padding-inline:3px;font-size:11px;white-space:normal");
     expect(learningStyles).toContain(".crew-learn-final-chevron{display:grid;width:24px;height:24px;place-items:center;justify-self:end");
   });
 
