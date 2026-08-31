@@ -22,7 +22,7 @@ import FeedXLoadingMark from "./FeedXLoadingMark.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 import { applyOnboardingLocalization, applySopLocalization } from "../utils/localizedContent.js";
 import { formatCrewDate, formatCrewTime } from "../utils/crewI18n.js";
-import onboardingJourneyHero from "../../../assets/crew/onboarding-journey-hero-approved.png";
+import onboardingJourneyHero from "../../../assets/crew/onboarding-journey-hero-approved.webp";
 
 const learnHomeCache = new Map();
 

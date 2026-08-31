@@ -8,7 +8,7 @@ import { CrewActionRow, CrewMobilePageHeader, CrewStatusBadge } from "./CrewMobi
 import { SUPPORTED_CREW_LANGUAGES } from "../../../i18n/index.js";
 import { formatCrewDate } from "../utils/crewI18n.js";
 import { formatEmploymentType } from "../utils/crewMobile.js";
-import crewMeProfileCredentialAsset from "../assets/crew-me-profile-credential-approved.png";
+import crewMeProfileCredentialAsset from "../assets/crew-me-profile-credential-approved.webp";
 
 function ProfileInformation({ profile, employee, context, firstName, t, onBack }) {
   const date = (value) => value ? formatCrewDate(value, { day: "2-digit", month: "2-digit", year: "numeric" }) : "—";

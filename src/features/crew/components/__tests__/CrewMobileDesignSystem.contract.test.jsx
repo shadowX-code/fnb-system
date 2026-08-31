@@ -38,6 +38,25 @@ const help = readFileSync(resolve(process.cwd(), "src/features/crew/components/C
 const bottomSheet = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewBottomSheet.jsx"), "utf8");
 
 describe("Crew Mobile design system contract", () => {
+  it("defers secondary implementations without moving Home, session, navigation or CSS into a lazy boundary", () => {
+    for (const name of ["CrewGrowthMobile", "CrewRewardMobile", "CrewLearningMobile", "CrewCashCheckoutMobile", "CrewLeaveMobile"]) {
+      expect(mobileApp).toContain(`const ${name} = lazy(() => import("./components/${name}.jsx"))`);
+      expect(mobileApp).not.toContain(`import ${name} from`);
+    }
+    expect(mobileApp).toContain('import CrewHomeMobile from');
+    expect(mobileApp).toContain('import useCrewSession from');
+    expect(mobileApp).toContain('<Suspense fallback={<CrewRouteLoading />}');
+    expect(mobileApp.indexOf('</Suspense>')).toBeLessThan(mobileApp.indexOf('<CrewBottomNav'));
+  });
+
+  it("keeps only the current schedule grid and approved Growth composition, not retired shells", () => {
+    expect(home).toContain('.crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px');
+    expect(home).not.toMatch(/\.crew-home-schedule-row\s*>\s*em/);
+    for (const retired of ['.crew-v2-attendance-card', '.crew-v3-shift-hero', '.crew-v3-growth-strip']) expect(home).not.toContain(retired);
+    for (const retired of ['.crew-growth-final-hero', '.crew-v3-milestone-hero', '.crew-v2-growth-tabs']) expect(growthStyles).not.toContain(retired);
+    for (const current of ['.crew-growth-performance-hero', '.crew-performance-final-hero', '.crew-v2-skill-hero', '.crew-v2-path-hero']) expect(growthStyles).toContain(current);
+  });
+
   it("owns the FeedX palette and shared foundation primitives centrally", () => {
     expect(system).toContain("--crew-color-deep-teal: #164b50");
     expect(system).toContain("--crew-color-cyan: #00b7c7");
@@ -226,7 +245,7 @@ describe("Crew Mobile design system contract", () => {
     expect(learning).toContain('className="crew-ui-note crew-sop-acknowledged"');
     expect(learning).toContain('className="crew-sop-acknowledgement-action"');
     expect(learning).toContain('crew-learning-journey-hero crew-ui-functional-surface');
-    expect(learning).toContain('import onboardingJourneyHero from "../../../assets/crew/onboarding-journey-hero-approved.png"');
+    expect(learning).toContain('import onboardingJourneyHero from "../../../assets/crew/onboarding-journey-hero-approved.webp"');
     expect(learning).toContain('className="crew-learning-journey-art"');
     expect(learning).toContain("function onboardingJourneyDescription(description)");
     expect(learning).toContain("FeedX Crew Onboarding Full Demo");
@@ -385,7 +404,7 @@ describe("Crew Mobile design system contract", () => {
     expect(sharedStyles).not.toContain(".crew-home-attendance {");
     expect(home).toContain(".crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0;");
     [".crew-home-attendance-main", ".crew-home-attendance-art", ".crew-home-clock-halo", ".crew-home-clock-semantic-ring", ".crew-home-clock-orbit-highlight", ".crew-home-clock-action", ".crew-home-attendance-footer"].forEach((selector) => expect(home).toContain(selector));
-    expect(homeComponent).toContain('import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.png"');
+    expect(homeComponent).toContain('import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.webp"');
     expect(homeComponent).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading} hasException={locationEvidence.tone === "is-exception"}>');
     expect(home).toContain("grid-template-rows: 100px 15px");
     expect(home).toContain("transform-origin: 50% 50%");
@@ -404,7 +423,7 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain(".crew-ui-count");
     expect(system).toContain("--crew-space-section: 24px");
     expect(typography).toContain(".crew-list-dense-primary");
-    expect(growthStyles).toContain(".crew-skill-row");
+    expect(growthStyles).not.toContain(".crew-skill-row");
     expect(growthStyles).not.toContain(".crew-v2-menu");
     expect(meStyles).toContain(".crew-me-settings");
     expect(meStyles).toContain(".crew-me-profile-summary");

@@ -54,7 +54,7 @@
   bottom: 0;
   left: -5%;
   height: min(24vh, 202px);
-  background: url("/crew-auth-restaurant-line-art.png") center bottom / contain no-repeat;
+  background: url("/crew-auth-restaurant-line-art.webp") center bottom / contain no-repeat;
   content: "";
   opacity: .88;
   pointer-events: none;

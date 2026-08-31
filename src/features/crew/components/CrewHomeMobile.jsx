@@ -4,7 +4,7 @@ import CrewHomeClockMotion from "../CrewHomeClockMotion.jsx";
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 import { formatTime, malaysiaDateKey, formatRosterTime, rosterEntryLabel, formatHomeDate, formatHomeClock, formatDuration } from "../utils/crewMobile.js";
-import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.png";
+import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.webp";
 
 function HomeScheduleRow({ entry, label, onClick }) {
   const { t } = useTranslation();

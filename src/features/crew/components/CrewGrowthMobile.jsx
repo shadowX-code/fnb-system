@@ -28,8 +28,8 @@ import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import { CrewHelpSheet, CrewHelpTrigger } from "./CrewHelp.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
-import growthPerformanceHeroBackground from "../assets/growth-performance-hero-approved.png";
-import performanceDetailHeroBackground from "../assets/performance-detail-hero-approved.png";
+import growthPerformanceHeroBackground from "../assets/growth-performance-hero-approved.webp";
+import performanceDetailHeroBackground from "../assets/performance-detail-hero-approved.webp";
 
 gsap.registerPlugin(useGSAP);
 

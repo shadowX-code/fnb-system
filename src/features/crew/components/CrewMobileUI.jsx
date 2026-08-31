@@ -52,6 +52,11 @@ export function CrewEmptyState({ title, body }) {
   return <div className="crew-ui-empty"><strong>{title}</strong>{body && <p>{body}</p>}</div>;
 }
 
+export function CrewRouteLoading() {
+  const { t } = useTranslation();
+  return <section className="crew-v2-state" role="status" aria-live="polite" aria-busy="true"><span className="crew-v2-spinner" aria-hidden="true" /><strong>{t("common.loading")}</strong></section>;
+}
+
 export function CrewBottomNav({ items, active, onChange }) {
   const { t } = useTranslation();
   return <nav className="crew-v2-nav" aria-label={t("nav.label")}>{items.map(({ id, label, icon: Icon }) => <button type="button" key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}><Icon size={19} /><span className="crew-type-nav-label">{t(`nav.${id}`, { defaultValue: label })}</span></button>)}</nav>;

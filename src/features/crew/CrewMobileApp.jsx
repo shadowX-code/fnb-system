@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Gift, Home, Sparkles, UserRound } from "lucide-react";
 import useCrewSession from "./hooks/useCrewSession.js";
@@ -8,14 +8,9 @@ import CrewLogin from "./components/CrewLogin.jsx";
 import CrewHomeMobile from "./components/CrewHomeMobile.jsx";
 import CrewMeMobile from "./components/CrewMeMobile.jsx";
 import CrewAttendanceMobile, { CrewClockDialogs } from "./components/CrewAttendanceMobile.jsx";
-import CrewGrowthMobile from "./components/CrewGrowthMobile.jsx";
-import CrewLearningMobile from "./components/CrewLearningMobile.jsx";
-import CrewRewardMobile from "./components/CrewRewardMobile.jsx";
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
-import CrewLeaveMobile from "./components/CrewLeaveMobile.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
-import CrewCashCheckoutMobile from "./components/CrewCashCheckoutMobile.jsx";
-import { CrewBottomNav } from "./components/CrewMobileUI.jsx";
+import { CrewBottomNav, CrewRouteLoading } from "./components/CrewMobileUI.jsx";
 import "./CrewMobileSystem.css";
 import "./CrewAuthMobile.css";
 import "./CrewMobileTypography.css";
@@ -41,10 +36,16 @@ const navItems = [
   { id: "me", label: "Me", icon: UserRound },
 ];
 
+const CrewGrowthMobile = lazy(() => import("./components/CrewGrowthMobile.jsx"));
+const CrewRewardMobile = lazy(() => import("./components/CrewRewardMobile.jsx"));
+const CrewLearningMobile = lazy(() => import("./components/CrewLearningMobile.jsx"));
+const CrewCashCheckoutMobile = lazy(() => import("./components/CrewCashCheckoutMobile.jsx"));
+const CrewLeaveMobile = lazy(() => import("./components/CrewLeaveMobile.jsx"));
+
 
 export default function CrewMobileApp({ onNotify }) {
-  const crew = useCrewSession();
   const route = useCrewRoute();
+  const crew = useCrewSession(route.screen);
   // Replacing a token unmounts every employee-owned view, draft and dialog.
   return crew.session ? <CrewWorkspace key={crew.session.token} {...crew} route={route} onNotify={onNotify} /> : <CrewLogin onSignedIn={crew.replaceSession} />;
 }
@@ -61,16 +62,18 @@ function CrewWorkspace({ session, replaceSession, changePasscode, data, pageLoad
   const openTask = (target) => { homeScrollY.current = window.scrollY; setOperationTarget(target); navigate("operations"); };
 
   return <main className="crew-v2-shell"><section className="crew-v2-app">
-    {screen === "home" && <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} />}
+    <Suspense fallback={<CrewRouteLoading />}>
+    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} />)}
     {screen === "learn" && <CrewLearningMobile token={session.token} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={refresh} onViewPerformance={() => navigate("growth", { growthInitialView: "performance" })} />}
-    {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={refresh} onNavigate={navigate} onViewChange={(view) => { if (view === "overview" || view === "performance") navigate("growth", { growthInitialView: view }); }} />}
+    {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading} error={growthError} onRetry={refresh} onNavigate={navigate} onViewChange={(view) => { if (view === "overview" || view === "performance") navigate("growth", { growthInitialView: view }); }} />}
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={refresh} onBack={(returnContext) => { setOperationTarget(null); navigate("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => navigate("me")} onChanged={refresh} />}
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
     {screen === "attendance" && <CrewAttendanceMobile rows={clock.attendanceMonth} loading={clock.attendanceMonthLoading} selectedMonth={clock.selectedAttendanceMonth} onMonthChange={clock.setSelectedAttendanceMonth} onBack={() => navigate("home")} t={t} />}
     {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} onChangePasscode={changePasscode} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
+    </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
     {!cashCheckoutFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;

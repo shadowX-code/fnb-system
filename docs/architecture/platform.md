@@ -31,6 +31,14 @@ Admin uses one shared UI vocabulary for layout, page headers, cards, filters, ta
 The Crew mobile experience may use a specialized mobile shell because its identity, navigation, and interaction model differ from Admin workspaces.
 That shell difference does not create a separate business authority.
 
+### Crew Startup And Route Loading
+
+`useCrewSession` requests Attendance/context for the active session and only the additional projections needed by the current route: Home needs operations and roster; Tasks needs operations; Schedule needs roster; Growth/Performance needs both growth and performance; Reward needs reward; Me needs profile and leave summary. Learn, Cash Checkout, Leave detail, and Attendance month views keep their existing feature-owned reads. Home does not preload those secondary projections.
+
+Root read projections are cached only in memory within the current token lifetime. Concurrent route entries reuse pending reads; successful reads are reused for 60 seconds and revalidated on a subsequent route entry. Existing same-session data stays visible during revalidation. A mutation refresh immediately reloads the active route and invalidates other route projections for their next entry, including discarding pre-mutation off-route responses. Logout/session replacement clears all projections, cache entries, and pending-request authority. Token, generation, and per-resource request identity checks prevent obsolete success or failure from affecting a newer session or refresh. This cache is a presentation optimization, never a substitute for server authorization or mutation validation.
+
+Growth/Performance, Reward, Learn, Cash Checkout, and Leave components use route-triggered React lazy imports. Home, session bootstrap, shell, and bottom navigation remain eager. The shared `CrewRouteLoading` fallback occupies the route content while navigation remains mounted; first Home data loading also uses it rather than displaying empty business projections. Feature CSS retains its established explicit import order to preserve the cascade. Tasks remains shared with the Admin task preview rather than introducing a second implementation merely to split a chunk.
+
 ## Canonical Routing
 
 Every active capability has one canonical route owner and one implementation owner.

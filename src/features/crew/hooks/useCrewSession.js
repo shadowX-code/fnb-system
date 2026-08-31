@@ -3,6 +3,10 @@ import { useTranslation } from "react-i18next";
 import { crewService } from "../../../services/crewService.js";
 
 const storageKey = "feedx.crew.session";
+const methods = { attendance: "myAttendance", context: "attendanceContext", operations: "operationsToday", roster: "myRoster", growth: "growthMobile", performance: "performanceMobile", reward: "rewardMobile", leave: "myLeave", profile: "myProfile" };
+const routeReads = { home: ["operations", "roster"], operations: ["operations"], schedule: ["roster"], growth: ["growth", "performance"], reward: ["reward"], me: ["profile", "leave"] };
+const cacheLifetime = 60_000;
+const fallback = (key) => key === "attendance" ? [] : key === "operations" ? { tasks: [] } : key === "roster" ? { today: null, entries: [] } : null;
 const emptyData = () => ({ attendance: [], context: null, growth: null, performance: null, reward: null, operations: null, roster: null, leave: null, profile: null, growthError: "" });
 const readSession = () => {
   try {
@@ -11,7 +15,7 @@ const readSession = () => {
   } catch { return null; }
 };
 
-export default function useCrewSession() {
+export default function useCrewSession(screen = "home") {
   const { t } = useTranslation();
   const translate = useRef(t);
   translate.current = t;
@@ -20,17 +24,22 @@ export default function useCrewSession() {
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const generation = useRef(0);
+  const cache = useRef({});
+  const [loaded, setLoaded] = useState({});
+  const required = ["attendance", "context", ...(routeReads[screen] || [])];
+  const requiredRef = useRef(required);
+  requiredRef.current = required;
   const [data, setData] = useState(emptyData);
-  const [pageLoading, setPageLoading] = useState(Boolean(session));
   const [passcodeSuccess, setPasscodeSuccess] = useState(false);
 
   const replaceSession = useCallback((nextSession, { passcodeChanged = false } = {}) => {
     generation.current += 1;
     currentSession.current = nextSession;
+    cache.current = {};
+    setLoaded({});
     if (nextSession) localStorage.setItem(storageKey, JSON.stringify(nextSession));
     else localStorage.removeItem(storageKey);
     setData(emptyData());
-    setPageLoading(Boolean(nextSession));
     setPasscodeSuccess(passcodeChanged);
     setSession(nextSession);
   }, []);
@@ -45,38 +54,50 @@ export default function useCrewSession() {
     return true;
   }, [session?.token, replaceSession]);
 
-  const refresh = useCallback(async () => {
+  const load = useCallback((key, force = false) => {
     const token = session?.token;
-    // An obsolete child's callback must not supersede the new session's request.
-    if (!token || currentSession.current?.token !== token) return false;
-    const request = ++generation.current;
-    setPageLoading(true);
-    const [history, context, growth, performance, reward, operations, roster, leave, profile] = await Promise.allSettled([
-      crewService.myAttendance(token), crewService.attendanceContext(token), crewService.growthMobile(token),
-      crewService.performanceMobile(token), crewService.rewardMobile(token), crewService.operationsToday(token),
-      crewService.myRoster(token), crewService.myLeave(token),
-      typeof crewService.myProfile === "function" ? crewService.myProfile(token) : Promise.resolve(null),
-    ]);
-    if (request !== generation.current || currentSession.current?.token !== token) return false;
-    if (history.status === "rejected" || context.status === "rejected") {
-      replaceSession(null);
+    if (!token || currentSession.current?.token !== token || !mounted.current) return Promise.resolve(false);
+    const existing = cache.current[key];
+    if (!force && existing?.promise) return existing.promise;
+    if (!force && existing?.at && Date.now() - existing.at < cacheLifetime) return Promise.resolve(true);
+    const epoch = generation.current;
+    const request = { at: 0, promise: null };
+    cache.current[key] = request;
+    const current = () => mounted.current && epoch === generation.current && currentSession.current?.token === token && cache.current[key] === request;
+    request.promise = Promise.resolve().then(() => current() ? crewService[methods[key]](token) : undefined).then((value) => {
+      if (!current()) return false;
+      request.at = Date.now();
+      setData((previous) => ({ ...previous, [key]: value ?? fallback(key), ...(key === "growth" ? { growthError: "" } : {}) }));
+      setLoaded((previous) => ({ ...previous, [key]: true }));
+      return true;
+    }).catch((cause) => {
+      if (!current()) return false;
+      if (key === "attendance" || key === "context") { replaceSession(null); return false; }
+      setData((previous) => ({ ...previous, [key]: key === "growth" ? previous.growth : fallback(key), ...(key === "growth" ? { growthError: cause?.message || translate.current("growth.unavailable") } : {}) }));
+      setLoaded((previous) => ({ ...previous, [key]: true }));
       return false;
-    }
-    const value = (result, fallback = null) => result.status === "fulfilled" ? result.value : fallback;
-    setData((previous) => ({
-      attendance: history.value || [], context: context.value || null,
-      growth: value(growth, previous.growth), growthError: growth.status === "rejected" ? growth.reason?.message || translate.current("growth.unavailable") : "",
-      performance: value(performance), reward: value(reward), operations: value(operations, { tasks: [] }),
-      roster: value(roster, { today: null, entries: [] }), leave: value(leave, { requests: [], upcoming: [] }), profile: value(profile),
-    }));
-    setPageLoading(false);
-    return true;
+    }).finally(() => { if (current()) request.promise = null; });
+    return request.promise;
   }, [session?.token, replaceSession]);
 
-  useEffect(() => {
-    void refresh();
-    return () => { generation.current += 1; };
-  }, [refresh]);
+  const refresh = useCallback(async () => {
+    if (!session?.token || currentSession.current?.token !== session.token) return false;
+    // Mutations can affect other route projections: revalidate those on next entry.
+    for (const [key, entry] of Object.entries(cache.current)) {
+      entry.at = 0;
+      if (entry.promise && !requiredRef.current.includes(key)) delete cache.current[key];
+    }
+    const results = await Promise.all(requiredRef.current.map((key) => load(key, true)));
+    return results.every(Boolean);
+  }, [session?.token, load]);
 
+  useEffect(() => {
+    for (const key of requiredRef.current) void load(key);
+  }, [load, screen]);
+  useEffect(() => {
+    return () => { generation.current += 1; cache.current = {}; };
+  }, []);
+
+  const pageLoading = Boolean(session) && required.some((key) => !loaded[key]);
   return { session, replaceSession, changePasscode, refresh, data, pageLoading, passcodeSuccess };
 }

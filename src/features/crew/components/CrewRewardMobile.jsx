@@ -14,7 +14,7 @@ import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI
 import { CrewMobilePageHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import { CrewHelpSheet, CrewHelpTable, CrewHelpTrigger } from "./CrewHelp.jsx";
-import rewardHeroBackground from "../assets/reward-hero-approved.png";
+import rewardHeroBackground from "../assets/reward-hero-approved.webp";
 
 gsap.registerPlugin(useGSAP);
 

@@ -85,6 +85,19 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it("keeps navigation mounted and hides Home business empties until required projections settle", async () => {
+    let resolveOperations;
+    mocks.operationsToday.mockReturnValueOnce(new Promise((resolve) => { resolveOperations = resolve; }));
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    await waitFor(() => expect(mocks.operationsToday).toHaveBeenCalledTimes(1));
+    expect(screen.getByRole("navigation", { name: "Crew navigation" })).not.toBeNull();
+    expect(screen.getByRole("status").getAttribute("aria-busy")).toBe("true");
+    expect(screen.queryByRole("region", { name: "Attendance status" })).toBeNull();
+    await act(async () => resolveOperations({ tasks: [] }));
+    expect(await screen.findByRole("region", { name: "Attendance status" })).not.toBeNull();
+  });
+
   it("retains a server-rotated token when Me unmounts during passcode change", async () => {
     let resolveChange;
     mocks.changePasscode.mockReturnValueOnce(new Promise((resolve) => { resolveChange = resolve; }));
@@ -186,7 +199,7 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByRole("button", { name: "View profile information" })).toBeNull();
     expect(screen.queryByRole("region", { name: "Work status summary" })).toBeNull();
     expect(screen.getByText("Alex Tan")).not.toBeNull();
-    expect(screen.getByText("Full-Time")).not.toBeNull();
+    expect(await screen.findByText("Full-Time")).not.toBeNull();
     const profileHero = document.querySelector(".crew-me-profile-hero");
     expect(profileHero?.querySelector("img.crew-me-profile-credential-art[aria-hidden='true']")).not.toBeNull();
     expect(screen.getByText("1 Pending")).not.toBeNull();
@@ -215,7 +228,7 @@ describe("Crew Mobile redesign", () => {
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
 
-    expect(screen.getByText("Part-Time")).not.toBeNull();
+    expect(await screen.findByText("Part-Time")).not.toBeNull();
     expect(screen.queryByText("Active")).toBeNull();
   });
 
@@ -240,7 +253,7 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Me" }));
     fireEvent.click(screen.getAllByRole("button", { name: /Leave/ })[0]);
-    expect(screen.getByRole("heading", { name: "My Leave" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "My Leave" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     fireEvent.click(screen.getByRole("button", { name: "Log Out" }));
     expect(screen.getByRole("dialog", { name: "Log out of FeedX?" })).not.toBeNull();
@@ -747,12 +760,12 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[2]);
-    expect(screen.getAllByText("RM 120.72").length).toBeGreaterThanOrEqual(2);
+    expect((await screen.findAllByText("RM 120.72")).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Qualified")).not.toBeNull();
     expect(screen.getByText("Score 75")).not.toBeNull();
     expect(screen.getAllByText("32.19%").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /View My Performance/ }));
-    expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "My Performance" })).not.toBeNull();
     expect(document.body.textContent).not.toContain("Alex");
     expect(mocks.rewardMobile).toHaveBeenCalledWith("crew-token");
   });
