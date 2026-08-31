@@ -68,6 +68,7 @@ export default function CrewTaskBlockRenderer({
   onPreviewChange,
   onOpenSop,
   compact = false,
+  compactCompletedResult = false,
   unavailable = false,
 }) {
   const { t } = useTranslation();
@@ -135,14 +136,14 @@ export default function CrewTaskBlockRenderer({
       <div className="crew-task-block-copy">
         <span><strong>{title}</strong>{block.required === false ? <em>{t("common.optional")}</em> : null}</span>
       </div>
-      {summaryStatus ? <span className={`crew-ui-status crew-task-block-result${blockStatusTone(status) === "success" ? " is-success" : blockStatusTone(status) === "warning" ? " is-warning" : ""}`}>{summaryStatus}</span> : null}
+      {summaryStatus && !compactCompletedResult ? <span className={`crew-ui-status crew-task-block-result${blockStatusTone(status) === "success" ? " is-success" : blockStatusTone(status) === "warning" ? " is-warning" : ""}`}>{summaryStatus}</span> : null}
       {responded ? <CheckCircle2 className="crew-task-block-saved-icon" size={17} aria-hidden="true" /> : null}
     </div>
 
     <div className="crew-task-block-panel">
       {block.description && !["key_point", "text"].includes(block.block_type) ? <p>{block.description}</p> : null}
       {supportsCompletionNote && !readonly && !responded ? <label className="crew-ui-form-field crew-task-additional-note"><span>{requiredCompletionNote ? "Completion note" : "Completion note (optional)"}</span><textarea className="crew-ui-field crew-task-textarea" value={note} disabled={saving || unavailable} onChange={(event) => setNote(event.target.value)} placeholder={requiredCompletionNote ? "Add the required completion note" : "Add a note if useful"} /></label> : null}
-      {readonly && actionable ? <div className="crew-task-readonly-result">{result}</div> : <BlockControl block={block} response={response} setResponse={setResponse} mode={mode} saving={saving} responded={responded} unavailable={unavailable} completionNote={note} completionNoteRequired={requiredCompletionNote} submit={submit} onOpenSop={onOpenSop} readMore={readMore} setReadMore={setReadMore} onNeedsAttention={() => { setPendingIssueAction("health"); }} onNoException={() => { setPendingIssueAction("yes_no"); }} />}
+      {readonly && actionable ? (compactCompletedResult ? null : <div className="crew-task-readonly-result">{result}</div>) : <BlockControl block={block} response={response} setResponse={setResponse} mode={mode} saving={saving} responded={responded} unavailable={unavailable} completionNote={note} completionNoteRequired={requiredCompletionNote} submit={submit} onOpenSop={onOpenSop} readMore={readMore} setReadMore={setReadMore} onNeedsAttention={() => { setPendingIssueAction("health"); }} onNoException={() => { setPendingIssueAction("yes_no"); }} />}
       {canReportIssue ? <button type="button" className="crew-task-report-link" onClick={() => setExceptionOpen(true)} disabled={saving}><AlertTriangle size={15} /> {t("tasks.reportIssue")}</button> : null}
       {block.evidence_requirement && block.evidence_requirement !== "none" ? <small className="crew-task-evidence">{t("tasks.evidence", { type: String(block.evidence_requirement).replaceAll("_", " ") })}</small> : null}
     </div>

@@ -19,6 +19,8 @@ function localDateLabel(value, t) {
 
 function localizedWeekdays(days, t) {
   const values = (days || []).map((day) => WEEKDAY_BY_ISO[Number(day)]).filter(Boolean);
+  if (values.length === 5 && ["mon", "tue", "wed", "thu", "fri"].every((day) => values.includes(day))) return t("tasks.schedule.weekdaysLabel");
+  if (values.length === 7) return t("tasks.schedule.daily");
   return values.length ? values.map((day) => t(`tasks.schedule.weekdays.${day}`)).join(", ") : t("tasks.schedule.selectedWeekdays");
 }
 

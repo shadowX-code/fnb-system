@@ -8,9 +8,9 @@ import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
-import { CrewStatusBadge } from "./CrewMobileUI.jsx";
+import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { formatCrewDate, formatCrewTime, translateStatus } from "../utils/crewI18n.js";
-import { activeTaskResponsibilities, crewBusinessDate, formatTaskSchedule, historyTasks } from "../utils/taskSchedule.js";
+import { activeTaskResponsibilities, formatTaskSchedule, historyTasks } from "../utils/taskSchedule.js";
 import { applySopLocalization, applyTaskLocalization } from "../utils/localizedContent.js";
 
 export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
@@ -60,13 +60,9 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   useEffect(() => { loadAllTasks(); }, [token]);
   async function loadHistoryTasks() {
     const request = ++historyTaskRequest.current;
-    const today = crewBusinessDate();
-    const fromDate = new Date(`${today}T00:00:00+08:00`);
-    fromDate.setDate(fromDate.getDate() - 29);
-    const from = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(fromDate);
     setHistoryLoading(true); setError("");
     try {
-      const nextData = await crewService.operationsAllTasks(token, from, today);
+      const nextData = await crewService.operationsHistory(token);
       if (request === historyTaskRequest.current) setHistoryTaskData(nextData);
     } catch (cause) { if (request === historyTaskRequest.current) setError(cause.message); }
     finally { if (request === historyTaskRequest.current) setHistoryLoading(false); }
@@ -212,9 +208,9 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     const canRedo = !unavailable && detailContext?.view !== "history" && ["not_started", "in_progress"].includes(detail.status);
     return <section className="crew-ops-mobile">
       <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} variant="workflow" />
-      <div className="crew-ops-detail-head"><strong>{translateStatus(detail.status, t)}</strong>{canRedo ? <button type="button" className="crew-mobile-ghost crew-ops-redo" onClick={() => setRedoOpen(true)}><RotateCcw size={15} />{t("tasks.redo")}</button> : null}<small>{t("tasks.completedCount", { completed, total: actionable.length })}</small><div className="crew-task-preview-progress"><span style={{ width: `${actionable.length ? (completed / actionable.length) * 100 : 100}%` }} /></div></div>
+      <TaskDetailSummary detail={detail} completed={completed} total={actionable.length} canRedo={canRedo} onRedo={() => setRedoOpen(true)} />
       {unavailable ? <TaskAvailabilityNotice availableFrom={detail.available_from} /> : null}
-      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} unavailable={unavailable} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
+      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} unavailable={unavailable} saving={savingBlockId === block.id} compactCompletedResult={["completed", "completed_with_exceptions"].includes(detail.status) && actionable.length === 1 && completed === 1} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
       {error ? <div className="crew-v2-error">{error}</div> : null}
       {redoOpen ? <CrewMobileModal title={t("tasks.redoTitle")} closeDisabled={redoSaving} onClose={() => !redoSaving && setRedoOpen(false)}><div className="crew-ops-redo-dialog"><p>{t("tasks.redoBody")}</p><div><button type="button" className="crew-mobile-secondary" disabled={redoSaving} onClick={() => setRedoOpen(false)}>{t("common.cancel")}</button><button type="button" className="crew-mobile-secondary crew-ops-redo-confirm" disabled={redoSaving} onClick={resetTask}><RotateCcw size={16} />{redoSaving ? t("common.saving") : t("tasks.redo")}</button></div></div></CrewMobileModal> : null}
     </section>;
@@ -233,7 +229,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     {taskView === "history" ? <>
       <div className="crew-ops-filters" role="tablist" aria-label={t("tasks.history")}>{filterOptions.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={historyFilter === value} className={historyFilter === value ? "is-active" : ""} onClick={() => setHistoryFilter(value)}>{label}</button>)}</div>
       {historyLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : historical.length ? <section className="crew-ops-group">{historical.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} history onOpen={() => openFromList(task, "history")} />)}</section> : <section className="crew-ops-group"><Empty text={t("tasks.noHistory")} /></section>}
-    </> : (loading && !allTaskData) || allTasksLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : activeGroups.length ? activeGroups.map(([label, groupTasks]) => <section className="crew-ops-group" key={label}><div className="crew-v2-section-title"><h2>{label}</h2><span>{groupTasks.length}</span></div>{groupTasks.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} onOpen={() => openFromList(task, "active")} />)}</section>) : <section className="crew-ops-group"><Empty text={t("tasks.noActiveTasks")} /></section>}
+    </> : (loading && !allTaskData) || allTasksLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : activeGroups.length ? activeGroups.map(([label, groupTasks]) => <section className="crew-ops-group" key={label}><CrewSectionHeader density="operational" title={label} trailing={<span className="crew-ui-count">{groupTasks.length}</span>} />{groupTasks.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} onOpen={() => openFromList(task, "active")} />)}</section>) : <section className="crew-ops-group"><Empty text={t("tasks.noActiveTasks")} /></section>}
     {error ? <div className="crew-v2-error">{error}</div> : null}
     {legacyTask ? <LegacyTaskModal item={legacyTask} reason={reason} setReason={setReason} note={note} setNote={setNote} saving={saving} onClose={() => setLegacyTask(null)} onSubmit={submitLegacy} /> : null}
   </section>;
@@ -281,6 +277,39 @@ function TaskCompletionState({ status, completed, total, completedAt }) {
   return <section className="crew-task-completion-state" aria-live="polite"><CheckCircle2 size={21} /><span><strong>{review ? t("tasks.submittedReview") : t("tasks.completed")}</strong><small>{t("tasks.completedCount", { completed, total })}{time ? ` · ${t("tasks.completedAt", { time })}` : ""}</small></span></section>;
 }
 
+function TaskDetailSummary({ detail, completed, total, canRedo, onRedo }) {
+  const { t } = useTranslation();
+  const isFinal = ["completed", "completed_with_exceptions", "review_required"].includes(detail.status);
+  const singleComplete = isFinal && total === 1 && completed === 1;
+  const assignment = assignmentLabel(detail.assignment, t);
+  const completion = detail.completion_audit;
+  const completionTime = completion?.completed_at || detail.completed_at;
+  return <section className="crew-ops-detail-summary" aria-label={t("tasks.summary")}>
+    <div className="crew-ops-detail-summary-status"><CrewStatusBadge tone={taskStatusTone(detail.status)}>{translateStatus(detail.status, t)}</CrewStatusBadge>{canRedo ? <button type="button" className="crew-mobile-ghost crew-ops-redo" onClick={onRedo}><RotateCcw size={15} />{t("tasks.redo")}</button> : null}</div>
+    {assignment ? <DetailMeta label={t("tasks.assignedTo")} value={assignment} /> : null}
+    {isFinal && completion ? <DetailMeta label={t("tasks.completedBy")} value={completion.employee_name} supporting={formatTaskAuditDate(completion.completed_at)} /> : null}
+    {!singleComplete ? <><small>{t("tasks.completedCount", { completed, total })}</small><div className="crew-task-preview-progress"><span style={{ width: `${total ? (completed / total) * 100 : 100}%` }} /></div></> : null}
+  </section>;
+}
+
+function DetailMeta({ label, value, supporting }) {
+  return <div className="crew-ops-detail-meta"><span>{label}</span><strong>{value}</strong>{supporting ? <small>{supporting}</small> : null}</div>;
+}
+
+function assignmentLabel(assignment, t) {
+  if (!assignment) return null;
+  if (assignment.kind === "individual") return assignment.is_current_employee ? t("tasks.you") : assignment.employee_name || null;
+  if (assignment.kind === "position") return assignment.label ? t("tasks.positionTeam", { label: assignment.label }) : t("tasks.sharedTask");
+  if (assignment.kind === "group") return assignment.label ? t("tasks.groupTeam", { label: assignment.label }) : t("tasks.sharedTask");
+  return assignment.label ? t("tasks.outletTeam", { label: assignment.label }) : t("tasks.sharedTask");
+}
+
+function formatTaskAuditDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return `${formatCrewDate(date, { day: "numeric", month: "short", year: "numeric" })} · ${formatCrewTime(date).toLowerCase()}`;
+}
+
 function applyTaskBlockResponse(detail, blockId, saved, response, exceptionReason, note) {
   if (!detail || !saved?.status) return detail;
   return {
@@ -312,20 +341,20 @@ function Empty({ text }) { return <div className="crew-ui-functional-surface cre
 
 function taskStatusTone(status) {
   if (["completed", "completed_with_exceptions"].includes(status)) return "success";
-  if (["exception", "needs_attention", "not_checked", "review_required", "overdue"].includes(status)) return "warning";
+  if (["exception", "needs_attention", "review_required", "overdue"].includes(status)) return "warning";
   return "neutral";
 }
 
 function TaskRow({ task, t, history = false, onOpen }) {
   const hasProgress = Number(task.completed_count || 0) > 0 && Number(task.block_count || 0) > 0;
   const historyContext = [
-    task.business_date ? formatCrewDate(new Date(`${task.business_date}T00:00:00+08:00`), { day: "2-digit", month: "2-digit", year: "numeric" }) : null,
-    task.completed_at ? t("tasks.completedAt", { time: formatCrewTime(task.completed_at).toLowerCase() }) : null,
+    task.business_date ? formatCrewDate(new Date(`${task.business_date}T00:00:00+08:00`), { day: "numeric", month: "short" }) : null,
+    task.completed_at ? `${translateStatus(task.status, t)} ${formatCrewTime(task.completed_at).toLowerCase()}` : translateStatus(task.status, t),
   ].filter(Boolean).join(" · ");
   const tone = taskStatusTone(task.status);
   return <button type="button" className={`crew-ops-task is-${task.status}`} onClick={onOpen}>
     <span className={`crew-ui-icon-container crew-ui-icon-container--compact${tone === "success" ? " is-success" : tone === "warning" ? " is-warning" : ""}`}>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span>
-    <span><strong>{task.name}</strong>
+    <span><strong className="crew-list-dense-primary">{task.name}</strong>
       {history ? <small>{historyContext || task.description || String(task.task_type).replaceAll("_", " ")}</small> : hasProgress ? <small>{t("tasks.completedCount", { completed: task.completed_count, total: task.block_count })}</small> : task.description ? <small>{task.description}</small> : null}
       {!history ? <small className="crew-ops-schedule">{formatTaskSchedule(task, t)}</small> : null}
     </span>

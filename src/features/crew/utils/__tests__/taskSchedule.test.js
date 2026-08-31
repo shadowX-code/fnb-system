@@ -9,6 +9,7 @@ afterEach(async () => { vi.useRealTimers(); await i18n.changeLanguage("en"); });
 describe("Crew Task schedule formatter", () => {
   it("formats canonical recurring, one-time and shift schedules without backend enum copy", () => {
     expect(formatTaskSchedule({ schedule_type: "recurring", schedule_config: { frequency: "every_day" }, business_date: "2026-08-22", available_from: "2026-08-22T01:00:00Z" }, t)).toContain("Daily");
+    expect(formatTaskSchedule({ schedule_type: "recurring", schedule_config: { frequency: "specific_weekdays", weekdays: [1, 2, 3, 4, 5] }, business_date: "2026-08-22" }, t)).toContain("Weekdays");
     expect(formatTaskSchedule({ schedule_type: "recurring", schedule_config: { frequency: "specific_weekdays", weekdays: [1, 3, 5] }, business_date: "2026-08-24" }, t)).toContain("Mon, Wed, Fri");
     expect(formatTaskSchedule({ schedule_type: "one_time", business_date: "2026-08-24", due_at: "2026-08-24T06:00:00Z" }, t)).toContain("One-time");
     expect(formatTaskSchedule({ schedule_type: "shift_based", schedule_config: { shift_phase: "end_of_shift" }, business_date: "2026-08-24" }, t)).toContain("End of shift");

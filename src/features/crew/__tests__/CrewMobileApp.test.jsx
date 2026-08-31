@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   rewardMobile: vi.fn(),
   operationsToday: vi.fn(),
   operationsAllTasks: vi.fn(),
+  operationsHistory: vi.fn(),
   myRoster: vi.fn(),
   myLeave: vi.fn(),
   operationDetail: vi.fn(),
@@ -65,6 +66,7 @@ beforeEach(() => {
   mocks.rewardMobile.mockReset().mockResolvedValue(reward);
   mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, tasks: [{ id: "ops-1", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", block_count: 2, completed_count: 0 }, { id: "task-1", source: "legacy_daily", name: "Check reservation board", status: "pending", priority: "normal" }] });
   mocks.operationsAllTasks.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, tasks: [{ id: "ops-1", template_id: "template-opening", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", business_date: currentBusinessDate(), schedule_type: "recurring", schedule_config: { frequency: "every_day" }, available_from: "2026-08-13T02:00:00Z", due_at: "2026-08-13T10:00:00Z", block_count: 2, completed_count: 0 }] });
+  mocks.operationsHistory.mockReset().mockResolvedValue({ from: currentBusinessDate(), to: currentBusinessDate(), history_window_days: 30, tasks: [] });
   mocks.myRoster.mockReset().mockResolvedValue({ from: "2026-08-13", to: "2026-08-26", today: { entry_id: "roster-1", date: "2026-08-13", outlet_id: "outlet-1", outlet_name: "Friends Corner", start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew" }, entries: [{ id: "roster-1", date: "2026-08-13", outlet: { id: "outlet-1", name: "Friends Corner" }, start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew", template: { code: "MORNING", name: "Morning" } }, { id: "roster-2", date: "2026-08-14", outlet: { id: "outlet-2", name: "Hola Hola" }, entry_type: "off", template: { code: "OFF", name: "OFF" } }] });
   mocks.myLeave.mockReset().mockResolvedValue({ requests: [], upcoming: [] });
   mocks.operationDetail.mockReset().mockResolvedValue({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "checklist_item", required: true, status: "pending" }] });
@@ -413,6 +415,34 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByText("Opening Checklist")).not.toBeNull();
   });
 
+  it("uses the fixed-window history authority and presents compact task audit context", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    const today = currentBusinessDate();
+    mocks.operationsHistory.mockResolvedValueOnce({ from: today, to: today, history_window_days: 30, tasks: [{ id: "history-1", source: "instance", name: "Completed opening task", task_type: "checklist", status: "completed", business_date: today, completed_at: "2026-08-31T04:52:00Z" }] });
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "All Tasks" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "History" }));
+    await waitFor(() => expect(mocks.operationsHistory).toHaveBeenCalledWith("crew-token"));
+    expect(await screen.findByText(/Completed 12:52 pm/)).not.toBeNull();
+    expect(mocks.operationsAllTasks).not.toHaveBeenCalledWith("crew-token", expect.anything(), expect.anything());
+  });
+
+  it("shows server-projected assignment and execution audit in task detail without duplicating a completed one-step summary", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.operationDetail.mockResolvedValueOnce({
+      id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "completed", completed_at: "2026-08-31T09:42:00Z",
+      assignment: { kind: "group", label: "Kitchen" },
+      completion_audit: { employee_id: "employee-b", employee_name: "Ahmad", completed_at: "2026-08-31T09:42:00Z" },
+      blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "completed", response: { value: true } }],
+    });
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
+    expect(await screen.findByText("Kitchen team")).not.toBeNull();
+    expect(screen.getByText("Ahmad")).not.toBeNull();
+    expect(screen.getByText(/31 Aug 2026/)).not.toBeNull();
+    expect(screen.queryByText("1 of 1 completed")).toBeNull();
+  });
+
   it("uses an explicit schedule-empty label instead of implying the Crew is working", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myRoster.mockResolvedValueOnce({ from: "2026-08-13", to: "2026-08-26", today: null, entries: [] });
@@ -537,7 +567,7 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationDetail
       .mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "pending" }] })
-      .mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "completed", completed_at: "2026-08-16T02:30:00Z", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "completed", response: { value: true } }] });
+      .mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "completed", completed_at: "2026-08-16T02:30:00Z", completion_audit: { employee_id: "employee-a", employee_name: "Alex Tan", completed_at: "2026-08-16T02:30:00Z" }, blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "completed", response: { value: true } }] });
     mocks.updateTaskBlock.mockResolvedValueOnce({ block_id: "item-1", status: "completed", task_status: "completed", task_completed_at: "2026-08-16T02:30:00Z" });
 
     render(<CrewMobileApp />);
@@ -545,8 +575,9 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Confirm Unlock guest entrance" }));
 
     await waitFor(() => expect(mocks.updateTaskBlock).toHaveBeenCalledWith("crew-token", "item-1", "completed", { value: true }, null, null));
-    expect(await screen.findByText("1 of 1 completed")).not.toBeNull();
-    expect(screen.getAllByText(/1 of 1 completed/)).toHaveLength(1);
+    expect(await screen.findByText("Alex Tan")).not.toBeNull();
+    expect(screen.queryByText("1 of 1 completed")).toBeNull();
+    expect(screen.queryByText("Confirmed")).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete Task" })).toBeNull();
     expect(mocks.completeOperationChecklist).not.toHaveBeenCalled();
   });

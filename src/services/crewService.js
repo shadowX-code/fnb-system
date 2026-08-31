@@ -148,6 +148,12 @@ export const crewService = {
     return data || { tasks: [], attendance_context: null };
   },
 
+  async operationsHistory(token) {
+    const { data, error } = await supabase.rpc("crew_task_history_for_crew", { p_token: token });
+    throwSupabaseError("crew.operationsHistory", error);
+    return data || { tasks: [], history_window_days: 30 };
+  },
+
   async myRoster(token, from = localBusinessDate(), to = null) {
     const end = to || (() => {
       const value = new Date(`${from}T00:00:00`);
