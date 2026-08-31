@@ -7,6 +7,9 @@ const admin = readFileSync(resolve(process.cwd(), "src/features/crew/pages/CrewL
 const app = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.jsx"), "utf8");
 const me = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewMeMobile.jsx"), "utf8");
 const service = readFileSync(resolve(process.cwd(), "src/services/crewService.js"), "utf8");
+const leaveStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewLeaveMobile.css"), "utf8");
+const datePicker = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewDatePicker.jsx"), "utf8");
+const datePickerStyles = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewDatePicker.css"), "utf8");
 
 describe("Crew Leave v1 UI contracts", () => {
   it("keeps Leave under Me without changing the five-tab bottom navigation", () => {
@@ -28,7 +31,7 @@ describe("Crew Leave v1 UI contracts", () => {
     expect(mobile).toContain('t("leave.approvedChangeHelp")');
     expect(mobile).toContain("item.rejection_reason");
     expect(mobile).toContain("crew-leave-guidance");
-    expect(mobile).toContain('t("leave.availableDays"');
+    expect(mobile).toContain('t("leave.available")');
   });
 
   it("shows manager roster context and requires a rejection reason", () => {
@@ -46,5 +49,16 @@ describe("Crew Leave v1 UI contracts", () => {
     for (const copy of ["Balances", "Settings", "Balance summary", "Adjust Leave Balance", "Adjustment History", "Leave Policy", "One employee per row", "Expiry month"]) expect(admin).toContain(copy);
     expect(admin).toContain('auth.hasPermission("crew_leave_balance.adjust")');
     expect(admin).toContain('auth.hasPermission("crew_leave_settings.manage")');
+  });
+
+  it("uses the canonical Crew action, progress, icon-button, and selected-date tokens", () => {
+    expect(leaveStyles).toContain(".crew-mobile-detail-header-action > .crew-leave-header-action:not(.crew-ui-help-trigger) { display: inline-flex; width: auto; height: auto; flex: 0 0 auto; white-space: nowrap; }");
+    expect(leaveStyles).toContain(".crew-leave-steps span.is-active { background: var(--crew-color-primary-bg); }");
+    expect(leaveStyles).not.toContain("crew-leave-header-action:hover");
+    expect(datePicker).toContain('className="crew-mobile-detail-icon-action"');
+    expect(datePicker).toContain("<CrewBottomSheet");
+    expect(datePickerStyles).toContain("background: var(--crew-color-primary-bg); color: var(--crew-color-primary-fg);");
+    expect(datePickerStyles).toContain("background: var(--crew-color-icon-selected-bg); color: var(--crew-color-deep-teal);");
+    expect(datePickerStyles).not.toContain("rgb(22 75 80 / .16)");
   });
 });

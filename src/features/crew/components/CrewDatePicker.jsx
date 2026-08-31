@@ -61,9 +61,9 @@ export default function CrewDatePicker({ label, value, min, disabled = false, on
     {open ? <CrewBottomSheet title={label} description={t("leave.dates")} onClose={() => setOpen(false)} className="crew-date-picker-sheet" contentClassName="crew-date-picker-sheet-content" headerIcon={<CalendarDays size={18} />}>
       <section className="crew-date-picker-calendar" aria-label={monthLabel}>
         <header>
-          <button type="button" aria-label={t("schedule.previousMonth")} onClick={() => setVisibleMonth((current) => addMonths(current, -1))}><ChevronLeft size={19} /></button>
+          <button type="button" className="crew-mobile-detail-icon-action" aria-label={t("schedule.previousMonth")} onClick={() => setVisibleMonth((current) => addMonths(current, -1))}><ChevronLeft size={19} /></button>
           <strong>{monthLabel}</strong>
-          <button type="button" aria-label={t("schedule.nextMonth")} onClick={() => setVisibleMonth((current) => addMonths(current, 1))}><ChevronRight size={19} /></button>
+          <button type="button" className="crew-mobile-detail-icon-action" aria-label={t("schedule.nextMonth")} onClick={() => setVisibleMonth((current) => addMonths(current, 1))}><ChevronRight size={19} /></button>
         </header>
         <div className="crew-date-picker-weekdays" aria-hidden="true">{weekdays.map((date) => <span key={date.getDay()}>{formatCrewDate(date, { weekday: "short" })}</span>)}</div>
         <div className="crew-date-picker-grid">{cells.map((cell) => {
