@@ -147,6 +147,28 @@ test("shared navigation keeps five line icons and stable active geometry", async
   }
 });
 
+test("language selector stays compact, complete, and tappable across Crew locales", async ({ page }, info) => {
+  await open(page, info, "crew/me");
+  await page.getByRole("button", { name: t("me.settings"), exact: true }).click();
+  await page.getByRole("button", { name: t("me.language"), exact: true }).click();
+  const selector = page.locator(".crew-language-segmented");
+  await expect(selector).toBeVisible();
+  await expect(selector.locator("button")).toHaveCount(3);
+  await expect(selector.locator("svg")).toHaveCount(0);
+  for (const language of ["English", "简体中文", "Bahasa Melayu"]) {
+    const option = selector.getByRole("button", { name: language, exact: true });
+    await option.click();
+    await expect(option).toHaveAttribute("aria-pressed", "true");
+    await expect(option).toHaveClass(/is-active/);
+    expect(await option.evaluate(element => {
+      const size = parseFloat(getComputedStyle(element).fontSize);
+      return size >= 11 && size <= 14;
+    })).toBe(true);
+    expect(await option.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+  }
+  await assertMobileLayout(page);
+});
+
 test("long onboarding journey/module/lesson copy", async ({ page }, info) => {
   await open(page, info, "crew/learn");
   await page.locator(".crew-learn-final-onboarding").click();
