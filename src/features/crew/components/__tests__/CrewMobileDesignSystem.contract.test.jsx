@@ -153,7 +153,7 @@ describe("Crew Mobile design system contract", () => {
     expect(homeComponent).toContain('t("tasks.dueLabel")');
     expect(homeComponent).toContain('className="crew-list-secondary crew-home-task-meta"');
     expect(homeComponent).toContain('className={`crew-home-task-due${task.deadline.overdue ? " is-overdue" : ""}`}');
-    expect(home).toContain(".crew-home-task .crew-home-task-meta { display: grid;");
+    expect(home).toContain(".crew-home-task .crew-home-task-meta { display: flex;");
     expect(home).toContain(".crew-home-task .crew-home-task-due.is-overdue");
   });
 

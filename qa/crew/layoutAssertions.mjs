@@ -27,9 +27,18 @@ export async function assertMobileLayout(page) {
       // Intentional text ellipsis/line clamp and horizontal category carousels
       // are approved patterns, unlike clipped controls or hidden actions.
       const clamp = parseInt(css.webkitLineClamp, 10) > 0 || css.textOverflow === "ellipsis";
+      // The Home count pulse extends beyond the heading via ::after. Measure
+      // its real text range so animation timing cannot masquerade as clipping.
+      let countPulseOnly = false;
+      if (element.matches(".crew-home-tasks h2") && element.querySelector(".crew-home-task-count")) {
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        const content = range.getBoundingClientRect();
+        countPulseOnly = content.left >= rect.left - 1 && content.right <= rect.right + 1;
+      }
       // Icon-only help triggers intentionally extend their invisible touch area
       // using a pseudo-element. That is not clipped text.
-      if (!clamp && element.textContent.trim() && !["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) && element.scrollWidth > element.clientWidth + 2) issues.push(`content clipped ${label}`);
+      if (!clamp && !countPulseOnly && element.textContent.trim() && !["INPUT", "TEXTAREA", "SELECT"].includes(element.tagName) && element.scrollWidth > element.clientWidth + 2) issues.push(`content clipped ${label}`);
     }
     return issues;
   });

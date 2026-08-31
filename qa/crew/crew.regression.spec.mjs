@@ -86,6 +86,62 @@ for (const [route, title] of screens) test(`long-copy layout: ${route}`, async (
   await assertInputSizing(page);
 });
 
+test("Home tasks share one dense list without truncating title or status", async ({ page }, info) => {
+  await open(page, info, "crew/home");
+  const rows = page.locator(".crew-home-task");
+  await expect(rows.first()).toBeVisible();
+  expect(await page.locator(".crew-home-tasks .crew-home-list").evaluate(element => parseFloat(getComputedStyle(element).borderRadius))).toBeGreaterThan(0);
+  for (const row of await rows.all()) {
+    await expect(row).toHaveCSS("border-radius", "0px");
+    await expect(row).toHaveCSS("box-shadow", "none");
+    await expect(row).toHaveCSS("border-top-width", "0px");
+    await expect(row).toHaveCSS("border-left-width", "0px");
+    await expect(row.locator("strong")).toHaveCSS("font-size", "13px");
+    await expect(row.locator("strong")).toHaveCSS("font-weight", "600");
+    await expect(row.locator("strong")).toHaveCSS("-webkit-line-clamp", "none");
+    expect(await row.evaluate(element => {
+      const title = element.querySelector("strong");
+      const status = element.querySelector(".crew-ui-status");
+      return title.getBoundingClientRect().right <= status.getBoundingClientRect().left &&
+        title.scrollHeight <= title.clientHeight + 1 && status.scrollWidth <= status.clientWidth + 1;
+    })).toBe(true);
+    await assertActionReachable(page, row);
+  }
+  await expect(rows.last()).toHaveCSS("border-bottom-width", "0px");
+  if (await rows.count() > 1) await expect(rows.first()).toHaveCSS("border-bottom-width", "1px");
+  await assertMobileLayout(page);
+  await page.getByRole("navigation").getByRole("button", { name: t("nav.learn"), exact: true }).click();
+  const sopTitle = page.locator(".crew-list-dense-primary").first();
+  await expect(sopTitle).toHaveCSS("font-size", "13px");
+  await expect(sopTitle).toHaveCSS("font-weight", "600");
+});
+
+test("shared navigation keeps five line icons and stable active geometry", async ({ page }, info) => {
+  await open(page, info, "crew/home");
+  const nav = page.getByRole("navigation", { name: t("nav.label") });
+  await expect(nav).toBeVisible();
+  const initial = await nav.boundingBox();
+  for (const destination of ["home", "learn", "reward", "growth", "me", "home"]) {
+    const button = nav.getByRole("button", { name: t(`nav.${destination}`), exact: true });
+    await button.click();
+    await expect(page).toHaveURL(new RegExp(`#crew/${destination}$`));
+    await expect(button).toHaveAttribute("aria-current", "page");
+    await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
+    await expect(button).toHaveCSS("color", "rgb(22, 75, 80)");
+    await expect(button.locator("span")).toHaveCSS("color", "rgb(22, 75, 80)");
+    await expect(button).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    for (const icon of await nav.locator("svg").all()) {
+      await expect(icon).toHaveCSS("width", "24px");
+      await expect(icon).toHaveCSS("height", "24px");
+      await expect(icon).toHaveCSS("stroke-width", "1.75px");
+      await expect(icon).toHaveAttribute("aria-hidden", "true");
+    }
+    await expect(nav.locator('button:not([aria-current])').first()).toHaveCSS("color", "rgb(80, 105, 110)");
+    expect(await nav.boundingBox()).toEqual(initial);
+    await assertMobileLayout(page);
+  }
+});
+
 test("long onboarding journey/module/lesson copy", async ({ page }, info) => {
   await open(page, info, "crew/learn");
   await page.locator(".crew-learn-final-onboarding").click();

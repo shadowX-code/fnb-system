@@ -59,5 +59,5 @@ export function CrewRouteLoading() {
 
 export function CrewBottomNav({ items, active, onChange }) {
   const { t } = useTranslation();
-  return <nav className="crew-v2-nav" aria-label={t("nav.label")}>{items.map(({ id, label, icon: Icon }) => <button type="button" key={id} className={active === id ? "active" : ""} onClick={() => onChange(id)}><Icon size={19} /><span className="crew-type-nav-label">{t(`nav.${id}`, { defaultValue: label })}</span></button>)}</nav>;
+  return <nav className="crew-v2-nav" aria-label={t("nav.label")}>{items.map(({ id, label, icon: Icon }) => <button type="button" key={id} className={active === id ? "active" : ""} aria-current={active === id ? "page" : undefined} onClick={() => onChange(id)}><Icon size={24} strokeWidth={1.75} aria-hidden="true" /><span className="crew-type-nav-label">{t(`nav.${id}`, { defaultValue: label })}</span></button>)}</nav>;
 }
