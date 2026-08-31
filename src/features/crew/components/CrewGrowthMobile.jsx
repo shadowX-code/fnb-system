@@ -468,12 +468,14 @@ function CrewPerformanceDetail({ performance, onBack, onNavigate }) {
   </section>;
 }
 
-export default function CrewGrowthMobile({ data, performance, loading, error, onRetry, onNavigate, initialView = "overview" }) {
+export default function CrewGrowthMobile({ data, performance, loading, error, onRetry, onNavigate, onViewChange, initialView = "overview" }) {
   const { t } = useTranslation();
   const [view, setView] = useState(initialView);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [skillReturnView, setSkillReturnView] = useState("overview");
   const [helpOpen, setHelpOpen] = useState(false);
+  const changeView = (nextView) => { setView(nextView); onViewChange?.(nextView); };
+  useEffect(() => { setView(initialView); }, [initialView]);
   useEffect(() => { document.documentElement.scrollTop = 0; document.body.scrollTop = 0; }, [view]);
   const skills = data?.skills || [];
   const summary = data?.summary || { certified: 0, in_progress: 0, ready_for_review: 0, not_started: 0, total: 0 };
@@ -484,7 +486,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   function openSkill(skill) {
     setSkillReturnView(view === "skill" ? "overview" : view);
     setSelectedSkill(skill);
-    setView("skill");
+    changeView("skill");
   }
 
   if (loading) return <section className="crew-v2-state"><span className="crew-v2-spinner" /><strong>{t("growth.loading")}</strong></section>;
@@ -493,7 +495,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   if (view === "skill" && selectedSkill) {
     const progress = percentFor(selectedSkill);
     return <section className="crew-v2-growth">
-      <PageHeader title={t("growth.skillDetail")} onBack={() => { setView(skillReturnView); setSelectedSkill(null); }} />
+      <PageHeader title={t("growth.skillDetail")} onBack={() => { changeView(skillReturnView); setSelectedSkill(null); }} />
       <article className="crew-v2-skill-hero">
         <div className="crew-v2-icon-token"><BadgeCheck size={23} /></div>
         <div><h2>{selectedSkill.name}</h2><p>{selectedSkill.category}</p></div>
@@ -519,7 +521,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   if (view === "path") {
     const next = skills.find((skill) => skill.status === "ready_for_review") || skills.find((skill) => skill.status === "in_progress") || skills.find((skill) => skill.status === "not_started");
     return <section className="crew-v2-growth">
-      <PageHeader title={t("growth.myPath")} onBack={() => setView("overview")} />
+      <PageHeader title={t("growth.myPath")} onBack={() => changeView("overview")} />
       <article className="crew-v2-path-hero"><Sparkles size={23} /><p>{t("growth.keepGoing")}</p><h2>{next ? next.name : t("growth.nextMilestone")}</h2><ProgressBar value={next ? percentFor(next) : overall} /><small>{next ? t("growth.requirementCount", { completed: next.requirements_completed, total: next.requirements_total }) : t("growth.allMilestones")}</small></article>
       <section className="crew-v2-section-block"><div className="crew-v2-section-title"><h2>{t("growth.timeline")}</h2><span>{t("growth.updates", { count: data?.timeline?.length || 0 })}</span></div>
         <div className="crew-v2-timeline">{(data?.timeline || []).map((event, index) => <div key={`${event.type}-${event.occurred_at}-${index}`}><span><CheckCircle2 size={15} /></span><div><strong>{event.label}</strong><small>{event.skill_name} · {formatDate(event.occurred_at)}{event.score != null ? ` · ${event.score}%` : ""}</small></div></div>)}</div>
@@ -535,7 +537,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
       [t("status.completed"), skills.filter((skill) => skill.status === "certified")],
     ];
     return <section className="crew-v2-growth">
-      <PageHeader title={t("growth.certifications")} onBack={() => setView("overview")} />
+      <PageHeader title={t("growth.certifications")} onBack={() => changeView("overview")} />
       {groups.map(([label, rows]) => <section className="crew-v2-cert-group" key={label}><div className="crew-v2-section-title"><h2>{label}</h2><span>{rows.length}</span></div>
         {rows.length ? <div className="crew-v2-skill-list">{rows.map((skill) => <button type="button" key={skill.id} onClick={() => openSkill(skill)}><div className="crew-v2-row-icon"><Award size={17} /></div><span><strong>{skill.name}</strong><small>{skill.status === "certified" ? t("growth.certifiedOn", { date: formatDate(skill.certification?.certified_at) }) : t("growth.requirementCount", { completed: skill.requirements_completed, total: skill.requirements_total })}</small></span><ChevronRight size={16} /></button>)}</div> : <p className="crew-v2-group-empty">{t("growth.noStageSkills")}</p>}
       </section>)}
@@ -543,12 +545,12 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   }
 
   if (view === "performance") {
-    return performance ? <CrewPerformanceDetail performance={performance} onBack={() => setView("overview")} onNavigate={(target) => target === "skills" || target === "growth" ? setView("overview") : onNavigate?.(target)} /> : <section className="crew-v2-growth crew-v2-performance"><PageHeader title={t("performance.title")} onBack={() => setView("overview")} /><section className="crew-v2-performance-empty"><Target size={28} /><h2>{t("performance.unavailable")}</h2><p>{t("performance.unavailableBody")}</p></section></section>;
+    return performance ? <CrewPerformanceDetail performance={performance} onBack={() => changeView("overview")} onNavigate={(target) => target === "skills" || target === "growth" ? changeView("overview") : onNavigate?.(target)} /> : <section className="crew-v2-growth crew-v2-performance"><PageHeader title={t("performance.title")} onBack={() => changeView("overview")} /><section className="crew-v2-performance-empty"><Target size={28} /><h2>{t("performance.unavailable")}</h2><p>{t("performance.unavailableBody")}</p></section></section>;
   }
 
   return <section className="crew-v2-growth crew-growth-overview">
     <PageHeader title={t("growth.title")} subtitle={t("growth.subtitle")} action={<CrewHelpTrigger variant="header" label={t("growth.help")} onClick={() => setHelpOpen(true)} />} />
-    <GrowthPerformanceHero performance={performance} onOpen={() => setView("performance")} />
+    <GrowthPerformanceHero performance={performance} onOpen={() => changeView("performance")} />
     <GrowthSkillSummary summary={summary} />
     <GrowthSkillList skills={skills} onOpen={openSkill} />
     {helpOpen ? <GrowthHelpSheet onClose={() => setHelpOpen(false)} /> : null}

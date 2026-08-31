@@ -45,6 +45,7 @@ import CrewHomeClockMotion from "./CrewHomeClockMotion.jsx";
 import crewMeProfileCredentialAsset from "./assets/crew-me-profile-credential-approved.png";
 import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
 import { formatCrewDate, formatCrewTime, crewLocale, translateStatus } from "./utils/crewI18n.js";
+import { crewRouteForState, parseCrewRoute } from "./crewRoute.js";
 import { SUPPORTED_CREW_LANGUAGES } from "../../i18n/index.js";
 import "./CrewMobileSystem.css";
 import "./CrewAuthMobile.css";
@@ -289,7 +290,8 @@ function ClockReasonSheet({ options, selectedReason, onSelect, onClose }) {
 export default function CrewMobileApp({ onNotify }) {
   const { t, i18n } = useTranslation();
   const [session, setSession] = useState(readSession);
-  const [screen, setScreen] = useState("home");
+  const initialRoute = parseCrewRoute() || crewRouteForState({ screen: "home" });
+  const [screen, setScreen] = useState(initialRoute.screen);
   const [cashCheckoutFlow, setCashCheckoutFlow] = useState(false);
   const [attendance, setAttendance] = useState([]);
   const [attendanceMonth, setAttendanceMonth] = useState([]);
@@ -300,7 +302,7 @@ export default function CrewMobileApp({ onNotify }) {
   const [growth, setGrowth] = useState(null);
   const [growthError, setGrowthError] = useState("");
   const [performance, setPerformance] = useState(null);
-  const [growthInitialView, setGrowthInitialView] = useState("overview");
+  const [growthInitialView, setGrowthInitialView] = useState(initialRoute.growthInitialView || "overview");
   const [reward, setReward] = useState(null);
   const [operations, setOperations] = useState(null);
   const [roster, setRoster] = useState(null);
@@ -325,14 +327,52 @@ export default function CrewMobileApp({ onNotify }) {
   const [newPasscode, setNewPasscode] = useState("");
   const [confirmPasscode, setConfirmPasscode] = useState("");
   const [passcodeSuccess, setPasscodeSuccess] = useState(false);
+  const refreshGeneration = useRef(0);
+  const currentSession = useRef(session);
+  const routeNeedsNormalization = useRef(Boolean(initialRoute.needsNormalization));
+  currentSession.current = session;
   const openShift = useMemo(() => attendance.find((item) => item.status === "open"), [attendance]);
   const employee = session?.employee || {};
   const firstName = employee.nickname || employee.full_name?.split(" ")[0] || t("auth.crew");
   const hour = new Date().getHours();
   const greeting = hour < 12 ? t("home.morning") : hour < 18 ? t("home.afternoon") : t("home.evening");
 
+  function invalidatePendingCrewData() {
+    refreshGeneration.current += 1;
+  }
+
+  function clearEmployeeState() {
+    setAttendance([]);
+    setAttendanceMonth([]);
+    setAttendanceMonthLoading(false);
+    setProfile(null);
+    setContext(null);
+    setGrowth(null);
+    setGrowthError("");
+    setPerformance(null);
+    setReward(null);
+    setOperations(null);
+    setRoster(null);
+    setLeave(null);
+    setPageLoading(false);
+    setLoading(false);
+    setError("");
+    setClockDraft(null);
+    setClockSuccess(null);
+    setClockTransition("");
+    setOperationTarget(null);
+    setCashCheckoutFlow(false);
+  }
+
+  function replaceCrewSession(nextSession) {
+    invalidatePendingCrewData();
+    clearEmployeeState();
+    setSession(nextSession);
+  }
+
   async function refresh(token = session?.token) {
     if (!token) return;
+    const generation = ++refreshGeneration.current;
     setPageLoading(true);
     const [historyResult, contextResult, growthResult, performanceResult, rewardResult, operationsResult, rosterResult, leaveResult, profileResult] = await Promise.allSettled([
       crewService.myAttendance(token),
@@ -345,10 +385,11 @@ export default function CrewMobileApp({ onNotify }) {
       crewService.myLeave(token),
       typeof crewService.myProfile === "function" ? crewService.myProfile(token) : Promise.resolve(null),
     ]);
+    if (generation !== refreshGeneration.current || currentSession.current?.token !== token) return;
     if ([historyResult, contextResult].some((result) => result.status === "rejected")) {
       const cause = [historyResult, contextResult].find((result) => result.status === "rejected")?.reason;
       localStorage.removeItem(storageKey);
-      setSession(null);
+      replaceCrewSession(null);
       setError(cause?.message || t("auth.unable"));
       setPageLoading(false);
       return;
@@ -370,7 +411,30 @@ export default function CrewMobileApp({ onNotify }) {
     setPageLoading(false);
   }
 
-  useEffect(() => { refresh(); }, [session?.token]);
+  useEffect(() => { void refresh(); }, [session?.token]);
+  useEffect(() => {
+    const syncRoute = () => {
+      const next = parseCrewRoute();
+      if (!next) return;
+      routeNeedsNormalization.current = Boolean(next.needsNormalization);
+      setScreen(next.screen);
+      setGrowthInitialView(next.growthInitialView || "overview");
+      if (next.screen === "me") setMeView(next.meView || "main");
+    };
+    window.addEventListener("popstate", syncRoute);
+    window.addEventListener("hashchange", syncRoute);
+    return () => {
+      window.removeEventListener("popstate", syncRoute);
+      window.removeEventListener("hashchange", syncRoute);
+    };
+  }, []);
+  useEffect(() => {
+    const route = crewRouteForState({ screen, growthInitialView });
+    if (window.location.hash === route.canonicalHash) return;
+    const replaceRoute = routeNeedsNormalization.current;
+    routeNeedsNormalization.current = false;
+    window.history[replaceRoute ? "replaceState" : "pushState"](null, "", route.canonicalHash);
+  }, [screen, growthInitialView]);
   useEffect(() => {
     if (!session?.token || screen !== "attendance") return;
     let active = true;
@@ -453,7 +517,7 @@ export default function CrewMobileApp({ onNotify }) {
       const next = await crewService.changePasscode(session.token, currentPasscode, newPasscode);
       const updated = { ...session, token: next.token, expires_at: next.expires_at };
       localStorage.setItem(storageKey, JSON.stringify(updated));
-      setSession(updated);
+      replaceCrewSession(updated);
       setCurrentPasscode("");
       setNewPasscode("");
       setConfirmPasscode("");
@@ -468,12 +532,11 @@ export default function CrewMobileApp({ onNotify }) {
 
   function logout() {
     localStorage.removeItem(storageKey);
-    setSession(null);
-    setAttendance([]);
+    replaceCrewSession(null);
     setScreen("home");
   }
 
-  if (!session) return <CrewLogin onSignedIn={setSession} />;
+  if (!session) return <CrewLogin onSignedIn={replaceCrewSession} />;
 
   const exceptionRequired = Boolean(context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters)));
   const outside = Boolean(clockDraft?.location && clockDraft?.distance > Number(context?.radius_meters));
@@ -539,7 +602,7 @@ export default function CrewMobileApp({ onNotify }) {
 
     {screen === "learn" && <CrewLearningMobile token={session.token} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={() => refresh()} onViewPerformance={() => { setGrowthInitialView("performance"); setScreen("growth"); }} />}
-    {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} onViewReward={() => setScreen("reward")} onNavigate={(target) => setScreen(target)} />}
+    {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} onViewReward={() => setScreen("reward")} onNavigate={(target) => setScreen(target)} onViewChange={(view) => { if (view === "overview" || view === "performance") setGrowthInitialView(view); }} />}
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={() => refresh()} onBack={(returnContext) => { setOperationTarget(null); setScreen("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => setScreen("me")} onChanged={() => refresh()} />}
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => setScreen("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}

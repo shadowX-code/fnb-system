@@ -2,6 +2,8 @@
 
 Purpose: milestone changelog for meaningful FeedX development sessions. This file preserves delivery history but is not architecture or current-system authority. Current code and migrations take precedence, followed by tests/contracts and the canonical documentation routed from `docs/README.md`. Release notes under `docs/releases/` document Production releases.
 
+- Hardened the Crew Mobile session boundary: a lightweight canonical Crew hash map now preserves principal and operational screen identity across refresh/history, and generation-plus-token guards prevent stale employee refresh responses from crossing logout or session replacement. Crew startup now bypasses the Admin bootstrap loader.
+
 ## Late August 2026 — Crew Mobile Operations, Cash, And Localized Content
 
 - Completed the durable Crew task execution baseline: versioned task definitions and scheduled assignment produce token-bound mobile work, canonical completion evidence, controlled reset/redo, and roster-aware schedule visibility.

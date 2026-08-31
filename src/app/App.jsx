@@ -18,6 +18,7 @@ import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import CrewMobileApp from "../features/crew/CrewMobileApp.jsx";
 import CrewGuestFeedback from "../features/crew/CrewGuestFeedback.jsx";
+import { isCrewHash } from "../features/crew/crewRoute.js";
 import { CrewAdminOutletProvider } from "../features/crew/context/CrewAdminOutletContext.jsx";
 import { GuestAiDeviceRuntimeProvider } from "../features/guest-ai/device/session/GuestAiDeviceRuntimeContext.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
@@ -272,6 +273,7 @@ function RbacDiagnosticsPanel({ auth, loads }) {
 
 export default function App() {
   const auth = useAuth();
+  const crewRouteRequested = isCrewHash();
   const authOutletScopeKey = useMemo(
     () => `${auth.profile?.role_outlet_access_type ?? auth.profile?.role?.outlet_access_type ?? ""}|${(auth.profile?.role_outlet_ids ?? auth.profile?.roleOutletIds ?? []).join("|")}`,
     [auth.profile?.role?.outlet_access_type, auth.profile?.roleOutletIds, auth.profile?.role_outlet_access_type, auth.profile?.role_outlet_ids],
@@ -591,6 +593,12 @@ export default function App() {
 
   const ui = { notify, confirm, navigate };
 
+  // Crew is a separate token-bound workspace. It must not inherit the Admin
+  // bootstrap loader or its copy while Admin Auth restores its own session.
+  if (crewRouteRequested) {
+    return <><CrewMobileApp onNotify={notify} /><ToastViewport toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} style={{ right: "max(16px, calc((100vw - 430px) / 2 + 16px))", bottom: "calc(var(--crew-mobile-nav-height) + env(safe-area-inset-bottom) + 82px)" }} /></>;
+  }
+
   if (auth.loading || auth.contextLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
@@ -605,12 +613,6 @@ export default function App() {
 
   if (window.location.hash.startsWith("#feedback")) {
     return <CrewGuestFeedback />;
-  }
-
-  // Crew Mobile is an explicit employee entry point and must not be shadowed
-  // by an unrelated Admin session in the same browser.
-  if (window.location.hash === "#crew") {
-    return <><CrewMobileApp onNotify={notify} /><ToastViewport toasts={toasts} onDismiss={(id) => setToasts((current) => current.filter((toast) => toast.id !== id))} style={{ right: "max(16px, calc((100vw - 430px) / 2 + 16px))", bottom: "calc(var(--crew-mobile-nav-height) + env(safe-area-inset-bottom) + 82px)" }} /></>;
   }
 
   if (!auth.session) {

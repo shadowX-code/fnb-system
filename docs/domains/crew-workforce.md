@@ -24,6 +24,7 @@ Crew Operations consumes workforce context but does not own roster or attendance
 Crew Access is a one-to-one extension of an eligible employee and remains separate from Admin access.
 Employee Master workplace scope is the current canonical outlet authority: Crew Access mirrors its resolved outlet, and a workplace transfer updates that mirror, revokes active Crew sessions, and appends audit evidence. A request with a stale or mismatched Crew Access outlet fails closed; it is never silently re-scoped from a client or an old session.
 Passcodes are protected, sessions are opaque and revocable, and sensitive requests revalidate token validity, access state, employment state, and the current canonical outlet scope.
+The Crew browser keeps only the opaque session envelope locally. Its employee-scoped read projections are cleared and pending reads invalidated on logout or session replacement; a response is accepted only for the current token and refresh generation, preventing a prior employee's data from appearing in a newer session.
 Crew-scoped operational capabilities, including Cash Handover initiation, are owned by the employee's active Crew Access record and outlet rather than by Admin roles or Admin Access. Their changes use the controlled Crew Access administration path and retain audit evidence.
 
 Duty Roster drafts are editable by authorized Admins.

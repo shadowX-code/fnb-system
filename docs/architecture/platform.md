@@ -42,12 +42,15 @@ Compatibility routes preserve old bookmarks or prior module locations by redirec
 They must not fork page implementations, mutation behavior, or documentation ownership.
 Current examples include legacy roster, Crew learning/operations, and Guest AI aliases resolved by `src/app/routeOwnership.js`.
 
+Crew Mobile uses a small hash sub-route map rather than inheriting Admin route state: `#crew/home`, `learn`, `reward`, `growth`, `growth/performance`, `me`, `me/attendance`, `me/cash-checkout`, `me/leave`, `tasks`, and `schedule`. `#crew` and an invalid Crew sub-route normalize to `#crew/home`. The Crew branch is selected before Admin Auth's bootstrap presentation, so Admin copy and shell do not flash while a Crew token-bound session restores.
+
 ## Major Boundaries
 
 - The browser owns interaction and presentation, not protected business transactions.
 - Feature services adapt UI intent to established database RPCs, Edge Functions, and read models.
 - Supabase owns persistent business state and enforced access boundaries.
 - Admin Auth and Crew token-bound sessions are distinct authority surfaces.
+- Crew client refreshes are generation- and token-guarded. Logout, passcode-session replacement, and new Crew sign-in invalidate pending employee reads and clear all employee-scoped projections before another response may be applied.
 - Guest AI may share repository and infrastructure hosting while retaining separate service, device, and data boundaries.
 - Environment and delivery identity are explicit contracts: branch names alone never select a Supabase or Vercel target. Canonical Staging and Production controls are governed by `FEEDX_CODEX_CONTEXT.md`, not duplicated in feature documentation.
 

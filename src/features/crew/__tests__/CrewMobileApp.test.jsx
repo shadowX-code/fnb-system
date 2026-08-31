@@ -54,6 +54,7 @@ const reward = { period_start: "2026-08-01", status: "qualified", cycle_status: 
 const currentBusinessDate = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
 beforeEach(() => {
+  window.history.replaceState(null, "", "#crew/home");
   localStorage.clear();
   mocks.signIn.mockReset().mockResolvedValue(session);
   mocks.myAttendance.mockReset().mockResolvedValue([]);
@@ -84,6 +85,20 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it("restores a canonical Crew deep link and follows browser hash navigation", async () => {
+    window.history.replaceState(null, "", "#crew/reward");
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+
+    expect(await screen.findByRole("heading", { name: "Reward" })).not.toBeNull();
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[0]);
+    await waitFor(() => expect(window.location.hash).toBe("#crew/home"));
+
+    window.history.pushState(null, "", "#crew/learn");
+    fireEvent(window, new HashChangeEvent("hashchange"));
+    expect(await screen.findByRole("heading", { name: "Learn" })).not.toBeNull();
+  });
+
   it("defers Learn reads until the Learn route is opened", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
@@ -242,6 +257,56 @@ describe("Crew Mobile redesign", () => {
     for (const digit of [1, 2, 3, 4]) fireEvent.click(screen.getByRole("button", { name: String(digit) }));
     await waitFor(() => expect(mocks.signIn).toHaveBeenCalledWith("+6012 345 6789", "1234"));
     expect(await screen.findByText("Alex", { selector: "h1" })).not.toBeNull();
+  });
+
+  it("invalidates a pending employee refresh before a different Crew session signs in", async () => {
+    let resolveOldAttendance;
+    const oldAttendance = new Promise((resolve) => { resolveOldAttendance = resolve; });
+    const nextSession = {
+      token: "crew-token-b",
+      expires_at: "2099-08-12T00:00:00Z",
+      employee: { id: "employee-b", full_name: "Bella Lim", nickname: "Bella", position: "Cashier" },
+    };
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myAttendance.mockImplementationOnce(() => oldAttendance).mockResolvedValue([]);
+    mocks.attendanceContext.mockResolvedValueOnce({ outlet_name: "Outlet A", location_enabled: false }).mockResolvedValue({ outlet_name: "Outlet B", location_enabled: false });
+    mocks.signIn.mockResolvedValue(nextSession);
+
+    render(<CrewMobileApp />);
+    const navigation = await screen.findByRole("navigation", { name: "Crew navigation" });
+    fireEvent.click(navigation.querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: "Log Out" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Log Out" })[1]);
+
+    fireEvent.change(screen.getByLabelText("Mobile Number"), { target: { value: "12 345 6789" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    for (const digit of [1, 2, 3, 4]) fireEvent.click(screen.getByRole("button", { name: String(digit) }));
+    expect(await screen.findByText("Bella", { selector: "h1" })).not.toBeNull();
+    await waitFor(() => expect(mocks.attendanceContext).toHaveBeenCalledWith("crew-token-b"));
+    await waitFor(() => expect(document.querySelector(".crew-home-ready-context small")?.getAttribute("title")).toBe("Outlet B"));
+
+    resolveOldAttendance([{ id: "old-attendance", status: "open", clock_in_at: "2026-08-01T02:00:00Z" }]);
+    await waitFor(() => expect(screen.queryByText(/Outlet A/)).toBeNull());
+    expect(screen.getByText("Bella", { selector: "h1" })).not.toBeNull();
+    expect(screen.queryByText("On Shift")).toBeNull();
+  });
+
+  it("ignores a stale mandatory-read failure after logout", async () => {
+    let rejectOldAttendance;
+    const oldAttendance = new Promise((_, reject) => { rejectOldAttendance = reject; });
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myAttendance.mockImplementationOnce(() => oldAttendance);
+
+    render(<CrewMobileApp />);
+    const navigation = await screen.findByRole("navigation", { name: "Crew navigation" });
+    fireEvent.click(navigation.querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: "Log Out" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Log Out" })[1]);
+    expect(await screen.findByLabelText("Mobile Number")).not.toBeNull();
+
+    rejectOldAttendance(new Error("expired Crew A"));
+    await waitFor(() => expect(screen.getByLabelText("Mobile Number")).not.toBeNull());
+    expect(screen.queryByText("expired Crew A")).toBeNull();
   });
 
   it("keeps invalid mobile numbers on the first step with a nearby error", () => {
