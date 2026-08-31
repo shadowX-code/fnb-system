@@ -390,7 +390,7 @@
 .crew-me-profile-avatar:disabled { cursor: progress; opacity: .7; }
 .crew-me-profile-avatar-spinner { animation: crew-me-spin .8s linear infinite; }
 @keyframes crew-me-spin { to { transform: rotate(1turn); } }
-.crew-me-profile-photo-input { position: fixed; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.crew-me-profile-photo-input { display: none; }
 .crew-me-profile-summary > .crew-me-profile-avatar { width: 64px; height: 64px; flex-basis: 64px; }
 .crew-me-profile-hero .crew-me-profile-avatar { position: relative; z-index: 1; width: 56px; height: 56px; flex-basis: 56px; }
 .crew-me-profile-summary p { overflow-wrap: anywhere; }
