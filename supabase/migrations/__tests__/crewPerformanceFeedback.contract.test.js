@@ -4,6 +4,7 @@ import path from "node:path";
 
 const sql = fs.readFileSync(path.resolve("supabase/migrations/20260812154112_crew_performance_feedback_engine.sql"), "utf8").toLowerCase();
 const scopeFix = fs.readFileSync(path.resolve("supabase/migrations/20260812155805_crew_performance_admin_payload_scope_fix.sql"), "utf8").toLowerCase();
+const integrity = fs.readFileSync(path.resolve("supabase/migrations/20260831171519_crew_feedback_evidence_integrity.sql"), "utf8").toLowerCase();
 
 describe("Crew Performance and Customer Feedback engine", () => {
   it("keeps the 100 point calculation server-derived and versioned", () => {
@@ -45,5 +46,22 @@ describe("Crew Performance and Customer Feedback engine", () => {
     expect(scopeFix).toContain("if can_feedback then");
     expect(scopeFix).toContain("if can_review then");
     expect(scopeFix).toContain("-('manager_note'::text)-('criteria'::text)");
+  });
+
+  it("keeps feedback moderation and attribution corrections server-authoritative and append-only", () => {
+    expect(integrity).toContain("create table public.crew_feedback_attribution_audit");
+    expect(integrity).toContain("create or replace function public.crew_feedback_moderate");
+    expect(integrity).toContain("create or replace function public.crew_feedback_correct_attribution");
+    expect(integrity).toContain("a meaningful moderation reason is required");
+    expect(integrity).toContain("a meaningful attribution correction reason is required");
+    expect(integrity).toContain("insert into public.crew_feedback_moderation_audit");
+    expect(integrity).toContain("insert into public.crew_feedback_attribution_audit");
+    expect(integrity).toContain("crew_feedback.correct_attribution");
+  });
+
+  it("refreshes only mutable evidence paths while preserving finalized Performance", () => {
+    expect(integrity).toContain("r.status='finalized'");
+    expect(integrity).toContain("perform public.crew_refresh_performance");
+    expect(sql).toContain("if exists(select 1 from public.crew_performance_results where employee_id=p_employee_id and period_start=period and status='finalized') then return");
   });
 });

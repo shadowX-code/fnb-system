@@ -475,6 +475,12 @@ export const crewService = {
     return data;
   },
 
+  async correctFeedbackAttribution(feedbackId, employeeId, reason) {
+    const { data, error } = await supabase.rpc("crew_feedback_correct_attribution", { p_feedback_id: feedbackId, p_employee_id: employeeId, p_reason: reason });
+    throwSupabaseError("crew.correctFeedbackAttribution", error);
+    return data;
+  },
+
   async publicFeedbackCrew(outletId) {
     const { data, error } = await supabase.rpc("crew_feedback_public_crew", { p_outlet_id: outletId });
     throwSupabaseError("crew.publicFeedbackCrew", error);

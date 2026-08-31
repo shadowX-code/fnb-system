@@ -27,6 +27,8 @@ Monthly Performance uses defined, private evidence adapters rather than reading 
 The server derives protected scoring, eligibility, and reward values from canonical evidence and configured rules.
 Reviewers may add permitted assessment evidence or decisions but cannot rewrite source-domain history.
 
+Customer Feedback preserves each guest submission as evidence while independently controlling its scoring eligibility. Authorized Admins may exclude or restore feedback only through an audited server authority with a reason. Crew attribution remains one-to-one in the current phase; corrections use canonical Crew identifiers, retain prior/new attribution and reason in append-only audit history, and may refresh only mutable Performance results. Finalized Performance and Reward outputs remain immutable.
+
 Draft or open periods may evolve through controlled workflows.
 Finalized scores, approved reward outcomes, and payout evidence are immutable or superseded through explicit correction authority.
 Rule or weight changes must not retroactively alter finalized periods unless a deliberate recalculation contract exists.
@@ -39,6 +41,8 @@ Learning owns the source completion; this domain owns the resulting operational 
 Admin access requires the relevant growth, performance, review, reward, or payout permission plus required scope.
 Crew reads are token-bound and limited to the employee's own safe results and actions.
 Evidence snapshots, finalized scoring, review decisions, reward calculations, approvals, corrections, and payout state retain audit history.
+
+Customer Feedback Detail is the canonical Admin evidence view for submission content, current scoring state, moderation history, and attribution correction history. The operational table keeps excluded feedback visible; period KPIs are scoped to the selected outlet and period rather than table search filters.
 
 ## Admin And Crew Workflows
 
