@@ -509,6 +509,7 @@ describe("Crew Mobile design system contract", () => {
     [".crew-reward-hero-metrics", ".crew-reward-surface", ".crew-reward-performance-relationship", ".crew-reward-potential", ".crew-reward-modal-history"].forEach((selector) => expect(rewardStyles).toContain(selector));
     expect(system).toContain(".crew-ui-modal");
     expect(system).toContain(".crew-ui-help-sheet");
+    expect(system).toContain(".crew-mobile-page-header-action > .crew-ui-help-trigger.is-header");
     expect(help).toContain("export function CrewHelpTrigger");
     expect(help).toContain("export function CrewHelpSheet");
     expect(reward).not.toContain("HeroInfoButton");

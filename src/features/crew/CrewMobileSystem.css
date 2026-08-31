@@ -705,6 +705,7 @@ to {
 .crew-ui-help-trigger::before { position: absolute; inset: -14px; content: ""; }
 .crew-ui-help-trigger.is-inline { width: 16px; height: 16px; }
 .crew-ui-help-trigger.is-header { width: 44px; height: 44px; color: var(--crew-color-deep-teal); }
+.crew-mobile-page-header-action > .crew-ui-help-trigger.is-header { width: 44px; height: 44px; border: 0; background: transparent; }
 .crew-ui-help-trigger:hover { color: var(--crew-color-cyan); }
 .crew-ui-help-trigger:active { color: var(--crew-color-deep-teal); transform: translateY(1px); }
 .crew-ui-help-trigger:focus-visible { border-radius: 50%; outline: 2px solid color-mix(in srgb, var(--crew-color-cyan) 42%, transparent); outline-offset: 2px; }
