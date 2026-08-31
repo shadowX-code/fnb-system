@@ -16,6 +16,41 @@ beforeEach(() => {
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
 
 describe("Crew session orchestration", () => {
+  it.each(["success", "failure"])("keeps the current route/session when an old optional response has a stale %s", async (outcome) => {
+    const pending = deferred();
+    crewService.rewardMobile.mockReturnValueOnce(pending.promise);
+    const { result, rerender } = renderHook(({ route }) => useCrewSession(route), { initialProps: { route: "reward" } });
+    await waitFor(() => expect(crewService.rewardMobile).toHaveBeenCalledWith("A"));
+    act(() => result.current.replaceSession(session("B")));
+    rerender({ route: "growth" });
+    await waitFor(() => expect(result.current.data.growth?.owner).toBe("B"));
+    await act(async () => outcome === "success" ? pending.resolve({ owner: "A" }) : pending.reject(new Error("A expired")));
+    expect(result.current.session.token).toBe("B");
+    expect(result.current.data.reward?.owner).not.toBe("A");
+    rerender({ route: "reward" });
+    await waitFor(() => expect(result.current.data.reward?.owner).toBe("B"));
+    expect(result.current.pageLoading).toBe(false);
+  });
+
+  it("clears all populated employee projections on logout and ignores an off-route pending result", async () => {
+    const { result, rerender } = renderHook(({ route }) => useCrewSession(route), { initialProps: { route: "home" } });
+    for (const [route, key] of [["home", "operations"], ["me", "profile"], ["growth", "growth"], ["growth", "performance"], ["reward", "reward"]]) {
+      rerender({ route });
+      await waitFor(() => expect(result.current.data[key]?.owner).toBe("A"));
+    }
+    const pending = deferred();
+    crewService.rewardMobile.mockReturnValueOnce(pending.promise);
+    let refresh;
+    act(() => { refresh = result.current.refresh(); });
+    await waitFor(() => expect(crewService.rewardMobile).toHaveBeenCalledTimes(2));
+    act(() => result.current.replaceSession(null));
+    expect(Object.values(result.current.data).every(value => value == null || value === "" || (Array.isArray(value) && value.length === 0))).toBe(true);
+    rerender({ route: "home" });
+    await act(async () => { pending.resolve({ owner: "A" }); await refresh; });
+    expect(result.current.session).toBeNull();
+    expect(result.current.data.reward).toBeNull();
+  });
+
   it("loads only the four Home projections and defers non-Home data", async () => {
     const { result } = renderHook(() => useCrewSession("home"));
     expect(result.current.pageLoading).toBe(true);

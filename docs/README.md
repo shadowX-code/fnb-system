@@ -60,6 +60,7 @@ Read these only when the task changes or depends on the corresponding cross-doma
 - [`testing/FACTORY_RUNTIME_ROUTE_COVERAGE.md`](testing/FACTORY_RUNTIME_ROUTE_COVERAGE.md): focused test/route evidence.
 - [`testing/AUTHENTICATED_STAGING_UI_SMOKE.md`](testing/AUTHENTICATED_STAGING_UI_SMOKE.md): Staging-only real-login browser smoke fallback, credential boundary, and artifact policy.
 - [`testing/CREW_STARTUP_PERFORMANCE.md`](testing/CREW_STARTUP_PERFORMANCE.md): Crew startup bundle, request-boundary, lossless artwork and targeted CSS evidence.
+- [`testing/CREW_FRONTEND_GUARDRAILS.md`](testing/CREW_FRONTEND_GUARDRAILS.md): Crew viewport/localization renderer matrix, shared interaction ownership, route/session tests and device-QA limits.
 - [`audits/FACTORY_V1_STAGING_SIGNOFF.md`](audits/FACTORY_V1_STAGING_SIGNOFF.md): historical staging certification evidence.
 - [`releases/README.md`](releases/README.md): production release records.
 - [`archive/README.md`](archive/README.md): archived reports and readiness evidence.

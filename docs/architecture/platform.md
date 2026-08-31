@@ -31,6 +31,8 @@ Admin uses one shared UI vocabulary for layout, page headers, cards, filters, ta
 The Crew mobile experience may use a specialized mobile shell because its identity, navigation, and interaction model differ from Admin workspaces.
 That shell difference does not create a separate business authority.
 
+Crew editable fields use the shared `--crew-type-input` token (at least 16 CSS px), independently of body/label typography, to avoid mobile focus-zoom regressions. The [Crew frontend guardrails](../testing/CREW_FRONTEND_GUARDRAILS.md) define the viewport/localization matrix and shared-interaction checks; they are test tooling, not a parallel runtime or data authority.
+
 ### Crew Startup And Route Loading
 
 `useCrewSession` requests Attendance/context for the active session and only the additional projections needed by the current route: Home needs operations and roster; Tasks needs operations; Schedule needs roster; Growth/Performance needs both growth and performance; Reward needs reward; Me needs profile and leave summary. Learn, Cash Checkout, Leave detail, and Attendance month views keep their existing feature-owned reads. Home does not preload those secondary projections.

@@ -41,9 +41,9 @@
 .crew-home-clock-orbit-leading-edge { fill: var(--crew-color-cyan); opacity: .42; }
 .crew-home-clock-action, .crew-home-complete-ring { position: absolute; z-index: 1; top: calc(50% - 57.5px); left: calc(50% - 52px); display: grid; width: 100px; max-width: calc(100% - 16px); aspect-ratio: 1; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: color-mix(in srgb, var(--crew-color-surface) 88%, transparent); padding: 10px; color: var(--crew-color-deep-teal); transform-origin: 50% 50%; box-shadow: 0 3px 8px color-mix(in srgb, var(--crew-color-deep-teal) 6%, transparent); }
 .crew-home-clock-rings { display: none; }
-.crew-home-clock-action > span, .crew-home-complete-ring > span { display: grid; place-items: center; gap: 3px; text-align: center; }
+.crew-home-clock-action > span, .crew-home-complete-ring > span { display: grid; min-width: 0; max-width: 100%; place-items: center; gap: 3px; text-align: center; }
 .crew-home-clock-action svg, .crew-home-complete-ring svg { width: 25px; height: 25px; }
-.crew-home-clock-action strong, .crew-home-complete-ring strong { color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 700; line-height: 1.05; text-transform: uppercase; white-space: nowrap; }
+.crew-home-clock-action strong, .crew-home-complete-ring strong { color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 700; line-height: 1.05; text-transform: uppercase; overflow-wrap: anywhere; }
 .crew-home-clock-action small, .crew-home-complete-ring small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); font-weight: 550; line-height: 1.15; }
 .crew-home-clock-action:disabled { opacity: .72; }
 .crew-home-clock-action:focus-visible { outline: 3px solid color-mix(in srgb, var(--crew-color-deep-teal) 28%, transparent); outline-offset: 4px; }
@@ -331,7 +331,7 @@
 .crew-clock-reason-field > button strong { min-width: 0; overflow: hidden; font: inherit; text-overflow: ellipsis; white-space: nowrap; }
 .crew-clock-reason-field > button > svg { flex: 0 0 auto; color: var(--crew-color-text-secondary); }
 .crew-clock-reason-field > button:focus-visible,.crew-clock-other-reason input:focus-visible { border-color: var(--crew-color-cyan); outline: 2px solid color-mix(in srgb, var(--crew-color-cyan) 24%, transparent); outline-offset: 1px; }
-.crew-clock-other-reason input { min-height: 44px; box-sizing: border-box; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 10px 12px; color: var(--crew-color-deep-teal); font: inherit; }
+.crew-clock-other-reason input { min-height: 44px; box-sizing: border-box; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 10px 12px; color: var(--crew-color-deep-teal); font: inherit; font-size: var(--crew-type-input); }
 .crew-clock-reason-sheet { width: min(100%, 460px); }
 .crew-clock-reason-sheet-content { padding-top: 0; }
 .crew-clock-reason-options { display: grid; margin: 0 -20px; }

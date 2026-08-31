@@ -7,7 +7,7 @@ The harness accepts only `https://fnb-system-staging.vercel.app`; Production and
 ## Commands
 
 - `npm run test:staging-smoke-harness` validates the guard/configuration without credentials.
-- `npm run qa:staging:crew-smoke` runs Crew login, Home, Learn navigation, fatal-error capture, screenshots, and 360/390/430 viewport overflow checks.
+- `npm run qa:staging:crew-smoke` runs Crew login, Home/Learn and read-only Attendance, Schedule, Tasks, Cash Checkout, Growth/Performance, Reward and Me routes; reload/back-forward, fatal-error capture, screenshots, and 320/360/390/430 viewport overflow checks.
 - `npm run qa:staging:admin-smoke` runs Admin login and opens the read-only `dashboard` route by default. Set `FEEDX_STAGING_ADMIN_ROUTE=reports` only for a Staging QA account that is authorized for Reports.
 
 Crew smoke requires `FEEDX_STAGING_CREW_MOBILE` and `FEEDX_STAGING_CREW_PASSCODE`. Admin smoke requires `FEEDX_STAGING_ADMIN_EMAIL` and `FEEDX_STAGING_ADMIN_PASSWORD`. Supply only Staging-only end-user QA identities through the runtime environment, an approved local secret store, or CI secrets. Never commit credentials, tokens, cookies, or storage state.

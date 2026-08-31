@@ -7,7 +7,7 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const scope = process.argv[2];
 const projectArguments = {
   harness: ["--project=harness"],
-  crew: ["--project=crew-360", "--project=crew-390", "--project=crew-430"],
+  crew: ["--project=crew-320", "--project=crew-360", "--project=crew-390", "--project=crew-430"],
   admin: ["--project=admin-desktop"],
 }[scope];
 

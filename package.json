@@ -11,6 +11,7 @@
     "deploy:preview": "bash scripts/deployFeedxPreview.sh",
     "promote:staging": "bash scripts/promoteFeedxStagingDeployment.sh",
     "test:staging-smoke-harness": "node qa/staging/runStagingSmoke.mjs harness",
+    "test:crew:browser": "playwright test --config=playwright.crew.config.mjs",
     "qa:staging:crew-smoke": "node qa/staging/runStagingSmoke.mjs crew",
     "qa:staging:admin-smoke": "node qa/staging/runStagingSmoke.mjs admin",
     "test": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run",

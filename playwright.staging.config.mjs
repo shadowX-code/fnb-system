@@ -20,6 +20,7 @@ export default defineConfig({
   },
   projects: [
     { name: "harness", testMatch: "**/*.contract.spec.mjs" },
+    { name: "crew-320", testMatch: "**/crew.smoke.spec.mjs", use: { viewport: { width: 320, height: 740 }, deviceScaleFactor: 1 } },
     { name: "crew-360", testMatch: "**/crew.smoke.spec.mjs", use: { viewport: { width: 360, height: 800 }, deviceScaleFactor: 1 } },
     { name: "crew-390", testMatch: "**/crew.smoke.spec.mjs", use: { viewport: { width: 390, height: 844 }, deviceScaleFactor: 1 } },
     { name: "crew-430", testMatch: "**/crew.smoke.spec.mjs", use: { viewport: { width: 430, height: 932 }, deviceScaleFactor: 1 } },
