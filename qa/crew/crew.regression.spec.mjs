@@ -101,14 +101,19 @@ test("Home tasks share one dense list without truncating title or status", async
     await expect(row.locator("strong")).toHaveCSS("font-size", "13px");
     await expect(row.locator("strong")).toHaveCSS("font-weight", "600");
     await expect(row.locator("strong")).toHaveCSS("-webkit-line-clamp", "none");
+    await expect(row.locator(".crew-home-task-meta")).toHaveCSS("display", "grid");
     if (info.project.metadata.language === "en") {
       expect((await row.locator(".crew-ui-status").boundingBox()).height).toBeLessThanOrEqual(24);
     }
     expect(await row.evaluate(element => {
       const title = element.querySelector("strong");
       const status = element.querySelector(".crew-ui-status");
+      const progress = element.querySelector(".crew-home-task-progress");
+      const due = element.querySelector(".crew-home-task-due");
       return title.getBoundingClientRect().right <= status.getBoundingClientRect().left &&
-        title.scrollHeight <= title.clientHeight + 1 && status.scrollWidth <= status.clientWidth + 1;
+        title.scrollHeight <= title.clientHeight + 1 &&
+        status.scrollWidth <= status.clientWidth + 1 &&
+        (!progress || !due || due.getBoundingClientRect().top >= progress.getBoundingClientRect().bottom);
     })).toBe(true);
     await assertActionReachable(page, row);
   }

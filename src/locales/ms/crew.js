@@ -51,4 +51,5 @@ Object.assign(resources.tasks, { redo:"Buat semula", redoTitle:"Buat semula tuga
 Object.assign(resources.tasks, { availableAt:"Tersedia pada {{time}}", notAvailableYet:"Belum tersedia", availableWhenScheduled:"Tugas ini boleh diselesaikan apabila tempoh jadualnya bermula." });
 Object.assign(resources.learn, { journeyProgress: "daripada {{total}} selesai", journeyProgressOf: "daripada {{total}}", journeyProgressCompleted: "selesai", moduleProgress: "{{completed}} daripada {{total}} selesai" });
 Object.assign(resources.tasks, { summary:"Ringkasan tugas", assignedTo:"Ditugaskan kepada", completedBy:"Diselesaikan oleh", you:"Anda", positionTeam:"Pasukan {{label}}", groupTeam:"Pasukan {{label}}", outletTeam:"Krew {{label}}", sharedTask:"Tugas krew bersama", schedule:{ ...resources.tasks.schedule, weekdaysLabel:"Hari bekerja" } });
+Object.assign(resources.home, { shift:"Syif", complete:"Selesai" });
 export default resources;

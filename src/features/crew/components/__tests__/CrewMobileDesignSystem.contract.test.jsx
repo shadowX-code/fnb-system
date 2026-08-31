@@ -153,7 +153,8 @@ describe("Crew Mobile design system contract", () => {
     expect(homeComponent).toContain('t("tasks.dueLabel")');
     expect(homeComponent).toContain('className="crew-list-secondary crew-home-task-meta"');
     expect(homeComponent).toContain('className={`crew-home-task-due${task.deadline.overdue ? " is-overdue" : ""}`}');
-    expect(home).toContain(".crew-home-task .crew-home-task-meta { display: flex;");
+    expect(home).toContain(".crew-home-task .crew-home-task-meta { display: grid;");
+    expect(home).toContain(".crew-home-task .crew-home-task-due { display: inline-flex; grid-row: 2;");
     expect(home).toContain(".crew-home-task .crew-home-task-due.is-overdue");
   });
 
@@ -443,6 +444,10 @@ describe("Crew Mobile design system contract", () => {
     expect(homeComponent).toContain('<CrewHomeClockMotion attendanceMode={attendanceMode} transition={clockTransition} loading={loading} hasException={locationEvidence.tone === "is-exception"}>');
     expect(homeComponent).toContain('attendanceMode === "on" && locationEvidence.tone === "is-exception" && <span className="crew-home-location-exception"');
     expect(homeComponent).toContain('attendanceMode !== "completed" && locationEvidence.tone !== "is-exception"');
+    expect(homeComponent).toContain('<small>{t("home.shift")}</small><strong>{t("home.complete")}</strong>');
+    expect(homeComponent).not.toContain('<Check size={27} /><strong>{t("status.completed")}</strong><small>{formatDuration(completedToday.clock_in_at, completedToday.clock_out_at)}</small>');
+    expect(home).toContain(".crew-home-complete-ring { background:");
+    expect(home).toContain(".crew-home-attendance.is-completed .crew-home-clock-orbit-highlight { opacity: .34;");
     expect(home).toContain(".crew-home-attendance-copy > .crew-home-location-exception { display: flex; width: 100%");
     expect(home).toContain("grid-template-rows: 100px minmax(18px, auto)");
     expect(home).toContain("transform-origin: 50% 50%");

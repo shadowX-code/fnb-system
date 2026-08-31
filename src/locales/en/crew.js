@@ -52,4 +52,5 @@ Object.assign(resources.cash, { cashDepositBalance:"Cash Deposit Balance", pendi
 Object.assign(resources.cash, { handOverCash:"Hand Over Cash", handoverUnavailablePermission:"You do not have permission to hand over Cash Deposit funds.", handoverUnavailableNoBalance:"No Cash Deposit balance is available to hand over.", outletCrew:"{{outlet}} Crew", pendingConfirmations:"Pending Confirmations", noPendingConfirmations:"No cash waiting for confirmation", handedOverBy:"Handed over by {{name}}", confirmReceived:"Confirm Received", confirmCashReceived:"Confirm cash received", confirmHandover:"Confirm Handover {{amount}}", confirmHandoverAction:"Confirm Handover", from:"From", to:"To" });
 Object.assign(resources.cash, { completedWithTime:"Completed · {{time}}", checkoutHistory:"Checkout History", noCheckoutHistory:"No checkout history in the last 30 days" });
 Object.assign(resources.learn, { journeyProgress: "of {{total}} completed", journeyProgressOf: "of {{total}}", journeyProgressCompleted: "completed", moduleProgress: "{{completed}} of {{total}} completed" });
+Object.assign(resources.home, { shift: "Shift", complete: "Complete" });
 export default resources;

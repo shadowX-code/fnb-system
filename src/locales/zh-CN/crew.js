@@ -51,4 +51,5 @@ Object.assign(resources.cash, { completedWithTime:"已完成 · {{time}}", check
 Object.assign(resources.cash, { confirmHandoverAction:"确认交接" });
 Object.assign(resources.learn, { journeyProgress: "共 {{total}} 节已完成", journeyProgressOf: "共 {{total}} 节", journeyProgressCompleted: "已完成", moduleProgress: "已完成 {{completed}}/{{total}} 节" });
 Object.assign(resources.tasks, { summary:"任务摘要", assignedTo:"负责人", completedBy:"完成者", you:"你", positionTeam:"{{label}} 团队", groupTeam:"{{label}} 团队", outletTeam:"{{label}} 门店团队", sharedTask:"共享团队任务", schedule:{ ...resources.tasks.schedule, weekdaysLabel:"工作日" } });
+Object.assign(resources.home, { shift:"班次", complete:"完成" });
 export default resources;
