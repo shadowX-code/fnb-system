@@ -367,7 +367,7 @@
 }
 }
 
-.crew-v2-home .crew-home-task > .crew-ui-status { max-width: 84px; justify-self: end; white-space: normal; text-align: center; overflow-wrap: anywhere; }
+.crew-v2-home .crew-home-task > .crew-ui-status { max-width: 96px; justify-self: end; white-space: normal; text-align: center; overflow-wrap: anywhere; }
 
 .crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px;align-items:start}.crew-v2-home .crew-home-schedule-row>span{gap:2px}.crew-v2-home .crew-home-schedule-time{color:var(--crew-color-deep-teal);font-size:var(--crew-type-helper);font-weight:600;line-height:1.25}.crew-v2-home .crew-home-schedule-row>svg{align-self:center}.crew-v2-home .crew-home-schedule-row>.crew-ui-status{grid-column:2;justify-self:start;margin-top:2px}
 @media (max-width:374px){.crew-v2-home .crew-home-schedule-time{font-size:10px;line-height:1.2}}

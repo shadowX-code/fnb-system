@@ -99,6 +99,9 @@ test("Home tasks share one dense list without truncating title or status", async
     await expect(row.locator("strong")).toHaveCSS("font-size", "13px");
     await expect(row.locator("strong")).toHaveCSS("font-weight", "600");
     await expect(row.locator("strong")).toHaveCSS("-webkit-line-clamp", "none");
+    if (info.project.metadata.language === "en") {
+      expect((await row.locator(".crew-ui-status").boundingBox()).height).toBeLessThanOrEqual(24);
+    }
     expect(await row.evaluate(element => {
       const title = element.querySelector("strong");
       const status = element.querySelector(".crew-ui-status");
