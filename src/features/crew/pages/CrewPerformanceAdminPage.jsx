@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, BarChart3, CheckCircle2, ChevronRight, CircleHelp, ClipboardCheck, FileText, MessageSquareText, RotateCcw, Search, UserRoundPen } from "lucide-react";
+import QRCode from "qrcode";
+import { AlertTriangle, BarChart3, CheckCircle2, Check, ChevronRight, CircleHelp, ClipboardCheck, Copy, Download, FileText, MessageSquareText, QrCode, RotateCcw, Search, UserRoundPen } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
@@ -28,7 +29,7 @@ export default function CrewPerformanceAdminPage({ auth, ui, store, initialTab =
   const [data, setData] = useState({ summary: {}, crew: [], reviews: [], feedback: [] }); const [loading, setLoading] = useState(true);
   const [error, setError] = useState(""); const requestSequence = useRef(0);
   const [filters, setFilters] = useState({ query: "", position: "all", status: "all" });
-  const [detail, setDetail] = useState(null); const [review, setReview] = useState(null); const [moderation, setModeration] = useState(null); const [feedbackDetail, setFeedbackDetail] = useState(null); const [attribution, setAttribution] = useState(null);
+  const [detail, setDetail] = useState(null); const [review, setReview] = useState(null); const [moderation, setModeration] = useState(null); const [feedbackDetail, setFeedbackDetail] = useState(null); const [attribution, setAttribution] = useState(null); const [feedbackQr, setFeedbackQr] = useState(null);
   const canReview = auth.hasPermission("crew_performance.review"); const canFinalize = auth.hasPermission("crew_performance.finalize"); const canModerate = auth.hasPermission("crew_feedback.moderate"); const canCorrectAttribution = auth.hasPermission("crew_feedback.correct_attribution");
   async function refresh() { if (!outletId) return; const sequence = ++requestSequence.current; setLoading(true); setError(""); try { const next = await crewService.performanceAdminData(outletId, period); if (sequence === requestSequence.current) setData(next); } catch (cause) { if (sequence === requestSequence.current) { setError(cause.message || "Performance evidence could not be loaded."); ui.notify({ title: "Unable to load Performance", message: cause.message, tone: "error" }); } } finally { if (sequence === requestSequence.current) setLoading(false); } }
   useEffect(() => { refresh(); }, [outletId, period]);
@@ -40,19 +41,50 @@ export default function CrewPerformanceAdminPage({ auth, ui, store, initialTab =
   const positions = useMemo(() => [...new Set((data.crew || []).map((row) => row.employee.position).filter(Boolean))].sort(), [data.crew]);
   const meta = isFeedback ? ["Customer Feedback", "Understand guest sentiment without deleting unfavorable feedback."] : ["Performance Overview", "Explainable monthly performance from Attendance, Reviews, Feedback and Learning evidence."];
   return <div className="crew-performance-page"><PageHeader section="Crew · Performance" title={meta[0]} description={meta[1]} />
-    <PerformanceToolbar outlets={outlets} outletId={outletId} setOutletId={setOutletId} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} positions={positions} feedbackOnly={isFeedback} />
+    <PerformanceToolbar outlets={outlets} outletId={outletId} setOutletId={setOutletId} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} positions={positions} feedbackOnly={isFeedback} onFeedbackQr={() => setFeedbackQr(outlets.find((outlet) => outlet.id === outletId) || null)} />
     {loading ? <div className="crew-growth-skeleton"><span /><span /><span /><p>Loading performance evidence…</p></div> : error ? <PerformanceError message={error} onRetry={refresh} /> : isFeedback ? <FeedbackAdmin data={data.feedback} summary={data.feedback_summary} onModerate={setModeration} onDetail={setFeedbackDetail} onCorrectAttribution={setAttribution} canModerate={canModerate} canCorrectAttribution={canCorrectAttribution} /> : <PerformanceOverview data={data} filters={filters} onFiltersChange={setFilters} onOpen={setDetail} onReview={setReview} canReview={canReview} />}
     {detail ? <PerformanceDetail item={detail} canFinalize={canFinalize} onClose={() => setDetail(null)} onFinalize={() => finalize(detail.employee.id)} /> : null}
     {review ? <PerformanceReview item={review} period={period} onClose={() => setReview(null)} onSubmit={submitReview} /> : null}
     {moderation ? <ModerationDialog item={moderation} onClose={() => setModeration(null)} onSubmit={moderate} /> : null}
     {attribution ? <AttributionDialog item={attribution} employees={data.feedback_crew || []} onClose={() => setAttribution(null)} onSubmit={correctAttribution} /> : null}
     {feedbackDetail ? <FeedbackDetail item={feedbackDetail} onClose={() => setFeedbackDetail(null)} /> : null}
+    {feedbackQr ? <FeedbackQrDialog outlet={feedbackQr} onClose={() => setFeedbackQr(null)} /> : null}
   </div>;
 }
 
-function PerformanceToolbar({ outlets, outletId, setOutletId, period, setPeriod, filters, setFilters, positions, feedbackOnly }) {
+function PerformanceToolbar({ outlets, outletId, setOutletId, period, setPeriod, filters, setFilters, positions, feedbackOnly, onFeedbackQr }) {
   const active = !feedbackOnly && (filters.query || filters.position !== "all" || filters.status !== "all");
-  return <CrewAdminToolbar ariaLabel="Performance filters" outlet={<CrewAdminOutletField />} time={<label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label>} search={!feedbackOnly ? <label className="crew-growth-search"><span>Search Crew</span><div><Search size={15} /><input value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Name or employee code" /></div></label> : null} filters={!feedbackOnly ? <><SelectField label="Position" value={filters.position} onChange={(value) => setFilters((current) => ({ ...current, position: value }))} options={[{ value: "all", label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Status" value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={[{ value: "all", label: "All" }, { value: "awaiting", label: "Awaiting Review" }, { value: "reviewed", label: "Reviewed" }, { value: "attention", label: "Needs Attention" }, { value: "finalized", label: "Finalized" }]} /></> : null} secondary={active ? <button type="button" className="btn-secondary crew-performance-clear" onClick={() => setFilters({ query: "", position: "all", status: "all" })}><RotateCcw size={14} /> Clear</button> : null} />;
+  return <CrewAdminToolbar ariaLabel="Performance filters" outlet={<CrewAdminOutletField />} time={<label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label>} search={!feedbackOnly ? <label className="crew-growth-search"><span>Search Crew</span><div><Search size={15} /><input value={filters.query} onChange={(event) => setFilters((current) => ({ ...current, query: event.target.value }))} placeholder="Name or employee code" /></div></label> : null} filters={!feedbackOnly ? <><SelectField label="Position" value={filters.position} onChange={(value) => setFilters((current) => ({ ...current, position: value }))} options={[{ value: "all", label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Status" value={filters.status} onChange={(value) => setFilters((current) => ({ ...current, status: value }))} options={[{ value: "all", label: "All" }, { value: "awaiting", label: "Awaiting Review" }, { value: "reviewed", label: "Reviewed" }, { value: "attention", label: "Needs Attention" }, { value: "finalized", label: "Finalized" }]} /></> : null} secondary={active ? <button type="button" className="btn-secondary crew-performance-clear" onClick={() => setFilters({ query: "", position: "all", status: "all" })}><RotateCcw size={14} /> Clear</button> : null} primary={feedbackOnly ? <button type="button" className="btn-secondary" disabled={!outletId} onClick={onFeedbackQr}><QrCode size={15} /> Feedback QR</button> : null} />;
+}
+
+function feedbackPublicLink(token) {
+  return `${window.location.origin}/feedback/${encodeURIComponent(token)}`;
+}
+
+function feedbackQrFilename(outletName) {
+  return `feedx-feedback-${String(outletName || "outlet").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.png`;
+}
+
+export function FeedbackQrDialog({ outlet, onClose }) {
+  const canvasRef = useRef(null); const [error, setError] = useState(""); const [copied, setCopied] = useState(false);
+  const token = outlet.public_feedback_token; const link = token ? feedbackPublicLink(token) : "";
+  useEffect(() => {
+    if (!canvasRef.current || !link) return undefined;
+    let active = true;
+    QRCode.toCanvas(canvasRef.current, link, { width: 256, margin: 1, color: { dark: "#17273f", light: "#ffffff" } }).catch(() => { if (active) setError("The QR code could not be generated."); });
+    return () => { active = false; };
+  }, [link]);
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(link); setCopied(true); window.setTimeout(() => setCopied(false), 1800); } catch { setError("Copy the link directly from the field below."); }
+  }
+  function downloadQr() {
+    if (!canvasRef.current) return;
+    const anchor = document.createElement("a");
+    anchor.href = canvasRef.current.toDataURL("image/png");
+    anchor.download = feedbackQrFilename(outlet.name);
+    anchor.click();
+  }
+  return <Modal title="Feedback QR" description="Guests can scan this code to leave feedback for the selected outlet." onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="crew-feedback-qr"><div className="crew-feedback-qr-outlet"><span>Outlet</span><strong>{outlet.name}</strong></div>{token ? <><div className="crew-feedback-qr-canvas"><canvas ref={canvasRef} aria-label={`Feedback QR for ${outlet.name}`} /></div><label>Public feedback link<input className="control" readOnly value={link} aria-label="Public feedback link" /></label><div className="flex flex-wrap gap-2"><button className="btn-secondary" type="button" onClick={copyLink}><Copy size={15} /> {copied ? <><Check size={15} /> Copied</> : "Copy Link"}</button><button className="btn-primary" type="button" onClick={downloadQr}><Download size={15} /> Download QR</button></div></> : <p className="text-sm text-text-secondary">This outlet does not have a public feedback link yet.</p>}{error ? <p className="text-sm font-semibold text-rose-700">{error}</p> : null}</div></Modal>;
 }
 
 function reviewDone(row, component) { const value = row.result.components?.[component]; return value?.status === "reviewed" || value?.score != null; }

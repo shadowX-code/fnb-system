@@ -29,6 +29,8 @@ Reviewers may add permitted assessment evidence or decisions but cannot rewrite 
 
 Customer Feedback preserves each guest submission as evidence while independently controlling its scoring eligibility. Authorized Admins may exclude or restore feedback only through an audited server authority with a reason. Crew attribution remains one-to-one in the current phase; corrections use canonical Crew identifiers, retain prior/new attribution and reason in append-only audit history, and may refresh only mutable Performance results. Finalized Performance and Reward outputs remain immutable.
 
+Public guest feedback uses an outlet-scoped opaque `public_feedback_token`, not an outlet UUID, at `/feedback/<token>`. The public resolver returns only the outlet display name and eligible recent/on-shift Crew; token submission resolves the outlet server-side and delegates to the existing validation, dedupe, request-hash, evidence insert, and Performance-refresh authority. Legacy `#feedback?outlet=<uuid>` links remain supported and normalize to the token URL after resolution. Admin Customer Feedback provides the selected outlet's QR, stable public link, copy action, and local QR download without creating a separate Admin page.
+
 Draft or open periods may evolve through controlled workflows.
 Finalized scores, approved reward outcomes, and payout evidence are immutable or superseded through explicit correction authority.
 Rule or weight changes must not retroactively alter finalized periods unless a deliberate recalculation contract exists.

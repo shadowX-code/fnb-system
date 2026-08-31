@@ -16,6 +16,19 @@ function outletFromHash() {
   return new URLSearchParams(query).get("outlet") || "";
 }
 
+function outletTokenFromPath() {
+  const match = window.location.pathname.match(/^\/feedback\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]).toLowerCase() : "";
+}
+
+export function isPublicFeedbackRoute() {
+  return Boolean(outletTokenFromPath()) || window.location.hash.startsWith("#feedback");
+}
+
+function publicFeedbackPath(token) {
+  return `/feedback/${encodeURIComponent(token)}`;
+}
+
 function feedbackToken() {
   const key = "feedx_guest_feedback_token";
   let token = window.sessionStorage.getItem(key);
@@ -24,7 +37,7 @@ function feedbackToken() {
 }
 
 export default function CrewGuestFeedback() {
-  const outletId = useMemo(outletFromHash, []);
+  const entry = useMemo(() => ({ outletId: outletFromHash(), outletToken: outletTokenFromPath() }), []);
   const [data, setData] = useState(null);
   const [step, setStep] = useState("crew");
   const [employee, setEmployee] = useState(null);
@@ -38,16 +51,24 @@ export default function CrewGuestFeedback() {
 
   useEffect(() => {
     let active = true;
-    crewService.publicFeedbackCrew(outletId).then((value) => { if (active) setData(value); }).catch((cause) => { if (active) setError(cause.message); }).finally(() => { if (active) setLoading(false); });
+    const request = entry.outletToken ? crewService.publicFeedbackEntry(entry.outletToken) : crewService.publicFeedbackCrew(entry.outletId);
+    request.then((value) => {
+      if (!active) return;
+      setData(value);
+      const token = value?.outlet?.public_feedback_token;
+      if (!entry.outletToken && token) window.history.replaceState(null, "", publicFeedbackPath(token));
+    }).catch((cause) => { if (active) setError(cause.message); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [outletId]);
+  }, [entry.outletId, entry.outletToken]);
 
   function toggle(list, value, setter) { setter(list.includes(value) ? list.filter((item) => item !== value) : [...list, value]); }
   async function submit() {
     if (!employee || !experience) return;
     setSubmitting(true); setError("");
     try {
-      await crewService.submitPublicFeedback({ outletId, employeeId: employee.id, experience, positiveTags: positive, improvementTags: improvement, comment, clientToken: feedbackToken() });
+      const payload = { employeeId: employee.id, experience, positiveTags: positive, improvementTags: improvement, comment, clientToken: feedbackToken() };
+      if (entry.outletToken) await crewService.submitPublicFeedbackByToken({ ...payload, outletToken: entry.outletToken });
+      else await crewService.submitPublicFeedback({ ...payload, outletId: entry.outletId });
       setStep("done");
     } catch (cause) { setError(cause.message); }
     finally { setSubmitting(false); }

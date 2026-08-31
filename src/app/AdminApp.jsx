@@ -17,7 +17,7 @@ import { operatingExpenseService } from "../services/operatingExpenseService.js"
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
-import CrewGuestFeedback from "../features/crew/CrewGuestFeedback.jsx";
+import CrewGuestFeedback, { isPublicFeedbackRoute } from "../features/crew/CrewGuestFeedback.jsx";
 import { AuthProvider } from "../auth/AuthContext.jsx";
 import useToasts from "../components/feedback/useToasts.js";
 import { CrewAdminOutletProvider } from "../features/crew/context/CrewAdminOutletContext.jsx";
@@ -589,6 +589,10 @@ function AdminApp() {
 
   const ui = { notify, confirm, navigate };
 
+  if (isPublicFeedbackRoute()) {
+    return <CrewGuestFeedback />;
+  }
+
   if (auth.loading || auth.contextLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
@@ -599,10 +603,6 @@ function AdminApp() {
 
   if (auth.passwordRecovery) {
     return <SetNewPasswordPage />;
-  }
-
-  if (window.location.hash.startsWith("#feedback")) {
-    return <CrewGuestFeedback />;
   }
 
   if (!auth.session) {

@@ -28,7 +28,7 @@ vi.mock("../routes.jsx", () => ({ salesPurchaseRoutes: [
   { id: "crew_dashboard", label: "Crew Admin", permission: "dashboard.view", component: () => <h1>Crew Admin probe</h1> },
 ] }));
 vi.mock("../../layouts/AppShell.jsx", () => ({ default: ({ children }) => <main aria-label="Admin shell">{children}</main> }));
-vi.mock("../../features/crew/CrewGuestFeedback.jsx", () => ({ default: () => <h1>Feedback probe</h1> }));
+vi.mock("../../features/crew/CrewGuestFeedback.jsx", () => ({ default: () => <h1>Feedback probe</h1>, isPublicFeedbackRoute: () => window.location.hash.startsWith("#feedback") || window.location.pathname.startsWith("/feedback/") }));
 vi.mock("../../features/sales-purchase/services/operationsService.js", () => ({ operationsService: { getBootstrapData: () => ({ outlets: [], purchaseCategories: [] }) } }));
 vi.mock("../../services/outletService.js", () => ({ outletService: { listActiveOutlets: mocks.reads } }));
 vi.mock("../../services/supplierService.js", () => ({ supplierService: { listSuppliers: mocks.reads } }));

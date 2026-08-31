@@ -8,6 +8,7 @@ function mapOutlet(outlet) {
     id: outlet.id,
     name: outlet.name,
     code: outlet.code ?? "",
+    public_feedback_token: outlet.public_feedback_token ?? "",
     is_active: Boolean(isActive),
     status: isActive ? "active" : "inactive",
     location: outlet.location ?? outlet.address ?? "",
@@ -25,7 +26,7 @@ export const outletService = {
   async listOutlets() {
     const { data, error } = await supabase
       .from("outlets")
-      .select("id,name,code,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .order("name", { ascending: true });
 
     throwSupabaseError("outlets.list", error);
@@ -35,7 +36,7 @@ export const outletService = {
   async listActiveOutlets() {
     const { data, error } = await supabase
       .from("outlets")
-      .select("id,name,code,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .eq("is_active", true)
       .order("name", { ascending: true });
 
@@ -64,7 +65,7 @@ export const outletService = {
       : supabase.from("outlets").insert(payload);
 
     const { data, error } = await query
-      .select("id,name,code,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .single();
 
     throwSupabaseError("outlets.save", error);

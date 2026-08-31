@@ -487,6 +487,12 @@ export const crewService = {
     return data;
   },
 
+  async publicFeedbackEntry(outletToken) {
+    const { data, error } = await supabase.rpc("crew_feedback_public_entry", { p_outlet_token: outletToken });
+    throwSupabaseError("crew.publicFeedbackEntry", error);
+    return data;
+  },
+
   async submitPublicFeedback(payload) {
     const { data, error } = await supabase.rpc("crew_feedback_submit", {
       p_outlet_id: payload.outletId,
@@ -498,6 +504,20 @@ export const crewService = {
       p_client_token: payload.clientToken,
     });
     throwSupabaseError("crew.submitPublicFeedback", error);
+    return data;
+  },
+
+  async submitPublicFeedbackByToken(payload) {
+    const { data, error } = await supabase.rpc("crew_feedback_submit_public", {
+      p_outlet_token: payload.outletToken,
+      p_employee_id: payload.employeeId,
+      p_experience: payload.experience,
+      p_positive_tags: payload.positiveTags || [],
+      p_improvement_tags: payload.improvementTags || [],
+      p_comment: payload.comment || "",
+      p_client_token: payload.clientToken,
+    });
+    throwSupabaseError("crew.submitPublicFeedbackByToken", error);
     return data;
   },
 
