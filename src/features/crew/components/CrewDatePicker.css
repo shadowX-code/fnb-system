@@ -1,0 +1,24 @@
+.crew-date-picker-field { min-width: 0; }
+.crew-date-picker-trigger { display: flex; width: 100%; min-width: 0; min-height: 46px; align-items: center; gap: 9px; box-sizing: border-box; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 11px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-date-picker-trigger svg { flex: 0 0 auto; color: var(--crew-color-deep-teal); }
+.crew-date-picker-trigger strong { min-width: 0; overflow: hidden; font-size: var(--crew-type-input); font-weight: 650; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.crew-date-picker-trigger:focus-visible { border-color: var(--crew-color-deep-teal); outline: 2px solid color-mix(in srgb, var(--crew-color-mist-mint) 72%, transparent); outline-offset: 1px; }
+.crew-date-picker-trigger:disabled { background: var(--crew-color-mineral); color: var(--crew-color-text-muted); opacity: .72; }
+.crew-date-picker-sheet { max-height: min(82dvh, 590px); }
+.crew-date-picker-sheet-content { padding-top: 4px; }
+.crew-date-picker-calendar { display: grid; gap: 10px; }
+.crew-date-picker-calendar > header { display: grid; min-height: 44px; grid-template-columns: 44px minmax(0, 1fr) 44px; align-items: center; }
+.crew-date-picker-calendar > header strong { overflow: hidden; color: var(--crew-color-deep-teal); font-size: var(--crew-type-card-title); text-align: center; text-overflow: ellipsis; white-space: nowrap; }
+.crew-date-picker-calendar > header button { display: grid; width: 44px; height: 44px; place-items: center; border: 0; border-radius: 50%; background: var(--crew-color-mineral); color: var(--crew-color-deep-teal); }
+.crew-date-picker-calendar > header button:focus-visible, .crew-date-picker-grid button:focus-visible { outline: 2px solid color-mix(in srgb, var(--crew-color-mist-mint) 72%, transparent); outline-offset: 1px; }
+.crew-date-picker-weekdays, .crew-date-picker-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; }
+.crew-date-picker-weekdays span { color: var(--crew-color-text-muted); font-size: var(--crew-type-status); font-weight: 650; text-align: center; }
+.crew-date-picker-grid button { display: grid; min-width: 0; min-height: 42px; place-items: center; border: 0; border-radius: 50%; background: transparent; color: var(--crew-color-text-secondary); font-size: var(--crew-type-label); font-weight: 650; }
+.crew-date-picker-grid button span { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 50%; }
+.crew-date-picker-grid button:not(:disabled):hover span { background: color-mix(in srgb, var(--crew-color-mist-mint) 38%, white); color: var(--crew-color-deep-teal); }
+.crew-date-picker-grid button.is-selected span { background: var(--crew-color-deep-teal); color: var(--crew-color-surface); box-shadow: 0 3px 8px rgb(22 75 80 / .16); }
+.crew-date-picker-grid button.is-today:not(.is-selected) span { box-shadow: inset 0 0 0 1px var(--crew-color-mist-mint); color: var(--crew-color-deep-teal); }
+.crew-date-picker-grid button:disabled { color: var(--crew-color-text-muted); cursor: default; opacity: .38; }
+.crew-date-picker-grid button.is-outside { visibility: hidden; }
+@media (max-width: 360px) { .crew-date-picker-sheet-content { padding-inline: 14px; }.crew-date-picker-grid button { min-height: 39px; }.crew-date-picker-grid button span { width: 32px; height: 32px; } }
+@media (prefers-reduced-motion: reduce) { .crew-date-picker-grid button span { transition: none; } }

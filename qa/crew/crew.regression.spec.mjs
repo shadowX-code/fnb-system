@@ -258,6 +258,11 @@ test("Leave date/reason input remains reachable above nav", async ({ page }, inf
   await open(page, info, "crew/me/leave");
   await page.getByRole("button", { name: t("leave.apply"), exact: true }).click();
   await page.getByRole("button", { name: t("common.continue"), exact: true }).click();
+  await page.getByRole("button", { name: t("leave.startDate"), exact: true }).click();
+  await expect(page.getByRole("dialog", { name: t("leave.startDate"), exact: true })).toBeVisible();
+  await assertMobileLayout(page);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await assertInputSizing(page);
   await page.getByRole("button", { name: t("common.continue"), exact: true }).click();
   await page.getByRole("textbox").fill("QA note — long explanation for this test only.");

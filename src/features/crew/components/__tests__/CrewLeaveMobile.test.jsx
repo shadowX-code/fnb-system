@@ -16,6 +16,28 @@ beforeEach(() => { crewService.myLeave.mockResolvedValue(payload); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("Crew Leave mobile", () => {
+  it("keeps balances semantic and uses the canonical Crew date field instead of native date inputs", async () => {
+    crewService.myLeave.mockResolvedValue({
+      ...payload,
+      balances: [
+        { entitlement_id: "annual-entitlement", leave_type: "annual", available: 2, pending: 0, used: 3, balance_enforced: true },
+        { entitlement_id: "unpaid-entitlement", leave_type: "unpaid", available: null, pending: 0, used: 0, balance_enforced: false },
+      ],
+    });
+    render(<CrewLeaveMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByText("2 days", { selector: ".crew-leave-balance-card strong" })).not.toBeNull();
+    expect(screen.getByText("Available", { selector: ".crew-leave-balance-unit" })).not.toBeNull();
+    expect(screen.getByText("0 pending · 3 used")).not.toBeNull();
+    expect(screen.getByText("Unlimited", { selector: ".crew-leave-balance-card strong" })).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Apply Leave" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(document.querySelector('input[type="date"]')).toBeNull();
+    expect(document.querySelectorAll(".crew-leave-date-grid .crew-date-picker-field")).toHaveLength(2);
+    fireEvent.click(screen.getByRole("button", { name: "Start Date" }));
+    expect(screen.getByRole("dialog", { name: "Start Date" })).not.toBeNull();
+  });
+
   it("uses the shared selected owner and Mint operational surfaces throughout Apply Leave", async () => {
     render(<CrewLeaveMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply Leave" }));

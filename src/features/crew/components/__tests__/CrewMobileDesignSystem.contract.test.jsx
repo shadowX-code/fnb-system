@@ -497,7 +497,7 @@ describe("Crew Mobile design system contract", () => {
     expect(leave).toContain('import "./CrewLeaveMobile.css"');
     expect(leaveStyles).toContain("Leave-specific flow composition");
     expect(leaveStyles).toContain("--crew-color-deep-teal");
-    expect(leaveStyles).toContain("--crew-color-cyan");
+    expect(leaveStyles).not.toContain("--crew-color-cyan");
     [".crew-v3-leave", ".crew-v3-choice-list", ".crew-v3-field-grid", ".crew-v3-leave-form", ".crew-v3-segment", ".crew-v3-leave-total", ".crew-v3-balance-grid", ".crew-v3-leave-balance-preview", ".crew-v3-review-list", ".crew-v3-header-action", ".crew-v3-rejection", ".crew-v3-mobile-loading", ".crew-v3-document-note", ".crew-v3-next-action"].forEach((selector) => {
       expect(appStyles).not.toContain(selector);
       expect(leaveStyles).not.toContain(selector);
