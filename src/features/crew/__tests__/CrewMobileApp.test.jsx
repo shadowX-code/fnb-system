@@ -166,6 +166,14 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-learning-module.is-completed")).not.toBeNull();
     expect(document.querySelector(".crew-learning-module.is-in-progress")).not.toBeNull();
     expect(document.querySelector(".crew-learning-module.is-available")).not.toBeNull();
+    const completedModule = document.querySelector(".crew-learning-module.is-completed");
+    const inProgressModule = document.querySelector(".crew-learning-module.is-in-progress");
+    expect(completedModule?.querySelector(".crew-module-progress")?.textContent).toBe("Completed");
+    expect(completedModule?.querySelector(".crew-ui-progress")).toBeNull();
+    expect(inProgressModule?.querySelector(".crew-module-progress")?.textContent).toBe("1 of 2 completed");
+    expect(screen.getByRole("button", { name: /Welcome to Friends Corner/ }).textContent).toContain("Completed");
+    expect(screen.getByRole("button", { name: /Welcome to Friends Corner/ }).textContent).not.toContain("review anytime");
+    expect(screen.getByRole("button", { name: /Taking an order/ }).textContent).toContain("Ready to learn");
     expect(screen.getByRole("button", { name: /First 5 Seconds/ }).classList.contains("is-current")).toBe(true);
     expect(screen.getByRole("button", { name: /Taking an order/ }).classList.contains("is-current")).toBe(false);
   });
