@@ -539,10 +539,12 @@ describe("Crew Mobile redesign", () => {
 
   it("opens a Home checklist directly without an intermediate task-list screen", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.operationDetail.mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", assignment: { kind: "individual", employee_id: "employee-a", employee_name: "Alex Tan", is_current_employee: true }, blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "checklist_item", required: true, status: "pending" }] });
     render(<CrewMobileApp />);
     fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
     expect(await screen.findByRole("button", { name: /Unlock guest entrance/ })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Opening Checklist" }).closest(".crew-mobile-detail-header")).not.toBeNull();
+    expect(screen.getByText("You")).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Today’s Tasks" })).toBeNull();
     expect(mocks.operationDetail).toHaveBeenCalledWith("crew-token", "ops-1");
     expect(mocks.operationsToday).toHaveBeenCalledWith("crew-token");
