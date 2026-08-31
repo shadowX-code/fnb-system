@@ -2,6 +2,10 @@
 
 Purpose: milestone changelog for meaningful FeedX development sessions. This file preserves delivery history but is not architecture or current-system authority. Current code and migrations take precedence, followed by tests/contracts and the canonical documentation routed from `docs/README.md`. Release notes under `docs/releases/` document Production releases.
 
+## August 2026 — Async Workspace And Admin Feature Ownership
+
+- Established separate asynchronous Admin/Crew Mobile entries and delayed Factory, Inventory Control and Asset Tracking management implementations. Admin Auth/master-data bootstrap now mounts only in Admin; Crew retains its token-bound session lifecycle. Shared previews, services and localization remain canonical single implementations, with production dependency-closure guards enforcing the loading boundary. No domain contract, permission, RPC or schema change is involved.
+
 - Hardened the Crew Mobile session boundary: a lightweight canonical Crew hash map now preserves principal and operational screen identity across refresh/history, and generation-plus-token guards prevent stale employee refresh responses from crossing logout or session replacement. Crew startup now bypasses the Admin bootstrap loader.
 
 ## Late August 2026 — Crew Mobile Operations, Cash, And Localized Content

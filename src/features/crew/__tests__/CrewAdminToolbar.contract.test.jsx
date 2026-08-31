@@ -28,7 +28,7 @@ describe("Crew Admin toolbar contract", () => {
   });
 
   it("wraps all routed Admin pages in the shared Outlet provider", () => {
-    const app = source("src/app/App.jsx");
+    const app = source("src/app/AdminApp.jsx");
     expect(app).toContain("<CrewAdminOutletProvider outlets={effectiveStore.outlets}>");
     expect(app).toContain("</CrewAdminOutletProvider>");
   });

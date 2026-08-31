@@ -1,9 +1,7 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./app/App.jsx";
-import { AuthProvider } from "./auth/AuthContext.jsx";
-import "./i18n/index.js";
-import "./styles/index.css";
+import "./styles/workspaceStyles.js";
 
 try {
   const themeChoice = localStorage.getItem("fnb.theme") || "system";
@@ -17,8 +15,6 @@ try {
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    <App />
   </React.StrictMode>,
 );

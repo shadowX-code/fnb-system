@@ -20,6 +20,10 @@ Documentation groupings must not create a second module or routing registry.
 
 ## Shared Shell
 
+The HTML entry mounts a lightweight `App` workspace selector. `#crew` and `#crew/*` load `CrewEntry` asynchronously; all existing Admin hashes (including `#crew_dashboard`), feedback and password-recovery URLs load `AdminApp` asynchronously. Workspace selection listens to hash/history changes without replacing the existing Admin or Crew route owners. Internal route navigation preserves the mounted workspace; crossing the Admin/Mobile boundary unmounts its old session presentation and local notifications.
+
+`AdminApp` exclusively mounts the existing `AuthProvider` and owns Admin master-data bootstrap. Visiting Crew does not mount that provider or start Admin master-data reads, even when a saved Admin session exists. Crew retains its independent token-bound session owner and guards; shared Supabase transport, renderers and localization remain single implementations rather than copied authorities. Returning to Admin restores its existing Auth session normally. `WorkspaceBoundary` provides neutral entry loading, reusing the Crew loading mark for mobile, and explicit reload after entry/render failure. It does not automatically retry a rejected lazy import.
+
 The shared application shell owns workspace selection, navigation composition, responsive framing, and common session-aware chrome.
 Domain features own their pages, business states, and workflows inside that shell.
 Shared components and formatting utilities should be reused where semantics match.
@@ -49,7 +53,9 @@ The route registry owns one React lazy component identity each for Factory Works
 
 `src/app/AdminRouteBoundary.jsx` owns Admin route loading and render/chunk failure presentation inside the existing shell, after the established route/permission selection. Its Suspense fallback reserves page content space while navigation stays available. A failed load offers explicit full-page reload (retaining the URL and fetching the current entry) or navigation to another route; it does not auto-reload or loop retries of React's cached rejected lazy import. Changing routes clears a failed boundary without key-remounting healthy Factory/Inventory subroute state. Crew retains its own loading boundary.
 
-`node scripts/verifyAppBundle.mjs` builds in memory and verifies the production initial static dependency closure excludes these three implementations and the Recharts/D3/Redux/Immer chart family. This is a loading-ownership guard, not a new routing, service, or permission authority. Shared async dependencies are left to Vite/Rollup rather than forced vendor chunks. See [App bundle evidence](../testing/APP_BUNDLE_BOUNDARIES.md) for measurements and regression scope.
+`node scripts/verifyAppBundle.mjs` builds in memory and verifies bootstrap plus each selected workspace's full static dependency closure. Both workspace closures exclude these three implementations and the Recharts/D3/Redux/Immer chart family. Crew excludes Admin Auth/shell/pages; Admin excludes the mobile root/session orchestration and GSAP. Shared Task/SOP rendering and localization have one emitted owner. This is a loading-ownership guard, not a new routing, service, or permission authority. Shared async dependencies are left to Vite/Rollup rather than forced vendor chunks. See [App bundle evidence](../testing/APP_BUNDLE_BOUNDARIES.md) for measurements and regression scope.
+
+CSS remains globally loaded in its established cascade order through `src/styles/workspaceStyles.js`; asynchronous JavaScript ownership must not silently reorder those styles. Feature source imports still support standalone renderer/test use. This is not feature CSS splitting. Crew locale resources remain shared because Admin Task/SOP previews consume the same localization/rendering system.
 
 Every active capability has one canonical route owner and one implementation owner.
 Navigation links should target canonical routes.

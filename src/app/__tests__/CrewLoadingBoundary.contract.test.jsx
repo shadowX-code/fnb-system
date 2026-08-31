@@ -5,13 +5,13 @@ import { resolve } from "node:path";
 const app = readFileSync(resolve(process.cwd(), "src/app/App.jsx"), "utf8");
 
 describe("Crew bootstrap loading boundary", () => {
-  it("mounts Crew before the Admin auth loading presentation", () => {
-    const crewBranch = app.indexOf("if (crewRouteRequested)");
-    const adminLoading = app.indexOf("if (auth.loading || auth.contextLoading)");
-
-    expect(crewBranch).toBeGreaterThan(-1);
-    expect(adminLoading).toBeGreaterThan(-1);
-    expect(crewBranch).toBeLessThan(adminLoading);
-    expect(app.slice(crewBranch, adminLoading)).not.toContain("Loading Smart Operations Workspace");
+  it("keeps Admin authentication and route registration behind workspace selection", () => {
+    const main = readFileSync(resolve(process.cwd(), "src/main.jsx"), "utf8");
+    expect(main).not.toContain("AuthProvider");
+    expect(app).not.toContain("useAuth");
+    expect(app).not.toContain("salesPurchaseRoutes");
+    expect(app).not.toContain("Loading Smart Operations Workspace");
+    expect(app).toContain('lazy(() => import("./AdminApp.jsx"))');
+    expect(app).toContain('lazy(() => import("./CrewEntry.jsx"))');
   });
 });

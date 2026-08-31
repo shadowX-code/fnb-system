@@ -15,7 +15,7 @@ FeedX has four product workspaces:
 - **Factory** provides production, warehouse, and factory master-data operations.
 - **Guest AI** is a bounded prototype for device, voice, and provider validation.
 
-The shared Admin shell composes workspace navigation, route visibility, and common UI. Crew Mobile uses a specialized shell and shared mobile design system, while retaining the same underlying domain authorities. The browser presents intent and read models; Supabase and trusted server authorities own persistent state, protected transitions, and enforced access boundaries.
+The shared Admin shell composes workspace navigation, route visibility, and common UI. Crew Mobile uses a specialized shell and shared mobile design system, while retaining the same underlying domain authorities. A lightweight hash-aware bootstrap loads Admin and Crew Mobile through separate asynchronous entry boundaries; Admin Auth/master-data initialization belongs only to the Admin entry. The browser presents intent and read models; Supabase and trusted server authorities own persistent state, protected transitions, and enforced access boundaries. Entry and shared-renderer details belong to `docs/architecture/platform.md`.
 
 ## Environments And Delivery
 
