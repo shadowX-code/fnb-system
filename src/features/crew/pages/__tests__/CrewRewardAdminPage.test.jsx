@@ -72,4 +72,14 @@ describe("Crew Reward Admin", () => {
     expect(screen.getByRole("button", { name: "Finalize Reward Campaign" }).disabled).toBe(true);
     expect(mocks.finalize).not.toHaveBeenCalled();
   });
+
+  it("summarizes pending Performance once on the overview without duplicating affected Crew", async () => {
+    const awaiting = { ...entry, id: "entry-2", employee_name: "Jamie Lee", performance_score: null, status: "awaiting_performance" };
+    mocks.data.mockResolvedValue({ ...fixture, entries: [awaiting] });
+    render(<CrewRewardAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("1 Crew awaiting finalized Performance")).not.toBeNull();
+    expect(screen.getByText("Reward calculation will update automatically when their Performance is finalized.")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Reward Attention" })).toBeNull();
+    expect(screen.getAllByText("Jamie Lee")).toHaveLength(1);
+  });
 });

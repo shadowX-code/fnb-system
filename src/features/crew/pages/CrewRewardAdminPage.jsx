@@ -91,7 +91,7 @@ function RewardOverview({ data, canManage, onOpenCampaign, onOpenEmployee, onOpe
   const cycle = data.cycle;
   return <div className="crew-reward-overview">
     {cycle ? <CurrentCampaign data={data} onOpenCampaign={onOpenCampaign} onOpenEmployee={onOpenEmployee} /> : <section className="crew-reward-empty"><Gift size={28} /><h2>No Reward Campaign for this month</h2><p>{canManage ? "Create a Campaign to set the pool and freeze participating Crew." : "No Campaign has been configured for the selected period."}</p></section>}
-    <CampaignHistory rows={data.cycles} onOpen={onOpenCycle} />
+    <CampaignHistory rows={data.cycles} currentCycleId={cycle?.id} onOpen={onOpenCycle} />
   </div>;
 }
 
@@ -104,25 +104,26 @@ function CurrentCampaign({ data, onOpenCampaign, onOpenEmployee }) {
   const configured = Number(c.configured_pool || 0);
   const unused = Math.max(0, Number(c.unused_amount ?? configured - payout));
   const utilization = configured > 0 ? payout / configured : 0;
-  const positive = data.entries.filter((row) => Number(row.final_payout) > 0);
-  const amounts = positive.map((row) => Number(row.final_payout));
 
   return <>
-    <section className="crew-reward-current-head"><div><span>Current Campaign</span><div className="crew-reward-current-identity"><h2>{month(c.period_start)}</h2><Badge tone={statusTone(c.status)}>{cycleStatus(c.status)}</Badge></div></div><button className="btn-secondary" type="button" onClick={onOpenCampaign}>Review Campaign <ChevronRight size={15} /></button></section>
-    <section className="crew-reward-kpis">
-      <CampaignMetric label="Configured Pool" value={money(configured)} />
-      <CampaignMetric label={c.status === "finalized" || c.status === "paid" ? "Final Payout" : "Projected Payout"} value={money(payout)} />
-      <CampaignMetric label="Unused" value={money(unused)} />
-      <CampaignMetric label="Participating Crew" value={`${qualified} / ${participating}`} detail={`${qualified} qualified`} />
-    </section>
-    <section className="crew-reward-health">
-      <div><header><span><strong>Pool Utilization</strong><small>{money(payout)} of {money(configured)}</small></span><b>{percent(utilization)}</b></header><div className="crew-reward-progress"><i style={{ width: `${Math.min(100, utilization * 100)}%` }} /></div></div>
-      <div><strong>Qualification</strong><span><b>{qualified}</b> Qualified</span><span><b>{awaiting.length}</b> Awaiting Performance</span></div>
-      <div><strong>Reward Range</strong><span>Average <b>{money(amounts.length ? payout / amounts.length : 0)}</b></span><span>Highest <b>{money(amounts.length ? Math.max(...amounts) : 0)}</b></span></div>
+    <section className="crew-reward-summary">
+      <header className="crew-reward-current-head"><div><span>Current Campaign</span><div className="crew-reward-current-identity"><h2>{month(c.period_start)}</h2><Badge tone={statusTone(c.status)}>{cycleStatus(c.status)}</Badge></div></div><button className="btn-secondary" type="button" onClick={onOpenCampaign}>Review Campaign <ChevronRight size={15} /></button></header>
+      <div className="crew-reward-kpis">
+        <CampaignMetric label="Configured Pool" value={money(configured)} />
+        <CampaignMetric label={c.status === "finalized" || c.status === "paid" ? "Final Payout" : "Projected Payout"} value={money(payout)} detail={awaiting.length ? "Awaiting Performance" : null} />
+        <CampaignMetric label="Qualified Crew" value={`${qualified} / ${participating}`} detail={awaiting.length ? `${awaiting.length} pending` : `${qualified} qualified`} />
+        <CampaignMetric label="Pool Utilization" value={percent(utilization)} detail={`Unused balance ${money(unused)}`} progress={utilization} />
+      </div>
+      <CampaignStatusStrip cycle={c} awaiting={awaiting.length} />
     </section>
     <section className="crew-reward-section"><header><div><h2>Crew Rewards</h2><p>Canonical server results from finalized Performance and eligible attendance.</p></div></header><RewardTable rows={data.entries} cycle={c} onOpen={onOpenEmployee} /></section>
-    {awaiting.length ? <section className="crew-reward-attention"><header><AlertTriangle size={18} /><div><h2>Reward Attention</h2><p>{awaiting.length} Crew need attention</p></div></header>{awaiting.map((row) => <button type="button" key={row.id} onClick={() => onOpenEmployee(row)}><span><strong>{row.employee_name}</strong><small>{row.eligibility_reason || "Finalized Performance required"}</small></span><Badge tone="warning">Awaiting Performance</Badge><ChevronRight size={16} /></button>)}</section> : null}
   </>;
+}
+
+function CampaignStatusStrip({ cycle, awaiting }) {
+  if (awaiting) return <aside className="crew-reward-status-strip is-warning"><AlertTriangle size={16} /><div><strong>{awaiting} Crew awaiting finalized Performance</strong><span>Reward calculation will update automatically when their Performance is finalized.</span></div></aside>;
+  if (cycle.status === "review") return <aside className="crew-reward-status-strip"><div><strong>Reward calculation is ready for review</strong><span>Review the canonical Crew breakdown before finalizing this Campaign.</span></div></aside>;
+  return null;
 }
 
 function RewardTable({ rows, cycle, onOpen }) {
@@ -139,13 +140,12 @@ function RewardTable({ rows, cycle, onOpen }) {
   ]} />;
 }
 
-function CampaignHistory({ rows, onOpen }) {
+function CampaignHistory({ rows, currentCycleId, onOpen }) {
   return <section className="crew-reward-section"><header><div><h2>Reward Campaigns</h2><p>Current and immutable historical monthly Campaigns.</p></div></header>{rows.length ? <DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[850px]" columns={[
-    { key: "period", header: "Period", render: (row) => <strong>{month(row.period_start)}</strong> },
+    { key: "period", header: "Period", render: (row) => <span className="crew-reward-history-period"><strong>{month(row.period_start)}</strong>{row.id === currentCycleId ? <small>Current</small> : null}</span> },
     { key: "pool", header: "Pool", align: "right", render: (row) => <span className="crew-reward-number">{money(row.configured_pool)}</span> },
     { key: "crew", header: "Crew", align: "right", render: (row) => <span className="crew-reward-number">{Number(row.participant_count || 0)} Crew</span> },
     { key: "payout", header: "Payout", align: "right", render: (row) => <strong className="crew-reward-final">{money(row.actual_payout)}</strong> },
-    { key: "unused", header: "Unused", align: "right", render: (row) => <span className="crew-reward-number">{money(row.unused_amount ?? row.configured_pool)}</span> },
     { key: "utilization", header: "Utilization", align: "right", render: (row) => <span className="crew-reward-number">{percent(Number(row.configured_pool) > 0 ? Number(row.actual_payout || 0) / Number(row.configured_pool) : 0)}</span> },
     { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{cycleStatus(row.status)}</Badge> },
     { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> },
@@ -199,4 +199,4 @@ function CreateCampaign({ outlet, defaultPeriod, crew, existing, onClose, onSubm
 
 function Adjustment({ entry, onClose, onSubmit }) { const [amount, setAmount] = useState(""); const [reason, setReason] = useState(""); const final = Number(entry.calculated_reward || 0) + Number(amount || 0); return <Modal title="Adjust Reward" description={`${entry.employee_name} · Calculated ${money(entry.calculated_reward)}`} onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={!Number(amount) || reason.trim().length < 5 || final < 0} onClick={() => onSubmit({ entryId: entry.id, amount: Number(amount), reason })}>Save Adjustment</button></>}><div className="crew-reward-form"><label>Adjustment amount<input className="control" type="number" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Example: 20 or -5" /></label><section className="crew-reward-adjust-preview"><span>Calculated <strong>{money(entry.calculated_reward)}</strong></span><span>Adjustment <strong>{Number(amount) > 0 ? "+" : ""}{money(amount)}</strong></span><span>Final <strong>{money(final)}</strong></span></section><label>Reason *<textarea className="control" value={reason} maxLength={500} onChange={(event) => setReason(event.target.value)} placeholder="Required audit reason" /></label><p><AlertTriangle size={15} /> The calculated amount is retained. This adjustment creates an immutable audit record.</p></div></Modal>; }
 
-function CampaignMetric({ label, value, detail }) { return <article><small>{label}</small><strong>{value}</strong>{detail ? <span>{detail}</span> : null}</article>; }
+function CampaignMetric({ label, value, detail, progress }) { return <article><small>{label}</small><strong>{value}</strong>{detail ? <span>{detail}</span> : null}{progress != null ? <i className="crew-reward-metric-progress" style={{ "--reward-progress": `${Math.min(100, progress * 100)}%` }} /> : null}</article>; }
