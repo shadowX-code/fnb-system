@@ -3,7 +3,7 @@ import { AlertTriangle, Calculator, ChevronRight, Gift, Search, UsersRound } fro
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
-import SelectField from "../../../components/forms/SelectField.jsx";
+import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import { crewService } from "../../../services/crewService.js";
 import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
@@ -76,7 +76,7 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
   const outlet = outlets.find((row) => row.id === outletId);
   return <div className="crew-reward-page">
     <PageHeader section="Crew · Reward" title="Reward Overview" description="Plan monthly Reward Campaigns, monitor projected payouts and finalize transparent Crew rewards." />
-    <CrewAdminToolbar outlet={<CrewAdminOutletField />} time={<label className="crew-performance-period">Period<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label>} primary={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
+    <CrewAdminToolbar className="crew-reward-toolbar" outlet={<CrewAdminOutletField />} time={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} primary={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
 
     {loading ? <div className="crew-growth-skeleton"><span /><span /><span /><p>Loading Reward Campaign…</p></div> : error ? <section className="crew-reward-empty is-error"><AlertTriangle size={28} /><h2>Unable to load Rewards</h2><p>{error}</p><button className="btn-secondary" type="button" onClick={() => refresh()}>Retry</button></section> : <RewardOverview data={data} canManage={canManage} onOpenCampaign={() => setCampaignOpen(true)} onOpenEmployee={setEmployeeOpen} onOpenCycle={openCycle} />}
 
@@ -108,7 +108,7 @@ function CurrentCampaign({ data, onOpenCampaign, onOpenEmployee }) {
   const amounts = positive.map((row) => Number(row.final_payout));
 
   return <>
-    <section className="crew-reward-current-head"><div><span>Current Campaign</span><h2>{month(c.period_start)}</h2><Badge tone={statusTone(c.status)}>{cycleStatus(c.status)}</Badge></div><button className="btn-secondary" type="button" onClick={onOpenCampaign}>Review Campaign <ChevronRight size={15} /></button></section>
+    <section className="crew-reward-current-head"><div><span>Current Campaign</span><div className="crew-reward-current-identity"><h2>{month(c.period_start)}</h2><Badge tone={statusTone(c.status)}>{cycleStatus(c.status)}</Badge></div></div><button className="btn-secondary" type="button" onClick={onOpenCampaign}>Review Campaign <ChevronRight size={15} /></button></section>
     <section className="crew-reward-kpis">
       <CampaignMetric label="Configured Pool" value={money(configured)} />
       <CampaignMetric label={c.status === "finalized" || c.status === "paid" ? "Final Payout" : "Projected Payout"} value={money(payout)} />
@@ -121,7 +121,7 @@ function CurrentCampaign({ data, onOpenCampaign, onOpenEmployee }) {
       <div><strong>Reward Range</strong><span>Average <b>{money(amounts.length ? payout / amounts.length : 0)}</b></span><span>Highest <b>{money(amounts.length ? Math.max(...amounts) : 0)}</b></span></div>
     </section>
     <section className="crew-reward-section"><header><div><h2>Crew Rewards</h2><p>Canonical server results from finalized Performance and eligible attendance.</p></div></header><RewardTable rows={data.entries} cycle={c} onOpen={onOpenEmployee} /></section>
-    {awaiting.length ? <section className="crew-reward-attention"><header><AlertTriangle size={18} /><div><h2>Reward Attention</h2><p>{awaiting.length} Crew cannot be calculated yet.</p></div></header>{awaiting.map((row) => <button type="button" key={row.id} onClick={() => onOpenEmployee(row)}><span><strong>{row.employee_name}</strong><small>{row.eligibility_reason}</small></span><Badge tone="warning">Awaiting Performance</Badge><ChevronRight size={16} /></button>)}</section> : null}
+    {awaiting.length ? <section className="crew-reward-attention"><header><AlertTriangle size={18} /><div><h2>Reward Attention</h2><p>{awaiting.length} Crew need attention</p></div></header>{awaiting.map((row) => <button type="button" key={row.id} onClick={() => onOpenEmployee(row)}><span><strong>{row.employee_name}</strong><small>{row.eligibility_reason || "Finalized Performance required"}</small></span><Badge tone="warning">Awaiting Performance</Badge><ChevronRight size={16} /></button>)}</section> : null}
   </>;
 }
 
@@ -129,11 +129,11 @@ function RewardTable({ rows, cycle, onOpen }) {
   if (!rows.length) return <div className="crew-reward-table-empty">Calculate this Draft Campaign to create its frozen Reward breakdown.</div>;
   return <DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[940px]" columns={[
     { key: "employee", header: "Employee", render: (row) => <span className="crew-growth-name"><span className="crew-growth-avatar">{row.employee_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span><span><strong>{row.employee_name}</strong><small>{row.position || "Crew"}</small></span></span> },
-    { key: "hours", header: "Eligible Hours", render: (row) => `${Number(row.eligible_hours).toFixed(1)}h` },
-    { key: "performance", header: "Performance", render: (row) => row.performance_score == null ? "—" : Math.round(row.performance_score) },
-    { key: "contribution", header: "Contribution", render: (row) => row.status === "awaiting_performance" ? "—" : percent(row.contribution_share) },
-    { key: "factor", header: "Reward Factor", render: (row) => percent(row.performance_factor) },
-    { key: "reward", header: cycle.status === "finalized" || cycle.status === "paid" ? "Final Reward" : "Projected Reward", render: (row) => <strong>{money(row.final_payout)}</strong> },
+    { key: "hours", header: "Eligible Hours", align: "right", render: (row) => <span className="crew-reward-number">{Number(row.eligible_hours).toFixed(1)}h</span> },
+    { key: "performance", header: "Performance", align: "right", render: (row) => <span className="crew-reward-number">{row.performance_score == null ? "—" : Math.round(row.performance_score)}</span> },
+    { key: "contribution", header: "Contribution", align: "right", render: (row) => <span className="crew-reward-number">{row.status === "awaiting_performance" ? "—" : percent(row.contribution_share)}</span> },
+    { key: "factor", header: "Reward Factor", align: "right", render: (row) => <span className="crew-reward-number">{percent(row.performance_factor)}</span> },
+    { key: "reward", header: cycle.status === "finalized" || cycle.status === "paid" ? "Final Reward" : "Projected Reward", align: "right", render: (row) => <strong className="crew-reward-final">{money(row.final_payout)}</strong> },
     { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{entryStatus(row.status)}</Badge> },
     { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> },
   ]} />;
@@ -142,11 +142,11 @@ function RewardTable({ rows, cycle, onOpen }) {
 function CampaignHistory({ rows, onOpen }) {
   return <section className="crew-reward-section"><header><div><h2>Reward Campaigns</h2><p>Current and immutable historical monthly Campaigns.</p></div></header>{rows.length ? <DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[850px]" columns={[
     { key: "period", header: "Period", render: (row) => <strong>{month(row.period_start)}</strong> },
-    { key: "pool", header: "Pool", render: (row) => money(row.configured_pool) },
-    { key: "crew", header: "Crew", render: (row) => `${Number(row.participant_count || 0)} Crew` },
-    { key: "payout", header: "Payout", render: (row) => money(row.actual_payout) },
-    { key: "unused", header: "Unused", render: (row) => money(row.unused_amount ?? row.configured_pool) },
-    { key: "utilization", header: "Utilization", render: (row) => percent(Number(row.configured_pool) > 0 ? Number(row.actual_payout || 0) / Number(row.configured_pool) : 0) },
+    { key: "pool", header: "Pool", align: "right", render: (row) => <span className="crew-reward-number">{money(row.configured_pool)}</span> },
+    { key: "crew", header: "Crew", align: "right", render: (row) => <span className="crew-reward-number">{Number(row.participant_count || 0)} Crew</span> },
+    { key: "payout", header: "Payout", align: "right", render: (row) => <strong className="crew-reward-final">{money(row.actual_payout)}</strong> },
+    { key: "unused", header: "Unused", align: "right", render: (row) => <span className="crew-reward-number">{money(row.unused_amount ?? row.configured_pool)}</span> },
+    { key: "utilization", header: "Utilization", align: "right", render: (row) => <span className="crew-reward-number">{percent(Number(row.configured_pool) > 0 ? Number(row.actual_payout || 0) / Number(row.configured_pool) : 0)}</span> },
     { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{cycleStatus(row.status)}</Badge> },
     { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> },
   ]} /> : <div className="crew-reward-history-empty-admin">No Reward Campaign history for this outlet.</div>}</section>;
@@ -193,7 +193,7 @@ function CreateCampaign({ outlet, defaultPeriod, crew, existing, onClose, onSubm
   function toggle(id) { setSelected((current) => { const next = new Set(current); next.has(id) ? next.delete(id) : next.add(id); return next; }); }
   async function submit() { setSaving(true); try { await onSubmit({ period, configuredPool: Number(pool), employeeIds: mode === "all" ? null : [...selected] }); } finally { setSaving(false); } }
   return <Modal title="Create Reward" description={`${outlet?.name || "Outlet"} · Monthly Campaign`} size="lg" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving || Number(pool) <= 0 || count < 1 || duplicate} onClick={submit}>{saving ? "Creating…" : `Create Reward for ${count} Crew`}</button></>}>
-    <div className="crew-reward-form"><label>Reward Month *<input className="control" type="month" value={period.slice(0, 7)} onChange={(event) => setPeriod(`${event.target.value}-01`)} /></label><label>Reward Pool *<span className="crew-reward-money-input"><b>RM</b><input className="control" type="number" min="0.01" step="0.01" value={pool} onChange={(event) => setPool(event.target.value)} /></span></label>{duplicate ? <p className="crew-reward-validation"><AlertTriangle size={15} /> A Reward Campaign already exists for this outlet and month.</p> : null}<fieldset className="crew-reward-crew-picker"><legend>Participating Crew *</legend><label><input type="radio" checked={mode === "all"} onChange={() => setMode("all")} /> All eligible Crew <small>{crew.length} available</small></label><label><input type="radio" checked={mode === "selected"} onChange={() => setMode("selected")} /> Select Crew</label>{mode === "selected" ? <div><label className="crew-reward-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Crew…" /></label><div className="crew-reward-crew-list">{visible.map((row) => <label key={row.id}><input type="checkbox" checked={selected.has(row.id)} onChange={() => toggle(row.id)} /><span><strong>{row.name}</strong><small>{row.position || "Crew"}</small></span></label>)}</div></div> : null}<footer>Selected: <strong>{count} Crew</strong></footer></fieldset></div>
+    <div className="crew-reward-form"><MonthPickerField label="Reward Month *" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />{duplicate ? <p className="crew-reward-validation"><AlertTriangle size={15} /> A Reward Campaign already exists for this outlet and month.</p> : null}<label>Reward Pool *<span className="crew-reward-money-input"><b>RM</b><input className="control" type="number" min="0.01" step="0.01" value={pool} onChange={(event) => setPool(event.target.value)} /></span></label><fieldset className="crew-reward-crew-picker"><legend>Participating Crew *</legend><label><input type="radio" checked={mode === "all"} onChange={() => setMode("all")} /> All eligible Crew <small>{crew.length} available</small></label><label><input type="radio" checked={mode === "selected"} onChange={() => setMode("selected")} /> Select Crew</label>{mode === "selected" ? <div><label className="crew-reward-search"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search Crew…" /></label><div className="crew-reward-crew-list">{visible.map((row) => <label key={row.id}><input type="checkbox" checked={selected.has(row.id)} onChange={() => toggle(row.id)} /><span><strong>{row.name}</strong><small>{row.position || "Crew"}</small></span></label>)}</div></div> : null}<footer>Selected: <strong>{count} Crew</strong></footer></fieldset></div>
   </Modal>;
 }
 
