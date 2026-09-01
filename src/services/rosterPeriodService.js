@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
-const selectFields = "id,outlet_id,week_start_date,week_end_date,status,published_by,published_at,locked_at,created_at,updated_at";
+const selectFields = "id,outlet_id,week_start_date,week_end_date,status,has_unpublished_changes,published_by,published_at,locked_at,created_at,updated_at";
 
 function mapPeriod(row) {
   return {
@@ -11,6 +11,7 @@ function mapPeriod(row) {
     week_start_date: row.week_start_date,
     week_end_date: row.week_end_date,
     status: row.status ?? "draft",
+    has_unpublished_changes: Boolean(row.has_unpublished_changes),
     published_by: row.published_by,
     published_at: row.published_at,
     locked_at: row.locked_at,

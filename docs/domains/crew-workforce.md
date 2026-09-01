@@ -27,8 +27,8 @@ Passcodes are protected, sessions are opaque and revocable, and sensitive reques
 The Crew browser keeps only the opaque session envelope locally. Its employee-scoped read projections are cleared and pending reads invalidated on logout or session replacement; a response is accepted only for the current token and refresh generation, preventing a prior employee's data from appearing in a newer session.
 Crew-scoped operational capabilities, including Cash Handover initiation, are owned by the employee's active Crew Access record and outlet rather than by Admin roles or Admin Access. Their changes use the controlled Crew Access administration path and retain audit evidence.
 
-Duty Roster drafts are editable by authorized Admins.
-Publishing creates an immutable revision for Crew consumption; later draft edits do not replace the last published view until republished.
+Draft Duty Roster weeks are editable by authorized Admins and are not Crew-visible.
+Publishing atomically creates an immutable Crew-facing revision for one outlet week. Later Admin edits keep the period Published with unpublished changes; Crew continues consuming the prior revision until Republish atomically promotes the latest working snapshot, including removals.
 Multi-outlet scheduling validates both operational and employee scope where current contracts require it.
 
 Attendance is recorded through token-bound server authority.

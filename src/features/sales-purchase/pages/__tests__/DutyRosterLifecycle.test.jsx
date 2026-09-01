@@ -2,13 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
-  employees: vi.fn(), positions: vi.fn(), mappings: vi.fn(), templates: vi.fn(), allTemplates: vi.fn(), rosters: vi.fn(), period: vi.fn(), snapshot: vi.fn(), remove: vi.fn(), notify: vi.fn(),
+  employees: vi.fn(), positions: vi.fn(), mappings: vi.fn(), templates: vi.fn(), allTemplates: vi.fn(), rosters: vi.fn(), period: vi.fn(), snapshot: vi.fn(), publish: vi.fn(), notify: vi.fn(),
 }));
 
 vi.mock("../../../../services/jobPositionService.js", () => ({ jobPositionService: { listJobPositions: mocks.positions } }));
 vi.mock("../../../../services/rosterPositionGroupService.js", () => ({ rosterPositionGroupService: { listMappings: mocks.mappings } }));
 vi.mock("../../../../services/shiftTemplateService.js", () => ({ shiftTemplateService: { listShiftTemplates: mocks.templates, listAllShiftTemplates: mocks.allTemplates } }));
-vi.mock("../../../../services/dutyRosterService.js", () => ({ dutyRosterService: { listRosterEligibleEmployees: mocks.employees, listDutyRosters: mocks.rosters, saveRosterWeekSnapshot: mocks.snapshot, deleteDutyRoster: mocks.remove } }));
+vi.mock("../../../../services/dutyRosterService.js", () => ({ dutyRosterService: { listRosterEligibleEmployees: mocks.employees, listDutyRosters: mocks.rosters, saveRosterWeekSnapshot: mocks.snapshot, publishRosterWeek: mocks.publish } }));
 vi.mock("../../../../services/rosterPeriodService.js", () => ({ rosterPeriodService: { getOrCreateRosterPeriod: mocks.period } }));
 
 import DutyRosterPage, { rosterPermission } from "../DutyRosterPage.jsx";
@@ -21,6 +21,8 @@ const leaveTemplate = { id: "leave-1", outlet_id: "outlet-1", name: "Annual Leav
 const period = { id: "period-1", outlet_id: "outlet-1", week_start_date: "2026-08-10", week_end_date: "2026-08-16", status: "draft" };
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date("2026-08-10T12:00:00"));
   vi.clearAllMocks();
   mocks.employees.mockResolvedValue([employee]);
   mocks.positions.mockResolvedValue([{ id: "position-1", name: "Cook" }]);
@@ -30,11 +32,14 @@ beforeEach(() => {
   mocks.rosters.mockResolvedValue([]);
   mocks.period.mockResolvedValue(period);
   mocks.snapshot.mockResolvedValue({ period, rows: [] });
-  mocks.remove.mockResolvedValue(undefined);
+  mocks.publish.mockResolvedValue({ period: { ...period, status: "published", has_unpublished_changes: false }, rows: [] });
   mocks.notify.mockReset();
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.useRealTimers();
+});
 
 describe("Duty Roster trusted week snapshot integration", () => {
   it("accepts only canonical Crew roster permissions", () => {
@@ -201,7 +206,11 @@ describe("Duty Roster trusted week snapshot integration", () => {
     fireEvent.click((await screen.findAllByRole("button", { name: /Aina, 2026-08-10, Morning/ }))[0]);
     fireEvent.click(screen.getByRole("button", { name: "Remove Shift" }));
 
-    await waitFor(() => expect(mocks.remove).toHaveBeenCalledWith("shift-1", expect.objectContaining({ outletId: "outlet-1", rosterDate: "2026-08-10" })));
+    await waitFor(() => expect(mocks.snapshot).toHaveBeenCalledWith(expect.objectContaining({
+      outletId: "outlet-1",
+      weekStartDate: "2026-08-10",
+      rows: [],
+    })));
     expect((await screen.findAllByRole("button", { name: /Aina, 2026-08-10, unassigned/ })).length).toBeGreaterThan(0);
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Shift removed" }));
   });
@@ -215,5 +224,27 @@ describe("Duty Roster trusted week snapshot integration", () => {
     fireEvent.click(screen.getByRole("button", { name: "Shift Template" }));
     expect(screen.getByRole("button", { name: /Morning/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Annual Leave/ })).toBeNull();
+  });
+
+  it("labels an edited published week and republishes through the trusted week authority", async () => {
+    const publishedWithChanges = { ...period, status: "published", has_unpublished_changes: true, published_at: "2026-08-10T02:00:00Z" };
+    mocks.period.mockResolvedValue(publishedWithChanges);
+    mocks.publish.mockResolvedValue({ period: { ...publishedWithChanges, has_unpublished_changes: false }, rows: [] });
+    const auth = { isProtectedRole: true, hasPermission: () => true };
+    render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
+
+    expect(await screen.findByText("Published · Unpublished changes")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Republish Roster" }));
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1", weekStartDate: "2026-08-10" })));
+  });
+
+  it("publishes the selected week from Month view through the same authority", async () => {
+    const auth = { isProtectedRole: true, hasPermission: () => true };
+    render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "month" }));
+    expect(await screen.findByText("Publish week")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Publish Roster" }));
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1", weekStartDate: "2026-08-10" })));
   });
 });

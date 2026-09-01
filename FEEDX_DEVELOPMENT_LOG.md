@@ -6,6 +6,10 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Hardened the trusted Reward Campaign finalization authority: a Campaign can now become finalized only when its frozen participants have a current complete calculation and every entry is a legitimate final outcome. Missing, uncomputed, malformed, and awaiting-Performance entries atomically block finalization; the Admin read model exposes scoped, human-readable blocker readiness without weakening finalized/paid immutability or payout semantics.
 
+## September 2026 — Duty Roster Working Publication State
+
+- Duty Roster now retains a published period's immutable Crew-facing revision while Admin edits its working snapshot. The server-owned `has_unpublished_changes` lifecycle state distinguishes Draft, Published, and Published with unpublished changes; Week and Month invoke the same atomic week publication authority, and no-op republish requests do not create a new Crew revision.
+
 ## August 2026 — Async Workspace And Admin Feature Ownership
 
 - Added the employee-master-backed Crew profile-photo contract: a private Storage object is resolved exclusively from the current opaque Crew token, persisted only as the employee's canonical path, delivered through a short-lived signed URL, and recorded as an audit event. No arbitrary employee or object-path mutation is available to the browser.

@@ -102,6 +102,10 @@ function formatMonthYear(date) {
   return new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric" }).format(date);
 }
 
+function formatPublishedAt(value) {
+  return value ? new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }).format(new Date(value)) : "";
+}
+
 function monthCalendarDays(monthDate) {
   const first = startOfMonth(monthDate);
   const gridStart = startOfWeek(first);
@@ -1463,12 +1467,12 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const [outletId, setOutletIdState] = useState(sharedOutlet.outletId || activeOutlets[0]?.id || "");
   const setOutletId = (value) => { setOutletIdState(value); if (ownership === "crew") sharedOutlet.setOutletId(value); };
   const outletIdRef = useRef(outletId);
-  const publishedWeekRequestIdRef = useRef("");
   const copyRequestIdRef = useRef("");
   const statusRequestIdRef = useRef({});
   const bulkSavingRef = useRef(false);
   const [weekStart, setWeekStart] = useState(() => toDateInputValue(startOfWeek(new Date())));
   const [viewMode, setViewMode] = useState("week");
+  const [publicationWeekStart, setPublicationWeekStart] = useState(weekStart);
   const [employees, setEmployees] = useState([]);
   const [jobPositions, setJobPositions] = useState([]);
   const [positionMappings, setPositionMappings] = useState([]);
@@ -1526,6 +1530,11 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const visibleDateValues = visibleDates.map(toDateInputValue);
   const visibleStart = visibleDateValues[0];
   const visibleEnd = visibleDateValues[visibleDateValues.length - 1];
+  const publicationWeeks = useMemo(() => [...new Set(visibleDateValues.map((date) => toDateInputValue(startOfWeek(`${date}T00:00:00`))))], [visibleDateValues]);
+  const activePublicationWeekStart = viewMode === "month"
+    ? (publicationWeeks.includes(publicationWeekStart) ? publicationWeekStart : publicationWeeks[0])
+    : weekDateValues[0];
+  const activePublicationWeekEnd = toDateInputValue(addDays(`${activePublicationWeekStart}T00:00:00`, 6));
   const locked = period?.status === "locked";
   const readOnly = locked || !canWriteShift;
 
@@ -1547,6 +1556,11 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     setSelectedCells(new Set());
     setOverwriteExisting(false);
   }, [outletId]);
+
+  useEffect(() => {
+    if (publicationWeeks.includes(publicationWeekStart)) return;
+    setPublicationWeekStart(viewMode === "month" ? publicationWeeks[0] : weekDateValues[0]);
+  }, [publicationWeekStart, publicationWeeks, viewMode, weekDateValues]);
 
   useEffect(() => {
     const rawFocus = localStorage.getItem("feedx:dutyRosterFocus");
@@ -1580,8 +1594,8 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
           shiftTemplateService.listAllShiftTemplates(outletId),
           dutyRosterService.listDutyRosters(outletId, visibleStart, visibleEnd),
           canWriteShift || canPublishRoster
-            ? rosterPeriodService.getOrCreateRosterPeriod(outletId, weekDateValues[0], weekEnd)
-            : rosterPeriodService.getRosterPeriod(outletId, weekDateValues[0]),
+            ? rosterPeriodService.getOrCreateRosterPeriod(outletId, activePublicationWeekStart, activePublicationWeekEnd)
+            : rosterPeriodService.getRosterPeriod(outletId, activePublicationWeekStart),
         ]);
         if (ignore) return;
         setEmployees(employeeRows);
@@ -1611,7 +1625,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     return () => {
       ignore = true;
     };
-  }, [canPublishRoster, canWriteShift, outletId, viewMode, weekEnd, weekStart]);
+  }, [activePublicationWeekEnd, activePublicationWeekStart, canPublishRoster, canWriteShift, outletId, visibleEnd, visibleStart]);
 
   const rosterByEmployeeDate = useMemo(() => new Map(rosters.map((roster) => [rosterKey(roster.employee_id, roster.roster_date), roster])), [rosters]);
   const displayEmployees = useMemo(() => {
@@ -1701,59 +1715,16 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       setSelectedTemplateId("");
       return;
     }
-    if (period?.status === "published") {
-      setSaving(true);
-      try {
-        const nextRows = rosters
-          .filter((row) => row.roster_date >= weekDateValues[0] && row.roster_date <= weekEnd)
-          .filter((row) => row.id !== existing?.id);
-        nextRows.push({ employee_id: employee.id, roster_date: date, shift_template_id: templateOverride.id, template: templateOverride, remark });
-        const requestId = publishedWeekRequestIdRef.current || createRosterRequestId();
-        publishedWeekRequestIdRef.current = requestId;
-        const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId, outletId, weekStartDate: weekDateValues[0], rows: nextRows });
-        setPeriod(result.period);
-        setRosters((current) => [...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd), ...result.rows]);
-        publishedWeekRequestIdRef.current = "";
-        setShiftDrawer(null);
-        ui.notify({ title: "Shift saved", message: `${employee.nickname || employee.full_name} · ${templateOverride.name}` });
-        return;
-      } catch (saveError) {
-        console.error("Unable to save duty roster shift", saveError);
-        ui.notify({ title: "Unable to save shift", message: saveError.message || "Please try again.", tone: "error" });
-        return;
-      } finally {
-        setSaving(false);
-      }
-    }
     setSaving(true);
     try {
-      const shouldResetPublishedWeek = period?.status === "published";
-      const saved = await dutyRosterService.saveDutyRoster({
-        outletId,
-        employeeId: employee.id,
-        rosterDate: date,
-        template: templateOverride,
-        status: "draft",
-        remark,
-      });
-      if (shouldResetPublishedWeek) {
-        const [nextPeriod, nextRows] = await Promise.all([
-          rosterPeriodService.setRosterPeriodStatus(period, "draft"),
-          dutyRosterService.setWeekRosterStatus({
-            outletId,
-            startDate: weekDateValues[0],
-            endDate: weekEnd,
-            status: "draft",
-          }),
-        ]);
-        setPeriod(nextPeriod);
-        setRosters(nextRows);
-      } else {
-        setRosters((current) => {
-          const exists = current.some((item) => item.id === saved.id);
-          return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
-        });
-      }
+      const targetWeek = toDateInputValue(startOfWeek(`${date}T00:00:00`));
+      const targetEnd = toDateInputValue(addDays(`${targetWeek}T00:00:00`, 6));
+      const weekRows = await dutyRosterService.listDutyRosters(outletId, targetWeek, targetEnd);
+      const nextRows = weekRows.filter((row) => row.id !== existing?.id);
+      nextRows.push({ employee_id: employee.id, roster_date: date, shift_template_id: templateOverride.id, template: templateOverride, remark });
+      const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId: createRosterRequestId(), outletId, weekStartDate: targetWeek, rows: nextRows });
+      if (targetWeek === activePublicationWeekStart) setPeriod(result.period);
+      setRosters((current) => [...current.filter((row) => row.roster_date < targetWeek || row.roster_date > targetEnd), ...result.rows]);
       setShiftDrawer(null);
       ui.notify({ title: "Shift saved", message: `${employee.nickname || employee.full_name} · ${templateOverride.name}` });
     } catch (saveError) {
@@ -1943,7 +1914,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         }));
         const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId: createRosterRequestId(), outletId, weekStartDate: targetWeek, rows: [...rowsByKey.values()] });
         setRosters((current) => [...current.filter((row) => row.roster_date < targetWeek || row.roster_date > targetEnd), ...result.rows]);
-        if (targetWeek === weekDateValues[0]) setPeriod(result.period);
+        if (targetWeek === activePublicationWeekStart) setPeriod(result.period);
       }
       setSelectedTemplateId(template.id);
       setTemplateMenuOpen(false);
@@ -2003,7 +1974,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
           requestId: createRosterRequestId(), outletId, weekStartDate: targetWeek, rows: nextRows,
         });
         setRosters((current) => [...current.filter((row) => row.roster_date < targetWeek || row.roster_date > targetEnd), ...result.rows]);
-        if (targetWeek === weekDateValues[0]) setPeriod(result.period);
+        if (targetWeek === activePublicationWeekStart) setPeriod(result.period);
       }
 
       setSelectedCells(new Set());
@@ -2027,51 +1998,21 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       return;
     }
     if (locked) return;
-    if (period?.status === "published") {
-      setSaving(true);
-      try {
-        const requestId = publishedWeekRequestIdRef.current || createRosterRequestId();
-        publishedWeekRequestIdRef.current = requestId;
-        const result = await dutyRosterService.saveRosterWeekSnapshot({
-          requestId, outletId, weekStartDate: weekDateValues[0],
-          rows: rosters.filter((row) => row.roster_date >= weekDateValues[0] && row.roster_date <= weekEnd && row.id !== roster.id),
-        });
-        setPeriod(result.period);
-        setRosters((current) => [...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd), ...result.rows]);
-        publishedWeekRequestIdRef.current = "";
-        setShiftDrawer(null);
-        ui.notify({ title: "Shift removed" });
-        return;
-      } catch (deleteError) {
-        console.error("Unable to delete duty roster shift", deleteError);
-        ui.notify({ title: "Unable to remove shift", message: deleteError.message || "Please try again.", tone: "error" });
-        return;
-      } finally {
-        setSaving(false);
-      }
-    }
+    setSaving(true);
     try {
-      await dutyRosterService.deleteDutyRoster(roster.id, { outletId, rosterDate: roster.roster_date, employee_id: roster.employee_id });
-      if (period?.status === "published") {
-        const [nextPeriod, nextRows] = await Promise.all([
-          rosterPeriodService.setRosterPeriodStatus(period, "draft"),
-          dutyRosterService.setWeekRosterStatus({
-            outletId,
-            startDate: weekDateValues[0],
-            endDate: weekEnd,
-            status: "draft",
-          }),
-        ]);
-        setPeriod(nextPeriod);
-        setRosters(nextRows.filter((item) => item.id !== roster.id));
-      } else {
-        setRosters((current) => current.filter((item) => item.id !== roster.id));
-      }
+      const targetWeek = toDateInputValue(startOfWeek(`${roster.roster_date}T00:00:00`));
+      const targetEnd = toDateInputValue(addDays(`${targetWeek}T00:00:00`, 6));
+      const weekRows = await dutyRosterService.listDutyRosters(outletId, targetWeek, targetEnd);
+      const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId: createRosterRequestId(), outletId, weekStartDate: targetWeek, rows: weekRows.filter((row) => row.id !== roster.id) });
+      if (targetWeek === activePublicationWeekStart) setPeriod(result.period);
+      setRosters((current) => [...current.filter((row) => row.roster_date < targetWeek || row.roster_date > targetEnd), ...result.rows]);
       setShiftDrawer(null);
       ui.notify({ title: "Shift removed" });
     } catch (deleteError) {
       console.error("Unable to delete duty roster shift", deleteError);
       ui.notify({ title: "Unable to remove shift", message: deleteError.message || "Please try again.", tone: "error" });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -2248,12 +2189,12 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       const requestId = statusRequestIdRef.current[status] || createRosterRequestId();
       statusRequestIdRef.current[status] = requestId;
       const result = status === "published"
-        ? await dutyRosterService.publishRosterWeek({ requestId, outletId, weekStartDate: weekDateValues[0] })
+        ? await dutyRosterService.publishRosterWeek({ requestId, outletId, weekStartDate: activePublicationWeekStart })
         : status === "draft"
-          ? await dutyRosterService.unpublishRosterWeek({ requestId, outletId, weekStartDate: weekDateValues[0] })
-          : await dutyRosterService.lockRosterWeek({ requestId, outletId, weekStartDate: weekDateValues[0] });
+          ? await dutyRosterService.unpublishRosterWeek({ requestId, outletId, weekStartDate: activePublicationWeekStart })
+          : await dutyRosterService.lockRosterWeek({ requestId, outletId, weekStartDate: activePublicationWeekStart });
       setPeriod(result.period);
-      setRosters((current) => [...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd), ...result.rows]);
+      setRosters((current) => [...current.filter((row) => row.roster_date < activePublicationWeekStart || row.roster_date > activePublicationWeekEnd), ...result.rows]);
       statusRequestIdRef.current[status] = "";
       ui.notify({ title: status === "published" ? "Roster published" : status === "locked" ? "Roster locked" : "Roster unlocked" });
     } catch (statusError) {
@@ -2264,6 +2205,8 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     }
   }
 
+  const hasUnpublishedChanges = period?.status === "published" && period?.has_unpublished_changes;
+  const rosterStatusLabel = period?.status === "locked" ? "Locked" : hasUnpublishedChanges ? "Published · Unpublished changes" : period?.status === "published" ? "Published" : "Draft";
   const statusTone = period?.status === "locked" ? "danger" : period?.status === "published" ? "success" : "warning";
 
   function selectRosterDate(date) {
@@ -2366,9 +2309,9 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         outlet={<FieldLabel label="Outlet"><SelectField ariaLabel="Outlet" value={outletId} options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} /></FieldLabel>}
         time={<FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}><RosterDateSelector mode={viewMode} weekStart={weekStart} weekDates={weekDates} visibleDates={visibleDates} onSelectDate={selectRosterDate} onPrevious={() => navigateRoster(-1)} onNext={() => navigateRoster(1)} /></FieldLabel>}
         search={<FieldLabel label="Employee"><input className="control h-10 w-full" value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="Search name..." /></FieldLabel>}
-        filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel><div className="flex rounded-2xl border border-border bg-background p-1">{["week", "month"].map((mode) => <button key={mode} className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${viewMode === mode ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary"}`} type="button" onClick={() => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }}>{mode}</button>)}</div></>}
+        filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel>{viewMode === "month" ? <FieldLabel label="Publish week"><SelectField ariaLabel="Publish week" value={activePublicationWeekStart} options={publicationWeeks.map((date) => ({ value: date, label: formatWeekRange(datesBetween(new Date(`${date}T00:00:00`), new Date(`${toDateInputValue(addDays(`${date}T00:00:00`, 6))}T00:00:00`))) }))} onChange={setPublicationWeekStart} /></FieldLabel> : null}<div className="flex rounded-2xl border border-border bg-background p-1">{["week", "month"].map((mode) => <button key={mode} className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${viewMode === mode ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary"}`} type="button" onClick={() => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }}>{mode}</button>)}</div></>}
         secondary={canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}
-        primary={canPublishRoster ? <button className="btn-primary" type="button" disabled={viewMode !== "week" || !period || period.status === "published" || period.status === "locked"} onClick={() => setStatus("published")} title={viewMode !== "week" ? "Switch to Week view to publish a roster week." : undefined}><Send size={16} /> Publish Roster</button> : null}
+        primary={canPublishRoster ? <button className="btn-primary" type="button" disabled={!period || period.status === "locked" || (period.status === "published" && !period.has_unpublished_changes)} onClick={() => setStatus("published")}><Send size={16} /> {hasUnpublishedChanges ? "Republish Roster" : "Publish Roster"}</button> : null}
       />
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
@@ -2392,7 +2335,8 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         >
           <div className="relative flex flex-wrap items-center justify-between gap-2 border-b border-border bg-background/60 px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={statusTone}>{period?.status === "locked" ? "Locked" : period?.status === "published" ? "Published" : "Draft"}</Badge>
+              <Badge tone={statusTone}>{rosterStatusLabel}</Badge>
+              {period?.published_at ? <span className="text-xs text-text-secondary">Last published {formatPublishedAt(period.published_at)}</span> : null}
               <span className="text-xs font-semibold text-text-secondary">{readOnly ? "Read-only" : "Editable"}</span>
               {selectedTemplate ? <span className="rounded-lg bg-primary/10 px-2 py-1 text-xs font-bold text-primary">Template: {selectedTemplate.name}</span> : null}
             </div>
