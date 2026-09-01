@@ -15,7 +15,7 @@ import { formatCrewDate, formatCrewMoney, translateStatus } from "../utils/crewI
 import { CrewMobilePageHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import { CrewHelpSheet, CrewHelpTable, CrewHelpTrigger } from "./CrewHelp.jsx";
-import rewardHeroBackground from "../assets/reward-hero-approved.webp";
+import rewardHeroBackground from "../assets/reward-hero-approved.png";
 
 gsap.registerPlugin(useGSAP);
 
@@ -94,16 +94,6 @@ function TierTable({ tiers }) {
   return <CrewHelpTable label={t("reward.rateTable")} columns={[t("reward.scoreRange"), t("reward.level"), t("reward.earnRate")]} rows={tiers.map((tier) => ({ key: tier.range, cells: [{ value: tier.range }, { value: tier.level }, { value: rate(tier.rate), emphasis: true }] }))} />;
 }
 
-function RewardHeroMotion() {
-  return <svg className="crew-reward-hero-light-path" viewBox="0 0 390 232" preserveAspectRatio="none" aria-hidden="true">
-    <path d="M194 169 C252 169 311 122 390 119" />
-    <g className="crew-reward-hero-light-pulse">
-      <path className="crew-reward-hero-light-trail" d="M194 169 C252 169 311 122 390 119" pathLength="100" strokeDasharray="7 100" strokeDashoffset="0" />
-      <path className="crew-reward-hero-light-leading-edge" d="M194 169 C252 169 311 122 390 119" pathLength="100" strokeDasharray="1.8 100" strokeDashoffset="-5.4" />
-    </g>
-  </svg>;
-}
-
 function RewardHero({ data, onOpenSheet }) {
   const { t } = useTranslation();
   const heroRef = useRef(null);
@@ -114,8 +104,7 @@ function RewardHero({ data, onOpenSheet }) {
   const label = isDraftPerformanceProjection ? t("reward.estimatedReward") : data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
   const amount = Number(data.reward_amount ?? data.estimated_reward ?? 0);
   useGSAP(() => {
-    const root = heroRef.current;
-    if (!root || !amountRef.current) return undefined;
+    if (!heroRef.current || !amountRef.current) return undefined;
     const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
     const startAmount = hasPresentedRef.current ? previousAmountRef.current : 0;
     if (reducedMotion) {
@@ -133,30 +122,11 @@ function RewardHero({ data, onOpenSheet }) {
       ease: "power2.out",
       onUpdate: () => { if (amountRef.current) amountRef.current.textContent = money(value.amount); },
     });
-    const pulse = root.querySelector(".crew-reward-hero-light-pulse");
-    const trail = root.querySelector(".crew-reward-hero-light-trail");
-    const leadingEdge = root.querySelector(".crew-reward-hero-light-leading-edge");
-    let pathSweep = null;
-    if (pulse && trail && leadingEdge) {
-      // The approved asset's cyan curve and this SVG share one viewBox. Dashing the
-      // path keeps the sweep locked to that curve without moving a circular element.
-      gsap.set(trail, { attr: { "stroke-dashoffset": 0 } });
-      gsap.set(leadingEdge, { attr: { "stroke-dashoffset": -5.4 } });
-      pathSweep = gsap.timeline({ delay: .7, repeat: -1, repeatDelay: 2.6 })
-        .set(pulse, { opacity: 0 })
-        .to(pulse, { opacity: 1, duration: .22, ease: "sine.out" })
-        .to([trail, leadingEdge], { attr: { "stroke-dashoffset": "-=100" }, duration: 5.2, ease: "none" }, 0)
-        .to(pulse, { opacity: 0, duration: .28, ease: "sine.in" }, "<4.92");
-    }
     previousAmountRef.current = amount;
     hasPresentedRef.current = true;
-    return () => {
-      reveal.kill();
-      pathSweep?.kill();
-    };
+    return () => reveal.kill();
   }, { scope: heroRef, dependencies: [amount], revertOnUpdate: true });
   return <article ref={heroRef} className="crew-reward-hero" style={{ "--crew-reward-hero-background": `url(${rewardHeroBackground})` }}>
-    <RewardHeroMotion />
     <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><CrewStatusBadge tone={isDraftPerformanceProjection ? "neutral" : "success"}>{isDraftPerformanceProjection ? t("reward.notFinal") : translateStatus(data.status, t)}</CrewStatusBadge></div>
     <div className="crew-reward-hero-total"><small>{label}<CrewHelpTrigger label={t("reward.estimatedReward")} onClick={() => onOpenSheet("estimated-reward")} /></small><strong aria-label={money(amount)}><span ref={amountRef} aria-hidden="true">{money(0)}</span><span className="sr-only" aria-hidden="true">{money(amount)}</span></strong>{isDraftPerformanceProjection ? <p>{t("reward.basedOnCurrentPerformance")}</p> : null}</div>
     <div className="crew-reward-hero-metrics">

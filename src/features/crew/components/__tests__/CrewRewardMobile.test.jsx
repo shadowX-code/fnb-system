@@ -73,16 +73,12 @@ describe("Crew Reward mobile reference UI", () => {
     expect(rate.children[2].querySelector(".crew-ui-help-trigger.is-inline")).not.toBeNull();
   });
 
-  it("uses the approved static background with only the traveling-light presentation layer", () => {
+  it("uses the approved artwork without a presentation overlay", () => {
     const { container } = render(<CrewRewardMobile data={data} />);
     const hero = container.querySelector(".crew-reward-hero");
     expect(hero.style.getPropertyValue("--crew-reward-hero-background")).toContain("reward-hero-approved");
     expect(hero.querySelector(".crew-reward-hero-sheen")).toBeNull();
-    expect(hero.querySelector(".crew-reward-hero-light-path path")).not.toBeNull();
-    expect(hero.querySelector(".crew-reward-hero-light-pulse")).not.toBeNull();
-    expect(hero.querySelector(".crew-reward-hero-light-trail")).not.toBeNull();
-    expect(hero.querySelector(".crew-reward-hero-light-leading-edge")).not.toBeNull();
-    expect(hero.querySelector(".crew-reward-hero-light-pulse circle")).toBeNull();
+    expect(hero.querySelector(".crew-reward-hero-light-path")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-orbit")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-total p")).toBeNull();
   });
@@ -90,7 +86,7 @@ describe("Crew Reward mobile reference UI", () => {
   it.each([0, 72.43, 123456.78])("retains the canonical reward amount %s for the hero reveal", (rewardAmount) => {
     const { container } = render(<CrewRewardMobile data={{ ...data, reward_amount: rewardAmount, estimated_reward: rewardAmount }} />);
     expect(container.querySelector(".crew-reward-hero-total strong")).not.toBeNull();
-    expect(container.querySelector(".crew-reward-hero-light-pulse")).not.toBeNull();
+    expect(container.querySelector(".crew-reward-hero-light-path")).toBeNull();
   });
 
   it("keeps a non-qualified Crew member on the existing unavailable state instead of rendering the hero", () => {
