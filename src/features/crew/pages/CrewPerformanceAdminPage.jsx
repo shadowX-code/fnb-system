@@ -230,7 +230,7 @@ function FeedbackDetail({ item, onClose, onConfirmTrust, onModerate, onUpdateFol
   </Modal>;
 }
 
-function DetailItem({ label, value }) { return <div><dt className="text-xs text-text-secondary">{label}</dt><dd className="mt-1 font-medium capitalize">{value}</dd></div>; }
+function DetailItem({ label, value }) { return <div><dt className="text-xs text-text-secondary">{label}</dt><dd className="mt-1 font-medium">{value}</dd></div>; }
 function EvidenceHistory({ title, empty, entries, render }) { return <section><h3 className="mb-2 font-semibold">{title}</h3>{entries.length ? <div className="space-y-2">{entries.map((entry) => <article key={entry.id} className="grid gap-1 rounded-lg border border-border bg-surface p-3">{render(entry)}</article>)}</div> : <p className="text-text-secondary">{empty}</p>}</section>; }
 function Metric({ icon: Icon, label, value, detail, tone = "neutral" }) { return <article className={`crew-growth-metric is-${tone}`}><div className="crew-growth-metric-icon"><Icon size={16} /></div><span><small>{label}</small><strong>{value}</strong><em>{detail}</em></span></article>; }
 function NameCell({ row }) { return <span className="crew-growth-name"><span className="crew-growth-avatar">{row.full_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span><span><strong>{row.full_name}</strong><small>{[row.position, row.employee_code].filter(Boolean).join(" · ") || "Crew"}</small></span></span>; }
