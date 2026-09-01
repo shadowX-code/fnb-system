@@ -14,7 +14,7 @@ const fixture = { skills: [skill], crew: [{ employee: { id: "employee-1", full_n
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn(), navigate: vi.fn() };
 
-beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.evidence.mockReset().mockResolvedValue([{ type: "module", id: "module-1", label: "Service Basics · Greeting" }]); mocks.save.mockReset().mockResolvedValue("skill-1"); mocks.assess.mockReset().mockResolvedValue("assessment-1"); mocks.certify.mockReset().mockResolvedValue("cert-1"); mocks.positions.mockReset().mockResolvedValue([{ id: "position-1", name: "Service Crew", status: "active" }, { id: "position-2", name: "Cashier", status: "active" }]); ui.notify.mockReset(); ui.navigate.mockReset(); });
+beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.evidence.mockReset().mockResolvedValue([{ type: "module", id: "module-1", label: "Service Basics · Greeting" }, { type: "lesson", id: "lesson-1", label: "Guest flow lesson" }, { type: "sop", id: "sop-1", label: "Welcome & Goodbye Standard · v1" }, { type: "quiz", id: "quiz-1", label: "Guest experience check" }]); mocks.save.mockReset().mockResolvedValue("skill-1"); mocks.assess.mockReset().mockResolvedValue("assessment-1"); mocks.certify.mockReset().mockResolvedValue("cert-1"); mocks.positions.mockReset().mockResolvedValue([{ id: "position-1", name: "Service Crew", status: "active" }, { id: "position-2", name: "Cashier", status: "active" }]); ui.notify.mockReset(); ui.navigate.mockReset(); });
 afterEach(cleanup);
 
 describe("Crew Growth Admin", () => {
@@ -63,7 +63,8 @@ describe("Crew Growth Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "View / Edit" }));
     expect(screen.getByRole("dialog", { name: "Edit Skill" })).not.toBeNull();
     expect(screen.getByText("Certification Requirements")).not.toBeNull();
-    expect(screen.getByText("Applicability")).not.toBeNull();
+    expect(screen.getByText("Changes create a new requirements version. Existing certification evidence is preserved.")).not.toBeNull();
+    expect(screen.getByText("Manager practical assessment")).not.toBeNull();
   });
 
   it("creates a skill through the controlled save authority", async () => {
@@ -79,12 +80,68 @@ describe("Crew Growth Admin", () => {
     fireEvent.click(await screen.findByRole("button", { name: "New Skill" }));
     fireEvent.change(screen.getByLabelText("Skill Name"), { target: { value: "Taking Orders" } });
     fireEvent.click(screen.getByRole("button", { name: "No Expiry" }));
-    fireEvent.click(screen.getByRole("button", { name: "Expiry after X months" }));
+    fireEvent.click(screen.getByRole("button", { name: "Expires after X months" }));
     expect(screen.getByRole("button", { name: "Save Skill" }).disabled).toBe(true);
     expect(screen.getByText("Expiry must be 1 to 120 months.")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Expiry Months"), { target: { value: "12" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Skill" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ validity_months: "12" })));
+  });
+
+  it("uses the canonical Applicable Positions multi-select and retains its selections on save", async () => {
+    render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "New Skill" }));
+    fireEvent.change(screen.getByLabelText("Skill Name"), { target: { value: "Taking Orders" } });
+    fireEvent.click(screen.getByRole("button", { name: "All active Crew" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cashier" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Skill" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ positions: ["Cashier"] })));
+  });
+
+  it("adds a supported practical requirement into the shared builder with structured checklist rows", async () => {
+    render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "New Skill" }));
+    fireEvent.change(screen.getByLabelText("Skill Name"), { target: { value: "Taking Orders" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Requirement" }));
+    expect(screen.getByRole("group", { name: "Requirement type" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Manager practical assessment" }));
+    expect(screen.getByLabelText("Assessment Name")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add checklist item" }));
+    fireEvent.change(screen.getByLabelText("Checklist item 1"), { target: { value: "Confirms the order clearly" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Skill" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ requirements: [expect.objectContaining({ type: "practical", config: { items: ["Confirms the order clearly"] } })] })));
+    expect(mocks.save.mock.calls.at(-1)[0].requirements[0].editor_key).toBeUndefined();
+  });
+
+  it("lists every canonical requirement type supported by the selected certification method", async () => {
+    render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "New Skill" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Requirement" }));
+    for (const label of ["Complete onboarding module", "Complete lesson", "Read / acknowledge SOP", "Pass knowledge check", "Manager practical assessment"]) expect(screen.getByRole("button", { name: label })).not.toBeNull();
+  });
+
+  it("keeps requirement ordering and actions inside the compact expanded builder", async () => {
+    render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "New Skill" }));
+    fireEvent.change(screen.getByLabelText("Skill Name"), { target: { value: "Taking Orders" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add Requirement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete onboarding module" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Requirement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Read / acknowledge SOP" }));
+    fireEvent.click(screen.getByRole("button", { name: "More actions for requirement 2" }));
+    fireEvent.click(screen.getByRole("button", { name: "Move Up" }));
+    expect(screen.getAllByText("Read / acknowledge SOP").at(0).closest("article")?.textContent).toContain("01");
+  });
+
+  it("removes a requirement through its compact action menu", async () => {
+    render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "New Skill" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add Requirement" }));
+    fireEvent.click(screen.getByRole("button", { name: "Manager practical assessment" }));
+    fireEvent.click(screen.getByRole("button", { name: "More actions for requirement 1" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.getByText("No requirements yet")).not.toBeNull();
   });
 
   it("shows employee skill profile without client-side status derivation", async () => {
