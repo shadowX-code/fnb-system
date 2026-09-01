@@ -10,7 +10,7 @@ const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
 const row = { employee: { id: "employee-1", full_name: "Alex Tan", employee_code: "QA-01", position: "Service Crew" }, result: { id: "result-1", period_start: "2026-08-01", status: "review_required", current_score: 78, total_score: null, attendance_score: 28, service_score: 25, customer_score: 12, knowledge_score: 13, conduct_score: null, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "reviewed", score: 25, max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "review_required", max_score: 10 } } } };
 const attentionRow = { employee: { id: "employee-2", full_name: "Mina Lee", employee_code: "QA-02", position: "Kitchen Crew" }, result: { id: "result-2", period_start: "2026-08-01", status: "finalized", total_score: 60, attendance_score: 26, service_score: 18, customer_score: 8, knowledge_score: 0, conduct_score: 8, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "reviewed", score: 18, max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "reviewed", score: 8, max_score: 10 } } } };
 const unscoredRow = { employee: { id: "employee-3", full_name: "Pending Score", employee_code: "QA-03", position: "Service Crew" }, result: { id: "result-3", period_start: "2026-08-01", status: "review_required", current_score: 56, total_score: null, attendance_score: 30, service_score: null, customer_score: 12, knowledge_score: 14, conduct_score: null, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "review_required", max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "review_required", max_score: 10 } } } };
-const feedback = [{ id: "feedback-1", scope: "crew", submitted_at: "2026-08-12", employee_id: "employee-1", employee_name: "Alex Tan", experience: "great", positive_tags: ["Friendly"], improvement_tags: [], comment: "Great service", scoring_status: "included", moderation_history: [], attribution_history: [] }, { id: "feedback-2", scope: "crew", submitted_at: "2026-08-13", employee_id: "employee-2", employee_name: "Mina Lee", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "Too slow", scoring_status: "excluded", exclusion_reason: "Duplicate guest submission", excluded_by_name: "Admin", excluded_at: "2026-08-13T10:30:00Z", moderation_history: [{ id: "moderation-1", previous_status: "included", next_status: "excluded", reason: "Duplicate guest submission", changed_by: "Admin", changed_at: "2026-08-13T10:30:00Z" }], attribution_history: [] }];
+const feedback = [{ id: "feedback-1", scope: "crew", submitted_at: "2026-08-12", employee_id: "employee-1", employee_name: "Alex Tan", experience: "great", positive_tags: ["Friendly"], improvement_tags: [], comment: "Great service", scoring_status: "included", moderation_history: [], attribution_history: [] }, { id: "feedback-2", scope: "crew", submitted_at: "2026-08-13", employee_id: "employee-2", employee_name: "Mina Lee", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "Too slow", scoring_status: "excluded", exclusion_reason: "Duplicate guest submission", excluded_by_name: "Admin", excluded_at: "2026-08-13T10:30:00Z", moderation_history: [{ id: "moderation-1", previous_status: "included", next_status: "excluded", reason: "Duplicate guest submission", changed_by: "Admin", changed_at: "2026-08-13T10:30:00Z" }], attribution_history: [] }, { id: "feedback-3", scope: "crew", submitted_at: "2026-08-14", visit_at: "2026-08-14T11:30:00Z", employee_id: "employee-1", employee_name: "Alex Tan", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "QA review required feedback", trust_state: "review_required", trust_reason_codes: ["same_device_crew_business_day"], scoring_status: "included", trust_history: [{ id: "trust-1", next_trust_state: "review_required", reason_codes: ["same_device_crew_business_day"], decision_source: "system", changed_at: "2026-08-14T12:00:00Z" }], moderation_history: [], attribution_history: [], follow_up_requested: true, follow_up: { preferred_name: "QA Guest", contact_method: "phone", contact_value: "+60123456789", status: "requested", history: [] } }];
 const fixture = { summary: { average_score: 71, reviewed: 1, awaiting_review: 1 }, scoring_framework: [{ key: "attendance", label: "Attendance", max_score: 30 }, { key: "service", label: "Service", max_score: 30 }, { key: "customer", label: "Customer", max_score: 15 }, { key: "knowledge", label: "Knowledge", max_score: 15 }, { key: "conduct", label: "Conduct", max_score: 10 }], crew: [row, attentionRow], reviews: [], feedback, feedback_summary: { total_feedback: 2, included_feedback: 1, positive_feedback: 1, needs_improvement_feedback: 0, excluded_feedback: 1 }, feedback_crew: [{ id: "employee-1", name: "Alex Tan", position: "Service Crew", availability: "active" }, { id: "employee-2", name: "Mina Lee", position: "Kitchen Crew", availability: "active" }] };
 const auth = { hasPermission: () => true }; const ui = { notify: vi.fn() };
 beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.review.mockReset().mockResolvedValue({}); mocks.finalize.mockReset().mockResolvedValue({}); mocks.moderate.mockReset().mockResolvedValue({}); mocks.correct.mockReset().mockResolvedValue({}); });
@@ -69,7 +69,7 @@ describe("Crew Performance Admin", () => {
 
   it("keeps unfavorable feedback and records an audited exclusion", async () => {
     render(<CrewPerformanceAdminPage initialTab="feedback" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Exclude" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Exclude" }))[0]);
     fireEvent.change(screen.getByPlaceholderText(/Explain why/), { target: { value: "Duplicate guest submission" } });
     fireEvent.click(screen.getAllByRole("button", { name: "Exclude" }).at(-1));
     await waitFor(() => expect(mocks.moderate).toHaveBeenCalledWith("feedback-1", true, "Duplicate guest submission"));
@@ -98,13 +98,29 @@ describe("Crew Performance Admin", () => {
     await screen.findByText("Great service");
     fireEvent.click(screen.getByRole("button", { name: "View feedback details for Mina Lee" }));
     expect(screen.getByRole("dialog", { name: "Feedback Detail" })).not.toBeNull();
-    expect(screen.getAllByText("Duplicate guest submission", { selector: "span" }).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    fireEvent.click(screen.getByRole("button", { name: "Correct Crew attribution for Alex Tan" }));
+    expect(screen.getByText("Trust / Scoring Decision")).not.toBeNull();
+    expect(screen.getByText("Activity")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Correct Crew attribution for Alex Tan" })[0]);
     fireEvent.change(screen.getByPlaceholderText("Explain why this feedback belongs to a different Crew member"), { target: { value: "Guest selected the wrong Crew member" } });
     fireEvent.click(screen.getByRole("radio", { name: /Mina Lee/ }));
     fireEvent.click(screen.getByRole("button", { name: "Save Correction" }));
     await waitFor(() => expect(mocks.correct).toHaveBeenCalledWith("feedback-1", "employee-2", "Guest selected the wrong Crew member"));
+  });
+
+  it("presents review-required evidence with readable trust copy, protected follow-up context, and one activity timeline", async () => {
+    render(<CrewPerformanceAdminPage initialTab="feedback" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("QA review required feedback");
+    fireEvent.click(screen.getAllByRole("button", { name: "View feedback details for Alex Tan" }).at(-1));
+    expect(screen.getByText("Feedback Evidence")).not.toBeNull();
+    expect(screen.getByText("Review required")).not.toBeNull();
+    expect(screen.getAllByText("The same device submitted feedback for this Crew member on the same business day.")).toHaveLength(2);
+    expect(screen.getAllByText("Pending trust review · Not currently contributing to Performance")).toHaveLength(2);
+    expect(screen.getByText("Mobile number")).not.toBeNull();
+    expect(screen.getByText("+60123456789")).not.toBeNull();
+    expect(screen.queryByText("same_device_crew_business_day")).toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm As Valid" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Exclude From Scoring" })).not.toBeNull();
   });
 
   it("shows a server-projected current score for incomplete Performance without renormalizing pending components", async () => {
