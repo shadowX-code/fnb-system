@@ -98,6 +98,27 @@ describe("Crew Reward mobile reference UI", () => {
     expect(container.querySelector(".crew-reward-hero")).toBeNull();
   });
 
+  it.each([
+    ["awaiting_performance", "Reward is not ready yet", "Your Reward will appear after this month’s performance review is complete."],
+    ["not_eligible", "Reward is not available for this period", "This period does not meet the requirements for a Reward."],
+    ["not_qualified", "Reward is not available for this period", "This period does not meet the requirements for a Reward."],
+    ["estimated", "Reward is being prepared", "Your Reward details will appear when they are ready."],
+    ["not_available", "Reward not available", "This month’s Reward is not available yet."],
+  ])("maps the internal %s state to Crew-facing Reward copy", (status, title, body) => {
+    const onViewPerformance = vi.fn();
+    render(<CrewRewardMobile data={{ ...data, status, eligibility_reason: "Finalized Performance is required." }} onViewPerformance={onViewPerformance} />);
+    expect(screen.getByText(title)).not.toBeNull();
+    expect(screen.getByText(body)).not.toBeNull();
+    expect(screen.queryByText(status)).toBeNull();
+    expect(screen.queryByText("Finalized Performance is required.")).toBeNull();
+    if (status === "awaiting_performance") {
+      fireEvent.click(screen.getByRole("button", { name: "View My Performance" }));
+      expect(onViewPerformance).toHaveBeenCalledTimes(1);
+    } else {
+      expect(screen.queryByRole("button", { name: "View My Performance" })).toBeNull();
+    }
+  });
+
   it("closes a dialog with Escape and restores page scrolling", () => {
     render(<CrewRewardMobile data={data} />);
     const trigger = screen.getAllByRole("button", { name: "Reward help" })[0];

@@ -62,6 +62,33 @@ const translateProjectionLabel = (item, t) => {
   return key ? t(`reward.${key}`) : item?.label;
 };
 
+const rewardUnavailablePresentation = (status, t) => {
+  const states = {
+    awaiting_performance: {
+      title: t("reward.awaitingPerformance"),
+      body: t("reward.awaitingPerformanceBody"),
+      canViewPerformance: true,
+    },
+    not_eligible: {
+      title: t("reward.notEligible"),
+      body: t("reward.notEligibleBody"),
+    },
+    not_qualified: {
+      title: t("reward.notEligible"),
+      body: t("reward.notEligibleBody"),
+    },
+    estimated: {
+      title: t("reward.preparing"),
+      body: t("reward.preparingBody"),
+    },
+    not_available: {
+      title: t("reward.notAvailable"),
+      body: t("reward.notAvailableYet"),
+    },
+  };
+  return states[status] || { title: t("reward.notAvailable"), body: t("reward.notAvailableYet") };
+};
+
 function TierTable({ tiers }) {
   const { t } = useTranslation();
   return <CrewHelpTable label={t("reward.rateTable")} columns={[t("reward.scoreRange"), t("reward.level"), t("reward.earnRate")]} rows={tiers.map((tier) => ({ key: tier.range, cells: [{ value: tier.range }, { value: tier.level }, { value: rate(tier.rate), emphasis: true }] }))} />;
@@ -221,6 +248,7 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
   if (loading) return <section className="crew-v2-state"><span className="crew-v2-spinner" /><strong>{t("reward.loading")}</strong></section>;
   if (!data) return <section className="crew-v2-state is-error"><Gift size={26} /><strong>{t("reward.unavailable")}</strong><p>{t("reward.unavailableBody")}</p><button type="button" onClick={onRetry}>{t("common.retry")}</button></section>;
   const unlocked = ["qualified", "finalized", "paid"].includes(data.status);
+  const unavailable = rewardUnavailablePresentation(data.status, t);
   return <section className="crew-reward-final">
     <CrewMobilePageHeader title={t("reward.title")} action={<CrewHelpTrigger variant="header" label={t("reward.help")} onClick={() => setSheet("help")} />} />
     {unlocked ? <>
@@ -228,7 +256,7 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
       <PerformanceOverview data={data} onViewPerformance={(sheetName) => sheetName === "earn-rate" ? setSheet("earn-rate") : onViewPerformance?.()} />
       <RewardProjection data={data} onOpenSheet={setSheet} />
       <RewardHistory history={data.history || []} onViewAll={() => setSheet("history")} />
-    </> : <article className="crew-reward-unavailable"><Gift size={30} /><h2>{translateStatus(data.status, t) || t("reward.notAvailable")}</h2><p>{data.eligibility_reason || data.explanation || t("reward.notAvailableYet")}</p></article>}
+    </> : <article className="crew-reward-unavailable"><Gift size={30} /><h2>{unavailable.title}</h2><p>{unavailable.body}</p>{unavailable.canViewPerformance && onViewPerformance ? <button type="button" className="crew-mobile-secondary" onClick={onViewPerformance}>{t("reward.viewPerformance")}</button> : null}</article>}
 
     {sheet === "help" && <CrewHelpSheet title={t("reward.formulaTitle")} onClose={() => setSheet(null)}><div className="crew-ui-help-section"><strong>{t("reward.maximumShare")}</strong><p>{t("reward.maximumShareHelp")}</p><div className="crew-reward-formula"><small>{t("reward.rewardPool")} × {t("reward.contributionShare")}</small><strong>{money(data.reward_pool ?? data.configured_pool)} × {rate(data.contribution_share, 2)} = {money(data.maximum_share)}</strong></div></div><div className="crew-ui-help-section"><strong>{t("reward.performanceEarnRate")}</strong><p>{t("reward.performanceEarnRateHelp")}</p><div className="crew-reward-formula is-result"><small>{t("reward.maximumShare")} × {t("reward.performanceEarnRate")}</small><strong>{money(data.maximum_share)} × {rate(data.earn_rate)} = {money(data.reward_amount ?? data.estimated_reward)}</strong></div></div></CrewHelpSheet>}
     {sheet === "estimated-reward" && <CrewHelpSheet title={t("reward.estimatedReward")} body={t("reward.estimatedRewardHelp")} onClose={() => setSheet(null)} />}
