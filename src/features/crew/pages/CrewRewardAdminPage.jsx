@@ -59,7 +59,16 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
     ui.notify({ title: "Reward Campaign created", message: "Participating Crew were frozen for this Campaign." });
   }
   async function calculate() { await crewService.calculateRewardCycle(data.cycle.id); await refresh(data.cycle.id); ui.notify({ title: "Reward calculated", message: "The server created the review breakdown from finalized evidence." }); }
-  async function finalize() { await crewService.finalizeRewardCycle(data.cycle.id); await refresh(data.cycle.id); ui.notify({ title: "Reward finalized", message: "The monthly payout snapshot is now immutable." }); }
+  async function finalize() {
+    try {
+      await crewService.finalizeRewardCycle(data.cycle.id);
+      await refresh(data.cycle.id);
+      ui.notify({ title: "Reward finalized", message: "The monthly payout snapshot is now immutable." });
+    } catch (cause) {
+      await refresh(data.cycle.id);
+      ui.notify({ title: "Reward Campaign is not ready to finalize", message: data.cycle?.finalization_readiness?.message || "Complete the remaining Reward inputs before finalizing.", tone: "error" });
+    }
+  }
   async function markPaid() { await crewService.markRewardCyclePaid(data.cycle.id); await refresh(data.cycle.id); ui.notify({ title: "Reward marked paid", message: "Crew can now see the paid status in Reward History." }); }
   async function adjust(values) { await crewService.adjustRewardEntry(values.entryId, values.amount, values.reason); setAdjusting(null); await refresh(data.cycle.id); ui.notify({ title: "Adjustment saved", message: "Calculated, adjusted and final amounts remain auditable." }); }
   async function openCycle(row) { setPeriod(row.period_start); const next = await crewService.rewardAdminData(outletId, row.period_start, row.id); setData({ ...emptyData, ...next }); setCampaignOpen(true); }
@@ -146,11 +155,20 @@ function CampaignHistory({ rows, onOpen }) {
 function CampaignDetail({ data, canManage, canFinalize, canPaid, onClose, onCalculate, onFinalize, onPaid, onOpenEmployee }) {
   const c = data.cycle;
   const qualified = data.entries.filter((row) => ["qualified", "finalized", "paid"].includes(row.status)).length;
-  return <Modal title={`${month(c.period_start)} Reward Campaign`} description={`${cycleStatus(c.status)} · ${c.calculation_version}`} size="xl" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Close</button>{c.status === "draft" && canManage ? <button className="btn-primary" onClick={onCalculate}>Calculate & Review</button> : null}{c.status === "review" && canFinalize ? <button className="btn-primary" onClick={onFinalize}>Finalize Reward Campaign</button> : null}{c.status === "finalized" && canPaid ? <button className="btn-primary" onClick={onPaid}>Mark Paid</button> : null}</>}>
+  const readiness = c.finalization_readiness;
+  const finalizationBlocked = c.status === "review" && readiness?.ready === false;
+  return <Modal title={`${month(c.period_start)} Reward Campaign`} description={`${cycleStatus(c.status)} · ${c.calculation_version}`} size="xl" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Close</button>{c.status === "draft" && canManage ? <button className="btn-primary" onClick={onCalculate}>Calculate & Review</button> : null}{c.status === "review" && canFinalize ? <button className="btn-primary" disabled={finalizationBlocked} onClick={onFinalize}>Finalize Reward Campaign</button> : null}{c.status === "finalized" && canPaid ? <button className="btn-primary" onClick={onPaid}>Mark Paid</button> : null}</>}>
     <div className="crew-reward-detail"><section className="crew-reward-pool"><div><small>Configured Pool</small><strong>{money(c.configured_pool)}</strong></div><div><small>{c.status === "draft" ? "Participants" : "Calculated Payout"}</small><strong>{c.status === "draft" ? `${data.participants.length} Crew` : money(c.estimated_payout)}</strong></div><div><small>Final Payout</small><strong>{money(c.actual_payout)}</strong></div><div><small>Qualified</small><strong>{qualified} / {Number(c.participant_count || data.participants.length)}</strong></div></section>
+    {finalizationBlocked ? <FinalizationReadiness readiness={readiness} entries={data.entries} onOpenEmployee={onOpenEmployee} /> : null}
     {c.status === "draft" ? <><section className="crew-reward-draft-note"><Calculator size={21} /><div><strong>Participant snapshot is ready</strong><p>The server will calculate only these frozen participants from finalized Performance and completed eligible hours.</p></div></section><ParticipantList rows={data.participants} /></> : <RewardTable rows={data.entries} cycle={c} onOpen={onOpenEmployee} />}
     {data.adjustments.length ? <section className="crew-reward-audit"><h3>Adjustment History</h3>{data.adjustments.map((row) => <div key={row.id}><span>{row.reason}</span><strong>{Number(row.adjustment_amount) > 0 ? "+" : ""}{money(row.adjustment_amount)}</strong></div>)}</section> : null}</div>
   </Modal>;
+}
+
+function FinalizationReadiness({ readiness, entries, onOpenEmployee }) {
+  const unresolved = entries.filter((row) => ["awaiting_performance", "estimated"].includes(row.status));
+  const count = Number(readiness?.blocker_count || unresolved.length || 0);
+  return <section className="crew-reward-attention"><header><AlertTriangle size={18} /><div><h2>Finalization blocked</h2><p>{readiness?.message || `${count} Crew still have incomplete Reward inputs.`}</p></div></header>{unresolved.length ? unresolved.map((row) => <button type="button" key={row.id} onClick={() => onOpenEmployee(row)}><span><strong>{row.employee_name}</strong><small>{row.status === "awaiting_performance" ? "Performance result is incomplete." : "Reward calculation is incomplete."}</small></span><Badge tone="warning">{row.status === "awaiting_performance" ? "Needs Performance" : "Needs calculation"}</Badge><ChevronRight size={16} /></button>) : null}</section>;
 }
 
 function ParticipantList({ rows }) { return <section className="crew-reward-participants"><h3>Participating Crew</h3>{rows.map((row) => <div key={row.employee_id}><UsersRound size={15} /><span><strong>{row.employee_name}</strong><small>{row.position || "Crew"}</small></span></div>)}</section>; }
