@@ -54,4 +54,5 @@ Object.assign(resources.cash, { completedWithTime:"Completed · {{time}}", check
 Object.assign(resources.learn, { journeyProgress: "of {{total}} completed", journeyProgressOf: "of {{total}}", journeyProgressCompleted: "completed", moduleProgress: "{{completed}} of {{total}} completed" });
 Object.assign(resources.home, { shift: "Shift", complete: "Complete" });
 Object.assign(resources.reward, { awaitingPerformance: "Reward is not ready yet", awaitingPerformanceBody: "Your Reward will appear after this month’s performance review is complete.", notEligible: "Reward is not available for this period", notEligibleBody: "This period does not meet the requirements for a Reward.", preparing: "Reward is being prepared", preparingBody: "Your Reward details will appear when they are ready." });
+Object.assign(resources.reward, { notFinal: "Not final", basedOnCurrentPerformance: "Based on your current Performance", draftProjectionAssumption: "Your Reward may change until this month’s Performance is finalized." });
 export default resources;

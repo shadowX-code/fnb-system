@@ -53,4 +53,5 @@ Object.assign(resources.learn, { journeyProgress: "共 {{total}} 节已完成", 
 Object.assign(resources.tasks, { summary:"任务摘要", assignedTo:"负责人", completedBy:"完成者", you:"你", positionTeam:"{{label}} 团队", groupTeam:"{{label}} 团队", outletTeam:"{{label}} 门店团队", sharedTask:"共享团队任务", schedule:{ ...resources.tasks.schedule, weekdaysLabel:"工作日" } });
 Object.assign(resources.home, { shift:"班次", complete:"完成" });
 Object.assign(resources.reward, { awaitingPerformance:"奖励暂未准备好", awaitingPerformanceBody:"本月绩效审核完成后，您的奖励将会显示。", notEligible:"此期间暂不可获得奖励", notEligibleBody:"此期间不符合获得奖励的条件。", preparing:"奖励正在准备中", preparingBody:"准备就绪后将显示您的奖励详情。" });
+Object.assign(resources.reward, { notFinal:"尚未确认", basedOnCurrentPerformance:"基于您当前的绩效", draftProjectionAssumption:"本月绩效确认前，您的奖励金额仍可能变动。" });
 export default resources;

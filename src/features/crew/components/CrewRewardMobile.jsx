@@ -110,7 +110,8 @@ function RewardHero({ data, onOpenSheet }) {
   const amountRef = useRef(null);
   const previousAmountRef = useRef(0);
   const hasPresentedRef = useRef(false);
-  const label = data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
+  const isDraftPerformanceProjection = data.is_draft_performance_projection === true;
+  const label = isDraftPerformanceProjection ? t("reward.estimatedReward") : data.cycle_status === "paid" ? t("reward.paidReward") : data.cycle_status === "finalized" ? t("reward.finalReward") : t("reward.estimatedReward");
   const amount = Number(data.reward_amount ?? data.estimated_reward ?? 0);
   useGSAP(() => {
     const root = heroRef.current;
@@ -156,8 +157,8 @@ function RewardHero({ data, onOpenSheet }) {
   }, { scope: heroRef, dependencies: [amount], revertOnUpdate: true });
   return <article ref={heroRef} className="crew-reward-hero" style={{ "--crew-reward-hero-background": `url(${rewardHeroBackground})` }}>
     <RewardHeroMotion />
-    <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><CrewStatusBadge tone="success">{translateStatus(data.status, t)}</CrewStatusBadge></div>
-    <div className="crew-reward-hero-total"><small>{label}<CrewHelpTrigger label={t("reward.estimatedReward")} onClick={() => onOpenSheet("estimated-reward")} /></small><strong aria-label={money(amount)}><span ref={amountRef} aria-hidden="true">{money(0)}</span><span className="sr-only" aria-hidden="true">{money(amount)}</span></strong></div>
+    <div className="crew-reward-hero-kicker"><span>{t("reward.thisMonth")}</span><CrewStatusBadge tone={isDraftPerformanceProjection ? "neutral" : "success"}>{isDraftPerformanceProjection ? t("reward.notFinal") : translateStatus(data.status, t)}</CrewStatusBadge></div>
+    <div className="crew-reward-hero-total"><small>{label}<CrewHelpTrigger label={t("reward.estimatedReward")} onClick={() => onOpenSheet("estimated-reward")} /></small><strong aria-label={money(amount)}><span ref={amountRef} aria-hidden="true">{money(0)}</span><span className="sr-only" aria-hidden="true">{money(amount)}</span></strong>{isDraftPerformanceProjection ? <p>{t("reward.basedOnCurrentPerformance")}</p> : null}</div>
     <div className="crew-reward-hero-metrics">
       <div><small>{t("reward.maximumShare")}<CrewHelpTrigger label={t("reward.maximumShare")} onClick={() => onOpenSheet("maximum-share")} /></small><strong>{money(data.maximum_share)}</strong></div>
       <div><small>{t("reward.rewardPool")}<CrewHelpTrigger label={t("reward.rewardPool")} onClick={() => onOpenSheet("reward-pool")} /></small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></div>
@@ -210,7 +211,7 @@ function PerformanceOverview({ data, onViewPerformance }) {
 
 function RewardProjection({ data, onOpenSheet }) {
   const { t } = useTranslation();
-  if (data.projection_applicable === false || ["finalized", "paid"].includes(data.cycle_status)) {
+  if (data.projection_applicable === false || (!data.is_draft_performance_projection && ["finalized", "paid"].includes(data.cycle_status))) {
     return <article className="crew-reward-card crew-reward-finalized"><TrendingUp size={20} /><span><h2>{t("reward.finalized")}</h2><p>{t("reward.finalizedCaption")}</p></span></article>;
   }
   const allProjections = data.projections || [];
@@ -228,7 +229,7 @@ function RewardProjection({ data, onOpenSheet }) {
       <div className="is-potential"><small className="crew-reward-potential-label">{t("reward.maxPotential")}</small><strong>{money(potentialProjection?.amount ?? currentProjection?.amount)}</strong><span>{t("reward.score", { score: potentialProjection?.key === "max" ? "95+" : Math.round(Number(potentialProjection?.score ?? currentProjection?.score ?? currentScore)) })}</span><em>{t("reward.rateEarned", { rate: rate(potentialProjection?.earn_rate ?? currentProjection?.earn_rate) })}</em></div>
       <div className="crew-reward-potential-rail" style={{ "--crew-reward-progress": `${earnedRate * 100}%` }} aria-hidden="true"><i /><b /></div>
     </div>
-    <p className="crew-reward-projection-note"><Info size={15} />{t("reward.projectionAssumption")}</p>
+    <p className="crew-reward-projection-note"><Info size={15} />{data.is_draft_performance_projection ? t("reward.draftProjectionAssumption") : t("reward.projectionAssumption")}</p>
   </section>;
 }
 
@@ -247,7 +248,7 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
   const tiers = useMemo(() => data?.earn_rate_tiers?.length ? data.earn_rate_tiers : defaultTiers(t), [data?.earn_rate_tiers, t]);
   if (loading) return <section className="crew-v2-state"><span className="crew-v2-spinner" /><strong>{t("reward.loading")}</strong></section>;
   if (!data) return <section className="crew-v2-state is-error"><Gift size={26} /><strong>{t("reward.unavailable")}</strong><p>{t("reward.unavailableBody")}</p><button type="button" onClick={onRetry}>{t("common.retry")}</button></section>;
-  const unlocked = ["qualified", "finalized", "paid"].includes(data.status);
+  const unlocked = ["estimated", "qualified", "finalized", "paid"].includes(data.status);
   const unavailable = rewardUnavailablePresentation(data.status, t);
   return <section className="crew-reward-final">
     <CrewMobilePageHeader title={t("reward.title")} action={<CrewHelpTrigger variant="header" label={t("reward.help")} onClick={() => setSheet("help")} />} />
