@@ -86,9 +86,7 @@ const copy = {
     followUpYes: "Yes, please",
     followUpHint: "Leave a contact only if you'd like a response.",
     preferredName: "Preferred name",
-    contactMethod: "Contact method",
-    phone: "Phone",
-    email: "Email",
+    phone: "Mobile number",
     sendFeedback: "Send feedback",
     tags: {
       Friendly: "Friendly", Helpful: "Helpful", Attentive: "Attentive", Fast: "Fast", Knowledgeable: "Knowledgeable",
@@ -138,9 +136,7 @@ const copy = {
     followUpYes: "需要，请联系我",
     followUpHint: "仅在您希望收到回复时留下联系方式。",
     preferredName: "称呼",
-    contactMethod: "联系方式",
-    phone: "电话",
-    email: "电邮",
+    phone: "手机号码",
     sendFeedback: "提交反馈",
     tags: {
       Friendly: "亲切友善", Helpful: "乐于协助", Attentive: "细心周到", Fast: "效率迅速", Knowledgeable: "专业熟悉",
@@ -232,7 +228,6 @@ export default function CrewGuestFeedback() {
   const [visitTime, setVisitTime] = useState("");
   const [followUpRequested, setFollowUpRequested] = useState(null);
   const [preferredName, setPreferredName] = useState("");
-  const [contactMethod, setContactMethod] = useState("phone");
   const [contactValue, setContactValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
@@ -329,7 +324,7 @@ export default function CrewGuestFeedback() {
       visitTime: needsVisitContext && visitTimeMode === "chosen_time" ? visitTime : null,
       followUpRequested: Boolean(nextFollowUpRequested),
       preferredName: nextFollowUpRequested ? preferredName : "",
-      contactMethod: nextFollowUpRequested ? contactMethod : "",
+      contactMethod: nextFollowUpRequested ? "phone" : "",
       contactValue: nextFollowUpRequested ? contactValue : "",
     };
 
@@ -464,8 +459,7 @@ export default function CrewGuestFeedback() {
             <div className="guest-feedback-intro"><h1>{t.followUpQuestion}</h1><p>{t.followUpHint}</p></div>
             <div className="guest-feedback-fields">
               <label className="guest-feedback-field">{t.preferredName}<input value={preferredName} onChange={(event) => setPreferredName(event.target.value)} autoComplete="name" /></label>
-              <label className="guest-feedback-field">{t.contactMethod}<select value={contactMethod} onChange={(event) => setContactMethod(event.target.value)}><option value="phone">{t.phone}</option><option value="email">{t.email}</option></select></label>
-              <label className="guest-feedback-field">{contactMethod === "phone" ? t.phone : t.email}<input value={contactValue} onChange={(event) => setContactValue(event.target.value)} autoComplete={contactMethod === "phone" ? "tel" : "email"} inputMode={contactMethod === "phone" ? "tel" : "email"} /></label>
+              <label className="guest-feedback-field">{t.phone}<input value={contactValue} onChange={(event) => setContactValue(event.target.value)} autoComplete="tel" inputMode="tel" type="tel" /></label>
             </div>
             {submitError && <p className="guest-feedback-submit-error" role="alert">{submitError}</p>}
             <button className="guest-feedback-primary" type="button" disabled={submitting || !preferredName.trim() || !contactValue.trim()} onClick={() => submit()}>{submitting ? t.sending : <><Send size={17} />{t.sendFeedback}</>}</button>

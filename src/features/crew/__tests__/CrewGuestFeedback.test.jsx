@@ -203,7 +203,7 @@ describe("Public guest feedback", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getByRole("button", { name: "Yes, please" }));
     fireEvent.change(screen.getByLabelText("Preferred name"), { target: { value: "Staging QA Guest" } });
-    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+60123456789" } });
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "+60123456789" } });
     fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
 
     await waitFor(() => expect(mocks.submitV3).toHaveBeenCalledWith(expect.objectContaining({
