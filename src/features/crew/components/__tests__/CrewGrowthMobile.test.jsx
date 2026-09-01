@@ -81,7 +81,7 @@ describe("Crew Growth mobile final IA", () => {
       { period_start: "2026-09-01", status: "finalized", score: 67 },
     ] }} />);
     expect(screen.getByText("↓ 19.9 pts")).not.toBeNull();
-    expect(screen.getByText("vs previous period")).not.toBeNull();
+    expect(screen.getByText("vs August 2026")).not.toBeNull();
     expect(document.body.textContent).not.toContain("-19.930000000000007");
   });
 
@@ -144,7 +144,8 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.querySelector(".crew-performance-final-signal")).toBeNull();
     expect(screen.getByText("Finalized")).not.toBeNull();
     expect(screen.getByText("Outstanding")).not.toBeNull();
-    expect(screen.getByText("↑ 13 pts vs July 2026")).not.toBeNull();
+    expect(screen.getByText("↑ 13 pts")).not.toBeNull();
+    expect(screen.getByText("vs July 2026")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Score Breakdown" })).not.toBeNull();
     expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Conduct) evidence$/ })).toHaveLength(5);
     expect(document.querySelector(".crew-performance-final-evidence")).toBeNull();
@@ -247,6 +248,16 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.body.textContent).not.toContain("Earn Rate");
     expect(screen.queryByRole("heading", { name: "Your Strengths" })).toBeNull();
     expect(screen.getByText(/monthly trend will appear/)).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Latest finalized result" })).not.toBeNull();
+    expect(screen.getByText("Performance Score")).not.toBeNull();
+    expect(screen.getByText(`${score}/100`)).not.toBeNull();
+  });
+
+  it("keeps a multi-period trend explicit with score units", () => {
+    render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" />);
+    expect(screen.getByRole("heading", { name: "Performance Trend" })).not.toBeNull();
+    expect(screen.getByText("Performance Score", { selector: ".crew-performance-final-trend-score-label" })).not.toBeNull();
+    expect(document.querySelector(".crew-performance-final-chart")).not.toBeNull();
   });
 
   it("labels non-finalized performance honestly and does not fabricate a delta or strengths", () => {

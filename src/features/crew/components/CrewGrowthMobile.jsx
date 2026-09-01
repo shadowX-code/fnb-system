@@ -31,7 +31,7 @@ import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import { CrewHelpSheet, CrewHelpTrigger } from "./CrewHelp.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
-import { getPerformanceScoreComparison } from "../utils/performanceTrend.js";
+import { getFinalizedPerformanceTrend, getPerformanceScoreComparison } from "../utils/performanceTrend.js";
 import growthPerformanceHeroBackground from "../assets/growth-performance-hero-approved.webp";
 import performanceDetailHeroBackground from "../assets/performance-detail-hero-approved.webp";
 
@@ -243,7 +243,7 @@ function GrowthPerformanceHero({ performance, onOpen }) {
   const score = performance?.score == null ? null : Math.round(Number(performance.score));
   const comparison = getPerformanceScoreComparison(performance);
   const trendCopy = comparison
-    ? { value: comparison.direction === "up" ? t("performance.trendUp", { points: comparison.points }) : comparison.direction === "down" ? t("performance.trendDown", { points: comparison.points }) : t("performance.trendNoChange"), context: t("performance.vsPreviousPeriod") }
+    ? { value: comparison.direction === "up" ? t("performance.trendUp", { points: comparison.points }) : comparison.direction === "down" ? t("performance.trendDown", { points: comparison.points }) : t("performance.trendNoChange"), context: t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) }) }
     : { value: t("growth.noTrend"), context: null };
   const TrendIcon = comparison?.direction === "down" ? TrendingDown : comparison?.direction === "neutral" ? null : TrendingUp;
   return <article className="crew-growth-performance-hero" style={{ "--crew-growth-performance-background": `url(${growthPerformanceHeroBackground})` }}>
@@ -414,7 +414,7 @@ function PerformanceHero({ performance }) {
       <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong><span>/100</span></div>
       <h2>{score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
       <p>{score == null ? t("performance.evidenceReview") : performanceMessage(score, t)}</p>
-      {comparison ? <small className={`is-${comparison.direction}`}>{TrendIcon ? <TrendIcon size={13} aria-hidden="true" /> : <i aria-hidden="true">—</i>} {t("performance.vsPeriod", { delta: deltaLabel, period: monthLabel(comparison.previousPeriod, "long", t) })}</small> : null}
+      {comparison ? <small className={`is-${comparison.direction}`}>{TrendIcon ? <TrendIcon size={13} aria-hidden="true" /> : <i aria-hidden="true">—</i>}<span><strong>{deltaLabel}</strong><span>{t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) })}</span></span></small> : null}
     </div>
   </article>;
 }
@@ -453,10 +453,11 @@ function PerformanceStrengths({ performance }) {
 
 function PerformanceTrend({ performance }) {
   const { t } = useTranslation();
-  const trend = (performance.trend || []).filter((item) => item.status === "finalized" && item.score != null).sort((a, b) => String(a.period_start).localeCompare(String(b.period_start))).slice(-4).map((item) => ({ ...item, score: Math.round(Number(item.score)), month: formatCrewDate(`${item.period_start}T00:00:00`, { month: "short", year: "numeric" }) }));
+  const trend = getFinalizedPerformanceTrend(performance.trend).map((item) => ({ ...item, score: Math.round(Number(item.score)), month: formatCrewDate(`${item.period_start}T00:00:00`, { month: "short", year: "numeric" }) }));
   if (!trend.length) return null;
-  return <section className="crew-performance-final-trend-section"><CrewSectionHeader title={t("performance.trend")} trailing={<span className="crew-performance-final-trend-context">{t("performance.lastMonths")}</span>} />
-    {trend.length > 1 ? <div className="crew-performance-final-chart" aria-label={t("performance.finalizedTrend")}><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend} margin={{ top: 20, right: 12, bottom: 2, left: 12 }}><defs><linearGradient id="performanceTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#00b7c7" stopOpacity=".24"/><stop offset="100%" stopColor="#00b7c7" stopOpacity=".02"/></linearGradient></defs><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#52627a", fontSize: 9 }} /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Area type="monotone" dataKey="score" stroke="#00b7c7" strokeWidth={2.5} fill="url(#performanceTrendFill)" dot={{ r: 3.5, fill: "#00b7c7", strokeWidth: 0 }} activeDot={false} label={{ position: "top", fill: "#1d2a44", fontSize: 9, fontWeight: 800 }} /></AreaChart></ResponsiveContainer></div> : <article className="crew-performance-final-single-trend"><strong>{trend[0].score} · {monthLabel(trend[0].period_start, "long", t)}</strong><p>{t("performance.trendMore")}</p></article>}
+  const single = trend.length === 1;
+  return <section className="crew-performance-final-trend-section"><CrewSectionHeader title={single ? t("performance.latestFinalizedResult") : t("performance.trend")} trailing={!single ? <span className="crew-performance-final-trend-context">{t("performance.lastMonths")}</span> : null} />
+    {single ? <article className="crew-performance-final-single-trend"><strong>{monthLabel(trend[0].period_start, "long", t)}</strong><span><small>{t("performance.scoreLabel")}</small><b>{trend[0].score}/100</b></span><p>{t("performance.trendMore")}</p></article> : <><p className="crew-performance-final-trend-score-label">{t("performance.scoreLabel")}</p><div className="crew-performance-final-chart" aria-label={t("performance.finalizedTrend")}><ResponsiveContainer width="100%" height="100%"><AreaChart data={trend} margin={{ top: 20, right: 12, bottom: 2, left: 12 }}><defs><linearGradient id="performanceTrendFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#00b7c7" stopOpacity=".24"/><stop offset="100%" stopColor="#00b7c7" stopOpacity=".02"/></linearGradient></defs><XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fill: "#52627a", fontSize: 9 }} /><YAxis domain={[0, 100]} hide /><Tooltip content={() => null} /><Area type="monotone" dataKey="score" stroke="#00b7c7" strokeWidth={2.5} fill="url(#performanceTrendFill)" dot={{ r: 3.5, fill: "#00b7c7", strokeWidth: 0 }} activeDot={false} label={{ position: "top", fill: "#1d2a44", fontSize: 9, fontWeight: 800, formatter: (value) => `${value}/100` }} /></AreaChart></ResponsiveContainer></div></>}
   </section>;
 }
 

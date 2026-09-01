@@ -10,6 +10,11 @@ const finiteNumber = (value) => {
 
 const byPeriod = (left, right) => String(left.period_start || "").localeCompare(String(right.period_start || ""));
 
+export const getFinalizedPerformanceTrend = (trend, limit = 4) => (Array.isArray(trend) ? trend : [])
+  .filter((item) => item?.status === "finalized" && finiteNumber(item.score) != null)
+  .sort(byPeriod)
+  .slice(-limit);
+
 // Crew Performance scores are authoritative server values. This helper only
 // creates a compact, locale-aware display projection and never changes scoring.
 export const normalizePerformanceScoreDelta = (value) => {
@@ -29,9 +34,7 @@ export const getPerformanceScoreComparison = (performance) => {
   const currentScore = finiteNumber(score);
   if (currentScore == null) return null;
 
-  const comparable = (Array.isArray(trend) ? trend : [])
-    .filter((item) => item?.status === "finalized" && finiteNumber(item.score) != null)
-    .sort(byPeriod);
+  const comparable = getFinalizedPerformanceTrend(trend, Number.POSITIVE_INFINITY);
   const previous = periodStart
     ? [...comparable].reverse().find((item) => String(item.period_start) < String(periodStart))
     : comparable.at(-2);

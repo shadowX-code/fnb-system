@@ -76,7 +76,7 @@ describe("Crew Reward mobile reference UI", () => {
   it("uses the approved artwork without a presentation overlay", () => {
     const { container } = render(<CrewRewardMobile data={data} />);
     const hero = container.querySelector(".crew-reward-hero");
-    expect(hero.style.getPropertyValue("--crew-reward-hero-background")).toContain("reward-hero-approved");
+    expect(hero.style.getPropertyValue("--crew-reward-hero-background")).toContain("reward-hero-full-bleed");
     expect(hero.querySelector(".crew-reward-hero-sheen")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-light-path")).toBeNull();
     expect(hero.querySelector(".crew-reward-hero-orbit")).toBeNull();
