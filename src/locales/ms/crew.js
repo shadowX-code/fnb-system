@@ -54,4 +54,5 @@ Object.assign(resources.tasks, { summary:"Ringkasan tugas", assignedTo:"Ditugask
 Object.assign(resources.home, { shift:"Syif", complete:"Selesai" });
 Object.assign(resources.reward, { awaitingPerformance:"Ganjaran belum sedia", awaitingPerformanceBody:"Ganjaran anda akan dipaparkan selepas semakan prestasi bulan ini selesai.", notEligible:"Ganjaran tidak tersedia untuk tempoh ini", notEligibleBody:"Tempoh ini tidak memenuhi syarat untuk Ganjaran.", preparing:"Ganjaran sedang disediakan", preparingBody:"Butiran Ganjaran anda akan dipaparkan apabila sedia." });
 Object.assign(resources.reward, { notFinal:"Belum muktamad", basedOnCurrentPerformance:"Berdasarkan Prestasi semasa anda", draftProjectionAssumption:"Ganjaran anda mungkin berubah sehingga Prestasi bulan ini dimuktamadkan." });
+Object.assign(resources.performance, { trendUp:"↑ {{points}} mata", trendDown:"↓ {{points}} mata", trendNoChange:"— Tiada perubahan", vsPreviousPeriod:"berbanding tempoh sebelumnya" });
 export default resources;

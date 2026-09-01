@@ -75,6 +75,16 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.queryByText("Next Milestone")).toBeNull();
   });
 
+  it("presents the score-point comparison without raw floating-point precision", () => {
+    render(<CrewGrowthMobile data={data} performance={{ score: 67, period_start: "2026-09-01", trend: [
+      { period_start: "2026-08-01", status: "finalized", score: 86.93 },
+      { period_start: "2026-09-01", status: "finalized", score: 67 },
+    ] }} />);
+    expect(screen.getByText("↓ 19.9 pts")).not.toBeNull();
+    expect(screen.getByText("vs previous period")).not.toBeNull();
+    expect(document.body.textContent).not.toContain("-19.930000000000007");
+  });
+
   it.each([0, 1, 50, 87, 100])("renders exactly %s active score segments", (score) => {
     render(<CrewGrowthMobile data={data} performance={{ score, trend: [] }} />);
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(score);
@@ -134,7 +144,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.querySelector(".crew-performance-final-signal")).toBeNull();
     expect(screen.getByText("Finalized")).not.toBeNull();
     expect(screen.getByText("Outstanding")).not.toBeNull();
-    expect(screen.getByText("+13 vs July 2026")).not.toBeNull();
+    expect(screen.getByText("↑ 13 pts vs July 2026")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Score Breakdown" })).not.toBeNull();
     expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Conduct) evidence$/ })).toHaveLength(5);
     expect(document.querySelector(".crew-performance-final-evidence")).toBeNull();
