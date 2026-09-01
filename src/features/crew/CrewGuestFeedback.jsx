@@ -328,9 +328,9 @@ export default function CrewGuestFeedback() {
       visitTimeMode: needsVisitContext ? visitTimeMode : null,
       visitTime: needsVisitContext && visitTimeMode === "chosen_time" ? visitTime : null,
       followUpRequested: Boolean(nextFollowUpRequested),
-      preferredName,
-      contactMethod,
-      contactValue,
+      preferredName: nextFollowUpRequested ? preferredName : "",
+      contactMethod: nextFollowUpRequested ? contactMethod : "",
+      contactValue: nextFollowUpRequested ? contactValue : "",
     };
 
     try {
