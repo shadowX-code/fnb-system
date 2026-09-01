@@ -3,13 +3,15 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const mocks = vi.hoisted(() => ({ crew: vi.fn(), entry: vi.fn(), submit: vi.fn(), submitV2: vi.fn() }));
+const mocks = vi.hoisted(() => ({ crew: vi.fn(), entry: vi.fn(), submit: vi.fn(), submitV2: vi.fn(), submitV3: vi.fn(), submitLegacyV3: vi.fn() }));
 vi.mock("../../../services/crewService.js", () => ({
   crewService: {
     publicFeedbackCrew: mocks.crew,
     publicFeedbackEntry: mocks.entry,
     submitPublicFeedback: mocks.submit,
     submitPublicFeedbackV2: mocks.submitV2,
+    submitPublicFeedbackV3: mocks.submitV3,
+    submitPublicFeedbackLegacyV3: mocks.submitLegacyV3,
   },
 }));
 
@@ -43,6 +45,8 @@ beforeEach(() => {
   mocks.entry.mockReset().mockResolvedValue(response);
   mocks.submit.mockReset().mockResolvedValue({ id: "feedback-1", status: "received" });
   mocks.submitV2.mockReset().mockResolvedValue({ id: "feedback-1", status: "received" });
+  mocks.submitV3.mockReset().mockResolvedValue({ id: "feedback-1", status: "received" });
+  mocks.submitLegacyV3.mockReset().mockResolvedValue({ id: "feedback-1", status: "received" });
 });
 
 afterEach(cleanup);
@@ -57,7 +61,7 @@ describe("Public guest feedback", () => {
     continueToComment();
     fireEvent.click(screen.getByRole("button", { name: /Skip & send/ }));
 
-    await waitFor(() => expect(mocks.submit).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(mocks.submitLegacyV3).toHaveBeenCalledWith(expect.objectContaining({
       outletId: "outlet-1",
       outletToken: token,
       scope: "crew",
@@ -65,6 +69,7 @@ describe("Public guest feedback", () => {
       positiveTags: ["Friendly"],
       improvementTags: [],
       comment: "",
+      anonymousDeviceId: expect.any(String),
     })));
     expect(await screen.findByText("Thank you")).not.toBeNull();
   });
@@ -77,14 +82,20 @@ describe("Public guest feedback", () => {
     fireEvent.click(screen.getByRole("button", { name: "Temperature" }));
     continueToComment();
     fireEvent.change(screen.getByRole("textbox"), { target: { value: "Arrived cool" } });
-    fireEvent.click(screen.getByRole("button", { name: /Send feedback/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    await screen.findByText("When did you visit?");
+    fireEvent.click(screen.getByRole("button", { name: "Just now" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "No, just sharing" }));
 
-    await waitFor(() => expect(mocks.submitV2).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(mocks.submitV3).toHaveBeenCalledWith(expect.objectContaining({
       scope: "food",
       employeeId: null,
       positiveTags: [],
       improvementTags: ["Temperature"],
       comment: "Arrived cool",
+      visitTimeMode: "just_now",
+      followUpRequested: false,
     })));
   });
 
@@ -97,7 +108,7 @@ describe("Public guest feedback", () => {
     continueToComment();
     fireEvent.click(screen.getByRole("button", { name: /Skip & send/ }));
 
-    await waitFor(() => expect(mocks.submitV2).toHaveBeenCalledWith(expect.objectContaining({
+    await waitFor(() => expect(mocks.submitV3).toHaveBeenCalledWith(expect.objectContaining({
       scope: "outlet",
       employeeId: null,
       positiveTags: ["Atmosphere"],
@@ -162,7 +173,7 @@ describe("Public guest feedback", () => {
 
   it("shows a submitting state while a public submission is pending", async () => {
     let resolveSubmit;
-    mocks.submitV2.mockImplementation(() => new Promise((resolve) => { resolveSubmit = resolve; }));
+    mocks.submitV3.mockImplementation(() => new Promise((resolve) => { resolveSubmit = resolve; }));
     tokenRoute();
     render(<CrewGuestFeedback />);
     await selectScope("Overall Visit");
@@ -178,5 +189,26 @@ describe("Public guest feedback", () => {
   it("includes a reduced-motion treatment for public feedback transitions", () => {
     const styles = readFileSync(resolve(process.cwd(), "src/features/crew/CrewGuestFeedback.css"), "utf8");
     expect(styles).toContain("@media (prefers-reduced-motion: reduce)");
+  });
+
+  it("collects manual visit time and follow-up contact only for improvement feedback", async () => {
+    tokenRoute();
+    render(<CrewGuestFeedback />);
+    await selectScope("Overall Visit");
+    selectExperience("Could be better");
+    continueToComment();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose a time" }));
+    fireEvent.change(screen.getByLabelText("Visit time"), { target: { value: "18:30" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yes, please" }));
+    fireEvent.change(screen.getByLabelText("Preferred name"), { target: { value: "Staging QA Guest" } });
+    fireEvent.change(screen.getByLabelText("Phone"), { target: { value: "+60123456789" } });
+    fireEvent.click(screen.getByRole("button", { name: "Send feedback" }));
+
+    await waitFor(() => expect(mocks.submitV3).toHaveBeenCalledWith(expect.objectContaining({
+      scope: "outlet", visitTimeMode: "chosen_time", visitTime: "18:30", followUpRequested: true,
+      preferredName: "Staging QA Guest", contactMethod: "phone", contactValue: "+60123456789",
+    })));
   });
 });

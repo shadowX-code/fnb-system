@@ -69,12 +69,27 @@ const copy = {
     commentHint: "Optional, but the team reads every note.",
     commentPlaceholder: "Share a little more...",
     skipAndSend: "Skip & send",
+    continueWithoutComment: "Continue",
     send: "Send feedback",
     sending: "Sending...",
     submitError: "We couldn't send that just now. Please try again.",
     successTitle: "Thank you",
     successBody: "Your feedback has been shared with {outlet}.",
     successCrew: "Your recognition for {name} is on its way to the team.",
+    visitQuestion: "When did you visit?",
+    visitHint: "An approximate time is fine.",
+    justNow: "Just now",
+    chooseTime: "Choose a time",
+    visitTime: "Visit time",
+    followUpQuestion: "Would you like the restaurant to follow up with you?",
+    followUpNo: "No, just sharing",
+    followUpYes: "Yes, please",
+    followUpHint: "Leave a contact only if you'd like a response.",
+    preferredName: "Preferred name",
+    contactMethod: "Contact method",
+    phone: "Phone",
+    email: "Email",
+    sendFeedback: "Send feedback",
     tags: {
       Friendly: "Friendly", Helpful: "Helpful", Attentive: "Attentive", Fast: "Fast", Knowledgeable: "Knowledgeable",
       Greeting: "Greeting", "Response Time": "Response time", Accuracy: "Accuracy", Cleanliness: "Cleanliness", "Product Knowledge": "Product knowledge",
@@ -106,12 +121,27 @@ const copy = {
     commentHint: "选填，但团队会阅读每一则留言。",
     commentPlaceholder: "多分享一点您的感受...",
     skipAndSend: "跳过并提交",
+    continueWithoutComment: "继续",
     send: "提交反馈",
     sending: "正在提交...",
     submitError: "暂时无法提交，请再试一次。",
     successTitle: "谢谢您",
     successBody: "您的反馈已分享给{outlet}。",
     successCrew: "您对{name}的肯定已传达给团队。",
+    visitQuestion: "您大约几点到店？",
+    visitHint: "大概时间即可。",
+    justNow: "刚刚",
+    chooseTime: "选择时间",
+    visitTime: "到店时间",
+    followUpQuestion: "需要门店联系您跟进吗？",
+    followUpNo: "不需要，只是反馈",
+    followUpYes: "需要，请联系我",
+    followUpHint: "仅在您希望收到回复时留下联系方式。",
+    preferredName: "称呼",
+    contactMethod: "联系方式",
+    phone: "电话",
+    email: "电邮",
+    sendFeedback: "提交反馈",
     tags: {
       Friendly: "亲切友善", Helpful: "乐于协助", Attentive: "细心周到", Fast: "效率迅速", Knowledgeable: "专业熟悉",
       Greeting: "招呼接待", "Response Time": "回应速度", Accuracy: "准确性", Cleanliness: "整洁卫生", "Product Knowledge": "产品知识",
@@ -142,6 +172,19 @@ function publicFeedbackPath() {
 function feedbackToken() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function anonymousDeviceId() {
+  const key = "feedx.guest-feedback.device.v1";
+  try {
+    const stored = window.localStorage.getItem(key);
+    if (stored && stored.length >= 16) return stored;
+    const value = feedbackToken();
+    window.localStorage.setItem(key, value);
+    return value;
+  } catch {
+    return feedbackToken();
+  }
 }
 
 function initials(value) {
@@ -185,13 +228,22 @@ export default function CrewGuestFeedback() {
   const [experience, setExperience] = useState(null);
   const [selectedTags, setSelectedTags] = useState([]);
   const [comment, setComment] = useState("");
+  const [visitTimeMode, setVisitTimeMode] = useState("just_now");
+  const [visitTime, setVisitTime] = useState("");
+  const [followUpRequested, setFollowUpRequested] = useState(null);
+  const [preferredName, setPreferredName] = useState("");
+  const [contactMethod, setContactMethod] = useState("phone");
+  const [contactValue, setContactValue] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState("");
 
   const t = copy[language];
   const publicPath = useMemo(publicFeedbackPath, []);
-  const totalSteps = scope === "crew" ? 5 : 4;
-  const progressStep = { scope: 1, crew: 2, experience: scope === "crew" ? 3 : 2, highlights: scope === "crew" ? 4 : 3, comment: totalSteps, done: totalSteps }[step] || 1;
+  const deviceId = useMemo(anonymousDeviceId, []);
+  const needsVisitContext = experience === "needs_improvement";
+  const totalSteps = needsVisitContext ? (scope === "crew" ? (followUpRequested ? 8 : 7) : (followUpRequested ? 7 : 6)) : (scope === "crew" ? 5 : 4);
+  const base = scope === "crew" ? 1 : 0;
+  const progressStep = { scope: 1, crew: 2, experience: 2 + base, highlights: 3 + base, comment: 4 + base, visit: 5 + base, followup: 6 + base, contact: 7 + base, done: totalSteps }[step] || 1;
 
   useEffect(() => {
     let active = true;
@@ -228,6 +280,7 @@ export default function CrewGuestFeedback() {
     setExperience(null);
     setSelectedTags([]);
     setComment("");
+    setVisitTimeMode("just_now"); setVisitTime(""); setFollowUpRequested(null); setPreferredName(""); setContactValue("");
     advance(nextScope === "crew" ? "crew" : "experience");
   }
 
@@ -248,13 +301,16 @@ export default function CrewGuestFeedback() {
     if (step === "experience") setStep(scope === "crew" ? "crew" : "scope");
     if (step === "highlights") setStep("experience");
     if (step === "comment") setStep("highlights");
+    if (step === "visit") setStep("comment");
+    if (step === "followup") setStep("visit");
+    if (step === "contact") setStep("followup");
   }
 
   function toggleTag(tag) {
     setSelectedTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
   }
 
-  async function submit(overrideComment) {
+  async function submit(overrideComment, nextFollowUpRequested = followUpRequested) {
     if (!entry?.outlet || !scope || !experience || submitting) return;
     setSubmitting(true);
     setSubmitError("");
@@ -268,11 +324,18 @@ export default function CrewGuestFeedback() {
       improvementTags: experience === "needs_improvement" ? selectedTags : [],
       comment: finalComment,
       clientToken: feedbackToken(),
+      anonymousDeviceId: deviceId,
+      visitTimeMode: needsVisitContext ? visitTimeMode : null,
+      visitTime: needsVisitContext && visitTimeMode === "chosen_time" ? visitTime : null,
+      followUpRequested: Boolean(nextFollowUpRequested),
+      preferredName,
+      contactMethod,
+      contactValue,
     };
 
     try {
-      if (publicPath === "token") await crewService.submitPublicFeedbackV2(payload);
-      else await crewService.submitPublicFeedback({ ...payload, outletId: entry.outlet.id });
+      if (publicPath === "token") await crewService.submitPublicFeedbackV3(payload);
+      else await crewService.submitPublicFeedbackLegacyV3({ ...payload, outletId: entry.outlet.id });
       advance("done");
     } catch (submitFailure) {
       setSubmitError(submitFailure.message || t.submitError);
@@ -369,12 +432,44 @@ export default function CrewGuestFeedback() {
               <div className="guest-feedback-intro"><h1>{t.commentQuestion}</h1><p>{t.commentHint}</p></div>
               <textarea className="guest-feedback-comment" autoFocus value={comment} onChange={(event) => setComment(event.target.value)} placeholder={t.commentPlaceholder} rows={3} maxLength={1000} />
               {submitError && <p className="guest-feedback-submit-error" role="alert">{submitError}</p>}
-              <div className="guest-feedback-submit-actions">
+              {needsVisitContext ? <div className="guest-feedback-submit-actions">
+                <button className="guest-feedback-secondary" type="button" onClick={() => { setComment(""); advance("visit"); }}>{t.skipAndSend}</button>
+                <button className="guest-feedback-primary" type="button" onClick={() => advance("visit")}>{t.continueWithoutComment}</button>
+              </div> : <div className="guest-feedback-submit-actions">
                 <button className="guest-feedback-secondary" type="button" disabled={submitting} onClick={() => submit("")}>{t.skipAndSend}</button>
                 <button className="guest-feedback-primary" type="button" disabled={submitting} onClick={() => submit()}>{submitting ? t.sending : <><Send size={17} />{t.send}</>}</button>
-              </div>
+              </div>}
             </>
           )}
+
+          {step === "visit" && <>
+            <div className="guest-feedback-intro"><h1>{t.visitQuestion}</h1><p>{t.visitHint}</p></div>
+            <div className="guest-feedback-choice-list">
+              <button type="button" className={`guest-feedback-choice ${visitTimeMode === "just_now" ? "is-selected" : ""}`} onClick={() => setVisitTimeMode("just_now")}><span><strong>{t.justNow}</strong></span></button>
+              <button type="button" className={`guest-feedback-choice ${visitTimeMode === "chosen_time" ? "is-selected" : ""}`} onClick={() => setVisitTimeMode("chosen_time")}><span><strong>{t.chooseTime}</strong></span></button>
+            </div>
+            {visitTimeMode === "chosen_time" ? <label className="guest-feedback-field">{t.visitTime}<input type="time" value={visitTime} onChange={(event) => setVisitTime(event.target.value)} /></label> : null}
+            <button className="guest-feedback-primary" type="button" disabled={visitTimeMode === "chosen_time" && !visitTime} onClick={() => advance("followup")}>{t.continue}</button>
+          </>}
+
+          {step === "followup" && <>
+            <div className="guest-feedback-intro"><h1>{t.followUpQuestion}</h1><p>{t.followUpHint}</p></div>
+            <div className="guest-feedback-choice-list">
+              <button type="button" className="guest-feedback-choice" onClick={() => { setFollowUpRequested(false); submit(undefined, false); }}><span><strong>{t.followUpNo}</strong></span></button>
+              <button type="button" className="guest-feedback-choice" onClick={() => { setFollowUpRequested(true); advance("contact"); }}><span><strong>{t.followUpYes}</strong></span></button>
+            </div>
+          </>}
+
+          {step === "contact" && <>
+            <div className="guest-feedback-intro"><h1>{t.followUpQuestion}</h1><p>{t.followUpHint}</p></div>
+            <div className="guest-feedback-fields">
+              <label className="guest-feedback-field">{t.preferredName}<input value={preferredName} onChange={(event) => setPreferredName(event.target.value)} autoComplete="name" /></label>
+              <label className="guest-feedback-field">{t.contactMethod}<select value={contactMethod} onChange={(event) => setContactMethod(event.target.value)}><option value="phone">{t.phone}</option><option value="email">{t.email}</option></select></label>
+              <label className="guest-feedback-field">{contactMethod === "phone" ? t.phone : t.email}<input value={contactValue} onChange={(event) => setContactValue(event.target.value)} autoComplete={contactMethod === "phone" ? "tel" : "email"} inputMode={contactMethod === "phone" ? "tel" : "email"} /></label>
+            </div>
+            {submitError && <p className="guest-feedback-submit-error" role="alert">{submitError}</p>}
+            <button className="guest-feedback-primary" type="button" disabled={submitting || !preferredName.trim() || !contactValue.trim()} onClick={() => submit()}>{submitting ? t.sending : <><Send size={17} />{t.sendFeedback}</>}</button>
+          </>}
 
           {step === "done" && (
             <div className="guest-feedback-success" aria-live="polite">

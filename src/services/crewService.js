@@ -26,6 +26,24 @@ const localBusinessDate = (value = new Date()) => {
   return `${year}-${month}-${day}`;
 };
 
+const publicFeedbackV3Payload = (payload, tokenRoute) => ({
+  ...(tokenRoute ? { p_outlet_token: payload.outletToken } : { p_outlet_id: payload.outletId }),
+  p_scope: payload.scope,
+  p_employee_id: payload.employeeId || null,
+  p_experience: payload.experience,
+  p_positive_tags: payload.positiveTags || [],
+  p_improvement_tags: payload.improvementTags || [],
+  p_comment: payload.comment || "",
+  p_client_token: payload.clientToken,
+  p_anonymous_device_id: payload.anonymousDeviceId,
+  p_visit_time_mode: payload.visitTimeMode || null,
+  p_visit_time: payload.visitTime || null,
+  p_follow_up_requested: Boolean(payload.followUpRequested),
+  p_preferred_name: payload.preferredName || null,
+  p_contact_method: payload.contactMethod || null,
+  p_contact_value: payload.contactValue || null,
+});
+
 function normalizeAdminJourney(journey) {
   return {
     ...journey,
@@ -481,6 +499,18 @@ export const crewService = {
     return data;
   },
 
+  async confirmFeedbackTrust(feedbackId, reason) {
+    const { data, error } = await supabase.rpc("crew_feedback_confirm_trust", { p_feedback_id: feedbackId, p_reason: reason });
+    throwSupabaseError("crew.confirmFeedbackTrust", error);
+    return data;
+  },
+
+  async updateFeedbackFollowUp(feedbackId, status) {
+    const { data, error } = await supabase.rpc("crew_feedback_follow_up_update", { p_feedback_id: feedbackId, p_status: status });
+    throwSupabaseError("crew.updateFeedbackFollowUp", error);
+    return data;
+  },
+
   async publicFeedbackCrew(outletId) {
     const { data, error } = await supabase.rpc("crew_feedback_public_crew", { p_outlet_id: outletId });
     throwSupabaseError("crew.publicFeedbackCrew", error);
@@ -533,6 +563,18 @@ export const crewService = {
       p_client_token: payload.clientToken,
     });
     throwSupabaseError("crew.submitPublicFeedbackV2", error);
+    return data;
+  },
+
+  async submitPublicFeedbackV3(payload) {
+    const { data, error } = await supabase.rpc("crew_feedback_submit_public_v3", publicFeedbackV3Payload(payload, true));
+    throwSupabaseError("crew.submitPublicFeedbackV3", error);
+    return data;
+  },
+
+  async submitPublicFeedbackLegacyV3(payload) {
+    const { data, error } = await supabase.rpc("crew_feedback_submit_v3", publicFeedbackV3Payload(payload, false));
+    throwSupabaseError("crew.submitPublicFeedbackLegacyV3", error);
     return data;
   },
 

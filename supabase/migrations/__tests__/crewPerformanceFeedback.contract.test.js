@@ -5,6 +5,7 @@ import path from "node:path";
 const sql = fs.readFileSync(path.resolve("supabase/migrations/20260812154112_crew_performance_feedback_engine.sql"), "utf8").toLowerCase();
 const scopeFix = fs.readFileSync(path.resolve("supabase/migrations/20260812155805_crew_performance_admin_payload_scope_fix.sql"), "utf8").toLowerCase();
 const integrity = fs.readFileSync(path.resolve("supabase/migrations/20260831171519_crew_feedback_evidence_integrity.sql"), "utf8").toLowerCase();
+const trust = fs.readFileSync(path.resolve("supabase/migrations/20260901155715_crew_feedback_trust_visit_follow_up.sql"), "utf8").toLowerCase();
 
 describe("Crew Performance and Customer Feedback engine", () => {
   it("keeps the 100 point calculation server-derived and versioned", () => {
@@ -63,5 +64,16 @@ describe("Crew Performance and Customer Feedback engine", () => {
     expect(integrity).toContain("r.status='finalized'");
     expect(integrity).toContain("perform public.crew_refresh_performance");
     expect(sql).toContain("if exists(select 1 from public.crew_performance_results where employee_id=p_employee_id and period_start=period and status='finalized') then return");
+  });
+
+  it("keeps trust eligibility, visit context, and follow-up PII inside Customer Feedback authority", () => {
+    expect(trust).toContain("trust_state in ('standard','review_required','confirmed')");
+    expect(trust).toContain("scoring_status='included' and trust_state in ('standard','confirmed')");
+    expect(trust).toContain("same_device_crew_business_day");
+    expect(trust).toContain("create table if not exists public.crew_feedback_follow_ups");
+    expect(trust).toContain("crew_feedback.follow_up.view");
+    expect(trust).toContain("crew_feedback_confirm_trust");
+    expect(trust).toContain("crew_feedback_follow_up_update");
+    expect(trust).toContain("revoke all on public.crew_feedback_trust_audit,public.crew_feedback_follow_ups");
   });
 });

@@ -116,6 +116,14 @@
 .guest-feedback-comment { display: block; width: 100%; min-height: 116px; padding: 14px; resize: vertical; border: 1px solid var(--guest-line); border-radius: 7px; background: rgba(255, 255, 255, 0.75); color: var(--guest-ink); font: inherit; font-size: 15px; line-height: 1.5; outline: none; transition: border-color 180ms ease, box-shadow 180ms ease; }
 .guest-feedback-comment:focus { border-color: #5da582; box-shadow: 0 0 0 3px rgba(111, 185, 146, 0.18); }
 .guest-feedback-comment::placeholder { color: #9aa8a2; }
+.guest-feedback-fields { display: grid; gap: 14px; }
+.guest-feedback-field { display: grid; gap: 7px; margin-top: 16px; color: #456057; font-size: 14px; font-weight: 700; }
+.guest-feedback-fields .guest-feedback-field { margin-top: 0; }
+.guest-feedback-field input,
+.guest-feedback-field select { min-height: 48px; width: 100%; border: 1px solid var(--guest-line); border-radius: 7px; background: rgba(255, 255, 255, 0.82); color: var(--guest-ink); font: inherit; font-size: 16px; padding: 0 13px; outline: none; }
+.guest-feedback-field input:focus,
+.guest-feedback-field select:focus { border-color: #5da582; box-shadow: 0 0 0 3px rgba(111, 185, 146, 0.18); }
+.guest-feedback-choice.is-selected { border-color: #4e9874; background: var(--guest-mint); }
 .guest-feedback-submit-actions { gap: 10px; margin-top: 18px; }
 .guest-feedback-submit-actions .guest-feedback-primary { width: auto; flex: 1; margin: 0; }
 .guest-feedback-secondary { min-width: 118px; padding: 0 14px; border: 1px solid var(--guest-line); background: transparent; color: #456057; }
