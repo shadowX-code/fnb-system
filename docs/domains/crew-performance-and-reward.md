@@ -26,6 +26,7 @@ Source domains retain ownership of roster, attendance, task, cash, and learning 
 Monthly Performance uses defined, private evidence adapters rather than reading mutable page state.
 The server derives protected scoring, eligibility, and reward values from canonical evidence and configured rules.
 Reviewers may add permitted assessment evidence or decisions but cannot rewrite source-domain history.
+Current mutable Service Standards reviews contain Welcome / Greeting, Thank You / Goodbye, Grooming, Work Area Cleanliness, and Guest Interaction. The server requires that exact current set and derives the observed-criterion denominator; retired Initiative evidence remains only in prior review snapshots for audit. A finalized Performance period rejects new review evidence and remains immutable.
 
 For a Crew member's current mutable Performance, the token-bound Reward read model may expose a clearly marked, non-persistent Estimated Reward only when a usable draft score exists. That display projection reuses the canonical Reward Pool × eligible-hours share × Performance earn-rate formula over frozen campaign participants and live eligible hours; it never writes a Reward entry, creates a payout snapshot, or changes campaign state. Missing Performance scores remain a waiting state. Finalized and paid Reward entries remain the sole authority for final or paid amounts and historical payout records.
 

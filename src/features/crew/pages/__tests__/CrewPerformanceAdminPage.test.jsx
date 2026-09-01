@@ -10,8 +10,8 @@ const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
 const row = { employee: { id: "employee-1", full_name: "Alex Tan", employee_code: "QA-01", position: "Service Crew" }, result: { id: "result-1", period_start: "2026-08-01", status: "review_required", total_score: 82, attendance_score: 28, service_score: 25, customer_score: 12, knowledge_score: 13, conduct_score: 4, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "reviewed", score: 25, max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "review_required", max_score: 10 } } } };
 const attentionRow = { employee: { id: "employee-2", full_name: "Mina Lee", employee_code: "QA-02", position: "Kitchen Crew" }, result: { id: "result-2", period_start: "2026-08-01", status: "finalized", total_score: 60, attendance_score: 26, service_score: 18, customer_score: 8, knowledge_score: 0, conduct_score: 8, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "reviewed", score: 18, max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "reviewed", score: 8, max_score: 10 } } } };
 const unscoredRow = { employee: { id: "employee-3", full_name: "Pending Score", employee_code: "QA-03", position: "Service Crew" }, result: { id: "result-3", period_start: "2026-08-01", status: "review_required", total_score: null, attendance_score: 30, service_score: null, customer_score: 12, knowledge_score: 14, conduct_score: null, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "review_required", max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "review_required", max_score: 10 } } } };
-const feedback = [{ id: "feedback-1", submitted_at: "2026-08-12", employee_id: "employee-1", employee_name: "Alex Tan", experience: "great", positive_tags: ["Friendly"], improvement_tags: [], comment: "Great service", scoring_status: "included", moderation_history: [], attribution_history: [] }, { id: "feedback-2", submitted_at: "2026-08-13", employee_id: "employee-2", employee_name: "Mina Lee", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "Too slow", scoring_status: "excluded", exclusion_reason: "Duplicate guest submission", excluded_by_name: "Admin", excluded_at: "2026-08-13T10:30:00Z", moderation_history: [{ id: "moderation-1", previous_status: "included", next_status: "excluded", reason: "Duplicate guest submission", changed_by: "Admin", changed_at: "2026-08-13T10:30:00Z" }], attribution_history: [] }];
-const fixture = { summary: { average_score: 71, crew_reviewed: 1, awaiting_review: 1, needs_attention: 1 }, crew: [row, attentionRow], reviews: [], feedback, feedback_summary: { total_feedback: 2, included_feedback: 1, positive_feedback: 1, needs_improvement_feedback: 0, excluded_feedback: 1 }, feedback_crew: [{ id: "employee-1", name: "Alex Tan", position: "Service Crew", availability: "active" }, { id: "employee-2", name: "Mina Lee", position: "Kitchen Crew", availability: "active" }] };
+const feedback = [{ id: "feedback-1", scope: "crew", submitted_at: "2026-08-12", employee_id: "employee-1", employee_name: "Alex Tan", experience: "great", positive_tags: ["Friendly"], improvement_tags: [], comment: "Great service", scoring_status: "included", moderation_history: [], attribution_history: [] }, { id: "feedback-2", scope: "crew", submitted_at: "2026-08-13", employee_id: "employee-2", employee_name: "Mina Lee", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "Too slow", scoring_status: "excluded", exclusion_reason: "Duplicate guest submission", excluded_by_name: "Admin", excluded_at: "2026-08-13T10:30:00Z", moderation_history: [{ id: "moderation-1", previous_status: "included", next_status: "excluded", reason: "Duplicate guest submission", changed_by: "Admin", changed_at: "2026-08-13T10:30:00Z" }], attribution_history: [] }];
+const fixture = { summary: { average_score: 71, reviewed: 1, awaiting_review: 1 }, scoring_framework: [{ key: "attendance", label: "Attendance", max_score: 30 }, { key: "service", label: "Service", max_score: 30 }, { key: "customer", label: "Customer", max_score: 15 }, { key: "knowledge", label: "Knowledge", max_score: 15 }, { key: "conduct", label: "Conduct", max_score: 10 }], crew: [row, attentionRow], reviews: [], feedback, feedback_summary: { total_feedback: 2, included_feedback: 1, positive_feedback: 1, needs_improvement_feedback: 0, excluded_feedback: 1 }, feedback_crew: [{ id: "employee-1", name: "Alex Tan", position: "Service Crew", availability: "active" }, { id: "employee-2", name: "Mina Lee", position: "Kitchen Crew", availability: "active" }] };
 const auth = { hasPermission: () => true }; const ui = { notify: vi.fn() };
 beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.review.mockReset().mockResolvedValue({}); mocks.finalize.mockReset().mockResolvedValue({}); mocks.moderate.mockReset().mockResolvedValue({}); mocks.correct.mockReset().mockResolvedValue({}); });
 afterEach(cleanup);
@@ -29,18 +29,33 @@ describe("Crew Performance Admin", () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect((await screen.findAllByText("Alex Tan")).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("row").filter((entry) => entry.textContent.includes("Alex Tan") && entry.textContent.includes("Service Standards") === false).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Review" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Review" })[1]);
     fireEvent.click(screen.getAllByRole("button", { name: "Meets Standard" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
     await waitFor(() => expect(mocks.review).toHaveBeenCalledWith(expect.objectContaining({ employeeId: "employee-1", component: "conduct" })));
   });
 
-  it("filters real Crew rows and surfaces KPI, attention, and framework evidence", async () => {
+  it("uses the five current Service Standards criteria and never submits Initiative", async () => {
+    render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findAllByText("Alex Tan");
+    fireEvent.click(screen.getAllByRole("button", { name: "Review" })[0]);
+    expect(screen.getByRole("dialog", { name: "Service Standards Review" })).not.toBeNull();
+    expect(screen.queryByText("Initiative")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Meets Standard" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith(expect.objectContaining({ component: "service", criteria: expect.arrayContaining([expect.objectContaining({ key: "guest_interaction" })]) })));
+    expect(mocks.review.mock.calls.at(-1)[0].criteria).toHaveLength(5);
+    expect(mocks.review.mock.calls.at(-1)[0].criteria.some((criterion) => criterion.key === "initiative")).toBe(false);
+  });
+
+  it("filters real Crew rows and shows a compact server-backed scoring reference", async () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("71 / 100")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Review Queue" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Needs Attention" })).not.toBeNull();
-    expect(screen.getByText("Performance Framework · 100 pts")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Needs Attention" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "How scoring works" }));
+    expect(screen.getByRole("dialog", { name: "How scoring works" })).not.toBeNull();
+    expect(screen.getAllByText("30 pts")).toHaveLength(2);
     fireEvent.change(screen.getByPlaceholderText("Name or employee code"), { target: { value: "Mina" } });
     expect(screen.queryAllByText("Alex Tan").length).toBe(0);
     expect(screen.getAllByText("Mina Lee").length).toBeGreaterThan(0);
@@ -61,7 +76,7 @@ describe("Crew Performance Admin", () => {
 
   it("keeps period KPIs independent from table filters and makes excluded evidence recoverable", async () => {
     render(<CrewPerformanceAdminPage initialTab="feedback" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    expect(await screen.findByText("All submissions this period")).not.toBeNull();
+    expect(await screen.findByText("All guest submissions this period")).not.toBeNull();
     expect(screen.getByText("2", { selector: ".crew-growth-metric strong" })).not.toBeNull();
     fireEvent.change(screen.getByPlaceholderText("Search Crew, comment or tag"), { target: { value: "Alex" } });
     expect(screen.getByText("Great service")).not.toBeNull();
@@ -82,7 +97,7 @@ describe("Crew Performance Admin", () => {
     await screen.findByText("Great service");
     fireEvent.click(screen.getByRole("button", { name: "View feedback details for Mina Lee" }));
     expect(screen.getByRole("dialog", { name: "Feedback Detail" })).not.toBeNull();
-    expect(screen.getByText("Duplicate guest submission", { selector: "span" })).not.toBeNull();
+    expect(screen.getAllByText("Duplicate guest submission", { selector: "span" }).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: "Correct Crew attribution for Alex Tan" }));
     fireEvent.change(screen.getByPlaceholderText("Explain why this feedback belongs to a different Crew member"), { target: { value: "Guest selected the wrong Crew member" } });
@@ -91,11 +106,10 @@ describe("Crew Performance Admin", () => {
     await waitFor(() => expect(mocks.correct).toHaveBeenCalledWith("feedback-1", "employee-2", "Guest selected the wrong Crew member"));
   });
 
-  it("does not classify an unscored review-required employee as below-threshold attention", async () => {
-    mocks.data.mockResolvedValue({ ...fixture, crew: [attentionRow, unscoredRow] });
+  it("keeps unscored employees neutral in the Team Performance table", async () => {
+    mocks.data.mockResolvedValue({ ...fixture, crew: [attentionRow, unscoredRow], summary: { average_score: 60, reviewed: 1, awaiting_review: 1 } });
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    expect(await screen.findByText("1 Crew may need manager support.")).not.toBeNull();
-    expect(screen.getAllByText("Mina Lee").length).toBeGreaterThan(0);
-    expect(screen.queryByText("Pending Score", { selector: ".crew-performance-attention-list *" })).toBeNull();
+    expect((await screen.findAllByText("Pending Score")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("— / 30").length).toBeGreaterThan(0);
   });
 });
