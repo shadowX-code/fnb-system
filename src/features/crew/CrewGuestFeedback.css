@@ -34,10 +34,12 @@
 }
 
 .guest-feedback-brand { gap: 10px; min-width: 0; }
+.guest-feedback-brand.has-logo { flex: 1 1 auto; }
 .guest-feedback-brand strong { overflow: hidden; font-size: 15px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .guest-feedback-brand-mark,
 .guest-feedback-crew-avatar { display: grid; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: 50%; background: #cae9dc; flex: 0 0 auto; }
 .guest-feedback-brand-mark { width: 56px; border-radius: 6px; background: transparent; }
+.guest-feedback-brand.has-logo .guest-feedback-brand-mark { width: min(58vw, 240px); height: 54px; justify-content: flex-start; }
 .guest-feedback-avatar-image { width: 100%; height: 100%; object-fit: cover; }
 .guest-feedback-brand-mark .guest-feedback-avatar-image { object-fit: contain; }
 .guest-feedback-avatar-fallback { color: #245a43; font-size: 12px; font-weight: 750; line-height: 1; }
@@ -58,9 +60,14 @@
 .guest-feedback-language i { color: #a0ada8; font-style: normal; }
 .guest-feedback-language .is-active { color: var(--guest-ink); font-weight: 750; }
 
-.guest-feedback-progress { display: flex; gap: 6px; margin: 34px 0 40px; }
+.guest-feedback-progress { display: flex; gap: 6px; margin: 30px 0 40px; }
 .guest-feedback-progress span { height: 3px; flex: 1; border-radius: 99px; background: #d8e4df; }
 .guest-feedback-progress span.is-complete { background: var(--guest-mint-deep); }
+
+@media (min-width: 640px) {
+  .guest-feedback-shell { padding-top: 26px; }
+  .guest-feedback-brand.has-logo .guest-feedback-brand-mark { width: min(320px, 42vw); height: 62px; }
+}
 
 .guest-feedback-stage { min-height: 430px; animation: guest-feedback-enter 260ms ease both; }
 .guest-feedback-stage[data-direction="back"] { animation-name: guest-feedback-return; }

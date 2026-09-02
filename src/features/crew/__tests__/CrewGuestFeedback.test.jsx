@@ -133,8 +133,12 @@ describe("Public guest feedback", () => {
     tokenRoute();
     mocks.entry.mockResolvedValue({ ...response, outlet: { ...response.outlet, logo_url: "https://example.com/logo.png" } });
     const { unmount } = render(<CrewGuestFeedback />);
-    await screen.findByText("Friends Corner");
+    await screen.findByRole("button", { name: "Switch language" });
     expect(document.querySelector(".guest-feedback-brand-mark img")?.getAttribute("src")).toBe("https://example.com/logo.png");
+    expect(screen.queryByText("Friends Corner")).toBeNull();
+    fireEvent.error(document.querySelector(".guest-feedback-brand-mark img"));
+    expect(await screen.findByText("Friends Corner")).not.toBeNull();
+    expect(document.querySelector(".guest-feedback-brand-mark")?.textContent).toBe("FC");
     unmount();
 
     mocks.entry.mockResolvedValue(response);

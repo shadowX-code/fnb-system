@@ -200,6 +200,20 @@ function Avatar({ person, outlet = false }) {
   return <span className="guest-feedback-avatar-fallback" aria-hidden="true">{initials(person?.name)}</span>;
 }
 
+function outletLogo(person) {
+  return person?.logo_url || person?.brand_logo_url || person?.logo || (crewService.publicOutletLogoUrl?.(person?.logo_path, person?.logo_version) || "");
+}
+
+function OutletBrand({ outlet }) {
+  const [failed, setFailed] = useState(false);
+  const image = outletLogo(outlet);
+  const hasLogo = Boolean(image && !failed);
+  return <div className={`guest-feedback-brand${hasLogo ? " has-logo" : ""}`}>
+    <span className="guest-feedback-brand-mark">{hasLogo ? <img className="guest-feedback-avatar-image" src={image} alt="" onError={() => setFailed(true)} /> : <span className="guest-feedback-avatar-fallback" aria-hidden="true">{initials(outlet?.name)}</span>}</span>
+    {!hasLogo && <strong>{outlet?.name}</strong>}
+  </div>;
+}
+
 function GuestState({ title, body, loading = false }) {
   return (
     <main className="guest-feedback-page guest-feedback-state-page">
@@ -349,10 +363,7 @@ export default function CrewGuestFeedback() {
     <main className="guest-feedback-page">
       <div className="guest-feedback-shell">
         <header className="guest-feedback-header">
-          <div className="guest-feedback-brand">
-            <span className="guest-feedback-brand-mark"><Avatar person={entry.outlet} outlet /></span>
-            <strong>{entry.outlet.name}</strong>
-          </div>
+          <OutletBrand outlet={entry.outlet} />
           <button className="guest-feedback-language" type="button" onClick={() => setLanguage((current) => current === "en" ? "zh" : "en")} aria-label="Switch language">
             <span className={language === "en" ? "is-active" : ""}>EN</span><i>|</i><span className={language === "zh" ? "is-active" : ""}>中文</span>
           </button>
