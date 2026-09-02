@@ -843,6 +843,47 @@ export const crewService = {
     return data;
   },
 
+  async onboardingClonePreview(sourceOutletId, targetOutletId) {
+    const { data, error } = await supabase.rpc("crew_admin_onboarding_clone_preview", {
+      p_source_outlet_id: sourceOutletId,
+      p_target_outlet_id: targetOutletId,
+    });
+    throwSupabaseError("crew.onboardingClonePreview", error);
+    return data;
+  },
+
+  async cloneOnboarding(sourceOutletId, targetOutletId) {
+    const { data, error } = await supabase.rpc("crew_clone_onboarding", {
+      p_source_outlet_id: sourceOutletId,
+      p_target_outlet_id: targetOutletId,
+    });
+    throwSupabaseError("crew.cloneOnboarding", error);
+    const mediaCopies = data?.media_copies || [];
+    try {
+      for (const copy of mediaCopies) {
+        const { error: copyError } = await supabase.storage
+          .from(copy.source_bucket)
+          .copy(copy.source_path, copy.target_path);
+        throwSupabaseError("crew.cloneOnboarding.copyMedia", copyError);
+        const { error: finalizeError } = await supabase.rpc("crew_finalize_learning_media_upload", {
+          p_media_id: copy.target_id,
+        });
+        throwSupabaseError("crew.cloneOnboarding.finalizeMedia", finalizeError);
+      }
+      return data;
+    } catch (cause) {
+      await Promise.allSettled(
+        mediaCopies.map((copy) =>
+          supabase.storage.from(copy.target_bucket).remove([copy.target_path]),
+        ),
+      );
+      await supabase.rpc("crew_abort_onboarding_clone", {
+        p_journey_id: data?.onboarding_id,
+      });
+      throw cause;
+    }
+  },
+
   async cloneSelectedSops({ sourceOutletId, targetOutletId, sopIds, copyCategories = true }) {
     const { data, error } = await supabase.rpc("crew_clone_selected_sops", {
       p_source_outlet_id: sourceOutletId,

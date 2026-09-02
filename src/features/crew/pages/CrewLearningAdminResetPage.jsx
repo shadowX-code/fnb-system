@@ -139,10 +139,13 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
   async function cloneOnboarding(sourceOutletId) {
     setSaving(true);
     try {
-      await crewService.cloneLearningSetup({ sourceOutletId, targetOutletId: outletId, copyOnboarding: true, copyCategories: false, copySops: false });
+      const cloned = await crewService.cloneOnboarding(sourceOutletId, outletId);
       setCloneOpen(false);
-      await refresh();
-      ui.notify({ title: "Onboarding cloned", message: `An independent draft is ready for ${outlet?.name}.` });
+      const result = await refresh();
+      const detail = await crewService.getOnboardingAdmin(cloned.onboarding_id);
+      if (!result.versions.some((item) => item.id === cloned.onboarding_id) || !detail) throw new Error("The cloned Onboarding draft could not be loaded.");
+      setEditorJourney(detail);
+      ui.notify({ title: "Onboarding cloned", message: `Draft v${cloned.target_version} is ready to edit. Crew progress and evidence were not copied.` });
     } catch (cause) {
       ui.notify({ title: "Unable to clone Onboarding", message: cause.message, tone: "error" });
     } finally { setSaving(false); }
@@ -195,7 +198,24 @@ function ProgressDetailModal({ row, journey, onClose }) {
 
 function CloneOnboardingModal({ outlet, outlets, saving, onClose, onClone }) {
   const [sourceOutletId, setSourceOutletId] = useState(outlets[0]?.id || "");
-  return <Modal title="Clone Onboarding" description="Create an independent draft for the target outlet." size="md" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving || !sourceOutletId} onClick={() => onClone(sourceOutletId)}>{saving ? "Cloning…" : "Clone Onboarding"}</button></>}><div className="crew-onboarding-clone"><SelectField label="Source Outlet" ariaLabel="Source Outlet" value={sourceOutletId} onChange={setSourceOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} /><div><span>Target Outlet</span><strong>{outlet?.name || "—"}</strong></div><fieldset><legend>Copy</legend>{["Onboarding Structure", "Lessons", "Knowledge Checks", "SOP References"].map((label) => <label key={label}><input type="checkbox" checked readOnly /> {label}</label>)}</fieldset><p>SOP references are mapped to matching published SOPs in the target outlet. Source content remains unchanged.</p></div></Modal>;
+  const [preview, setPreview] = useState(null);
+  const [error, setError] = useState("");
+  const [loadingPreview, setLoadingPreview] = useState(Boolean(sourceOutletId));
+  useEffect(() => {
+    let active = true;
+    if (!sourceOutletId || !outlet?.id) return undefined;
+    setLoadingPreview(true);
+    setError("");
+    setPreview(null);
+    crewService.onboardingClonePreview(sourceOutletId, outlet.id)
+      .then((next) => { if (active) setPreview(next); })
+      .catch((cause) => { if (active) setError(cause.message || "Unable to inspect this source outlet."); })
+      .finally(() => { if (active) setLoadingPreview(false); });
+    return () => { active = false; };
+  }, [sourceOutletId, outlet?.id]);
+  const languages = (preview?.languages || []).map((language) => language === "zh-CN" ? "中文" : language.toUpperCase());
+  const blocked = Boolean(preview?.target_has_draft);
+  return <Modal title="Clone Onboarding" description="Create an independent destination draft from the source Published version." size="md" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving || loadingPreview || !preview || blocked} onClick={() => onClone(sourceOutletId)}>{saving ? "Cloning…" : "Clone to Draft"}</button></>}><div className="crew-onboarding-clone"><SelectField label="Source Outlet" ariaLabel="Source Outlet" value={sourceOutletId} onChange={setSourceOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} /><div><span>Destination Outlet</span><strong>{outlet?.name || "—"}</strong></div>{loadingPreview ? <p>Loading source Published version…</p> : error ? <p role="alert">{error}</p> : preview ? <><section className="crew-onboarding-clone-summary"><strong>Published v{preview.source_version}</strong><span>{preview.modules} modules · {preview.lessons} lessons · {preview.knowledge_checks} knowledge checks</span><span>{languages.length ? `Languages: ${languages.join(" · ")}` : "Source-language content only"}</span></section>{blocked ? <p role="alert">This destination already has Draft v{preview.target_draft_version || "N"}. Finish or discard it before cloning; it will never be overwritten.</p> : <p>Crew progress, completion, evidence and source history are not copied. Destination Crew continue using their current Published onboarding until this draft is published.</p>}<p>Referenced SOPs are mapped only to matching Published SOPs owned by the destination outlet. Learning images are copied into destination-owned media.</p></> : null}</div></Modal>;
 }
 
 function EmptyState({ icon: Icon, title, description, actions }) { return <section className="crew-learning-empty-state"><Icon size={24} /><h2>{title}</h2><p>{description}</p>{actions ? <div>{actions}</div> : null}</section>; }

@@ -19,7 +19,8 @@ const mocks = vi.hoisted(() => ({
   deleteLearningMedia: vi.fn(),
   learningMediaAdminUrl: vi.fn(),
   publishJourney: vi.fn(),
-  cloneLearningSetup: vi.fn(),
+  onboardingClonePreview: vi.fn(),
+  cloneOnboarding: vi.fn(),
   localization: vi.fn(), saveLocalization: vi.fn(), translate: vi.fn(), editTranslation: vi.fn(), reviewTranslation: vi.fn(), localizedForCrew: vi.fn(),
 }));
 
@@ -42,7 +43,8 @@ vi.mock("../../../../services/crewService.js", () => ({
     deleteLearningMedia: mocks.deleteLearningMedia,
     learningMediaAdminUrl: mocks.learningMediaAdminUrl,
     publishJourney: mocks.publishJourney,
-    cloneLearningSetup: mocks.cloneLearningSetup,
+    onboardingClonePreview: mocks.onboardingClonePreview,
+    cloneOnboarding: mocks.cloneOnboarding,
     localizedContentAdmin: mocks.localization,
     saveLocalizedContentUnits: mocks.saveLocalization,
     translateLocalizedContent: mocks.translate,
@@ -147,7 +149,8 @@ beforeEach(() => {
   mocks.deleteLearningMedia.mockReset().mockResolvedValue({ deleted: true });
   mocks.learningMediaAdminUrl.mockReset().mockResolvedValue("https://signed.test/admin-preview.webp");
   mocks.publishJourney.mockReset().mockResolvedValue("journey-draft");
-  mocks.cloneLearningSetup.mockReset().mockResolvedValue("journey-draft");
+  mocks.onboardingClonePreview.mockReset().mockResolvedValue({ source_onboarding_id: "source-published", source_version: 2, modules: 8, lessons: 8, knowledge_checks: 1, languages: ["en", "zh-CN"], target_has_draft: false, target_draft_version: null });
+  mocks.cloneOnboarding.mockReset().mockResolvedValue({ onboarding_id: "journey-draft", source_version: 2, target_version: 3, media_copies: [] });
   mocks.localization.mockReset().mockResolvedValue({ units: {} });
   mocks.saveLocalization.mockReset().mockResolvedValue({ units: {} });
   mocks.localizedForCrew.mockReset().mockResolvedValue({});
@@ -327,12 +330,24 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
   });
 
-  it("clones only the Onboarding setup into the selected target outlet", async () => {
+  it("clones the selected source Published version into an independent destination draft", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Clone From Outlet" }));
-    expect(screen.getByText("Onboarding Structure")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Clone Onboarding" }));
-    await waitFor(() => expect(mocks.cloneLearningSetup).toHaveBeenCalledWith({ sourceOutletId: "outlet-2", targetOutletId: "outlet-1", copyOnboarding: true, copyCategories: false, copySops: false }));
+    expect(await screen.findByText("Published v2")).not.toBeNull();
+    expect(screen.getByText("8 modules · 8 lessons · 1 knowledge checks")).not.toBeNull();
+    expect(screen.getByText("Languages: EN · 中文")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clone to Draft" }));
+    await waitFor(() => expect(mocks.cloneOnboarding).toHaveBeenCalledWith("outlet-2", "outlet-1"));
+    expect(await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" })).not.toBeNull();
+  });
+
+  it("blocks clone without overwriting an existing destination draft", async () => {
+    mocks.onboardingClonePreview.mockResolvedValueOnce({ source_version: 2, modules: 8, lessons: 8, knowledge_checks: 1, languages: ["en"], target_has_draft: true, target_draft_version: 3 });
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Clone From Outlet" }));
+    expect(await screen.findByText("This destination already has Draft v3. Finish or discard it before cloning; it will never be overwritten.")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Clone to Draft" }).disabled).toBe(true);
+    expect(mocks.cloneOnboarding).not.toHaveBeenCalled();
   });
 });
 

@@ -23,6 +23,8 @@ Admin content progresses through controlled draft, publication, and new-version 
 Published versions are immutable; edits create a new draft/version rather than rewriting Crew history.
 Assignments pin the learning and SOP versions needed for reproducible progression.
 
+Onboarding may be cloned only from an authorized source outlet's latest published version into an independent destination draft. The destination's existing published onboarding remains the Crew source until the cloned draft is published; an existing destination draft is never overwritten. Clone copies versioned learning structure, quizzes, localization, and destination-owned learning-media copies, while mapping SOP references only to matching published SOPs in the destination outlet. Crew assignments, progress, completion, evidence, and source history are never copied.
+
 Crew availability follows the configured sequential or non-sequential rules.
 Quiz validation and scoring are server-authoritative.
 SOP acknowledgement and required lesson completion gate downstream progress where configured.

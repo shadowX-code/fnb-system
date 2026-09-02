@@ -74,13 +74,8 @@ describe("Crew learning mobile service boundaries", () => {
   it("uses dedicated outlet authorities for mandatory onboarding and independent cloning", async () => {
     await crewService.createDefaultOnboarding("outlet-1");
     await crewService.onboardingProgress("outlet-1");
-    await crewService.cloneLearningSetup({
-      sourceOutletId: "outlet-1",
-      targetOutletId: "outlet-2",
-      copyOnboarding: true,
-      copyCategories: true,
-      copySops: true,
-    });
+    await crewService.onboardingClonePreview("outlet-1", "outlet-2");
+    await crewService.cloneOnboarding("outlet-1", "outlet-2");
     await crewService.cloneSelectedSops({
       sourceOutletId: "outlet-1",
       targetOutletId: "outlet-2",
@@ -94,13 +89,8 @@ describe("Crew learning mobile service boundaries", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("crew_admin_onboarding_progress", {
       p_outlet_id: "outlet-1",
     });
-    expect(mocks.rpc).toHaveBeenCalledWith("crew_clone_learning_setup", {
-      p_source_outlet_id: "outlet-1",
-      p_target_outlet_id: "outlet-2",
-      p_copy_onboarding: true,
-      p_copy_sop_categories: true,
-      p_copy_sops: true,
-    });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_admin_onboarding_clone_preview", { p_source_outlet_id: "outlet-1", p_target_outlet_id: "outlet-2" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_clone_onboarding", { p_source_outlet_id: "outlet-1", p_target_outlet_id: "outlet-2" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_clone_selected_sops", {
       p_source_outlet_id: "outlet-1",
       p_target_outlet_id: "outlet-2",
