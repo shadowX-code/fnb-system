@@ -21,7 +21,7 @@ export default function EntityModal({ title, description, fields, initialValues 
       <div className="space-y-4">
         {fields.map((field) => (
           <FieldLabel key={field.name} label={field.label}>
-            {field.type === "select" ? (
+            {field.render ? field.render({ values, setValues }) : field.type === "select" ? (
               <SelectField
                 value={values[field.name] ?? ""}
                 options={field.options}

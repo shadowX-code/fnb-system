@@ -9,6 +9,8 @@ function mapOutlet(outlet) {
     name: outlet.name,
     code: outlet.code ?? "",
     public_feedback_token: outlet.public_feedback_token ?? "",
+    logo_path: outlet.logo?.object_path ?? outlet.logo_path ?? "",
+    logo_version: outlet.logo?.version ?? outlet.logo_version ?? "",
     is_active: Boolean(isActive),
     status: isActive ? "active" : "inactive",
     location: outlet.location ?? outlet.address ?? "",
@@ -23,10 +25,16 @@ function mapOutlet(outlet) {
 }
 
 export const outletService = {
+  logoPublicUrl(path, version) {
+    if (!path) return "";
+    const { data } = supabase.storage.from("outlet-logos").getPublicUrl(path);
+    return data?.publicUrl ? `${data.publicUrl}?v=${version || ""}` : "";
+  },
+
   async listOutlets() {
     const { data, error } = await supabase
       .from("outlets")
-      .select("id,name,code,public_feedback_token,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .order("name", { ascending: true });
 
     throwSupabaseError("outlets.list", error);
@@ -36,7 +44,7 @@ export const outletService = {
   async listActiveOutlets() {
     const { data, error } = await supabase
       .from("outlets")
-      .select("id,name,code,public_feedback_token,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .eq("is_active", true)
       .order("name", { ascending: true });
 
@@ -65,7 +73,7 @@ export const outletService = {
       : supabase.from("outlets").insert(payload);
 
     const { data, error } = await query
-      .select("id,name,code,public_feedback_token,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .single();
 
     throwSupabaseError("outlets.save", error);
@@ -78,6 +86,31 @@ export const outletService = {
     }).catch(() => {});
     console.info("[Supabase:outlets.save] Saved to Supabase", { outletId: data.id, name: data.name });
     return mapOutlet(data);
+  },
+
+  async uploadLogo(outletId, file) {
+    if (!file || !["image/jpeg", "image/png", "image/webp"].includes(file.type) || file.size > 2 * 1024 * 1024) throw new Error("Use a PNG, JPG, or WebP logo up to 2 MB.");
+    const { data: prepared, error: prepareError } = await supabase.rpc("outlet_prepare_logo_upload", { p_outlet_id: outletId, p_filename: file.name, p_mime_type: file.type, p_size: file.size });
+    throwSupabaseError("outlets.logo.prepare", prepareError);
+    const { error: uploadError } = await supabase.storage.from(prepared.bucket).upload(prepared.object_path, file, { contentType: file.type, upsert: false });
+    if (uploadError) {
+      await supabase.rpc("outlet_finalize_logo_remove", { p_media_id: prepared.id });
+      throwSupabaseError("outlets.logo.upload", uploadError);
+    }
+    const { data, error } = await supabase.rpc("outlet_finalize_logo_upload", { p_media_id: prepared.id });
+    throwSupabaseError("outlets.logo.finalize", error);
+    return data;
+  },
+
+  async removeLogo(outletId) {
+    const { data: prepared, error: prepareError } = await supabase.rpc("outlet_prepare_logo_remove", { p_outlet_id: outletId });
+    throwSupabaseError("outlets.logo.remove", prepareError);
+    if (!prepared?.removed) return prepared;
+    const { error: deleteError } = await supabase.storage.from(prepared.bucket).remove([prepared.object_path]);
+    throwSupabaseError("outlets.logo.delete", deleteError);
+    const { error: finalizeError } = await supabase.rpc("outlet_finalize_logo_remove", { p_media_id: prepared.id });
+    throwSupabaseError("outlets.logo.finalizeRemove", finalizeError);
+    return prepared;
   },
 
   async deactivateOutlet(outlet) {

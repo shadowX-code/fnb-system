@@ -190,7 +190,7 @@ function initials(value) {
 function Avatar({ person, outlet = false }) {
   const [failed, setFailed] = useState(false);
   const image = outlet
-    ? person?.logo_url || person?.brand_logo_url || person?.logo
+    ? person?.logo_url || person?.brand_logo_url || person?.logo || (crewService.publicOutletLogoUrl?.(person?.logo_path, person?.logo_version) || "")
     : person?.photo_url || person?.avatar_url;
 
   if (image && !failed) {

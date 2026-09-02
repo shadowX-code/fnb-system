@@ -122,6 +122,12 @@ async function saveCrewDraftRow(table, row, payload) {
 }
 
 export const crewService = {
+  publicOutletLogoUrl(path, version) {
+    if (!path) return "";
+    const { data } = supabase.storage.from("outlet-logos").getPublicUrl(path);
+    return data?.publicUrl ? `${data.publicUrl}?v=${version || ""}` : "";
+  },
+
   async learningHome(token) {
     const { data, error } = await supabase.rpc("crew_learning_home", { p_token: token });
     throwSupabaseError("crew.learningHome", error);
