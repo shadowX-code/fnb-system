@@ -31,6 +31,9 @@ export default function InventoryPurchaseOrdersPage({
   onView,
   onCopyPurchaseOrder,
   onFiltersChange,
+  loadState = "supabase",
+  loadError = "",
+  onRetry,
 }) {
   const [filters, setFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
   useEffect(() => { onFiltersChange?.(filters); }, [filters, onFiltersChange]);
@@ -86,7 +89,7 @@ export default function InventoryPurchaseOrdersPage({
       <DatePickerField label="To" value={filters.to} onChange={(value) => update("to", value)} />
       <label className="lg:col-span-6"><div className="mb-1 type-caption font-semibold text-text-secondary">Search Business PO / Supplier / Item</div><input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => update("search", event.target.value)} placeholder="Search business PO no, internal ID, supplier or item" /></label>
     </div>
-    {filtered.length ? <>
+    {loadState === "loading" && !orders.length ? <div className="p-8 text-center text-sm font-semibold text-text-secondary" role="status">Loading purchase orders…</div> : loadError ? <div className="p-8 text-center" role="alert"><strong className="text-rose-700">Purchase orders could not load.</strong><p className="mt-1 text-sm text-text-secondary">{loadError}</p>{onRetry ? <button className="btn-secondary mt-3" type="button" onClick={onRetry}>Retry</button> : null}</div> : filtered.length ? <>
       <div className="space-y-3 md:hidden">
         {paginatedOrders.map((order) => {
           const supplier = suppliers.find((entry) => entry.id === order.supplierId);
