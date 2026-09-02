@@ -8,7 +8,8 @@ import { emptyFactoryDashboardAnalytics } from "../../utils/factoryDashboardQuer
 const emptyFactoryData = {
   jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [],
   factorySuppliers: [], factoryCustomers: [], storageLocations: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [],
-  productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], auditLogs: [], accessIssues: [],
+  productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [],
+  equipment: [], equipmentCategories: [], mestiCleaningRequirements: [], mestiCleaningSettings: null, mestiCalibrationRequirements: [], mestiCalibrationSettings: null, factoryRoles: [], auditLogs: [], accessIssues: [],
 };
 const factoryModules = moduleRegistry.filter((module) => module.workspace === "factory");
 const factoryRoutes = salesPurchaseRoutes.filter((route) => route.id.startsWith("factory_"));
@@ -25,14 +26,16 @@ function setup() {
   vi.spyOn(factoryService, "getProductionPlanningOpenJobOrderAggregate").mockResolvedValue({});
   vi.spyOn(factoryService, "listMestiCleaningDay").mockResolvedValue([]);
   vi.spyOn(factoryService, "listMestiCleaningMonth").mockResolvedValue([]);
+  vi.spyOn(factoryService, "listMestiCalibrationSchedule").mockResolvedValue([]);
+  vi.spyOn(factoryService, "listMestiCalibrationRecords").mockResolvedValue([]);
 }
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Factory route completeness contract", () => {
   it("resolves every registered Factory route to its own labeled page instead of the generic Dashboard fallback", async () => {
-    expect(factoryModules).toHaveLength(23);
-    expect(factoryRoutes).toHaveLength(23);
+    expect(factoryModules).toHaveLength(24);
+    expect(factoryRoutes).toHaveLength(24);
 
     for (const module of factoryModules) {
       const route = factoryRoutes.find((candidate) => candidate.id === module.id);

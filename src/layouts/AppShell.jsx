@@ -68,6 +68,7 @@ const iconMap = {
   "factory-product-recipes": FlaskConical,
   "factory-sop": FileText,
   "factory-equipment": Factory,
+  "factory-mesti-calibration": ClipboardCheck,
   "factory-audit-logs": KeyRound,
   "factory-storage-locations": Warehouse,
   "factory-suppliers": Truck,

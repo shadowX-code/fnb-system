@@ -1207,6 +1207,8 @@ function emptyFactoryData() {
     qcChecklistTemplates: [],
     mestiCleaningRequirements: [],
     mestiCleaningSettings: null,
+    mestiCalibrationRequirements: [],
+    mestiCalibrationSettings: null,
     factoryRoles: [],
     auditLogs: [],
     accessIssues: [],
@@ -1222,6 +1224,7 @@ const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,pho
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
 const factoryRoleSelect = "id,name,description,is_active";
 const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
+const mestiCalibrationRequirementSelect = "id,logical_requirement_id,equipment_id,calibration_type,interval_months,effective_from,effective_until,status,version_no,superseded_by,created_at,updated_at,equipment:factory_equipment(id,equipment_code,name,category:factory_equipment_categories(name),location:factory_storage_locations(location_name))";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
@@ -1591,6 +1594,7 @@ export function factoryDataPlan(scope, hasPermission) {
   const isProductStockCheck = scope === "product-stock-check";
   const isProductionSop = scope === "production-sop";
   const isMestiCleaning = scope === "mesti-cleaning";
+  const isMestiCalibration = scope === "mesti-calibration";
   const isEquipment = scope === "equipment";
   const needsProductionSummary = isProduction || isReports || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements;
   const canTraceBatches = can("factory_batch_traceability.view");
@@ -1604,7 +1608,7 @@ export function factoryDataPlan(scope, hasPermission) {
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: false,
     storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isEquipment && can("factory_equipment.view")) || (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
-    equipment: (isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage"))) || (isProduction && (can("factory_production.complete") || can("factory_production.view"))),
+    equipment: (isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage"))) || (isMestiCalibration && can("factory_mesti_calibration.view")) || (isProduction && (can("factory_production.complete") || can("factory_production.view"))),
     equipmentCategories: isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage")),
     rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
     receivings: (isRawInventory && can("factory_raw_inventory.view")) || (isReports && can("factory_production_reports.view")) || (isProduction && can("factory_raw_receiving.view")),
@@ -1621,7 +1625,9 @@ export function factoryDataPlan(scope, hasPermission) {
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
     mestiCleaningRequirements: isMestiCleaning && can("factory_mesti_cleaning.view"),
     mestiCleaningSettings: isMestiCleaning && can("factory_mesti_cleaning.view"),
-    factoryRoles: isMestiCleaning && can("factory_mesti_cleaning.view"),
+    mestiCalibrationRequirements: isMestiCalibration && can("factory_mesti_calibration.view"),
+    mestiCalibrationSettings: isMestiCalibration && can("factory_mesti_calibration.view"),
+    factoryRoles: (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isMestiCalibration && can("factory_mesti_calibration.view")),
     auditLogs: false,
   };
 }
@@ -1758,6 +1764,10 @@ export const factoryService = {
       .select("responsible_role_id,verifier_role_id,updated_at")
       .eq("id", true)
       .limit(1), (rows) => mapMestiCleaningSettings(rows[0]));
+    addTask(plan.mestiCalibrationRequirements, "mestiCalibrationRequirements", "MeSTI Calibration Requirements", () => supabase
+      .from("factory_mesti_calibration_requirements").select(mestiCalibrationRequirementSelect).is("effective_until", null).order("updated_at", { ascending: false }), (rows) => rows || []);
+    addTask(plan.mestiCalibrationSettings, "mestiCalibrationSettings", "MeSTI Calibration Settings", () => supabase
+      .from("factory_mesti_calibration_settings").select("responsible_role_id,verifier_role_id,updated_at").limit(1), (rows) => rows[0] || null);
     addTask(plan.factoryRoles, "factoryRoles", "Factory Roles", () => supabase
       .from("roles")
       .select(factoryRoleSelect)
@@ -2700,6 +2710,43 @@ export const factoryService = {
     const { data, error } = await supabase.rpc("factory_mesti_cleaning_day", { p_due_date: dueDate });
     throwSupabaseError("factory.mesti_cleaning.day", error);
     return (Array.isArray(data) ? data : []).map(mapMestiCleaningOccurrence);
+  },
+
+  async listMestiCalibrationSchedule() {
+    const { data, error } = await supabase.rpc("factory_mesti_calibration_schedule");
+    throwSupabaseError("factory.mesti_calibration.schedule", error);
+    return Array.isArray(data) ? data : [];
+  },
+  async listMestiCalibrationRecords() {
+    const { data, error } = await supabase.rpc("factory_mesti_calibration_records");
+    throwSupabaseError("factory.mesti_calibration.records", error);
+    return Array.isArray(data) ? data : [];
+  },
+  async saveMestiCalibrationSettings(settings) {
+    const { data, error } = await supabase.rpc("factory_save_mesti_calibration_settings", { p_settings: settings });
+    throwSupabaseError("factory.mesti_calibration.settings", error);
+    await logFactoryAction({ action: "factory_mesti_calibration_settings_updated", target: "Calibration Settings", description: "Factory MeSTI Calibration Settings updated.", after: data });
+    return data;
+  },
+  async saveMestiCalibrationRequirement(requirement) {
+    const { data, error } = await supabase.rpc("factory_save_mesti_calibration_requirement", { p_requirement: requirement });
+    throwSupabaseError("factory.mesti_calibration.requirement", error);
+    if (!requirement.id || data?.version_created) {
+      await logFactoryAction({ action: requirement.id ? "factory_mesti_calibration_requirement_versioned" : "factory_mesti_calibration_requirement_created", target: data?.calibration_type || requirement.calibration_type, description: requirement.id ? "Factory MeSTI Calibration Requirement versioned." : "Factory MeSTI Calibration Requirement created.", after: data });
+    }
+    return data;
+  },
+  async recordMestiCalibration(requirementId, record) {
+    const { data, error } = await supabase.rpc("factory_mesti_record_calibration", { p_requirement_id: requirementId, p_record: record });
+    throwSupabaseError("factory.mesti_calibration.record", error);
+    await logFactoryAction({ action: "factory_mesti_calibration_recorded", target: requirementId, description: "Factory MeSTI Calibration recorded.", after: data });
+    return data;
+  },
+  async verifyMestiCalibration(recordId) {
+    const { data, error } = await supabase.rpc("factory_mesti_verify_calibration", { p_record_id: recordId });
+    throwSupabaseError("factory.mesti_calibration.verify", error);
+    await logFactoryAction({ action: "factory_mesti_calibration_verified", target: recordId, description: "Factory MeSTI Calibration verified.", after: data });
+    return data;
   },
 
   async listMestiCleaningMonth(month) {

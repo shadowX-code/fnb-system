@@ -722,6 +722,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true },
   },
   {
+    id: "factory_mesti_calibration",
+    section: "MeSTI",
+    label: "Calibration Schedule & Record",
+    route: "/factory/mesti/calibration",
+    icon: "factory-mesti-calibration",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, complete: true, review: true, manage: true },
+  },
+  {
     id: "factory_product_recipes",
     section: "Master Data",
     label: "Product Recipes",

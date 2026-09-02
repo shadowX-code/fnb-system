@@ -350,6 +350,12 @@ export const routeDetails = {
     permission: "factory_mesti_cleaning.view",
     props: { initialTab: "mesti-cleaning" },
   },
+  factory_mesti_calibration: {
+    description: "Schedule, record and verify Factory equipment calibration.",
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_calibration.view",
+    props: { initialTab: "mesti-calibration" },
+  },
   factory_product_recipes: {
     description: "Manage standard raw material BOMs for Finished Goods production defaults.",
     component: FactoryWorkspacePage,
