@@ -6,6 +6,7 @@ const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260
 const locationDirectMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902132726_factory_mesti_cleaning_location_direct.sql"), "utf8");
 const versionIdentityMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902142206_factory_mesti_cleaning_requirement_version_identity.sql"), "utf8");
 const readIdentityMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902144520_factory_mesti_cleaning_read_logical_requirement_identity.sql"), "utf8");
+const moduleSettingsMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902162000_factory_mesti_cleaning_module_settings_and_monthly_groups.sql"), "utf8");
 
 describe("Factory MeSTI Cleaning migration contract", () => {
   it("canonicalizes Factory Location storage eligibility without replacing the location master", () => {
@@ -61,5 +62,17 @@ describe("Factory MeSTI Cleaning migration contract", () => {
     expect(readIdentityMigration).toContain("'logical_requirement_id', o.logical_requirement_id");
     expect(readIdentityMigration).toContain("create or replace function public.factory_mesti_cleaning_day");
     expect(readIdentityMigration).toContain("create or replace function public.factory_mesti_cleaning_month");
+  });
+
+  it("uses one module-level role setting and returns task-grouped Monthly evidence", () => {
+    expect(moduleSettingsMigration).toContain("create table if not exists public.factory_mesti_cleaning_settings");
+    expect(moduleSettingsMigration).toContain("drop column if exists responsible_role_id");
+    expect(moduleSettingsMigration).toContain("drop column if exists verifier_role_id");
+    expect(moduleSettingsMigration).toContain("factory_save_mesti_cleaning_settings");
+    expect(moduleSettingsMigration).toContain("delete from public.factory_mesti_cleaning_occurrences");
+    expect(moduleSettingsMigration).toContain("logical_requirement_id, due_date");
+    expect(moduleSettingsMigration).toContain("'occurrences', occurrences");
+    expect(moduleSettingsMigration).toContain("when unsatisfactory_count > 0 then 'unsatisfactory'");
+    expect(moduleSettingsMigration).toContain("when verified_count = total_count then 'verified'");
   });
 });

@@ -1,5 +1,10 @@
 # FeedX Development Log
 
+## 2026-09-02 - Factory MeSTI Cleaning module roles and Monthly task projection
+
+- Moved Cleaning responsible/verifier assignment into one trusted module-level Cleaning Settings record; requirements retain schedule-only versioned configuration and finalized occurrence role snapshots remain immutable.
+- Added trusted future-pending rematerialization after role-setting changes and a task-grouped Monthly read model with aggregate state/counts and retained per-Location audit detail.
+
 Purpose: milestone changelog for meaningful FeedX development sessions. This file preserves delivery history but is not architecture or current-system authority. Current code and migrations take precedence, followed by tests/contracts and the canonical documentation routed from `docs/README.md`. Release notes under `docs/releases/` document Production releases.
 
 ## September 2026 — Factory MeSTI Cleaning Foundation

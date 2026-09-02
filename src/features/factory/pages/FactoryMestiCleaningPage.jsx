@@ -32,10 +32,6 @@ const statusMeta = {
   missed: { label: "Missed", tone: "danger", icon: XCircle },
 };
 
-function roleName(roles, roleId) {
-  return roles.find((role) => role.id === roleId)?.name || "Role";
-}
-
 function recurrenceLabel(row) {
   if (row.recurrence_type === "daily") return "Daily";
   const labels = (row.recurrence_weekdays || []).map((day) => weekdays.find((item) => item.value === Number(day))?.label).filter(Boolean);
@@ -73,7 +69,7 @@ function groupByLocation(rows) {
 }
 
 function emptyRequirementDraft() {
-  return { task_name: "", location_ids: [], recurrence_type: "daily", recurrence_weekdays: [1], responsible_role_id: "", verifier_role_id: "", status: "active", effective_from: malaysiaBusinessDateInput() };
+  return { task_name: "", location_ids: [], recurrence_type: "daily", recurrence_weekdays: [1], status: "active", effective_from: malaysiaBusinessDateInput() };
 }
 
 function DetailPanel({ occurrence, onClose }) {
@@ -90,6 +86,28 @@ function DetailPanel({ occurrence, onClose }) {
   </Card>;
 }
 
+function MonthlyDetailPanel({ detail, onClose }) {
+  if (!detail) return null;
+  return <Card title={`${detail.task_name} · ${formatFactoryDate(detail.due_date)}`} description="Location-level occurrence evidence">
+    <FactoryTable rows={detail.occurrences} columns={[
+      { key: "location", label: "Location", render: (row) => <div className="font-bold text-text-primary">{row.location_name}</div> },
+      { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+      { key: "completed", label: "Completed", render: (row) => row.completed_at ? <div><div className="font-semibold">{row.completed_by_name || "Completed"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.completed_at)}</div></div> : "-" },
+      { key: "verified", label: "Verified", render: (row) => row.verified_at ? <div><div className="font-semibold">{row.verified_by_name || "Verified"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.verified_at)}</div></div> : "-" },
+    ]} />
+    <div className="border-t border-border p-3 text-right"><button className="btn-secondary" type="button" onClick={onClose}>Close</button></div>
+  </Card>;
+}
+
+function monthlyCellLabel(cell) {
+  if (cell.status === "mixed") return `${cell.verified_count}/${cell.total_count}`;
+  if (cell.status === "verified") return "V";
+  if (cell.status === "completed") return "C";
+  if (cell.status === "unsatisfactory") return "U";
+  if (cell.status === "missed") return "M";
+  return "P";
+}
+
 export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const masterData = useFactoryMasterData();
   const { can } = useFactoryPermissions();
@@ -103,8 +121,10 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [monthLoading, setMonthLoading] = useState(false);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState(null);
+  const [monthlyDetail, setMonthlyDetail] = useState(null);
   const [showRequirementForm, setShowRequirementForm] = useState(false);
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
+  const [settingsDraft, setSettingsDraft] = useState(masterData.mestiCleaningSettings || { responsible_role_id: "", verifier_role_id: "" });
   const roles = masterData.factoryRoles || [];
   const activeLocations = (masterData.storageLocations || []).filter((location) => location.status === "active");
   const currentEmployeeId = auth?.profile?.id || "";
@@ -113,6 +133,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const canSaveSetup = canManage || can("factory_mesti_cleaning.create") || can("factory_mesti_cleaning.edit");
 
   useEffect(() => setRequirements(masterData.mestiCleaningRequirements || []), [masterData.mestiCleaningRequirements]);
+  useEffect(() => setSettingsDraft(masterData.mestiCleaningSettings || { responsible_role_id: "", verifier_role_id: "" }), [masterData.mestiCleaningSettings]);
 
   const loadDaily = useCallback(async () => {
     setLoading(true);
@@ -180,6 +201,19 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
     }
   }
 
+  async function saveSettings(event) {
+    event.preventDefault();
+    try {
+      const saved = await factoryService.saveMestiCleaningSettings(settingsDraft);
+      setSettingsDraft(saved);
+      onNotify?.({ title: "Cleaning Settings saved", message: "Future pending Cleaning occurrences will use the configured roles.", tone: "success" });
+      await loadDaily();
+      if (activeTab === "monthly") await loadMonthly();
+    } catch (saveError) {
+      onNotify?.({ title: "Cleaning Settings save failed", message: saveError.message || "Unable to save Cleaning Settings.", tone: "error" });
+    }
+  }
+
   const summary = useMemo(() => ({
     pending: dailyRows.filter((row) => row.status === "pending" || row.status === "missed").length,
     completed: dailyRows.filter((row) => row.status === "completed").length,
@@ -188,9 +222,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   }), [dailyRows]);
   const grouped = [...groupByLocation(dailyRows).values()];
   const days = monthDays(month);
-  const matrixRequirementId = (row) => row.logical_requirement_id || row.requirement_id;
-  const matrixKeys = [...new Map(monthlyRows.map((row) => [`${row.location_id}:${matrixRequirementId(row)}`, row])).values()];
-  const byKeyDate = new Map(monthlyRows.map((row) => [`${row.location_id}:${matrixRequirementId(row)}:${row.due_date}`, row]));
+  const monthlyCells = new Map(monthlyRows.flatMap((row) => (row.days || []).map((cell) => [`${row.logical_requirement_id}:${cell.due_date}`, cell])));
 
   return <div className="space-y-5">
     <PageHeader section="MeSTI" title="Cleaning of Area" description="Daily cleaning completion, supervisor verification, and monthly compliance history." actions={<button className="btn-secondary" type="button" onClick={activeTab === "monthly" ? loadMonthly : loadDaily}><RefreshCw size={15} /> Refresh</button>} />
@@ -222,21 +254,27 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       <Card title="Monthly Compliance Matrix" description="Historical months render from preserved Cleaning occurrences.">
         {monthLoading ? <div className="p-4 text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] border-collapse text-left text-xs">
-            <thead><tr className="border-b border-border text-text-muted"><th className="sticky left-0 z-10 bg-white px-3 py-2">Task / Location</th><th className="px-3 py-2">Frequency</th>{days.map((day) => <th key={day} className="w-9 px-1 py-2 text-center">{Number(day.slice(-2))}</th>)}</tr></thead>
-            <tbody className="divide-y divide-border">{matrixKeys.map((row) => <tr key={`${row.location_id}:${matrixRequirementId(row)}`}><td className="sticky left-0 z-10 bg-white px-3 py-2"><div className="font-bold text-text-primary">{row.task_name}</div><div className="text-text-secondary">{row.location_name}</div></td><td className="whitespace-nowrap px-3 py-2 font-semibold text-text-secondary">{recurrenceLabel(row)}</td>{days.map((day) => { const cell = byKeyDate.get(`${row.location_id}:${matrixRequirementId(row)}:${day}`); return <td key={day} className="px-1 py-1 text-center">{cell ? <button className={`inline-flex h-7 w-7 items-center justify-center rounded-lg border text-[10px] font-black ${occurrenceTone(cell.status) === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : occurrenceTone(cell.status) === "danger" ? "border-rose-200 bg-rose-50 text-rose-700" : occurrenceTone(cell.status) === "info" ? "border-sky-200 bg-sky-50 text-sky-700" : "border-amber-200 bg-amber-50 text-amber-700"}`} type="button" title={statusMeta[cell.status]?.label} onClick={() => setDetail(cell)}>{cell.status === "verified" ? "V" : cell.status === "completed" ? "C" : cell.status === "unsatisfactory" ? "U" : cell.status === "missed" ? "M" : "P"}</button> : null}</td>; })}</tr>)}</tbody>
+            <thead><tr className="border-b border-border text-text-muted"><th className="sticky left-0 z-10 bg-white px-3 py-2">Task</th><th className="px-3 py-2">Frequency</th>{days.map((day) => <th key={day} className="w-11 px-1 py-2 text-center">{Number(day.slice(-2))}</th>)}</tr></thead>
+            <tbody className="divide-y divide-border">{monthlyRows.map((row) => <tr key={row.logical_requirement_id}><td className="sticky left-0 z-10 bg-white px-3 py-2"><div className="font-bold text-text-primary">{row.task_name}</div></td><td className="whitespace-nowrap px-3 py-2 font-semibold text-text-secondary">{recurrenceLabel(row)}</td>{days.map((day) => { const cell = monthlyCells.get(`${row.logical_requirement_id}:${day}`); return <td key={day} className="px-1 py-1 text-center">{cell ? <button className={`inline-flex h-7 min-w-7 items-center justify-center rounded-lg border px-1 text-[10px] font-black ${occurrenceTone(cell.status) === "success" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : occurrenceTone(cell.status) === "danger" ? "border-rose-200 bg-rose-50 text-rose-700" : occurrenceTone(cell.status) === "info" ? "border-sky-200 bg-sky-50 text-sky-700" : cell.status === "mixed" ? "border-violet-200 bg-violet-50 text-violet-700" : "border-amber-200 bg-amber-50 text-amber-700"}`} type="button" title={cell.status === "mixed" ? `${cell.verified_count} of ${cell.total_count} verified` : statusMeta[cell.status]?.label} onClick={() => setMonthlyDetail({ ...cell, task_name: row.task_name })}>{monthlyCellLabel(cell)}</button> : null}</td>; })}</tr>)}</tbody>
           </table>
-          {!matrixKeys.length ? <EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." /> : null}
+          {!monthlyRows.length ? <EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." /> : null}
         </div>}
       </Card>
-      <DetailPanel occurrence={detail} onClose={() => setDetail(null)} />
+      <MonthlyDetailPanel detail={monthlyDetail} onClose={() => setMonthlyDetail(null)} />
     </> : null}
 
-    {activeTab === "setup" ? <Card title="Cleaning Requirements" action={canSaveSetup ? <button className="btn-primary" type="button" onClick={() => { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(true); }}><Plus size={15} /> Create Requirement</button> : null}>
+    {activeTab === "setup" ? <>
+      <Card title="Cleaning Settings" description="Roles apply to all future Cleaning occurrences.">
+        <form className="grid gap-3 p-4 md:grid-cols-3" onSubmit={saveSettings}>
+          <Field label="Responsible Role"><SearchableSelect value={settingsDraft.responsible_role_id} options={roles.map((role) => ({ value: role.id, label: role.name }))} onChange={(responsible_role_id) => setSettingsDraft((current) => ({ ...current, responsible_role_id }))} placeholder="Select role" /></Field>
+          <Field label="Verifier Role"><SearchableSelect value={settingsDraft.verifier_role_id} options={roles.map((role) => ({ value: role.id, label: role.name }))} onChange={(verifier_role_id) => setSettingsDraft((current) => ({ ...current, verifier_role_id }))} placeholder="Select role" /></Field>
+          <div className="flex items-end"><button className="btn-primary" type="submit" disabled={!canManage}>Save Settings</button></div>
+        </form>
+      </Card>
+      <Card title="Cleaning Requirements" action={canSaveSetup ? <button className="btn-primary" type="button" onClick={() => { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(true); }}><Plus size={15} /> Create Requirement</button> : null}>
       {showRequirementForm ? <form className="grid gap-3 border-b border-border p-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={saveRequirement}>
         <Field label="Task Name"><input className={inputClass()} value={requirementDraft.task_name} onChange={(event) => setRequirementDraft((current) => ({ ...current, task_name: event.target.value }))} placeholder="Floor, Ceiling, Drain" required /></Field>
         <Field label="Recurrence"><SearchableSelect value={requirementDraft.recurrence_type} options={[{ value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }]} onChange={(recurrence_type) => setRequirementDraft((current) => ({ ...current, recurrence_type }))} /></Field>
-        <Field label="Responsible Role"><SearchableSelect value={requirementDraft.responsible_role_id} options={roles.map((role) => ({ value: role.id, label: role.name }))} onChange={(responsible_role_id) => setRequirementDraft((current) => ({ ...current, responsible_role_id }))} placeholder="Select role" /></Field>
-        <Field label="Verifier Role"><SearchableSelect value={requirementDraft.verifier_role_id} options={roles.map((role) => ({ value: role.id, label: role.name }))} onChange={(verifier_role_id) => setRequirementDraft((current) => ({ ...current, verifier_role_id }))} placeholder="Select role" /></Field>
         <Field label="Effective From"><FeedXDatePicker value={requirementDraft.effective_from} onChange={(effective_from) => setRequirementDraft((current) => ({ ...current, effective_from }))} /></Field>
         <Field label="Status"><SearchableSelect value={requirementDraft.status} options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} onChange={(status) => setRequirementDraft((current) => ({ ...current, status }))} /></Field>
         {requirementDraft.recurrence_type === "weekly" ? <div className="md:col-span-2 xl:col-span-3"><div className="mb-1 text-xs font-semibold text-text-muted">Weekdays</div><div className="flex flex-wrap gap-2">{weekdays.map((day) => <label key={day.value} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold"><input type="checkbox" checked={(requirementDraft.recurrence_weekdays || []).includes(day.value)} onChange={(event) => setRequirementDraft((current) => ({ ...current, recurrence_weekdays: event.target.checked ? [...new Set([...(current.recurrence_weekdays || []), day.value])] : (current.recurrence_weekdays || []).filter((value) => value !== day.value) }))} />{day.label}</label>)}</div></div> : null}
@@ -247,10 +285,10 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
         { key: "task", label: "Task", render: (row) => <div><div className="font-bold">{row.task_name}</div><div className="text-xs text-text-secondary">Version {row.version_no || 1}</div></div> },
         { key: "locations", label: "Locations", render: (row) => <div className="max-w-md text-xs font-semibold text-text-secondary">{(row.location_names || []).join(", ") || "No locations"}</div> },
         { key: "frequency", label: "Frequency", render: recurrenceLabel },
-        { key: "roles", label: "Roles", render: (row) => <div className="text-xs font-semibold text-text-secondary"><div>Do: {roleName(roles, row.responsible_role_id)}</div><div>Verify: {roleName(roles, row.verifier_role_id)}</div></div> },
         { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</Badge> },
         { key: "actions", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={!canSaveSetup} onClick={() => { setRequirementDraft(row); setShowRequirementForm(true); }}>Edit</button> },
       ]} emptyTitle="No Cleaning Requirements" />
-    </Card> : null}
+      </Card>
+    </> : null}
   </div>;
 }

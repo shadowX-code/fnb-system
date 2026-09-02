@@ -68,13 +68,16 @@ begin
   perform set_config('request.jwt.claims', jsonb_build_object('sub', qa_admin, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
 
+  perform public.factory_save_mesti_cleaning_settings(jsonb_build_object(
+    'responsible_role_id', qa_role::text,
+    'verifier_role_id', qa_role::text
+  ));
+
   created := public.factory_save_mesti_cleaning_requirement(jsonb_build_object(
     'task_name', 'QA Version Identity Rollback',
     'location_ids', jsonb_build_array(second_location::text, first_location::text),
     'recurrence_type', 'daily',
     'recurrence_weekdays', jsonb_build_array(),
-    'responsible_role_id', qa_role::text,
-    'verifier_role_id', qa_role::text,
     'status', 'active',
     'effective_from', current_date::text
   ));
@@ -90,8 +93,6 @@ begin
     'location_ids', jsonb_build_array(first_location::text, second_location::text),
     'recurrence_type', 'daily',
     'recurrence_weekdays', jsonb_build_array(),
-    'responsible_role_id', qa_role::text,
-    'verifier_role_id', qa_role::text,
     'status', 'active',
     'effective_from', current_date::text
   ));
@@ -128,8 +129,6 @@ begin
     'location_ids', jsonb_build_array(first_location::text, second_location::text),
     'recurrence_type', 'weekly',
     'recurrence_weekdays', jsonb_build_array(extract(isodow from current_date + 1)::int),
-    'responsible_role_id', qa_role::text,
-    'verifier_role_id', qa_role::text,
     'status', 'active',
     'effective_from', (current_date + 1)::text
   ));
@@ -186,8 +185,6 @@ begin
     'location_ids', jsonb_build_array(first_location::text, second_location::text),
     'recurrence_type', 'weekly',
     'recurrence_weekdays', jsonb_build_array(extract(isodow from current_date + 2)::int),
-    'responsible_role_id', qa_role::text,
-    'verifier_role_id', qa_role::text,
     'status', 'active',
     'effective_from', (current_date + 2)::text
   ));
@@ -206,20 +203,23 @@ begin
   from jsonb_array_elements(public.factory_mesti_cleaning_day(current_date)) row(value)
   where row.value->>'task_name' = 'QA Version Identity Rollback';
   select count(*) into monthly_count
-  from jsonb_array_elements(public.factory_mesti_cleaning_month(date_trunc('month', current_date)::date)) row(value)
-  where row.value->>'task_name' = 'QA Version Identity Rollback'
-    and row.value->>'due_date' = current_date::text;
-  if daily_count <> 2 or monthly_count <> 2 then
-    raise exception 'FAIL Daily/Monthly did not return exactly one Task/Location/date state.';
+  from jsonb_array_elements(public.factory_mesti_cleaning_month(date_trunc('month', current_date)::date)) requirement(value)
+  cross join lateral jsonb_array_elements(requirement.value->'days') day(value)
+  where requirement.value->>'logical_requirement_id' = created_logical_id::text
+    and day.value->>'due_date' = current_date::text
+    and jsonb_array_length(day.value->'occurrences') = 2;
+  if daily_count <> 2 or monthly_count <> 1 then
+    raise exception 'FAIL Daily/Monthly did not return canonical Task/Location/date evidence.';
   end if;
   if exists (
     select 1
-    from jsonb_array_elements(public.factory_mesti_cleaning_month(date_trunc('month', current_date)::date)) row(value)
-    where row.value->>'task_name' = 'QA Version Identity Rollback'
-      and row.value->>'due_date' = current_date::text
-      and row.value->>'logical_requirement_id' <> created_logical_id::text
+    from jsonb_array_elements(public.factory_mesti_cleaning_month(date_trunc('month', current_date)::date)) requirement(value)
+    cross join lateral jsonb_array_elements(requirement.value->'days') day(value)
+    where requirement.value->>'logical_requirement_id' = created_logical_id::text
+      and day.value->>'due_date' = current_date::text
+      and day.value->>'status' <> 'mixed'
   ) then
-    raise exception 'FAIL Monthly did not project the stable logical requirement identity.';
+    raise exception 'FAIL Monthly did not aggregate Location states under the logical requirement.';
   end if;
 
   insert into factory_mesti_cleaning_version_identity_results

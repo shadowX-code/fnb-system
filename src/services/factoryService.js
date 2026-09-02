@@ -1204,6 +1204,7 @@ function emptyFactoryData() {
     sops: [],
     qcChecklistTemplates: [],
     mestiCleaningRequirements: [],
+    mestiCleaningSettings: null,
     factoryRoles: [],
     auditLogs: [],
     accessIssues: [],
@@ -1216,7 +1217,7 @@ const storageLocationSelect = "id,location_name,location_code,location_type,is_s
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
 const factoryRoleSelect = "id,name,description,is_active";
-const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,responsible_role_id,verifier_role_id,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
+const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
@@ -1255,8 +1256,6 @@ function mapMestiCleaningRequirement(row) {
     task_name: row.task_name || "",
     recurrence_type: row.recurrence_type || "daily",
     recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
-    responsible_role_id: row.responsible_role_id || "",
-    verifier_role_id: row.verifier_role_id || "",
     status: row.status || "active",
     effective_from: row.effective_from || "",
     effective_until: row.effective_until || "",
@@ -1266,6 +1265,15 @@ function mapMestiCleaningRequirement(row) {
     location_names: Array.isArray(row.location_names) ? row.location_names : locations.map((item) => item.location?.location_name).filter(Boolean),
     created_at: row.created_at,
     updated_at: row.updated_at,
+  };
+}
+
+function mapMestiCleaningSettings(row) {
+  if (!row) return null;
+  return {
+    responsible_role_id: row.responsible_role_id || "",
+    verifier_role_id: row.verifier_role_id || "",
+    updated_at: row.updated_at || "",
   };
 }
 
@@ -1294,6 +1302,26 @@ function mapMestiCleaningOccurrence(row) {
     verified_at: row.verified_at || "",
     verification_result: row.verification_result || "",
     verification_note: row.verification_note || "",
+  };
+}
+
+function mapMestiCleaningMonthlyRequirement(row) {
+  return {
+    logical_requirement_id: row.logical_requirement_id || "",
+    task_name: row.task_name || "",
+    recurrence_type: row.recurrence_type || "daily",
+    recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
+    days: (Array.isArray(row.days) ? row.days : []).map((day) => ({
+      due_date: day.due_date || "",
+      status: day.status || "pending",
+      total_count: Number(day.total_count || 0),
+      verified_count: Number(day.verified_count || 0),
+      completed_count: Number(day.completed_count || 0),
+      unsatisfactory_count: Number(day.unsatisfactory_count || 0),
+      missed_count: Number(day.missed_count || 0),
+      pending_count: Number(day.pending_count || 0),
+      occurrences: (Array.isArray(day.occurrences) ? day.occurrences : []).map(mapMestiCleaningOccurrence),
+    })),
   };
 }
 
@@ -1585,6 +1613,7 @@ export function factoryDataPlan(scope, hasPermission) {
       && (can("factory_production_sop.view") || can("factory_production.view") || can("factory_production.complete")),
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
     mestiCleaningRequirements: isMestiCleaning && can("factory_mesti_cleaning.view"),
+    mestiCleaningSettings: isMestiCleaning && can("factory_mesti_cleaning.view"),
     factoryRoles: isMestiCleaning && can("factory_mesti_cleaning.view"),
     auditLogs: false,
   };
@@ -1713,6 +1742,11 @@ export const factoryService = {
       .select(mestiCleaningRequirementSelect)
       .is("effective_until", null)
       .order("task_name", { ascending: true }), (rows) => rows.map(mapMestiCleaningRequirement));
+    addTask(plan.mestiCleaningSettings, "mestiCleaningSettings", "MeSTI Cleaning Settings", () => supabase
+      .from("factory_mesti_cleaning_settings")
+      .select("responsible_role_id,verifier_role_id,updated_at")
+      .eq("id", true)
+      .limit(1), (rows) => mapMestiCleaningSettings(rows[0]));
     addTask(plan.factoryRoles, "factoryRoles", "Factory Roles", () => supabase
       .from("roles")
       .select(factoryRoleSelect)
@@ -2615,7 +2649,19 @@ export const factoryService = {
   async listMestiCleaningMonth(month) {
     const { data, error } = await supabase.rpc("factory_mesti_cleaning_month", { p_month: `${month}-01` });
     throwSupabaseError("factory.mesti_cleaning.month", error);
-    return (Array.isArray(data) ? data : []).map(mapMestiCleaningOccurrence);
+    return (Array.isArray(data) ? data : []).map(mapMestiCleaningMonthlyRequirement);
+  },
+
+  async saveMestiCleaningSettings(settings) {
+    const { data, error } = await supabase.rpc("factory_save_mesti_cleaning_settings", { p_settings: settings });
+    throwSupabaseError("factory.mesti_cleaning.settings.save", error);
+    await logFactoryAction({
+      action: "factory_mesti_cleaning_settings_updated",
+      target: "Cleaning Settings",
+      description: "Factory MeSTI Cleaning Settings updated.",
+      after: data,
+    });
+    return mapMestiCleaningSettings(data);
   },
 
   async saveMestiCleaningRequirement(requirement) {

@@ -28,9 +28,9 @@ Later edits must not rewrite the recipe, BOM, or SOP context attached to histori
 Master-data records may be retired or made inactive according to current state rules, but referenced history remains valid.
 Factory Location is the canonical physical-location master. The legacy internal `factory_storage_locations` contract remains stable for compatibility, while user-facing UI labels it as Location. `is_storage_location` controls whether an active Location may be selected by raw material, receiving, production output, finished goods, and stock workflows. Non-storage active Locations may still be referenced by appropriate non-inventory Factory workflows such as MeSTI Cleaning.
 
-MeSTI Cleaning Requirements bind tasks directly to one or more canonical Factory Locations. They define the task, structured recurrence, responsible role, verifier role, active status, and effective-from/version boundary. Daily and selected-weekday weekly recurrence are stored as structured fields; frequency labels are derived for display. A Location may participate in multiple requirements, and one requirement may apply to multiple Locations.
+MeSTI Cleaning Requirements bind tasks directly to one or more canonical Factory Locations. They define the task, structured recurrence, active status, and effective-from/version boundary. Responsible and verifier roles are a single canonical Cleaning Settings record for the module, not per-requirement overrides. Daily and selected-weekday weekly recurrence are stored as structured fields; frequency labels are derived for display. A Location may participate in multiple requirements, and one requirement may apply to multiple Locations.
 
-Cleaning Occurrences are generated/materialized by trusted database authorities for due dates and preserve an immutable requirement/Location snapshot. Later Cleaning Requirement edits create forward-effective configuration versions and must not rewrite historical occurrence meaning.
+Cleaning Occurrences are generated/materialized by trusted database authorities for due dates and preserve an immutable requirement/Location/role snapshot. Later Cleaning Requirement or module-role edits only affect actionable future projections and must not rewrite finalized historical occurrence meaning. Daily is Location-centric. Monthly is a canonical task-centric projection keyed by logical requirement identity, with per-date aggregate state and retained Location-level drill-down evidence.
 
 Units, quantities, product/material relationships, storage eligibility, recurrence configuration, and duplicate constraints are server-validated where protected.
 
@@ -40,7 +40,7 @@ Admin access requires the relevant Factory master-data permission and applicable
 Trusted saves derive actors server-side and use explicit grants.
 Recipe/BOM versions, SOP publication/version state, material relationships, MeSTI Cleaning completion/verification evidence, and meaningful supplier/customer/location changes retain auditability.
 
-Cleaning occurrence completion is authorized by the requirement's responsible role, and verification is authorized by the verifier role. The same employee cannot verify their own completion by default. The server derives the actual completing and verifying employee from Admin Auth through the canonical employee/Auth link.
+Cleaning occurrence completion is authorized by the role snapshotted from Cleaning Settings at materialization, and verification is authorized by the corresponding verifier-role snapshot. The same employee cannot verify their own completion by default. The server derives the actual completing and verifying employee from Admin Auth through the canonical employee/Auth link.
 
 ## Workflows And Integrations
 
