@@ -16,7 +16,7 @@ Restaurant suppliers and recipes remain restaurant-owned unless a deliberate sha
 - Product Recipe/BOM drafts, versions, components, quantities, units, and yield context
 - Production SOP records, versions, attachments, and status
 - Factory Locations and other Factory reference/configuration records
-- MeSTI Cleaning Areas and Cleaning Requirements
+- MeSTI Cleaning Requirements
 - Factory suppliers and customers
 
 ## Lifecycle And Business Rules
@@ -26,11 +26,11 @@ Published or execution-ready recipes and SOPs are versioned or pinned according 
 Later edits must not rewrite the recipe, BOM, or SOP context attached to historical production.
 
 Master-data records may be retired or made inactive according to current state rules, but referenced history remains valid.
-Factory Location is the canonical physical-location master. The legacy internal `factory_storage_locations` contract remains stable for compatibility, while user-facing UI labels it as Location. `is_storage_location` controls whether an active Location may be selected by raw material, receiving, production output, finished goods, and stock workflows. Non-storage active Locations may still be referenced by appropriate non-inventory Factory workflows such as MeSTI Cleaning Areas.
+Factory Location is the canonical physical-location master. The legacy internal `factory_storage_locations` contract remains stable for compatibility, while user-facing UI labels it as Location. `is_storage_location` controls whether an active Location may be selected by raw material, receiving, production output, finished goods, and stock workflows. Non-storage active Locations may still be referenced by appropriate non-inventory Factory workflows such as MeSTI Cleaning.
 
-MeSTI Cleaning Areas are compliance-facing labels bound to exactly one canonical Factory Location. Cleaning Requirements define the task, applicable areas, structured recurrence, responsible role, verifier role, active status, and effective-from/version boundary. Daily and selected-weekday weekly recurrence are stored as structured fields; frequency labels are derived for display.
+MeSTI Cleaning Requirements bind tasks directly to one or more canonical Factory Locations. They define the task, structured recurrence, responsible role, verifier role, active status, and effective-from/version boundary. Daily and selected-weekday weekly recurrence are stored as structured fields; frequency labels are derived for display. A Location may participate in multiple requirements, and one requirement may apply to multiple Locations.
 
-Cleaning Occurrences are generated/materialized by trusted database authorities for due dates and preserve an immutable requirement/area snapshot. Later Cleaning Requirement edits create forward-effective configuration versions and must not rewrite historical occurrence meaning.
+Cleaning Occurrences are generated/materialized by trusted database authorities for due dates and preserve an immutable requirement/Location snapshot. Later Cleaning Requirement edits create forward-effective configuration versions and must not rewrite historical occurrence meaning.
 
 Units, quantities, product/material relationships, storage eligibility, recurrence configuration, and duplicate constraints are server-validated where protected.
 
@@ -44,7 +44,7 @@ Cleaning occurrence completion is authorized by the requirement's responsible ro
 
 ## Workflows And Integrations
 
-Authorized Admins maintain products/materials, compose and version recipes/BOM, manage production SOPs, configure Locations and MeSTI Cleaning Areas/Requirements, and maintain supplier and customer records.
+Authorized Admins maintain products/materials, compose and version recipes/BOM, manage production SOPs, configure Locations and MeSTI Cleaning Requirements, and maintain supplier and customer records.
 Factory Production pins the appropriate master-data versions for planning and execution.
 Factory Warehouse consumes material, product, storage, supplier, and customer references for receipts, movements, and dispatch.
 Factory MeSTI Cleaning consumes canonical Locations and roles while owning its daily/monthly compliance occurrence evidence.

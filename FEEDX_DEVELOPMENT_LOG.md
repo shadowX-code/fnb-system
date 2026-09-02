@@ -8,6 +8,7 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Extended the existing Factory Location master with `is_storage_location` while preserving the internal `factory_storage_locations` contract; existing locations remain storage-enabled, and inventory selectors now exclude active non-storage Locations.
 - Added trusted MeSTI Cleaning RPCs for idempotent occurrence materialization, completion, verification, unsatisfactory marking, self-verification blocking, and immutable requirement/area snapshots for historical monthly compliance.
 - Registered the Factory sidebar MeSTI section with only Cleaning of Area implemented; future MeSTI report placeholders remain out of scope.
+- Replaced the staging-only Cleaning Area abstraction with direct Cleaning Requirement to canonical Location assignment, preserving occurrence lifecycle, verification authority, and immutable Location snapshots.
 
 ## September 2026 — Reward Finalization Readiness
 

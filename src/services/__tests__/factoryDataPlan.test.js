@@ -33,7 +33,6 @@ describe("Factory Job Orders scoped data plan", () => {
     const plan = factoryDataPlan("mesti-cleaning", can);
 
     expect(plan.storageLocations).toBe(true);
-    expect(plan.mestiCleaningAreas).toBe(true);
     expect(plan.mestiCleaningRequirements).toBe(true);
     expect(plan.factoryRoles).toBe(true);
     expect(plan.jobOrders).toBe(false);

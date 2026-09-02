@@ -33,4 +33,11 @@ describe("Factory stock-changing trusted RPC contracts", () => {
     await factoryService.verifyMestiCleaningOccurrence("occ-1", "verified", "ok");
     expect(mocks.rpc).toHaveBeenCalledWith("factory_mesti_verify_cleaning_occurrence", { p_occurrence_id: "occ-1", p_result: "verified", p_note: "ok" });
   });
+
+  it("maps MeSTI Cleaning requirements directly to Location assignments", async () => {
+    const requirement = { task_name: "Floor", location_ids: ["loc-1", "loc-2"], recurrence_type: "daily", responsible_role_id: "role-1", verifier_role_id: "role-2" };
+    mocks.rpc.mockResolvedValue({ data: { id: "req-1", ...requirement, location_names: ["Cooking", "Dry Store"] }, error: null });
+    await factoryService.saveMestiCleaningRequirement(requirement);
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_save_mesti_cleaning_requirement", { p_requirement: requirement });
+  });
 });

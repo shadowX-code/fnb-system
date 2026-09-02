@@ -25,6 +25,6 @@ This matrix records the data-bearing render paths that guard Factory route refac
 | Locations | Active location, storage eligibility, and independent action permissions | `FactoryMasterDataActionIntents.test.jsx`, `FactoryStorageLocationsPage.permissions.test.jsx` |
 | Suppliers | Active supplier and bounded create/edit/archive intents | `FactoryMasterDataActionIntents.test.jsx` |
 | Customers | Active customer and bounded create/edit/archive intents | `FactoryMasterDataActionIntents.test.jsx` |
-| MeSTI Cleaning of Area | Daily occurrence lifecycle, monthly matrix, setup area/requirement flows, responsible/verifier authority | `FactoryMestiCleaningPage.test.jsx`, `factoryMestiCleaningMigration.contract.test.js` |
+| MeSTI Cleaning of Area | Daily occurrence lifecycle, monthly matrix, direct Location/Requirement setup, responsible/verifier authority | `FactoryMestiCleaningPage.test.jsx`, `factoryMestiCleaningMigration.contract.test.js` |
 
 When extracting or moving a Factory renderer, extend the matching data-bearing test before changing ownership. Any helper referenced only inside a populated row, card, modal, or conditional branch must be imported from a shared utility or defined locally.
