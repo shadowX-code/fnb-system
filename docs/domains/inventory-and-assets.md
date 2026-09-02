@@ -49,6 +49,8 @@ Purchasing can supply receipt context but does not own stock posting.
 Restaurant finance may consume valuation or usage projections without taking inventory write ownership.
 People/RBAC supplies identity and scope.
 
+The Purchase Orders route owns a focused authenticated read model for PO headers, lines, receipts, receipt items, and the inventory-item/outlet context required by its existing actions. It does not wait for unrelated Inventory Master metadata such as item-supplier links; full Inventory Control reads remain the owner for the other inventory routes. The PO read paginates canonical rows and verifies its header count so a row-limit cannot silently truncate the list.
+
 ## Compatibility And Deferred Scope
 
 Inventory Control and Asset Tracking pages are surfaces within this domain, not separate documentation domains.

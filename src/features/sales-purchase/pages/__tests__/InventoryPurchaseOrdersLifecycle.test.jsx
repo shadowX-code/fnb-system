@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ tables: {}, operations: [], notifications: [], rpcResponses: {}, singleResponses: {}, from: vi.fn(), rpc: vi.fn() }));
+const mocks = vi.hoisted(() => ({ tables: {}, operations: [], notifications: [], rpcResponses: {}, singleResponses: {}, tableErrors: {}, deferredTables: {}, from: vi.fn(), rpc: vi.fn() }));
 
 vi.mock("../../../../lib/supabase.ts", () => {
   const rowsFor = (table, filters = []) => (mocks.tables[table] || []).filter((row) => filters.every(({ kind, key, value }) => {
@@ -22,10 +22,15 @@ vi.mock("../../../../lib/supabase.ts", () => {
     builder.neq = vi.fn((key, value) => { filters.push({ kind: "neq", key, value }); return builder; });
     builder.in = vi.fn((key, value) => { filters.push({ kind: "in", key, value }); return builder; });
     builder.order = vi.fn(() => builder);
+    builder.range = vi.fn(() => builder);
     builder.limit = vi.fn(() => builder);
     builder.ilike = vi.fn(() => builder);
     builder.single = vi.fn(async () => mocks.singleResponses[table]?.shift() || ({ data: rowsFor(table, filters)[0] || null, error: null }));
-    builder.then = (resolve, reject) => Promise.resolve({ data: rowsFor(table, filters), error: null }).then(resolve, reject);
+    builder.then = (resolve, reject) => {
+      const deferred = mocks.deferredTables[table];
+      if (deferred) return deferred.then(resolve, reject);
+      return Promise.resolve({ data: rowsFor(table, filters), error: mocks.tableErrors[table] || null }).then(resolve, reject);
+    };
     return builder;
   };
   mocks.from.mockImplementation(from);
@@ -102,13 +107,38 @@ function orderTableRow(poNo) {
   return row;
 }
 
-beforeEach(() => { mocks.operations.length = 0; mocks.notifications.length = 0; mocks.rpcResponses = {}; mocks.singleResponses = {}; mocks.from.mockClear(); mocks.rpc.mockClear(); });
+beforeEach(() => { mocks.operations.length = 0; mocks.notifications.length = 0; mocks.rpcResponses = {}; mocks.singleResponses = {}; mocks.tableErrors = {}; mocks.deferredTables = {}; mocks.from.mockClear(); mocks.rpc.mockClear(); });
 afterEach(() => {
   window.history.replaceState(null, "", "/");
   cleanup();
 });
 
 describe("InventoryControlPage Purchase Orders lifecycle", () => {
+  it("keeps the PO page loading until its own read model resolves", async () => {
+    let resolveOrders;
+    mocks.deferredTables.inventory_purchase_orders = new Promise((resolve) => { resolveOrders = resolve; });
+    mount();
+    expect(await screen.findByRole("status")).toBeTruthy();
+    resolveOrders({ data: mocks.tables.inventory_purchase_orders, error: null, count: mocks.tables.inventory_purchase_orders.length });
+    await ready();
+  });
+
+  it("does not request unrelated supplier-link metadata before rendering purchase orders", async () => {
+    mocks.tableErrors.inventory_item_outlet_suppliers = new Error("supplier links unavailable");
+    mount(); await ready();
+    expect(mocks.from.mock.calls.map(([table]) => table)).not.toContain("inventory_item_outlet_suppliers");
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("keeps a Purchase Order read failure explicit and retryable", async () => {
+    mocks.tableErrors.inventory_purchase_orders = new Error("purchase order read timed out");
+    mount();
+    expect((await screen.findByRole("alert")).textContent).toContain("purchase order read timed out");
+    mocks.tableErrors = {};
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await ready();
+  });
+
   it("renders current non-empty PO states, fulfillment, and search/status filters", async () => {
     mount(); await ready();
     expect(screen.getAllByText(/PO-PARTIAL/).length).toBeGreaterThan(0);

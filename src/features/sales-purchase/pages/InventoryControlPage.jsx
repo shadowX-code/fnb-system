@@ -1581,6 +1581,72 @@ async function loadRemoteInventoryMaster() {
   };
 }
 
+const PURCHASE_ORDER_PAGE_SIZE = 500;
+
+async function loadAllPurchaseOrderRows(createQuery) {
+  const rows = [];
+  let offset = 0;
+  let expectedCount = null;
+
+  while (true) {
+    const result = await createQuery(offset, offset + PURCHASE_ORDER_PAGE_SIZE - 1);
+    if (result.error) throw result.error;
+    const page = result.data || [];
+    if (expectedCount === null && Number.isFinite(result.count)) expectedCount = result.count;
+    rows.push(...page);
+    if (page.length < PURCHASE_ORDER_PAGE_SIZE) {
+      if (expectedCount !== null && rows.length !== expectedCount) {
+        throw new Error(`Purchase Order read returned ${rows.length} of ${expectedCount} rows.`);
+      }
+      return { rows, count: expectedCount ?? rows.length };
+    }
+    offset += page.length;
+  }
+}
+
+async function loadRemotePurchaseOrdersReadModel() {
+  const [itemsResult, itemOutletsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult] = await Promise.all([
+    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_items").select("*").order("created_at", { ascending: false }).range(from, to)),
+    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_item_outlets").select("*").order("created_at", { ascending: false }).range(from, to)),
+    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_purchase_orders").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(from, to)),
+    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_purchase_order_items").select("*").order("created_at", { ascending: true }).range(from, to)),
+    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_purchase_receipts").select("*").order("received_at", { ascending: false }).range(from, to)),
+    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_purchase_receipt_items").select("*").order("created_at", { ascending: true }).range(from, to)),
+  ]);
+
+  const configsByItem = new Map();
+  itemOutletsResult.rows.forEach((config) => {
+    const list = configsByItem.get(config.inventory_item_id) || [];
+    list.push(config);
+    configsByItem.set(config.inventory_item_id, list);
+  });
+  const items = itemsResult.rows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || []));
+  const purchaseItemsByOrderId = new Map();
+  purchaseOrderItemsResult.rows.forEach((row) => {
+    const list = purchaseItemsByOrderId.get(row.purchase_order_id) || [];
+    list.push(row);
+    purchaseItemsByOrderId.set(row.purchase_order_id, list);
+  });
+  const receiptItemsByReceiptId = new Map();
+  purchaseReceiptItemsResult.rows.forEach((row) => {
+    const list = receiptItemsByReceiptId.get(row.receipt_id) || [];
+    list.push(row);
+    receiptItemsByReceiptId.set(row.receipt_id, list);
+  });
+  const receiptsByOrderId = new Map();
+  purchaseReceiptsResult.rows.forEach((receipt) => {
+    const list = receiptsByOrderId.get(receipt.purchase_order_id) || [];
+    list.push({ ...receipt, items: receiptItemsByReceiptId.get(receipt.id) || [] });
+    receiptsByOrderId.set(receipt.purchase_order_id, list);
+  });
+
+  return {
+    items,
+    orders: purchaseOrdersResult.rows.map((order) => mapRemotePurchaseOrder(order, purchaseItemsByOrderId.get(order.id) || [], receiptsByOrderId.get(order.id) || [])),
+    purchaseOrderCount: purchaseOrdersResult.count,
+  };
+}
+
 async function persistRemoteInventoryItem(item, userId, accessibleOutletIds = null) {
   const normalized = normalizeInventoryItem(item);
   const mode = isUuid(normalized.id) ? "edit" : "create";
@@ -2777,7 +2843,7 @@ function defaultData(outlets = [], suppliers = []) {
   };
 }
 
-function useInventoryData(outlets, suppliers) {
+function useInventoryData(outlets, suppliers, readScope = "full") {
   const [data, setData] = useState(() => {
     clearInventoryBrowserCache();
     return normalizeInventoryData({ categories: [], items: [], uoms: [] }, outlets, suppliers, { allowEmptyMaster: true });
@@ -2803,22 +2869,22 @@ function useInventoryData(outlets, suppliers) {
     clearInventoryBrowserCache();
     setMeta((current) => ({ ...current, dataSource: current.dataSource === "supabase" ? "refreshing" : "loading" }));
     try {
-      const remote = await loadRemoteInventoryMaster();
+      const remote = readScope === "orders" ? await loadRemotePurchaseOrdersReadModel() : await loadRemoteInventoryMaster();
       if (requestId !== refreshRequestRef.current) return null;
       const fetchedAt = new Date().toISOString();
       setData((current) => normalizeInventoryData({
         ...current,
-        categories: remote.categories,
+        categories: remote.categories ?? current.categories,
         items: remote.items,
-        uoms: remote.uoms,
-        groups: remote.groups,
-        checks: remote.checks,
+        uoms: remote.uoms ?? current.uoms,
+        groups: remote.groups ?? current.groups,
+        checks: remote.checks ?? current.checks,
         orders: remote.orders,
-        movements: remote.movements,
-        waste: remote.waste,
-        menuCategories: remote.menuCategories,
-        recipes: remote.recipes,
-        people: remote.people,
+        movements: remote.movements ?? current.movements,
+        waste: remote.waste ?? current.waste,
+        menuCategories: remote.menuCategories ?? current.menuCategories,
+        recipes: remote.recipes ?? current.recipes,
+        people: remote.people ?? current.people,
       }, outlets, suppliers, { allowEmptyMaster: true }));
       setMeta({
         dataSource: "supabase",
@@ -2827,7 +2893,7 @@ function useInventoryData(outlets, suppliers) {
         normalizedItemsCount: remote.items.length,
         outletLinkCount: remote.outletLinkCount ?? 0,
         fallbackActive: Boolean(remote.fallbackActive),
-        purchaseOrdersError: remote.purchaseOrdersError,
+        purchaseOrdersError: remote.purchaseOrdersError || "",
       });
       return remote;
     } catch (error) {
@@ -2836,7 +2902,7 @@ function useInventoryData(outlets, suppliers) {
       setMeta((current) => ({ ...current, dataSource: "remote_error", lastFetchedAt: current.lastFetchedAt || "", fallbackActive: true, purchaseOrdersError: error.message || "Unable to load purchase orders." }));
       return null;
     }
-  }, [outlets, suppliers]);
+  }, [outlets, suppliers, readScope]);
 
   useEffect(() => {
     let cancelled = false;
@@ -6028,8 +6094,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const initialStockCheckDate = useMemo(getInitialStockCheckDate, []);
   const outlets = useMemo(() => (store?.outlets ?? []).map(normalizeOutletRecord), [store?.outlets]);
   const suppliers = useMemo(() => store?.suppliers ?? [], [store?.suppliers]);
-  const [data, setData, inventoryMeta, refreshInventory] = useInventoryData(outlets, suppliers);
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [data, setData, inventoryMeta, refreshInventory] = useInventoryData(outlets, suppliers, initialTab === "orders" ? "orders" : "full");
   const [selectedOutletId, setSelectedOutletId] = useState("all");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
