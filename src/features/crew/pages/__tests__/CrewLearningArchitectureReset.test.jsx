@@ -165,6 +165,9 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getAllByText("New Crew Onboarding")).toHaveLength(1);
     expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
     expect(screen.getAllByText("8", { selector: ".crew-onboarding-summary strong" })).toHaveLength(2);
+    expect(screen.getByText("Published v2")).not.toBeNull();
+    expect(screen.getByText("Unpublished changes · Draft v3")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Edit Draft" })).not.toBeNull();
     expect(screen.queryByText("Overview")).toBeNull();
     expect(screen.queryByText("Journey Settings")).toBeNull();
     for (const module of modules) expect(screen.getByText(module.title)).not.toBeNull();
@@ -184,14 +187,14 @@ describe("Crew Learning architecture reset UI", () => {
   it("creates the next editable draft through the controlled lifecycle when only a published version exists", async () => {
     mocks.listOnboarding.mockReset().mockResolvedValueOnce([journey]).mockResolvedValueOnce([journey, draftJourney]);
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit Onboarding" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Create Draft" }));
     await waitFor(() => expect(mocks.newJourneyVersion).toHaveBeenCalledWith("journey-2"));
     expect(await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" })).not.toBeNull();
   });
 
   it("retains edits while switching modules and sends one whole-draft save", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
     expect(await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" })).not.toBeNull();
     expect(screen.queryByText("Journey Settings")).toBeNull();
 
@@ -209,16 +212,27 @@ describe("Crew Learning architecture reset UI", () => {
     expect(saved.modules[1].title).toBe("Guest Connection");
   });
 
+  it("keeps module and lesson ordering actions out of the permanent builder chrome", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
+    await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
+    expect(screen.getByText("Module Settings")).not.toBeNull();
+    expect(screen.getByText("Lessons Builder")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Welcome & Workplace essentials actions" }));
+    expect(await screen.findByRole("menuitem", { name: "Move down" })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Delete" })).not.toBeNull();
+  });
+
   it("edits lessons and content in the same editor and preserves unsaved state", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
     await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
     fireEvent.click(screen.getByText("Welcome & Workplace essentials", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
     fireEvent.change(screen.getByLabelText("Lesson Title"), { target: { value: "Welcome to Friends Corner" } });
     fireEvent.click(screen.getByRole("button", { name: "Welcome & Workplace" }));
     fireEvent.click(screen.getByText("Welcome to Friends Corner", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
     expect(screen.getByLabelText("Lesson Title").value).toBe("Welcome to Friends Corner");
-    expect(screen.getByText("Unsaved Changes")).not.toBeNull();
+    expect(screen.getByText("Draft v3 · Unsaved changes")).not.toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: "Add Content" }));
     fireEvent.click(await screen.findByRole("menuitem", { name: "Key Point" }));
@@ -229,7 +243,7 @@ describe("Crew Learning architecture reset UI", () => {
 
   it("uploads learning images into draft state and persists only durable media metadata", async () => {
     const { container } = render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
     await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
     fireEvent.click(screen.getByText("Welcome & Workplace essentials", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
@@ -249,7 +263,7 @@ describe("Crew Learning architecture reset UI", () => {
 
   it("warns before discarding unsaved changes and saves before publish", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
     await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
     fireEvent.change(screen.getByLabelText("Module Title"), { target: { value: "Changed Module" } });
     ui.confirm.mockResolvedValueOnce(false);
@@ -257,7 +271,7 @@ describe("Crew Learning architecture reset UI", () => {
     await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "You have unsaved changes." })));
 
     ui.confirm.mockResolvedValueOnce(true);
-    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    fireEvent.click(screen.getByRole("button", { name: "Publish v3" }));
     await waitFor(() => expect(mocks.saveOnboardingDraft).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(mocks.publishJourney).toHaveBeenCalledWith("journey-draft"));
   });
