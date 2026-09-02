@@ -46,7 +46,7 @@ export default function FinishedGoodMasterModal({ initialValue, categories, stor
   const selectedFamily = productFamilies.find((family) => family.id === form.product_family_id);
   const parentName = selectedFamily?.name_en || form.product_family_name || form.product_name_en || form.product_name || "Unassigned Finished Good";
   const parentCategory = selectedFamily?.category || selectedCategory?.name || form.category || "No category";
-  const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
+  const activeStorageLocations = storageLocations.filter((location) => (location.is_storage_location !== false && location.status === "active") || location.id === form.storage_location_id);
   const storageLocationOptions = [
     { value: "", label: "No Storage Location", helper: "Leave blank" },
     ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
@@ -274,4 +274,3 @@ export default function FinishedGoodMasterModal({ initialValue, categories, stor
     </Modal>
   );
 }
-

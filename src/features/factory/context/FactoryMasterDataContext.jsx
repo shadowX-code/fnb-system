@@ -22,6 +22,9 @@ export function FactoryMasterDataProvider({ data, children }) {
       productionCosts: data?.productionCosts || [],
       rawMaterialMovements: data?.rawMaterialMovements || [],
       rawStockChecks: data?.rawStockChecks || [],
+      mestiCleaningAreas: data?.mestiCleaningAreas || [],
+      mestiCleaningRequirements: data?.mestiCleaningRequirements || [],
+      factoryRoles: data?.factoryRoles || [],
     }),
     [data],
   );

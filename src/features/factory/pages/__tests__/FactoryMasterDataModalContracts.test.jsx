@@ -54,6 +54,21 @@ describe("Factory master-data modal contracts", () => {
     expect(screen.getByText("Create a category before saving raw material master records.")).not.toBeNull();
   });
 
+  it("keeps inventory storage selectors limited to active storage-enabled Locations", () => {
+    const storageEnabled = { id: "storage-enabled", location_name: "Dry Store", location_type: "Dry", status: "active", is_storage_location: true };
+    const nonStorage = { id: "non-storage", location_name: "Preparation Area", location_type: "Production Area", status: "active", is_storage_location: false };
+    const rawView = render(<RawMaterialMasterModal categories={[category]} storageLocations={[storageEnabled, nonStorage]} onClose={vi.fn()} onSave={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Storage Location" }));
+    expect(screen.getByText("Dry Store")).not.toBeNull();
+    expect(screen.queryByText("Preparation Area")).toBeNull();
+    rawView.unmount();
+
+    render(<FinishedGoodMasterModal categories={[category]} storageLocations={[storageEnabled, nonStorage]} productFamilies={[family]} onClose={vi.fn()} onSave={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Storage Location" }));
+    expect(screen.getByText("Dry Store")).not.toBeNull();
+    expect(screen.queryByText("Preparation Area")).toBeNull();
+  });
+
   it("preserves Finished Good, packaging SKU, and category identity at their callback boundaries", async () => {
     const saveGroup = vi.fn().mockResolvedValue(undefined);
     const archiveGroup = vi.fn().mockResolvedValue(undefined);

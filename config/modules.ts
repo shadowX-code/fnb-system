@@ -140,6 +140,7 @@ export const moduleSectionOrder = [
   "Factory",
   "Warehouse",
   "Raw Material",
+  "MeSTI",
   "Master Data",
   "People",
   "Workforce",
@@ -711,6 +712,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true, submit: true, approve: true, export: true },
   },
   {
+    id: "factory_mesti_cleaning",
+    section: "MeSTI",
+    label: "Cleaning of Area",
+    route: "/factory/mesti/cleaning-of-area",
+    icon: "factory-mesti-cleaning",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true },
+  },
+  {
     id: "factory_product_recipes",
     section: "Master Data",
     label: "Product Recipes",
@@ -743,7 +754,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "factory_storage_locations",
     section: "System",
-    label: "Storage Locations",
+    label: "Locations",
     route: "/factory/storage-locations",
     icon: "factory-storage-locations",
     sidebar: true,

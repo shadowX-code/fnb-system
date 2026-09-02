@@ -279,6 +279,7 @@ function mapStorageLocation(row) {
     location_name: row.location_name || "",
     location_code: row.location_code || "",
     location_type: row.location_type || "",
+    is_storage_location: row.is_storage_location !== false,
     status: row.status || "active",
     remarks: row.remarks || "",
     created_at: row.created_at,
@@ -1202,6 +1203,9 @@ function emptyFactoryData() {
     recipes: [],
     sops: [],
     qcChecklistTemplates: [],
+    mestiCleaningAreas: [],
+    mestiCleaningRequirements: [],
+    factoryRoles: [],
     auditLogs: [],
     accessIssues: [],
   };
@@ -1209,9 +1213,12 @@ function emptyFactoryData() {
 
 const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,shelf_life_days,recommended_storage,b2b_price,status,category_ref:factory_finished_good_categories(name),product_family:factory_product_families(name_en,name_cn,name_bm,is_halal,status)";
 const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,shelf_life_days,storage_location_id,storage_location,recommended_storage,b2b_price,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,is_halal,status)";
-const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
+const storageLocationSelect = "id,location_name,location_code,location_type,is_storage_location,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
+const factoryRoleSelect = "id,name,description,is_active";
+const mestiCleaningAreaSelect = "id,area_name,location_id,status,sort_order,created_at,updated_at,location:factory_storage_locations(id,location_name,location_code,location_type,status)";
+const mestiCleaningRequirementSelect = "id,task_name,recurrence_type,recurrence_weekdays,responsible_role_id,verifier_role_id,status,effective_from,version_no,superseded_by,created_at,updated_at,areas:factory_mesti_cleaning_requirement_areas(area_id,area:factory_mesti_cleaning_areas(id,area_name,status))";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
@@ -1232,6 +1239,78 @@ const productionSelectDetailed = `${productionSelectBasic},material_usage:factor
 const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,completed_by,completion_request_id,created_at,updated_at,completed_at,cancelled_at,creator:employees!factory_finished_good_dispatches_created_by_fkey(nickname,full_name),completer:employees!factory_finished_good_dispatches_completed_by_fkey(id,nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}),allocations:factory_finished_good_dispatch_batch_allocations(id,batch_balance_id,production_id,quantity,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,batch:factory_finished_good_batch_balances(id,source_type,current_balance,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
 
 const FACTORY_MASTER_ID_BATCH_SIZE = 300;
+
+function mapFactoryRole(row) {
+  return {
+    id: row.id,
+    name: row.name || "",
+    description: row.description || "",
+    is_active: row.is_active !== false,
+  };
+}
+
+function mapMestiCleaningArea(row) {
+  return {
+    id: row.id,
+    area_name: row.area_name || "",
+    location_id: row.location_id || "",
+    location_name: row.location?.location_name || "",
+    location_code: row.location?.location_code || "",
+    location_type: row.location?.location_type || "",
+    status: row.status || "active",
+    sort_order: Number(row.sort_order || 100),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapMestiCleaningRequirement(row) {
+  const areas = Array.isArray(row.areas) ? row.areas : [];
+  return {
+    id: row.id,
+    task_name: row.task_name || "",
+    recurrence_type: row.recurrence_type || "daily",
+    recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
+    responsible_role_id: row.responsible_role_id || "",
+    verifier_role_id: row.verifier_role_id || "",
+    status: row.status || "active",
+    effective_from: row.effective_from || "",
+    version_no: Number(row.version_no || 1),
+    superseded_by: row.superseded_by || "",
+    area_ids: areas.map((item) => item.area_id).filter(Boolean),
+    area_names: areas.map((item) => item.area?.area_name).filter(Boolean),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapMestiCleaningOccurrence(row) {
+  return {
+    id: row.id,
+    due_date: row.due_date || "",
+    status: row.status || "pending",
+    requirement_id: row.requirement_id || "",
+    area_id: row.area_id || "",
+    task_name: row.task_name || "",
+    area_name: row.area_name || "",
+    location_id: row.location_id || "",
+    recurrence_type: row.recurrence_type || "daily",
+    recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
+    responsible_role_id: row.responsible_role_id || "",
+    verifier_role_id: row.verifier_role_id || "",
+    version_no: Number(row.version_no || 1),
+    completed_by: row.completed_by || "",
+    completed_by_name: row.completed_by_name || "",
+    completed_at: row.completed_at || "",
+    completion_result: row.completion_result || "",
+    completion_note: row.completion_note || "",
+    verified_by: row.verified_by || "",
+    verified_by_name: row.verified_by_name || "",
+    verified_at: row.verified_at || "",
+    verification_result: row.verification_result || "",
+    verification_note: row.verification_note || "",
+  };
+}
 
 function factoryLoadError(label, stage, error) {
   if (error?.name === "AbortError") return error;
@@ -1494,6 +1573,7 @@ export function factoryDataPlan(scope, hasPermission) {
   const isProductMovements = scope === "product-movements";
   const isProductStockCheck = scope === "product-stock-check";
   const isProductionSop = scope === "production-sop";
+  const isMestiCleaning = scope === "mesti-cleaning";
   const needsProductionSummary = isProduction || isReports || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements;
   const canTraceBatches = can("factory_batch_traceability.view");
   const canReadProductionReports = can("factory_production_reports.view") || canTraceBatches;
@@ -1505,7 +1585,7 @@ export function factoryDataPlan(scope, hasPermission) {
     factorySuppliers: (isSuppliers && can("factory_suppliers.view")) || (isRawReceiving && can("factory_raw_receiving.view")),
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: false,
-    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
+    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
     rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
     receivings: (isRawInventory && can("factory_raw_inventory.view")) || (isReports && can("factory_production_reports.view")) || (isProduction && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
@@ -1519,6 +1599,9 @@ export function factoryDataPlan(scope, hasPermission) {
     sops: (isProduction || isProductionSop || isJobOrdersOrProductionOverview)
       && (can("factory_production_sop.view") || can("factory_production.view") || can("factory_production.complete")),
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
+    mestiCleaningAreas: isMestiCleaning && can("factory_mesti_cleaning.view"),
+    mestiCleaningRequirements: isMestiCleaning && can("factory_mesti_cleaning.view"),
+    factoryRoles: isMestiCleaning && can("factory_mesti_cleaning.view"),
     auditLogs: false,
   };
 }
@@ -1641,6 +1724,21 @@ export const factoryService = {
       .from("factory_qc_checklist_templates")
       .select("id,name,category,description,result_mode,is_active,created_at,updated_at")
       .in("id", ids), (rows) => rows);
+    addTask(plan.mestiCleaningAreas, "mestiCleaningAreas", "MeSTI Cleaning Areas", () => supabase
+      .from("factory_mesti_cleaning_areas")
+      .select(mestiCleaningAreaSelect)
+      .order("sort_order", { ascending: true })
+      .order("area_name", { ascending: true }), (rows) => rows.map(mapMestiCleaningArea));
+    addTask(plan.mestiCleaningRequirements, "mestiCleaningRequirements", "MeSTI Cleaning Requirements", () => supabase
+      .from("factory_mesti_cleaning_requirements")
+      .select(mestiCleaningRequirementSelect)
+      .is("superseded_by", null)
+      .order("task_name", { ascending: true }), (rows) => rows.map(mapMestiCleaningRequirement));
+    addTask(plan.factoryRoles, "factoryRoles", "Factory Roles", () => supabase
+      .from("roles")
+      .select(factoryRoleSelect)
+      .eq("is_active", true)
+      .order("name", { ascending: true }), (rows) => rows.map(mapFactoryRole));
     addTask(plan.auditLogs, "auditLogs", "Factory Audit Logs", () => supabase
       .from("audit_logs")
       .select("id,action,module,user_id,user_name,description,metadata,created_at")
@@ -2503,6 +2601,7 @@ export const factoryService = {
       location_name: String(location.location_name || "").trim(),
       location_code: String(location.location_code || "").trim() || null,
       location_type: String(location.location_type || "").trim(),
+      is_storage_location: location.is_storage_location !== false,
       status: location.status || "active",
       remarks: String(location.remarks || "").trim(),
       updated_at: new Date().toISOString(),
@@ -2526,6 +2625,66 @@ export const factoryService = {
       after: data,
     });
     return mapStorageLocation(data);
+  },
+
+  async listMestiCleaningDay(dueDate) {
+    const { data, error } = await supabase.rpc("factory_mesti_cleaning_day", { p_due_date: dueDate });
+    throwSupabaseError("factory.mesti_cleaning.day", error);
+    return (Array.isArray(data) ? data : []).map(mapMestiCleaningOccurrence);
+  },
+
+  async listMestiCleaningMonth(month) {
+    const { data, error } = await supabase.rpc("factory_mesti_cleaning_month", { p_month: `${month}-01` });
+    throwSupabaseError("factory.mesti_cleaning.month", error);
+    return (Array.isArray(data) ? data : []).map(mapMestiCleaningOccurrence);
+  },
+
+  async saveMestiCleaningArea(area) {
+    const { data, error } = await supabase.rpc("factory_save_mesti_cleaning_area", { p_area: area });
+    throwSupabaseError("factory.mesti_cleaning.area.save", error);
+    await logFactoryAction({
+      action: area.id ? "factory_mesti_cleaning_area_updated" : "factory_mesti_cleaning_area_created",
+      target: data?.area_name || area.area_name,
+      description: area.id ? "Factory MeSTI Cleaning Area updated." : "Factory MeSTI Cleaning Area created.",
+      after: data,
+    });
+    return mapMestiCleaningArea(data || area);
+  },
+
+  async saveMestiCleaningRequirement(requirement) {
+    const { data, error } = await supabase.rpc("factory_save_mesti_cleaning_requirement", { p_requirement: requirement });
+    throwSupabaseError("factory.mesti_cleaning.requirement.save", error);
+    await logFactoryAction({
+      action: requirement.id ? "factory_mesti_cleaning_requirement_versioned" : "factory_mesti_cleaning_requirement_created",
+      target: data?.task_name || requirement.task_name,
+      description: requirement.id ? "Factory MeSTI Cleaning Requirement versioned." : "Factory MeSTI Cleaning Requirement created.",
+      after: data,
+    });
+    return mapMestiCleaningRequirement(data || requirement);
+  },
+
+  async completeMestiCleaningOccurrence(occurrenceId, note = "") {
+    const { data, error } = await supabase.rpc("factory_mesti_complete_cleaning_occurrence", { p_occurrence_id: occurrenceId, p_note: note || null });
+    throwSupabaseError("factory.mesti_cleaning.complete", error);
+    await logFactoryAction({
+      action: "factory_mesti_cleaning_completed",
+      target: occurrenceId,
+      description: "Factory MeSTI Cleaning occurrence completed.",
+      after: data,
+    });
+    return data;
+  },
+
+  async verifyMestiCleaningOccurrence(occurrenceId, result = "verified", note = "") {
+    const { data, error } = await supabase.rpc("factory_mesti_verify_cleaning_occurrence", { p_occurrence_id: occurrenceId, p_result: result, p_note: note || null });
+    throwSupabaseError("factory.mesti_cleaning.verify", error);
+    await logFactoryAction({
+      action: result === "unsatisfactory" ? "factory_mesti_cleaning_unsatisfactory" : "factory_mesti_cleaning_verified",
+      target: occurrenceId,
+      description: result === "unsatisfactory" ? "Factory MeSTI Cleaning occurrence marked unsatisfactory." : "Factory MeSTI Cleaning occurrence verified.",
+      after: data,
+    });
+    return data;
   },
 
   async archiveStorageLocation(location) {

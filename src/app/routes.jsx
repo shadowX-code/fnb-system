@@ -344,6 +344,12 @@ export const routeDetails = {
     permission: "factory_product_stock_check.view",
     props: { initialTab: "product-stock-check" },
   },
+  factory_mesti_cleaning: {
+    description: "Complete and verify MeSTI Cleaning of Area requirements with monthly compliance history.",
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_cleaning.view",
+    props: { initialTab: "mesti-cleaning" },
+  },
   factory_product_recipes: {
     description: "Manage standard raw material BOMs for Finished Goods production defaults.",
     component: FactoryWorkspacePage,
@@ -363,7 +369,7 @@ export const routeDetails = {
     props: { initialTab: "audit-logs" },
   },
   factory_storage_locations: {
-    description: "Manage Factory storage locations used by raw material and finished goods master records.",
+    description: "Manage Factory Locations and storage eligibility for stock workflows.",
     component: FactoryWorkspacePage,
     permission: "factory_storage_locations.view",
     props: { initialTab: "storage-locations" },

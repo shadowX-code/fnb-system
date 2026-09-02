@@ -23,14 +23,16 @@ function setup() {
   vi.spyOn(factoryService, "listOperationalJobOrders").mockResolvedValue({ jobs: [], productions: [], summary: {} });
   vi.spyOn(factoryService, "getFactoryDashboardAnalytics").mockResolvedValue(emptyFactoryDashboardAnalytics());
   vi.spyOn(factoryService, "getProductionPlanningOpenJobOrderAggregate").mockResolvedValue({});
+  vi.spyOn(factoryService, "listMestiCleaningDay").mockResolvedValue([]);
+  vi.spyOn(factoryService, "listMestiCleaningMonth").mockResolvedValue([]);
 }
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Factory route completeness contract", () => {
   it("resolves every registered Factory route to its own labeled page instead of the generic Dashboard fallback", async () => {
-    expect(factoryModules).toHaveLength(21);
-    expect(factoryRoutes).toHaveLength(21);
+    expect(factoryModules).toHaveLength(22);
+    expect(factoryRoutes).toHaveLength(22);
 
     for (const module of factoryModules) {
       const route = factoryRoutes.find((candidate) => candidate.id === module.id);

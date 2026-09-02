@@ -38,7 +38,7 @@ Receipts, movements, checks, allocations, dispatch confirmations, and correction
 
 Warehouse users receive raw materials, manage storage and movements, perform stock checks, receive production output, prepare dispatch, and confirm movement or shipment states.
 Factory Production requests/records consumption and output through established contracts.
-Factory Master Data supplies materials, products, storage, supplier, customer, recipe, and unit references.
+Factory Master Data supplies materials, products, storage-enabled Factory Locations, supplier, customer, recipe, and unit references.
 
 ## Compatibility And Deferred Scope
 

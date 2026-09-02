@@ -2,6 +2,13 @@
 
 Purpose: milestone changelog for meaningful FeedX development sessions. This file preserves delivery history but is not architecture or current-system authority. Current code and migrations take precedence, followed by tests/contracts and the canonical documentation routed from `docs/README.md`. Release notes under `docs/releases/` document Production releases.
 
+## September 2026 — Factory MeSTI Cleaning Foundation
+
+- Added the first Factory MeSTI workflow, Cleaning of Area, with Cleaning Areas bound to canonical Factory Locations, structured daily/selected-weekday weekly Cleaning Requirements, responsible/verifier role assignment, and daily/monthly compliance views.
+- Extended the existing Factory Location master with `is_storage_location` while preserving the internal `factory_storage_locations` contract; existing locations remain storage-enabled, and inventory selectors now exclude active non-storage Locations.
+- Added trusted MeSTI Cleaning RPCs for idempotent occurrence materialization, completion, verification, unsatisfactory marking, self-verification blocking, and immutable requirement/area snapshots for historical monthly compliance.
+- Registered the Factory sidebar MeSTI section with only Cleaning of Area implemented; future MeSTI report placeholders remain out of scope.
+
 ## September 2026 — Reward Finalization Readiness
 
 - Hardened the trusted Reward Campaign finalization authority: a Campaign can now become finalized only when its frozen participants have a current complete calculation and every entry is a legitimate final outcome. Missing, uncomputed, malformed, and awaiting-Performance entries atomically block finalization; the Admin read model exposes scoped, human-readable blocker readiness without weakening finalized/paid immutability or payout semantics.

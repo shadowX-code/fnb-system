@@ -28,4 +28,16 @@ describe("Factory Job Orders scoped data plan", () => {
     expect(plan.sops).toBe(true);
     expect(plan.storageLocations).toBe(true);
   });
+
+  it("loads MeSTI Cleaning setup support without production or stock datasets", () => {
+    const plan = factoryDataPlan("mesti-cleaning", can);
+
+    expect(plan.storageLocations).toBe(true);
+    expect(plan.mestiCleaningAreas).toBe(true);
+    expect(plan.mestiCleaningRequirements).toBe(true);
+    expect(plan.factoryRoles).toBe(true);
+    expect(plan.jobOrders).toBe(false);
+    expect(plan.rawMaterials).toBe(false);
+    expect(plan.finishedGoods).toBe(false);
+  });
 });

@@ -34,7 +34,7 @@ The shared Admin shell composes workspace navigation, route visibility, and comm
 | Crew learning and SOP | Active | Onboarding, SOP Library, versioned content, quizzes, and progress evidence. |
 | Crew growth, performance, and reward | Active | Evidence-to-outcome workflows, scoring, certification, and rewards. |
 | Crew localization | Active | Content variants, translation lifecycle, fallback, and frozen snapshots. |
-| Factory | Active | Factory master data, production, warehouse, traceability, and reporting read models. |
+| Factory | Active | Factory master data, production, warehouse, traceability, MeSTI Cleaning compliance, and reporting read models. |
 | Guest AI | In Development | Isolated guest-facing device, voice, and AI-provider prototype validation. |
 
 ## Canonical Domain Ownership
@@ -49,7 +49,7 @@ The shared Admin shell composes workspace navigation, route visibility, and comm
 | Crew learning | Onboarding, SOP, learning, and progress | `docs/domains/crew-learning.md` |
 | Crew performance and reward | Growth, performance, certification, and rewards | `docs/domains/crew-performance-and-reward.md` |
 | Crew localization | Translation and localized snapshots | `docs/domains/crew-localization.md` |
-| Factory master data | Factory reference data, recipes/BOM, and SOP | `docs/domains/factory-master-data.md` |
+| Factory master data | Factory reference data, Locations, MeSTI Cleaning setup, recipes/BOM, and SOP | `docs/domains/factory-master-data.md` |
 | Factory production | Planning, job orders, execution, and batches | `docs/domains/factory-production.md` |
 | Factory warehouse | Raw/finished goods, movements, checks, and dispatch | `docs/domains/factory-warehouse.md` |
 | Guest AI | Bounded prototype and FeedX integration limit | `docs/domains/guest-ai.md` |

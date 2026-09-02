@@ -51,7 +51,7 @@ describe("Factory master-data action intents", () => {
 
     const storageNav = { openCreateStorageLocation: vi.fn(), openEditStorageLocation: vi.fn(), archiveStorageLocation: vi.fn() };
     renderPage(FactoryStorageLocationsPage, { permissions: ["factory_storage_locations.view", "factory_storage_locations.create", "factory_storage_locations.edit", "factory_storage_locations.delete"], data: { storageLocations: [location] }, navigation: storageNav });
-    fireEvent.click(screen.getByRole("button", { name: /storage location/i })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /^location$/i })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(storageNav.openCreateStorageLocation).toHaveBeenCalledTimes(1); expect(storageNav.openEditStorageLocation).toHaveBeenCalledWith(location); expect(storageNav.archiveStorageLocation).toHaveBeenCalledWith(location);
   });
 

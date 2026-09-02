@@ -9,6 +9,7 @@ export default function StorageLocationModal({ initialValue, onClose, onSave }) 
     location_name: "",
     location_code: "",
     location_type: newStorageLocationTypes[0],
+    is_storage_location: true,
     status: "active",
     remarks: "",
     ...initialValue,
@@ -33,8 +34,8 @@ export default function StorageLocationModal({ initialValue, onClose, onSave }) 
 
   return (
     <Modal
-      title={initialValue?.id ? "Edit Storage Location" : "Create Storage Location"}
-      description="Factory storage locations used by raw material and finished goods master records."
+      title={initialValue?.id ? "Edit Location" : "Create Location"}
+      description="Factory Locations are physical areas. Enable storage only when inventory may be held there."
       size="lg"
       onClose={saving ? undefined : onClose}
       footer={(
@@ -79,6 +80,18 @@ export default function StorageLocationModal({ initialValue, onClose, onSave }) 
           <Field label="Remarks">
             <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
           </Field>
+          <label className="flex items-start gap-3 rounded-xl border border-border bg-slate-50 p-3 text-sm font-semibold text-text-primary">
+            <input
+              className="mt-1"
+              type="checkbox"
+              checked={form.is_storage_location !== false}
+              onChange={(event) => setForm((current) => ({ ...current, is_storage_location: event.target.checked }))}
+            />
+            <span>
+              <span className="block">Storage enabled</span>
+              <span className="mt-0.5 block text-xs font-medium text-text-secondary">Inventory, receiving, production output, and stock selectors can use this Location.</span>
+            </span>
+          </label>
         </form>
       </div>
     </Modal>

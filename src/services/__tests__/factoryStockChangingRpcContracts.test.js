@@ -24,4 +24,13 @@ describe("Factory stock-changing trusted RPC contracts", () => {
     mocks.rpc.mockResolvedValue({ error: null }); await factoryService.approveStockCheck(stockType, { id: "check-1", check_no: "SC-1" }, "employee-1");
     expect(mocks.rpc).toHaveBeenCalledWith(rpcName, { p_stock_check_id: "check-1", p_approved_by: null });
   });
+
+  it("maps MeSTI Cleaning completion and verification to trusted RPCs", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: "occ-1", status: "completed" }, error: null });
+    await factoryService.completeMestiCleaningOccurrence("occ-1", "done");
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_mesti_complete_cleaning_occurrence", { p_occurrence_id: "occ-1", p_note: "done" });
+
+    await factoryService.verifyMestiCleaningOccurrence("occ-1", "verified", "ok");
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_mesti_verify_cleaning_occurrence", { p_occurrence_id: "occ-1", p_result: "verified", p_note: "ok" });
+  });
 });

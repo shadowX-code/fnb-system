@@ -47,7 +47,7 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
   const [fieldErrors, setFieldErrors] = useState({});
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
-  const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
+  const activeStorageLocations = storageLocations.filter((location) => (location.is_storage_location !== false && location.status === "active") || location.id === form.storage_location_id);
   const storageLocationOptions = [
     { value: "", label: "No Storage Location", helper: "Leave blank" },
     ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
