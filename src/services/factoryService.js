@@ -1206,6 +1206,7 @@ function emptyFactoryData() {
     sops: [],
     qcChecklistTemplates: [],
     mestiCleaningRequirements: [],
+    mestiEquipmentCleaningRequirements: [],
     mestiCalibrationRequirements: [],
     auditLogs: [],
     accessIssues: [],
@@ -1220,6 +1221,7 @@ const storageLocationSelect = "id,location_name,location_code,location_type,is_s
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
 const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
+const mestiEquipmentCleaningRequirementSelect = "id,logical_requirement_id,task_name,trigger_type,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,equipment_links:factory_mesti_equipment_cleaning_requirement_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name)))";
 const mestiCalibrationRequirementSelect = "id,logical_requirement_id,equipment_id,calibration_type,interval_months,effective_from,effective_until,status,version_no,superseded_by,created_at,updated_at,equipment:factory_equipment(id,equipment_code,name,category:factory_equipment_categories(name),location:factory_storage_locations(location_name))";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
@@ -1259,6 +1261,59 @@ function mapMestiCleaningRequirement(row) {
     location_names: Array.isArray(row.location_names) ? row.location_names : locations.map((item) => item.location?.location_name).filter(Boolean),
     created_at: row.created_at,
     updated_at: row.updated_at,
+  };
+}
+
+function mapMestiEquipmentCleaningRequirement(row) {
+  const equipmentLinks = Array.isArray(row.equipment_links) ? row.equipment_links : [];
+  return {
+    id: row.id,
+    logical_requirement_id: row.logical_requirement_id || row.id,
+    task_name: row.task_name || "",
+    trigger_type: row.trigger_type || "scheduled",
+    recurrence_type: row.recurrence_type || "",
+    recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
+    status: row.status || "active",
+    effective_from: row.effective_from || "",
+    effective_until: row.effective_until || "",
+    version_no: Number(row.version_no || 1),
+    equipment_ids: Array.isArray(row.equipment_ids) ? row.equipment_ids : equipmentLinks.map((item) => item.equipment_id).filter(Boolean),
+    equipment_names: Array.isArray(row.equipment_names) ? row.equipment_names : equipmentLinks.map((item) => [item.equipment?.equipment_code, item.equipment?.name].filter(Boolean).join(" · ")).filter(Boolean),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapMestiEquipmentCleaningOccurrence(row) {
+  return {
+    ...mapMestiCleaningOccurrence(row),
+    equipment_id: row.equipment_id || "",
+    equipment_code: row.equipment_code || "",
+    equipment_name: row.equipment_name || "",
+    trigger_type: row.trigger_type || "scheduled",
+    production_equipment_usage_id: row.production_equipment_usage_id || "",
+    usage_completed_at: row.usage_completed_at || "",
+    production_snapshot: row.production_snapshot || {},
+  };
+}
+
+function mapMestiEquipmentCleaningMonthlyRequirement(row) {
+  return {
+    logical_requirement_id: row.logical_requirement_id || "",
+    task_name: row.task_name || "",
+    trigger_type: row.trigger_type || "scheduled",
+    recurrence_type: row.recurrence_type || "",
+    recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
+    days: (Array.isArray(row.days) ? row.days : []).map((day) => ({
+      ...day,
+      total_count: Number(day.total_count || 0),
+      verified_count: Number(day.verified_count || 0),
+      completed_count: Number(day.completed_count || 0),
+      unsatisfactory_count: Number(day.unsatisfactory_count || 0),
+      missed_count: Number(day.missed_count || 0),
+      pending_count: Number(day.pending_count || 0),
+      occurrences: (Array.isArray(day.occurrences) ? day.occurrences : []).map(mapMestiEquipmentCleaningOccurrence),
+    })),
   };
 }
 
@@ -1570,6 +1625,7 @@ export function factoryDataPlan(scope, hasPermission) {
   const isProductStockCheck = scope === "product-stock-check";
   const isProductionSop = scope === "production-sop";
   const isMestiCleaning = scope === "mesti-cleaning";
+  const isMestiEquipmentCleaning = scope === "mesti-equipment-cleaning";
   const isMestiCalibration = scope === "mesti-calibration";
   const isEquipment = scope === "equipment";
   const needsProductionSummary = isProduction || isReports || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements;
@@ -1584,7 +1640,7 @@ export function factoryDataPlan(scope, hasPermission) {
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: false,
     storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isEquipment && can("factory_equipment.view")) || (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
-    equipment: (isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage"))) || (isMestiCalibration && can("factory_mesti_calibration.view")) || (isProduction && (can("factory_production.complete") || can("factory_production.view"))),
+    equipment: (isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage"))) || (isMestiCalibration && can("factory_mesti_calibration.view")) || (isMestiEquipmentCleaning && can("factory_mesti_equipment_cleaning.view")) || (isProduction && (can("factory_production.complete") || can("factory_production.view"))),
     equipmentCategories: isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage")),
     rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
     receivings: (isRawInventory && can("factory_raw_inventory.view")) || (isReports && can("factory_production_reports.view")) || (isProduction && can("factory_raw_receiving.view")),
@@ -1600,6 +1656,7 @@ export function factoryDataPlan(scope, hasPermission) {
       && (can("factory_production_sop.view") || can("factory_production.view") || can("factory_production.complete")),
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
     mestiCleaningRequirements: isMestiCleaning && can("factory_mesti_cleaning.view"),
+    mestiEquipmentCleaningRequirements: isMestiEquipmentCleaning && can("factory_mesti_equipment_cleaning.view"),
     mestiCalibrationRequirements: isMestiCalibration && can("factory_mesti_calibration.view"),
     auditLogs: false,
   };
@@ -1732,6 +1789,11 @@ export const factoryService = {
       .select(mestiCleaningRequirementSelect)
       .is("effective_until", null)
       .order("task_name", { ascending: true }), (rows) => rows.map(mapMestiCleaningRequirement));
+    addTask(plan.mestiEquipmentCleaningRequirements, "mestiEquipmentCleaningRequirements", "MeSTI Equipment Cleaning Requirements", () => supabase
+      .from("factory_mesti_equipment_cleaning_requirements")
+      .select(mestiEquipmentCleaningRequirementSelect)
+      .is("effective_until", null)
+      .order("task_name", { ascending: true }), (rows) => rows.map(mapMestiEquipmentCleaningRequirement));
     addTask(plan.mestiCalibrationRequirements, "mestiCalibrationRequirements", "MeSTI Calibration Requirements", () => supabase
       .from("factory_mesti_calibration_requirements").select(mestiCalibrationRequirementSelect).is("effective_until", null).order("updated_at", { ascending: false }), (rows) => rows || []);
     addTask(plan.auditLogs, "auditLogs", "Factory Audit Logs", () => supabase
@@ -2671,6 +2733,46 @@ export const factoryService = {
     const { data, error } = await supabase.rpc("factory_mesti_cleaning_day", { p_due_date: dueDate });
     throwSupabaseError("factory.mesti_cleaning.day", error);
     return (Array.isArray(data) ? data : []).map(mapMestiCleaningOccurrence);
+  },
+
+  async listMestiEquipmentCleaningDay(dueDate) {
+    const { data, error } = await supabase.rpc("factory_mesti_equipment_cleaning_day", { p_due_date: dueDate });
+    throwSupabaseError("factory.mesti_equipment_cleaning.day", error);
+    return (Array.isArray(data) ? data : []).map(mapMestiEquipmentCleaningOccurrence);
+  },
+
+  async listMestiEquipmentCleaningMonth(month) {
+    const { data, error } = await supabase.rpc("factory_mesti_equipment_cleaning_month", { p_month: `${month}-01` });
+    throwSupabaseError("factory.mesti_equipment_cleaning.month", error);
+    return (Array.isArray(data) ? data : []).map(mapMestiEquipmentCleaningMonthlyRequirement);
+  },
+
+  async saveMestiEquipmentCleaningRequirement(requirement) {
+    const { data, error } = await supabase.rpc("factory_save_mesti_equipment_cleaning_requirement", { p_requirement: requirement });
+    throwSupabaseError("factory.mesti_equipment_cleaning.requirement.save", error);
+    if (!requirement.id || data?.version_created) {
+      await logFactoryAction({
+        action: requirement.id ? "factory_mesti_equipment_cleaning_requirement_versioned" : "factory_mesti_equipment_cleaning_requirement_created",
+        target: data?.task_name || requirement.task_name,
+        description: requirement.id ? "Factory MeSTI Equipment Cleaning Requirement versioned." : "Factory MeSTI Equipment Cleaning Requirement created.",
+        after: data,
+      });
+    }
+    return mapMestiEquipmentCleaningRequirement(data || requirement);
+  },
+
+  async completeMestiEquipmentCleaningOccurrence(occurrenceId, note = "") {
+    const { data, error } = await supabase.rpc("factory_mesti_complete_equipment_cleaning_occurrence", { p_occurrence_id: occurrenceId, p_note: note || null });
+    throwSupabaseError("factory.mesti_equipment_cleaning.complete", error);
+    await logFactoryAction({ action: "factory_mesti_equipment_cleaning_completed", target: occurrenceId, description: "Factory MeSTI Equipment Cleaning occurrence completed.", after: data });
+    return data;
+  },
+
+  async verifyMestiEquipmentCleaningOccurrence(occurrenceId, result = "verified", note = "") {
+    const { data, error } = await supabase.rpc("factory_mesti_verify_equipment_cleaning_occurrence", { p_occurrence_id: occurrenceId, p_result: result, p_note: note || null });
+    throwSupabaseError("factory.mesti_equipment_cleaning.verify", error);
+    await logFactoryAction({ action: "factory_mesti_equipment_cleaning_verified", target: occurrenceId, description: "Factory MeSTI Equipment Cleaning occurrence verified.", after: data });
+    return data;
   },
 
   async listMestiCalibrationSchedule() {

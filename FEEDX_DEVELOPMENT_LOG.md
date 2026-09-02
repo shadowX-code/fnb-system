@@ -513,3 +513,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Removed duplicated Cleaning of Area and Calibration Responsible/Verifier role configuration from Factory setup, service loading, and trusted authorities.
 - Preserved immutable Cleaning occurrence and Calibration record evidence while moving all future action authorization to canonical FeedX permissions with server-side self-verification denial.
+
+## 2026-09-03 - Factory MeSTI Cleaning of Equipment
+
+- Added Cleaning of Equipment under Factory MeSTI with scheduled daily/weekly requirements and After Operation requirements sourced only from completed canonical Production Equipment Usage evidence.
+- Added forward-effective logical requirement versions, no-op saves, database-level scheduled/usage-event occurrence identities, trusted lifecycle RPCs, canonical permissions, and immutable Equipment/Production provenance snapshots.

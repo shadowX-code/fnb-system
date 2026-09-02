@@ -350,6 +350,12 @@ export const routeDetails = {
     permission: "factory_mesti_cleaning.view",
     props: { initialTab: "mesti-cleaning" },
   },
+  factory_mesti_equipment_cleaning: {
+    description: "Complete and verify scheduled and after-operation MeSTI equipment cleaning.",
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_equipment_cleaning.view",
+    props: { initialTab: "mesti-equipment-cleaning" },
+  },
   factory_mesti_calibration: {
     description: "Schedule, record and verify Factory equipment calibration.",
     component: FactoryWorkspacePage,
