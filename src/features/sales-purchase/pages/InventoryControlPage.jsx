@@ -1577,6 +1577,7 @@ async function loadRemoteInventoryMaster() {
     rawItemCount: itemRows.length,
     outletLinkCount: itemOutletRows.length,
     fallbackActive: false,
+    purchaseOrdersError: purchaseOrdersResult.error?.message || "",
   };
 }
 
@@ -2781,7 +2782,8 @@ function useInventoryData(outlets, suppliers) {
     clearInventoryBrowserCache();
     return normalizeInventoryData({ categories: [], items: [], uoms: [] }, outlets, suppliers, { allowEmptyMaster: true });
   });
-  const [meta, setMeta] = useState({ dataSource: "fallback", lastFetchedAt: "", rawItemsCount: 0, normalizedItemsCount: 0, outletLinkCount: 0, fallbackActive: true });
+  const [meta, setMeta] = useState({ dataSource: "fallback", lastFetchedAt: "", rawItemsCount: 0, normalizedItemsCount: 0, outletLinkCount: 0, fallbackActive: true, purchaseOrdersError: "" });
+  const refreshRequestRef = useRef(0);
 
   useEffect(() => {
     if (!outlets.length) return;
@@ -2797,10 +2799,12 @@ function useInventoryData(outlets, suppliers) {
   }, [outlets, suppliers, meta.dataSource]);
 
   const refreshInventory = useCallback(async () => {
+    const requestId = ++refreshRequestRef.current;
     clearInventoryBrowserCache();
     setMeta((current) => ({ ...current, dataSource: current.dataSource === "supabase" ? "refreshing" : "loading" }));
     try {
       const remote = await loadRemoteInventoryMaster();
+      if (requestId !== refreshRequestRef.current) return null;
       const fetchedAt = new Date().toISOString();
       setData((current) => normalizeInventoryData({
         ...current,
@@ -2823,11 +2827,13 @@ function useInventoryData(outlets, suppliers) {
         normalizedItemsCount: remote.items.length,
         outletLinkCount: remote.outletLinkCount ?? 0,
         fallbackActive: Boolean(remote.fallbackActive),
+        purchaseOrdersError: remote.purchaseOrdersError,
       });
       return remote;
     } catch (error) {
+      if (requestId !== refreshRequestRef.current) return null;
       console.warn("[InventoryControl] Unable to load remote master inventory. Keeping in-memory fallback data.", error);
-      setMeta((current) => ({ ...current, dataSource: "remote_error", lastFetchedAt: current.lastFetchedAt || "", fallbackActive: true }));
+      setMeta((current) => ({ ...current, dataSource: "remote_error", lastFetchedAt: current.lastFetchedAt || "", fallbackActive: true, purchaseOrdersError: error.message || "Unable to load purchase orders." }));
       return null;
     }
   }, [outlets, suppliers]);
@@ -9386,6 +9392,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       todayInput={todayInput}
       statusTone={statusTone}
       onFiltersChange={setPoFilters}
+      loadState={inventoryMeta.dataSource}
+      loadError={inventoryMeta.purchaseOrdersError}
+      onRetry={refreshInventory}
       onRequestEdit={(order) => requirePermission(can.editPo, "edit purchase orders") && setModal({ type: "po-edit", order })}
       onSubmit={(order) => requirePermission(can.submitPo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted")}
       onConfirm={(order) => requirePermission(can.submitPo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}
