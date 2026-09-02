@@ -51,6 +51,22 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
   });
 
+  it("keeps after-operation trigger, due date, and production provenance in the Monthly drill-down", async () => {
+    factoryService.listMestiEquipmentCleaningMonth.mockResolvedValue([{
+      logical_requirement_id: "logical-usage",
+      task_name: "Clean After Operation",
+      trigger_type: "after_operation",
+      recurrence_type: "",
+      days: [{ due_date: "2026-09-03", status: "completed", total_count: 1, verified_count: 0, occurrences: [afterOperation] }],
+    }]);
+    renderPage();
+    fireEvent.click(await screen.findByRole("tab", { name: "monthly" }));
+    fireEvent.click(await screen.findByRole("button", { name: "0/1" }));
+    expect((await screen.findAllByText("After operation")).length).toBeGreaterThan(1);
+    expect(screen.getByText("2026-09-03")).not.toBeNull();
+    expect(screen.getByText(/Chicken Curry Paste/)).not.toBeNull();
+  });
+
   it("keeps setup focused on Cleaning Requirements and sends ordered canonical Equipment IDs", async () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "setup" }));
