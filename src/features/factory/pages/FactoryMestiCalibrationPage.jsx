@@ -32,7 +32,7 @@ function FilterBar({ filters, locations, setFilters }) {
   </div>;
 }
 
-export default function FactoryMestiCalibrationPage({ onNotify }) {
+export default function FactoryMestiCalibrationPage({ onNotify, onRefreshFactoryData }) {
   const master = useFactoryMasterData();
   const { can } = useFactoryPermissions();
   const [tab, setTab] = useState("schedule");
@@ -68,13 +68,14 @@ export default function FactoryMestiCalibrationPage({ onNotify }) {
     try {
       const saved = await factoryService.saveMestiCalibrationRequirement(requirement);
       setRequirement(null);
+      await onRefreshFactoryData?.({ silent: true });
       await load();
       onNotify?.({ title: saved?.version_created ? "Calibration requirement version created" : "Calibration requirement unchanged", tone: "success" });
     } catch (saveError) { setError(saveError.message); }
   }
   async function saveSettings(event) {
     event.preventDefault();
-    try { await factoryService.saveMestiCalibrationSettings(settings); onNotify?.({ title: "Calibration settings saved", tone: "success" }); } catch (saveError) { setError(saveError.message); }
+    try { await factoryService.saveMestiCalibrationSettings(settings); await onRefreshFactoryData?.({ silent: true }); onNotify?.({ title: "Calibration settings saved", tone: "success" }); } catch (saveError) { setError(saveError.message); }
   }
   async function record(event) {
     event.preventDefault();
