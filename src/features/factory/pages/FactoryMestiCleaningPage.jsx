@@ -171,7 +171,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
     event.preventDefault();
     try {
       const saved = await factoryService.saveMestiCleaningRequirement(requirementDraft);
-      setRequirements((current) => [saved, ...current.filter((requirement) => requirement.id !== requirementDraft.id && requirement.id !== saved.id)]);
+      setRequirements((current) => [saved, ...current.filter((requirement) => requirement.logical_requirement_id !== saved.logical_requirement_id && requirement.id !== requirementDraft.id && requirement.id !== saved.id)]);
       resetRequirementForm();
       await loadDaily();
       if (activeTab === "monthly") await loadMonthly();

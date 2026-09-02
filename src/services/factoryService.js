@@ -1216,7 +1216,7 @@ const storageLocationSelect = "id,location_name,location_code,location_type,is_s
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
 const factoryRoleSelect = "id,name,description,is_active";
-const mestiCleaningRequirementSelect = "id,task_name,recurrence_type,recurrence_weekdays,responsible_role_id,verifier_role_id,status,effective_from,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
+const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,responsible_role_id,verifier_role_id,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
@@ -1251,6 +1251,7 @@ function mapMestiCleaningRequirement(row) {
   const locations = Array.isArray(row.locations) ? row.locations : [];
   return {
     id: row.id,
+    logical_requirement_id: row.logical_requirement_id || row.id,
     task_name: row.task_name || "",
     recurrence_type: row.recurrence_type || "daily",
     recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
@@ -1258,6 +1259,7 @@ function mapMestiCleaningRequirement(row) {
     verifier_role_id: row.verifier_role_id || "",
     status: row.status || "active",
     effective_from: row.effective_from || "",
+    effective_until: row.effective_until || "",
     version_no: Number(row.version_no || 1),
     superseded_by: row.superseded_by || "",
     location_ids: Array.isArray(row.location_ids) ? row.location_ids : locations.map((item) => item.location_id).filter(Boolean),
@@ -1708,7 +1710,7 @@ export const factoryService = {
     addTask(plan.mestiCleaningRequirements, "mestiCleaningRequirements", "MeSTI Cleaning Requirements", () => supabase
       .from("factory_mesti_cleaning_requirements")
       .select(mestiCleaningRequirementSelect)
-      .is("superseded_by", null)
+      .is("effective_until", null)
       .order("task_name", { ascending: true }), (rows) => rows.map(mapMestiCleaningRequirement));
     addTask(plan.factoryRoles, "factoryRoles", "Factory Roles", () => supabase
       .from("roles")
@@ -2618,12 +2620,14 @@ export const factoryService = {
   async saveMestiCleaningRequirement(requirement) {
     const { data, error } = await supabase.rpc("factory_save_mesti_cleaning_requirement", { p_requirement: requirement });
     throwSupabaseError("factory.mesti_cleaning.requirement.save", error);
-    await logFactoryAction({
-      action: requirement.id ? "factory_mesti_cleaning_requirement_versioned" : "factory_mesti_cleaning_requirement_created",
-      target: data?.task_name || requirement.task_name,
-      description: requirement.id ? "Factory MeSTI Cleaning Requirement versioned." : "Factory MeSTI Cleaning Requirement created.",
-      after: data,
-    });
+    if (!requirement.id || data?.version_created) {
+      await logFactoryAction({
+        action: requirement.id ? "factory_mesti_cleaning_requirement_versioned" : "factory_mesti_cleaning_requirement_created",
+        target: data?.task_name || requirement.task_name,
+        description: requirement.id ? "Factory MeSTI Cleaning Requirement versioned." : "Factory MeSTI Cleaning Requirement created.",
+        after: data,
+      });
+    }
     return mapMestiCleaningRequirement(data || requirement);
   },
 
