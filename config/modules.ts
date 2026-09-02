@@ -742,6 +742,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
   },
   {
+    id: "factory_equipment",
+    section: "Master Data",
+    label: "Equipment",
+    route: "/factory/equipment",
+    icon: "factory-equipment",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, manage: true },
+  },
+  {
     id: "factory_audit_logs",
     section: "System",
     label: "Audit Trail",

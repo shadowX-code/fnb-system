@@ -1,5 +1,7 @@
 # FeedX Development Log
 
+- Added the Factory Equipment foundation: canonical Equipment Categories and Equipment instances use Factory Locations, while idempotent actual Production Equipment Usage evidence snapshots the selected machine and batch/product/SOP context without coupling to Restaurant assets or SOP planning text.
+
 ## 2026-09-02 - Factory MeSTI Cleaning module roles and Monthly task projection
 
 - Moved Cleaning responsible/verifier assignment into one trusted module-level Cleaning Settings record; requirements retain schedule-only versioned configuration and finalized occurrence role snapshots remain immutable.

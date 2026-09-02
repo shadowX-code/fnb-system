@@ -16,6 +16,7 @@ Factory Master Data owns recipes/BOM, production SOP, and factory reference data
 - Production plans, planned quantities, dates, and status
 - Job Orders and their material/product requirements
 - Production runs, execution steps, consumption, output, yield, and exceptions
+- Actual equipment usage evidence linked to a completed production
 - Batches, lot references, lineage, quality/traceability evidence, and linked SOP/version context
 - Production overview and reporting read models
 
@@ -27,6 +28,7 @@ The server owns protected quantity calculations, state transitions, material val
 
 Execution pins the product recipe/BOM and SOP/version context needed to preserve historical meaning.
 Completed production and batch evidence is immutable except through explicit correction or reversal contracts.
+At production completion, operators may select the actual active Factory Equipment instances used. The trusted usage authority records an idempotent `production_id + equipment_id` evidence row and freezes equipment, category, Location, batch, product, and SOP context so later master-data changes do not rewrite the historical record.
 Production Overview is a read model and does not own underlying lifecycle writes.
 
 ## Permissions, Snapshots, And Audit

@@ -1190,6 +1190,8 @@ function emptyFactoryData() {
     factoryCustomers: [],
     receivingBatches: [],
     storageLocations: [],
+    equipment: [],
+    equipmentCategories: [],
     rawMaterialMovements: [],
     receivings: [],
     productions: [],
@@ -1212,6 +1214,8 @@ function emptyFactoryData() {
 }
 
 const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,shelf_life_days,recommended_storage,b2b_price,status,category_ref:factory_finished_good_categories(name),product_family:factory_product_families(name_en,name_cn,name_bm,is_halal,status)";
+const equipmentCategorySelect = "id,name,category_code,status,sort_order,created_at,updated_at";
+const equipmentSelect = "id,equipment_code,name,category_id,current_location_id,status,notes,created_at,updated_at,category:factory_equipment_categories(id,name,category_code,status),location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location)";
 const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,shelf_life_days,storage_location_id,storage_location,recommended_storage,b2b_price,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,is_halal,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,is_storage_location,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
@@ -1587,6 +1591,7 @@ export function factoryDataPlan(scope, hasPermission) {
   const isProductStockCheck = scope === "product-stock-check";
   const isProductionSop = scope === "production-sop";
   const isMestiCleaning = scope === "mesti-cleaning";
+  const isEquipment = scope === "equipment";
   const needsProductionSummary = isProduction || isReports || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements;
   const canTraceBatches = can("factory_batch_traceability.view");
   const canReadProductionReports = can("factory_production_reports.view") || canTraceBatches;
@@ -1598,7 +1603,9 @@ export function factoryDataPlan(scope, hasPermission) {
     factorySuppliers: (isSuppliers && can("factory_suppliers.view")) || (isRawReceiving && can("factory_raw_receiving.view")),
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: false,
-    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
+    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isEquipment && can("factory_equipment.view")) || (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
+    equipment: (isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage"))) || (isProduction && (can("factory_production.complete") || can("factory_production.view"))),
+    equipmentCategories: isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage")),
     rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
     receivings: (isRawInventory && can("factory_raw_inventory.view")) || (isReports && can("factory_production_reports.view")) || (isProduction && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
@@ -1696,6 +1703,10 @@ export const factoryService = {
       .from("factory_storage_locations")
       .select(storageLocationSelect)
       .in("id", ids), (rows) => rows.map(mapStorageLocation));
+    addTask(plan.equipment, "equipment", "Equipment", () => supabase
+      .from("factory_equipment").select(equipmentSelect).order("equipment_code"), (rows) => rows || []);
+    addTask(plan.equipmentCategories, "equipmentCategories", "Equipment Categories", () => supabase
+      .from("factory_equipment_categories").select(equipmentCategorySelect).order("sort_order").order("name"), (rows) => rows || []);
     addTask(plan.rawMaterialMovements, "rawMaterialMovements", "Raw Material Movements", () => supabase
       .from("factory_raw_material_movements")
       .select(`id,raw_material_id,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,production_material_usage_id,raw_material_batch_balance_id,creator:employees(nickname,full_name),raw_material:factory_raw_materials(${rawMaterialRelationSelect}),production_usage:factory_production_material_usage!factory_raw_material_movement_production_material_usage_id_fkey(production:factory_productions(id,batch_no,job_order:factory_job_orders(job_order_no)))`)
@@ -2640,6 +2651,51 @@ export const factoryService = {
     return mapStorageLocation(data);
   },
 
+  async saveFactoryEquipmentCategory(category, employeeId) {
+    const payload = {
+      name: String(category.name || "").trim(),
+      category_code: String(category.category_code || "").trim() || null,
+      status: category.status === "inactive" ? "inactive" : "active",
+      sort_order: Number.isInteger(Number(category.sort_order)) ? Number(category.sort_order) : 100,
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.name) throw new Error("Equipment category name is required.");
+    if (!category.id) payload.created_by = employeeId || null;
+    const { data, error } = await (category.id
+      ? supabase.from("factory_equipment_categories").update(payload).eq("id", category.id)
+      : supabase.from("factory_equipment_categories").insert(payload))
+      .select(equipmentCategorySelect).single();
+    throwSupabaseError("factory.equipment_category.save", error);
+    return data;
+  },
+
+  async saveFactoryEquipment(equipment, employeeId) {
+    const payload = {
+      equipment_code: String(equipment.equipment_code || "").trim(),
+      name: String(equipment.name || "").trim(),
+      category_id: equipment.category_id || null,
+      current_location_id: equipment.current_location_id || null,
+      status: ["active", "inactive", "maintenance", "out_of_service"].includes(equipment.status) ? equipment.status : "active",
+      notes: String(equipment.notes || "").trim() || null,
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.equipment_code || !payload.name || !payload.current_location_id) throw new Error("Equipment code, name and Location are required.");
+    if (!equipment.id) payload.created_by = employeeId || null;
+    const { data, error } = await (equipment.id
+      ? supabase.from("factory_equipment").update(payload).eq("id", equipment.id)
+      : supabase.from("factory_equipment").insert(payload))
+      .select(equipmentSelect).single();
+    throwSupabaseError("factory.equipment.save", error);
+    return data;
+  },
+
+  async recordProductionEquipmentUsage(productionId, equipmentIds) {
+    const ids = [...new Set((equipmentIds || []).filter(Boolean))];
+    if (!ids.length) return;
+    const { error } = await supabase.rpc("factory_record_production_equipment_usage", { p_production_id: productionId, p_equipment_ids: ids });
+    throwFactorySupabaseError("factory.production.equipment_usage", error);
+  },
+
   async listMestiCleaningDay(dueDate) {
     const { data, error } = await supabase.rpc("factory_mesti_cleaning_day", { p_due_date: dueDate });
     throwSupabaseError("factory.mesti_cleaning.day", error);
@@ -3371,6 +3427,7 @@ export const factoryService = {
       },
     });
     throwFactorySupabaseError("factory.production.complete", error);
+    await factoryService.recordProductionEquipmentUsage(productionId, production.equipment_ids);
 
     const { data, error: fetchError } = await supabase
       .from("factory_productions")

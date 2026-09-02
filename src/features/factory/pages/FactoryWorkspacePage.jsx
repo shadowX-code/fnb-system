@@ -14,6 +14,7 @@ import FactoryAuditTrailPage from "./FactoryAuditTrailPage.jsx";
 import FactorySuppliersPage from "./FactorySuppliersPage.jsx";
 import FactoryCustomersPage from "./FactoryCustomersPage.jsx";
 import FactoryStorageLocationsPage from "./FactoryStorageLocationsPage.jsx";
+import FactoryEquipmentPage from "./FactoryEquipmentPage.jsx";
 import FactoryProductionPlanningPage from "./FactoryProductionPlanningPage.jsx";
 import FactoryDashboardPage from "./FactoryDashboardPage.jsx";
 import FactoryFinishedGoodsPage from "./FactoryFinishedGoodsPage.jsx";
@@ -39,6 +40,7 @@ import RawMaterialCategoryModal from "../modals/rawMaterials/FactoryRawMaterialC
 import StorageLocationModal from "../modals/FactoryStorageLocationModal.jsx";
 import FactorySupplierModal from "../modals/FactorySupplierModal.jsx";
 import FactoryCustomerModal from "../modals/FactoryCustomerModal.jsx";
+import FactoryEquipmentModal, { FactoryEquipmentCategoryModal } from "../modals/FactoryEquipmentModal.jsx";
 import ProductionPlanningParModal from "../modals/ProductionPlanningParModal.jsx";
 import FactoryProductMovementsPage from "./FactoryProductMovementsPage.jsx";
 import FactoryRawMaterialMovementsPage from "./FactoryRawMaterialMovementsPage.jsx";
@@ -1033,7 +1035,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
 // Production SOP builder, document, and QC preset presentation live in modals/sop.
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], storageLocations: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], mestiCleaningRequirements: [], factoryRoles: [], auditLogs: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], storageLocations: [], equipment: [], equipmentCategories: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], mestiCleaningRequirements: [], factoryRoles: [], auditLogs: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
@@ -1692,6 +1694,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
     ui?.notify?.({ title: form.id ? "Storage location updated" : "Storage location created", tone: "success" });
     if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
+  }
+
+  async function saveFactoryEquipment(form) {
+    try { await factoryService.saveFactoryEquipment(form, auth?.profile?.id); } catch (error) { ui?.notify?.({ title: "Failed to save Equipment", message: error.message, tone: "error" }); throw error; }
+    ui?.notify?.({ title: form.id ? "Equipment updated" : "Equipment created", tone: "success" }); setModal(null); await refreshFactoryAfterMutation();
+  }
+
+  async function saveFactoryEquipmentCategory(form) {
+    try { await factoryService.saveFactoryEquipmentCategory(form, auth?.profile?.id); } catch (error) { ui?.notify?.({ title: "Failed to save Equipment category", message: error.message, tone: "error" }); throw error; }
     await refreshFactoryAfterMutation();
   }
 
@@ -3443,7 +3455,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <>
       <FactoryOperationalJobsProvider route={initialTab} auth={auth} refreshKey={data} onPermissionDenied={clearOperationalPermission}>{(operationalJobs) => <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
-      {initialTab === "production-overview" ? <FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={(job, options) => setModal({ type: "job", value: job, readOnly: options?.readOnly })} startJob={(job) => setModal({ type: "start-production", job })} completeProduction={(job, options) => setModal(options?.processOnly ? { type: "production-process", job, readOnly: Boolean(options.readOnly) } : { type: "production", job })} viewCompletedResult={viewCompletedJobOrder} releaseJob={releaseJobOrder} cancelJob={cancelJobOrder} /> : initialTab === "job-orders" ? <FactoryJobOrdersPage data={data} auth={auth} can={can} onCreate={() => setModal({ type: "job" })} onView={(job) => setModal({ type: "job", value: job, readOnly: true })} onEdit={(job) => setModal({ type: "job", value: job, readOnly: false })} onRelease={releaseJobOrder} onDelete={deleteJobOrder} onCancel={cancelJobOrder} onStart={(job) => setModal({ type: "start-production", job })} onViewProcess={(job, readOnly) => setModal({ type: "production-process", job, readOnly })} onComplete={(job) => setModal({ type: "production", job })} onViewResult={viewCompletedJobOrder} jobOrdersListingBridge={jobOrdersListingBridge} onPermissionDenied={clearJobOrdersListingPermission} onNotify={ui?.notify} jobFinishedGoodName={jobFinishedGoodName} productionQcTone={productionQcTone} productionQcDisplayLabel={productionQcDisplayLabel} /> : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction(operationalJobs) : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "mesti-cleaning" ? <FactoryMestiCleaningPage auth={auth} onNotify={ui?.notify} /> : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
+      {initialTab === "equipment" ? <FactoryEquipmentPage onCreate={() => setModal({ type: "equipment" })} onEdit={(value) => setModal({ type: "equipment", value })} onManageCategories={() => setModal({ type: "equipment-categories" })} /> : initialTab === "production-overview" ? <FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={(job, options) => setModal({ type: "job", value: job, readOnly: options?.readOnly })} startJob={(job) => setModal({ type: "start-production", job })} completeProduction={(job, options) => setModal(options?.processOnly ? { type: "production-process", job, readOnly: Boolean(options.readOnly) } : { type: "production", job })} viewCompletedResult={viewCompletedJobOrder} releaseJob={releaseJobOrder} cancelJob={cancelJobOrder} /> : initialTab === "job-orders" ? <FactoryJobOrdersPage data={data} auth={auth} can={can} onCreate={() => setModal({ type: "job" })} onView={(job) => setModal({ type: "job", value: job, readOnly: true })} onEdit={(job) => setModal({ type: "job", value: job, readOnly: false })} onRelease={releaseJobOrder} onDelete={deleteJobOrder} onCancel={cancelJobOrder} onStart={(job) => setModal({ type: "start-production", job })} onViewProcess={(job, readOnly) => setModal({ type: "production-process", job, readOnly })} onComplete={(job) => setModal({ type: "production", job })} onViewResult={viewCompletedJobOrder} jobOrdersListingBridge={jobOrdersListingBridge} onPermissionDenied={clearJobOrdersListingPermission} onNotify={ui?.notify} jobFinishedGoodName={jobFinishedGoodName} productionQcTone={productionQcTone} productionQcDisplayLabel={productionQcDisplayLabel} /> : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction(operationalJobs) : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "mesti-cleaning" ? <FactoryMestiCleaningPage auth={auth} onNotify={ui?.notify} /> : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
       </>}</FactoryOperationalJobsProvider>
       {modal?.type === "job" ? (
         <JobOrderModal
@@ -3505,6 +3517,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           categories={data.rawMaterialCategories}
           storageLocations={data.storageLocations}
+          equipment={data.equipment}
           onClose={() => setModal(null)}
           onSave={saveRawMaterial}
         />
@@ -3538,6 +3551,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onSave={saveStorageLocation}
         />
       ) : null}
+      {modal?.type === "equipment" ? <FactoryEquipmentModal initialValue={modal.value} categories={data.equipmentCategories} locations={data.storageLocations} onClose={() => setModal(null)} onSave={saveFactoryEquipment} /> : null}
+      {modal?.type === "equipment-categories" ? <FactoryEquipmentCategoryModal categories={data.equipmentCategories} onClose={() => setModal(null)} onSave={saveFactoryEquipmentCategory} /> : null}
       {modal?.type === "factory-suppliers" ? (
         <FactorySupplierModal
           initialValue={modal.value}
@@ -3561,6 +3576,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           sops={data.sops}
           finishedGoods={data.finishedGoods}
           storageLocations={data.storageLocations}
+          equipment={data.equipment}
           auth={auth}
           notify={ui?.notify}
           onClose={() => setModal(null)}

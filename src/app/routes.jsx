@@ -362,6 +362,12 @@ export const routeDetails = {
     permission: "factory_production_sop.view OR factory_production_sop.create OR factory_production_sop.edit OR factory_production_sop.manage",
     props: { initialTab: "production-sop" },
   },
+  factory_equipment: {
+    description: "Manage canonical Factory equipment and actual production-use evidence.",
+    component: FactoryWorkspacePage,
+    permission: "factory_equipment.view OR factory_equipment.create OR factory_equipment.edit OR factory_equipment.manage",
+    props: { initialTab: "equipment" },
+  },
   factory_audit_logs: {
     description: "Review read-only Factory module audit events and document changes.",
     component: FactoryWorkspacePage,

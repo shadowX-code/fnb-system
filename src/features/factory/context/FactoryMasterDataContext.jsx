@@ -8,6 +8,8 @@ export function FactoryMasterDataProvider({ data, children }) {
       finishedGoods: data?.finishedGoods || [],
       rawMaterials: data?.rawMaterials || [],
       storageLocations: data?.storageLocations || [],
+      equipment: data?.equipment || [],
+      equipmentCategories: data?.equipmentCategories || [],
       suppliers: data?.factorySuppliers || [],
       customers: data?.factoryCustomers || [],
       finishedGoodCategories: data?.finishedGoodCategories || [],

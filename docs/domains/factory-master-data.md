@@ -16,6 +16,7 @@ Restaurant suppliers and recipes remain restaurant-owned unless a deliberate sha
 - Product Recipe/BOM drafts, versions, components, quantities, units, and yield context
 - Production SOP records, versions, attachments, and status
 - Factory Locations and other Factory reference/configuration records
+- Factory Equipment categories and equipment instances
 - MeSTI Cleaning Requirements
 - Factory suppliers and customers
 
@@ -27,6 +28,8 @@ Later edits must not rewrite the recipe, BOM, or SOP context attached to histori
 
 Master-data records may be retired or made inactive according to current state rules, but referenced history remains valid.
 Factory Location is the canonical physical-location master. The legacy internal `factory_storage_locations` contract remains stable for compatibility, while user-facing UI labels it as Location. `is_storage_location` controls whether an active Location may be selected by raw material, receiving, production output, finished goods, and stock workflows. Non-storage active Locations may still be referenced by appropriate non-inventory Factory workflows such as MeSTI Cleaning.
+
+Factory Equipment is Factory-owned and separate from Restaurant Asset Tracking. Each equipment instance has one canonical current Factory Location, an optional Factory Equipment Category, and a lifecycle status. Active equipment is eligible for new Production selection; inactive, maintenance, and out-of-service equipment remain readable through immutable usage history.
 
 MeSTI Cleaning Requirements bind tasks directly to one or more canonical Factory Locations. They define the task, structured recurrence, active status, and effective-from/version boundary. Responsible and verifier roles are a single canonical Cleaning Settings record for the module, not per-requirement overrides. Daily and selected-weekday weekly recurrence are stored as structured fields; frequency labels are derived for display. A Location may participate in multiple requirements, and one requirement may apply to multiple Locations.
 
@@ -47,6 +50,7 @@ Cleaning occurrence completion is authorized by the role snapshotted from Cleani
 Authorized Admins maintain products/materials, compose and version recipes/BOM, manage production SOPs, configure Locations and MeSTI Cleaning Requirements, and maintain supplier and customer records.
 Factory Production pins the appropriate master-data versions for planning and execution.
 Factory Warehouse consumes material, product, storage, supplier, and customer references for receipts, movements, and dispatch.
+Factory Production consumes active Equipment instances when recording actual equipment used; planned SOP `equipment` text remains instructional and is not execution evidence.
 Factory MeSTI Cleaning consumes canonical Locations and roles while owning its daily/monthly compliance occurrence evidence.
 
 ## Compatibility And Deferred Scope
