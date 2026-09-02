@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903110000_factory_mesti_calibration.sql"), "utf8");
 const scheduleProjectionFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903113000_factory_mesti_calibration_schedule_projection_fix.sql"), "utf8");
 const verificationOrderFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903114000_factory_mesti_calibration_verification_order_fix.sql"), "utf8");
+const canonicalPermissionMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903180000_factory_mesti_canonical_permission_authorization.sql"), "utf8");
 const stagingLifecycle = readFileSync(resolve(process.cwd(), "scripts/verifyFactoryMestiCalibrationLifecycleStaging.sql"), "utf8");
 
 describe("Factory MeSTI Calibration migration contract", () => {
@@ -27,11 +28,14 @@ describe("Factory MeSTI Calibration migration contract", () => {
     expect(verificationOrderFix).toContain("clock_timestamp()");
   });
 
-  it("enforces trusted role-aware record and verification flows with immutable snapshots", () => {
+  it("enforces trusted permission-based record and verification flows with immutable snapshots", () => {
     expect(migration).toContain("equipment_snapshot jsonb not null");
-    expect(migration).toContain("Your role is not authorized to record calibration.");
-    expect(migration).toContain("Your role is not authorized to verify calibration.");
-    expect(migration).toContain("Self-verification is not allowed.");
+    expect(canonicalPermissionMigration).toContain("factory_mesti_calibration.complete");
+    expect(canonicalPermissionMigration).toContain("factory_mesti_calibration.review");
+    expect(canonicalPermissionMigration).toContain("Missing calibration record permission.");
+    expect(canonicalPermissionMigration).toContain("Missing calibration verification permission.");
+    expect(canonicalPermissionMigration).toContain("Self-verification is not allowed.");
+    expect(canonicalPermissionMigration).toContain("drop table if exists public.factory_mesti_calibration_settings");
     expect(migration).toContain("Missing calibration view permission.");
     expect(migration).toContain("grant execute on function public.factory_mesti_calibration_schedule() to authenticated");
   });

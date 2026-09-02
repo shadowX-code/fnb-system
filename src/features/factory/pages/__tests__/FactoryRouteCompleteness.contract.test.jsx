@@ -9,7 +9,7 @@ const emptyFactoryData = {
   jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [],
   factorySuppliers: [], factoryCustomers: [], storageLocations: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [],
   productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [],
-  equipment: [], equipmentCategories: [], mestiCleaningRequirements: [], mestiCleaningSettings: null, mestiCalibrationRequirements: [], mestiCalibrationSettings: null, factoryRoles: [], auditLogs: [], accessIssues: [],
+  equipment: [], equipmentCategories: [], mestiCleaningRequirements: [], mestiCalibrationRequirements: [], auditLogs: [], accessIssues: [],
 };
 const factoryModules = moduleRegistry.filter((module) => module.workspace === "factory");
 const factoryRoutes = salesPurchaseRoutes.filter((route) => route.id.startsWith("factory_"));

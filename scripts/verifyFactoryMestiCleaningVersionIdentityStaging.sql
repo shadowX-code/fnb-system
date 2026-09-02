@@ -1,5 +1,5 @@
 -- Real Staging behavior/security verification for MeSTI version identity.
--- All fixture data and temporary grants roll back.
+-- All fixture data and temporary permission grants roll back.
 begin;
 
 create temporary table factory_mesti_cleaning_version_identity_results(
@@ -15,7 +15,9 @@ do $$
 declare
   qa_admin constant uuid := 'b6ee4db2-0f37-4b3e-a3ee-fa804ec5e6cd';
   qa_employee public.employees%rowtype;
+  qa_verifier public.employees%rowtype;
   qa_role uuid;
+  qa_verifier_role uuid;
   first_location uuid;
   second_location uuid;
   created jsonb;
@@ -29,6 +31,9 @@ declare
   final_status text;
   daily_count int;
   monthly_count int;
+  self_blocked boolean := false;
+  complete_permission_blocked boolean := false;
+  setup_permission_blocked boolean := false;
 begin
   select * into qa_employee
   from public.employees
@@ -37,6 +42,22 @@ begin
     raise exception 'FAIL QA admin employee is missing.';
   end if;
   qa_role := qa_employee.role_id;
+  select * into qa_verifier
+  from public.employees
+  where auth_user_id is not null
+    and enable_system_login
+    and access_state = 'active'
+    and coalesce(is_active, true)
+    and id <> qa_employee.id
+  order by created_at
+  limit 1;
+  if qa_verifier.id is null then
+    raise exception 'FAIL Staging needs a second active authenticated employee.';
+  end if;
+  insert into public.roles(name, description, is_active)
+  values ('QA Cleaning Verifier Rollback', 'Rollback-only Staging QA', true)
+  returning id into qa_verifier_role;
+  update public.employees set role_id = qa_verifier_role where id = qa_verifier.id;
 
   insert into public.role_permissions(role_id, permission_id)
   select qa_role, id
@@ -50,6 +71,10 @@ begin
     'factory_mesti_cleaning.manage'
   )
   on conflict do nothing;
+  insert into public.role_permissions(role_id, permission_id)
+  select qa_verifier_role, id
+  from public.permissions
+  where code in ('factory_mesti_cleaning.view','factory_mesti_cleaning.review');
 
   select id into first_location
   from public.factory_storage_locations
@@ -67,11 +92,6 @@ begin
 
   perform set_config('request.jwt.claims', jsonb_build_object('sub', qa_admin, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
-
-  perform public.factory_save_mesti_cleaning_settings(jsonb_build_object(
-    'responsible_role_id', qa_role::text,
-    'verifier_role_id', qa_role::text
-  ));
 
   created := public.factory_save_mesti_cleaning_requirement(jsonb_build_object(
     'task_name', 'QA Version Identity Rollback',
@@ -168,8 +188,40 @@ begin
   order by location_id
   limit 1;
   perform public.factory_mesti_complete_cleaning_occurrence(occurrence_id, 'rollback QA completion');
-  perform public.factory_mesti_verify_cleaning_occurrence(occurrence_id, 'verified', 'rollback QA verification');
+  begin
+    perform public.factory_mesti_verify_cleaning_occurrence(occurrence_id, 'verified', 'rollback QA self-verification');
+  exception when others then
+    self_blocked := sqlerrm like '%Self-verification%';
+  end;
   execute 'reset role';
+
+  if not self_blocked then
+    raise exception 'FAIL self-verification was not denied.';
+  end if;
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', qa_verifier.auth_user_id, 'role', 'authenticated')::text, true);
+  execute 'set local role authenticated';
+  perform public.factory_mesti_verify_cleaning_occurrence(occurrence_id, 'verified', 'rollback QA verification');
+  begin
+    perform public.factory_mesti_complete_cleaning_occurrence(occurrence_id, 'should be denied');
+  exception when others then
+    complete_permission_blocked := sqlerrm like '%Missing permission to complete Cleaning occurrences%';
+  end;
+  begin
+    perform public.factory_save_mesti_cleaning_requirement(jsonb_build_object(
+      'id', created_id::text,
+      'task_name', 'QA Version Identity Rollback',
+      'location_ids', jsonb_build_array(first_location::text, second_location::text),
+      'recurrence_type', 'daily',
+      'recurrence_weekdays', jsonb_build_array(),
+      'status', 'active',
+      'effective_from', current_date::text
+    ));
+  exception when others then
+    setup_permission_blocked := sqlerrm like '%Missing permission to manage Cleaning Requirements%';
+  end;
+  execute 'reset role';
+  if not complete_permission_blocked then raise exception 'FAIL Cleaning complete permission was not enforced.'; end if;
+  if not setup_permission_blocked then raise exception 'FAIL Cleaning setup permission was not enforced.'; end if;
 
   select status into final_status
   from public.factory_mesti_cleaning_occurrences
@@ -178,6 +230,7 @@ begin
     raise exception 'FAIL completion/verification lifecycle ended at %.', final_status;
   end if;
 
+  perform set_config('request.jwt.claims', jsonb_build_object('sub', qa_admin, 'role', 'authenticated')::text, true);
   execute 'set local role authenticated';
   edited := public.factory_save_mesti_cleaning_requirement(jsonb_build_object(
     'id', (edited->>'id'),

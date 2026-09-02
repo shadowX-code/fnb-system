@@ -7,6 +7,7 @@ const locationDirectMigration = readFileSync(resolve(process.cwd(), "supabase/mi
 const versionIdentityMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902142206_factory_mesti_cleaning_requirement_version_identity.sql"), "utf8");
 const readIdentityMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902144520_factory_mesti_cleaning_read_logical_requirement_identity.sql"), "utf8");
 const moduleSettingsMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902162000_factory_mesti_cleaning_module_settings_and_monthly_groups.sql"), "utf8");
+const canonicalPermissionMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903180000_factory_mesti_canonical_permission_authorization.sql"), "utf8");
 
 describe("Factory MeSTI Cleaning migration contract", () => {
   it("canonicalizes Factory Location storage eligibility without replacing the location master", () => {
@@ -29,11 +30,9 @@ describe("Factory MeSTI Cleaning migration contract", () => {
     expect(versionIdentityMigration).toContain("factory_mesti_cleaning_occurrences_logical_location_due_key");
   });
 
-  it("enforces completion, verification, duplicate scheduling, and self-verification boundaries in trusted RPCs", () => {
+  it("enforces duplicate scheduling and retains the original trusted lifecycle contracts", () => {
     expect(locationDirectMigration).toContain("factory_mesti_materialize_cleaning_occurrences");
     expect(versionIdentityMigration).toContain("on conflict (logical_requirement_id, location_id, due_date) do nothing");
-    expect(migration).toContain("v_employee.role_id::text <> v_occurrence.requirement_snapshot->>'responsible_role_id'");
-    expect(migration).toContain("v_employee.role_id::text <> v_occurrence.requirement_snapshot->>'verifier_role_id'");
     expect(migration).toContain("Self-verification is not allowed.");
     expect(migration).toContain("grant execute on function public.factory_mesti_complete_cleaning_occurrence");
     expect(migration).toContain("grant execute on function public.factory_mesti_verify_cleaning_occurrence");
@@ -64,7 +63,7 @@ describe("Factory MeSTI Cleaning migration contract", () => {
     expect(readIdentityMigration).toContain("create or replace function public.factory_mesti_cleaning_month");
   });
 
-  it("uses one module-level role setting and returns task-grouped Monthly evidence", () => {
+  it("returns task-grouped Monthly evidence while historical role snapshots remain readable", () => {
     expect(moduleSettingsMigration).toContain("create table if not exists public.factory_mesti_cleaning_settings");
     expect(moduleSettingsMigration).toContain("drop column if exists responsible_role_id");
     expect(moduleSettingsMigration).toContain("drop column if exists verifier_role_id");
@@ -74,5 +73,15 @@ describe("Factory MeSTI Cleaning migration contract", () => {
     expect(moduleSettingsMigration).toContain("'occurrences', occurrences");
     expect(moduleSettingsMigration).toContain("when unsatisfactory_count > 0 then 'unsatisfactory'");
     expect(moduleSettingsMigration).toContain("when verified_count = total_count then 'verified'");
+  });
+
+  it("uses canonical permissions for future Cleaning work and deletes role configuration", () => {
+    expect(canonicalPermissionMigration).toContain("factory_mesti_cleaning.complete");
+    expect(canonicalPermissionMigration).toContain("factory_mesti_cleaning.review");
+    expect(canonicalPermissionMigration).toContain("Missing permission to complete Cleaning occurrences.");
+    expect(canonicalPermissionMigration).toContain("Missing permission to verify Cleaning occurrences.");
+    expect(canonicalPermissionMigration).toContain("Self-verification is not allowed.");
+    expect(canonicalPermissionMigration).toContain("drop table if exists public.factory_mesti_cleaning_settings");
+    expect(canonicalPermissionMigration).toContain("drop function if exists public.factory_save_mesti_cleaning_settings(jsonb)");
   });
 });

@@ -124,16 +124,12 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [monthlyDetail, setMonthlyDetail] = useState(null);
   const [showRequirementForm, setShowRequirementForm] = useState(false);
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
-  const [settingsDraft, setSettingsDraft] = useState(masterData.mestiCleaningSettings || { responsible_role_id: "", verifier_role_id: "" });
-  const roles = masterData.factoryRoles || [];
   const activeLocations = (masterData.storageLocations || []).filter((location) => location.status === "active");
   const currentEmployeeId = auth?.profile?.id || "";
-  const currentRoleId = auth?.profile?.role_id || auth?.roleId || "";
   const canManage = can("factory_mesti_cleaning.manage");
   const canSaveSetup = canManage || can("factory_mesti_cleaning.create") || can("factory_mesti_cleaning.edit");
 
   useEffect(() => setRequirements(masterData.mestiCleaningRequirements || []), [masterData.mestiCleaningRequirements]);
-  useEffect(() => setSettingsDraft(masterData.mestiCleaningSettings || { responsible_role_id: "", verifier_role_id: "" }), [masterData.mestiCleaningSettings]);
 
   const loadDaily = useCallback(async () => {
     setLoading(true);
@@ -201,19 +197,6 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
     }
   }
 
-  async function saveSettings(event) {
-    event.preventDefault();
-    try {
-      const saved = await factoryService.saveMestiCleaningSettings(settingsDraft);
-      setSettingsDraft(saved);
-      onNotify?.({ title: "Cleaning Settings saved", message: "Future pending Cleaning occurrences will use the configured roles.", tone: "success" });
-      await loadDaily();
-      if (activeTab === "monthly") await loadMonthly();
-    } catch (saveError) {
-      onNotify?.({ title: "Cleaning Settings save failed", message: saveError.message || "Unable to save Cleaning Settings.", tone: "error" });
-    }
-  }
-
   const summary = useMemo(() => ({
     pending: dailyRows.filter((row) => row.status === "pending" || row.status === "missed").length,
     completed: dailyRows.filter((row) => row.status === "completed").length,
@@ -240,8 +223,8 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
           { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
           { key: "completion", label: "Completion", render: (row) => row.completed_at ? <div><div className="font-semibold">{row.completed_by_name || "Completed"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.completed_at)}</div></div> : "-" },
           { key: "actions", label: "Actions", align: "right", render: (row) => {
-            const canComplete = (canManage || currentRoleId === row.responsible_role_id) && ["pending", "missed", "unsatisfactory"].includes(row.status);
-            const canVerify = (canManage || currentRoleId === row.verifier_role_id) && row.status === "completed" && (canManage || row.completed_by !== currentEmployeeId);
+            const canComplete = (can("factory_mesti_cleaning.complete") || canManage) && ["pending", "missed", "unsatisfactory"].includes(row.status);
+            const canVerify = (can("factory_mesti_cleaning.review") || canManage) && row.status === "completed" && row.completed_by !== currentEmployeeId;
             return <div className="flex flex-wrap justify-end gap-2">{canComplete ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => act("complete", row)}><Check size={13} /> Complete</button> : null}{canVerify ? <><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => act("verify", row, "verified")}>Verify</button><button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => act("verify", row, "unsatisfactory")}>Unsatisfactory</button></> : null}<button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setDetail(row)}>Details</button></div>;
           } },
         ]} />
@@ -263,15 +246,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       <MonthlyDetailPanel detail={monthlyDetail} onClose={() => setMonthlyDetail(null)} />
     </> : null}
 
-    {activeTab === "setup" ? <>
-      <Card title="Cleaning Settings" description="Roles apply to all future Cleaning occurrences.">
-        <form className="grid gap-3 p-4 md:grid-cols-3" onSubmit={saveSettings}>
-          <Field label="Responsible Role"><SearchableSelect value={settingsDraft.responsible_role_id} options={roles.map((role) => ({ value: role.id, label: role.name }))} onChange={(responsible_role_id) => setSettingsDraft((current) => ({ ...current, responsible_role_id }))} placeholder="Select role" /></Field>
-          <Field label="Verifier Role"><SearchableSelect value={settingsDraft.verifier_role_id} options={roles.map((role) => ({ value: role.id, label: role.name }))} onChange={(verifier_role_id) => setSettingsDraft((current) => ({ ...current, verifier_role_id }))} placeholder="Select role" /></Field>
-          <div className="flex items-end"><button className="btn-primary" type="submit" disabled={!canManage}>Save Settings</button></div>
-        </form>
-      </Card>
-      <Card title="Cleaning Requirements" action={canSaveSetup ? <button className="btn-primary" type="button" onClick={() => { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(true); }}><Plus size={15} /> Create Requirement</button> : null}>
+    {activeTab === "setup" ? <Card title="Cleaning Requirements" action={canSaveSetup ? <button className="btn-primary" type="button" onClick={() => { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(true); }}><Plus size={15} /> Create Requirement</button> : null}>
       {showRequirementForm ? <form className="grid gap-3 border-b border-border p-4 md:grid-cols-2 xl:grid-cols-3" onSubmit={saveRequirement}>
         <Field label="Task Name"><input className={inputClass()} value={requirementDraft.task_name} onChange={(event) => setRequirementDraft((current) => ({ ...current, task_name: event.target.value }))} placeholder="Floor, Ceiling, Drain" required /></Field>
         <Field label="Recurrence"><SearchableSelect value={requirementDraft.recurrence_type} options={[{ value: "daily", label: "Daily" }, { value: "weekly", label: "Weekly" }]} onChange={(recurrence_type) => setRequirementDraft((current) => ({ ...current, recurrence_type }))} /></Field>
@@ -288,7 +263,6 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
         { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</Badge> },
         { key: "actions", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={!canSaveSetup} onClick={() => { setRequirementDraft(row); setShowRequirementForm(true); }}>Edit</button> },
       ]} emptyTitle="No Cleaning Requirements" />
-      </Card>
-    </> : null}
+      </Card> : null}
   </div>;
 }

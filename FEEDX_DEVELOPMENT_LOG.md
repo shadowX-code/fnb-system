@@ -509,3 +509,7 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Real Staging rollback behavior/security verification passed 22/22, including snapshot immutability, outlet/role scope, token identity, first-writer concurrency, required gating, exceptions, Health evidence, direct-table denial and unauthorized Admin rejection.
 - Photo evidence remains intentionally disabled in v1 until Daily Operations has a dedicated controlled media store and reference-safe deletion lifecycle; no base64 or Learning-media reuse was introduced.
 - Added corrective Staging migrations `20260812181200_crew_daily_operations_business_date_fix.sql` and `20260812181500_crew_daily_operations_business_date_default_fix.sql` after authenticated midnight smoke testing exposed UTC-date drift. The follow-up keeps the internal date helper revoked while making anon-callable RPC defaults evaluate without caller execute rights. Admin, Crew Mobile, default RPC behavior and QA seeds now use the Malaysia business date consistently.
+## 2026-09-03 - Factory MeSTI Canonical Permission Authorization
+
+- Removed duplicated Cleaning of Area and Calibration Responsible/Verifier role configuration from Factory setup, service loading, and trusted authorities.
+- Preserved immutable Cleaning occurrence and Calibration record evidence while moving all future action authorization to canonical FeedX permissions with server-side self-verification denial.

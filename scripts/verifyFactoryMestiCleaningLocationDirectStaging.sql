@@ -42,7 +42,7 @@ begin
     'factory_mesti_cleaning.create',
     'factory_mesti_cleaning.edit',
     'factory_mesti_cleaning.complete',
-    'factory_mesti_cleaning.verify',
+    'factory_mesti_cleaning.review',
     'factory_mesti_cleaning.manage'
   )
   on conflict do nothing;
@@ -66,15 +66,12 @@ begin
   end if;
 
   select count(*) into location_unique
-  from pg_constraint c
-  join pg_class t on t.oid=c.conrelid
-  join pg_namespace n on n.oid=t.relnamespace
-  where n.nspname='public'
-    and t.relname='factory_mesti_cleaning_occurrences'
-    and c.contype='u'
-    and pg_get_constraintdef(c.oid) = 'UNIQUE (requirement_id, location_id, due_date)';
+  from pg_indexes
+  where schemaname='public'
+    and tablename='factory_mesti_cleaning_occurrences'
+    and indexname='factory_mesti_cleaning_occurrences_logical_location_due_key';
   if location_unique <> 1 then
-    raise exception 'FAIL requirement/location/due date unique constraint is missing.';
+    raise exception 'FAIL logical requirement/location/due date unique index is missing.';
   end if;
 
   select id into non_storage
@@ -98,8 +95,6 @@ begin
     'location_ids', jsonb_build_array(non_storage::text, storage::text),
     'recurrence_type', 'daily',
     'recurrence_weekdays', jsonb_build_array(),
-    'responsible_role_id', qa_role::text,
-    'verifier_role_id', qa_role::text,
     'status', 'active',
     'effective_from', current_date::text
   ));
@@ -141,19 +136,18 @@ begin
   order by location_id
   limit 1;
   perform public.factory_mesti_complete_cleaning_occurrence(occurrence_id, 'rollback QA completion');
-  perform public.factory_mesti_verify_cleaning_occurrence(occurrence_id, 'verified', 'rollback QA verification');
   execute 'reset role';
 
   select status into final_status
   from public.factory_mesti_cleaning_occurrences
   where id=occurrence_id;
-  if final_status <> 'verified' then
-    raise exception 'FAIL completion/verification lifecycle ended at %.', final_status;
+  if final_status <> 'completed' then
+    raise exception 'FAIL canonical completion lifecycle ended at %.', final_status;
   end if;
 
   insert into factory_mesti_cleaning_location_direct_results
-  values (8, saved_id, occurrence_count, non_storage, storage, final_status);
-  raise notice 'FACTORY_MESTI_CLEANING_LOCATION_DIRECT_PASS 8/8 requirement=% occurrences=% final_status=%', saved_id, occurrence_count, final_status;
+  values (7, saved_id, occurrence_count, non_storage, storage, final_status);
+  raise notice 'FACTORY_MESTI_CLEANING_LOCATION_DIRECT_PASS 7/7 requirement=% occurrences=% final_status=%', saved_id, occurrence_count, final_status;
 end $$;
 
 select * from factory_mesti_cleaning_location_direct_results;

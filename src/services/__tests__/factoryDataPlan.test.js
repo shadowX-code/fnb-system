@@ -34,7 +34,8 @@ describe("Factory Job Orders scoped data plan", () => {
 
     expect(plan.storageLocations).toBe(true);
     expect(plan.mestiCleaningRequirements).toBe(true);
-    expect(plan.factoryRoles).toBe(true);
+    expect(plan.factoryRoles).toBeUndefined();
+    expect(plan.mestiCleaningSettings).toBeUndefined();
     expect(plan.jobOrders).toBe(false);
     expect(plan.rawMaterials).toBe(false);
     expect(plan.finishedGoods).toBe(false);

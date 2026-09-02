@@ -6,15 +6,13 @@ import FactoryMestiCleaningPage from "../FactoryMestiCleaningPage.jsx";
 import { factoryService } from "../../../../services/factoryService.js";
 
 vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
-  listMestiCleaningDay: vi.fn(), listMestiCleaningMonth: vi.fn(), saveMestiCleaningRequirement: vi.fn(), saveMestiCleaningSettings: vi.fn(), completeMestiCleaningOccurrence: vi.fn(), verifyMestiCleaningOccurrence: vi.fn(),
+  listMestiCleaningDay: vi.fn(), listMestiCleaningMonth: vi.fn(), saveMestiCleaningRequirement: vi.fn(), completeMestiCleaningOccurrence: vi.fn(), verifyMestiCleaningOccurrence: vi.fn(),
 } }));
 
-const roleOperator = { id: "role-operator", name: "operator", is_active: true };
-const roleSupervisor = { id: "role-supervisor", name: "supervisor", is_active: true };
 const locationPreparation = { id: "loc-prep", location_name: "Preparation", status: "active", is_storage_location: false };
 const locationCooking = { id: "loc-cook", location_name: "Cooking", status: "active", is_storage_location: false };
 const locationDryStore = { id: "loc-store", location_name: "Dry Store", status: "active", is_storage_location: true };
-const floorOccurrence = { id: "occ-floor-prep", due_date: "2026-09-02", status: "pending", requirement_id: "req-floor-v4", logical_requirement_id: "logical-floor", location_id: "loc-prep", location_name: "Preparation", task_name: "Floor", recurrence_type: "weekly", recurrence_weekdays: [3], responsible_role_id: "role-operator", verifier_role_id: "role-supervisor" };
+const floorOccurrence = { id: "occ-floor-prep", due_date: "2026-09-02", status: "pending", requirement_id: "req-floor-v4", logical_requirement_id: "logical-floor", location_id: "loc-prep", location_name: "Preparation", task_name: "Floor", recurrence_type: "weekly", recurrence_weekdays: [3] };
 const floorCooking = { ...floorOccurrence, id: "occ-floor-cook", location_id: "loc-cook", location_name: "Cooking", status: "verified", verified_by_name: "Isaac", verified_at: "2026-09-02T03:00:00Z" };
 const drainOccurrence = { ...floorOccurrence, id: "occ-drain-cook", requirement_id: "req-drain", logical_requirement_id: "logical-drain", location_id: "loc-cook", location_name: "Cooking", task_name: "Drain", recurrence_type: "daily", recurrence_weekdays: [] };
 const monthlyRows = [
@@ -24,16 +22,15 @@ const monthlyRows = [
 ];
 const data = {
   storageLocations: [locationPreparation, locationCooking, locationDryStore],
-  mestiCleaningSettings: { responsible_role_id: "role-operator", verifier_role_id: "role-supervisor" },
   mestiCleaningRequirements: [
     { id: "req-floor-v5", logical_requirement_id: "logical-floor", task_name: "Floor", location_ids: ["loc-prep", "loc-cook", "loc-store"], location_names: ["Preparation", "Cooking", "Dry Store"], recurrence_type: "weekly", recurrence_weekdays: [3], status: "active", effective_from: "2026-09-01", version_no: 5 },
     { id: "req-wall", logical_requirement_id: "logical-wall", task_name: "Wall", location_ids: ["loc-cook"], location_names: ["Cooking"], recurrence_type: "weekly", recurrence_weekdays: [3], status: "active", effective_from: "2026-09-01", version_no: 1 },
-  ], factoryRoles: [roleOperator, roleSupervisor],
+  ],
 };
 
-function renderPage({ roleId = "role-operator", permissions = ["factory_mesti_cleaning.view", "factory_mesti_cleaning.complete", "factory_mesti_cleaning.review"] } = {}) {
+function renderPage({ permissions = ["factory_mesti_cleaning.view", "factory_mesti_cleaning.complete", "factory_mesti_cleaning.review"] } = {}) {
   const can = (permission) => permissions.includes(permission);
-  return render(<FactoryPermissionsProvider permissionSet={permissions} can={can}><FactoryMasterDataProvider data={data}><FactoryMestiCleaningPage auth={{ profile: { id: "employee-1", role_id: roleId } }} onNotify={vi.fn()} /></FactoryMasterDataProvider></FactoryPermissionsProvider>);
+  return render(<FactoryPermissionsProvider permissionSet={permissions} can={can}><FactoryMasterDataProvider data={data}><FactoryMestiCleaningPage auth={{ profile: { id: "employee-1" } }} onNotify={vi.fn()} /></FactoryMasterDataProvider></FactoryPermissionsProvider>);
 }
 
 beforeEach(() => {
@@ -42,14 +39,13 @@ beforeEach(() => {
   factoryService.listMestiCleaningMonth.mockResolvedValue(monthlyRows);
   factoryService.completeMestiCleaningOccurrence.mockResolvedValue({});
   factoryService.verifyMestiCleaningOccurrence.mockResolvedValue({});
-  factoryService.saveMestiCleaningSettings.mockImplementation(async (value) => value);
   factoryService.saveMestiCleaningRequirement.mockImplementation(async (value) => ({ id: "req-new", logical_requirement_id: "logical-new", ...value, location_names: ["Preparation", "Dry Store"], version_no: 1 }));
 });
 
 afterEach(cleanup);
 
 describe("Factory MeSTI Cleaning of Area", () => {
-  it("keeps Daily Location-centric and lets the snapshotted responsible role complete work", async () => {
+  it("keeps Daily Location-centric and lets the canonical complete permission complete work", async () => {
     renderPage();
     expect(await screen.findByText("Preparation")).not.toBeNull();
     expect(screen.getByText("Cooking")).not.toBeNull();
@@ -57,28 +53,27 @@ describe("Factory MeSTI Cleaning of Area", () => {
     await waitFor(() => expect(factoryService.completeMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep"));
   });
 
-  it("lets the snapshotted verifier role review work and hides self-verification", async () => {
+  it("lets the canonical review permission review work and hides self-verification", async () => {
     factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-2", completed_by_name: "Aisha", completed_at: "2026-09-02T02:00:00Z" }]);
-    renderPage({ roleId: "role-supervisor" });
+    renderPage();
     expect(await screen.findByRole("button", { name: "Verify" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Unsatisfactory" }));
     await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "unsatisfactory"));
     cleanup();
     factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-1", completed_by_name: "Current User" }]);
-    renderPage({ roleId: "role-supervisor" });
+    renderPage();
     await waitFor(() => expect(factoryService.listMestiCleaningDay.mock.calls.length).toBeGreaterThanOrEqual(3));
     expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
   });
 
-  it("uses module-level roles in Cleaning Settings and keeps them out of requirement save payloads", async () => {
+  it("starts Setup with Cleaning Requirements and keeps role configuration out of the UI", async () => {
     renderPage({ permissions: ["factory_mesti_cleaning.view", "factory_mesti_cleaning.create", "factory_mesti_cleaning.edit", "factory_mesti_cleaning.manage"] });
     fireEvent.click(screen.getByRole("button", { name: "setup" }));
-    expect(await screen.findByText("Cleaning Settings")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
-    await waitFor(() => expect(factoryService.saveMestiCleaningSettings).toHaveBeenCalledWith({ responsible_role_id: "role-operator", verifier_role_id: "role-supervisor" }));
+    expect(await screen.findByText("Cleaning Requirements")).not.toBeNull();
+    expect(screen.queryByText("Cleaning Settings")).toBeNull();
+    expect(screen.queryByLabelText("Responsible Role")).toBeNull();
+    expect(screen.queryByLabelText("Verifier Role")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create Requirement" }));
-    expect(screen.getAllByLabelText("Responsible Role")).toHaveLength(1);
-    expect(screen.getAllByLabelText("Verifier Role")).toHaveLength(1);
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Ceiling" } });
     fireEvent.click(screen.getByLabelText("Preparation"));
     fireEvent.click(screen.getByLabelText("Dry Store"));

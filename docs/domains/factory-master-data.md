@@ -32,9 +32,9 @@ Factory Location is the canonical physical-location master. The legacy internal 
 
 Factory Equipment is Factory-owned and separate from Restaurant Asset Tracking. Each equipment instance has one canonical current Factory Location, an optional Factory Equipment Category, and a lifecycle status. Active equipment is eligible for new Production selection; inactive, maintenance, and out-of-service equipment remain readable through immutable usage history.
 
-MeSTI Cleaning Requirements bind tasks directly to one or more canonical Factory Locations. They define the task, structured recurrence, active status, and effective-from/version boundary. Responsible and verifier roles are a single canonical Cleaning Settings record for the module, not per-requirement overrides. Daily and selected-weekday weekly recurrence are stored as structured fields; frequency labels are derived for display. A Location may participate in multiple requirements, and one requirement may apply to multiple Locations.
+MeSTI Cleaning Requirements bind tasks directly to one or more canonical Factory Locations. They define the task, structured recurrence, active status, and effective-from/version boundary. Daily and selected-weekday weekly recurrence are stored as structured fields; frequency labels are derived for display. A Location may participate in multiple requirements, and one requirement may apply to multiple Locations.
 
-MeSTI Calibration Requirements bind one active Factory Equipment instance and Calibration Type to one logical, forward-effective version lineage. The server rejects duplicate active Equipment plus Calibration Type pairs, identical saves return the current version without mutation, and a real edit creates one non-overlapping successor version without rewriting prior records. Schedule and Records are trusted RPC projections. Only a verified Pass becomes Last Valid Calibration and advances Next Due; a verified Fail remains permanent evidence, projects as Failed, and never renews validity. A later verified Pass is the only recovery path. Recording and verification require the respective module-level Responsible and Verifier roles server-side, and an employee cannot verify their own record. Equipment, category, and Location are snapshotted when a record is created so later master-data or requirement changes cannot rewrite history.
+MeSTI Calibration Requirements bind one active Factory Equipment instance and Calibration Type to one logical, forward-effective version lineage. The server rejects duplicate active Equipment plus Calibration Type pairs, identical saves return the current version without mutation, and a real edit creates one non-overlapping successor version without rewriting prior records. Schedule and Records are trusted RPC projections. Only a verified Pass becomes Last Valid Calibration and advances Next Due; a verified Fail remains permanent evidence, projects as Failed, and never renews validity. A later verified Pass is the only recovery path. Recording and verification require the respective canonical FeedX permissions server-side, and an employee cannot verify their own record. Equipment, category, and Location are snapshotted when a record is created so later master-data or requirement changes cannot rewrite history.
 
 Cleaning Occurrences are generated/materialized by trusted database authorities for due dates and preserve an immutable requirement/Location/role snapshot. Later Cleaning Requirement or module-role edits only affect actionable future projections and must not rewrite finalized historical occurrence meaning. Daily is Location-centric. Monthly is a canonical task-centric projection keyed by logical requirement identity, with per-date aggregate state and retained Location-level drill-down evidence.
 
@@ -46,16 +46,16 @@ Admin access requires the relevant Factory master-data permission and applicable
 Trusted saves derive actors server-side and use explicit grants.
 Recipe/BOM versions, SOP publication/version state, material relationships, MeSTI Cleaning completion/verification evidence, MeSTI Calibration requirement/record/verification evidence, and meaningful supplier/customer/location changes retain auditability.
 
-Cleaning occurrence completion is authorized by the role snapshotted from Cleaning Settings at materialization, and verification is authorized by the corresponding verifier-role snapshot. The same employee cannot verify their own completion by default. The server derives the actual completing and verifying employee from Admin Auth through the canonical employee/Auth link.
+MeSTI Cleaning and Calibration use canonical FeedX permissions as their only authorization source: view read models, create/edit/manage requirement setup, complete recordable work, and review verification or unsatisfactory outcomes. Module-specific Responsible/Verifier role mappings do not exist. The same employee cannot verify their own completion or calibration record. The server derives the actual completing and verifying employee from Admin Auth through the canonical employee/Auth link.
 
 ## Workflows And Integrations
 
-Authorized Admins maintain products/materials, compose and version recipes/BOM, manage production SOPs, configure Locations, MeSTI Cleaning Requirements and Calibration requirements/settings, and maintain supplier and customer records.
+Authorized Admins maintain products/materials, compose and version recipes/BOM, manage production SOPs, configure Locations, MeSTI Cleaning Requirements and Calibration requirements, and maintain supplier and customer records.
 Factory Production pins the appropriate master-data versions for planning and execution.
 Factory Warehouse consumes material, product, storage, supplier, and customer references for receipts, movements, and dispatch.
 Factory Production consumes active Equipment instances when recording actual equipment used; planned SOP `equipment` text remains instructional and is not execution evidence.
-Factory MeSTI Cleaning consumes canonical Locations and roles while owning its daily/monthly compliance occurrence evidence.
-Factory MeSTI Calibration consumes Factory Equipment and roles while owning its versioned schedule and immutable calibration evidence.
+Factory MeSTI Cleaning consumes canonical Locations and canonical permissions while owning its daily/monthly compliance occurrence evidence.
+Factory MeSTI Calibration consumes Factory Equipment and canonical permissions while owning its versioned schedule and immutable calibration evidence.
 
 ## Compatibility And Deferred Scope
 
