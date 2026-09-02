@@ -4,6 +4,10 @@
   --guest-line: #dce6e1;
   --guest-mint: #dff4e9;
   --guest-mint-deep: #1f6c4e;
+  --guest-brand: #236647;
+  --guest-brand-soft: rgba(35, 102, 71, .12);
+  --guest-brand-border: rgba(35, 102, 71, .38);
+  --guest-brand-foreground: #ffffff;
   --guest-surface: #ffffff;
   min-height: 100vh;
   background: #f1f7f3;
@@ -39,9 +43,9 @@
 .guest-feedback-brand-mark,
 .guest-feedback-crew-avatar { display: grid; width: 32px; height: 32px; place-items: center; overflow: hidden; border-radius: 50%; background: #cae9dc; flex: 0 0 auto; }
 .guest-feedback-brand-mark { width: 56px; border-radius: 6px; background: transparent; }
-.guest-feedback-brand.has-logo .guest-feedback-brand-mark { width: min(58vw, 240px); height: 54px; justify-content: flex-start; }
+.guest-feedback-brand.has-logo .guest-feedback-brand-mark { display:flex; width:auto; height:auto; max-width:min(46vw, 170px); max-height:54px; overflow:visible; border-radius:0; justify-content:flex-start; }
 .guest-feedback-avatar-image { width: 100%; height: 100%; object-fit: cover; }
-.guest-feedback-brand-mark .guest-feedback-avatar-image { object-fit: contain; }
+.guest-feedback-brand-mark .guest-feedback-avatar-image { width:auto; height:auto; max-width:100%; max-height:54px; object-fit:contain; }
 .guest-feedback-avatar-fallback { color: #245a43; font-size: 12px; font-weight: 750; line-height: 1; }
 
 .guest-feedback-language {
@@ -58,15 +62,16 @@
   font-size: 13px;
 }
 .guest-feedback-language i { color: #a0ada8; font-style: normal; }
-.guest-feedback-language .is-active { color: var(--guest-ink); font-weight: 750; }
+.guest-feedback-language .is-active { color: var(--guest-brand); font-weight: 750; }
 
 .guest-feedback-progress { display: flex; gap: 6px; margin: 30px 0 40px; }
 .guest-feedback-progress span { height: 3px; flex: 1; border-radius: 99px; background: #d8e4df; }
-.guest-feedback-progress span.is-complete { background: var(--guest-mint-deep); }
+.guest-feedback-progress span.is-complete { background: var(--guest-brand); }
 
 @media (min-width: 640px) {
   .guest-feedback-shell { padding-top: 26px; }
-  .guest-feedback-brand.has-logo .guest-feedback-brand-mark { width: min(320px, 42vw); height: 62px; }
+  .guest-feedback-brand.has-logo .guest-feedback-brand-mark { max-width:min(200px,42vw); max-height:60px; }
+  .guest-feedback-brand-mark .guest-feedback-avatar-image { max-height:60px; }
 }
 
 .guest-feedback-stage { min-height: 430px; animation: guest-feedback-enter 260ms ease both; }
@@ -86,11 +91,11 @@
 .guest-feedback-choice,
 .guest-feedback-crew { width: 100%; min-height: 76px; gap: 14px; padding: 12px 14px; border: 1px solid var(--guest-line); border-radius: 8px; background: rgba(255, 255, 255, 0.72); color: inherit; cursor: pointer; text-align: left; transition: background 220ms ease, border-color 220ms ease, transform 220ms ease; }
 .guest-feedback-choice:hover,
-.guest-feedback-crew:hover { border-color: #a8cdbb; background: var(--guest-surface); }
+.guest-feedback-crew:hover { border-color: var(--guest-brand-border); background: var(--guest-surface); }
 .guest-feedback-choice:active,
 .guest-feedback-crew:active,
 .guest-feedback-experience:active { transform: scale(0.985); }
-.guest-feedback-choice-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: var(--guest-mint); color: var(--guest-mint-deep); flex: 0 0 auto; }
+.guest-feedback-choice-icon { display: grid; width: 42px; height: 42px; place-items: center; border-radius: 50%; background: var(--guest-brand-soft); color: var(--guest-brand); flex: 0 0 auto; }
 .guest-feedback-choice > span:not(.guest-feedback-choice-icon),
 .guest-feedback-crew > span:nth-child(2) { min-width: 0; flex: 1; }
 .guest-feedback-choice strong,
@@ -113,12 +118,12 @@
 
 .guest-feedback-tags { display: flex; flex-wrap: wrap; gap: 9px; }
 .guest-feedback-tags button { display: inline-flex; align-items: center; gap: 6px; min-height: 42px; padding: 0 14px; border: 1px solid var(--guest-line); border-radius: 999px; background: rgba(255, 255, 255, 0.7); color: #40504b; cursor: pointer; font: inherit; font-size: 14px; transition: background 220ms ease, border-color 220ms ease, color 220ms ease; }
-.guest-feedback-tags button.is-selected { border-color: #77b797; background: var(--guest-mint); color: #1c6045; font-weight: 650; }
+.guest-feedback-tags button.is-selected { border-color: var(--guest-brand-border); background: var(--guest-brand-soft); color: var(--guest-brand); font-weight: 650; }
 
 .guest-feedback-primary,
 .guest-feedback-secondary { display: inline-flex; min-height: 48px; align-items: center; justify-content: center; gap: 8px; border-radius: 7px; cursor: pointer; font: inherit; font-size: 15px; font-weight: 700; transition: background 220ms ease, transform 220ms ease, opacity 220ms ease; }
-.guest-feedback-primary { width: 100%; margin-top: 28px; border: 1px solid #236647; background: #236647; color: #fff; }
-.guest-feedback-primary:hover { background: #185638; }
+.guest-feedback-primary { width: 100%; margin-top: 28px; border: 1px solid var(--guest-brand); background: var(--guest-brand); color: var(--guest-brand-foreground); }
+.guest-feedback-primary:hover { filter: brightness(.92); }
 .guest-feedback-primary:active { transform: scale(0.99); }
 .guest-feedback-primary:disabled,
 .guest-feedback-secondary:disabled { cursor: not-allowed; opacity: 0.58; }
@@ -132,7 +137,7 @@
 .guest-feedback-field select { min-height: 48px; width: 100%; border: 1px solid var(--guest-line); border-radius: 7px; background: rgba(255, 255, 255, 0.82); color: var(--guest-ink); font: inherit; font-size: 16px; padding: 0 13px; outline: none; }
 .guest-feedback-field input:focus,
 .guest-feedback-field select:focus { border-color: #5da582; box-shadow: 0 0 0 3px rgba(111, 185, 146, 0.18); }
-.guest-feedback-choice.is-selected { border-color: #4e9874; background: var(--guest-mint); }
+.guest-feedback-choice.is-selected { border-color: var(--guest-brand-border); background: var(--guest-brand-soft); }
 .guest-feedback-submit-actions { gap: 10px; margin-top: 18px; }
 .guest-feedback-submit-actions .guest-feedback-primary { width: auto; flex: 1; margin: 0; }
 .guest-feedback-secondary { min-width: 118px; padding: 0 14px; border: 1px solid var(--guest-line); background: transparent; color: #456057; }

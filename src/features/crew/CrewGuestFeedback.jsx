@@ -204,6 +204,13 @@ function outletLogo(person) {
   return person?.logo_url || person?.brand_logo_url || person?.logo || (crewService.publicOutletLogoUrl?.(person?.logo_path, person?.logo_version) || "");
 }
 
+function guestTheme(accent) {
+  if (!/^#[0-9a-f]{6}$/i.test(accent || "")) return undefined;
+  const value = accent.slice(1); const red = parseInt(value.slice(0, 2), 16); const green = parseInt(value.slice(2, 4), 16); const blue = parseInt(value.slice(4, 6), 16);
+  const foreground = (red * 299 + green * 587 + blue * 114) / 1000 > 155 ? "#172321" : "#ffffff";
+  return { "--guest-brand": accent, "--guest-brand-soft": `rgba(${red}, ${green}, ${blue}, .12)`, "--guest-brand-border": `rgba(${red}, ${green}, ${blue}, .38)`, "--guest-brand-foreground": foreground };
+}
+
 function OutletBrand({ outlet }) {
   const [failed, setFailed] = useState(false);
   const image = outletLogo(outlet);
@@ -360,7 +367,7 @@ export default function CrewGuestFeedback() {
   const scopePrompt = scope === "crew" ? t.experience.crew.replace("{name}", employee?.name || "") : t.experience[scope];
 
   return (
-    <main className="guest-feedback-page">
+    <main className="guest-feedback-page" style={guestTheme(entry.outlet.brand_accent_color)}>
       <div className="guest-feedback-shell">
         <header className="guest-feedback-header">
           <OutletBrand outlet={entry.outlet} />
