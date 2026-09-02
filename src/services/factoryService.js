@@ -1275,6 +1275,7 @@ function mapMestiCleaningOccurrence(row) {
     due_date: row.due_date || "",
     status: row.status || "pending",
     requirement_id: row.requirement_id || "",
+    logical_requirement_id: row.logical_requirement_id || row.requirement_id || "",
     task_name: row.task_name || "",
     location_id: row.location_id || "",
     location_name: row.location_name || "",

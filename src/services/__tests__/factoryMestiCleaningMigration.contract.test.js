@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902090000_factory_mesti_cleaning_of_area.sql"), "utf8");
 const locationDirectMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902132726_factory_mesti_cleaning_location_direct.sql"), "utf8");
 const versionIdentityMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902142206_factory_mesti_cleaning_requirement_version_identity.sql"), "utf8");
+const readIdentityMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260902144520_factory_mesti_cleaning_read_logical_requirement_identity.sql"), "utf8");
 
 describe("Factory MeSTI Cleaning migration contract", () => {
   it("canonicalizes Factory Location storage eligibility without replacing the location master", () => {
@@ -54,5 +55,11 @@ describe("Factory MeSTI Cleaning migration contract", () => {
     expect(versionIdentityMigration).toContain("'version_created', v_version_created");
     expect(versionIdentityMigration).toContain("and (requirement.effective_until is null or due_date.day::date < requirement.effective_until)");
     expect(versionIdentityMigration).toContain("status = 'pending'");
+  });
+
+  it("projects Daily and Monthly with the stable logical requirement identity", () => {
+    expect(readIdentityMigration).toContain("'logical_requirement_id', o.logical_requirement_id");
+    expect(readIdentityMigration).toContain("create or replace function public.factory_mesti_cleaning_day");
+    expect(readIdentityMigration).toContain("create or replace function public.factory_mesti_cleaning_month");
   });
 });

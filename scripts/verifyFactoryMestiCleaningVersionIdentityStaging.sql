@@ -212,10 +212,19 @@ begin
   if daily_count <> 2 or monthly_count <> 2 then
     raise exception 'FAIL Daily/Monthly did not return exactly one Task/Location/date state.';
   end if;
+  if exists (
+    select 1
+    from jsonb_array_elements(public.factory_mesti_cleaning_month(date_trunc('month', current_date)::date)) row(value)
+    where row.value->>'task_name' = 'QA Version Identity Rollback'
+      and row.value->>'due_date' = current_date::text
+      and row.value->>'logical_requirement_id' <> created_logical_id::text
+  ) then
+    raise exception 'FAIL Monthly did not project the stable logical requirement identity.';
+  end if;
 
   insert into factory_mesti_cleaning_version_identity_results
-  values (13, created_id, created_logical_id, (edited->>'version_no')::int, occurrence_count, final_status);
-  raise notice 'FACTORY_MESTI_CLEANING_VERSION_IDENTITY_PASS 13/13 requirement=% logical_requirement=%', created_id, created_logical_id;
+  values (14, created_id, created_logical_id, (edited->>'version_no')::int, occurrence_count, final_status);
+  raise notice 'FACTORY_MESTI_CLEANING_VERSION_IDENTITY_PASS 14/14 requirement=% logical_requirement=%', created_id, created_logical_id;
 end $$;
 
 select * from factory_mesti_cleaning_version_identity_results;
