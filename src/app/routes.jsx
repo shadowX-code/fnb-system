@@ -374,6 +374,7 @@ export const routeDetails = {
     props: { initialTab: "mesti-health-declaration" },
   },
   factory_mesti_operator_hygiene: { component: FactoryWorkspacePage, permission: "factory_mesti_operator_hygiene.view", props: { initialTab: "mesti-operator-hygiene" } },
+  factory_mesti_waste_disposal: { component: FactoryWorkspacePage, permission: "factory_mesti_waste_disposal.view", props: { initialTab: "mesti-waste-disposal" } },
   factory_product_recipes: {
     description: "Manage standard raw material BOMs for Finished Goods production defaults.",
     component: FactoryWorkspacePage,

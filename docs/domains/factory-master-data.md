@@ -21,6 +21,7 @@ Restaurant suppliers and recipes remain restaurant-owned unless a deliberate sha
 - MeSTI Calibration Settings, versioned Requirements, Schedule, and immutable Records
 - MeSTI Health Declarations for canonical Employees and Factory visitors
 - MeSTI Operator Hygiene Inspection evidence for canonical Employees
+- MeSTI Waste Disposal requirements and daily Location-centric disposal evidence
 - Factory suppliers and customers
 
 ## Lifecycle And Business Rules
@@ -54,6 +55,8 @@ MeSTI Cleaning of Area, Cleaning of Equipment, and Calibration use canonical Fee
 MeSTI Health Declaration is one unified Factory compliance evidence domain for Employee and Visitor submissions. Employee declarations reference the canonical Employee master and freeze an identity snapshot so later employee changes cannot rewrite historical evidence; visitor context is declaration-local. Symptoms are structured values and an empty symptom set is the sole No symptoms representation. The server derives Fit for Work/Cleared versus Health Issue Declared from that set. Submitted declaration evidence is immutable: a permitted supervisor may append one Employee work action without replacing the original declaration. Retry safety uses a caller request ID scoped to the authenticated recording employee. Canonical Health Declaration view, create, and manage permissions are enforced by trusted RPCs; there are no module-specific role mappings.
 
 MeSTI Operator Hygiene Inspection records one daily inspection session keyed by inspection date. Entries reference canonical active Employees and freeze employee name/position snapshots. Clothing and Hygiene are recorded as Pass/Fail; the server derives Overall as Compliant only when both pass, otherwise Non-Compliant. Non-Compliant entries require both Issue and Action evidence. Draft sessions may be edited through the trusted save RPC; submitted sessions are read-only, and verification is a separate trusted transition with same-employee self-verification blocked server-side. Daily reads expose inspected/compliant/non-compliant and Submitted/Verified evidence; Monthly is Employee-centric with date-level drill-down.
+
+MeSTI Waste Disposal uses versioned daily Location requirements with a positive Required Times / Day. A daily disposal session records any number of immutable disposal events, each freezing the canonical Location and server-derived completing employee/time. Requirement edits are no-ops when unchanged; meaningful edits create a forward version. Completion is count-based, so extra events are retained and compliant when completed count meets or exceeds the requirement. Submitted and verified sessions are read-only; whole-day verification blocks self-verification. Monthly is Location-centric and represents no applicable requirement as blank rather than a failure.
 
 ## Workflows And Integrations
 

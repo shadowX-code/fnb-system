@@ -2913,6 +2913,15 @@ export const factoryService = {
   async submitMestiOperatorHygiene(date) { const { data, error } = await supabase.rpc("factory_mesti_submit_operator_hygiene", { p_date: date }); throwSupabaseError("factory.mesti_operator_hygiene.submit", error); return data; },
   async verifyMestiOperatorHygiene(date) { const { data, error } = await supabase.rpc("factory_mesti_verify_operator_hygiene", { p_date: date }); throwSupabaseError("factory.mesti_operator_hygiene.verify", error); return data; },
 
+  async getMestiWasteDisposalDaily(date) { const { data, error } = await supabase.rpc("factory_mesti_waste_disposal_daily", { p_date: date }); throwSupabaseError("factory.mesti_waste_disposal.daily", error); return data || { locations: [] }; },
+  async listMestiWasteDisposalMonthly(month) { const { data, error } = await supabase.rpc("factory_mesti_waste_disposal_monthly", { p_month: `${month}-01` }); throwSupabaseError("factory.mesti_waste_disposal.monthly", error); return Array.isArray(data) ? data : []; },
+  async listMestiWasteDisposalRequirements() { const { data, error } = await supabase.rpc("factory_mesti_waste_disposal_requirements"); throwSupabaseError("factory.mesti_waste_disposal.requirements", error); return Array.isArray(data) ? data : []; },
+  async listMestiWasteDisposalLocations() { const { data, error } = await supabase.rpc("factory_mesti_waste_disposal_locations"); throwSupabaseError("factory.mesti_waste_disposal.locations", error); return Array.isArray(data) ? data : []; },
+  async saveMestiWasteDisposalRequirement(requirement) { const { data, error } = await supabase.rpc("factory_save_mesti_waste_disposal_requirement", { p_requirement: requirement }); throwSupabaseError("factory.mesti_waste_disposal.requirement.save", error); return data; },
+  async recordMestiWasteDisposal(date, event) { const { data, error } = await supabase.rpc("factory_mesti_waste_disposal_record", { p_date: date, p_event: event }); throwSupabaseError("factory.mesti_waste_disposal.record", error); return data; },
+  async submitMestiWasteDisposal(date) { const { data, error } = await supabase.rpc("factory_mesti_waste_disposal_submit", { p_date: date }); throwSupabaseError("factory.mesti_waste_disposal.submit", error); return data; },
+  async verifyMestiWasteDisposal(date) { const { data, error } = await supabase.rpc("factory_mesti_waste_disposal_verify", { p_date: date }); throwSupabaseError("factory.mesti_waste_disposal.verify", error); return data; },
+
   async listMestiCleaningMonth(month) {
     const { data, error } = await supabase.rpc("factory_mesti_cleaning_month", { p_month: `${month}-01` });
     throwSupabaseError("factory.mesti_cleaning.month", error);
