@@ -29,6 +29,7 @@ Raw and finished-goods balances are server-derived from canonical posted evidenc
 Transfers, issues, returns, adjustments, and stock checks use controlled lifecycle paths.
 
 Production consumption and output are coordinated with Factory Production without duplicating stock ownership.
+Raw Material balances, batches, allocations, and deductions remain in each material's storage UOM. Recipe usage UOM and package-content metadata are consumed through the Factory Production conversion contract; Warehouse does not infer or backfill package factors from receipt or historical BOM quantities.
 Dispatch reserves and moves eligible finished goods through the defined allocation and confirmation states.
 Completed warehouse movements and dispatch evidence are not silently rewritten; corrections use explicit adjustment, reversal, or superseding evidence.
 

@@ -27,6 +27,7 @@ Job Orders move through defined preparation, release, execution, completion, and
 The server owns protected quantity calculations, state transitions, material validation, output posting coordination, and traceability links.
 
 Execution pins the product recipe/BOM and SOP/version context needed to preserve historical meaning.
+Recipe requirement scaling starts from the saved recipe quantity and `recipe_usage_uom`, then uses the declared Raw Material conversion path to calculate the Raw Material storage UOM. Batch allocation and stock deduction use only that storage UOM. The completion authority repeats the standard-usage conversion for recipe-linked completions and rejects a missing or mismatched conversion rather than accepting a client-calculated substitute.
 Completed production and batch evidence is immutable except through explicit correction or reversal contracts.
 Production SOPs bind the canonical active Factory Equipment instances required by the controlled process. On completed production, the trusted completion authority creates idempotent After Production Cleaning evidence for each bound Equipment using the `production_id + equipment_id` identity, and freezes equipment, Location, batch, product, job order, SOP, and completion context so later master-data changes do not rewrite historical meaning.
 Production Overview is a read model and does not own underlying lifecycle writes.

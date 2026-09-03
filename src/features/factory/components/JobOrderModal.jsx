@@ -14,6 +14,7 @@ import { activeRecipeForSku, finishedGoodParentKey, inheritedRecipeUom } from ".
 import { todayInput } from "../utils/factoryDates.js";
 import { normalizePackSizeToBase, packSizeText, quantity, rawMaterialLabel, skuBalanceLabel } from "../utils/factoryFormatters.js";
 import { jobStatusLabel } from "../utils/factoryStatus.js";
+import { convertRawMaterialQuantity } from "../utils/factoryUomConversions.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
 
@@ -115,16 +116,22 @@ export default function JobOrderModal({ initialValue, finishedGoods = [], rawMat
   const bomRows = matchingRecipe?.items?.length ? matchingRecipe.items.map((item) => {
     const material = rawMaterials.find((row) => row.id === item.raw_material_id);
     const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
-    const requiredQty = (Number(item.quantity_used || 0) * Number(normalizedPreviewProductionQty || 0)) / recipeYield;
+    const recipeUsageQty = (Number(item.quantity_used || 0) * Number(normalizedPreviewProductionQty || 0)) / recipeYield;
+    const recipeUsageUom = item.recipe_usage_uom || item.uom || material?.uom || "";
+    const conversion = convertRawMaterialQuantity(recipeUsageQty, recipeUsageUom, material?.uom || "", material);
+    const requiredQty = conversion.quantity;
     const balance = Number(material?.current_balance || 0);
     return {
       ...item,
       material_name: rawMaterialLabel(material) || "Raw Material",
       material_code: material?.material_code || "",
-      required_qty: requiredQty,
+      recipe_usage_qty: recipeUsageQty,
+      recipe_usage_uom: recipeUsageUom,
+      required_qty: requiredQty ?? 0,
+      conversion_error: conversion.reason || "",
       balance,
-      enough: balance >= requiredQty,
-      uom: item.uom || material?.uom || "",
+      enough: !conversion.reason && balance >= (requiredQty ?? 0),
+      uom: material?.uom || "",
     };
   }) : [];
 
@@ -305,9 +312,9 @@ export default function JobOrderModal({ initialValue, finishedGoods = [], rawMat
                     {bomRows.map((row) => (
                       <tr key={row.id} className="border-b border-border last:border-0">
                         <td className="px-4 py-3"><div className="font-semibold text-text-primary">{row.material_name}</div><div className="text-xs text-text-secondary">{row.material_code || "Raw material"}</div></td>
-                        <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.required_qty, row.uom)}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-text-secondary"><div>{quantity(row.required_qty, row.uom)}</div>{row.recipe_usage_uom !== row.uom ? <div className="mt-1 text-xs">Recipe {quantity(row.recipe_usage_qty, row.recipe_usage_uom)}</div> : null}{row.conversion_error ? <div className="mt-1 text-xs font-bold text-amber-700">{row.conversion_error}</div> : null}</td>
                         <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.balance, row.uom)}</td>
-                        <td className="px-4 py-3"><Badge tone={row.enough ? "success" : "danger"}>{row.enough ? "Enough" : "Shortage"}</Badge></td>
+                        <td className="px-4 py-3"><Badge tone={row.conversion_error ? "warning" : row.enough ? "success" : "danger"}>{row.conversion_error ? "Conversion Required" : row.enough ? "Enough" : "Shortage"}</Badge></td>
                       </tr>
                     ))}
                   </tbody>
@@ -329,6 +336,5 @@ export default function JobOrderModal({ initialValue, finishedGoods = [], rawMat
     </Modal>
   );
 }
-
 
 
