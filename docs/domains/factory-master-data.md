@@ -26,7 +26,7 @@ Restaurant suppliers and recipes remain restaurant-owned unless a deliberate sha
 ## Lifecycle And Business Rules
 
 Product Recipe/BOM Draft saves use the established trusted save authority so header and component changes remain atomic and validated.
-Each BOM component stores its own `recipe_usage_uom`, independent from the Raw Material storage UOM. A Raw Material may define one structured package-content relationship (`package UOM`, positive content quantity, dimensional base UOM) and an optional `default_recipe_usage_uom`; both are master data, not free-text recipe conversions. The default must be storage-identical or reachable through the declared canonical conversion and is applied only when a user first selects that Raw Material on a new BOM line. It never rewrites saved BOMs, historical production usage, quantities, or recipe status. Existing BOMs are backfilled with their stored UOM without reinterpretation. Recipe previews may show incomplete cost where no declared path exists, and never invent a package conversion.
+Each BOM component persists its `recipe_usage_uom` for audit stability. Raw Material master data is the only authority for a new BOM row: a valid package conversion uses its dimensional Base UOM; otherwise Recipe usage uses Storage UOM. Recipe users edit quantity, not UOM. Existing BOM quantities and usage UOMs remain historical evidence and are never reinterpreted or rewritten by a Raw Material conversion change. Recipe previews may show incomplete cost where no declared path exists, and never invent a package conversion.
 Published or execution-ready recipes and SOPs are versioned or pinned according to current contracts.
 Later edits must not rewrite the recipe, BOM, or SOP context attached to historical production.
 

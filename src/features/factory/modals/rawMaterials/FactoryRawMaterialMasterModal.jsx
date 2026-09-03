@@ -5,7 +5,7 @@ import SearchableSelect from "../../components/SearchableSelect.jsx";
 import { factoryService } from "../../../../services/factoryService.js";
 import { IMAGE_UPLOAD_ACCEPT } from "../../../../utils/imageUpload.js";
 import { money } from "../../utils/factoryFormatters.js";
-import { commonFactoryUoms, dimensionalFactoryUom, factoryUsageUomOptions, isFactoryUsageUomReachable, normalizeFactoryUom } from "../../utils/factoryUomConversions.js";
+import { commonFactoryUoms, dimensionalFactoryUom, normalizeFactoryUom } from "../../utils/factoryUomConversions.js";
 
 function focusFirstInvalid(refs, firstKey) { setTimeout(() => { const node = refs.current?.[firstKey]; node?.scrollIntoView?.({ behavior: "smooth", block: "center" }); node?.focus?.({ preventScroll: true }); }, 0); }
 
@@ -27,7 +27,6 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
     conversion_package_uom: "",
     conversion_package_quantity: "",
     conversion_base_uom: "",
-    default_recipe_usage_uom: "",
     min_stock_level: 0,
     par_level: "",
     manual_unit_cost: "",
@@ -54,12 +53,7 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
   const hasPackageConversion = Boolean(form.conversion_package_uom || form.conversion_package_quantity || form.conversion_base_uom);
   const packageOptions = commonFactoryUoms.filter((uom) => !dimensionalFactoryUom(uom)).map((uom) => ({ value: uom, label: uom }));
   const baseOptions = commonFactoryUoms.filter((uom) => Boolean(dimensionalFactoryUom(uom))).map((uom) => ({ value: uom, label: dimensionalFactoryUom(uom)?.display || uom }));
-  const defaultRecipeUsageOptions = [{ value: "", label: "Use Storage UOM" }, ...factoryUsageUomOptions(form)];
-  const updateUomContract = (patch) => setForm((current) => {
-    const next = { ...current, ...patch };
-    if (next.default_recipe_usage_uom && !isFactoryUsageUomReachable(next, next.default_recipe_usage_uom)) next.default_recipe_usage_uom = "";
-    return next;
-  });
+  const updateUomContract = (patch) => setForm((current) => ({ ...current, ...patch }));
 
   async function submit(event) {
     event.preventDefault();
@@ -72,7 +66,6 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
       conversion_package_quantity: hasPackageConversion && (!Number.isFinite(Number(form.conversion_package_quantity)) || Number(form.conversion_package_quantity) <= 0) ? "Conversion quantity must be greater than zero." : "",
       conversion_package_uom: hasPackageConversion && !packageOptions.some((option) => option.value === normalizeFactoryUom(form.conversion_package_uom)) ? "Package UOM is required." : "",
       conversion_base_uom: hasPackageConversion && !String(form.conversion_base_uom || "").trim() ? "Base UOM is required." : "",
-      default_recipe_usage_uom: form.default_recipe_usage_uom && !isFactoryUsageUomReachable(form, form.default_recipe_usage_uom) ? "Default Recipe Usage UOM must be reachable from Storage UOM." : "",
       par_level: form.par_level !== "" && (!Number.isFinite(Number(form.par_level)) || Number(form.par_level) < 0) ? "Par Level must be zero or greater." : "",
       status: !String(form.status || "").trim() ? "Status is required." : "",
       shelf_life_days: form.shelf_life_days !== "" && (!Number.isInteger(Number(form.shelf_life_days)) || Number(form.shelf_life_days) <= 0) ? "Shelf Life must be a whole number greater than zero." : "",
@@ -191,7 +184,7 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
         </Field>
         <section className="space-y-3 rounded-lg border border-border bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
-            <div><div className="text-sm font-bold text-text-primary">UOM & Conversion</div><div className="text-xs font-semibold text-text-secondary">Define package content once when recipe usage needs a dimensional unit.</div></div>
+            <div><div className="text-sm font-bold text-text-primary">UOM & Conversion</div><div className="text-xs font-semibold text-text-secondary">Define package content once. Recipe usage uses the Base UOM.</div></div>
             <input aria-label="Package conversion" type="checkbox" checked={hasPackageConversion} onChange={(event) => updateUomContract(event.target.checked ? { conversion_package_uom: form.conversion_package_uom || (dimensionalFactoryUom(form.uom) ? "pack" : normalizeFactoryUom(form.uom)) || "pack", conversion_package_quantity: form.conversion_package_quantity || "", conversion_base_uom: form.conversion_base_uom || "kg" } : { conversion_package_uom: "", conversion_package_quantity: "", conversion_base_uom: "" })} />
           </div>
           {hasPackageConversion ? <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,.8fr)]">
@@ -199,12 +192,6 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
             <Field label="Contains" error={fieldErrors.conversion_package_quantity}><input className={inputClass(fieldErrors.conversion_package_quantity)} type="number" min="0.0001" step="0.0001" value={form.conversion_package_quantity ?? ""} onChange={(event) => updateUomContract({ conversion_package_quantity: event.target.value })} /></Field>
             <Field label="Base UOM" error={fieldErrors.conversion_base_uom}><SearchableSelect value={form.conversion_base_uom || ""} options={baseOptions} placeholder="Base UOM" searchPlaceholder="Search UOM" onChange={(conversionBaseUom) => updateUomContract({ conversion_base_uom: conversionBaseUom })} /></Field>
           </div> : null}
-          <Field label="Default Recipe Usage UOM" error={fieldErrors.default_recipe_usage_uom}>
-            <SearchableSelect value={form.default_recipe_usage_uom || ""} options={defaultRecipeUsageOptions} placeholder="Use Storage UOM" searchPlaceholder="Search reachable UOM" emptyText="Configure a valid conversion for additional UOMs." error={Boolean(fieldErrors.default_recipe_usage_uom)} onChange={(defaultRecipeUsageUom) => {
-              setFieldErrors((current) => ({ ...current, default_recipe_usage_uom: "" }));
-              setForm((current) => ({ ...current, default_recipe_usage_uom: defaultRecipeUsageUom }));
-            }} />
-          </Field>
         </section>
         <Field label={`Par Level${form.uom ? ` (${form.uom})` : ""}`}>
           <input className={inputClass()} type="number" min="0" step="0.0001" placeholder="Optional target stock level" value={form.par_level ?? ""} onChange={(event) => setForm((current) => ({ ...current, par_level: event.target.value }))} />

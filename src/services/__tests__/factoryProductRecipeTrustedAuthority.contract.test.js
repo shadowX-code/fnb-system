@@ -6,7 +6,7 @@ const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260
 const updateGuardMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903101335_factory_product_recipe_update_code_guard.sql"), "utf8");
 const usageUomMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903293000_factory_recipe_usage_uom_conversions.sql"), "utf8");
 const rawMaterialUpdateGrantMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903294000_factory_raw_material_update_grant.sql"), "utf8");
-const defaultRecipeUsageUomMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903300000_factory_default_recipe_usage_uom.sql"), "utf8");
+const canonicalRecipeUsageUomMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903310000_factory_recipe_usage_uom_canonical_cleanup.sql"), "utf8");
 const factoryService = readFileSync(resolve(process.cwd(), "src/services/factoryService.js"), "utf8");
 describe("Factory Product Recipe trusted authority migration", () => {
   it("defines an authenticated, idempotent atomic Recipe/BOM save contract", () => {
@@ -29,8 +29,8 @@ describe("Factory Product Recipe trusted authority migration", () => {
     expect(rawMaterialUpdateGrantMigration).toContain("grant update on table public.factory_raw_materials to authenticated");
   });
 
-  it("keeps Raw Material defaults and Recipe UOM overrides within the canonical conversion contract", () => {
-    for (const text of ["add column if not exists default_recipe_usage_uom", "factory_raw_material_uom_reachable", "Default Recipe Usage UOM must be reachable", "factory_validate_recipe_usage_uom", "Recipe Usage UOM must be reachable", "before insert or update of uom, conversion_package_uom"]) expect(defaultRecipeUsageUomMigration).toContain(text);
-    expect(factoryService.match(/default_recipe_usage_uom/g)?.length).toBeGreaterThanOrEqual(4);
+  it("derives new Recipe UOM from Raw Material conversion metadata while retaining historical BOM evidence", () => {
+    for (const text of ["drop column if exists default_recipe_usage_uom", "factory_validate_recipe_usage_uom", "Recipe Usage UOM must match the Raw Material canonical Recipe UOM", "v_resolved_items", "factory.allow_historical_recipe_usage_uom", "conversion_base_uom"]) expect(canonicalRecipeUsageUomMigration).toContain(text);
+    expect(factoryService).not.toContain("default_recipe_usage_uom");
   });
 });
