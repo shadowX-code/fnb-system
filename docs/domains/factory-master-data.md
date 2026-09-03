@@ -12,7 +12,7 @@ Restaurant suppliers and recipes remain restaurant-owned unless a deliberate sha
 
 ## Core Entities
 
-- Factory products and raw materials
+- Factory products and raw materials, including Raw Material Acceptance Procedure and Control Methods
 - Product Recipe/BOM drafts, versions, components, quantities, units, and yield context
 - Production SOP records, versions, attachments, and status
 - Factory Locations and other Factory reference/configuration records
@@ -32,6 +32,7 @@ Published or execution-ready recipes and SOPs are versioned or pinned according 
 Later edits must not rewrite the recipe, BOM, or SOP context attached to historical production.
 
 Master-data records may be retired or made inactive according to current state rules, but referenced history remains valid.
+Raw Material Acceptance Procedure and Control Methods are canonical master-data guidance. Raw Material Receiving reads the current Acceptance Procedure while drafting and snapshots both fields when Receiving is completed, so later master edits cannot rewrite receipt evidence.
 Factory Location is the canonical physical-location master. The legacy internal `factory_storage_locations` contract remains stable for compatibility, while user-facing UI labels it as Location. `is_storage_location` controls whether an active Location may be selected by raw material, receiving, production output, finished goods, and stock workflows. Non-storage active Locations may still be referenced by appropriate non-inventory Factory workflows such as MeSTI Cleaning.
 
 Factory Equipment is Factory-owned and separate from Restaurant Asset Tracking. Each equipment instance has one canonical current Factory Location, an optional Factory Equipment Category, and a lifecycle status. Active equipment is eligible for new Production SOP bindings; inactive, maintenance, and out-of-service equipment remain readable through immutable production and compliance snapshots.
@@ -66,6 +67,7 @@ Factory Warehouse consumes material, product, storage, supplier, and customer re
 Factory Production consumes canonical Equipment bindings from the pinned Production SOP at completion; free-text SOP instructions remain instructional and are not a trigger. Factory MeSTI Cleaning of Area consumes canonical Locations and canonical permissions while owning its daily/monthly compliance occurrence evidence. Cleaning of Equipment consumes canonical Equipment and completed Production SOP bindings while owning its own idempotent, provenance-preserving occurrence evidence.
 Factory MeSTI Calibration consumes Factory Equipment and canonical permissions while owning its versioned schedule and immutable calibration evidence.
 Factory MeSTI Operator Hygiene consumes canonical Employees and canonical permissions while owning daily session lifecycle evidence.
+Factory MeSTI Raw Material Control is a read-only projection of canonical Raw Material standards and completed Raw Material Receiving evidence. It owns no raw-material, receiving, supplier, storage, user, or verification duplicate. Receiving verification is document-level: completion posts stock and freezes item guidance snapshots, then the document awaits a permitted second employee's verification; the receiving actor cannot self-verify and verified evidence is immutable.
 
 ## Compatibility And Deferred Scope
 

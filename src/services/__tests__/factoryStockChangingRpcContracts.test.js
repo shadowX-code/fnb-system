@@ -34,6 +34,12 @@ describe("Factory stock-changing trusted RPC contracts", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("factory_mesti_verify_cleaning_occurrence", { p_occurrence_id: "occ-1", p_result: "verified", p_note: "ok" });
   });
 
+  it("delegates Receiving verification to its document-level trusted RPC", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: "receiving-1", batch_no: "RB-1", status: "completed", verification_status: "verified", items: [] }, error: null });
+    await factoryService.verifyRawMaterialReceivingBatch({ id: "receiving-1", batch_no: "RB-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_verify_raw_material_receiving", { p_batch_id: "receiving-1" });
+  });
+
   it("maps MeSTI Cleaning requirements to its trusted authority without role settings", async () => {
     const requirement = { task_name: "Floor", location_ids: ["loc-1", "loc-2"], recurrence_type: "daily" };
     mocks.rpc.mockResolvedValue({ data: { id: "req-1", ...requirement, location_names: ["Cooking", "Dry Store"] }, error: null });

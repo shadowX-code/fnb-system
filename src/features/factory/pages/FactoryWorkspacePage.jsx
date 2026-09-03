@@ -25,6 +25,7 @@ import FactoryMestiCalibrationPage from "./FactoryMestiCalibrationPage.jsx";
 import FactoryMestiHealthDeclarationPage from "./FactoryMestiHealthDeclarationPage.jsx";
 import FactoryMestiOperatorHygienePage from "./FactoryMestiOperatorHygienePage.jsx";
 import FactoryMestiWasteDisposalPage from "./FactoryMestiWasteDisposalPage.jsx";
+import FactoryMestiRawMaterialControlPage from "./FactoryMestiRawMaterialControlPage.jsx";
 import FactoryMestiFinishedProductStorageControlPage from "./FactoryMestiFinishedProductStorageControlPage.jsx";
 import FactoryProductRecipesPage from "./FactoryProductRecipesPage.jsx";
 import FactoryProductionSopPage from "./FactoryProductionSopPage.jsx";
@@ -763,7 +764,8 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   }
 
   function renderMaterialPicker(item) {
-    return <><RawMaterialCellPicker value={item.raw_material_id} materials={activeRawMaterials} placeholder="Select Raw Material" open={openMaterialRowId === item.row_id} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</>;
+    const material = activeRawMaterials.find((row) => row.id === item.raw_material_id);
+    return <><RawMaterialCellPicker value={item.raw_material_id} materials={activeRawMaterials} placeholder="Select Raw Material" open={openMaterialRowId === item.row_id} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{material?.acceptance_procedure ? <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-xs text-sky-900"><span className="font-bold">Acceptance:</span> {material.acceptance_procedure}</div> : null}{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</>;
   }
 
   function renderInternalBatch(item) {
@@ -870,10 +872,12 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
           <h3 className="text-sm font-black uppercase tracking-[0.08em] text-text-primary">Document Information</h3>
           <div className="mt-4 grid gap-x-12 gap-y-3 md:grid-cols-2">
             {[
-              ...(batch.status === "completed"
+              ...(batch.status === "completed" || batch.status === "awaiting_verification" || batch.status === "verified"
                 ? [
-                    ["Completed At", formatFactoryDateTime(batch.completed_at)],
-                    ["Completed By", batch.completed_by_name || "—"],
+                    ["Receive Time", formatFactoryDateTime(batch.completed_at)],
+                    ["Received By", batch.completed_by_name || "—"],
+                    ["Verified By", batch.verified_by_name || (batch.status === "awaiting_verification" ? "Awaiting Verification" : "—")],
+                    ["Verified At", batch.verified_at ? formatFactoryDateTime(batch.verified_at) : "—"],
                   ]
                 : [["Receiving Date", formatFactoryDate(batch.received_date)]]),
               ["Supplier", batch.supplier_name || "—"],
@@ -897,6 +901,8 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
               { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
               { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location ? <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">{row.storage_location}</span> : "—" },
               { key: "expiry_date", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },
+              { key: "acceptance_procedure_snapshot", label: "Acceptance Procedure", render: (row) => row.acceptance_procedure_snapshot || "—" },
+              { key: "control_methods_snapshot", label: "Control Methods", render: (row) => row.control_methods_snapshot || "—" },
             ]}
             rows={itemRows}
             emptyTitle="No receiving items"
@@ -1582,6 +1588,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   async function completeReceivingBatch(form) {
     return mutateReceiving(form, true);
+  }
+
+  async function verifyReceivingBatch(batch) {
+    if (receivingMutationRef.current.has(batch.id)) return;
+    receivingMutationRef.current.add(batch.id);
+    try {
+      const verified = await factoryService.verifyRawMaterialReceivingBatch(batch);
+      const refreshPage = applyReceivingMutation(batch, verified);
+      ui?.notify?.({ title: "Receiving verified", tone: "success" });
+      await refreshReceivingHistory(refreshPage, "verification");
+      void loadData({ silent: true });
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to verify receiving", message: isFactoryPermissionError(error) ? "Your current role does not allow this Receiving action." : error.message, tone: "error" });
+    } finally {
+      receivingMutationRef.current.delete(batch.id);
+    }
   }
 
   async function cancelReceivingBatch(batch) {
@@ -2576,12 +2598,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       return Object.entries(totals).map(([uom, value]) => quantity(value, uom)).join(" · ") || "—";
     } },
     { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
-    { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
+    { key: "received_by", label: "Received By", render: (row) => row.completed_by_name || row.created_by_name || "—" },
+    { key: "verified_by", label: "Verified By", render: (row) => row.verified_by_name || (row.status === "awaiting_verification" ? "Awaiting Verification" : "—") },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex flex-wrap justify-end gap-2">
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving-batch-detail", value: row })}>View</button>
         {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => { setEditingReceiving(row); setReceivingTab("receive"); }}>Edit</button> : null}
         {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => completeReceivingBatch(row)}><PackageCheck size={13} /> Complete</button> : null}
+        {row.status === "awaiting_verification" && can("factory_raw_receiving.verify") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => verifyReceivingBatch(row)}><Check size={13} /> Verify</button> : null}
         {row.status === "draft" && can("factory_raw_receiving.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelReceivingBatch(row)}>Cancel</button> : null}
       </div>
     ) },
@@ -3462,7 +3486,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       <FactoryOperationalJobsProvider route={initialTab} auth={auth} refreshKey={data} onPermissionDenied={clearOperationalPermission}>{(operationalJobs) => <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
       {initialTab === "mesti-equipment-cleaning" ? <FactoryMestiEquipmentCleaningPage auth={auth} onNotify={ui?.notify} /> : <>
-      {initialTab === "mesti-calibration" ? <FactoryMestiCalibrationPage onNotify={ui?.notify} onRefreshFactoryData={loadData} /> : initialTab === "mesti-operator-hygiene" ? <FactoryMestiOperatorHygienePage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-waste-disposal" ? <FactoryMestiWasteDisposalPage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-health-declaration" ? <FactoryMestiHealthDeclarationPage onNotify={ui?.notify} /> : initialTab === "mesti-finished-product-storage-control" ? <FactoryMestiFinishedProductStorageControlPage onNotify={ui?.notify} /> : initialTab === "equipment" ? <FactoryEquipmentPage onCreate={() => setModal({ type: "equipment" })} onEdit={(value) => setModal({ type: "equipment", value })} onManageCategories={() => setModal({ type: "equipment-categories" })} /> : initialTab === "production-overview" ? <FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={(job, options) => setModal({ type: "job", value: job, readOnly: options?.readOnly })} startJob={(job) => setModal({ type: "start-production", job })} completeProduction={(job, options) => setModal(options?.processOnly ? { type: "production-process", job, readOnly: Boolean(options.readOnly) } : { type: "production", job })} viewCompletedResult={viewCompletedJobOrder} releaseJob={releaseJobOrder} cancelJob={cancelJobOrder} /> : initialTab === "job-orders" ? <FactoryJobOrdersPage data={data} auth={auth} can={can} onCreate={() => setModal({ type: "job" })} onView={(job) => setModal({ type: "job", value: job, readOnly: true })} onEdit={(job) => setModal({ type: "job", value: job, readOnly: false })} onRelease={releaseJobOrder} onDelete={deleteJobOrder} onCancel={cancelJobOrder} onStart={(job) => setModal({ type: "start-production", job })} onViewProcess={(job, readOnly) => setModal({ type: "production-process", job, readOnly })} onComplete={(job) => setModal({ type: "production", job })} onViewResult={viewCompletedJobOrder} jobOrdersListingBridge={jobOrdersListingBridge} onPermissionDenied={clearJobOrdersListingPermission} onNotify={ui?.notify} jobFinishedGoodName={jobFinishedGoodName} productionQcTone={productionQcTone} productionQcDisplayLabel={productionQcDisplayLabel} /> : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction(operationalJobs) : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "mesti-cleaning" ? <FactoryMestiCleaningPage auth={auth} onNotify={ui?.notify} /> : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
+      {initialTab === "mesti-calibration" ? <FactoryMestiCalibrationPage onNotify={ui?.notify} onRefreshFactoryData={loadData} /> : initialTab === "mesti-operator-hygiene" ? <FactoryMestiOperatorHygienePage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-waste-disposal" ? <FactoryMestiWasteDisposalPage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-raw-material-control" ? <FactoryMestiRawMaterialControlPage /> : initialTab === "mesti-health-declaration" ? <FactoryMestiHealthDeclarationPage onNotify={ui?.notify} /> : initialTab === "mesti-finished-product-storage-control" ? <FactoryMestiFinishedProductStorageControlPage onNotify={ui?.notify} /> : initialTab === "equipment" ? <FactoryEquipmentPage onCreate={() => setModal({ type: "equipment" })} onEdit={(value) => setModal({ type: "equipment", value })} onManageCategories={() => setModal({ type: "equipment-categories" })} /> : initialTab === "production-overview" ? <FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={(job, options) => setModal({ type: "job", value: job, readOnly: options?.readOnly })} startJob={(job) => setModal({ type: "start-production", job })} completeProduction={(job, options) => setModal(options?.processOnly ? { type: "production-process", job, readOnly: Boolean(options.readOnly) } : { type: "production", job })} viewCompletedResult={viewCompletedJobOrder} releaseJob={releaseJobOrder} cancelJob={cancelJobOrder} /> : initialTab === "job-orders" ? <FactoryJobOrdersPage data={data} auth={auth} can={can} onCreate={() => setModal({ type: "job" })} onView={(job) => setModal({ type: "job", value: job, readOnly: true })} onEdit={(job) => setModal({ type: "job", value: job, readOnly: false })} onRelease={releaseJobOrder} onDelete={deleteJobOrder} onCancel={cancelJobOrder} onStart={(job) => setModal({ type: "start-production", job })} onViewProcess={(job, readOnly) => setModal({ type: "production-process", job, readOnly })} onComplete={(job) => setModal({ type: "production", job })} onViewResult={viewCompletedJobOrder} jobOrdersListingBridge={jobOrdersListingBridge} onPermissionDenied={clearJobOrdersListingPermission} onNotify={ui?.notify} jobFinishedGoodName={jobFinishedGoodName} productionQcTone={productionQcTone} productionQcDisplayLabel={productionQcDisplayLabel} /> : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction(operationalJobs) : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "mesti-cleaning" ? <FactoryMestiCleaningPage auth={auth} onNotify={ui?.notify} /> : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
       </>}
       </>}</FactoryOperationalJobsProvider>
       {modal?.type === "job" ? (

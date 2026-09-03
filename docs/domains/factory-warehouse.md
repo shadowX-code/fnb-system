@@ -24,7 +24,7 @@ Factory Production owns production execution and batch creation; Factory Master 
 
 ## Lifecycle And Business Rules
 
-Raw receiving validates supplier/reference, material, quantity, lot, and storage context before accepted stock becomes available.
+Raw receiving validates supplier/reference, material, quantity, lot, and storage context before accepted stock becomes available. Completion freezes the selected material's Acceptance Procedure and Control Methods on every item, posts canonical stock evidence, and moves the document to Awaiting Verification. A separately permitted active employee verifies the document; the receiving actor cannot self-verify, and verification evidence is immutable and retry-safe.
 Raw and finished-goods balances are server-derived from canonical posted evidence or established read models.
 Transfers, issues, returns, adjustments, and stock checks use controlled lifecycle paths.
 

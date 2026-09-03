@@ -258,6 +258,8 @@ function mapRawMaterial(row) {
     uom: row.uom || "",
     conversion_package_quantity: optionalNumber(row.conversion_package_quantity),
     conversion_base_uom: row.conversion_base_uom || "",
+    acceptance_procedure: row.acceptance_procedure || "",
+    control_methods: row.control_methods || "",
     current_balance: normalizeNumber(row.current_balance),
     min_stock_level: normalizeNumber(row.min_stock_level),
     par_level: optionalNumber(row.par_level),
@@ -337,7 +339,8 @@ function mapReceivingBatch(row) {
     ...mapReceiving(item),
     receiving_no: row.batch_no || "",
   }));
-  const status = String(row.status || "active").toLowerCase() === "active" ? "completed" : String(row.status || "draft").toLowerCase();
+  const storedStatus = String(row.status || "active").toLowerCase();
+  const status = storedStatus === "active" ? "completed" : storedStatus === "completed" && row.verification_status === "awaiting_verification" ? "awaiting_verification" : storedStatus === "completed" && row.verification_status === "verified" ? "verified" : storedStatus;
   return {
     id: row.id,
     batch_no: row.batch_no || "",
@@ -354,6 +357,10 @@ function mapReceivingBatch(row) {
     completed_by: row.completed_by || "",
     completed_by_name: row.completed_by_name || row.completer?.nickname || row.completer?.full_name || "",
     completed_at: row.completed_at || "",
+    verification_status: row.verification_status || "not_required",
+    verified_by: row.verified_by || "",
+    verified_by_name: row.verified_by_name || row.verifier?.nickname || row.verifier?.full_name || "",
+    verified_at: row.verified_at || "",
     cancelled_by: row.cancelled_by || "",
     cancelled_by_name: row.cancelled_by_name || row.canceller?.nickname || row.canceller?.full_name || "",
     cancelled_at: row.cancelled_at || "",
@@ -398,6 +405,8 @@ function mapReceiving(row) {
     storage_location: row.storage_location_ref?.location_name || row.storage_location || "",
     remarks: row.remarks || "",
     received_by: row.received_by || "",
+    acceptance_procedure_snapshot: row.acceptance_procedure_snapshot || "",
+    control_methods_snapshot: row.control_methods_snapshot || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -1259,8 +1268,8 @@ const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,cont
 const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
 const mestiEquipmentCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,equipment_links:factory_mesti_equipment_cleaning_requirement_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name)))";
 const mestiCalibrationRequirementSelect = "id,logical_requirement_id,equipment_id,calibration_type,interval_months,effective_from,effective_until,status,version_no,superseded_by,created_at,updated_at,equipment:factory_equipment(id,equipment_code,name,category:factory_equipment_categories(name),location:factory_storage_locations(location_name))";
-const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,conversion_package_quantity,conversion_base_uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
-const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,conversion_package_quantity,conversion_base_uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
+const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,conversion_package_quantity,conversion_base_uom,acceptance_procedure,control_methods,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
+const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,conversion_package_quantity,conversion_base_uom,acceptance_procedure,control_methods,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
 const recipeRootSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const recipeSelect = `${recipeRootSelect},items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,recipe_usage_uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
@@ -1773,7 +1782,7 @@ export const factoryService = {
       .in("id", ids), (rows) => rows.map(mapFactoryCustomer));
     addTask(plan.receivingBatches, "receivingBatches", "Receiving Batches", () => supabase
       .from("factory_raw_material_receiving_batches")
-      .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,completion_request_id,completion_payload_fingerprint,created_by,completed_by,completed_at,cancelled_by,cancelled_at,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees!factory_raw_material_receiving_batches_created_by_fkey(nickname,full_name),completer:employees!factory_raw_material_receiving_batches_completed_by_fkey(nickname,full_name),canceller:employees!factory_raw_material_receiving_batches_cancelled_by_fkey(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,supplier_lot_no,internal_batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,manufacturing_date,expiry_date,expiry_source,expiry_confirmed,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,verification_status,completion_request_id,completion_payload_fingerprint,created_by,completed_by,completed_at,verified_by,verified_at,cancelled_by,cancelled_at,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees!factory_raw_material_receiving_batches_created_by_fkey(nickname,full_name),completer:employees!factory_raw_material_receiving_batches_completed_by_fkey(nickname,full_name),verifier:employees!factory_raw_material_receiving_batches_verified_by_fkey(nickname,full_name),canceller:employees!factory_raw_material_receiving_batches_cancelled_by_fkey(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,supplier_lot_no,internal_batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,manufacturing_date,expiry_date,expiry_source,expiry_confirmed,storage_location_id,storage_location,remarks,received_by,acceptance_procedure_snapshot,control_methods_snapshot,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .order("received_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapReceivingBatch));
     addMasterTask(plan.storageLocations, "storageLocations", "Storage Locations", "storage_locations", (ids) => supabase
@@ -2130,7 +2139,7 @@ export const factoryService = {
     if (listing === "receiving-history") {
       query = supabase
         .from("factory_raw_material_receiving_batches")
-        .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,completion_request_id,completion_payload_fingerprint,created_by,completed_by,completed_at,cancelled_by,cancelled_at,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees!factory_raw_material_receiving_batches_created_by_fkey(nickname,full_name),completer:employees!factory_raw_material_receiving_batches_completed_by_fkey(nickname,full_name),canceller:employees!factory_raw_material_receiving_batches_cancelled_by_fkey(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,supplier_lot_no,internal_batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,manufacturing_date,expiry_date,expiry_source,expiry_confirmed,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`, { count: "exact" });
+        .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,verification_status,completion_request_id,completion_payload_fingerprint,created_by,completed_by,completed_at,verified_by,verified_at,cancelled_by,cancelled_at,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees!factory_raw_material_receiving_batches_created_by_fkey(nickname,full_name),completer:employees!factory_raw_material_receiving_batches_completed_by_fkey(nickname,full_name),verifier:employees!factory_raw_material_receiving_batches_verified_by_fkey(nickname,full_name),canceller:employees!factory_raw_material_receiving_batches_cancelled_by_fkey(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,supplier_lot_no,internal_batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,manufacturing_date,expiry_date,expiry_source,expiry_confirmed,storage_location_id,storage_location,remarks,received_by,acceptance_procedure_snapshot,control_methods_snapshot,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`, { count: "exact" });
       if (filters.dateFrom) query = query.gte("received_date", filters.dateFrom);
       if (filters.dateTo) query = query.lte("received_date", filters.dateTo);
       if (filters.supplier) query = databaseUuid(filters.supplier) ? query.eq("supplier_id", filters.supplier) : query.eq("supplier_name", filters.supplier);
@@ -2294,7 +2303,7 @@ export const factoryService = {
     if (movement.document_type === "receiving") {
       const { data, error } = await supabase
         .from("factory_raw_material_receiving_batches")
-        .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,completion_request_id,completion_payload_fingerprint,created_by,completed_by,completed_at,cancelled_by,cancelled_at,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees!factory_raw_material_receiving_batches_created_by_fkey(nickname,full_name),completer:employees!factory_raw_material_receiving_batches_completed_by_fkey(nickname,full_name),canceller:employees!factory_raw_material_receiving_batches_cancelled_by_fkey(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,supplier_lot_no,internal_batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,manufacturing_date,expiry_date,expiry_source,expiry_confirmed,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+        .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,verification_status,completion_request_id,completion_payload_fingerprint,created_by,completed_by,completed_at,verified_by,verified_at,cancelled_by,cancelled_at,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees!factory_raw_material_receiving_batches_created_by_fkey(nickname,full_name),completer:employees!factory_raw_material_receiving_batches_completed_by_fkey(nickname,full_name),verifier:employees!factory_raw_material_receiving_batches_verified_by_fkey(nickname,full_name),canceller:employees!factory_raw_material_receiving_batches_cancelled_by_fkey(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,supplier_lot_no,internal_batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,manufacturing_date,expiry_date,expiry_source,expiry_confirmed,storage_location_id,storage_location,remarks,received_by,acceptance_procedure_snapshot,control_methods_snapshot,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
         .eq("id", documentId)
         .maybeSingle();
       throwSupabaseError("factory.raw_movement.receiving_reference", error);
@@ -2563,6 +2572,8 @@ export const factoryService = {
       uom: String(material.uom || "").trim(),
       conversion_package_quantity: material.conversion_package_quantity === "" || material.conversion_package_quantity == null ? null : normalizeNumber(material.conversion_package_quantity),
       conversion_base_uom: String(material.conversion_base_uom || "").trim() || null,
+      acceptance_procedure: String(material.acceptance_procedure || "").trim() || null,
+      control_methods: String(material.control_methods || "").trim() || null,
       min_stock_level: normalizeNumber(material.min_stock_level),
       par_level: material.par_level === "" || material.par_level == null ? null : normalizeNumber(material.par_level),
       manual_unit_cost: material.manual_unit_cost === "" || material.manual_unit_cost == null ? null : normalizeNumber(material.manual_unit_cost),
@@ -3053,6 +3064,31 @@ export const factoryService = {
       after: cancelled,
     });
     return cancelled;
+  },
+
+  async verifyRawMaterialReceivingBatch(batch) {
+    const { data, error } = await supabase.rpc("factory_verify_raw_material_receiving", { p_batch_id: batch.id });
+    throwSupabaseError("factory.receiving.verify", error);
+    const verified = mapReceivingBatch(data || {});
+    await logFactoryAction({ action: "factory_raw_receiving_batch_verified", target: verified.batch_no || batch.batch_no, description: "Factory raw material receiving verified.", after: verified });
+    return verified;
+  },
+
+  async listMestiRawMaterialControlStandards() {
+    const { data, error } = await supabase.rpc("factory_mesti_raw_material_control_standards");
+    throwSupabaseError("factory.mesti_raw_material_control.standards", error);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async listMestiRawMaterialControlReceivingReport(filters = {}) {
+    const { data, error } = await supabase.rpc("factory_mesti_raw_material_control_receiving_report", {
+      p_date_from: filters.dateFrom || null, p_date_to: filters.dateTo || null,
+      p_raw_material_id: databaseUuid(filters.rawMaterial), p_supplier_id: databaseUuid(filters.supplier),
+      p_storage_location_id: databaseUuid(filters.storageLocation), p_verification_status: filters.verificationStatus || null,
+      p_search: String(filters.search || "").trim() || null,
+    });
+    throwSupabaseError("factory.mesti_raw_material_control.receiving_report", error);
+    return Array.isArray(data) ? data : [];
   },
 
   async saveFinishedGood(product, employeeId) {

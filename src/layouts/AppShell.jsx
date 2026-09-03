@@ -73,6 +73,7 @@ const iconMap = {
   "factory-mesti-health-declaration": ClipboardCheck,
   "factory-mesti-operator-hygiene": ClipboardCheck,
   "factory-mesti-waste-disposal": ClipboardCheck,
+  "factory-mesti-raw-material-control": ClipboardCheck,
   "factory-audit-logs": KeyRound,
   "factory-storage-locations": Warehouse,
   "factory-suppliers": Truck,
