@@ -6,7 +6,7 @@ import ProductRecipeModal from "../../modals/recipes/ProductRecipeModal.jsx";
 const family = { id: "family-1", name_en: "Sambal", name_cn: "\u53c1\u5df4\u9171", status: "active", category: "Sauces" };
 const sku = { id: "sku-1", product_family_id: family.id, product_name_en: family.name_en, uom: "kg", status: "active" };
 const material = { id: "material-1", material_code: "CHI", name_en: "Chili", name: "Chili", uom: "kg", status: "active", category: "Spices" };
-const receiving = { id: "receiving-1", raw_material_id: material.id, unit_cost: 5, uom: "kg", received_date: "2026-08-01", receiving_no: "R260801-01" };
+const receiving = { id: "receiving-1", raw_material_id: material.id, unit_cost: 5, uom: "kg", received_date: "2026-08-01", receipt_no: "R260801-01" };
 const draftRecipe = {
   id: "recipe-1",
   product_family_id: family.id,
@@ -17,7 +17,7 @@ const draftRecipe = {
   yield_quantity: 10,
   uom: "kg",
   remarks: "Current draft notes",
-  items: [{ id: "item-1", raw_material_id: material.id, raw_material_name: material.name_en, quantity_used: 2, uom: "kg", wastage_percent: 5, remarks: "Trim loss", sort_order: 1 }],
+  items: [{ id: "item-1", raw_material_id: material.id, raw_material_name: material.name_en, quantity_used: 2, uom: "kg", recipe_usage_uom: "kg", wastage_percent: 5, remarks: "Trim loss", sort_order: 1 }],
 };
 
 afterEach(() => cleanup());
@@ -53,6 +53,7 @@ describe("Product Recipe editor and detail contracts", () => {
         raw_material_id: material.id,
         quantity_used: 2,
         uom: "kg",
+        recipe_usage_uom: "kg",
         wastage_percent: 5,
         remarks: "Trim loss",
         sort_order: 1,
@@ -93,7 +94,7 @@ describe("Product Recipe editor and detail contracts", () => {
 
     render(<ProductRecipeModal initialValue={{ ...draftRecipe, items: [{ ...draftRecipe.items[0], raw_material_id: "", quantity_used: 2, uom: "L" }] }} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[material]} receivings={[receiving]} onClose={vi.fn()} onSave={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Save Recipe" }));
-    expect(screen.getByText("Every material row needs a raw material and standard quantity greater than 0.")).not.toBeNull();
+    expect(screen.getByText("Every material row needs a raw material, standard quantity and Usage UOM.")).not.toBeNull();
   });
 
   it("retains a rejected save request ID for unchanged retry and replaces it after persisted intent changes", async () => {

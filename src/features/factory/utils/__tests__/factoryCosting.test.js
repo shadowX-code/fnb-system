@@ -33,4 +33,15 @@ describe("Factory Recipe/BOM costing conversions", () => {
 
     expect(cost).toEqual(expect.objectContaining({ lineCost: 5.7, missingCost: false, unsupportedCost: false, source: "RCV-001" }));
   });
+
+  it("costs recipe usage through declared package metadata without guessing", () => {
+    const material = { uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 5, conversion_base_uom: "kg" };
+    const cost = recipeCostLineInfo(
+      { raw_material_id: "material-1", quantity_used: 1200, recipe_usage_uom: "g", wastage_percent: 0 },
+      [{ raw_material_id: "material-1", unit_cost: 10, uom: "pack", receipt_no: "RCV-002", received_date: "2026-09-03" }],
+      material,
+    );
+    expect(cost).toEqual(expect.objectContaining({ convertedQty: 0.24, lineCost: 2.4, unsupportedCost: false, source: "RCV-002" }));
+    expect(recipeCostLineInfo({ raw_material_id: "material-1", quantity_used: 1, recipe_usage_uom: "pack" }, [{ raw_material_id: "material-1", unit_cost: 10, uom: "kg" }], { uom: "pack" })).toEqual(expect.objectContaining({ unsupportedCost: true, conversionReason: "Missing UOM conversion" }));
+  });
 });

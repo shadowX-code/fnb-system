@@ -1,11 +1,10 @@
 import { money } from "./factoryFormatters.js";
+import { convertRawMaterialQuantity, dimensionalFactoryUom, normalizeFactoryUom } from "./factoryUomConversions.js";
 
 export function normalizedCostUnit(uom) {
-  const unit = String(uom || "").trim().toLowerCase();
-  if (["kg", "kilogram", "kilograms"].includes(unit)) return { key: "kg", family: "weight", toBase: 1000, display: "kg" };
-  if (["g", "gram", "grams"].includes(unit)) return { key: "g", family: "weight", toBase: 1, display: "g" };
-  if (["l", "litre", "liter", "litres", "liters"].includes(unit)) return { key: "l", family: "volume", toBase: 1000, display: "L" };
-  if (["ml", "millilitre", "milliliter", "millilitres", "milliliters"].includes(unit)) return { key: "ml", family: "volume", toBase: 1, display: "ml" };
+  const unit = normalizeFactoryUom(uom);
+  const dimensional = dimensionalFactoryUom(unit);
+  if (dimensional) return { key: unit, family: dimensional.dimension, toBase: dimensional.toBase, display: dimensional.display };
   return null;
 }
 
@@ -31,17 +30,19 @@ export function unitCostDisplay(costInfo) {
 }
 
 export function recipeCostLineInfo(item, receivings, rawMaterial = {}) {
-  const latestCost = latestReceivingCostInfo(receivings, item.raw_material_id, rawMaterial);
+  const material = { ...rawMaterial, ...item.raw_material };
+  const latestCost = latestReceivingCostInfo(receivings, item.raw_material_id, material);
   const quantityWithWastage = Number(item.quantity_used || 0) * (1 + Number(item.wastage_percent || 0) / 100);
-  const convertedQty = latestCost.missingCost ? 0 : convertCostQuantity(quantityWithWastage, item.uom, latestCost.uom);
+  const conversion = latestCost.missingCost ? { quantity: 0, reason: "" } : convertRawMaterialQuantity(quantityWithWastage, item.recipe_usage_uom || item.uom, latestCost.uom, material);
+  const convertedQty = conversion.quantity;
   const unsupportedCost = !latestCost.missingCost && convertedQty == null;
-  return { quantityWithWastage, convertedQty: convertedQty || 0, unitCost: latestCost.unitCost, costUom: latestCost.uom, lineCost: unsupportedCost || latestCost.missingCost ? 0 : (convertedQty || 0) * latestCost.unitCost, source: latestCost.receiptNo || latestCost.costSource || (latestCost.missingCost ? "Missing Cost" : "Unsupported UOM"), costSource: latestCost.costSource || "", supplierName: latestCost.supplierName, receivedDate: latestCost.receivedDate, missingCost: latestCost.missingCost, unsupportedCost };
+  return { quantityWithWastage, convertedQty: convertedQty || 0, unitCost: latestCost.unitCost, costUom: latestCost.uom, lineCost: unsupportedCost || latestCost.missingCost ? 0 : (convertedQty || 0) * latestCost.unitCost, source: latestCost.receiptNo || latestCost.costSource || (latestCost.missingCost ? "Missing Cost" : "Unsupported UOM"), costSource: latestCost.costSource || "", supplierName: latestCost.supplierName, receivedDate: latestCost.receivedDate, missingCost: latestCost.missingCost, unsupportedCost, conversionReason: conversion.reason || "" };
 }
 
 export function recipeCostInfo(recipe, receivings) {
   const itemRows = (recipe.items || []).map((item) => {
     const lineCost = recipeCostLineInfo(item, receivings, item);
-    return { ...item, quantity_with_wastage: lineCost.quantityWithWastage, unit_cost: lineCost.unitCost, cost_uom: lineCost.costUom, cost_source: lineCost.source, cost_source_type: lineCost.costSource, supplier_name: lineCost.supplierName, received_date: lineCost.receivedDate, missing_cost: lineCost.missingCost, unsupported_cost: lineCost.unsupportedCost, standard_cost: lineCost.lineCost };
+    return { ...item, quantity_with_wastage: lineCost.quantityWithWastage, unit_cost: lineCost.unitCost, cost_uom: lineCost.costUom, cost_source: lineCost.source, cost_source_type: lineCost.costSource, supplier_name: lineCost.supplierName, received_date: lineCost.receivedDate, missing_cost: lineCost.missingCost, unsupported_cost: lineCost.unsupportedCost, conversion_reason: lineCost.conversionReason, standard_cost: lineCost.lineCost };
   });
   const standardCost = itemRows.reduce((sum, item) => sum + item.standard_cost, 0);
   const yieldQuantity = Number(recipe.yield_quantity || 0);

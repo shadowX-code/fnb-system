@@ -1,5 +1,6 @@
 import { activeRecipeForSku } from "../../utils/productionPlanning.js";
 import { quantity } from "../../utils/factoryFormatters.js";
+import { convertRawMaterialQuantity } from "../../utils/factoryUomConversions.js";
 
 export function buildInitialUsageRows(job, rawMaterials, recipes) {
   const matchingRecipe = activeRecipeForSku(recipes, job.finished_good || job, job.product_name);
@@ -7,8 +8,27 @@ export function buildInitialUsageRows(job, rawMaterials, recipes) {
   const targetQuantity = Number(job.actual_output_qty || job.target_production_qty || job.actual_produced_qty || job.target_quantity || 0);
   const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
   return matchingRecipe.items.map((item) => {
-    const standardUsage = (Number(item.quantity_used || 0) * targetQuantity) / recipeYield;
-    return { id: `recipe-${item.id}`, recipe_item_id: item.id, raw_material_id: item.raw_material_id, standard_usage: Number(standardUsage.toFixed(4)), actual_usage: Number(standardUsage.toFixed(4)), raw_material_receiving_id: "", raw_material_lot_no: "", uom: item.uom || rawMaterials.find((material) => material.id === item.raw_material_id)?.uom || "", variance_reason: "", notes: item.notes || "", allocations: [] };
+    const material = rawMaterials.find((row) => row.id === item.raw_material_id);
+    const recipeUsageQuantity = (Number(item.quantity_used || 0) * targetQuantity) / recipeYield;
+    const recipeUsageUom = item.recipe_usage_uom || item.uom || material?.uom || "";
+    const conversion = convertRawMaterialQuantity(recipeUsageQuantity, recipeUsageUom, material?.uom || "", material);
+    const standardUsage = conversion.quantity;
+    return {
+      id: `recipe-${item.id}`,
+      recipe_item_id: item.id,
+      raw_material_id: item.raw_material_id,
+      recipe_usage_quantity: recipeUsageQuantity,
+      recipe_usage_uom: recipeUsageUom,
+      standard_usage: standardUsage ?? 0,
+      actual_usage: standardUsage ?? "",
+      conversion_error: conversion.reason || "",
+      raw_material_receiving_id: "",
+      raw_material_lot_no: "",
+      uom: material?.uom || "",
+      variance_reason: "",
+      notes: item.notes || "",
+      allocations: [],
+    };
   });
 }
 

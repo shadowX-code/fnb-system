@@ -3,8 +3,8 @@ import Modal from "../../../../components/feedback/Modal.jsx";
 import { Field, inputClass } from "../../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../../components/SearchableSelect.jsx";
 import { rawMaterialLabel } from "../../utils/factoryFormatters.js";
+import { commonFactoryUoms, dimensionalFactoryUom } from "../../utils/factoryUomConversions.js";
 
-const commonUoms = ["kg", "g", "litre", "ml", "pcs", "carton", "pail", "bottle", "pack"];
 export default function RawMaterialCostModal({ material, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     manual_unit_cost: material?.manual_unit_cost ?? "",
@@ -56,7 +56,7 @@ export default function RawMaterialCostModal({ material, onClose, onSave }) {
         <Field label="Cost UOM">
           <SearchableSelect
             value={form.manual_cost_uom || ""}
-            options={commonUoms.map((uom) => ({ value: uom, label: uom }))}
+            options={commonFactoryUoms.map((uom) => ({ value: uom, label: dimensionalFactoryUom(uom)?.display || uom }))}
             placeholder="Select Cost UOM"
             searchPlaceholder="Search UOM"
             onChange={(manualCostUom) => setForm((current) => ({ ...current, manual_cost_uom: manualCostUom }))}

@@ -14,6 +14,7 @@ import { addDaysToFactoryDate, formatFactoryDate, productionDurationLabel, timeI
 import { finishedGoodLabel, packSizeText, quantity, rawMaterialLabel } from "../../utils/factoryFormatters.js";
 import { isFactoryPermissionError } from "../../utils/factoryPermissions.js";
 import { activeRecipeForSku, packagingProductionPlan } from "../../utils/productionPlanning.js";
+import { convertRawMaterialQuantity } from "../../utils/factoryUomConversions.js";
 import {
   allocateRawMaterialFefo,
   buildInitialUsageRows,
@@ -81,6 +82,7 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
     good_output_qty: initialOutputQty || "",
     wastage_qty: 0,
     uom: initialProductionUom,
+    recipe_id: matchingRecipe?.id || "",
     qc_status: "Pending",
     production_sop_id: "",
     sop_version: "",
@@ -306,6 +308,8 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
     if (form.expiry_date && strictDateValue(form.expiry_date) < strictDateValue(manufacturingDate)) return "Expiry Date cannot be earlier than Manufacturing Date.";
     if (shelfLifeConfigured && form.expiry_date !== calculatedExpiryDate && !String(form.expiry_override_reason || "").trim()) return "Expiry override reason is required when changing the calculated Expiry Date.";
     if (!form.material_usage.length) return "At least one material usage row is required.";
+    const conversionError = form.material_usage.find((row) => row.conversion_error);
+    if (conversionError) return `${rawMaterials.find((item) => item.id === conversionError.raw_material_id)?.name_en || "Raw Material"}: ${conversionError.conversion_error}.`;
     const invalidRow = form.material_usage.find((row) => !row.raw_material_id || row.actual_usage === "" || row.actual_usage === null || row.actual_usage === undefined || Number(row.actual_usage) < 0);
     if (invalidRow) return "Every material usage row needs a raw material and actual usage.";
     const missingReason = form.material_usage.find((row) => {
@@ -440,8 +444,13 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
         ? current.material_usage.map((row) => {
           const recipeItem = matchingRecipe.items.find((item) => item.raw_material_id === row.raw_material_id);
           if (!recipeItem) return row;
-          const standardUsage = (Number(recipeItem.quantity_used || 0) * Number(outputQty || 0)) / recipeYield;
-          return { ...row, standard_usage: Number(standardUsage.toFixed(4)), actual_usage: row.actual_usage === row.standard_usage ? Number(standardUsage.toFixed(4)) : row.actual_usage };
+          const material = rawMaterials.find((item) => item.id === recipeItem.raw_material_id);
+          const recipeUsageQuantity = (Number(recipeItem.quantity_used || 0) * Number(outputQty || 0)) / recipeYield;
+          const recipeUsageUom = recipeItem.recipe_usage_uom || recipeItem.uom || material?.uom || "";
+          const conversion = convertRawMaterialQuantity(recipeUsageQuantity, recipeUsageUom, material?.uom || "", material);
+          const standardUsage = conversion.quantity;
+          const previousWasStandard = Number(row.actual_usage) === Number(row.standard_usage);
+          return { ...row, recipe_usage_quantity: recipeUsageQuantity, recipe_usage_uom: recipeUsageUom, standard_usage: standardUsage ?? 0, actual_usage: previousWasStandard ? (standardUsage ?? "") : row.actual_usage, conversion_error: conversion.reason || "", uom: material?.uom || row.uom };
         })
         : current.material_usage;
       return {
@@ -718,6 +727,8 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
                       </td>
                       <td className="px-4 py-3">
                         <div className="inline-flex min-h-[38px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{quantity(row.standard_usage, rowUom)}</div>
+                        {row.recipe_usage_uom && row.recipe_usage_uom !== rowUom ? <div className="mt-1 text-xs font-semibold text-text-secondary">Recipe {quantity(row.recipe_usage_quantity, row.recipe_usage_uom)} converted to storage UOM</div> : null}
+                        {row.conversion_error ? <div className="mt-1 text-xs font-semibold text-amber-700">{row.conversion_error}</div> : null}
                       </td>
                       <td className="px-4 py-3">
                         <div className="relative">
