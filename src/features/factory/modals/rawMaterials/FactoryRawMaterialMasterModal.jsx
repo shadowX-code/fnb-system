@@ -24,7 +24,6 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
     category_id: "",
     category: "",
     uom: "kg",
-    conversion_package_uom: "",
     conversion_package_quantity: "",
     conversion_base_uom: "",
     min_stock_level: 0,
@@ -50,8 +49,7 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
     { value: "", label: "No Storage Location", helper: "Leave blank" },
     ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
   ];
-  const hasPackageConversion = Boolean(form.conversion_package_uom || form.conversion_package_quantity || form.conversion_base_uom);
-  const packageOptions = commonFactoryUoms.filter((uom) => !dimensionalFactoryUom(uom)).map((uom) => ({ value: uom, label: uom }));
+  const hasConversion = Boolean(form.conversion_package_quantity || form.conversion_base_uom);
   const baseOptions = commonFactoryUoms.filter((uom) => Boolean(dimensionalFactoryUom(uom))).map((uom) => ({ value: uom, label: dimensionalFactoryUom(uom)?.display || uom }));
   const updateUomContract = (patch) => setForm((current) => ({ ...current, ...patch }));
 
@@ -63,9 +61,8 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
       material_code: !String(form.material_code || "").trim() ? "SKU Code is required." : "",
       name_en: !String(form.name_en || "").trim() ? "Raw Material Name (EN) is required." : "",
       uom: !String(form.uom || "").trim() ? "Storage UOM is required." : "",
-      conversion_package_quantity: hasPackageConversion && (!Number.isFinite(Number(form.conversion_package_quantity)) || Number(form.conversion_package_quantity) <= 0) ? "Conversion quantity must be greater than zero." : "",
-      conversion_package_uom: hasPackageConversion && !packageOptions.some((option) => option.value === normalizeFactoryUom(form.conversion_package_uom)) ? "Package UOM is required." : "",
-      conversion_base_uom: hasPackageConversion && !String(form.conversion_base_uom || "").trim() ? "Base UOM is required." : "",
+      conversion_package_quantity: hasConversion && (!Number.isFinite(Number(form.conversion_package_quantity)) || Number(form.conversion_package_quantity) <= 0) ? "Conversion quantity must be greater than zero." : "",
+      conversion_base_uom: hasConversion && !String(form.conversion_base_uom || "").trim() ? "Base UOM is required." : "",
       par_level: form.par_level !== "" && (!Number.isFinite(Number(form.par_level)) || Number(form.par_level) < 0) ? "Par Level must be zero or greater." : "",
       status: !String(form.status || "").trim() ? "Status is required." : "",
       shelf_life_days: form.shelf_life_days !== "" && (!Number.isInteger(Number(form.shelf_life_days)) || Number(form.shelf_life_days) <= 0) ? "Shelf Life must be a whole number greater than zero." : "",
@@ -184,11 +181,10 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
         </Field>
         <section className="space-y-3 rounded-lg border border-border bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
-            <div><div className="text-sm font-bold text-text-primary">UOM & Conversion</div><div className="text-xs font-semibold text-text-secondary">Define package content once. Recipe usage uses the Base UOM.</div></div>
-            <input aria-label="Package conversion" type="checkbox" checked={hasPackageConversion} onChange={(event) => updateUomContract(event.target.checked ? { conversion_package_uom: form.conversion_package_uom || (dimensionalFactoryUom(form.uom) ? "pack" : normalizeFactoryUom(form.uom)) || "pack", conversion_package_quantity: form.conversion_package_quantity || "", conversion_base_uom: form.conversion_base_uom || "kg" } : { conversion_package_uom: "", conversion_package_quantity: "", conversion_base_uom: "" })} />
+            <div><div className="text-sm font-bold text-text-primary">UOM & Conversion</div><div className="text-xs font-semibold text-text-secondary">Define the Storage UOM conversion once. Recipe usage uses the Base UOM.</div></div>
+            <input aria-label="UOM conversion" type="checkbox" checked={hasConversion} onChange={(event) => updateUomContract(event.target.checked ? { conversion_package_quantity: form.conversion_package_quantity || "", conversion_base_uom: form.conversion_base_uom || "kg" } : { conversion_package_quantity: "", conversion_base_uom: "" })} />
           </div>
-          {hasPackageConversion ? <div className="grid items-end gap-3 sm:grid-cols-[minmax(0,.8fr)_minmax(0,1fr)_minmax(0,.8fr)]">
-            <Field label="1 Package UOM" error={fieldErrors.conversion_package_uom}><SearchableSelect value={form.conversion_package_uom || ""} options={packageOptions} placeholder="Package" searchPlaceholder="Search UOM" onChange={(conversionPackageUom) => updateUomContract({ conversion_package_uom: conversionPackageUom })} /></Field>
+          {hasConversion ? <div className="grid items-end gap-3 sm:grid-cols-2">
             <Field label="Contains" error={fieldErrors.conversion_package_quantity}><input className={inputClass(fieldErrors.conversion_package_quantity)} type="number" min="0.0001" step="0.0001" value={form.conversion_package_quantity ?? ""} onChange={(event) => updateUomContract({ conversion_package_quantity: event.target.value })} /></Field>
             <Field label="Base UOM" error={fieldErrors.conversion_base_uom}><SearchableSelect value={form.conversion_base_uom || ""} options={baseOptions} placeholder="Base UOM" searchPlaceholder="Search UOM" onChange={(conversionBaseUom) => updateUomContract({ conversion_base_uom: conversionBaseUom })} /></Field>
           </div> : null}

@@ -23,11 +23,11 @@ export function dimensionalFactoryUom(uom) {
 }
 
 export function factoryRecipeUsageUom(material = {}) {
-  const packageQuantity = Number(material.conversion_package_quantity || 0);
-  const packageUom = normalizeFactoryUom(material.conversion_package_uom);
+  const conversionQuantity = Number(material.conversion_package_quantity || 0);
+  const storageUom = normalizeFactoryUom(material.uom);
   const baseUom = normalizeFactoryUom(material.conversion_base_uom);
-  if (packageUom && packageQuantity > 0 && dimensionalFactoryUom(baseUom)) return baseUom;
-  return normalizeFactoryUom(material.uom);
+  if (storageUom && conversionQuantity > 0 && dimensionalFactoryUom(baseUom)) return baseUom;
+  return storageUom;
 }
 
 export function convertRawMaterialQuantity(quantityValue, fromUom, toUom, material = {}) {
@@ -41,16 +41,16 @@ export function convertRawMaterialQuantity(quantityValue, fromUom, toUom, materi
   if (fromDimension && toDimension && fromDimension.dimension === toDimension.dimension) {
     return { quantity: (quantity * fromDimension.toBase) / toDimension.toBase, reason: "" };
   }
-  const packageUom = normalizeFactoryUom(material.conversion_package_uom);
+  const storageUom = normalizeFactoryUom(material.uom);
   const baseUom = normalizeFactoryUom(material.conversion_base_uom);
-  const packageQuantity = Number(material.conversion_package_quantity || 0);
+  const conversionQuantity = Number(material.conversion_package_quantity || 0);
   const baseDimension = dimensionalFactoryUom(baseUom);
-  if (!packageUom || !baseDimension || packageQuantity <= 0) return { quantity: null, reason: "Missing UOM conversion" };
+  if (!storageUom || !baseDimension || conversionQuantity <= 0) return { quantity: null, reason: "Missing UOM conversion" };
   let baseQuantity;
-  if (from === packageUom) baseQuantity = quantity * packageQuantity;
+  if (from === storageUom) baseQuantity = quantity * conversionQuantity;
   else if (fromDimension && fromDimension.dimension === baseDimension.dimension) baseQuantity = (quantity * fromDimension.toBase) / baseDimension.toBase;
   else return { quantity: null, reason: "Missing UOM conversion" };
-  if (to === packageUom) return { quantity: baseQuantity / packageQuantity, reason: "" };
+  if (to === storageUom) return { quantity: baseQuantity / conversionQuantity, reason: "" };
   if (toDimension && toDimension.dimension === baseDimension.dimension) return { quantity: (baseQuantity * baseDimension.toBase) / toDimension.toBase, reason: "" };
   return { quantity: null, reason: "Missing UOM conversion" };
 }

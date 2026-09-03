@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { convertRawMaterialQuantity, factoryRecipeUsageUom } from "../factoryUomConversions.js";
 
-const packMaterial = { uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 5, conversion_base_uom: "kg" };
-const bottleMaterial = { uom: "bottle", conversion_package_uom: "bottle", conversion_package_quantity: 750, conversion_base_uom: "ml" };
-const pailMaterial = { uom: "pail", conversion_package_uom: "pail", conversion_package_quantity: 15, conversion_base_uom: "kg" };
+const packMaterial = { uom: "pack", conversion_package_quantity: 5, conversion_base_uom: "kg" };
+const bottleMaterial = { uom: "bottle", conversion_package_quantity: 750, conversion_base_uom: "ml" };
+const pailMaterial = { uom: "pail", conversion_package_quantity: 15, conversion_base_uom: "kg" };
 
 describe("Factory Raw Material conversion metadata", () => {
   it("keeps identity and canonical dimensional conversions", () => {
@@ -26,13 +26,13 @@ describe("Factory Raw Material conversion metadata", () => {
     expect(convertRawMaterialQuantity(1, "pack", "pail", packMaterial)).toEqual({ quantity: null, reason: "Missing UOM conversion" });
   });
 
-  it("uses configured package Base UOM or Storage UOM as the Recipe contract", () => {
+  it("uses configured Base UOM or Storage UOM as the Recipe contract", () => {
     expect(factoryRecipeUsageUom({ ...packMaterial, conversion_base_uom: "g" })).toBe("g");
     expect(factoryRecipeUsageUom(bottleMaterial)).toBe("ml");
     expect(factoryRecipeUsageUom({ uom: "pack" })).toBe("pack");
   });
 
   it("does not claim a Base UOM when package conversion metadata is incomplete", () => {
-    expect(factoryRecipeUsageUom({ uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 0, conversion_base_uom: "g" })).toBe("pack");
+    expect(factoryRecipeUsageUom({ uom: "pack", conversion_package_quantity: 0, conversion_base_uom: "g" })).toBe("pack");
   });
 });
