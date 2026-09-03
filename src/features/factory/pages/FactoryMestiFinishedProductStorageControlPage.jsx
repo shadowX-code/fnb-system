@@ -9,7 +9,7 @@ import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { formatFactoryDate, formatFactoryDateTime } from "../utils/factoryDates.js";
-import { quantity } from "../utils/factoryFormatters.js";
+import { pluralizePackagingType, quantity } from "../utils/factoryFormatters.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 
 const initialFilters = {
@@ -23,6 +23,10 @@ const initialFilters = {
 
 function detailRow(label, value) {
   return <div key={label} className="border-b border-border py-2.5 last:border-0"><div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">{label}</div><div className="mt-0.5 text-sm font-semibold text-text-primary">{value || "—"}</div></div>;
+}
+
+function completedQuantity(row) {
+  return quantity(row.completed_qty, pluralizePackagingType(row.completed_uom, row.completed_qty));
 }
 
 export default function FactoryMestiFinishedProductStorageControlPage({ onNotify }) {
@@ -62,7 +66,7 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
     { key: "completion_date", label: "Date", render: (row) => <div className="whitespace-nowrap"><div className="font-semibold text-text-primary">{formatFactoryDate(row.completion_date)}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.completed_at).slice(11)}</div></div> },
     { key: "finished_good_name", label: "Finished Good", render: (row) => <span className="font-semibold text-text-primary">{row.finished_good_name || "—"}</span> },
     { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.packaging_sku_code || "—"}</div><div className="text-xs text-text-secondary">{row.packaging_sku_name || "—"}</div></div> },
-    { key: "completed_qty", label: "Qty", align: "right", render: (row) => <span className="font-semibold text-text-primary">{quantity(row.completed_qty, row.completed_uom)}</span> },
+    { key: "completed_qty", label: "Qty", align: "right", render: (row) => <span className="font-semibold text-text-primary">{completedQuantity(row)}</span> },
     { key: "storage_location_name", label: "Storage", render: (row) => row.storage_location_name || "—" },
     { key: "batch_no", label: "Batch", render: (row) => <span className="font-semibold text-text-primary">{row.batch_no || "—"}</span> },
     { key: "expiry_date", label: "Expiry", render: (row) => formatFactoryDate(row.expiry_date) },
@@ -93,7 +97,7 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
         {detailRow("Production Batch", detail.batch_no)}
         {detailRow("Finished Good", detail.finished_good_name)}
         {detailRow("Packaging SKU", [detail.packaging_sku_code, detail.packaging_sku_name].filter(Boolean).join(" · "))}
-        {detailRow("Completed Quantity", quantity(detail.completed_qty, detail.completed_uom))}
+        {detailRow("Completed Quantity", completedQuantity(detail))}
         {detailRow("Storage", detail.storage_location_name)}
         {detailRow("Manufacturing Date", formatFactoryDate(detail.manufacturing_date))}
         {detailRow("Expiry", formatFactoryDate(detail.expiry_date))}

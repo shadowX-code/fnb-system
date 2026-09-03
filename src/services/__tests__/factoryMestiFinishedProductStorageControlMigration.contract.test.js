@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903260000_factory_mesti_finished_product_storage_control.sql"), "utf8");
+const packagingQtyFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903270000_factory_mesti_finished_product_storage_control_packaging_qty.sql"), "utf8");
 
 describe("Factory MeSTI Finished Product Storage Control migration contract", () => {
   it("projects only canonical completed Production Finished Goods batches without a new MeSTI ledger", () => {
@@ -25,6 +26,7 @@ describe("Factory MeSTI Finished Product Storage Control migration contract", ()
     expect(migration).toContain("finished_good.id = p_packaging_sku_id");
     expect(migration).toContain("balance.storage_location_id = p_storage_location_id");
     expect(migration).toContain("factory_mesti_finished_product_storage_control_filter_options");
+    expect(packagingQtyFix).toContain("finished_good.packaging_type");
   });
 
   it("reuses the existing MeSTI read boundary rather than introducing a new role or lifecycle", () => {
