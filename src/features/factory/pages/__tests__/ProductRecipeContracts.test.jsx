@@ -83,7 +83,7 @@ describe("Product Recipe editor and detail contracts", () => {
 
   it("derives a new BOM row UOM from Raw Material master and preserves saved usage UOM", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    const packageMaterial = { ...material, uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g" };
+    const packageMaterial = { ...material, uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g" };
     const newRecipe = { recipe_code: "QA-DEFAULT-UOM", product_family_id: family.id, yield_quantity: 10, uom: "kg", items: [] };
     const initialView = render(<ProductRecipeModal initialValue={newRecipe} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[packageMaterial]} receivings={[{ ...receiving, raw_material_id: packageMaterial.id, uom: "pack" }]} onClose={vi.fn()} onSave={onSave} />);
     fireEvent.click(screen.getByRole("button", { name: /Select raw material/ }));
@@ -96,12 +96,14 @@ describe("Product Recipe editor and detail contracts", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ items: [expect.objectContaining({ raw_material_id: packageMaterial.id, recipe_usage_uom: "g" })] })));
     initialView.unmount();
 
-    const savedView = render(<ProductRecipeModal initialValue={{ ...draftRecipe, items: [{ ...draftRecipe.items[0], recipe_usage_uom: "kg" }] }} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[packageMaterial]} receivings={[receiving]} onClose={vi.fn()} onSave={onSave} />);
+    const savedView = render(<ProductRecipeModal initialValue={{ ...draftRecipe, items: [{ ...draftRecipe.items[0], recipe_usage_uom: "pack", uom: "pack", quantity_used: 560 }] }} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[packageMaterial]} receivings={[receiving]} onClose={vi.fn()} onSave={onSave} />);
+    expect(screen.getAllByText("UOM update available: pack to g").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getAllByRole("button", { name: "Update UOM" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Save Recipe" }));
-    await waitFor(() => expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ items: [expect.objectContaining({ recipe_usage_uom: "kg" })] })));
+    await waitFor(() => expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ items: [expect.objectContaining({ quantity_used: 560, recipe_usage_uom: "g", update_recipe_usage_uom: true })] })));
     savedView.unmount();
 
-    render(<ProductRecipeModal initialValue={newRecipe} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[{ ...packageMaterial, conversion_package_uom: "", conversion_package_quantity: null, conversion_base_uom: "" }]} receivings={[]} onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<ProductRecipeModal initialValue={newRecipe} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[{ ...packageMaterial, conversion_package_quantity: null, conversion_base_uom: "" }]} receivings={[]} onClose={vi.fn()} onSave={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Select raw material/ }));
     fireEvent.click(screen.getByRole("button", { name: /Chili/ }));
     expect(screen.getAllByText("pack").length).toBeGreaterThan(0);

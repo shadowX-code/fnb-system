@@ -110,10 +110,11 @@ describe("Factory master-data modal contracts", () => {
 
   it("uses conversion Base UOM as the sole Recipe usage contract", async () => {
     const saveMaterial = vi.fn().mockResolvedValue(undefined);
-    const packageMaterial = { ...material, uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g" };
+    const packageMaterial = { ...material, uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g" };
     const { unmount } = render(<RawMaterialMasterModal initialValue={packageMaterial} categories={[category]} storageLocations={[location]} onClose={vi.fn()} onSave={saveMaterial} />);
     expect(screen.queryByRole("button", { name: "Default Recipe Usage UOM" })).toBeNull();
-    expect(screen.getByText("Define package content once. Recipe usage uses the Base UOM.")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "1 Package UOM" })).toBeNull();
+    expect(screen.getByText("Define the Storage UOM conversion once. Recipe usage uses the Base UOM.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Raw Material" }));
     await waitFor(() => expect(saveMaterial).toHaveBeenCalledWith(expect.not.objectContaining({ default_recipe_usage_uom: expect.anything() })));
     unmount();

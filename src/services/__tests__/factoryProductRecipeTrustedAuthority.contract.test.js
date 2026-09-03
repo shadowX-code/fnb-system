@@ -7,6 +7,7 @@ const updateGuardMigration = readFileSync(resolve(process.cwd(), "supabase/migra
 const usageUomMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903293000_factory_recipe_usage_uom_conversions.sql"), "utf8");
 const rawMaterialUpdateGrantMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903294000_factory_raw_material_update_grant.sql"), "utf8");
 const canonicalRecipeUsageUomMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903310000_factory_recipe_usage_uom_canonical_cleanup.sql"), "utf8");
+const storageSourceMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903311000_factory_storage_uom_conversion_source.sql"), "utf8");
 const factoryService = readFileSync(resolve(process.cwd(), "src/services/factoryService.js"), "utf8");
 describe("Factory Product Recipe trusted authority migration", () => {
   it("defines an authenticated, idempotent atomic Recipe/BOM save contract", () => {
@@ -32,5 +33,10 @@ describe("Factory Product Recipe trusted authority migration", () => {
   it("derives new Recipe UOM from Raw Material conversion metadata while retaining historical BOM evidence", () => {
     for (const text of ["drop column if exists default_recipe_usage_uom", "factory_validate_recipe_usage_uom", "Recipe Usage UOM must match the Raw Material canonical Recipe UOM", "v_resolved_items", "factory.allow_historical_recipe_usage_uom", "conversion_base_uom"]) expect(canonicalRecipeUsageUomMigration).toContain(text);
     expect(factoryService).not.toContain("default_recipe_usage_uom");
+  });
+
+  it("uses Storage UOM as the conversion source and permits an explicit Draft UOM update only", () => {
+    for (const text of ["drop column if exists conversion_package_uom", "v_material.uom", "update_recipe_usage_uom", "factory.allow_historical_recipe_usage_uom"]) expect(storageSourceMigration).toContain(text);
+    expect(factoryService).not.toContain("conversion_package_uom");
   });
 });
