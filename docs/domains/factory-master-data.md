@@ -19,6 +19,7 @@ Restaurant suppliers and recipes remain restaurant-owned unless a deliberate sha
 - Factory Equipment categories and equipment instances
 - MeSTI Cleaning of Area and Cleaning of Equipment Requirements
 - MeSTI Calibration Settings, versioned Requirements, Schedule, and immutable Records
+- MeSTI Health Declarations for canonical Employees and Factory visitors
 - Factory suppliers and customers
 
 ## Lifecycle And Business Rules
@@ -47,6 +48,8 @@ Trusted saves derive actors server-side and use explicit grants.
 Recipe/BOM versions, SOP publication/version state, material relationships, MeSTI Cleaning completion/verification evidence, MeSTI Calibration requirement/record/verification evidence, and meaningful supplier/customer/location changes retain auditability.
 
 MeSTI Cleaning of Area, Cleaning of Equipment, and Calibration use canonical FeedX permissions as their only authorization source: view read models, create/edit/manage requirement setup, complete recordable work, and review verification or unsatisfactory outcomes. Module-specific Responsible/Verifier role mappings do not exist. The same employee cannot verify their own completion or calibration record. The server derives the actual completing and verifying employee from Admin Auth through the canonical employee/Auth link.
+
+MeSTI Health Declaration is one unified Factory compliance evidence domain for Employee and Visitor submissions. Employee declarations reference the canonical Employee master and freeze an identity snapshot so later employee changes cannot rewrite historical evidence; visitor context is declaration-local. Symptoms are structured values and an empty symptom set is the sole No symptoms representation. The server derives Fit for Work/Cleared versus Health Issue Declared from that set. Submitted declaration evidence is immutable: a permitted supervisor may append one Employee work action without replacing the original declaration. Retry safety uses a caller request ID scoped to the authenticated recording employee. Canonical Health Declaration view, create, and manage permissions are enforced by trusted RPCs; there are no module-specific role mappings.
 
 ## Workflows And Integrations
 

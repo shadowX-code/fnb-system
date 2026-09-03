@@ -32,11 +32,19 @@ function setup() {
   vi.spyOn(factoryService, "listMestiCalibrationRecords").mockResolvedValue([]);
   vi.spyOn(factoryService, "listMestiFinishedProductStorageControl").mockResolvedValue({ rows: [], totalCount: 0, page: 1, pageSize: 20 });
   vi.spyOn(factoryService, "listMestiFinishedProductStorageControlFilterOptions").mockResolvedValue({ finished_goods: [], packaging_skus: [], storage_locations: [] });
+  vi.spyOn(factoryService, "listMestiHealthDeclarations").mockResolvedValue([]);
+  vi.spyOn(factoryService, "listMestiHealthDeclarationOptions").mockResolvedValue({ employees: [] });
 }
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Factory route completeness contract", () => {
+  it("exposes one unified Health Declaration MeSTI route with Employee as its default workflow", () => {
+    const items = getSidebarSections("factory").find((section) => section.label === "MeSTI")?.items || [];
+    expect(items.filter((item) => item.label === "Health Declaration")).toEqual([{ id: "factory_mesti_health_declaration", label: "Health Declaration" }]);
+    expect(salesPurchaseRoutes.find((route) => route.id === "factory_mesti_health_declaration")).toMatchObject({ permission: "factory_mesti_health_declaration.view", props: { initialTab: "mesti-health-declaration" } });
+  });
+
   it("exposes Finished Product Storage Control once in the Factory MeSTI navigation with the canonical read route", () => {
     const items = getSidebarSections("factory").find((section) => section.label === "MeSTI")?.items || [];
     expect(items.filter((item) => item.label === "Finished Product Storage Control")).toEqual([
@@ -49,8 +57,8 @@ describe("Factory route completeness contract", () => {
   });
 
   it("resolves every registered Factory route to its own labeled page instead of the generic Dashboard fallback", async () => {
-    expect(factoryModules).toHaveLength(26);
-    expect(factoryRoutes).toHaveLength(26);
+    expect(factoryModules).toHaveLength(27);
+    expect(factoryRoutes).toHaveLength(27);
 
     for (const module of factoryModules) {
       const route = factoryRoutes.find((candidate) => candidate.id === module.id);

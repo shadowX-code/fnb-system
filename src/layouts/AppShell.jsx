@@ -70,6 +70,7 @@ const iconMap = {
   "factory-equipment": Factory,
   "factory-mesti-calibration": ClipboardCheck,
   "factory-mesti-finished-product-storage-control": Warehouse,
+  "factory-mesti-health-declaration": ClipboardCheck,
   "factory-audit-logs": KeyRound,
   "factory-storage-locations": Warehouse,
   "factory-suppliers": Truck,

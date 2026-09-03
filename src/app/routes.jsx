@@ -368,6 +368,11 @@ export const routeDetails = {
     permission: "factory_mesti_cleaning.view",
     props: { initialTab: "mesti-finished-product-storage-control" },
   },
+  factory_mesti_health_declaration: {
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_health_declaration.view",
+    props: { initialTab: "mesti-health-declaration" },
+  },
   factory_product_recipes: {
     description: "Manage standard raw material BOMs for Finished Goods production defaults.",
     component: FactoryWorkspacePage,

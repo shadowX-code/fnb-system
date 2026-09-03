@@ -752,6 +752,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: {},
   },
   {
+    id: "factory_mesti_health_declaration",
+    section: "MeSTI",
+    label: "Health Declaration",
+    route: "/factory/mesti/health-declaration",
+    icon: "factory-mesti-health-declaration",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, manage: true },
+  },
+  {
     id: "factory_product_recipes",
     section: "Master Data",
     label: "Product Recipes",

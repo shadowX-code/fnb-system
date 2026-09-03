@@ -2868,6 +2868,36 @@ export const factoryService = {
     return data;
   },
 
+  async listMestiHealthDeclarations(filters = {}) {
+    const { data, error } = await supabase.rpc("factory_mesti_health_declaration_records", {
+      p_date_from: filters.dateFrom || null,
+      p_date_to: filters.dateTo || null,
+      p_type: filters.type || null,
+      p_health_status: filters.healthStatus || null,
+      p_symptom: filters.symptom || null,
+      p_search: String(filters.search || "").trim() || null,
+    });
+    throwSupabaseError("factory.mesti_health_declaration.records", error);
+    return Array.isArray(data) ? data : [];
+  },
+  async listMestiHealthDeclarationOptions() {
+    const { data, error } = await supabase.rpc("factory_mesti_health_declaration_options");
+    throwSupabaseError("factory.mesti_health_declaration.options", error);
+    return data || { employees: [] };
+  },
+  async submitMestiHealthDeclaration(declaration) {
+    const { data, error } = await supabase.rpc("factory_mesti_submit_health_declaration", { p_declaration: declaration });
+    throwSupabaseError("factory.mesti_health_declaration.submit", error);
+    await logFactoryAction({ action: "factory_mesti_health_declaration_recorded", target: declaration.declaration_type, description: "Factory MeSTI Health Declaration recorded.", after: data });
+    return data;
+  },
+  async actionMestiHealthDeclaration(declarationId, workAction, actionNotes = "") {
+    const { data, error } = await supabase.rpc("factory_mesti_action_health_declaration", { p_declaration_id: declarationId, p_action: workAction, p_action_notes: actionNotes || null });
+    throwSupabaseError("factory.mesti_health_declaration.action", error);
+    await logFactoryAction({ action: "factory_mesti_health_declaration_actioned", target: declarationId, description: "Factory MeSTI Health Declaration employee action recorded.", after: data });
+    return data;
+  },
+
   async listMestiCleaningMonth(month) {
     const { data, error } = await supabase.rpc("factory_mesti_cleaning_month", { p_month: `${month}-01` });
     throwSupabaseError("factory.mesti_cleaning.month", error);
