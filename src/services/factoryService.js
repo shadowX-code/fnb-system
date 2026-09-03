@@ -259,7 +259,6 @@ function mapRawMaterial(row) {
     conversion_package_uom: row.conversion_package_uom || "",
     conversion_package_quantity: optionalNumber(row.conversion_package_quantity),
     conversion_base_uom: row.conversion_base_uom || "",
-    default_recipe_usage_uom: row.default_recipe_usage_uom || "",
     current_balance: normalizeNumber(row.current_balance),
     min_stock_level: normalizeNumber(row.min_stock_level),
     par_level: optionalNumber(row.par_level),
@@ -1223,8 +1222,8 @@ const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,pro
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
-const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,conversion_package_uom,conversion_package_quantity,conversion_base_uom,default_recipe_usage_uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
-const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,conversion_package_uom,conversion_package_quantity,conversion_base_uom,default_recipe_usage_uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
+const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,conversion_package_uom,conversion_package_quantity,conversion_base_uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
+const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,conversion_package_uom,conversion_package_quantity,conversion_base_uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
 const recipeRootSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const recipeSelect = `${recipeRootSelect},items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,recipe_usage_uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
@@ -2343,7 +2342,6 @@ export const factoryService = {
       conversion_package_uom: String(material.conversion_package_uom || "").trim() || null,
       conversion_package_quantity: material.conversion_package_quantity === "" || material.conversion_package_quantity == null ? null : normalizeNumber(material.conversion_package_quantity),
       conversion_base_uom: String(material.conversion_base_uom || "").trim() || null,
-      default_recipe_usage_uom: String(material.default_recipe_usage_uom || "").trim() || null,
       min_stock_level: normalizeNumber(material.min_stock_level),
       par_level: material.par_level === "" || material.par_level == null ? null : normalizeNumber(material.par_level),
       manual_unit_cost: material.manual_unit_cost === "" || material.manual_unit_cost == null ? null : normalizeNumber(material.manual_unit_cost),
@@ -2866,6 +2864,7 @@ export const factoryService = {
 
     const items = (recipe.items ?? [])
       .map((item, index) => ({
+        id: item.is_existing ? item.id : null,
         raw_material_id: item.raw_material_id,
         quantity_used: normalizeNumber(item.quantity_used),
         recipe_usage_uom: String(item.recipe_usage_uom || item.uom || "").trim(),

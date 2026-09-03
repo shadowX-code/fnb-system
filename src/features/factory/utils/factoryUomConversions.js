@@ -22,25 +22,12 @@ export function dimensionalFactoryUom(uom) {
   return DIMENSIONAL_UNITS[normalizeFactoryUom(uom)] || null;
 }
 
-export function factoryUsageUomOptions(material = {}) {
-  const options = new Set([normalizeFactoryUom(material.uom)]);
+export function factoryRecipeUsageUom(material = {}) {
+  const packageQuantity = Number(material.conversion_package_quantity || 0);
   const packageUom = normalizeFactoryUom(material.conversion_package_uom);
   const baseUom = normalizeFactoryUom(material.conversion_base_uom);
-  const base = dimensionalFactoryUom(baseUom);
-  const storage = dimensionalFactoryUom(material.uom);
-  const packageQuantity = Number(material.conversion_package_quantity || 0);
-  if (base && packageUom && packageQuantity > 0) {
-    options.add(packageUom);
-    Object.entries(DIMENSIONAL_UNITS).filter(([, value]) => value.dimension === base.dimension).forEach(([uom]) => options.add(uom));
-  } else if (storage) {
-    Object.entries(DIMENSIONAL_UNITS).filter(([, value]) => value.dimension === storage.dimension).forEach(([uom]) => options.add(uom));
-  }
-  return [...options].filter(Boolean).map((value) => ({ value, label: dimensionalFactoryUom(value)?.display || value }));
-}
-
-export function isFactoryUsageUomReachable(material, uom) {
-  const normalized = normalizeFactoryUom(uom);
-  return Boolean(normalized) && factoryUsageUomOptions(material).some((option) => option.value === normalized);
+  if (packageUom && packageQuantity > 0 && dimensionalFactoryUom(baseUom)) return baseUom;
+  return normalizeFactoryUom(material.uom);
 }
 
 export function convertRawMaterialQuantity(quantityValue, fromUom, toUom, material = {}) {

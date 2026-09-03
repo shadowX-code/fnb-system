@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { convertRawMaterialQuantity, factoryUsageUomOptions, isFactoryUsageUomReachable } from "../factoryUomConversions.js";
+import { convertRawMaterialQuantity, factoryRecipeUsageUom } from "../factoryUomConversions.js";
 
 const packMaterial = { uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 5, conversion_base_uom: "kg" };
 const bottleMaterial = { uom: "bottle", conversion_package_uom: "bottle", conversion_package_quantity: 750, conversion_base_uom: "ml" };
@@ -26,16 +26,13 @@ describe("Factory Raw Material conversion metadata", () => {
     expect(convertRawMaterialQuantity(1, "pack", "pail", packMaterial)).toEqual({ quantity: null, reason: "Missing UOM conversion" });
   });
 
-  it("offers only storage UOM plus reachable dimensional/package UOMs", () => {
-    expect(factoryUsageUomOptions(packMaterial).map((option) => option.value)).toEqual(expect.arrayContaining(["pack", "kg", "g"]));
-    expect(factoryUsageUomOptions({ uom: "pack" }).map((option) => option.value)).toEqual(["pack"]);
+  it("uses configured package Base UOM or Storage UOM as the Recipe contract", () => {
+    expect(factoryRecipeUsageUom({ ...packMaterial, conversion_base_uom: "g" })).toBe("g");
+    expect(factoryRecipeUsageUom(bottleMaterial)).toBe("ml");
+    expect(factoryRecipeUsageUom({ uom: "pack" })).toBe("pack");
   });
 
-  it("accepts only canonical default Recipe Usage UOMs", () => {
-    expect(isFactoryUsageUomReachable({ ...packMaterial, conversion_package_quantity: 1000, conversion_base_uom: "g" }, "g")).toBe(true);
-    expect(isFactoryUsageUomReachable({ ...packMaterial, conversion_package_quantity: 1000, conversion_base_uom: "g" }, "kg")).toBe(true);
-    expect(isFactoryUsageUomReachable({ uom: "kg" }, "g")).toBe(true);
-    expect(isFactoryUsageUomReachable(packMaterial, "litre")).toBe(false);
-    expect(isFactoryUsageUomReachable({ uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 0, conversion_base_uom: "g" }, "g")).toBe(false);
+  it("does not claim a Base UOM when package conversion metadata is incomplete", () => {
+    expect(factoryRecipeUsageUom({ uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 0, conversion_base_uom: "g" })).toBe("pack");
   });
 });

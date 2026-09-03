@@ -82,19 +82,19 @@ describe("Factory master-data modal contracts", () => {
     await waitFor(() => expect(saveCost).toHaveBeenCalledWith(expect.objectContaining({ id: material.id, manual_unit_cost: "12.5" })));
   });
 
-  it("preserves a reachable Raw Material default Recipe Usage UOM and rejects an unreachable one", async () => {
+  it("uses conversion Base UOM as the sole Recipe usage contract", async () => {
     const saveMaterial = vi.fn().mockResolvedValue(undefined);
-    const packageMaterial = { ...material, uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g", default_recipe_usage_uom: "g" };
+    const packageMaterial = { ...material, uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g" };
     const { unmount } = render(<RawMaterialMasterModal initialValue={packageMaterial} categories={[category]} storageLocations={[location]} onClose={vi.fn()} onSave={saveMaterial} />);
-    expect(screen.getByRole("button", { name: "Default Recipe Usage UOM" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Default Recipe Usage UOM" })).toBeNull();
+    expect(screen.getByText("Define package content once. Recipe usage uses the Base UOM.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Raw Material" }));
-    await waitFor(() => expect(saveMaterial).toHaveBeenCalledWith(expect.objectContaining({ default_recipe_usage_uom: "g" })));
+    await waitFor(() => expect(saveMaterial).toHaveBeenCalledWith(expect.not.objectContaining({ default_recipe_usage_uom: expect.anything() })));
     unmount();
 
-    render(<RawMaterialMasterModal initialValue={{ ...packageMaterial, default_recipe_usage_uom: "litre" }} categories={[category]} storageLocations={[location]} onClose={vi.fn()} onSave={saveMaterial} />);
+    render(<RawMaterialMasterModal initialValue={material} categories={[category]} storageLocations={[location]} onClose={vi.fn()} onSave={saveMaterial} />);
     fireEvent.click(screen.getByRole("button", { name: "Save Raw Material" }));
-    expect(screen.getByText("Default Recipe Usage UOM must be reachable from Storage UOM.")).not.toBeNull();
-    expect(saveMaterial).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(saveMaterial).toHaveBeenCalledTimes(2));
   });
 
   it("renders Raw Material Cost Information for populated and empty fallback costs", () => {

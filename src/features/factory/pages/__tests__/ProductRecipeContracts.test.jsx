@@ -81,20 +81,19 @@ describe("Product Recipe editor and detail contracts", () => {
     expect(screen.getAllByText("Raw Material").length).toBeGreaterThan(0);
   });
 
-  it("defaults a new BOM line from Raw Material master, permits a reachable override, and does not rewrite saved usage UOM", async () => {
+  it("derives a new BOM row UOM from Raw Material master and preserves saved usage UOM", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    const packageMaterial = { ...material, uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g", default_recipe_usage_uom: "g" };
+    const packageMaterial = { ...material, uom: "pack", conversion_package_uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g" };
     const newRecipe = { recipe_code: "QA-DEFAULT-UOM", product_family_id: family.id, yield_quantity: 10, uom: "kg", items: [] };
     const initialView = render(<ProductRecipeModal initialValue={newRecipe} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[packageMaterial]} receivings={[{ ...receiving, raw_material_id: packageMaterial.id, uom: "pack" }]} onClose={vi.fn()} onSave={onSave} />);
     fireEvent.click(screen.getByRole("button", { name: /Select raw material/ }));
     fireEvent.click(screen.getByRole("button", { name: /Chili/ }));
-    expect(screen.getByRole("button", { name: /gSearch/ })).not.toBeNull();
+    expect(screen.getAllByText("g").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /gSearch/ })).toBeNull();
     fireEvent.change(screen.getAllByRole("spinbutton")[1], { target: { value: "560" } });
     expect(screen.getAllByText("RM2.80").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: /gSearch/ }));
-    fireEvent.click(screen.getByRole("button", { name: "kg" }));
     fireEvent.click(screen.getByRole("button", { name: "Save Recipe" }));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ items: [expect.objectContaining({ raw_material_id: packageMaterial.id, recipe_usage_uom: "kg" })] })));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ items: [expect.objectContaining({ raw_material_id: packageMaterial.id, recipe_usage_uom: "g" })] })));
     initialView.unmount();
 
     const savedView = render(<ProductRecipeModal initialValue={{ ...draftRecipe, items: [{ ...draftRecipe.items[0], recipe_usage_uom: "kg" }] }} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[packageMaterial]} receivings={[receiving]} onClose={vi.fn()} onSave={onSave} />);
@@ -102,10 +101,10 @@ describe("Product Recipe editor and detail contracts", () => {
     await waitFor(() => expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ items: [expect.objectContaining({ recipe_usage_uom: "kg" })] })));
     savedView.unmount();
 
-    render(<ProductRecipeModal initialValue={newRecipe} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[{ ...packageMaterial, default_recipe_usage_uom: null }]} receivings={[]} onClose={vi.fn()} onSave={vi.fn()} />);
+    render(<ProductRecipeModal initialValue={newRecipe} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[{ ...packageMaterial, conversion_package_uom: "", conversion_package_quantity: null, conversion_base_uom: "" }]} receivings={[]} onClose={vi.fn()} onSave={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /Select raw material/ }));
     fireEvent.click(screen.getByRole("button", { name: /Chili/ }));
-    expect(screen.getByRole("button", { name: /packSearch/ })).not.toBeNull();
+    expect(screen.getAllByText("pack").length).toBeGreaterThan(0);
   });
 
   it("keeps duplicate BOM rows in the current payload and surfaces missing or incompatible material contracts", async () => {
