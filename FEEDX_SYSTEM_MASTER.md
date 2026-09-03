@@ -34,7 +34,7 @@ The shared Admin shell composes workspace navigation, route visibility, and comm
 | Crew learning and SOP | Active | Onboarding, SOP Library, versioned content, quizzes, and progress evidence. |
 | Crew growth, performance, and reward | Active | Evidence-to-outcome workflows, scoring, certification, and rewards. |
 | Crew localization | Active | Content variants, translation lifecycle, fallback, and frozen snapshots. |
-| Factory | Active | Factory master data, production, warehouse, traceability, MeSTI Cleaning compliance, and reporting read models. |
+| Factory | Active | Factory master data, production, warehouse, traceability, MeSTI Cleaning, Health Declaration, Operator Hygiene compliance, and reporting read models. |
 | Guest AI | In Development | Isolated guest-facing device, voice, and AI-provider prototype validation. |
 
 ## Canonical Domain Ownership

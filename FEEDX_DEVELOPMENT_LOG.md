@@ -518,3 +518,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added Cleaning of Equipment under Factory MeSTI with scheduled daily/weekly requirements and After Operation requirements sourced only from completed canonical Production Equipment Usage evidence.
 - Added forward-effective logical requirement versions, no-op saves, database-level scheduled/usage-event occurrence identities, trusted lifecycle RPCs, canonical permissions, and immutable Equipment/Production provenance snapshots.
+
+## 2026-09-03 - Factory MeSTI Operator Hygiene Inspection
+
+- Added Operator Hygiene Inspection under Factory MeSTI with canonical Employee selection, daily draft/submitted/verified session evidence, required Issue and Action evidence for non-compliance, and Employee-centric monthly drill-down.
+- Added trusted RPCs, RLS read policies, canonical permissions, server-derived Overall result, immutable submitted sessions, and server-side self-verification denial.

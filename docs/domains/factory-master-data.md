@@ -20,6 +20,7 @@ Restaurant suppliers and recipes remain restaurant-owned unless a deliberate sha
 - MeSTI Cleaning of Area and Cleaning of Equipment Requirements
 - MeSTI Calibration Settings, versioned Requirements, Schedule, and immutable Records
 - MeSTI Health Declarations for canonical Employees and Factory visitors
+- MeSTI Operator Hygiene Inspection evidence for canonical Employees
 - Factory suppliers and customers
 
 ## Lifecycle And Business Rules
@@ -51,6 +52,8 @@ MeSTI Cleaning of Area, Cleaning of Equipment, and Calibration use canonical Fee
 
 MeSTI Health Declaration is one unified Factory compliance evidence domain for Employee and Visitor submissions. Employee declarations reference the canonical Employee master and freeze an identity snapshot so later employee changes cannot rewrite historical evidence; visitor context is declaration-local. Symptoms are structured values and an empty symptom set is the sole No symptoms representation. The server derives Fit for Work/Cleared versus Health Issue Declared from that set. Submitted declaration evidence is immutable: a permitted supervisor may append one Employee work action without replacing the original declaration. Retry safety uses a caller request ID scoped to the authenticated recording employee. Canonical Health Declaration view, create, and manage permissions are enforced by trusted RPCs; there are no module-specific role mappings.
 
+MeSTI Operator Hygiene Inspection records one daily inspection session keyed by inspection date. Entries reference canonical active Employees and freeze employee name/position snapshots. Clothing and Hygiene are recorded as Pass/Fail; the server derives Overall as Compliant only when both pass, otherwise Non-Compliant. Non-Compliant entries require both Issue and Action evidence. Draft sessions may be edited through the trusted save RPC; submitted sessions are read-only, and verification is a separate trusted transition with same-employee self-verification blocked server-side. Daily reads expose inspected/compliant/non-compliant and Submitted/Verified evidence; Monthly is Employee-centric with date-level drill-down.
+
 ## Workflows And Integrations
 
 Authorized Admins maintain products/materials, compose and version recipes/BOM, manage production SOPs, configure Locations, MeSTI Cleaning Requirements and Calibration requirements, and maintain supplier and customer records.
@@ -58,6 +61,7 @@ Factory Production pins the appropriate master-data versions for planning and ex
 Factory Warehouse consumes material, product, storage, supplier, and customer references for receipts, movements, and dispatch.
 Factory Production consumes canonical Equipment bindings from the pinned Production SOP at completion; free-text SOP instructions remain instructional and are not a trigger. Factory MeSTI Cleaning of Area consumes canonical Locations and canonical permissions while owning its daily/monthly compliance occurrence evidence. Cleaning of Equipment consumes canonical Equipment and completed Production SOP bindings while owning its own idempotent, provenance-preserving occurrence evidence.
 Factory MeSTI Calibration consumes Factory Equipment and canonical permissions while owning its versioned schedule and immutable calibration evidence.
+Factory MeSTI Operator Hygiene consumes canonical Employees and canonical permissions while owning daily session lifecycle evidence.
 
 ## Compatibility And Deferred Scope
 

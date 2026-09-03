@@ -2897,6 +2897,11 @@ export const factoryService = {
     await logFactoryAction({ action: "factory_mesti_health_declaration_actioned", target: declarationId, description: "Factory MeSTI Health Declaration employee action recorded.", after: data });
     return data;
   },
+  async getMestiOperatorHygieneDaily(date) { const { data, error } = await supabase.rpc("factory_mesti_operator_hygiene_daily", { p_date: date }); throwSupabaseError("factory.mesti_operator_hygiene.daily", error); return data || { entries: [], employees: [] }; },
+  async listMestiOperatorHygieneMonthly(month) { const { data, error } = await supabase.rpc("factory_mesti_operator_hygiene_monthly", { p_month: `${month}-01` }); throwSupabaseError("factory.mesti_operator_hygiene.monthly", error); return Array.isArray(data) ? data : []; },
+  async saveMestiOperatorHygiene(payload) { const { data, error } = await supabase.rpc("factory_mesti_save_operator_hygiene", { p_payload: payload }); throwSupabaseError("factory.mesti_operator_hygiene.save", error); return data; },
+  async submitMestiOperatorHygiene(date) { const { data, error } = await supabase.rpc("factory_mesti_submit_operator_hygiene", { p_date: date }); throwSupabaseError("factory.mesti_operator_hygiene.submit", error); return data; },
+  async verifyMestiOperatorHygiene(date) { const { data, error } = await supabase.rpc("factory_mesti_verify_operator_hygiene", { p_date: date }); throwSupabaseError("factory.mesti_operator_hygiene.verify", error); return data; },
 
   async listMestiCleaningMonth(month) {
     const { data, error } = await supabase.rpc("factory_mesti_cleaning_month", { p_month: `${month}-01` });
