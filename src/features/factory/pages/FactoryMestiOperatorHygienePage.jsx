@@ -22,6 +22,7 @@ function monthDays(month) {
 }
 function label(value) { return String(value || "").replaceAll("_", " ").replace(/\b\w/g, (character) => character.toUpperCase()); }
 function overall(entry) { return entry.clothing_result === "pass" && entry.hygiene_result === "pass" ? "compliant" : "non_compliant"; }
+function isCompleteEntry(entry) { return overall(entry) === "compliant" || (entry.issue?.trim() && entry.action_taken?.trim()); }
 function blank(employee) {
   return { employee_id: employee.id, employee_snapshot: { employee_name: employee.name, position: employee.position }, clothing_result: "pass", hygiene_result: "pass", issue: "", action_taken: "", notes: "" };
 }
@@ -118,7 +119,12 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
       setError(saveError.message || "Unable to save inspection.");
     }
   }
-  function update(employeeId, patch) { save(entries.map((entry) => entry.employee_id === employeeId ? { ...entry, ...patch } : entry)); }
+  function update(employeeId, patch) {
+    const nextEntries = entries.map((entry) => entry.employee_id === employeeId ? { ...entry, ...patch } : entry);
+    setDaily((current) => ({ ...current, entries: nextEntries }));
+    setError("");
+    if (nextEntries.every(isCompleteEntry)) save(nextEntries);
+  }
   async function submit() {
     try {
       await factoryService.submitMestiOperatorHygiene(date);
