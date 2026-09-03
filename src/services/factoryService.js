@@ -1297,13 +1297,20 @@ function mapMestiEquipmentCleaningOccurrence(row) {
   };
 }
 
-function mapMestiEquipmentCleaningMonthlyRequirement(row) {
+function mapMestiEquipmentCleaningMonthlyEquipment(row) {
   return {
-    logical_requirement_id: row.logical_requirement_id || "",
-    task_name: row.task_name || "",
-    source_type: row.source_type || "scheduled",
-    recurrence_type: row.recurrence_type || "",
-    recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
+    equipment_id: row.equipment_id || "",
+    equipment_code: row.equipment_code || "",
+    equipment_name: row.equipment_name || "",
+    location_name: row.location_name || "",
+    summary: {
+      total_count: Number(row.summary?.total_count || 0),
+      verified_count: Number(row.summary?.verified_count || 0),
+      completed_count: Number(row.summary?.completed_count || 0),
+      unsatisfactory_count: Number(row.summary?.unsatisfactory_count || 0),
+      missed_count: Number(row.summary?.missed_count || 0),
+      pending_count: Number(row.summary?.pending_count || 0),
+    },
     days: (Array.isArray(row.days) ? row.days : []).map((day) => ({
       ...day,
       total_count: Number(day.total_count || 0),
@@ -2737,7 +2744,7 @@ export const factoryService = {
   async listMestiEquipmentCleaningMonth(month) {
     const { data, error } = await supabase.rpc("factory_mesti_equipment_cleaning_month", { p_month: `${month}-01` });
     throwSupabaseError("factory.mesti_equipment_cleaning.month", error);
-    return (Array.isArray(data) ? data : []).map(mapMestiEquipmentCleaningMonthlyRequirement);
+    return (Array.isArray(data) ? data : []).map(mapMestiEquipmentCleaningMonthlyEquipment);
   },
 
   async saveMestiEquipmentCleaningRequirement(requirement) {
