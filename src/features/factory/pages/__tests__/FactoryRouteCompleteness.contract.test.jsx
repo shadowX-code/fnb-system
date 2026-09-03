@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { salesPurchaseRoutes } from "../../../../app/routes.jsx";
-import { moduleRegistry } from "../../../../../config/modules.ts";
+import { getSidebarSections, moduleRegistry } from "../../../../../config/modules.ts";
 import { factoryService } from "../../../../services/factoryService.js";
 import { emptyFactoryDashboardAnalytics } from "../../utils/factoryDashboardQuery.js";
 
@@ -30,14 +30,27 @@ function setup() {
   vi.spyOn(factoryService, "listMestiEquipmentCleaningMonth").mockResolvedValue([]);
   vi.spyOn(factoryService, "listMestiCalibrationSchedule").mockResolvedValue([]);
   vi.spyOn(factoryService, "listMestiCalibrationRecords").mockResolvedValue([]);
+  vi.spyOn(factoryService, "listMestiFinishedProductStorageControl").mockResolvedValue({ rows: [], totalCount: 0, page: 1, pageSize: 20 });
+  vi.spyOn(factoryService, "listMestiFinishedProductStorageControlFilterOptions").mockResolvedValue({ finished_goods: [], packaging_skus: [], storage_locations: [] });
 }
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Factory route completeness contract", () => {
+  it("exposes Finished Product Storage Control once in the Factory MeSTI navigation with the canonical read route", () => {
+    const items = getSidebarSections("factory").find((section) => section.label === "MeSTI")?.items || [];
+    expect(items.filter((item) => item.label === "Finished Product Storage Control")).toEqual([
+      { id: "factory_mesti_finished_product_storage_control", label: "Finished Product Storage Control" },
+    ]);
+    expect(salesPurchaseRoutes.find((route) => route.id === "factory_mesti_finished_product_storage_control")).toMatchObject({
+      permission: "factory_mesti_cleaning.view",
+      props: { initialTab: "mesti-finished-product-storage-control" },
+    });
+  });
+
   it("resolves every registered Factory route to its own labeled page instead of the generic Dashboard fallback", async () => {
-    expect(factoryModules).toHaveLength(25);
-    expect(factoryRoutes).toHaveLength(25);
+    expect(factoryModules).toHaveLength(26);
+    expect(factoryRoutes).toHaveLength(26);
 
     for (const module of factoryModules) {
       const route = factoryRoutes.find((candidate) => candidate.id === module.id);

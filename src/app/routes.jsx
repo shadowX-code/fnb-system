@@ -362,6 +362,12 @@ export const routeDetails = {
     permission: "factory_mesti_calibration.view",
     props: { initialTab: "mesti-calibration" },
   },
+  factory_mesti_finished_product_storage_control: {
+    description: "Read-only MeSTI projection of completed Production Finished Goods storage evidence.",
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_cleaning.view",
+    props: { initialTab: "mesti-finished-product-storage-control" },
+  },
   factory_product_recipes: {
     description: "Manage standard raw material BOMs for Finished Goods production defaults.",
     component: FactoryWorkspacePage,

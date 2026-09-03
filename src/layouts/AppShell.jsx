@@ -69,6 +69,7 @@ const iconMap = {
   "factory-sop": FileText,
   "factory-equipment": Factory,
   "factory-mesti-calibration": ClipboardCheck,
+  "factory-mesti-finished-product-storage-control": Warehouse,
   "factory-audit-logs": KeyRound,
   "factory-storage-locations": Warehouse,
   "factory-suppliers": Truck,

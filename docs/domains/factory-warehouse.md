@@ -7,6 +7,10 @@ This domain owns Factory Finished Goods, Dispatch, product movements and stock c
 ## Canonical Ownership
 
 Current Factory warehouse services, migrations, lifecycle authorities, RLS, route contracts, and tests are authoritative.
+
+## Finished Product Storage Control Projection
+
+Factory MeSTI Finished Product Storage Control is a read-only report over canonical completed Production rows and their `factory_finished_good_batch_balances` entries. It uses the completed Production actor and timestamp, Packaging SKU, Finished Good family, batch opening quantity, canonical storage location, manufacturing date, and expiry already captured by the Finished Goods workflow. It never creates or mutates warehouse inventory, movements, batches, or a duplicate MeSTI storage ledger.
 Restaurant inventory remains a separate domain.
 Factory Production owns production execution and batch creation; Factory Master Data owns products, storage, suppliers, and customers.
 

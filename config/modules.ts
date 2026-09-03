@@ -742,6 +742,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, complete: true, review: true, manage: true },
   },
   {
+    id: "factory_mesti_finished_product_storage_control",
+    section: "MeSTI",
+    label: "Finished Product Storage Control",
+    route: "/factory/mesti/finished-product-storage-control",
+    icon: "factory-mesti-finished-product-storage-control",
+    sidebar: true,
+    workspace: "factory",
+    permissions: {},
+  },
+  {
     id: "factory_product_recipes",
     section: "Master Data",
     label: "Product Recipes",

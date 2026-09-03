@@ -862,6 +862,32 @@ function mapFinishedGoodBatchTraceability(row) {
   };
 }
 
+function mapMestiFinishedProductStorageControl(row) {
+  return {
+    id: row.id || "",
+    production_id: row.production_id || "",
+    job_order_id: row.job_order_id || "",
+    job_order_no: row.job_order_no || "",
+    production_no: row.production_no || "",
+    completed_at: row.completed_at || "",
+    completion_date: row.completion_date || "",
+    finished_good_id: row.finished_good_id || "",
+    finished_good_name: row.finished_good_name || "",
+    packaging_sku_id: row.packaging_sku_id || "",
+    packaging_sku_code: row.packaging_sku_code || "",
+    packaging_sku_name: row.packaging_sku_name || "",
+    completed_qty: normalizeNumber(row.completed_qty),
+    completed_uom: row.completed_uom || "",
+    storage_location_id: row.storage_location_id || "",
+    storage_location_name: row.storage_location_name || "",
+    batch_no: row.batch_no || "",
+    manufacturing_date: row.manufacturing_date || "",
+    expiry_date: row.expiry_date || "",
+    completed_by: row.completed_by || "",
+    completed_by_name: row.completed_by_name || "",
+  };
+}
+
 function normalizeStockCheckItem(row, stockType) {
   const itemName = stockType === "raw" ? row.raw_material?.name || row.item_name : row.finished_good?.product_name || row.item_name;
   const systemQty = normalizeNumber(row.system_qty);
@@ -2015,6 +2041,42 @@ export const factoryService = {
         missingPackagingSkuCount: normalizeNumber(diagnostics.missing_packaging_sku_count),
         invalidQuantityCount: normalizeNumber(diagnostics.invalid_quantity_count),
       },
+    };
+  },
+
+  async listMestiFinishedProductStorageControl({ page = 1, pageSize = 20, filters = {} } = {}) {
+    const normalizedPage = Math.max(1, Math.trunc(Number(page) || 1));
+    const normalizedPageSize = [20, 50, 100].includes(Number(pageSize)) ? Number(pageSize) : 20;
+    const from = (normalizedPage - 1) * normalizedPageSize;
+    const to = from + normalizedPageSize - 1;
+    const { data, error, count } = await supabase.rpc("factory_mesti_finished_product_storage_control", {
+      p_date_from: filters.dateFrom || null,
+      p_date_to: filters.dateTo || null,
+      p_product_family_id: databaseUuid(filters.finishedGood),
+      p_packaging_sku_id: databaseUuid(filters.packagingSku),
+      p_storage_location_id: databaseUuid(filters.storageLocation),
+      p_search: String(filters.search || "").trim() || null,
+    }, { count: "exact" })
+      .order("completed_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: false })
+      .range(from, to);
+    throwSupabaseError("factory.mesti_finished_product_storage_control.page", error);
+    return {
+      rows: (data || []).map(mapMestiFinishedProductStorageControl),
+      totalCount: normalizeNumber(count),
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
+    };
+  },
+
+  async listMestiFinishedProductStorageControlFilterOptions() {
+    const { data, error } = await supabase.rpc("factory_mesti_finished_product_storage_control_filter_options");
+    throwSupabaseError("factory.mesti_finished_product_storage_control.filters", error);
+    const options = data && typeof data === "object" ? data : {};
+    return {
+      finished_goods: Array.isArray(options.finished_goods) ? options.finished_goods : [],
+      packaging_skus: Array.isArray(options.packaging_skus) ? options.packaging_skus : [],
+      storage_locations: Array.isArray(options.storage_locations) ? options.storage_locations : [],
     };
   },
 
