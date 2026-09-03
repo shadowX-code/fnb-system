@@ -77,4 +77,19 @@ describe("Factory Product Recipe trusted lifecycle service contracts", () => {
     expect(update).toHaveBeenCalledWith(expect.objectContaining({ status: "draft" }));
     expect(result).toEqual(expect.objectContaining({ id: recipe.id, status: "draft" }));
   });
+
+  it("preserves the canonical Recipe code on every existing draft save", async () => {
+    const draft = { ...recipe, status: "draft", items: [{ raw_material_id: "material-1", quantity_used: 2, uom: "pack" }] };
+    const productFamily = { id: draft.product_family_id, name_en: draft.recipe_name, status: "active" };
+    mocks.from.mockImplementation(() => recipeFetch(productFamily));
+    mocks.rpc.mockResolvedValue({ data: { recipe: draft, items: draft.items }, error: null });
+
+    await factoryService.saveProductRecipe(draft);
+    await factoryService.saveProductRecipe(draft);
+
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    for (const [, args] of mocks.rpc.mock.calls) {
+      expect(args.p_recipe).toEqual(expect.objectContaining({ id: draft.id, recipe_code: draft.recipe_code }));
+    }
+  });
 });

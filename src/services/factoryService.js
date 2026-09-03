@@ -2871,6 +2871,7 @@ export const factoryService = {
     if (!version) version = "v1";
 
     const payload = {
+      recipe_code: isUpdate ? String(recipe.recipe_code || "").trim() : makeFactoryRef("FGRCP"),
       finished_good_id: recipe.finished_good_id || null,
       product_family_id: productFamily.id,
       recipe_name: String(recipe.recipe_name || "").trim(),
@@ -2888,7 +2889,6 @@ export const factoryService = {
       updated_at: new Date().toISOString(),
     };
     if (!isUpdate) {
-      payload.recipe_code = makeFactoryRef("FGRCP");
       payload.created_by = employeeId || null;
     }
 
