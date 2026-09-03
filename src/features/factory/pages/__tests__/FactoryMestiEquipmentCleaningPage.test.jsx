@@ -10,9 +10,9 @@ vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
 } }));
 
 const equipment = { id: "equipment-1", equipment_code: "MX-01", name: "Mixer 01", status: "active", location: { location_name: "Cooking Room" } };
-const occurrence = { id: "occ-1", due_date: "2026-09-03", status: "pending", task_name: "General Cleaning", equipment_id: "equipment-1", equipment_code: "MX-01", equipment_name: "Mixer 01", location_name: "Cooking Room", trigger_type: "scheduled", recurrence_type: "daily" };
-const afterOperation = { ...occurrence, id: "occ-usage", task_name: "Clean After Operation", trigger_type: "after_operation", production_equipment_usage_id: "usage-1", production_snapshot: { product_name: "Chicken Curry Paste", batch_no: "B260903-018" } };
-const data = { equipment: [equipment], mestiEquipmentCleaningRequirements: [{ id: "req-1", logical_requirement_id: "logical-1", task_name: "General Cleaning", equipment_ids: ["equipment-1"], equipment_names: ["MX-01 · Mixer 01"], trigger_type: "scheduled", recurrence_type: "daily", recurrence_weekdays: [], status: "active", effective_from: "2026-09-03", version_no: 1 }] };
+const occurrence = { id: "occ-1", due_date: "2026-09-03", status: "pending", task_name: "General Cleaning", equipment_id: "equipment-1", equipment_code: "MX-01", equipment_name: "Mixer 01", location_name: "Cooking Room", source_type: "scheduled", recurrence_type: "daily" };
+const afterOperation = { ...occurrence, id: "occ-production", task_name: "After Production Cleaning", source_type: "after_production", production_id: "production-1", production_snapshot: { product_name: "Chicken Curry Paste", batch_no: "B260903-018", completed_at: "2026-09-03T08:00:00Z" } };
+const data = { equipment: [equipment], mestiEquipmentCleaningRequirements: [{ id: "req-1", logical_requirement_id: "logical-1", task_name: "General Cleaning", equipment_ids: ["equipment-1"], equipment_names: ["MX-01 · Mixer 01"], recurrence_type: "daily", recurrence_weekdays: [], status: "active", effective_from: "2026-09-03", version_no: 1 }] };
 
 function renderPage({ permissions = ["factory_mesti_equipment_cleaning.view", "factory_mesti_equipment_cleaning.complete", "factory_mesti_equipment_cleaning.review", "factory_mesti_equipment_cleaning.manage"] } = {}) {
   const can = (permission) => permissions.includes(permission);
@@ -22,7 +22,7 @@ function renderPage({ permissions = ["factory_mesti_equipment_cleaning.view", "f
 beforeEach(() => {
   vi.clearAllMocks();
   factoryService.listMestiEquipmentCleaningDay.mockResolvedValue([occurrence, afterOperation]);
-  factoryService.listMestiEquipmentCleaningMonth.mockResolvedValue([{ logical_requirement_id: "logical-1", task_name: "General Cleaning", trigger_type: "scheduled", recurrence_type: "daily", days: [{ due_date: "2026-09-03", status: "verified", total_count: 1, verified_count: 1, occurrences: [occurrence] }] }]);
+  factoryService.listMestiEquipmentCleaningMonth.mockResolvedValue([{ logical_requirement_id: "logical-1", task_name: "General Cleaning", source_type: "scheduled", recurrence_type: "daily", days: [{ due_date: "2026-09-03", status: "verified", total_count: 1, verified_count: 1, occurrences: [occurrence] }] }]);
   factoryService.saveMestiEquipmentCleaningRequirement.mockImplementation(async (value) => ({ id: value.id || "req-2", logical_requirement_id: value.logical_requirement_id || "logical-2", ...value }));
   factoryService.completeMestiEquipmentCleaningOccurrence.mockResolvedValue({});
   factoryService.verifyMestiEquipmentCleaningOccurrence.mockResolvedValue({});
@@ -30,7 +30,7 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("FactoryMestiEquipmentCleaningPage", () => {
-  it("groups Daily occurrences by canonical Equipment and presents after-operation provenance", async () => {
+  it("groups Daily occurrences by canonical Equipment and presents after-production provenance", async () => {
     renderPage();
     expect(await screen.findByText("MX-01 · Mixer 01")).not.toBeNull();
     expect(screen.getByText(/Chicken Curry Paste/)).not.toBeNull();
@@ -51,18 +51,18 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
   });
 
-  it("keeps after-operation trigger, due date, and production provenance in the Monthly drill-down", async () => {
+  it("keeps after-production source, due date, and production provenance in the Monthly drill-down", async () => {
     factoryService.listMestiEquipmentCleaningMonth.mockResolvedValue([{
       logical_requirement_id: "logical-usage",
       task_name: "Clean After Operation",
-      trigger_type: "after_operation",
+      source_type: "after_production",
       recurrence_type: "",
       days: [{ due_date: "2026-09-03", status: "completed", total_count: 1, verified_count: 0, occurrences: [afterOperation] }],
     }]);
     renderPage();
     fireEvent.click(await screen.findByRole("tab", { name: "monthly" }));
     fireEvent.click(await screen.findByRole("button", { name: "0/1" }));
-    expect((await screen.findAllByText("After operation")).length).toBeGreaterThan(1);
+    expect((await screen.findAllByText("After Production")).length).toBeGreaterThan(1);
     expect(screen.getByText("2026-09-03")).not.toBeNull();
     expect(screen.getByText(/Chicken Curry Paste/)).not.toBeNull();
   });

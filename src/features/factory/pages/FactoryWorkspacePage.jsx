@@ -3521,7 +3521,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           categories={data.rawMaterialCategories}
           storageLocations={data.storageLocations}
-          equipment={data.equipment}
           onClose={() => setModal(null)}
           onSave={saveRawMaterial}
         />

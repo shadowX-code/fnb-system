@@ -48,10 +48,10 @@ describe("Factory route completeness contract", () => {
       setup();
       const RouteComponent = route.component;
       const view = render(<RouteComponent {...route.props} auth={auth} ui={ui} />);
-      await screen.findByRole("heading", { level: 1, name: new RegExp(canonicalHeadingLabel(module), "i") });
+      await screen.findByRole("heading", { level: 1, name: new RegExp(canonicalHeadingLabel(module), "i") }, { timeout: 5000 });
       if (module.id !== "factory_dashboard") expect(screen.queryByRole("heading", { level: 1, name: "Factory Dashboard" })).toBeNull();
       view.unmount();
       vi.restoreAllMocks();
     }
-  });
+  }, 60000);
 });

@@ -78,7 +78,7 @@ function SopIngredientPicker({ ingredients = [], value = [], disabled = false, o
   );
 }
 
-export function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], qcChecklistTemplates = [], onClose, onSave }) {
+export function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], equipment = [], qcChecklistTemplates = [], onClose, onSave }) {
   const isEdit = Boolean(initialValue?.id);
   const activeQcTemplates = qcChecklistTemplates.filter((template) => template.is_active !== false);
   const activeQcTemplateIds = new Set(activeQcTemplates.map((template) => template.id));
@@ -120,6 +120,7 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
     title: initialValue?.title || initialValue?.sop_name || "",
     sop_name: initialValue?.sop_name || initialValue?.title || "",
     status: initialValue?.status || "draft",
+    equipment_ids: initialValue?.equipment_ids || (initialValue?.equipment_links || []).map((link) => link.equipment_id),
     steps: initialSteps,
   }));
   const [saving, setSaving] = useState(false);
@@ -298,6 +299,7 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
             <Field label="Status"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><Badge tone={form.status === "active" ? "success" : form.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(form.status)}</Badge></div></Field>
           </div>
           <div className="mt-3"><Field label="Remarks"><textarea className={inputClass()} rows={2} value={form.remarks || form.notes || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value, notes: event.target.value }))} /></Field></div>
+          <div className="mt-3"><Field label="Equipment"><div className="grid gap-2 sm:grid-cols-2">{equipment.filter((item) => item.status === "active" || form.equipment_ids.includes(item.id)).map((item) => <label key={item.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm"><input type="checkbox" disabled={isLocked || item.status !== "active"} checked={form.equipment_ids.includes(item.id)} onChange={(event) => setForm((current) => ({ ...current, equipment_ids: event.target.checked ? [...new Set([...current.equipment_ids, item.id])] : current.equipment_ids.filter((id) => id !== item.id) }))} /><span><span className="font-bold text-text-primary">{item.equipment_code} · {item.name}</span><span className="block text-xs text-text-secondary">{item.location?.location_name || ""}</span></span></label>)}</div></Field></div>
         </section>
 
         <section className="border-y border-border bg-slate-50 px-4 py-4 sm:px-5">

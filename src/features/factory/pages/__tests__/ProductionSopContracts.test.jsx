@@ -17,13 +17,15 @@ const draftSop = {
   steps: [{ id: "123e4567-e89b-42d3-a456-426614174000", step_no: 1, step_name: "Cook", description: "Cook until ready", estimated_time_minutes: 10, ingredient_material_ids: [], sub_steps: [], qc_checks: [{ id: "123e4567-e89b-42d3-a456-426614174001", sequence_no: 1, qc_type: "checklist", checklist_template_id: template.id, qc_name: template.name, instructions: template.description, is_required: true }], remarks: "Stir continuously" }],
 };
 const recipe = { id: "recipe-1", product_family_id: family.id, version: "v2", status: "active", yield_quantity: 10, uom: "kg", items: [] };
+const equipment = { id: "equipment-1", equipment_code: "MX-01", name: "Mixer 01", status: "active", location: { location_name: "Cooking Room" } };
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Production SOP builder, document, and QC preset contracts", () => {
   it("preserves the SOP builder payload for linkage, version, steps, timing, QC checks, and remarks", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    render(<ProductionSopBuilderModal initialValue={draftSop} productFamilies={[family]} recipes={[recipe]} sops={[draftSop]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={onSave} />);
+    render(<ProductionSopBuilderModal initialValue={draftSop} productFamilies={[family]} recipes={[recipe]} equipment={[equipment]} sops={[draftSop]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={onSave} />);
+    fireEvent.click(screen.getByRole("checkbox", { name: /MX-01.*Mixer 01/i }));
     fireEvent.click(screen.getByRole("button", { name: "Save SOP" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       id: draftSop.id,
@@ -36,6 +38,7 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
       title: "Sambal Production SOP · v2",
       estimated_minutes: 10,
       remarks: "Cook in sequence",
+      equipment_ids: [equipment.id],
       steps: [expect.objectContaining({ step_no: 1, step_name: "Cook", estimated_time_minutes: 10, qc_checks: [expect.objectContaining({ checklist_template_id: template.id, qc_name: template.name, qc_type: "checklist" })] })],
     })));
   });

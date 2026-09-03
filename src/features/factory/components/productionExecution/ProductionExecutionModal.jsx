@@ -42,7 +42,7 @@ function varianceFor(standardUsage, actualUsage) {
   return { variance, variancePercent };
 }
 
-export default function ProductionExecutionModal({ job, rawMaterials = [], receivings = [], recipes = [], sops = [], finishedGoods = [], storageLocations = [], equipment = [], auth, readOnly = false, processOnly = false, notify, onViewProcess, onClose, onSave }) {
+export default function ProductionExecutionModal({ job, rawMaterials = [], receivings = [], recipes = [], sops = [], finishedGoods = [], storageLocations = [], auth, readOnly = false, processOnly = false, notify, onViewProcess, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
@@ -86,7 +86,6 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
     sop_version: "",
     notes: "",
     material_usage: Array.isArray(initialMaterialUsage) ? initialMaterialUsage : [],
-    equipment_ids: [],
   }));
   const [saving, setSaving] = useState(false);
   const [savingQc, setSavingQc] = useState(false);
@@ -603,20 +602,6 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div><div className="text-sm font-black text-text-primary">Production QC</div><div className="mt-1 text-xs font-semibold text-text-secondary">{execution.snapshotCreatedAt ? `${executionQcState.requiredCompleted} of ${executionQcState.requiredTotal} required checks complete` : "No QC snapshot is attached to this legacy production."}</div></div>
             <div className="flex flex-wrap items-center gap-2"><Badge tone={productionQcTone(executionQcState.status)}>{executionLoading ? "Loading QC" : executionQcLabel}</Badge><button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={executionLoading} onClick={onViewProcess}>{qcCompletionBlocked ? "Complete QC" : "View QC Details"}</button></div>
-          </div>
-        </section>
-        <section className="rounded-2xl border border-border bg-white p-4 sm:p-5">
-          <div className="text-sm font-black text-text-primary">Actual Equipment Used</div>
-          <div className="mt-1 text-xs font-semibold text-text-secondary">Select the equipment instances used for this production. SOP equipment descriptions remain planning guidance.</div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {equipment.filter((item) => item.status === "active").map((item) => {
-              const selected = form.equipment_ids.includes(item.id);
-              return <label key={item.id} className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm font-semibold ${selected ? "border-primary bg-primary/5" : "border-border bg-slate-50"}`}>
-                <input type="checkbox" checked={selected} onChange={() => setForm((current) => ({ ...current, equipment_ids: selected ? current.equipment_ids.filter((id) => id !== item.id) : [...current.equipment_ids, item.id] }))} />
-                <span className="min-w-0"><span className="block font-bold text-text-primary">{item.name}</span><span className="block text-xs text-text-secondary">{item.equipment_code} · {item.category?.name || "Uncategorised"} · {item.location?.location_name || "Location"}</span></span>
-              </label>;
-            })}
-            {!equipment.filter((item) => item.status === "active").length ? <div className="text-sm font-semibold text-text-secondary">No active Equipment is available.</div> : null}
           </div>
         </section>
         <div className="rounded-2xl border border-border bg-white p-4">

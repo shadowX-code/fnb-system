@@ -1028,6 +1028,8 @@ function mapProductionSop(row) {
     version: row.version || "v1",
     effective_date: row.effective_date || "",
     equipment: row.equipment || "",
+    equipment_ids: (row.equipment_links || []).map((link) => link.equipment_id).filter(Boolean),
+    equipment_names: (row.equipment_links || []).map((link) => [link.equipment?.equipment_code, link.equipment?.name].filter(Boolean).join(" · ")).filter(Boolean),
     estimated_minutes: normalizeNumber(row.estimated_minutes),
     status: row.status === "inactive" ? "archived" : row.status || "draft",
     notes: row.notes || row.remarks || "",
@@ -1221,7 +1223,7 @@ const storageLocationSelect = "id,location_name,location_code,location_type,is_s
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
 const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
-const mestiEquipmentCleaningRequirementSelect = "id,logical_requirement_id,task_name,trigger_type,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,equipment_links:factory_mesti_equipment_cleaning_requirement_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name)))";
+const mestiEquipmentCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,equipment_links:factory_mesti_equipment_cleaning_requirement_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name)))";
 const mestiCalibrationRequirementSelect = "id,logical_requirement_id,equipment_id,calibration_type,interval_months,effective_from,effective_until,status,version_no,superseded_by,created_at,updated_at,equipment:factory_equipment(id,equipment_code,name,category:factory_equipment_categories(name),location:factory_storage_locations(location_name))";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,current_balance,min_stock_level,par_level,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,manual_unit_cost,manual_cost_uom,expiry_tracking_mode,shelf_life_days,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
@@ -1230,8 +1232,8 @@ const recipeRootSelect = `id,recipe_code,finished_good_id,product_family_id,reci
 const recipeSelect = `${recipeRootSelect},items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const recipeItemSelect = `id,recipe_id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect})`;
-const sopRootSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}))`;
-const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at,sub_steps:factory_production_sop_sub_steps(id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at),ingredient_refs:factory_production_sop_step_materials(raw_material_id,raw_material:factory_raw_materials(name,name_en,material_code,uom)),qc_checks:factory_production_sop_step_qc_checks(id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,checklist_template:factory_qc_checklist_templates(name,result_mode)))`;
+const sopRootSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,equipment_links:factory_production_sop_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name))),finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}))`;
+const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,equipment_links:factory_production_sop_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name))),finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at,sub_steps:factory_production_sop_sub_steps(id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at),ingredient_refs:factory_production_sop_step_materials(raw_material_id,raw_material:factory_raw_materials(name,name_en,material_code,uom)),qc_checks:factory_production_sop_step_qc_checks(id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,checklist_template:factory_qc_checklist_templates(name,result_mode)))`;
 const sopStepSelect = "id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at";
 const sopSubStepSelect = "id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at";
 const sopQcCheckSelect = "id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,created_at,updated_at,checklist_template:factory_qc_checklist_templates(name,result_mode)";
@@ -1270,7 +1272,6 @@ function mapMestiEquipmentCleaningRequirement(row) {
     id: row.id,
     logical_requirement_id: row.logical_requirement_id || row.id,
     task_name: row.task_name || "",
-    trigger_type: row.trigger_type || "scheduled",
     recurrence_type: row.recurrence_type || "",
     recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
     status: row.status || "active",
@@ -1290,9 +1291,8 @@ function mapMestiEquipmentCleaningOccurrence(row) {
     equipment_id: row.equipment_id || "",
     equipment_code: row.equipment_code || "",
     equipment_name: row.equipment_name || "",
-    trigger_type: row.trigger_type || "scheduled",
-    production_equipment_usage_id: row.production_equipment_usage_id || "",
-    usage_completed_at: row.usage_completed_at || "",
+    source_type: row.source_type || "scheduled",
+    production_id: row.production_id || "",
     production_snapshot: row.production_snapshot || {},
   };
 }
@@ -1301,7 +1301,7 @@ function mapMestiEquipmentCleaningMonthlyRequirement(row) {
   return {
     logical_requirement_id: row.logical_requirement_id || "",
     task_name: row.task_name || "",
-    trigger_type: row.trigger_type || "scheduled",
+    source_type: row.source_type || "scheduled",
     recurrence_type: row.recurrence_type || "",
     recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
     days: (Array.isArray(row.days) ? row.days : []).map((day) => ({
@@ -1640,7 +1640,7 @@ export function factoryDataPlan(scope, hasPermission) {
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: false,
     storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isEquipment && can("factory_equipment.view")) || (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
-    equipment: (isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage"))) || (isMestiCalibration && can("factory_mesti_calibration.view")) || (isMestiEquipmentCleaning && can("factory_mesti_equipment_cleaning.view")) || (isProduction && (can("factory_production.complete") || can("factory_production.view"))),
+    equipment: (isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage"))) || isProductionSop || (isMestiCalibration && can("factory_mesti_calibration.view")) || (isMestiEquipmentCleaning && can("factory_mesti_equipment_cleaning.view")) || (isProduction && (can("factory_production.complete") || can("factory_production.view"))),
     equipmentCategories: isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage")),
     rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
     receivings: (isRawInventory && can("factory_raw_inventory.view")) || (isReports && can("factory_production_reports.view")) || (isProduction && can("factory_raw_receiving.view")),
@@ -2722,13 +2722,6 @@ export const factoryService = {
     return data;
   },
 
-  async recordProductionEquipmentUsage(productionId, equipmentIds) {
-    const ids = [...new Set((equipmentIds || []).filter(Boolean))];
-    if (!ids.length) return;
-    const { error } = await supabase.rpc("factory_record_production_equipment_usage", { p_production_id: productionId, p_equipment_ids: ids });
-    throwFactorySupabaseError("factory.production.equipment_usage", error);
-  },
-
   async listMestiCleaningDay(dueDate) {
     const { data, error } = await supabase.rpc("factory_mesti_cleaning_day", { p_due_date: dueDate });
     throwSupabaseError("factory.mesti_cleaning.day", error);
@@ -3519,7 +3512,6 @@ export const factoryService = {
       },
     });
     throwFactorySupabaseError("factory.production.complete", error);
-    await factoryService.recordProductionEquipmentUsage(productionId, production.equipment_ids);
 
     const { data, error: fetchError } = await supabase
       .from("factory_productions")
@@ -4012,6 +4004,7 @@ export const factoryService = {
       p_recipe_version: sop.recipe_version || null,
       p_steps: steps,
       p_created_by: null,
+      p_equipment_ids: [...new Set((sop.equipment_ids || []).filter(Boolean))],
     });
     throwSupabaseError("factory.sop.save_structure", error);
     const sopId = Array.isArray(result) ? result[0]?.sop_id : result?.sop_id;
