@@ -10,6 +10,9 @@ export function normalizedCostUnit(uom) {
 }
 
 export function convertCostQuantity(quantityValue, fromUom, toUom) {
+  const sourceUom = String(fromUom || "").trim().toLowerCase();
+  const costUom = String(toUom || "").trim().toLowerCase();
+  if (sourceUom && sourceUom === costUom) return Number(quantityValue || 0);
   const from = normalizedCostUnit(fromUom); const to = normalizedCostUnit(toUom);
   if (!from || !to || from.family !== to.family) return null;
   return (Number(quantityValue || 0) * from.toBase) / to.toBase;
@@ -18,7 +21,7 @@ export function convertCostQuantity(quantityValue, fromUom, toUom) {
 export function latestReceivingCostInfo(receivings = [], rawMaterialId, rawMaterial = {}) {
   const row = [...receivings].filter((entry) => entry.raw_material_id === rawMaterialId && Number(entry.unit_cost || 0) > 0).sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0))[0];
   if (!row && Number(rawMaterial.manual_unit_cost || 0) > 0) return { unitCost: Number(rawMaterial.manual_unit_cost || 0), uom: rawMaterial.manual_cost_uom || "", receiptNo: "", supplierName: "", receivedDate: "", missingCost: false, costSource: "Manual Cost" };
-  return { unitCost: Number(row?.unit_cost || 0), uom: row?.uom || "", receiptNo: row?.receiving_no || "", supplierName: row?.supplier_name || "", receivedDate: row?.received_date || "", missingCost: !row, costSource: row ? "Receiving Cost" : "Missing Cost" };
+  return { unitCost: Number(row?.unit_cost || 0), uom: row?.uom || "", receiptNo: row?.receipt_no || "", supplierName: row?.supplier_name || "", receivedDate: row?.received_date || "", missingCost: !row, costSource: row ? "Receiving Cost" : "Missing Cost" };
 }
 
 export function unitCostDisplay(costInfo) {
