@@ -259,6 +259,7 @@ function mapRawMaterial(row) {
     conversion_package_uom: row.conversion_package_uom || "",
     conversion_package_quantity: optionalNumber(row.conversion_package_quantity),
     conversion_base_uom: row.conversion_base_uom || "",
+    default_recipe_usage_uom: row.default_recipe_usage_uom || "",
     current_balance: normalizeNumber(row.current_balance),
     min_stock_level: normalizeNumber(row.min_stock_level),
     par_level: optionalNumber(row.par_level),
