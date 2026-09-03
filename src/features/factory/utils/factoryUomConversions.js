@@ -28,13 +28,19 @@ export function factoryUsageUomOptions(material = {}) {
   const baseUom = normalizeFactoryUom(material.conversion_base_uom);
   const base = dimensionalFactoryUom(baseUom);
   const storage = dimensionalFactoryUom(material.uom);
-  if (base) {
+  const packageQuantity = Number(material.conversion_package_quantity || 0);
+  if (base && packageUom && packageQuantity > 0) {
     options.add(packageUom);
     Object.entries(DIMENSIONAL_UNITS).filter(([, value]) => value.dimension === base.dimension).forEach(([uom]) => options.add(uom));
   } else if (storage) {
     Object.entries(DIMENSIONAL_UNITS).filter(([, value]) => value.dimension === storage.dimension).forEach(([uom]) => options.add(uom));
   }
   return [...options].filter(Boolean).map((value) => ({ value, label: dimensionalFactoryUom(value)?.display || value }));
+}
+
+export function isFactoryUsageUomReachable(material, uom) {
+  const normalized = normalizeFactoryUom(uom);
+  return Boolean(normalized) && factoryUsageUomOptions(material).some((option) => option.value === normalized);
 }
 
 export function convertRawMaterialQuantity(quantityValue, fromUom, toUom, material = {}) {
