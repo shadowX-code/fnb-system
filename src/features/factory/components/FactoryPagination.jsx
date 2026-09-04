@@ -480,7 +480,7 @@ export function FactoryTableLoadState({ state, label, onRetry, permissionMessage
   );
 }
 
-export default function FactoryPagination({ page = 1, pageSize = 20, total = 0, loading = false, onPageChange, onPageSizeChange }) {
+export default function FactoryPagination({ page = 1, pageSize = 20, total = 0, loading = false, noun = "records", onPageChange, onPageSizeChange }) {
   const safeTotal = nonNegativeTotal(total);
   if (!safeTotal) return null;
   const safePageSize = validPageSize(pageSize);
@@ -492,7 +492,7 @@ export default function FactoryPagination({ page = 1, pageSize = 20, total = 0, 
   return (
     <div className="border-t border-border px-4 py-3">
       <div className="hidden items-center justify-between gap-4 md:flex">
-        <div className="text-sm font-semibold text-text-secondary">Showing {from.toLocaleString("en-MY")}–{to.toLocaleString("en-MY")} of {safeTotal.toLocaleString("en-MY")} records</div>
+        <div className="text-sm font-semibold text-text-secondary">Showing {from.toLocaleString("en-MY")}–{to.toLocaleString("en-MY")} of {safeTotal.toLocaleString("en-MY")}{noun ? ` ${noun}` : ""}</div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
             <span className="whitespace-nowrap">Rows per page</span>

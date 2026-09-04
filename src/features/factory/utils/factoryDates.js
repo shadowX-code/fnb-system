@@ -48,6 +48,21 @@ export function formatFactoryDate(value) {
   return String(value).slice(0, 10) || "—";
 }
 
+export function formatFactoryListDate(value) {
+  if (!value) return "—";
+  const [year, month, day] = String(value).slice(0, 10).split("-");
+  if (year && month && day) return `${day}/${month}/${year}`;
+  return String(value).slice(0, 10) || "—";
+}
+
+export function formatFactoryListDateTime(value) {
+  if (!value) return { date: "—", time: "" };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: formatFactoryListDate(value), time: "" };
+  const formatter = new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "numeric", minute: "2-digit", hour12: true });
+  return { date: formatFactoryListDate(value), time: formatter.format(date).toUpperCase() };
+}
+
 export function formatFactoryReadableDate(value) {
   if (!value) return "—";
   const [year, month, day] = String(value).slice(0, 10).split("-").map(Number);
