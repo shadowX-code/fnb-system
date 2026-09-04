@@ -2,7 +2,7 @@
 
 ## Purpose And Scope
 
-This domain owns Factory Production Planning, Production Overview, Job Orders, production execution, batches, Batch Traceability, and the read-only MeSTI Finished Product Storage Control projection.
+This domain owns Factory Production Planning, Production Overview, Job Orders, production execution, batches, Batch Traceability, and read-only MeSTI Finished Product Storage Control and Food Processing Control projections.
 
 ## Canonical Ownership
 
@@ -48,5 +48,7 @@ Factory Warehouse validates and posts raw consumption, finished-goods receipt, m
 ## Compatibility And Deferred Scope
 
 Production Planning, Overview, Job Orders, Production, Batch Traceability, and Finished Product Storage Control are surfaces of this domain, not separate domains. Finished Product Storage Control is read-only: it projects exactly one canonical Finished Goods batch balance for each completed Production and does not create a MeSTI ledger or inventory movement.
+
+Completed Production records move to `awaiting_verification` and can be verified only through `factory_verify_production_record`. The completing actor cannot verify their own record, verification is idempotent, and it does not alter saved production or QC evidence. Food Processing Control is read-only: it projects completed Production, existing QC evidence, canonical output and expiry fields, and the completion and verification audit actors without creating a second processing or QC ledger.
 Legacy plans may explain migration history but do not override active routes or contracts.
 Machine telemetry, advanced finite-capacity scheduling, and external MES integration are deferred unless explicitly introduced.

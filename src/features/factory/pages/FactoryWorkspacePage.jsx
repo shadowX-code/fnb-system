@@ -26,6 +26,7 @@ import FactoryMestiHealthDeclarationPage from "./FactoryMestiHealthDeclarationPa
 import FactoryMestiOperatorHygienePage from "./FactoryMestiOperatorHygienePage.jsx";
 import FactoryMestiWasteDisposalPage from "./FactoryMestiWasteDisposalPage.jsx";
 import FactoryMestiRawMaterialControlPage from "./FactoryMestiRawMaterialControlPage.jsx";
+import FactoryMestiFoodProcessingControlPage from "./FactoryMestiFoodProcessingControlPage.jsx";
 import FactoryMestiFinishedProductStorageControlPage from "./FactoryMestiFinishedProductStorageControlPage.jsx";
 import FactoryProductRecipesPage from "./FactoryProductRecipesPage.jsx";
 import FactoryProductionSopPage from "./FactoryProductionSopPage.jsx";
@@ -402,7 +403,7 @@ function createRawMaterialReceivingRequestId() {
   return crypto.randomUUID();
 }
 
-function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }) {
+function CompletedJobOrderResultModal({ job, production, recipes = [], canVerify = false, onVerify, onClose }) {
   const matchingRecipe = production
     ? recipes.find((recipe) => recipe.status === "active" && recipe.product_family_id && recipe.product_family_id === production.product_family_id)
       || recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id && recipe.finished_good_id === production.finished_good_id)
@@ -454,6 +455,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
       { label: "Shelf Life Applied", value: shelfLifeConfigured ? `${production.shelf_life_days_snapshot} days` : "—" },
       { label: "Actual Pack Qty", value: quantity(production.actual_pack_qty || production.good_output_qty, "packs") },
       { label: "Actual Output Qty", value: quantity(outputQty, production.uom) },
+      { label: "Verification", value: production.verification_status === "verified" ? "Verified" : production.verification_status === "awaiting_verification" ? "Awaiting Verification" : "—", secondary: production.verified_at ? formatFactoryDateTime(production.verified_at) : "" },
     ],
   ] : [];
 
@@ -463,7 +465,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
       description="Read-only production completion record for this Job Order."
       size="xl"
       onClose={onClose}
-      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+      footer={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={onClose}>Close</button>{canVerify && production?.verification_status === "awaiting_verification" ? <button className="btn-primary" type="button" onClick={onVerify}>Verify Production Record</button> : null}</div>}
     >
       <div className="space-y-4">
         <Card title="Job Order Summary" description="Original production planning details.">
@@ -1500,6 +1502,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     } catch (error) {
       ui?.notify?.({ title: "Unable to load production result", message: error.message, tone: "error" });
     }
+  }
+
+  async function verifyProductionRecord(production) {
+    try {
+      await factoryService.verifyProductionRecord(production);
+    } catch (error) {
+      ui?.notify?.({ title: "Unable to verify Production Record", message: error.message, tone: "error" });
+      return;
+    }
+    ui?.notify?.({ title: "Production Record verified", tone: "success" });
+    setModal(null);
+    await loadData();
   }
 
   function receivingMatchesHistoryFilters(batch) {
@@ -3485,7 +3499,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <>
       <FactoryOperationalJobsProvider route={initialTab} auth={auth} refreshKey={data} onPermissionDenied={clearOperationalPermission}>{(operationalJobs) => <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
-      {initialTab === "mesti-equipment-cleaning" ? <FactoryMestiEquipmentCleaningPage auth={auth} onNotify={ui?.notify} /> : <>
+      {initialTab === "mesti-equipment-cleaning" ? <FactoryMestiEquipmentCleaningPage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-food-processing-control" ? <FactoryMestiFoodProcessingControlPage /> : <>
       {initialTab === "mesti-calibration" ? <FactoryMestiCalibrationPage onNotify={ui?.notify} onRefreshFactoryData={loadData} /> : initialTab === "mesti-operator-hygiene" ? <FactoryMestiOperatorHygienePage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-waste-disposal" ? <FactoryMestiWasteDisposalPage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-raw-material-control" ? <FactoryMestiRawMaterialControlPage /> : initialTab === "mesti-health-declaration" ? <FactoryMestiHealthDeclarationPage onNotify={ui?.notify} /> : initialTab === "mesti-finished-product-storage-control" ? <FactoryMestiFinishedProductStorageControlPage onNotify={ui?.notify} /> : initialTab === "equipment" ? <FactoryEquipmentPage onCreate={() => setModal({ type: "equipment" })} onEdit={(value) => setModal({ type: "equipment", value })} onManageCategories={() => setModal({ type: "equipment-categories" })} /> : initialTab === "production-overview" ? <FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={(job, options) => setModal({ type: "job", value: job, readOnly: options?.readOnly })} startJob={(job) => setModal({ type: "start-production", job })} completeProduction={(job, options) => setModal(options?.processOnly ? { type: "production-process", job, readOnly: Boolean(options.readOnly) } : { type: "production", job })} viewCompletedResult={viewCompletedJobOrder} releaseJob={releaseJobOrder} cancelJob={cancelJobOrder} /> : initialTab === "job-orders" ? <FactoryJobOrdersPage data={data} auth={auth} can={can} onCreate={() => setModal({ type: "job" })} onView={(job) => setModal({ type: "job", value: job, readOnly: true })} onEdit={(job) => setModal({ type: "job", value: job, readOnly: false })} onRelease={releaseJobOrder} onDelete={deleteJobOrder} onCancel={cancelJobOrder} onStart={(job) => setModal({ type: "start-production", job })} onViewProcess={(job, readOnly) => setModal({ type: "production-process", job, readOnly })} onComplete={(job) => setModal({ type: "production", job })} onViewResult={viewCompletedJobOrder} jobOrdersListingBridge={jobOrdersListingBridge} onPermissionDenied={clearJobOrdersListingPermission} onNotify={ui?.notify} jobFinishedGoodName={jobFinishedGoodName} productionQcTone={productionQcTone} productionQcDisplayLabel={productionQcDisplayLabel} /> : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction(operationalJobs) : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "mesti-cleaning" ? <FactoryMestiCleaningPage auth={auth} onNotify={ui?.notify} /> : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
       </>}
       </>}</FactoryOperationalJobsProvider>
@@ -3506,6 +3520,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           job={modal.job}
           production={modal.production}
           recipes={data.recipes}
+          canVerify={can("factory_production.verify")}
+          onVerify={() => verifyProductionRecord(modal.production)}
           onClose={() => setModal(null)}
         />
       ) : null}

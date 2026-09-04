@@ -39,6 +39,21 @@ describe("Factory stock-changing trusted RPC contracts", () => {
     await factoryService.verifyRawMaterialReceivingBatch({ id: "receiving-1", batch_no: "RB-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("factory_verify_raw_material_receiving", { p_batch_id: "receiving-1" });
   });
+  it("delegates Production verification to its trusted record authority", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: "production-1", verification_status: "verified" }, error: null });
+    await factoryService.verifyProductionRecord({ id: "production-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_verify_production_record", { p_production_id: "production-1" });
+  });
+
+  it("uses the Food Processing projection's declared filter signature", async () => {
+    mocks.rpc.mockResolvedValue({ data: [], error: null });
+    await factoryService.listMestiFoodProcessingControl({
+      dateFrom: "2026-09-01", dateTo: "2026-09-04", product: "11111111-1111-4111-8111-111111111111", qcStatus: "Passed", verificationStatus: "verified", search: "PRD-1",
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_mesti_food_processing_control", {
+      p_date_from: "2026-09-01", p_date_to: "2026-09-04", p_finished_good_id: "11111111-1111-4111-8111-111111111111", p_qc_status: "Passed", p_verification_status: "verified", p_search: "PRD-1",
+    });
+  });
 
   it("maps MeSTI Cleaning requirements to its trusted authority without role settings", async () => {
     const requirement = { task_name: "Floor", location_ids: ["loc-1", "loc-2"], recurrence_type: "daily" };
