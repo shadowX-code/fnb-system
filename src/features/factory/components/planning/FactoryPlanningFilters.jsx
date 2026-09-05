@@ -13,7 +13,13 @@ export default function FactoryPlanningFilters({ filters, onChange, categories, 
 
   return (
     <FactoryFilterBar
-      moreFilters={<Field label="Category">
+      activeFilters={activeFilters}
+      onClear={() => onChange({ product: "", category: "", status: "" })}
+    >
+      <Field label="Search">
+        <input className={inputClass()} value={filters.product} onChange={(event) => onChange({ product: event.target.value })} placeholder="Search product or SKU" />
+      </Field>
+      <Field label="Category">
         <SearchableSelect
           value={filters.category}
           options={[{ value: "", label: "All" }, ...categoryOptions]}
@@ -22,12 +28,6 @@ export default function FactoryPlanningFilters({ filters, onChange, categories, 
           emptyText="No matching categories"
           onChange={(category) => onChange({ category })}
         />
-      </Field>}
-      activeFilters={activeFilters}
-      onClear={() => onChange({ product: "", category: "", status: "" })}
-    >
-      <Field label="Product">
-        <input className={inputClass()} value={filters.product} onChange={(event) => onChange({ product: event.target.value })} placeholder="Search product or SKU" />
       </Field>
       <Field label="Status">
         <SearchableSelect

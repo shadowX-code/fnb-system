@@ -234,6 +234,10 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     render(<FactoryOperationalJobsProvider route="production-overview" auth={auth} refreshKey="fixture" onPermissionDenied={vi.fn()}><FactoryProductionOverviewPage route="production-overview" auth={auth} openJob={openJob} startJob={startJob} completeProduction={completeProduction} viewCompletedResult={viewCompletedResult} releaseJob={vi.fn()} cancelJob={vi.fn()} /></FactoryOperationalJobsProvider>);
 
     expect(await screen.findByText(plannedJob.job_order_no)).not.toBeNull();
+    expect(document.querySelector('[data-stage="scheduled"]')).not.toBeNull();
+    expect(document.querySelector('[data-stage="released"]')).not.toBeNull();
+    expect(document.querySelector('[data-stage="in_progress"]')?.className).toContain("border-amber-500/35");
+    expect(document.querySelector('[data-stage="completed"]')).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Start Production" }));
     expect(startJob).toHaveBeenCalledWith(job);
     fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));

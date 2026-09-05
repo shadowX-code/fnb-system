@@ -16,6 +16,8 @@ export default function MetricCard({
   size = "standard",
   emphasis = "normal",
   valueClassName = "",
+  className = "",
+  iconClassName = "",
 }) {
   const trendColor = tone === "danger" ? "text-rose-600" : tone === "warning" ? "text-amber-600" : "text-emerald-600";
   const Component = onClick ? "button" : "div";
@@ -37,7 +39,7 @@ export default function MetricCard({
 
   return (
     <Component
-      className={`card flex w-full flex-col justify-between gap-1.5 text-left transition-colors duration-150 ${sizeClass} ${hoverClass} ${emphasisClass} ${active ? "ring-2 ring-primary/20" : ""} ${resolvedTone === "warning" && resolvedEmphasis === "normal" ? "bg-amber-50/20" : resolvedTone === "danger" && resolvedEmphasis === "normal" ? "bg-rose-50/20" : ""}`}
+      className={`card flex w-full flex-col justify-between gap-1.5 text-left transition-colors duration-150 ${sizeClass} ${hoverClass} ${emphasisClass} ${active ? "ring-2 ring-primary/20" : ""} ${resolvedTone === "warning" && resolvedEmphasis === "normal" ? "bg-amber-50/20" : resolvedTone === "danger" && resolvedEmphasis === "normal" ? "bg-rose-50/20" : ""} ${className}`}
       type={onClick ? "button" : undefined}
       title={title}
       onClick={onClick}
@@ -45,7 +47,7 @@ export default function MetricCard({
       <div className="flex items-start justify-between gap-1.5">
         <div className="flex min-w-0 items-center gap-1.5">
           {Icon ? (
-            <span className={`${compactVariant ? "h-5 w-5 rounded-md" : "h-5 w-5 rounded-md"} flex shrink-0 items-center justify-center bg-primary/8 text-primary/80`}>
+            <span className={`${compactVariant ? "h-5 w-5 rounded-md" : "h-5 w-5 rounded-md"} flex shrink-0 items-center justify-center ${iconClassName || "bg-primary/8 text-primary/80"}`}>
               <Icon size={compactVariant ? 12 : 12} />
             </span>
           ) : null}
