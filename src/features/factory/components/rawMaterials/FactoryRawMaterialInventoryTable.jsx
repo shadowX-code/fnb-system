@@ -1,8 +1,8 @@
 import { ArrowDown, ArrowUp, ArrowUpDown, Check, Package, Pencil, X } from "lucide-react";
 import { useState } from "react";
-import Badge from "../../../../components/ui/Badge.jsx";
 import { FactoryTable } from "../FactoryDataDisplay.jsx";
 import FactoryRowActions from "../FactoryRowActions.jsx";
+import FactoryStatusBadge from "../FactoryStatusBadge.jsx";
 
 function rawMaterialStatusTone(stockStatus) {
   if (stockStatus === "Out of Stock") return "danger";
@@ -48,7 +48,7 @@ export default function FactoryRawMaterialInventoryTable({ rows, canEdit, catego
     ) },
     { key: "last_receiving_date", label: "Last Receiving", render: (row) => formatDate(row.last_receiving_date) },
     { key: "last_consumption_date", label: "Last Consumption", render: (row) => formatDate(row.last_consumption_date) },
-    { key: "status", label: "Status", render: (row) => <Badge tone={rawMaterialStatusTone(row.stock_status)}>{row.stock_status}</Badge> },
+    { key: "status", label: "Status", render: (row) => <FactoryStatusBadge status={row.stock_status} tone={rawMaterialStatusTone(row.stock_status)}>{row.stock_status}</FactoryStatusBadge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => onOpenDetail(row)} secondaryActions={[canEdit ? { label: "Edit", onClick: () => onEdit(row) } : null]} /> },
   ];
 
