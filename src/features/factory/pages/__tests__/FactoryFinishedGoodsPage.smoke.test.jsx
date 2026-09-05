@@ -21,7 +21,7 @@ describe("FactoryFinishedGoodsPage smoke", () => {
     expect(screen.getAllByText("RM2.50").length).toBeGreaterThan(0);
     expect(screen.getAllByText("RM10.00").length).toBeGreaterThan(0);
     expect(screen.getAllByText("75.0%").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(screen.getByText("Finished goods stock, production and movement detail")).not.toBeNull();
   }, 15000);
 

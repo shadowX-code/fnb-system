@@ -7,6 +7,8 @@ import FactoryPagination, { FactoryTableLoadState, useFactoryClientPagination, u
 import JobOrderModal from "../components/JobOrderModal.jsx";
 import { createJobOrdersListingBridge } from "../hooks/jobOrdersListingBridge.js";
 import { AccessIssueNotice, FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
+import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryBulkSelectionModal, { CompactSelect, Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -2616,7 +2618,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "verified_by", label: "Verified By", render: (row) => row.verified_by_name || (row.status === "awaiting_verification" ? "Awaiting Verification" : "—") },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex flex-wrap justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving-batch-detail", value: row })}>View</button>
+        <FactoryRowAction onClick={() => setModal({ type: "receiving-batch-detail", value: row })} />
         {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => { setEditingReceiving(row); setReceivingTab("receive"); }}>Edit</button> : null}
         {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => completeReceivingBatch(row)}><PackageCheck size={13} /> Complete</button> : null}
         {row.status === "awaiting_verification" && can("factory_raw_receiving.verify") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => verifyReceivingBatch(row)}><Check size={13} /> Verify</button> : null}
@@ -2646,7 +2648,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function stockCheckColumns(stockType) {
     const renderActions = (row) => (
       <div className="flex flex-wrap justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row, readOnly: true })}>View</button>
+        <FactoryRowAction onClick={() => setModal({ type: "stock-check", stockType, value: row, readOnly: true })} />
         {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.edit" : "factory_product_stock_check.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>Edit</button> : null}
         {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.submit" : "factory_product_stock_check.submit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>Submit</button> : null}
         {row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
@@ -2774,18 +2776,25 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       .filter((name) => !data.factorySuppliers.some((supplier) => supplier.supplier_name === name))
       .map((name) => ({ value: name, label: name, helper: "Legacy supplier" }));
     return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-4">
-        <Field label="Date From">
+      <FactoryFilterBar
+        activeFilters={[
+          receivingHistoryFilters.dateFrom && { key: "date-from", label: "Date", value: receivingHistoryFilters.dateFrom, onRemove: () => setReceivingHistoryFilters((current) => ({ ...current, dateFrom: "" })) },
+          receivingHistoryFilters.dateTo && { key: "date-to", label: "To", value: receivingHistoryFilters.dateTo, onRemove: () => setReceivingHistoryFilters((current) => ({ ...current, dateTo: "" })) },
+          receivingHistoryFilters.supplier && { key: "supplier", label: "Supplier", value: (supplierOptions.find((option) => option.value === receivingHistoryFilters.supplier) || fallbackSupplierOptions.find((option) => option.value === receivingHistoryFilters.supplier))?.label || receivingHistoryFilters.supplier, onRemove: () => setReceivingHistoryFilters((current) => ({ ...current, supplier: "" })) },
+        ].filter(Boolean)}
+        onClear={() => setReceivingHistoryFilters({ dateFrom: "", dateTo: "", supplier: "" })}
+      >
+        <Field label="Date">
           <FeedXDatePicker
             value={receivingHistoryFilters.dateFrom}
-            placeholder="Start date"
+            placeholder="From"
             onChange={(dateFrom) => setReceivingHistoryFilters((current) => ({ ...current, dateFrom }))}
           />
         </Field>
-        <Field label="Date To">
+        <Field label="To">
           <FeedXDatePicker
             value={receivingHistoryFilters.dateTo}
-            placeholder="End date"
+            placeholder="To"
             onChange={(dateTo) => setReceivingHistoryFilters((current) => ({ ...current, dateTo }))}
           />
         </Field>
@@ -2799,28 +2808,34 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onChange={(supplier) => setReceivingHistoryFilters((current) => ({ ...current, supplier }))}
           />
         </Field>
-        <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setReceivingHistoryFilters({ dateFrom: "", dateTo: "", supplier: "" })}>Clear</button>
-        </div>
-      </div>
+      </FactoryFilterBar>
     );
   }
 
   function dispatchHistoryFilterControls() {
     const customerOptions = data.factoryCustomers.map((customer) => ({ value: customer.id, label: customer.customer_name, helper: customer.customer_code || customer.customer_type || customer.status }));
     return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-5">
-        <Field label="Date From">
+      <FactoryFilterBar
+        activeFilters={[
+          dispatchHistoryFilters.dateFrom && { key: "date-from", label: "Date", value: dispatchHistoryFilters.dateFrom, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, dateFrom: "" })) },
+          dispatchHistoryFilters.dateTo && { key: "date-to", label: "To", value: dispatchHistoryFilters.dateTo, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, dateTo: "" })) },
+          dispatchHistoryFilters.customer && { key: "customer", label: "Customer", value: customerOptions.find((option) => option.value === dispatchHistoryFilters.customer)?.label || dispatchHistoryFilters.customer, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, customer: "" })) },
+          dispatchHistoryFilters.status && { key: "status", label: "Status", value: dispatchHistoryFilters.status, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, status: "" })) },
+        ].filter(Boolean)}
+        onClear={() => setDispatchHistoryFilters({ dateFrom: "", dateTo: "", customer: "", status: "" })}
+        moreFilters={<Field label="Status"><SearchableSelect value={dispatchHistoryFilters.status} options={[{ value: "", label: "All" }, { value: "draft", label: "Draft" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} placeholder="All" searchPlaceholder="Search status" emptyText="No matching status" onChange={(status) => setDispatchHistoryFilters((current) => ({ ...current, status }))} /></Field>}
+      >
+        <Field label="Date">
           <FeedXDatePicker
             value={dispatchHistoryFilters.dateFrom}
-            placeholder="Start date"
+            placeholder="From"
             onChange={(dateFrom) => setDispatchHistoryFilters((current) => ({ ...current, dateFrom }))}
           />
         </Field>
-        <Field label="Date To">
+        <Field label="To">
           <FeedXDatePicker
             value={dispatchHistoryFilters.dateTo}
-            placeholder="End date"
+            placeholder="To"
             onChange={(dateTo) => setDispatchHistoryFilters((current) => ({ ...current, dateTo }))}
           />
         </Field>
@@ -2834,25 +2849,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onChange={(customer) => setDispatchHistoryFilters((current) => ({ ...current, customer }))}
           />
         </Field>
-        <Field label="Status">
-          <SearchableSelect
-            value={dispatchHistoryFilters.status}
-            options={[
-              { value: "", label: "All" },
-              { value: "draft", label: "Draft" },
-              { value: "completed", label: "Completed" },
-              { value: "cancelled", label: "Cancelled" },
-            ]}
-            placeholder="All"
-            searchPlaceholder="Search status"
-            emptyText="No matching status"
-            onChange={(status) => setDispatchHistoryFilters((current) => ({ ...current, status }))}
-          />
-        </Field>
-        <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setDispatchHistoryFilters({ dateFrom: "", dateTo: "", customer: "", status: "" })}>Clear</button>
-        </div>
-      </div>
+      </FactoryFilterBar>
     );
   }
 
@@ -3309,7 +3306,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const customersTodayUpdating = dispatchCustomersTodayUpdating;
     const renderDispatchActions = (row) => (
       <div className="flex flex-wrap justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })}>View</button>
+        <FactoryRowAction onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })} />
         {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" })}>Edit</button> : null}
         {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
         {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
