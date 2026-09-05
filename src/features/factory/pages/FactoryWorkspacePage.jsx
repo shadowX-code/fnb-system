@@ -2926,6 +2926,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Raw Material"
           title="Raw Material Receiving"
           description="Record supplier delivery documents with multiple raw material item rows."
+          actions={!showReceivingEntry && canCreateReceiving ? <button className="btn-primary" type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("receive"); }}><Plus size={15} /> Receive Raw Material</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Truck} label="Receiving Documents" value={factoryListingPage.hasLoaded ? Number(receivingSummary.documents || 0) : "—"} helper="Supplier delivery batches" />
@@ -2934,11 +2935,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Tag} label="Active Suppliers" value={activeSuppliers.length} helper="Available for receiving" />
         </div>
         {!showReceivingEntry ? receivingHistoryFilterControls() : null}
-
-        <div className="inline-flex rounded-xl border border-border bg-white p-1">
-          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${!showReceivingEntry ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("history"); }}>Receiving History</button>
-          {canCreateReceiving ? <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${showReceivingEntry && !editingReceiving ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("receive"); }}>Receive Raw Material</button> : null}
-        </div>
 
         {showReceivingEntry ? (
           <RawReceivingEntryPanel
@@ -3329,6 +3325,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Warehouse"
           title="Finished Goods Dispatch"
           description="Record outbound Packaging SKU dispatches to customers or outlets. Completion creates finished goods stock-out movements."
+          actions={dispatchTab === "history" ? <button className="btn-primary" type="button" disabled={!can("factory_finished_goods_dispatch.create")} onClick={() => setDispatchTab("create")}><Plus size={15} /> Create Dispatch</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Draft" value={dispatchSummaryReady ? Number(factoryListingPage.summary.draft || 0) : "—"} helper={dispatchSummaryReady ? "Awaiting completion" : "Updating…"} tone={dispatchSummaryReady && Number(factoryListingPage.summary.draft || 0) ? "warning" : "success"} />
@@ -3338,11 +3335,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         </div>
         {dispatchTab === "history" ? dispatchHistoryFilterControls() : null}
         <Card>
-          <div className="space-y-4 p-4">
-            <div className="inline-flex rounded-xl border border-border bg-white p-1">
-              <button className={`rounded-lg px-4 py-2 text-sm font-bold ${dispatchTab === "history" ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setDispatchTab("history")}>Dispatch History</button>
-              <button className={`rounded-lg px-4 py-2 text-sm font-bold ${dispatchTab === "create" ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setDispatchTab("create")} disabled={!can("factory_finished_goods_dispatch.create")}>Create Dispatch</button>
-            </div>
+          <div className={dispatchTab === "create" ? "p-4" : ""}>
             {dispatchTab === "create" ? (
               can("factory_finished_goods_dispatch.create") ? (
                 <FinishedGoodDispatchModal

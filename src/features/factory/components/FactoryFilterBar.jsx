@@ -1,21 +1,42 @@
-import { useState } from "react";
+import { Children, isValidElement, useState } from "react";
 import { Plus, SlidersHorizontal, X } from "lucide-react";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
+
+const fieldWidth = (label) => {
+  const value = String(label || "").toLowerCase();
+  if (value.includes("search")) return "w-full sm:w-[360px]";
+  if (["date", "from", "to"].includes(value)) return "w-full sm:w-[170px]";
+  if (/(supplier|customer|product|material|packaging sku|finished good)/.test(value)) return "w-full sm:w-[250px]";
+  return "w-full sm:w-[200px]";
+};
+
+const fieldOrder = (child) => {
+  const label = String(isValidElement(child) ? child.props.label : "").toLowerCase();
+  if (label.includes("search")) return 0;
+  if (label === "date") return 1;
+  if (label === "to") return 2;
+  return 3;
+};
 
 export default function FactoryFilterBar({ children, moreFilters, activeFilters = [], onClear, className = "" }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const hasActiveFilters = activeFilters.length > 0;
+  const visibleFields = Children.toArray(children).sort((left, right) => fieldOrder(left) - fieldOrder(right));
 
   return (
-    <section className={`border-b border-border py-3 ${className}`} aria-label="Filters">
+    <section className={`border-b border-border py-4 ${className}`} aria-label="Filters">
       <div className="flex flex-wrap items-end gap-3">
-        <div className="grid min-w-[220px] flex-1 gap-3 sm:grid-cols-3">{children}</div>
+        <div className="flex min-w-0 flex-wrap items-end gap-3">
+          {visibleFields.map((child, index) => (
+            <div key={child?.key || index} className={fieldWidth(isValidElement(child) ? child.props.label : "")}>{child}</div>
+          ))}
+        </div>
         {moreFilters ? (
           <ActionMenu
             open={moreOpen}
             onOpenChange={setMoreOpen}
             align="right"
-            width={360}
+            width={340}
             ariaLabel="More filters"
             trigger={({ toggle, ariaLabel }) => (
               <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={ariaLabel} aria-expanded={moreOpen} onClick={toggle}>
@@ -24,7 +45,7 @@ export default function FactoryFilterBar({ children, moreFilters, activeFilters 
               </button>
             )}
           >
-            <div className="grid gap-2 p-1.5">{moreFilters}</div>
+            <div className="grid gap-3 p-1">{moreFilters}</div>
           </ActionMenu>
         ) : null}
         {hasActiveFilters ? <button className="btn-secondary h-10 shrink-0 px-3 text-sm" type="button" onClick={onClear}>Clear all</button> : null}
