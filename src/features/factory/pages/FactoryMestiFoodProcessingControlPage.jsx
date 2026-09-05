@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -55,8 +56,9 @@ export default function FactoryMestiFoodProcessingControlPage() {
     { key: "verified", label: "Verified By", render: verificationEvidence },
     {
       key: "actions",
-      label: "",
-      render: (row) => <button type="button" className="icon-btn h-8 w-8" aria-label={`View ${row.product_name}`} onClick={() => setDetail(row)}><ChevronRight size={16} /></button>,
+      label: "Actions",
+      align: "right",
+      render: (row) => <FactoryRowAction label={`View ${row.product_name || "record"}`} onClick={() => setDetail(row)} />,
     },
   ];
 

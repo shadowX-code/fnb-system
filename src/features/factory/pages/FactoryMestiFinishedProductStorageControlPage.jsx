@@ -4,6 +4,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { factoryService } from "../../../services/factoryService.js";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryPagination, { FactoryTableLoadState, useFactoryPagedQuery } from "../components/FactoryPagination.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
@@ -71,6 +72,7 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
     { key: "batch_no", label: "Batch", render: (row) => <span className="font-semibold text-text-primary">{row.batch_no || "—"}</span> },
     { key: "expiry_date", label: "Expiry", render: (row) => formatFactoryDate(row.expiry_date) },
     { key: "completed_by_name", label: "Completed By", render: (row) => row.completed_by_name || "—" },
+    { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowAction label="View storage record" onClick={() => setDetail(row)} /> },
   ];
 
   return <div className="space-y-4">

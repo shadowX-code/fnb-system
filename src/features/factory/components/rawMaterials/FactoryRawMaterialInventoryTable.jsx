@@ -2,6 +2,7 @@ import { ArrowDown, ArrowUp, ArrowUpDown, Check, Package, Pencil, X } from "luci
 import { useState } from "react";
 import Badge from "../../../../components/ui/Badge.jsx";
 import { FactoryTable } from "../FactoryDataDisplay.jsx";
+import FactoryRowAction from "../FactoryRowAction.jsx";
 
 function rawMaterialStatusTone(stockStatus) {
   if (stockStatus === "Out of Stock") return "danger";
@@ -50,7 +51,7 @@ export default function FactoryRawMaterialInventoryTable({ rows, canEdit, catego
     { key: "status", label: "Status", render: (row) => <Badge tone={rawMaterialStatusTone(row.stock_status)}>{row.stock_status}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex flex-wrap justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onOpenDetail(row)}>Detail</button>
+        <FactoryRowAction onClick={() => onOpenDetail(row)} />
         {canEdit ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onEdit(row)}>Edit</button> : null}
       </div>
     ) },

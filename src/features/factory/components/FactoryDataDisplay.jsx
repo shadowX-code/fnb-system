@@ -1,7 +1,7 @@
 import { RefreshCw } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 
-export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick, density = "regular", headerStyle = "uppercase", rowHover = "", loading = false, loadingRows = 4 }) {
+export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick, density = "compact", headerStyle = "uppercase", rowHover = "", loading = false, loadingRows = 4 }) {
   if (!rows.length && !loading) return <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>;
   const compact = density === "compact";
   const headerClass = headerStyle === "sentence"

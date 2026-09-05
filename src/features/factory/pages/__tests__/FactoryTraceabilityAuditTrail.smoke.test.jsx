@@ -70,7 +70,7 @@ describe("Factory traceability and audit route smoke", () => {
     vi.spyOn(factoryService, "listFactoryListingPage").mockResolvedValue({ rows: [event], summary: { events: 1, today: 1, users: 1, attention_required: 0, module_values: ["Dispatch"], event_values: ["Completed"], user_values: ["Isaac"] }, totalCount: 1, page: 1, pageSize: 20 });
     renderPage(FactoryAuditTrailPage, ["factory_audit_logs.view"]);
     expect((await screen.findAllByText("D260809-01")).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "View audit event" }));
     expect(screen.getByText("Technical Details · Show raw metadata")).not.toBeNull();
 
     cleanup();

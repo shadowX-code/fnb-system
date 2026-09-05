@@ -17,7 +17,7 @@ describe("FactoryRawMaterialInventoryPage smoke", () => {
     renderPage((key) => key === "factory_raw_inventory.view");
     expect(screen.getByText("Chili")).not.toBeNull(); expect(screen.getAllByText("Low Stock").length).toBeGreaterThan(0); expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     fireEvent.change(screen.getByPlaceholderText("Search material/code"), { target: { value: "missing" } }); expect(screen.getByText("No raw materials")).not.toBeNull();
-    fireEvent.change(screen.getByPlaceholderText("Search material/code"), { target: { value: "Chili" } }); fireEvent.click(screen.getByRole("button", { name: "Detail" }));
+    fireEvent.change(screen.getByPlaceholderText("Search material/code"), { target: { value: "Chili" } }); fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByText("Material Record")).not.toBeNull(); expect(screen.getByText("Dry Store A")).not.toBeNull();
   });
 
