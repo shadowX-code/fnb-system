@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { ChevronRight, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -37,7 +38,7 @@ export default function FactoryMestiRawMaterialControlPage() {
     { key: "storage_time", label: "Storage Time", render: (row) => formatFactoryDateTime(row.received_at) },
     { key: "received_by_name", label: "Received By", render: (row) => row.received_by_name || "—" },
     { key: "verified_by_name", label: "Verified By", render: (row) => row.verified_by_name || (row.verification_status === "awaiting_verification" ? "Awaiting Verification" : "—") },
-    { key: "actions", label: "", align: "right", render: (row) => <button className="icon-btn h-8 w-8" aria-label={`View ${row.item_name}`} type="button" onClick={() => setDetail(row)}><ChevronRight size={16} /></button> },
+    { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowAction label={`View ${row.item_name || "receiving evidence"}`} onClick={() => setDetail(row)} /> },
   ];
   return <div className="space-y-5"><PageHeader section="MeSTI" title="Raw Material Control" description="Read-only raw material standards and canonical receiving evidence." actions={<button className="btn-secondary" type="button" onClick={tab === "standards" ? loadStandards : loadReport}><RefreshCw size={15} />Refresh</button>} />
     <div className="flex gap-2 border-b border-border"><button type="button" className={tab === "standards" ? "border-b-2 border-primary px-3 py-2 text-sm font-bold text-primary" : "px-3 py-2 text-sm font-semibold text-text-secondary"} onClick={() => setTab("standards")}>Control Standards</button><button type="button" className={tab === "report" ? "border-b-2 border-primary px-3 py-2 text-sm font-bold text-primary" : "px-3 py-2 text-sm font-semibold text-text-secondary"} onClick={() => setTab("report")}>Receiving Report</button></div>

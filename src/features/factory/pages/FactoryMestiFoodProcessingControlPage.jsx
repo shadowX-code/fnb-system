@@ -5,12 +5,14 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
+import { FactoryCellDateTime } from "../components/FactoryTableCell.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { factoryService } from "../../../services/factoryService.js";
 import { formatFactoryDate, formatFactoryDateTime } from "../utils/factoryDates.js";
 import { quantity } from "../utils/factoryFormatters.js";
+import { factoryTimeAmPmLabel } from "../components/productionExecution/productionExecutionHelpers.js";
 
 function verificationEvidence(row) {
   return row.verified_by_name || (row.verification_status === "awaiting_verification" ? "Awaiting Verification" : "—");
@@ -47,8 +49,15 @@ export default function FactoryMestiFoodProcessingControlPage() {
       render: (row) => <div><b>{row.product_name || "—"}</b><div className="text-xs text-text-secondary">{[row.product_code, row.variant_name].filter(Boolean).join(" · ")}</div></div>,
     },
     { key: "qc", label: "QC", render: (row) => <Badge tone={row.qc_summary?.startsWith("Passed") ? "success" : "neutral"}>{row.qc_summary || row.qc_status || "Evidence unavailable"}</Badge> },
-    { key: "start", label: "Time (Start)", render: (row) => row.start_time || "—" },
-    { key: "complete", label: "Time (Complete)", render: (row) => formatFactoryDateTime(row.completed_at) },
+    { key: "start", label: "Time (Start)", render: (row) => factoryTimeAmPmLabel(row.start_time) },
+    {
+      key: "complete",
+      label: "Time (Complete)",
+      render: (row) => {
+        const [date, ...time] = formatFactoryDateTime(row.completed_at).split(" ");
+        return <FactoryCellDateTime date={date} time={time.join(" ")} />;
+      },
+    },
     { key: "qty", label: "Quantity", render: (row) => quantity(row.good_output_qty || row.actual_output_qty, row.uom) },
     { key: "expiry", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },
     { key: "remarks", label: "Remarks", render: (row) => row.notes || "—" },
@@ -87,7 +96,7 @@ export default function FactoryMestiFoodProcessingControlPage() {
           ["Job Order", detail.job_order_no],
           ["Production / Batch", [detail.production_no, detail.batch_no].filter(Boolean).join(" · ")],
           ["Product / SKU", [detail.product_name, detail.product_code].filter(Boolean).join(" · ")],
-          ["Start", detail.start_time],
+          ["Start", factoryTimeAmPmLabel(detail.start_time)],
           ["Complete", formatFactoryDateTime(detail.completed_at)],
           ["Quantity", quantity(detail.good_output_qty || detail.actual_output_qty, detail.uom)],
           ["Expiry", formatFactoryDate(detail.expiry_date)],
