@@ -47,6 +47,8 @@ describe("Factory traceability and audit route smoke", () => {
     expect(screen.getByText("Batch type")).not.toBeNull();
     expect(screen.getByText("Storage location")).not.toBeNull();
     expect(screen.getByText("Expiry status")).not.toBeNull();
+    expect(screen.queryByPlaceholderText("Search batch number")).toBeNull();
+    expect(screen.getAllByText("All").length).toBeGreaterThan(0);
 
     fireEvent.change(screen.getByPlaceholderText("Batch, SKU, product or location"), { target: { value: "Sambal" } });
     await waitFor(() => expect(screen.getByText("Filtered by")).not.toBeNull());

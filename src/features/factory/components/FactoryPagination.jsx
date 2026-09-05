@@ -82,7 +82,7 @@ function PageSizeSelect({ value, loading, onChange }) {
     <div ref={anchorRef} className="relative w-[72px] shrink-0">
       <button
         ref={triggerRef}
-        className={`flex h-9 w-full items-center justify-between gap-1.5 rounded-lg border bg-white px-2.5 text-xs font-bold text-text-primary transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-text-muted ${open ? "border-primary/40 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"}`}
+        className={`flex h-9 w-full items-center justify-between gap-1.5 rounded-lg border bg-surface px-2.5 text-xs font-bold text-text-primary transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:opacity-70 disabled:text-text-muted ${open ? "border-primary/40 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"}`}
         type="button"
         aria-label="Rows per page"
         aria-haspopup="listbox"
@@ -501,7 +501,7 @@ export default function FactoryPagination({ page = 1, pageSize = 20, total = 0, 
           <div className="flex items-center gap-1">
             <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={loading || safePage <= 1} onClick={() => onPageChange?.(safePage - 1)}>Previous</button>
             {items.map((item) => typeof item === "number" ? (
-              <button key={item} className={`h-9 min-w-9 rounded-lg border px-2 text-xs font-bold transition ${item === safePage ? "border-primary bg-primary text-white" : "border-border bg-white text-text-secondary hover:border-primary hover:text-primary"}`} type="button" disabled={loading} aria-current={item === safePage ? "page" : undefined} onClick={() => onPageChange?.(item)}>{item}</button>
+              <button key={item} className={`h-9 min-w-9 rounded-lg border px-2 text-xs font-bold transition ${item === safePage ? "border-primary bg-primary text-white" : "border-border bg-surface text-text-secondary hover:border-primary hover:text-primary"}`} type="button" disabled={loading} aria-current={item === safePage ? "page" : undefined} onClick={() => onPageChange?.(item)}>{item}</button>
             ) : <span key={item} className="px-1 text-sm font-bold text-text-muted">…</span>)}
             <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={loading || safePage >= totalPages} onClick={() => onPageChange?.(safePage + 1)}>Next</button>
           </div>

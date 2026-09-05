@@ -24,7 +24,7 @@ export default function FactoryFilterBar({ children, moreFilters, activeFilters 
               </button>
             )}
           >
-            <div className="grid gap-3 p-2">{moreFilters}</div>
+            <div className="grid gap-2 p-1.5">{moreFilters}</div>
           </ActionMenu>
         ) : null}
         {hasActiveFilters ? <button className="btn-secondary h-10 shrink-0 px-3 text-sm" type="button" onClick={onClear}>Clear all</button> : null}

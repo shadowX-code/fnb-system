@@ -7,7 +7,7 @@ import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import { FactoryBulkThumbnail, FactoryImagePreview } from "./FactoryImagePreview.jsx";
 
 export function Field({ label, children, error }) {
-  return <label className="block"><span className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">{label}</span><div className="mt-1.5">{children}</div>{error ? <div className="mt-1 text-xs font-semibold text-rose-600">{error}</div> : null}</label>;
+  return <label className="block"><span className="text-[10.5px] font-semibold text-text-secondary">{label}</span><div className="mt-1.5">{children}</div>{error ? <div className="mt-1 text-xs font-semibold text-rose-600">{error}</div> : null}</label>;
 }
 
 export function inputClass(error) {

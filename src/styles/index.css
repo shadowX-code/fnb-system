@@ -726,6 +726,30 @@
     background-color: var(--theme-surface);
   }
 
+  .factory-table {
+    background-color: var(--theme-table-row);
+  }
+
+  .factory-table-header {
+    background-color: var(--theme-table-header);
+  }
+
+  .factory-table-row {
+    background-color: var(--theme-table-row);
+  }
+
+  .factory-table-row-mint:hover {
+    background-color: var(--theme-table-row-hover);
+  }
+
+  .factory-table-row-neutral:hover {
+    background-color: var(--theme-hover);
+  }
+
+  .factory-table-row:hover .factory-table-sticky {
+    background-color: var(--theme-table-row-hover) !important;
+  }
+
   .table-body {
     background-color: var(--theme-table-row);
   }

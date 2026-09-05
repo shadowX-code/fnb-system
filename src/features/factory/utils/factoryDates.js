@@ -38,7 +38,7 @@ export function formatDateDisplay(value, placeholder = "Select date") {
   if (!value) return placeholder;
   const [year, month, day] = String(value).split("-");
   if (!year || !month || !day) return placeholder;
-  return `${year}-${month}-${day}`;
+  return `${day}/${month}/${year}`;
 }
 
 export function formatFactoryDate(value) {
@@ -59,8 +59,13 @@ export function formatFactoryListDateTime(value) {
   if (!value) return { date: "—", time: "" };
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return { date: formatFactoryListDate(value), time: "" };
-  const formatter = new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "numeric", minute: "2-digit", hour12: true });
-  return { date: formatFactoryListDate(value), time: formatter.format(date).toUpperCase() };
+  return { date: formatFactoryListDate(value), time: formatFactoryListTime(value) };
+}
+
+export function formatFactoryListTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "numeric", minute: "2-digit", hour12: true }).format(date).toUpperCase();
 }
 
 export function formatFactoryReadableDate(value) {

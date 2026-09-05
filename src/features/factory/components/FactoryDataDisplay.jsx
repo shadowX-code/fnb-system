@@ -5,16 +5,16 @@ export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRo
   if (!rows.length && !loading) return <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>;
   const compact = density === "compact";
   const headerClass = headerStyle === "sentence"
-    ? "bg-slate-50/80 text-xs font-semibold text-text-secondary"
-    : "bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted";
+    ? "text-xs font-semibold text-text-secondary"
+    : "text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted";
   const headerPadding = compact ? "px-4 py-2.5" : "px-4 py-2.5";
   const cellPadding = compact ? "px-4 py-2.5" : "px-4 py-3";
-  const hoverClass = rowHover === "mint" ? "hover:bg-emerald-50/50" : "hover:bg-slate-50";
+  const hoverClass = rowHover === "mint" ? "factory-table-row-mint" : "factory-table-row-neutral";
   return (
-    <div className="overflow-x-auto">
+    <div className="factory-table overflow-x-auto">
       <table className="w-full min-w-[760px] text-left" aria-busy={loading}>
         <thead>
-          <tr className={`border-b border-border ${headerClass}`}>
+          <tr className={`factory-table-header border-b border-border ${headerClass}`}>
             {columns.map((column) => (
               <th key={column.key} className={`${column.className || ""} ${headerPadding} ${column.align === "right" ? "text-right" : ""}`}>{column.label}</th>
             ))}
@@ -22,13 +22,13 @@ export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRo
         </thead>
         <tbody>
           {loading && !rows.length ? Array.from({ length: loadingRows }, (_, index) => (
-            <tr key={`loading-${index}`} className="border-b border-border last:border-0">
+            <tr key={`loading-${index}`} className="factory-table-row border-b border-border last:border-0">
               {columns.map((column) => <td key={column.key} className={`${column.className || ""} ${cellPadding}`}><div className="h-3 animate-pulse rounded bg-slate-100" /></td>)}
             </tr>
           )) : rows.map((row) => (
             <tr
               key={row.id}
-              className={`border-b border-border last:border-0 ${rowHover ? `transition ${hoverClass}` : ""} ${onRowClick ? "cursor-pointer" : ""}`}
+              className={`factory-table-row border-b border-border last:border-0 ${rowHover ? `transition ${hoverClass}` : ""} ${onRowClick ? "cursor-pointer" : ""}`}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {columns.map((column) => (
