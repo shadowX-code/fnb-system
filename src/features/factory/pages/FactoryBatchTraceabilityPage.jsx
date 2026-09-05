@@ -7,6 +7,7 @@ import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
+import { FactoryCellAttention, FactoryCellDateTime, FactoryCellEntity, FactoryCellMuted } from "../components/FactoryTableCell.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -71,14 +72,14 @@ export default function FactoryBatchTraceabilityPage({ onNotify }) {
     return filtersForDisplay;
   }, [filters, finishedGoodOptions, storageOptions]);
   const columns = [
-    { key: "batch_no", label: "Batch no.", className: "min-w-44", render: (row) => <div><div className="font-semibold text-text-primary">{traceBatchNo(row)}</div><div className="mt-1 text-xs text-text-secondary">{batchTypeLabel(row.batch_type)}</div></div> },
-    { key: "sku", label: "Packaging SKU", className: "min-w-52", render: (row) => <div><div className="font-semibold text-text-primary">{row.packaging_sku_code || "No SKU"}</div><div className="text-xs text-text-secondary">{row.finished_good_name || row.packaging_sku_name || "—"}</div></div> },
+    { key: "batch_no", label: "Batch no.", className: "min-w-44", render: (row) => <FactoryCellEntity name={traceBatchNo(row)} code={batchTypeLabel(row.batch_type)} /> },
+    { key: "sku", label: "Packaging SKU", className: "min-w-52", render: (row) => <FactoryCellEntity name={row.packaging_sku_code || "No SKU"} code={row.finished_good_name || row.packaging_sku_name || "—"} /> },
     { key: "original", label: "Produced / adjusted", className: "hidden 2xl:table-cell whitespace-nowrap", align: "right", render: (row) => tracePackQuantity(row.original_qty) },
     { key: "dispatched", label: "Dispatched", className: "hidden 2xl:table-cell whitespace-nowrap", align: "right", render: (row) => tracePackQuantity(row.completed_dispatch_qty) },
     { key: "remaining", label: "Remaining", className: "whitespace-nowrap", align: "right", render: (row) => <span className="font-semibold text-text-primary">{tracePackQuantity(row.current_balance)}</span> },
-    { key: "dates", label: "Manufacturing / expiry", className: "hidden xl:table-cell min-w-40", render: (row) => <div className="whitespace-nowrap"><div>{formatFactoryListDate(row.manufacturing_date)}</div><div className="text-xs text-text-secondary">{row.expiry_date ? `Expiry ${formatFactoryListDate(row.expiry_date)}` : "No expiry recorded"}</div></div> },
-    { key: "storage", label: "Storage", className: "hidden xl:table-cell min-w-40", render: (row) => <div><div className="font-medium text-text-primary">{row.storage_location_name || "—"}</div><div className="text-xs text-text-secondary">{row.storage_location_type || "—"}</div></div> },
-    { key: "status", label: "Status", className: "min-w-36", render: (row) => { const status = rowStatus(row); const diagnostics = Array.isArray(row.diagnostics) ? row.diagnostics : []; return <div className="space-y-1"><FactoryStatusBadge status={status.status}>{status.label}</FactoryStatusBadge>{diagnostics.length ? <div className="text-xs font-medium text-amber-700">{diagnostics.length} historical diagnostic{diagnostics.length === 1 ? "" : "s"}</div> : null}</div>; } },
+    { key: "dates", label: "Manufacturing / expiry", className: "hidden xl:table-cell min-w-40", render: (row) => <FactoryCellDateTime className="whitespace-nowrap" date={formatFactoryListDate(row.manufacturing_date)} time={row.expiry_date ? `Expiry ${formatFactoryListDate(row.expiry_date)}` : "No expiry recorded"} /> },
+    { key: "storage", label: "Storage", className: "hidden xl:table-cell min-w-40", render: (row) => row.storage_location_name ? <FactoryCellEntity name={row.storage_location_name} code={row.storage_location_type || "—"} /> : <FactoryCellMuted /> },
+    { key: "status", label: "Status", className: "min-w-36", render: (row) => { const status = rowStatus(row); const diagnostics = Array.isArray(row.diagnostics) ? row.diagnostics : []; return <div className="space-y-1"><FactoryStatusBadge status={status.status}>{status.label}</FactoryStatusBadge>{diagnostics.length ? <FactoryCellAttention>{diagnostics.length} historical diagnostic{diagnostics.length === 1 ? "" : "s"}</FactoryCellAttention> : null}</div>; } },
     { key: "action", label: "Actions", className: "factory-table-sticky sticky right-0 w-14 shadow-[-1px_0_0_#dce3e8]", align: "right", render: (row) => <FactoryRowAction onClick={() => loadDetail(row)} /> },
   ];
   return <div className="space-y-5">
