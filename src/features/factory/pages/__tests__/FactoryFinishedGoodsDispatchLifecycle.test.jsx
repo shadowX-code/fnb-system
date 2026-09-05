@@ -168,6 +168,18 @@ describe("Factory Finished Goods Dispatch mounted lifecycle", () => {
     await waitFor(() => expect(screen.queryByText("Dispatch Items")).toBeNull());
   });
 
+  it("protects unsaved changes when navigating back to Dispatch History", async () => {
+    mount();
+    await prepareNew();
+    fireEvent.click(screen.getByRole("button", { name: "Back to History" }));
+    expect(screen.getByText("Discard unsaved Dispatch changes?")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByText("Dispatch Items")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back to History" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Create Dispatch" })).not.toBeNull());
+  });
+
   it("keeps a rejected new dispatch completion open and retryable without a successful refresh", async () => {
     const notify = vi.fn();
     const { listing, loadData } = mount({ ui: { confirm: vi.fn().mockResolvedValue(true), notify } });

@@ -17,7 +17,7 @@ import { createFinishedGoodDispatchRequestId, factoryActivityDateTime, finishedG
 import { dispatchAllocationTotal } from "../allocation/finishedGoodBatchAllocationHelpers.js";
 import { focusVisibleFactoryRowField } from "../../utils/factoryDom.js";
 
-export default function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, embedded = false, mode = "edit" }) {
+export default function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, embedded = false, mode = "edit", closeRequestNonce = 0 }) {
   const makeItem = (overrides = {}) => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false, ...overrides });
   const [form, setForm] = useState(() => ({
     dispatch_date: malaysiaBusinessDateInput(),
@@ -43,6 +43,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
   const batchAvailabilityRequestRef = useRef({});
   const dispatchNoPreviewRequestRef = useRef(0);
   const submissionRef = useRef(false);
+  const closeRequestNonceRef = useRef(closeRequestNonce);
   const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
   const isReadOnly = isViewMode;
   const saving = Boolean(submittingAction);
@@ -552,6 +553,12 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
     }
     onClose?.();
   }
+
+  useEffect(() => {
+    if (closeRequestNonce === closeRequestNonceRef.current) return;
+    closeRequestNonceRef.current = closeRequestNonce;
+    requestClose();
+  }, [closeRequestNonce]);
 
   const formContent = (
     <form id={embedded ? undefined : "factory-finished-good-dispatch-form"} className="space-y-4" onSubmit={(event) => submit(event, "draft")}>

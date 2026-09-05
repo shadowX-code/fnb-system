@@ -1057,6 +1057,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [receivingTab, setReceivingTab] = useState("history");
   const [editingReceiving, setEditingReceiving] = useState(null);
   const [dispatchTab, setDispatchTab] = useState("history");
+  const [dispatchCloseRequestNonce, setDispatchCloseRequestNonce] = useState(0);
   const [receivingHistoryFilters, setReceivingHistoryFilters] = useState({ dateFrom: "", dateTo: "", supplier: "" });
   const [dispatchHistoryFilters, setDispatchHistoryFilters] = useState({ dateFrom: "", dateTo: "", customer: "", status: "" });
   const [dispatchCustomersTodayUpdating, setDispatchCustomersTodayUpdating] = useState(false);
@@ -3304,7 +3305,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Record outbound Packaging SKU dispatches to customers or outlets. Completion creates finished goods stock-out movements."
           actions={dispatchTab === "history"
             ? <button className="btn-primary" type="button" disabled={!can("factory_finished_goods_dispatch.create")} onClick={() => setDispatchTab("create")}><Plus size={15} /> Create Dispatch</button>
-            : <button className="btn-secondary" type="button" onClick={() => setDispatchTab("history")}><ArrowLeft size={15} /> Back to History</button>}
+            : <button className="btn-secondary" type="button" onClick={() => setDispatchCloseRequestNonce((current) => current + 1)}><ArrowLeft size={15} /> Back to History</button>}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Draft" value={dispatchSummaryReady ? Number(factoryListingPage.summary.draft || 0) : "—"} helper={dispatchSummaryReady ? "Awaiting completion" : "Updating…"} tone={dispatchSummaryReady && Number(factoryListingPage.summary.draft || 0) ? "warning" : "success"} />
@@ -3323,6 +3324,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                   onClose={() => setDispatchTab("history")}
                   onSave={saveFinishedGoodDispatch}
                   onComplete={can("factory_finished_goods_dispatch.complete") ? saveAndCompleteFinishedGoodDispatch : undefined}
+                  closeRequestNonce={dispatchCloseRequestNonce}
                   embedded
                 />
               ) : (
