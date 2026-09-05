@@ -139,9 +139,9 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     const start = vi.spyOn(factoryService, "startJobOrder").mockResolvedValue({ ...job, status: "in_progress" });
     render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start Production" }));
     expect(screen.getByRole("heading", { name: "Start Production" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Start Production" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Start Production" }).at(-1));
 
     await waitFor(() => expect(start).toHaveBeenCalledWith(job, expect.objectContaining({ production_date: expect.any(String) }), auth.profile));
     await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledTimes(2));
@@ -196,7 +196,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     setup();
     render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Start Production" }));
     expect(screen.getByRole("heading", { name: "Start Production" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
@@ -204,12 +204,12 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     expect(await screen.findByRole("heading", { name: "Complete Production" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "View Result" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "View result" })[0]);
     await waitFor(() => expect(factoryService.getProductionByJobOrder).toHaveBeenCalledWith(completedJob.id));
     expect(await screen.findByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
-    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(await screen.findByRole("heading", { name: "View Job Order" })).not.toBeNull();
   });
 
@@ -234,13 +234,13 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     render(<FactoryOperationalJobsProvider route="production-overview" auth={auth} refreshKey="fixture" onPermissionDenied={vi.fn()}><FactoryProductionOverviewPage route="production-overview" auth={auth} openJob={openJob} startJob={startJob} completeProduction={completeProduction} viewCompletedResult={viewCompletedResult} releaseJob={vi.fn()} cancelJob={vi.fn()} /></FactoryOperationalJobsProvider>);
 
     expect(await screen.findByText(plannedJob.job_order_no)).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Production" }));
     expect(startJob).toHaveBeenCalledWith(job);
     fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));
     expect(completeProduction).toHaveBeenCalledWith(inProgressJob);
-    fireEvent.click(screen.getByRole("button", { name: "View Result" }));
+    fireEvent.click(screen.getByRole("button", { name: "View result" }));
     expect(viewCompletedResult).toHaveBeenCalledWith(completedJob);
-    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(openJob).toHaveBeenCalledWith(plannedJob, { readOnly: true });
   });
 
@@ -277,7 +277,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     render(<FactoryWorkspacePage initialTab="production" auth={auth} ui={ui} />);
     expect(await screen.findByText("Unable to load operational Job Orders. The production queue is unavailable.")).not.toBeNull();
     expect(screen.queryByText(job.job_order_no)).toBeNull();
-    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start Production" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
   });
 
@@ -286,7 +286,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     const viewOnly = { permissions: ["factory_production.view"], hasPermission: (key) => key === "factory_production.view" };
     render(<FactoryWorkspacePage initialTab="production-overview" auth={viewOnly} ui={ui} />);
     await screen.findByText("Production Overview");
-    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start Production" })).toBeNull();
     expect(screen.queryByRole("button", { name: /Complete Production/i })).toBeNull();
   });
 

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { ClipboardList, Play, RotateCcw } from "lucide-react";
-import Badge from "../../../components/ui/Badge.jsx";
+import { ClipboardList } from "lucide-react";
 import Card from "../../../components/ui/Card.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
@@ -8,6 +7,9 @@ import FactoryPagination, { FactoryTableLoadState, useFactoryPagedQuery } from "
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
+import FactoryRowActions from "../components/FactoryRowActions.jsx";
+import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import { formatFactoryDate } from "../utils/factoryDates.js";
 import { packSizeText, quantity } from "../utils/factoryFormatters.js";
 import { jobStatusLabel, statusTone } from "../utils/factoryStatus.js";
@@ -61,31 +63,20 @@ export default function FactoryJobOrdersPage({
     { key: "target", label: "Target Production Qty", render: (row) => <div className="font-semibold text-text-primary">{quantity(row.target_production_qty ?? row.target_quantity, row.uom)}</div> },
     { key: "estimated_pack_qty", label: "Estimated Pack Qty", render: (row) => quantity(row.target_pack_qty, "packs") },
     { key: "manufacturing_date", label: "Manufacturing Date", render: (row) => row.status === "completed" && row.manufacturing_date ? formatFactoryDate(row.manufacturing_date) : "—" },
-    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
-    { key: "production_qc", label: "Production / QC", render: (row) => <Badge tone={productionQcTone(row.production_qc_status)}>{productionQcDisplayLabel(row.production_qc_status)}</Badge> },
+    { key: "status", label: "Status", render: (row) => <FactoryStatusBadge status={row.status} tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</FactoryStatusBadge> },
+    { key: "production_qc", label: "Production / QC", render: (row) => <FactoryStatusBadge status={row.production_qc_status} tone={productionQcTone(row.production_qc_status)}>{productionQcDisplayLabel(row.production_qc_status)}</FactoryStatusBadge> },
     { key: "created_by", label: "Created By", render: (row) => row.created_by_name || row.created_by || "—" },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        {["draft", "planned"].includes(row.status) && can("factory_job_orders.edit") ? (
-          <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => onRelease(row)}>Release</button>
-        ) : null}
-        {row.status === "released" && can("factory_production.complete") ? (
-          <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => onStart(row)}><Play size={13} /> Start Production</button>
-        ) : null}
-        {["planned", "released"].includes(row.status) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onView(row)}>View</button> : null}
-        {row.status === "planned" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onEdit(row)}>Edit</button> : null}
-        {["planned", "released"].includes(row.status) && can("factory_job_orders.cancel") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => onCancel(row)}>Cancel</button> : null}
-        {row.status === "in_progress" && (can("factory_production.view") || can("factory_production.complete")) ? (
-          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onViewProcess(row, !can("factory_production.complete"))}>View Process</button>
-        ) : null}
-        {row.status === "in_progress" && can("factory_production.complete") ? (
-          <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => onComplete(row)}>Complete</button>
-        ) : null}
-        {row.status === "draft" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onEdit(row)}>Edit</button> : null}
-        {row.status === "completed" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onViewResult(row)}>View</button> : null}
-        {row.status === "cancelled" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onView(row)}>View</button> : null}
-        {row.status === "draft" && can("factory_job_orders.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => onDelete(row)}>Delete</button> : null}
-      </div>
+      <FactoryRowActions
+        onView={() => row.status === "in_progress" ? onViewProcess(row, !can("factory_production.complete")) : row.status === "completed" ? onViewResult(row) : onView(row)}
+        viewLabel={row.status === "in_progress" ? "View process" : row.status === "completed" ? "View result" : "View details"}
+        primaryAction={row.status === "released" && can("factory_production.complete") ? { label: "Start Production", onClick: () => onStart(row) } : row.status === "in_progress" && can("factory_production.complete") ? { label: "Complete", onClick: () => onComplete(row) } : ["draft", "planned"].includes(row.status) && can("factory_job_orders.edit") ? { label: "Release", onClick: () => onRelease(row) } : null}
+        secondaryActions={[
+          ["draft", "planned"].includes(row.status) && can("factory_job_orders.edit") ? { label: "Edit", onClick: () => onEdit(row) } : null,
+          ["planned", "released"].includes(row.status) && can("factory_job_orders.cancel") ? { label: "Cancel", destructive: true, onClick: () => onCancel(row) } : null,
+          row.status === "draft" && can("factory_job_orders.delete") ? { label: "Delete", destructive: true, onClick: () => onDelete(row) } : null,
+        ]}
+      />
     ) },
   ];
 
@@ -113,7 +104,41 @@ export default function FactoryJobOrdersPage({
           description="Manage and review Factory production job orders."
           actions={can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={onCreate}><ClipboardList size={15} /> Create Job Order</button> : null}
         />
-        <div className="grid gap-3 border-y border-border bg-white px-4 py-4 md:grid-cols-2 xl:grid-cols-4">
+        <FactoryFilterBar
+          moreFilters={<>
+            <Field label="Finished Good / Packaging SKU">
+              <SearchableSelect
+                value={jobOrderFilters.finishedGood}
+                options={finishedGoodOptions}
+                placeholder="All"
+                searchPlaceholder="Search Finished Good or SKU"
+                onChange={(value) => setJobOrderFilters((current) => ({ ...current, finishedGood: value }))}
+              />
+            </Field>
+            <Field label="Scheduled date from">
+              <FeedXDatePicker value={jobOrderFilters.scheduledDateFrom} onChange={(value) => setJobOrderFilters((current) => ({ ...current, scheduledDateFrom: value }))} />
+            </Field>
+            <Field label="Scheduled date to" error={scheduledDateRangeError}>
+              <FeedXDatePicker value={jobOrderFilters.scheduledDateTo} error={scheduledDateRangeError} onChange={(value) => setJobOrderFilters((current) => ({ ...current, scheduledDateTo: value }))} />
+            </Field>
+            <Field label="Manufacturing date from">
+              <FeedXDatePicker value={jobOrderFilters.manufacturingDateFrom} onChange={(value) => setJobOrderFilters((current) => ({ ...current, manufacturingDateFrom: value }))} />
+            </Field>
+            <Field label="Manufacturing date to" error={manufacturingDateRangeError}>
+              <FeedXDatePicker value={jobOrderFilters.manufacturingDateTo} error={manufacturingDateRangeError} onChange={(value) => setJobOrderFilters((current) => ({ ...current, manufacturingDateTo: value }))} />
+            </Field>
+          </>}
+          activeFilters={[
+            jobOrderFilters.search && { key: "search", label: "Search", value: jobOrderFilters.search, onRemove: () => setJobOrderFilters((current) => ({ ...current, search: "" })) },
+            jobOrderFilters.status && { key: "status", label: "Status", value: jobStatusLabel(jobOrderFilters.status), onRemove: () => setJobOrderFilters((current) => ({ ...current, status: "" })) },
+            jobOrderFilters.finishedGood && { key: "finished-good", label: "Finished Good", value: finishedGoodOptions.find((option) => option.value === jobOrderFilters.finishedGood)?.label || jobOrderFilters.finishedGood, onRemove: () => setJobOrderFilters((current) => ({ ...current, finishedGood: "" })) },
+            jobOrderFilters.scheduledDateFrom && { key: "scheduled-from", label: "Scheduled from", value: formatFactoryDate(jobOrderFilters.scheduledDateFrom), onRemove: () => setJobOrderFilters((current) => ({ ...current, scheduledDateFrom: "" })) },
+            jobOrderFilters.scheduledDateTo && { key: "scheduled-to", label: "Scheduled to", value: formatFactoryDate(jobOrderFilters.scheduledDateTo), onRemove: () => setJobOrderFilters((current) => ({ ...current, scheduledDateTo: "" })) },
+            jobOrderFilters.manufacturingDateFrom && { key: "manufacturing-from", label: "Manufacturing from", value: formatFactoryDate(jobOrderFilters.manufacturingDateFrom), onRemove: () => setJobOrderFilters((current) => ({ ...current, manufacturingDateFrom: "" })) },
+            jobOrderFilters.manufacturingDateTo && { key: "manufacturing-to", label: "Manufacturing to", value: formatFactoryDate(jobOrderFilters.manufacturingDateTo), onRemove: () => setJobOrderFilters((current) => ({ ...current, manufacturingDateTo: "" })) },
+          ].filter(Boolean)}
+          onClear={() => setJobOrderFilters({ search: "", status: "", scheduledDateFrom: "", scheduledDateTo: "", manufacturingDateFrom: "", manufacturingDateTo: "", finishedGood: "" })}
+        >
           <Field label="Search">
             <input
               className={inputClass()}
@@ -140,32 +165,8 @@ export default function FactoryJobOrdersPage({
               onChange={(value) => setJobOrderFilters((current) => ({ ...current, status: value }))}
             />
           </Field>
-          <Field label="Finished Good / Packaging SKU">
-            <SearchableSelect
-              value={jobOrderFilters.finishedGood}
-              options={finishedGoodOptions}
-              placeholder="All"
-              searchPlaceholder="Search Finished Good or SKU"
-              onChange={(value) => setJobOrderFilters((current) => ({ ...current, finishedGood: value }))}
-            />
-          </Field>
-          <div className="flex items-end">
-            {hasFilters ? <button className="btn-secondary w-full justify-center" type="button" onClick={() => setJobOrderFilters({ search: "", status: "", scheduledDateFrom: "", scheduledDateTo: "", manufacturingDateFrom: "", manufacturingDateTo: "", finishedGood: "" })}><RotateCcw size={14} /> Reset Filters</button> : null}
-          </div>
-          <Field label="Scheduled From">
-            <FeedXDatePicker value={jobOrderFilters.scheduledDateFrom} onChange={(value) => setJobOrderFilters((current) => ({ ...current, scheduledDateFrom: value }))} />
-          </Field>
-          <Field label="Scheduled To" error={scheduledDateRangeError}>
-            <FeedXDatePicker value={jobOrderFilters.scheduledDateTo} error={scheduledDateRangeError} onChange={(value) => setJobOrderFilters((current) => ({ ...current, scheduledDateTo: value }))} />
-          </Field>
-          <Field label="Manufacturing From">
-            <FeedXDatePicker value={jobOrderFilters.manufacturingDateFrom} onChange={(value) => setJobOrderFilters((current) => ({ ...current, manufacturingDateFrom: value }))} />
-          </Field>
-          <Field label="Manufacturing To" error={manufacturingDateRangeError}>
-            <FeedXDatePicker value={jobOrderFilters.manufacturingDateTo} error={manufacturingDateRangeError} onChange={(value) => setJobOrderFilters((current) => ({ ...current, manufacturingDateTo: value }))} />
-          </Field>
-        </div>
-        <Card title="Job Order Records" description={jobOrderDateRangeInvalid ? "Correct the invalid date range to update these records." : factoryListingPage.hasLoaded ? `${factoryListingPage.loadedTotal} job order record(s).` : "Historical and current Job Orders."}>
+        </FactoryFilterBar>
+        <Card>
           {jobOrderDateRangeInvalid ? (
             <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
               Correct the date range to update results. Any visible rows are from the last successful query.

@@ -22,6 +22,10 @@ function setup() {
   return listing;
 }
 function row(jobNo) { return screen.getByText(jobNo).closest("tr"); }
+async function openMore(jobNo, actionName) {
+  fireEvent.click(within(row(jobNo)).getByRole("button", { name: "More row actions" }));
+  return screen.findByRole("button", { name: actionName });
+}
 function mount(confirm = vi.fn().mockResolvedValue(true)) { return render(<FactoryWorkspacePage initialTab="job-orders" auth={{ permissions: keys, hasPermission: (key) => keys.includes(key) }} ui={{ notify: vi.fn(), confirm }} />); }
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -55,7 +59,8 @@ describe("Factory Job Orders Phase B", () => {
 
   it("edits the eligible Draft through the current modal and one workspace refresh", async () => {
     const listing = setup(); mount(); await screen.findByText("JO-DRAFT");
-    fireEvent.click(within(row("JO-DRAFT")).getByRole("button", { name: "Edit" }));
+    await openMore("JO-DRAFT", "Edit");
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     expect(screen.getByRole("heading", { name: "Edit Job Order" })).not.toBeNull();
     expect(screen.getByRole("spinbutton").value).toBe("10");
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "12" } });
@@ -89,7 +94,8 @@ describe("Factory Job Orders Phase B", () => {
   it("deletes only the eligible Draft through workspace confirmation and refresh", async () => {
     const listing = setup(); mount();
     await screen.findByText("JO-DRAFT");
-    fireEvent.click(within(row("JO-DRAFT")).getByRole("button", { name: "Delete" }));
+    await openMore("JO-DRAFT", "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(factoryService.deleteJobOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "draft" })));
     await waitFor(() => expect(listing).toHaveBeenCalledTimes(2));
     expect(factoryService.deleteJobOrder).toHaveBeenCalledTimes(1);
@@ -98,9 +104,11 @@ describe("Factory Job Orders Phase B", () => {
   it("cancels eligible Planned and Released orders through one workspace-owned mutation each", async () => {
     const listing = setup(); mount();
     await screen.findByText("JO-PLANNED");
-    fireEvent.click(within(row("JO-PLANNED")).getByRole("button", { name: "Cancel" }));
+    await openMore("JO-PLANNED", "Cancel");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(factoryService.cancelJobOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "planned" })));
-    fireEvent.click(within(row("JO-RELEASED")).getByRole("button", { name: "Cancel" }));
+    await openMore("JO-RELEASED", "Cancel");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(factoryService.cancelJobOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "released" })));
     await waitFor(() => expect(listing).toHaveBeenCalledTimes(3));
     expect(factoryService.cancelJobOrder).toHaveBeenCalledTimes(2);
@@ -131,7 +139,8 @@ describe("Factory Job Orders Phase B", () => {
     const listing = setup();
     factoryService.deleteJobOrder.mockRejectedValueOnce(new Error("delete failed"));
     mount(); await screen.findByText("JO-DRAFT");
-    fireEvent.click(within(row("JO-DRAFT")).getByRole("button", { name: "Delete" }));
+    await openMore("JO-DRAFT", "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     await waitFor(() => expect(factoryService.deleteJobOrder).toHaveBeenCalledTimes(1));
     expect(listing).toHaveBeenCalledTimes(1);
     expect(screen.getByText("JO-DRAFT")).not.toBeNull();
@@ -141,7 +150,8 @@ describe("Factory Job Orders Phase B", () => {
     const listing = setup();
     factoryService.cancelJobOrder.mockRejectedValueOnce(new Error("cancel failed"));
     mount(); await screen.findByText("JO-PLANNED");
-    fireEvent.click(within(row("JO-PLANNED")).getByRole("button", { name: "Cancel" }));
+    await openMore("JO-PLANNED", "Cancel");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(factoryService.cancelJobOrder).toHaveBeenCalledTimes(1));
     expect(listing).toHaveBeenCalledTimes(1);
     expect(screen.getByText("JO-PLANNED")).not.toBeNull();

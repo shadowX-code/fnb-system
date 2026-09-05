@@ -115,7 +115,8 @@ describe("Factory Job Orders listing bridge", () => {
     vi.spyOn(factoryService, "saveJobOrder").mockResolvedValue(saved);
     mount();
     await screen.findByText("JO-DRAFT");
-    fireEvent.click(within(draftRow()).getByRole("button", { name: "Edit" }));
+    fireEvent.click(within(draftRow()).getByRole("button", { name: "More row actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
     fireEvent.change(screen.getByRole("spinbutton"), { target: { value: "12" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
 
