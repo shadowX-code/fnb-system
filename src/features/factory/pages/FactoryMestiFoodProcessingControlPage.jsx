@@ -6,6 +6,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import { FactoryCellDateTime } from "../components/FactoryTableCell.jsx";
+import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -79,14 +80,12 @@ export default function FactoryMestiFoodProcessingControlPage() {
       actions={<button className="btn-secondary" onClick={load}><RefreshCw size={15} />Refresh</button>}
     />
     {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm">{error}</div> : null}
-    <div className="grid gap-3 rounded-lg border border-border bg-white p-4 md:grid-cols-3">
-      <Field label="Date from"><FeedXDatePicker value={filters.dateFrom} onChange={(dateFrom) => setFilters((current) => ({ ...current, dateFrom }))} /></Field>
-      <Field label="Date to"><FeedXDatePicker value={filters.dateTo} onChange={(dateTo) => setFilters((current) => ({ ...current, dateTo }))} /></Field>
-      <Field label="Product"><SearchableSelect value={filters.product} options={products} placeholder="All products" onChange={(product) => setFilters((current) => ({ ...current, product }))} /></Field>
-      <Field label="QC"><SearchableSelect value={filters.qcStatus} options={[{ value: "", label: "All" }, { value: "Passed", label: "Passed" }, { value: "Pending", label: "Pending" }]} onChange={(qcStatus) => setFilters((current) => ({ ...current, qcStatus }))} /></Field>
-      <Field label="Verification"><SearchableSelect value={filters.verificationStatus} options={[{ value: "", label: "All" }, { value: "awaiting_verification", label: "Awaiting Verification" }, { value: "verified", label: "Verified" }]} onChange={(verificationStatus) => setFilters((current) => ({ ...current, verificationStatus }))} /></Field>
-      <Field label="Search"><input className={inputClass()} value={filters.search} onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} /></Field>
-    </div>
+    <FactoryFilterBar moreFilters={<><Field label="QC"><SearchableSelect value={filters.qcStatus} options={[{ value: "", label: "All" }, { value: "Passed", label: "Passed" }, { value: "Pending", label: "Pending" }]} onChange={(qcStatus) => setFilters((current) => ({ ...current, qcStatus }))} /></Field><Field label="Verification"><SearchableSelect value={filters.verificationStatus} options={[{ value: "", label: "All" }, { value: "awaiting_verification", label: "Awaiting Verification" }, { value: "verified", label: "Verified" }]} onChange={(verificationStatus) => setFilters((current) => ({ ...current, verificationStatus }))} /></Field></>} activeFilters={[filters.dateFrom && { key: "from", label: "From", value: filters.dateFrom, onRemove: () => setFilters((current) => ({ ...current, dateFrom: "" })) }, filters.dateTo && { key: "to", label: "To", value: filters.dateTo, onRemove: () => setFilters((current) => ({ ...current, dateTo: "" })) }, filters.product && { key: "product", label: "Product", value: products.find((option) => option.value === filters.product)?.label || filters.product, onRemove: () => setFilters((current) => ({ ...current, product: "" })) }, filters.qcStatus && { key: "qc", label: "QC", value: filters.qcStatus, onRemove: () => setFilters((current) => ({ ...current, qcStatus: "" })) }, filters.verificationStatus && { key: "verification", label: "Verification", value: filters.verificationStatus.replaceAll("_", " "), onRemove: () => setFilters((current) => ({ ...current, verificationStatus: "" })) }, filters.search && { key: "search", label: "Search", value: filters.search, onRemove: () => setFilters((current) => ({ ...current, search: "" })) }].filter(Boolean)} onClear={() => setFilters({ dateFrom: "", dateTo: "", product: "", qcStatus: "", verificationStatus: "", search: "" })}>
+      <Field label="Date"><FeedXDatePicker value={filters.dateFrom} placeholder="From" onChange={(dateFrom) => setFilters((current) => ({ ...current, dateFrom }))} /></Field>
+      <Field label="To"><FeedXDatePicker value={filters.dateTo} placeholder="To" onChange={(dateTo) => setFilters((current) => ({ ...current, dateTo }))} /></Field>
+      <Field label="Product"><SearchableSelect value={filters.product} options={[{ value: "", label: "All" }, ...products]} placeholder="All" onChange={(product) => setFilters((current) => ({ ...current, product }))} /></Field>
+      <Field label="Search"><input className={inputClass()} value={filters.search} placeholder="Product, SKU or batch" onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} /></Field>
+    </FactoryFilterBar>
     <div className="overflow-hidden rounded-lg border border-border bg-white">
       <FactoryTable rows={rows} columns={columns} emptyTitle="No completed Production" emptyDescription="Completed Production records appear automatically." />
     </div>

@@ -46,7 +46,7 @@ describe("FactoryMestiFinishedProductStorageControlPage", () => {
     await screen.findAllByText("QA After Operation Sauce");
     fireEvent.change(screen.getByPlaceholderText("Batch, production, product"), { target: { value: "PB260903-02" } });
     await waitFor(() => expect(factoryService.listMestiFinishedProductStorageControl).toHaveBeenLastCalledWith(expect.objectContaining({ filters: expect.objectContaining({ search: "PB260903-02" }) })));
-    fireEvent.click(screen.getByRole("button", { name: "Clear Filters" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     await waitFor(() => expect(factoryService.listMestiFinishedProductStorageControl).toHaveBeenLastCalledWith(expect.objectContaining({ filters: expect.objectContaining({ search: "" }) })));
   });
 

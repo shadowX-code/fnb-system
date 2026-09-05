@@ -5,6 +5,7 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { factoryService } from "../../../services/factoryService.js";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
+import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
 import FactoryPagination, { FactoryTableLoadState, useFactoryPagedQuery } from "../components/FactoryPagination.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
@@ -77,17 +78,13 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
 
   return <div className="space-y-4">
     <PageHeader section="MeSTI" title="Finished Product Storage Control" description="Read-only completed Production storage evidence." actions={<button className="btn-secondary" type="button" onClick={listingActions.retry}><RefreshCw size={15} /> Refresh</button>} />
-    <div className="rounded-lg border border-border bg-white p-4"><div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-7">
-      <Field label="Date From"><FeedXDatePicker value={filters.dateFrom} onChange={(dateFrom) => updateFilters({ dateFrom })} /></Field>
-      <Field label="Date To"><FeedXDatePicker value={filters.dateTo} onChange={(dateTo) => updateFilters({ dateTo })} /></Field>
+    <FactoryFilterBar moreFilters={<><Field label="Packaging SKU"><SearchableSelect value={filters.packagingSku} options={packagingSkuOptions} placeholder="All" onChange={(packagingSku) => updateFilters({ packagingSku })} /></Field><Field label="Storage"><SearchableSelect value={filters.storageLocation} options={storageOptions} placeholder="All" onChange={(storageLocation) => updateFilters({ storageLocation })} /></Field></>} activeFilters={[filters.dateFrom && { key: "from", label: "From", value: filters.dateFrom, onRemove: () => updateFilters({ dateFrom: "" }) }, filters.dateTo && { key: "to", label: "To", value: filters.dateTo, onRemove: () => updateFilters({ dateTo: "" }) }, filters.finishedGood && { key: "finished-good", label: "Finished Good", value: finishedGoodOptions.find((option) => option.value === filters.finishedGood)?.label || filters.finishedGood, onRemove: () => updateFilters({ finishedGood: "" }) }, filters.packagingSku && { key: "sku", label: "Packaging SKU", value: packagingSkuOptions.find((option) => option.value === filters.packagingSku)?.label || filters.packagingSku, onRemove: () => updateFilters({ packagingSku: "" }) }, filters.storageLocation && { key: "storage", label: "Storage", value: storageOptions.find((option) => option.value === filters.storageLocation)?.label || filters.storageLocation, onRemove: () => updateFilters({ storageLocation: "" }) }, filters.search && { key: "search", label: "Search", value: filters.search, onRemove: () => updateFilters({ search: "" }) }].filter(Boolean)} onClear={clearFilters}>
+      <Field label="Date"><FeedXDatePicker value={filters.dateFrom} placeholder="From" onChange={(dateFrom) => updateFilters({ dateFrom })} /></Field>
+      <Field label="To"><FeedXDatePicker value={filters.dateTo} placeholder="To" onChange={(dateTo) => updateFilters({ dateTo })} /></Field>
       <Field label="Finished Good"><SearchableSelect value={filters.finishedGood} options={finishedGoodOptions} placeholder="All" onChange={(finishedGood) => updateFilters({ finishedGood })} /></Field>
-      <Field label="Packaging SKU"><SearchableSelect value={filters.packagingSku} options={packagingSkuOptions} placeholder="All" onChange={(packagingSku) => updateFilters({ packagingSku })} /></Field>
-      <Field label="Storage"><SearchableSelect value={filters.storageLocation} options={storageOptions} placeholder="All" onChange={(storageLocation) => updateFilters({ storageLocation })} /></Field>
       <Field label="Search"><input className={inputClass()} value={filters.search} onChange={(event) => updateFilters({ search: event.target.value })} placeholder="Batch, production, product" /></Field>
-      <div className="flex items-end"><button className="btn-secondary w-full" type="button" onClick={clearFilters}>Clear Filters</button></div>
-    </div></div>
+    </FactoryFilterBar>
     <div className="overflow-hidden rounded-lg border border-border bg-white">
-      <div className="border-b border-border px-4 py-3"><div className="text-sm font-bold text-text-primary">Completed Production Storage Records</div></div>
       <FactoryTableLoadState state={listing} label="Finished Product Storage Control" onRetry={listingActions.retry} permissionMessage="Finished Product Storage Control is hidden by your current role." />
       <FactoryTable columns={columns} rows={rows} emptyTitle="No Completed Production Storage Records" emptyDescription="Completed Production batches matching these filters will appear here automatically." onRowClick={setDetail} />
       {listing.hasLoaded ? <FactoryPagination page={listing.loadedPage} pageSize={listing.loadedPageSize} total={listing.loadedTotal} loading={listing.loading} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} /> : null}
