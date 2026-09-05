@@ -45,6 +45,19 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Factory MeSTI Cleaning of Area", () => {
+  it("keeps view-specific content behind canonical tabs and loads the selected month without a manual Load action", async () => {
+    renderPage();
+    expect(await screen.findByText("Due")).not.toBeNull();
+    expect(screen.getByRole("tablist", { name: "View" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    await waitFor(() => expect(factoryService.listMestiCleaningMonth).toHaveBeenCalled());
+    expect(screen.queryByText("Due")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Load" })).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    expect(screen.queryByText("Legend")).toBeNull();
+    expect(screen.queryByText("Due")).toBeNull();
+  });
+
   it("keeps Daily Location-centric and lets the canonical complete permission complete work", async () => {
     renderPage();
     expect(await screen.findByText("Preparation")).not.toBeNull();
@@ -57,7 +70,8 @@ describe("Factory MeSTI Cleaning of Area", () => {
     factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-2", completed_by_name: "Aisha", completed_at: "2026-09-02T02:00:00Z" }]);
     renderPage();
     expect(await screen.findByRole("button", { name: "Verify" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Unsatisfactory" }));
+    fireEvent.click(screen.getByRole("button", { name: "More row actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Mark unsatisfactory" }));
     await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "unsatisfactory"));
     cleanup();
     factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-1", completed_by_name: "Current User" }]);
@@ -68,12 +82,13 @@ describe("Factory MeSTI Cleaning of Area", () => {
 
   it("starts Setup with Cleaning Requirements and keeps role configuration out of the UI", async () => {
     renderPage({ permissions: ["factory_mesti_cleaning.view", "factory_mesti_cleaning.create", "factory_mesti_cleaning.edit", "factory_mesti_cleaning.manage"] });
-    fireEvent.click(screen.getByRole("button", { name: "setup" }));
-    expect(await screen.findByText("Cleaning Requirements")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    expect(await screen.findByRole("button", { name: "Create Requirement" })).not.toBeNull();
     expect(screen.queryByText("Cleaning Settings")).toBeNull();
     expect(screen.queryByLabelText("Responsible Role")).toBeNull();
     expect(screen.queryByLabelText("Verifier Role")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create Requirement" }));
+    expect(await screen.findByRole("dialog", { name: "Create Cleaning Requirement" })).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Ceiling" } });
     fireEvent.click(screen.getByLabelText("Preparation"));
     fireEvent.click(screen.getByLabelText("Dry Store"));
@@ -85,16 +100,16 @@ describe("Factory MeSTI Cleaning of Area", () => {
 
   it("renders one Monthly row per logical requirement, preserves distinct same-name requirements, and drills into Location evidence", async () => {
     renderPage();
-    fireEvent.click(screen.getByRole("button", { name: "monthly" }));
-    expect(await screen.findByText("Monthly Compliance Matrix")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    expect(await screen.findByText("Legend")).not.toBeNull();
     await waitFor(() => expect(factoryService.listMestiCleaningMonth).toHaveBeenCalled());
     expect(screen.getByText("Task")).not.toBeNull();
     expect(screen.queryByText("Task / Location")).toBeNull();
     expect(screen.getAllByText("Floor")).toHaveLength(2);
-    expect(screen.getByTitle("1 of 2 verified")).not.toBeNull();
-    expect(screen.getByTitle("Unsatisfactory")).not.toBeNull();
-    expect(screen.getByTitle("Awaiting Verification")).not.toBeNull();
-    fireEvent.click(screen.getByTitle("1 of 2 verified"));
+    expect(screen.getByTitle(/1 of 2 verified/)).not.toBeNull();
+    expect(screen.getByTitle(/Unsatisfactory/)).not.toBeNull();
+    expect(screen.getByTitle(/Awaiting Verification/)).not.toBeNull();
+    fireEvent.click(screen.getByTitle(/1 of 2 verified/));
     expect(await screen.findByText("Location-level occurrence evidence")).not.toBeNull();
     expect(screen.getByText("Preparation")).not.toBeNull();
     expect(screen.getByText("Cooking")).not.toBeNull();
