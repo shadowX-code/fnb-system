@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { factoryService } from "../../../services/factoryService.js";
@@ -77,7 +76,7 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
   ];
 
   return <div className="space-y-4">
-    <PageHeader section="MeSTI" title="Finished Product Storage Control" description="Read-only completed Production storage evidence." actions={<button className="btn-secondary" type="button" onClick={listingActions.retry}><RefreshCw size={15} /> Refresh</button>} />
+    <PageHeader section="MeSTI" title="Finished Product Storage Control" description="Read-only completed Production storage evidence." />
     <FactoryFilterBar moreFilters={<><Field label="Packaging SKU"><SearchableSelect value={filters.packagingSku} options={packagingSkuOptions} placeholder="All" onChange={(packagingSku) => updateFilters({ packagingSku })} /></Field><Field label="Storage"><SearchableSelect value={filters.storageLocation} options={storageOptions} placeholder="All" onChange={(storageLocation) => updateFilters({ storageLocation })} /></Field></>} activeFilters={[filters.dateFrom && { key: "from", label: "From", value: filters.dateFrom, onRemove: () => updateFilters({ dateFrom: "" }) }, filters.dateTo && { key: "to", label: "To", value: filters.dateTo, onRemove: () => updateFilters({ dateTo: "" }) }, filters.finishedGood && { key: "finished-good", label: "Finished Good", value: finishedGoodOptions.find((option) => option.value === filters.finishedGood)?.label || filters.finishedGood, onRemove: () => updateFilters({ finishedGood: "" }) }, filters.packagingSku && { key: "sku", label: "Packaging SKU", value: packagingSkuOptions.find((option) => option.value === filters.packagingSku)?.label || filters.packagingSku, onRemove: () => updateFilters({ packagingSku: "" }) }, filters.storageLocation && { key: "storage", label: "Storage", value: storageOptions.find((option) => option.value === filters.storageLocation)?.label || filters.storageLocation, onRemove: () => updateFilters({ storageLocation: "" }) }, filters.search && { key: "search", label: "Search", value: filters.search, onRemove: () => updateFilters({ search: "" }) }].filter(Boolean)} onClear={clearFilters}>
       <Field label="Date"><FeedXDatePicker value={filters.dateFrom} placeholder="From" onChange={(dateFrom) => updateFilters({ dateFrom })} /></Field>
       <Field label="To"><FeedXDatePicker value={filters.dateTo} placeholder="To" onChange={(dateTo) => updateFilters({ dateTo })} /></Field>

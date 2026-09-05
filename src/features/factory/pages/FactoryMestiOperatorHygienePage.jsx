@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, ClipboardList, RefreshCw, Search, ShieldCheck } from "lucide-react";
+import { Check, ClipboardList, Search } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
-import Badge from "../../../components/ui/Badge.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { factoryService } from "../../../services/factoryService.js";
-import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import FactoryComplianceMatrix from "../components/FactoryComplianceMatrix.jsx";
+import FactoryDailyToolbar, { FactoryDailyDateField } from "../components/FactoryDailyToolbar.jsx";
+import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
+import FactoryViewTabs from "../components/FactoryViewTabs.jsx";
+import FactoryRowAction from "../components/FactoryRowAction.jsx";
+import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -29,8 +34,8 @@ function blank(employee) {
 function detailRow(labelText, value) {
   return <div key={labelText} className="border-b border-border py-2.5 last:border-0"><div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">{labelText}</div><div className="mt-0.5 text-sm font-semibold text-text-primary">{value || "-"}</div></div>;
 }
-function ResultBadge({ value }) { return <Badge tone={resultTone[value] || "neutral"}>{label(value)}</Badge>; }
-function SessionStatusBadge({ value }) { return <Badge tone={statusTone[value] || "neutral"}>{label(value || "draft")}</Badge>; }
+function ResultBadge({ value }) { return <FactoryStatusBadge tone={resultTone[value] || "neutral"}>{label(value)}</FactoryStatusBadge>; }
+function SessionStatusBadge({ value }) { return <FactoryStatusBadge tone={statusTone[value] || "neutral"}>{label(value || "draft")}</FactoryStatusBadge>; }
 
 function SessionDetail({ daily, date, onClose }) {
   const session = daily.session || {};
@@ -152,33 +157,31 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
     { key: "result", label: "Overall", render: (entry) => <ResultBadge value={overall(entry)} /> },
     { key: "issue", label: "Issue", render: (entry) => isDraft ? <input className={inputClass(overall(entry) !== "compliant" && !entry.issue?.trim())} required={overall(entry) !== "compliant"} value={entry.issue || ""} placeholder="Required on Fail" onChange={(event) => update(entry.employee_id, { issue: event.target.value })} /> : entry.issue || "-" },
     { key: "action", label: "Action", render: (entry) => isDraft ? <input className={inputClass(overall(entry) !== "compliant" && !entry.action_taken?.trim())} required={overall(entry) !== "compliant"} value={entry.action_taken || ""} placeholder="Required on Fail" onChange={(event) => update(entry.employee_id, { action_taken: event.target.value })} /> : entry.action_taken || "-" },
-    { key: "actions", label: "Actions", align: "right", render: (entry) => <button className="icon-btn h-8 w-8" type="button" aria-label={`View ${entry.employee_snapshot?.employee_name} details`} onClick={() => setDetail(entry)}><ChevronRight size={16} /></button> },
+    { key: "actions", label: "Actions", align: "right", render: (entry) => <FactoryRowAction label={`View ${entry.employee_snapshot?.employee_name} details`} onClick={() => setDetail(entry)} /> },
   ];
 
   return <div className="space-y-5">
-    <PageHeader section="MeSTI" title="Operator Hygiene Inspection" description="Daily operator clothing and hygiene inspection evidence." actions={<button className="btn-secondary" onClick={tab === "monthly" ? loadMonthly : loadDaily} type="button"><RefreshCw size={15} />Refresh</button>} />
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border" role="tablist"><div className="flex gap-2">{["daily", "monthly"].map((item) => <button key={item} type="button" role="tab" aria-selected={tab === item} className={`border-b-2 px-3 py-2 text-sm font-bold capitalize ${tab === item ? "border-primary text-primary" : "border-transparent text-text-secondary"}`} onClick={() => setTab(item)}>{item}</button>)}</div>{tab === "daily" ? <div className="pb-2"><FeedXDatePicker value={date} onChange={setDate} /></div> : null}</div>
+    <PageHeader section="MeSTI" title="Operator Hygiene Inspection" description="Daily operator clothing and hygiene inspection evidence." />
+    <FactoryViewTabs value={tab} onChange={setTab} tabs={[{ value: "daily", label: "Daily" }, { value: "monthly", label: "Monthly" }]} />
     {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</div> : null}
 
     {tab === "daily" ? <>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-white px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
         <span className="font-bold text-text-primary">{stats.inspected} Inspected</span><span className="text-emerald-700">{stats.compliant} Compliant</span><span className={stats.nonCompliant ? "text-rose-700" : "text-text-secondary"}>{stats.nonCompliant} Non-Compliant</span><SessionStatusBadge value={session?.status || "draft"} />
         <button className="btn-secondary ml-auto" type="button" onClick={() => setSessionDetailOpen(true)}><ClipboardList size={15} />Session Details</button>
         {isDraft ? <><button type="button" className="btn-secondary" onClick={markAllPass} disabled={!entries.length || !can("factory_mesti_operator_hygiene.manage")}>Mark All Pass</button><button type="button" className="btn-primary" disabled={!entries.length || !can("factory_mesti_operator_hygiene.submit")} onClick={submit}>Submit Inspection</button></> : null}
         {session?.status === "submitted" ? <button type="button" className="btn-primary" disabled={!can("factory_mesti_operator_hygiene.verify")} onClick={verify} title={session.submitted_by === currentEmployeeId ? "Self-verification is blocked by the server." : undefined}><Check size={15} />Verify</button> : null}
       </div>
-      <div className="overflow-hidden rounded-xl border border-border bg-white"><FactoryTable rows={entries} columns={columns} emptyTitle="No Operators Selected" emptyDescription="Add active employees below." /></div>
+      <FactoryDailyToolbar><FactoryDailyDateField><FeedXDatePicker value={date} onChange={setDate} /></FactoryDailyDateField></FactoryDailyToolbar>
+      <FactoryDataSurface><FactoryTable rows={entries} columns={columns} emptyTitle="No Operators Selected" emptyDescription="Add active employees below." /></FactoryDataSurface>
       {isDraft ? <div className="rounded-xl border border-border bg-white p-3"><Field label="Add Operator"><SearchableSelect value="" options={employeeOptions} placeholder="Select canonical Employee" onChange={addEmployee} /></Field></div> : null}
       <div className="text-xs font-semibold text-text-secondary">Submitted by {session?.submitted_by_name || "-"} {session?.submitted_at ? `- ${formatFactoryDateTime(session.submitted_at)}` : ""} - Verified by {session?.verified_by_name || "-"} {session?.verified_at ? `- ${formatFactoryDateTime(session.verified_at)}` : ""}</div>
       {loading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading Operator Hygiene Inspection...</div> : null}
     </> : null}
 
     {tab === "monthly" ? <>
-      <div className="grid gap-3 rounded-xl border border-border bg-white p-3 md:grid-cols-[minmax(160px,0.45fr)_minmax(220px,1fr)]"><Field label="Month"><input className={inputClass()} type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></Field><Field label="Employee"><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" /><input className={`${inputClass()} pl-9`} value={employeeQuery} placeholder="Search employee" onChange={(event) => setEmployeeQuery(event.target.value)} /></div></Field></div>
-      <div className="overflow-x-auto rounded-xl border border-border bg-white">
-        <table className="min-w-[1120px] border-collapse text-sm"><thead><tr className="border-b border-border bg-slate-50 text-left text-xs font-semibold text-text-muted"><th className="sticky left-0 z-10 min-w-64 bg-slate-50 px-4 py-2.5">Employee</th>{monthDays(month).map((day) => <th key={day} className="w-9 min-w-9 px-0.5 py-2.5 text-center">{Number(day.slice(-2))}</th>)}</tr></thead><tbody>{visibleMatrix.map((row) => <tr key={row.employee_id} className="border-b border-border last:border-0"><td className="sticky left-0 z-10 bg-white px-4 py-3"><div className="font-bold text-text-primary">{row.employee_name}</div><div className="mt-0.5 text-xs text-text-secondary">{row.position || "-"}</div><div className="mt-1 text-xs font-semibold text-text-muted">{row.summary?.inspected_count || 0} inspected - {row.summary?.compliant_count || 0} compliant - {row.summary?.non_compliant_count || 0} non-compliant</div></td>{monthDays(month).map((day) => { const cell = row.days?.[day]; return <td key={day} className="p-0.5 text-center">{cell ? <button type="button" title={`${row.employee_name} on ${formatFactoryDate(day)}: ${label(cell.state)}`} aria-label={`${row.employee_name} on ${formatFactoryDate(day)}: ${label(cell.state)}`} className={`inline-flex h-7 min-w-7 items-center justify-center rounded-md px-1 text-xs font-bold ${cell.state === "compliant" ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : cell.state === "non_compliant" ? "bg-rose-50 text-rose-700 hover:bg-rose-100" : "bg-amber-50 text-amber-800 hover:bg-amber-100"}`} onClick={() => setDetail({ ...cell, employee_id: row.employee_id, employee_name: row.employee_name, position: row.position, inspection_date: day })}>{cell.state === "compliant" ? <ShieldCheck size={14} /> : cell.state === "non_compliant" ? "!" : "..."}</button> : null}</td>; })}</tr>)}</tbody></table>
-        {!visibleMatrix.length ? <div className="py-10 text-center text-sm font-semibold text-text-secondary">No monthly inspection evidence.</div> : null}
-      </div>
+      <FactoryDailyToolbar><div className="w-full sm:w-[170px]"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div><div className="w-full sm:w-[260px]"><Field label="Employee"><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" /><input className={`${inputClass()} pl-9`} value={employeeQuery} placeholder="Search employee" onChange={(event) => setEmployeeQuery(event.target.value)} /></div></Field></div></FactoryDailyToolbar>
+      <FactoryDataSurface><FactoryComplianceMatrix rows={visibleMatrix} days={monthDays(month)} rowKey={(row) => row.employee_id} entityLabel="Employee" frequencyLabel="Summary" renderEntity={(row) => row.employee_name} renderSecondary={(row) => row.position || "—"} renderFrequency={(row) => `${row.summary?.inspected_count || 0} inspected · ${row.summary?.compliant_count || 0} compliant · ${row.summary?.non_compliant_count || 0} non-compliant`} getCell={(row, day) => { const cell = row.days?.[day]; return cell ? { ...cell, inspection_date: day, status: cell.state === "compliant" ? "verified" : cell.state === "non_compliant" ? "missed" : "completed" } : null; }} cellLabel={(cell) => cell.state === "compliant" ? "Pass" : cell.state === "non_compliant" ? "Fail" : "Pending"} cellTitle={(cell, row) => `${row.employee_name} on ${formatFactoryDate(cell.inspection_date)}: ${label(cell.state)}`} onCellClick={(cell, row) => setDetail({ ...cell, employee_id: row.employee_id, employee_name: row.employee_name, position: row.position })} empty={<div className="py-10 text-center text-sm font-semibold text-text-secondary">No monthly inspection evidence.</div>} /></FactoryDataSurface>
       {loading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly compliance...</div> : null}
     </> : null}
 

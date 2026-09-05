@@ -87,9 +87,9 @@ describe("Factory MeSTI Operator Hygiene", () => {
 
   it("renders the Monthly employee-centric matrix and opens employee-date details", async () => {
     renderPage();
-    fireEvent.click(screen.getByRole("tab", { name: "monthly" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     expect(await screen.findByText("Aisha")).not.toBeNull();
-    expect(screen.getByText("1 inspected - 0 compliant - 1 non-compliant")).not.toBeNull();
+    expect(screen.getByText("1 inspected · 0 compliant · 1 non-compliant")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Aisha on/ }));
     const dialog = await screen.findByRole("dialog", { name: "Aisha" });
     expect(within(dialog).getByText("Apron missing")).not.toBeNull();

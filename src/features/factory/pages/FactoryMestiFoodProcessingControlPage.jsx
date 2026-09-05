@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import Badge from "../../../components/ui/Badge.jsx";
 import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
+import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import { FactoryCellDateTime } from "../components/FactoryTableCell.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
@@ -49,7 +48,7 @@ export default function FactoryMestiFoodProcessingControlPage() {
       label: "Product",
       render: (row) => <div><b>{row.product_name || "—"}</b><div className="text-xs text-text-secondary">{[row.product_code, row.variant_name].filter(Boolean).join(" · ")}</div></div>,
     },
-    { key: "qc", label: "QC", render: (row) => <Badge tone={row.qc_summary?.startsWith("Passed") ? "success" : "neutral"}>{row.qc_summary || row.qc_status || "Evidence unavailable"}</Badge> },
+    { key: "qc", label: "QC", render: (row) => <FactoryStatusBadge tone={row.qc_summary?.startsWith("Passed") ? "success" : "neutral"}>{row.qc_summary || row.qc_status || "Evidence unavailable"}</FactoryStatusBadge> },
     { key: "start", label: "Time (Start)", render: (row) => factoryTimeAmPmLabel(row.start_time) },
     {
       key: "complete",
@@ -77,7 +76,6 @@ export default function FactoryMestiFoodProcessingControlPage() {
       section="MeSTI"
       title="Food Processing Control"
       description="Read-only completed Production and QC evidence."
-      actions={<button className="btn-secondary" onClick={load}><RefreshCw size={15} />Refresh</button>}
     />
     {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm">{error}</div> : null}
     <FactoryFilterBar moreFilters={<><Field label="QC"><SearchableSelect value={filters.qcStatus} options={[{ value: "", label: "All" }, { value: "Passed", label: "Passed" }, { value: "Pending", label: "Pending" }]} onChange={(qcStatus) => setFilters((current) => ({ ...current, qcStatus }))} /></Field><Field label="Verification"><SearchableSelect value={filters.verificationStatus} options={[{ value: "", label: "All" }, { value: "awaiting_verification", label: "Awaiting Verification" }, { value: "verified", label: "Verified" }]} onChange={(verificationStatus) => setFilters((current) => ({ ...current, verificationStatus }))} /></Field></>} activeFilters={[filters.dateFrom && { key: "from", label: "From", value: filters.dateFrom, onRemove: () => setFilters((current) => ({ ...current, dateFrom: "" })) }, filters.dateTo && { key: "to", label: "To", value: filters.dateTo, onRemove: () => setFilters((current) => ({ ...current, dateTo: "" })) }, filters.product && { key: "product", label: "Product", value: products.find((option) => option.value === filters.product)?.label || filters.product, onRemove: () => setFilters((current) => ({ ...current, product: "" })) }, filters.qcStatus && { key: "qc", label: "QC", value: filters.qcStatus, onRemove: () => setFilters((current) => ({ ...current, qcStatus: "" })) }, filters.verificationStatus && { key: "verification", label: "Verification", value: filters.verificationStatus.replaceAll("_", " "), onRemove: () => setFilters((current) => ({ ...current, verificationStatus: "" })) }, filters.search && { key: "search", label: "Search", value: filters.search, onRemove: () => setFilters((current) => ({ ...current, search: "" })) }].filter(Boolean)} onClear={() => setFilters({ dateFrom: "", dateTo: "", product: "", qcStatus: "", verificationStatus: "", search: "" })}>

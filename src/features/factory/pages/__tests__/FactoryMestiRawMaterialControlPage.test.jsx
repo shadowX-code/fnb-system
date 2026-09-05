@@ -14,7 +14,7 @@ describe("Factory MeSTI Raw Material Control", () => {
     render(<FactoryMestiRawMaterialControlPage />);
     expect(await screen.findByText("Black Pepper")).not.toBeNull();
     expect(screen.queryByRole("button", { name: /new|save|record/i })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Receiving Report" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Receiving Report" }));
     expect(await screen.findByText("Awaiting Verification")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "View Black Pepper" }));
     expect(await screen.findByText("Receiving Evidence")).not.toBeNull();
@@ -22,7 +22,7 @@ describe("Factory MeSTI Raw Material Control", () => {
   });
   it("passes report filters to the canonical projection", async () => {
     render(<FactoryMestiRawMaterialControlPage />);
-    fireEvent.click(screen.getByRole("button", { name: "Receiving Report" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Receiving Report" }));
     await screen.findByText("Black Pepper");
     fireEvent.click(screen.getByRole("button", { name: "Verification" }));
     fireEvent.click(await screen.findByText("Verified"));

@@ -12,7 +12,7 @@ import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
 import FactoryOperationalGroup, { FactoryOperationalEvidence, FactoryOperationalRow } from "../components/FactoryOperationalGroup.jsx";
 import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
-import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FactoryViewTabs from "../components/FactoryViewTabs.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
@@ -193,19 +193,19 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
     {activeTab === "monthly" ? <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3 border-b border-border pb-4"><div className="w-full sm:w-60"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div></div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary"><span className="font-semibold text-text-primary">Legend</span><span><i className="mr-1 inline-block size-2 rounded-full bg-emerald-500" />Verified / compliant</span><span><i className="mr-1 inline-block size-2 rounded-full bg-amber-500" />Awaiting / pending</span><span><i className="mr-1 inline-block size-2 rounded-full bg-rose-500" />Missed / incomplete</span><span><i className="mr-1 inline-block size-2 rounded-full bg-slate-400" />Not applicable</span></div>
-      <div className="border border-border bg-surface">{monthLoading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix rows={matrixRows} days={days} getCell={(row, day) => monthlyCells.get(`${row.logical_requirement_id}:${day}`)} renderEntity={(row) => row.task_name} renderSecondary={() => "Location-based requirement"} onCellClick={(cell, row) => setMonthlyDetail({ ...cell, task_name: row.task_name })} cellLabel={monthlyCellLabel} cellTitle={monthlyCellTitle} empty={<EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." />} />}</div>
+      <FactoryDataSurface>{monthLoading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix rows={matrixRows} days={days} getCell={(row, day) => monthlyCells.get(`${row.logical_requirement_id}:${day}`)} renderEntity={(row) => row.task_name} renderSecondary={() => "Location-based requirement"} onCellClick={(cell, row) => setMonthlyDetail({ ...cell, task_name: row.task_name })} cellLabel={monthlyCellLabel} cellTitle={monthlyCellTitle} empty={<EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." />} />}</FactoryDataSurface>
       <MonthlyEvidenceDrawer detail={monthlyDetail} onClose={() => setMonthlyDetail(null)} />
     </div> : null}
 
     {activeTab === "setup" ? <div className="space-y-5">
       <div className="flex items-center justify-end">{canSaveSetup ? <button className="btn-primary h-10 px-3 text-sm" type="button" onClick={() => { setRequirementDraft(emptyRequirementDraft()); setShowRequirementForm(true); }}><Plus size={15} /> Create Requirement</button> : null}</div>
-      <div className="border border-border bg-surface"><FactoryTable rows={requirements} columns={[
+      <FactoryDataSurface><FactoryTable rows={requirements} columns={[
         { key: "task", label: "Task", render: (row) => <div><div className="font-semibold text-text-primary">{row.task_name}</div><div className="text-xs text-text-secondary">Version {row.version_no || 1}</div></div> },
         { key: "locations", label: "Locations", render: (row) => <div className="text-sm text-text-secondary">{(row.location_names || []).join(", ") || "—"}</div> },
         { key: "frequency", label: "Frequency", render: recurrenceLabel },
         { key: "status", label: "Status", render: (row) => <FactoryStatusBadge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</FactoryStatusBadge> },
         { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions directSingleSecondary secondaryActions={canSaveSetup ? [{ label: "Edit", onClick: () => { setRequirementDraft({ ...row, location_ids: row.location_ids || [], recurrence_weekdays: row.recurrence_weekdays || [] }); setShowRequirementForm(true); } }] : []} /> },
-      ]} /></div>
+      ]} /></FactoryDataSurface>
       <RequirementModal open={showRequirementForm} draft={requirementDraft} locations={activeLocations} onClose={closeRequirementForm} onSave={saveRequirement} onChange={changeDraft} onToggleLocation={toggleLocation} />
     </div> : null}
   </div>;

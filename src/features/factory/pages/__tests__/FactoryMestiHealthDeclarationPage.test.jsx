@@ -17,7 +17,7 @@ afterEach(cleanup);
 describe("FactoryMestiHealthDeclarationPage", () => {
   it("keeps No symptoms mutually exclusive with structured symptom selections", async () => {
     render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
-    fireEvent.click(await screen.findByRole("button", { name: "New Declaration" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Employee Declaration" }));
     const noSymptoms = screen.getByText("No symptoms", { exact: true });
     expect(noSymptoms.className).toContain("bg-primary");
     fireEvent.click(screen.getByText("Fever", { exact: true }));
@@ -28,8 +28,7 @@ describe("FactoryMestiHealthDeclarationPage", () => {
 
   it("submits visitor evidence through the canonical trusted service with the derived entry defaults", async () => {
     render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Visitor" }));
-    fireEvent.click(screen.getByRole("button", { name: "New Declaration" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Visitor Declaration" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Visitor Name" }), { target: { value: "QA Visitor" } });
     fireEvent.click(screen.getByText("Fever", { exact: true }));
     fireEvent.click(screen.getByRole("button", { name: "Submit Declaration" }));

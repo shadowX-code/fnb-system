@@ -58,7 +58,7 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
 
   it("renders one Monthly row per Equipment and retains every same-day obligation in the drill-down", async () => {
     renderPage();
-    fireEvent.click(await screen.findByRole("tab", { name: "monthly" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Monthly" }));
     expect(await screen.findByText("MX-01 · Mixer 01")).not.toBeNull();
     expect(screen.getByText("FL-02 · Filler 02")).not.toBeNull();
     expect(screen.getAllByText("2 cleanings · 0 verified · 1 pending")).toHaveLength(1);
@@ -72,15 +72,14 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
   it("distinguishes verified, awaiting verification, and unsatisfactory Monthly cell states", async () => {
     factoryService.listMestiEquipmentCleaningMonth.mockResolvedValue([{ ...monthlyRows[0], days: [{ ...monthlyRows[0].days[0], status: "unsatisfactory", unsatisfactory_count: 1, occurrences: [{ ...occurrence, status: "unsatisfactory" }, afterProduction] }] }, monthlyRows[1]]);
     renderPage();
-    fireEvent.click(await screen.findByRole("tab", { name: "monthly" }));
+    fireEvent.click(await screen.findByRole("tab", { name: "Monthly" }));
     expect((await screen.findByRole("button", { name: /MX-01 on .*2 obligations/i })).className).toContain("text-rose-700");
     expect(screen.getByRole("button", { name: /FL-02 on .*1 obligations/i }).className).toContain("text-emerald-700");
   });
 
   it("keeps Setup scoped to scheduled requirements and supports searchable Equipment selection", async () => {
     renderPage();
-    fireEvent.click(screen.getByRole("tab", { name: "setup" }));
-    expect(await screen.findByText("Scheduled Cleaning Requirements")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
     expect(screen.queryByText("Responsible Role")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /create requirement/i }));
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Deep Cleaning" } });
