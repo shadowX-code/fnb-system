@@ -111,6 +111,30 @@ describe("Factory Finished Goods Dispatch mounted lifecycle", () => {
     await waitFor(() => expect(screen.queryByText("Dispatch Items")).toBeNull());
   });
 
+  it("uses the authoritative allocatable batch balance for Dispatch availability", async () => {
+    mount();
+    await prepareNew();
+    await waitFor(() => expect(factoryService.getFinishedGoodBatchAvailability).toHaveBeenCalledWith(expect.objectContaining({
+      finishedGoodId: "sku-1",
+      dispatchId: null,
+    })));
+    expect(screen.getAllByText("5 Packs").length).toBeGreaterThan(0);
+  });
+
+  it("shows zero when the authoritative batch projection has no allocatable stock", async () => {
+    mount();
+    factoryService.getFinishedGoodBatchAvailability.mockResolvedValueOnce({
+      ...batchAvailability,
+      allocatable_batch_balance: 0,
+      batches: [],
+      unavailable_balance: 5,
+      unavailable_batches: [{ batch_id: "batch-1", exclusion_reason: "Storage Location Missing", unavailable_qty: 5 }],
+    });
+    await prepareNew();
+    await waitFor(() => expect(screen.getAllByText("0 Packs").length).toBeGreaterThan(0));
+    expect(screen.getAllByText("No allocation").length).toBeGreaterThan(0);
+  });
+
   it("directly completes a new dispatch with its caller-owned request ID and batch allocation", async () => {
     const { listing, loadData } = mount();
     const complete = vi.spyOn(factoryService, "saveAndCompleteFinishedGoodDispatch").mockResolvedValue({ ...dispatch, id: "new", dispatch_no: "D-NEW", status: "completed" });
@@ -128,7 +152,20 @@ describe("Factory Finished Goods Dispatch mounted lifecycle", () => {
     await waitFor(() => expect(loadData).toHaveBeenCalledTimes(2));
     expect(save).not.toHaveBeenCalled();
     expect(cancel).not.toHaveBeenCalled();
-    expect(screen.getByText("Completed finished goods dispatch record.")).not.toBeNull();
+    await waitFor(() => expect(screen.queryByText("Dispatch Items")).toBeNull());
+    expect(screen.getByRole("button", { name: "Create Dispatch" })).not.toBeNull();
+  });
+
+  it("keeps a dirty create form open until the operator explicitly discards it", async () => {
+    mount();
+    await prepareNew();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByText("Discard unsaved Dispatch changes?")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Keep editing" }));
+    expect(screen.getByText("Dispatch Items")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    await waitFor(() => expect(screen.queryByText("Dispatch Items")).toBeNull());
   });
 
   it("keeps a rejected new dispatch completion open and retryable without a successful refresh", async () => {

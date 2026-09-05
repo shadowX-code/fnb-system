@@ -30,7 +30,7 @@ Transfers, issues, returns, adjustments, and stock checks use controlled lifecyc
 
 Production consumption and output are coordinated with Factory Production without duplicating stock ownership.
 Raw Material balances, batches, allocations, and deductions remain in each material's storage UOM. Recipe usage UOM and package-content metadata are consumed through the Factory Production conversion contract; Warehouse does not infer or backfill package factors from receipt or historical BOM quantities.
-Dispatch reserves and moves eligible finished goods through the defined allocation and confirmation states.
+Dispatch reserves and moves eligible finished goods through the defined allocation and confirmation states. Dispatch allocation availability is the authoritative batch-balance projection filtered to active, storage-enabled Factory Locations; display taxonomy such as Room Temperature, Chiller, or Freezer does not alter eligibility. Batches without a canonical storage location remain unavailable for Dispatch until reconciled.
 Completed warehouse movements and dispatch evidence are not silently rewritten; corrections use explicit adjustment, reversal, or superseding evidence.
 
 ## Permissions, Snapshots, And Audit

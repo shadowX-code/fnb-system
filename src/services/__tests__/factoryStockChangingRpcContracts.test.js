@@ -20,6 +20,25 @@ describe("Factory stock-changing trusted RPC contracts", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("factory_save_and_complete_finished_good_dispatch", expect.objectContaining({ p_request_id: "dispatch-request", p_customer_id: "customer-1", p_items: [{ finished_good_id: "sku-1", quantity: 2, batch_no: "", remarks: "", allocations: [{ batch_balance_id: "fg-batch-1", quantity: 2 }] }] }));
   });
 
+  it("uses the canonical Finished Goods batch-availability authority without recreating stock calculations", async () => {
+    mocks.rpc.mockResolvedValue({ data: {
+      finished_good_id: "sku-1", aggregate_balance: 35, allocatable_batch_balance: 16, unavailable_balance: 19,
+      batches: [{ batch_id: "batch-eligible", available_qty: 16, storage_location: "Freezer Store-A", storage_location_status: "active" }],
+      unavailable_batches: [{ batch_id: "batch-unmapped", unavailable_qty: 19, exclusion_reason: "Storage Location Missing" }],
+    }, error: null });
+
+    const availability = await factoryService.getFinishedGoodBatchAvailability({
+      finishedGoodId: "sku-1", dispatchDate: "2026-09-05",
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_get_finished_good_batch_availability", {
+      p_finished_good_id: "sku-1", p_dispatch_id: null, p_dispatch_date: "2026-09-05",
+    });
+    expect(availability).toMatchObject({ aggregate_balance: 35, allocatable_batch_balance: 16, unavailable_balance: 19 });
+    expect(availability.batches).toEqual([expect.objectContaining({ batch_id: "batch-eligible", available_qty: 16 })]);
+    expect(availability.unavailable_batches).toEqual([expect.objectContaining({ batch_id: "batch-unmapped", exclusion_reason: "Storage Location Missing" })]);
+  });
+
   it.each([["product", "factory_approve_product_stock_check"], ["raw", "factory_approve_raw_material_stock_check"]])("delegates %s stock-check approval to its trusted adjustment RPC", async (stockType, rpcName) => {
     mocks.rpc.mockResolvedValue({ error: null }); await factoryService.approveStockCheck(stockType, { id: "check-1", check_no: "SC-1" }, "employee-1");
     expect(mocks.rpc).toHaveBeenCalledWith(rpcName, { p_stock_check_id: "check-1", p_approved_by: null });

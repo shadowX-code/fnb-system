@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -2340,7 +2340,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       console.error("[Factory] Dispatch completed, but its local listing snapshot could not be updated.", snapshotError);
     }
     setDispatchTab("history");
-    setModal({ type: "finished-good-dispatch", value: completed, mode: "view" });
+    setModal(null);
     ui?.notify?.({ title: "Dispatch completed successfully.", tone: "success" });
     void refreshFinishedGoodsDispatches({ page: refreshPage, reason: "direct completion" });
     void loadData({ silent: true });
@@ -3302,7 +3302,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Warehouse"
           title="Finished Goods Dispatch"
           description="Record outbound Packaging SKU dispatches to customers or outlets. Completion creates finished goods stock-out movements."
-          actions={dispatchTab === "history" ? <button className="btn-primary" type="button" disabled={!can("factory_finished_goods_dispatch.create")} onClick={() => setDispatchTab("create")}><Plus size={15} /> Create Dispatch</button> : null}
+          actions={dispatchTab === "history"
+            ? <button className="btn-primary" type="button" disabled={!can("factory_finished_goods_dispatch.create")} onClick={() => setDispatchTab("create")}><Plus size={15} /> Create Dispatch</button>
+            : <button className="btn-secondary" type="button" onClick={() => setDispatchTab("history")}><ArrowLeft size={15} /> Back to History</button>}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Draft" value={dispatchSummaryReady ? Number(factoryListingPage.summary.draft || 0) : "—"} helper={dispatchSummaryReady ? "Awaiting completion" : "Updating…"} tone={dispatchSummaryReady && Number(factoryListingPage.summary.draft || 0) ? "warning" : "success"} />
