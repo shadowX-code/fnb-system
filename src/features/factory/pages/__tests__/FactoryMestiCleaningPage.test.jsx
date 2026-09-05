@@ -98,6 +98,19 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(factoryService.saveMestiCleaningRequirement.mock.calls[0][0]).not.toHaveProperty("verifier_role_id");
   });
 
+  it("sends an unchanged current requirement back with its identity so the trusted no-op version authority remains in control", async () => {
+    factoryService.saveMestiCleaningRequirement.mockResolvedValue(data.mestiCleaningRequirements[0]);
+    renderPage({ permissions: ["factory_mesti_cleaning.view", "factory_mesti_cleaning.edit"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "More row actions" }))[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    expect(await screen.findByRole("dialog", { name: "Edit Cleaning Requirement" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save Requirement" }));
+    await waitFor(() => expect(factoryService.saveMestiCleaningRequirement).toHaveBeenCalledWith(expect.objectContaining({
+      id: "req-floor-v5", logical_requirement_id: "logical-floor", version_no: 5,
+    })));
+  });
+
   it("renders one Monthly row per logical requirement, preserves distinct same-name requirements, and drills into Location evidence", async () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
