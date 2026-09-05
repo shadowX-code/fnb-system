@@ -53,6 +53,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     await waitFor(() => expect(factoryService.listMestiCleaningMonth).toHaveBeenCalled());
     expect(screen.queryByText("Due")).toBeNull();
     expect(screen.queryByRole("button", { name: "Load" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Refresh" })).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
     expect(screen.queryByText("Legend")).toBeNull();
     expect(screen.queryByText("Due")).toBeNull();
@@ -62,6 +63,10 @@ describe("Factory MeSTI Cleaning of Area", () => {
     renderPage();
     expect(await screen.findByText("Preparation")).not.toBeNull();
     expect(screen.getByText("Cooking")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "View details" })).toBeNull();
+    const pendingBadges = screen.getAllByText("Pending").map((node) => node.closest(".badge")).filter(Boolean);
+    expect(pendingBadges).not.toHaveLength(0);
+    pendingBadges.forEach((badge) => expect(badge.querySelectorAll("svg")).toHaveLength(1));
     fireEvent.click(screen.getAllByRole("button", { name: /complete/i })[0]);
     await waitFor(() => expect(factoryService.completeMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep"));
   });
@@ -70,8 +75,8 @@ describe("Factory MeSTI Cleaning of Area", () => {
     factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-2", completed_by_name: "Aisha", completed_at: "2026-09-02T02:00:00Z" }]);
     renderPage();
     expect(await screen.findByRole("button", { name: "Verify" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "More row actions" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Mark unsatisfactory" }));
+    expect(screen.getByText(/Completed Aisha/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Mark unsatisfactory" }));
     await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "unsatisfactory"));
     cleanup();
     factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-1", completed_by_name: "Current User" }]);
@@ -102,8 +107,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     factoryService.saveMestiCleaningRequirement.mockResolvedValue(data.mestiCleaningRequirements[0]);
     renderPage({ permissions: ["factory_mesti_cleaning.view", "factory_mesti_cleaning.edit"] });
     fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
-    fireEvent.click((await screen.findAllByRole("button", { name: "More row actions" }))[0]);
-    fireEvent.click(await screen.findByRole("button", { name: "Edit" }));
+    fireEvent.click((await screen.findAllByRole("button", { name: "Edit" }))[0]);
     expect(await screen.findByRole("dialog", { name: "Edit Cleaning Requirement" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Requirement" }));
     await waitFor(() => expect(factoryService.saveMestiCleaningRequirement).toHaveBeenCalledWith(expect.objectContaining({

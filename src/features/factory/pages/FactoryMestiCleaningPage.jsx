@@ -9,7 +9,7 @@ import { factoryService } from "../../../services/factoryService.js";
 import FactoryComplianceMatrix from "../components/FactoryComplianceMatrix.jsx";
 import FactoryDailyToolbar, { FactoryDailyDateField } from "../components/FactoryDailyToolbar.jsx";
 import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
-import FactoryOperationalGroup, { FactoryOperationalRow } from "../components/FactoryOperationalGroup.jsx";
+import FactoryOperationalGroup, { FactoryOperationalEvidence, FactoryOperationalRow } from "../components/FactoryOperationalGroup.jsx";
 import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
@@ -31,11 +31,11 @@ const weekdays = [
   { value: 5, label: "Fri" }, { value: 6, label: "Sat" }, { value: 7, label: "Sun" },
 ];
 const statusMeta = {
-  pending: { label: "Pending", tone: "warning", icon: CalendarDays },
-  completed: { label: "Awaiting Verification", tone: "info", icon: ClipboardCheck },
-  verified: { label: "Verified", tone: "success", icon: ShieldCheck },
-  unsatisfactory: { label: "Unsatisfactory", tone: "danger", icon: XCircle },
-  missed: { label: "Missed", tone: "danger", icon: XCircle },
+  pending: { label: "Pending", tone: "warning" },
+  completed: { label: "Awaiting Verification", tone: "info" },
+  verified: { label: "Verified", tone: "success" },
+  unsatisfactory: { label: "Unsatisfactory", tone: "danger" },
+  missed: { label: "Missed", tone: "danger" },
 };
 
 function recurrenceLabel(row) {
@@ -45,9 +45,8 @@ function recurrenceLabel(row) {
 }
 
 function StatusBadge({ status }) {
-  const meta = statusMeta[status] || { label: status || "Pending", tone: "neutral", icon: CalendarDays };
-  const Icon = meta.icon;
-  return <FactoryStatusBadge tone={meta.tone}><span className="inline-flex items-center gap-1"><Icon size={12} /> {meta.label}</span></FactoryStatusBadge>;
+  const meta = statusMeta[status] || { label: status || "Pending", tone: "neutral" };
+  return <FactoryStatusBadge tone={meta.tone}>{meta.label}</FactoryStatusBadge>;
 }
 
 function currentMonthInput() { return malaysiaBusinessDateInput().slice(0, 7); }
@@ -78,19 +77,6 @@ function monthlyCellLabel(cell) {
 function monthlyCellTitle(cell, row) {
   const summary = cell.status === "mixed" ? `${cell.verified_count} of ${cell.total_count} verified` : statusMeta[cell.status]?.label || "Pending";
   return `${row.task_name} · ${formatFactoryDate(cell.due_date)} · ${summary}`;
-}
-
-function EvidenceDrawer({ occurrence, onClose }) {
-  if (!occurrence) return null;
-  return <Drawer open={Boolean(occurrence)} onClose={onClose} eyebrow="Cleaning evidence" title={`${occurrence.location_name} · ${occurrence.task_name}`} description={formatFactoryDate(occurrence.due_date)}>
-    <dl className="grid gap-5 px-5 py-5 text-sm sm:grid-cols-2">
-      <div><dt className="text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">Status</dt><dd className="mt-1.5"><StatusBadge status={occurrence.status} /></dd></div>
-      <div><dt className="text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">Frequency</dt><dd className="mt-1.5 font-semibold text-text-primary">{recurrenceLabel(occurrence)}</dd></div>
-      <div><dt className="text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">Completed By</dt><dd className="mt-1.5 font-semibold text-text-primary">{occurrence.completed_by_name || "—"}</dd><dd className="text-xs text-text-secondary">{occurrence.completed_at ? formatFactoryDateTime(occurrence.completed_at) : "Not completed"}</dd></div>
-      <div><dt className="text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">Verified By</dt><dd className="mt-1.5 font-semibold text-text-primary">{occurrence.verified_by_name || "—"}</dd><dd className="text-xs text-text-secondary">{occurrence.verified_at ? formatFactoryDateTime(occurrence.verified_at) : "Not verified"}</dd></div>
-      <div className="sm:col-span-2"><dt className="text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">Notes</dt><dd className="mt-1.5 rounded-md border border-border bg-surface-muted px-3 py-2.5 text-sm text-text-secondary">{occurrence.verification_note || occurrence.completion_note || "No notes recorded."}</dd></div>
-    </dl>
-  </Drawer>;
 }
 
 function MonthlyEvidenceDrawer({ detail, onClose }) {
@@ -131,7 +117,6 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [loading, setLoading] = useState(false);
   const [monthLoading, setMonthLoading] = useState(false);
   const [error, setError] = useState("");
-  const [detail, setDetail] = useState(null);
   const [monthlyDetail, setMonthlyDetail] = useState(null);
   const [showRequirementForm, setShowRequirementForm] = useState(false);
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
@@ -190,18 +175,23 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
 
     {activeTab === "daily" ? <div className="space-y-5">
       <div className="grid gap-3 md:grid-cols-4"><MetricCard icon={CalendarDays} label="Due" value={dailyRows.length} helper={formatFactoryDate(date)} /><MetricCard icon={ClipboardCheck} label="Pending" value={summary.pending} tone={summary.pending ? "warning" : "success"} /><MetricCard icon={ShieldCheck} label="Verified" value={summary.verified} tone="success" /><MetricCard icon={XCircle} label="Unsatisfactory" value={summary.unsatisfactory} tone={summary.unsatisfactory ? "danger" : "success"} /></div>
-      <FactoryDailyToolbar onRefresh={loadDaily} loading={loading}><FactoryDailyDateField><FeedXDatePicker value={date} onChange={setDate} /></FactoryDailyDateField></FactoryDailyToolbar>
+      <FactoryDailyToolbar><FactoryDailyDateField><FeedXDatePicker value={date} onChange={setDate} /></FactoryDailyDateField></FactoryDailyToolbar>
       {loading ? <div className="border-b border-border py-8 text-sm font-semibold text-text-secondary">Loading Cleaning occurrences...</div> : !grouped.length ? <EmptyState title="No Cleaning occurrences" description="No active Cleaning Requirements are due for this date." /> : <div className="border border-border bg-surface">{grouped.map((group) => <FactoryOperationalGroup key={group.id} title={group.location_name} count={`${group.rows.length} task${group.rows.length === 1 ? "" : "s"}`}>
         {group.rows.map((row) => {
           const canComplete = (can("factory_mesti_cleaning.complete") || canManage) && ["pending", "missed", "unsatisfactory"].includes(row.status);
           const canVerify = (can("factory_mesti_cleaning.review") || canManage) && row.status === "completed" && row.completed_by !== currentEmployeeId;
-          return <FactoryOperationalRow key={row.id} primary={row.task_name} secondary={recurrenceLabel(row)} status={<StatusBadge status={row.status} />} onOpen={() => setDetail(row)} actions={<FactoryRowActions onView={() => setDetail(row)} primaryAction={canComplete ? { label: "Complete", icon: Check, onClick: () => act("complete", row) } : canVerify ? { label: "Verify", onClick: () => act("verify", row, "verified") } : null} secondaryActions={canVerify ? [{ label: "Mark unsatisfactory", destructive: true, onClick: () => act("verify", row, "unsatisfactory") }] : []} />} />;
+          const note = row.verification_note || row.completion_note;
+          const evidence = <FactoryOperationalEvidence items={[
+            row.completed_at ? { key: "completed", label: `Completed ${row.completed_by_name || "—"} · ${formatFactoryDateTime(row.completed_at)}` } : null,
+            row.verified_at ? { key: "verified", label: `Verified ${row.verified_by_name || "—"} · ${formatFactoryDateTime(row.verified_at)}` } : null,
+            note ? { key: "note", label: `Note: ${note}`, title: note } : null,
+          ]} />;
+          return <FactoryOperationalRow key={row.id} primary={row.task_name} secondary={recurrenceLabel(row)} evidence={evidence} status={<StatusBadge status={row.status} />} actions={<FactoryRowActions primaryAction={canComplete ? { label: "Complete", icon: Check, onClick: () => act("complete", row) } : canVerify ? { label: "Verify", onClick: () => act("verify", row, "verified") } : null} secondaryActions={canVerify ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: () => act("verify", row, "unsatisfactory") }] : []} directSingleSecondary />} />;
         })}</FactoryOperationalGroup>)}</div>}
-      <EvidenceDrawer occurrence={detail} onClose={() => setDetail(null)} />
     </div> : null}
 
     {activeTab === "monthly" ? <div className="space-y-5">
-      <div className="flex flex-wrap items-end gap-3 border-b border-border pb-4"><div className="w-full sm:w-60"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div><button className="btn-secondary h-10 px-3 text-sm" type="button" disabled={monthLoading} onClick={loadMonthly}>Refresh</button></div>
+      <div className="flex flex-wrap items-end gap-3 border-b border-border pb-4"><div className="w-full sm:w-60"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div></div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary"><span className="font-semibold text-text-primary">Legend</span><span><i className="mr-1 inline-block size-2 rounded-full bg-emerald-500" />Verified / compliant</span><span><i className="mr-1 inline-block size-2 rounded-full bg-amber-500" />Awaiting / pending</span><span><i className="mr-1 inline-block size-2 rounded-full bg-rose-500" />Missed / incomplete</span><span><i className="mr-1 inline-block size-2 rounded-full bg-slate-400" />Not applicable</span></div>
       <div className="border border-border bg-surface">{monthLoading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix rows={matrixRows} days={days} getCell={(row, day) => monthlyCells.get(`${row.logical_requirement_id}:${day}`)} renderEntity={(row) => row.task_name} renderSecondary={() => "Location-based requirement"} onCellClick={(cell, row) => setMonthlyDetail({ ...cell, task_name: row.task_name })} cellLabel={monthlyCellLabel} cellTitle={monthlyCellTitle} empty={<EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." />} />}</div>
       <MonthlyEvidenceDrawer detail={monthlyDetail} onClose={() => setMonthlyDetail(null)} />
@@ -214,7 +204,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
         { key: "locations", label: "Locations", render: (row) => <div className="text-sm text-text-secondary">{(row.location_names || []).join(", ") || "—"}</div> },
         { key: "frequency", label: "Frequency", render: recurrenceLabel },
         { key: "status", label: "Status", render: (row) => <FactoryStatusBadge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</FactoryStatusBadge> },
-        { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions secondaryActions={canSaveSetup ? [{ label: "Edit", onClick: () => { setRequirementDraft({ ...row, location_ids: row.location_ids || [], recurrence_weekdays: row.recurrence_weekdays || [] }); setShowRequirementForm(true); } }] : []} /> },
+        { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions directSingleSecondary secondaryActions={canSaveSetup ? [{ label: "Edit", onClick: () => { setRequirementDraft({ ...row, location_ids: row.location_ids || [], recurrence_weekdays: row.recurrence_weekdays || [] }); setShowRequirementForm(true); } }] : []} /> },
       ]} /></div>
       <RequirementModal open={showRequirementForm} draft={requirementDraft} locations={activeLocations} onClose={closeRequirementForm} onSave={saveRequirement} onChange={changeDraft} onToggleLocation={toggleLocation} />
     </div> : null}
