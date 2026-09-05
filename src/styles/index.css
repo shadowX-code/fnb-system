@@ -629,6 +629,17 @@
     @apply rounded-card border border-border bg-surface shadow-card;
   }
 
+  /* Factory list, history, report, and setup tables share one quiet outer boundary. */
+  .factory-data-surface,
+  :where(.card, div, section):has(> .factory-table),
+  .card:has(> .factory-finished-goods-table) {
+    overflow: hidden;
+    border: 1px solid var(--theme-border);
+    border-radius: 12px;
+    background-color: var(--theme-surface);
+    box-shadow: none;
+  }
+
   .type-display-xl {
     font-size: var(--type-display-xl);
     line-height: var(--leading-tight-ui);

@@ -3,7 +3,7 @@ import { AlertTriangle, Package, PackageCheck, RefreshCw, Warehouse } from "luci
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import FactoryPagination, { FactoryTableLoadState } from "../components/FactoryPagination.jsx";
-import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
@@ -95,7 +95,7 @@ export default function FactoryBatchTraceabilityPage({ onNotify }) {
       <Field label="To"><FeedXDatePicker value={filters.dateTo} placeholder="To" onChange={(dateTo) => updateFilters({ dateTo })} /></Field>
       <Field label="Status"><SearchableSelect value={filters.reconciliationStatus} options={reconciliationOptions} placeholder="All" onChange={(reconciliationStatus) => updateFilters({ reconciliationStatus })} /></Field>
     </FactoryFilterBar>
-    <div className="overflow-hidden rounded-xl border border-border bg-surface"><FactoryTableLoadState state={listing} label="Batch Traceability" onRetry={retry} permissionMessage="Batch traceability is hidden by your current role." /><FactoryTable columns={columns} rows={rows} loading={listing.loading} density="compact" rowHover="mint" emptyTitle="No records match these filters" emptyDescription="Clear filters to view authoritative batch records." />{listing.hasLoaded ? <FactoryPagination page={listing.loadedPage} pageSize={listing.loadedPageSize} total={listing.loadedTotal} loading={listing.loading} noun="" onPageChange={requestPage} onPageSizeChange={requestPageSize} /> : null}</div>
+    <FactoryDataSurface><FactoryTableLoadState state={listing} label="Batch Traceability" onRetry={retry} permissionMessage="Batch traceability is hidden by your current role." /><FactoryTable columns={columns} rows={rows} loading={listing.loading} density="compact" rowHover="mint" emptyTitle="No records match these filters" emptyDescription="Clear filters to view authoritative batch records." />{listing.hasLoaded ? <FactoryPagination page={listing.loadedPage} pageSize={listing.loadedPageSize} total={listing.loadedTotal} loading={listing.loading} noun="" onPageChange={requestPage} onPageSizeChange={requestPageSize} /> : null}</FactoryDataSurface>
     {detail ? <FinishedGoodBatchTraceabilityModal batch={detail.value} loading={detail.loading} error={detail.error} onRetry={() => loadDetail(detail.value)} onClose={closeDetail} /> : null}
   </div>;
 }

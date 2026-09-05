@@ -3,7 +3,7 @@ import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { factoryService } from "../../../services/factoryService.js";
-import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
 import FactoryPagination, { FactoryTableLoadState, useFactoryPagedQuery } from "../components/FactoryPagination.jsx";
@@ -84,11 +84,11 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
       <Field label="Finished Good"><SearchableSelect value={filters.finishedGood} options={finishedGoodOptions} placeholder="All" onChange={(finishedGood) => updateFilters({ finishedGood })} /></Field>
       <Field label="Search"><input className={inputClass()} value={filters.search} onChange={(event) => updateFilters({ search: event.target.value })} placeholder="Batch, production, product" /></Field>
     </FactoryFilterBar>
-    <div className="overflow-hidden rounded-lg border border-border bg-white">
+    <FactoryDataSurface>
       <FactoryTableLoadState state={listing} label="Finished Product Storage Control" onRetry={listingActions.retry} permissionMessage="Finished Product Storage Control is hidden by your current role." />
       <FactoryTable columns={columns} rows={rows} emptyTitle="No Completed Production Storage Records" emptyDescription="Completed Production batches matching these filters will appear here automatically." onRowClick={setDetail} />
       {listing.hasLoaded ? <FactoryPagination page={listing.loadedPage} pageSize={listing.loadedPageSize} total={listing.loadedTotal} loading={listing.loading} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} /> : null}
-    </div>
+    </FactoryDataSurface>
     {detail ? <Modal title="Finished Product Storage Record" description="Canonical completed-Production and Finished Goods batch evidence." size="md" onClose={() => setDetail(null)}>
       <div className="grid gap-x-6 md:grid-cols-2">
         {detailRow("Job Order", detail.job_order_no)}

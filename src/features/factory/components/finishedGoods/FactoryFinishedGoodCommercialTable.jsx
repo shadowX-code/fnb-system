@@ -18,7 +18,7 @@ function FinishedGoodCommercialValue({ value, format }) {
 
 export default function FactoryFinishedGoodCommercialTable({ rows, renderActions, formatPackSize, formatStorage }) {
   return (
-    <>
+    <div className="factory-finished-goods-table">
       <div className="divide-y divide-border md:hidden">
         {rows.map((sku) => (
           <div key={sku.id} className="space-y-3 p-4">
@@ -47,6 +47,6 @@ export default function FactoryFinishedGoodCommercialTable({ rows, renderActions
           <tbody>{rows.map((sku) => <tr key={sku.id} className="border-b border-border text-sm last:border-0"><td className="px-4 py-3 font-semibold text-text-secondary">{sku.category || "—"}</td><td className="px-4 py-3"><FinishedGoodName sku={sku} /></td><td className="px-4 py-3"><Badge tone={sku.is_halal ? "success" : "neutral"}>{sku.is_halal ? "Yes" : "No"}</Badge></td><td className="px-4 py-3 font-bold text-text-primary">{sku.product_code || "—"}</td><td className="px-4 py-3 whitespace-nowrap">{formatPackSize(sku) || "—"}</td><td className="px-4 py-3">{formatStorage(sku)}</td><td className="px-4 py-3 whitespace-nowrap">{sku.shelf_life_days ? `${sku.shelf_life_days} days` : "—"}</td><td className="px-4 py-3 text-right"><FinishedGoodCommercialValue value={sku.commercial_cost} format={money} /></td><td className="px-4 py-3 text-right"><FinishedGoodCommercialValue value={sku.b2b_price} format={money} /></td><td className="px-4 py-3 text-right"><FinishedGoodCommercialValue value={sku.gross_margin} format={percent} /></td><td className="px-4 py-3 text-right">{renderActions(sku)}</td></tr>)}</tbody>
         </table>
       </div>
-    </>
+    </div>
   );
 }

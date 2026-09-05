@@ -3,7 +3,7 @@ import { RefreshCw } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
-import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import { FactoryCellDateTime } from "../components/FactoryTableCell.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
@@ -86,9 +86,9 @@ export default function FactoryMestiFoodProcessingControlPage() {
       <Field label="Product"><SearchableSelect value={filters.product} options={[{ value: "", label: "All" }, ...products]} placeholder="All" onChange={(product) => setFilters((current) => ({ ...current, product }))} /></Field>
       <Field label="Search"><input className={inputClass()} value={filters.search} placeholder="Product, SKU or batch" onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} /></Field>
     </FactoryFilterBar>
-    <div className="overflow-hidden rounded-lg border border-border bg-white">
+    <FactoryDataSurface>
       <FactoryTable rows={rows} columns={columns} emptyTitle="No completed Production" emptyDescription="Completed Production records appear automatically." />
-    </div>
+    </FactoryDataSurface>
     {detail ? <Modal title="Food Processing Evidence" onClose={() => setDetail(null)}>
       <div className="grid gap-3 text-sm">
         {[
