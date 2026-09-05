@@ -41,24 +41,24 @@ describe("Factory master-data action intents", () => {
   it("keeps Supplier, Customer, and Storage create/edit/archive identities at bounded navigation actions", () => {
     const supplierNav = { openCreateSupplier: vi.fn(), openEditSupplier: vi.fn(), archiveSupplier: vi.fn() };
     const supplierView = renderPage(FactorySuppliersPage, { permissions: ["factory_suppliers.view", "factory_suppliers.create", "factory_suppliers.edit", "factory_suppliers.delete"], data: { factorySuppliers: [supplier] }, navigation: supplierNav });
-    fireEvent.click(screen.getByRole("button", { name: /create supplier/i })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /create supplier/i })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(supplierNav.openCreateSupplier).toHaveBeenCalledTimes(1); expect(supplierNav.openEditSupplier).toHaveBeenCalledWith(supplier); expect(supplierNav.archiveSupplier).toHaveBeenCalledWith(supplier); supplierView.unmount();
 
     const customerNav = { openCreateCustomer: vi.fn(), openEditCustomer: vi.fn(), archiveCustomer: vi.fn() };
     const customerView = renderPage(FactoryCustomersPage, { permissions: ["factory_customers.view", "factory_customers.create", "factory_customers.edit", "factory_customers.delete"], data: { factoryCustomers: [customer] }, navigation: customerNav });
-    fireEvent.click(screen.getByRole("button", { name: /create customer/i })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /create customer/i })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(customerNav.openCreateCustomer).toHaveBeenCalledTimes(1); expect(customerNav.openEditCustomer).toHaveBeenCalledWith(customer); expect(customerNav.archiveCustomer).toHaveBeenCalledWith(customer); customerView.unmount();
 
     const storageNav = { openCreateStorageLocation: vi.fn(), openEditStorageLocation: vi.fn(), archiveStorageLocation: vi.fn() };
     renderPage(FactoryStorageLocationsPage, { permissions: ["factory_storage_locations.view", "factory_storage_locations.create", "factory_storage_locations.edit", "factory_storage_locations.delete"], data: { storageLocations: [location] }, navigation: storageNav });
-    fireEvent.click(screen.getByRole("button", { name: /^location$/i })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /^location$/i })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(storageNav.openCreateStorageLocation).toHaveBeenCalledTimes(1); expect(storageNav.openEditStorageLocation).toHaveBeenCalledWith(location); expect(storageNav.archiveStorageLocation).toHaveBeenCalledWith(location);
   });
 
   it("keeps Finished Good and Raw Material action visibility tied to exact permissions and forwards exact records", () => {
     const rawNav = { openCreateRawMaterial: vi.fn(), openEditRawMaterial: vi.fn(), openRawMaterialCost: vi.fn(), openRawMaterialImage: vi.fn(), openRawMaterialCategory: vi.fn() };
     const rawView = renderPage(FactoryRawMaterialInventoryPage, { permissions: ["factory_raw_inventory.view", "factory_raw_inventory.create", "factory_raw_inventory.edit"], data: { rawMaterials: [material], rawMaterialCategories: [], receivings: [], rawMaterialMovements: [], rawStockChecks: [] }, navigation: rawNav });
-    fireEvent.click(screen.getByRole("button", { name: /^Raw Material$/ })); fireEvent.click(screen.getAllByRole("button", { name: "Category" })[0]); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getAllByText("Missing Cost").find((element) => element.closest("button"))); fireEvent.click(screen.getByRole("img", { name: "Chili" }));
+    fireEvent.click(screen.getByRole("button", { name: /^Raw Material$/ })); fireEvent.click(screen.getAllByRole("button", { name: "Category" })[0]); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getAllByText("Missing Cost").find((element) => element.closest("button"))); fireEvent.click(screen.getByRole("img", { name: "Chili" }));
     expect(rawNav.openCreateRawMaterial).toHaveBeenCalledTimes(1); expect(rawNav.openRawMaterialCategory).toHaveBeenCalledTimes(1); expect(rawNav.openEditRawMaterial).toHaveBeenCalledWith(expect.objectContaining({ id: material.id })); expect(rawNav.openRawMaterialCost).toHaveBeenCalledWith(expect.objectContaining({ id: material.id })); expect(rawNav.openRawMaterialImage).toHaveBeenCalledWith(expect.objectContaining({ id: material.id })); rawView.unmount();
 
     const finishedNav = { openCreateFinishedGood: vi.fn(), openFinishedGoodCategory: vi.fn() };

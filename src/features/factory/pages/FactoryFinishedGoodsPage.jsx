@@ -8,7 +8,7 @@ import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import FactoryPagination, { useFactoryClientPagination } from "../components/FactoryPagination.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
-import FactoryRowAction from "../components/FactoryRowAction.jsx";
+import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FactoryFinishedGoodCommercialTable from "../components/finishedGoods/FactoryFinishedGoodCommercialTable.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -75,7 +75,7 @@ export default function FactoryFinishedGoodsPage() {
   const actionItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-primary transition hover:bg-slate-50";
   const archiveItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50";
 
-  const renderSkuActions = (sku, group = null) => <div className="flex flex-wrap justify-end gap-2"><FactoryRowAction onClick={() => setSelectedProduct(sku)} />{can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => navigation.openFinishedGoodPackagingSku(group, sku)}>Edit</button> : null}{can("factory_finished_goods.edit") && sku.status !== "archived" ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" type="button" onClick={() => navigation.archiveFinishedGoodPackagingSku(sku)}>Archive</button> : null}</div>;
+  const renderSkuActions = (sku, group = null) => <FactoryRowActions onView={() => setSelectedProduct(sku)} secondaryActions={[can("factory_finished_goods.edit") ? { label: "Edit", onClick: () => navigation.openFinishedGoodPackagingSku(group, sku) } : null, can("factory_finished_goods.edit") && sku.status !== "archived" ? { label: "Archive", destructive: true, onClick: () => navigation.archiveFinishedGoodPackagingSku(sku) } : null]} />;
 
   return <div className="space-y-5">
     <PageHeader section="Warehouse" title="Finished Goods" description="Finished goods master setup with live warehouse balances, production history, batches and stock movements." actions={<div className="flex flex-wrap gap-2">{can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={navigation.openCreateFinishedGood}><Package size={15} /> Create Finished Good</button> : null}{canManage ? <button className="btn-secondary" type="button" onClick={navigation.openFinishedGoodCategory}><Tag size={15} /> Category</button> : null}</div>} />

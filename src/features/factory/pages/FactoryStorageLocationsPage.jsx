@@ -6,6 +6,7 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FactoryPagination, { useFactoryClientPagination } from "../components/FactoryPagination.jsx";
 import FactoryMasterTableToolbar from "../components/FactoryMasterTableToolbar.jsx";
+import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
 import useFactoryNavigation from "../hooks/useFactoryNavigation.js";
@@ -32,7 +33,7 @@ export default function FactoryStorageLocationsPage() {
         { key: "type", label: "Type", className: "w-[24%]", render: (row) => titleCase(row.location_type) },
         { key: "storage", label: "Storage", className: "w-[16%]", render: (row) => <Badge tone={row.is_storage_location !== false ? "info" : "neutral"}>{row.is_storage_location !== false ? "Enabled" : "Disabled"}</Badge> },
         { key: "status", label: "Status", className: "w-[15%]", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Archived"}</Badge> },
-        { key: "actions", label: "Actions", className: "w-[15%]", align: "right", render: (row) => <div className="flex justify-end gap-2 whitespace-nowrap">{can("factory_storage_locations.edit") || can("factory_storage_locations.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => nav.openEditStorageLocation(row)}>Edit</button> : null}{(can("factory_storage_locations.delete") || can("factory_storage_locations.manage")) && row.status !== "archived" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => nav.archiveStorageLocation(row)}>Archive</button> : null}</div> },
+        { key: "actions", label: "Actions", className: "w-[15%]", align: "right", render: (row) => <FactoryRowActions secondaryActions={[can("factory_storage_locations.edit") || can("factory_storage_locations.manage") ? { label: "Edit", onClick: () => nav.openEditStorageLocation(row) } : null, (can("factory_storage_locations.delete") || can("factory_storage_locations.manage")) && row.status !== "archived" ? { label: "Archive", destructive: true, onClick: () => nav.archiveStorageLocation(row) } : null]} /> },
       ]} emptyTitle="No locations" />
       <FactoryPagination page={pager.page} pageSize={pager.pageSize} total={rows.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} />
     </Card>

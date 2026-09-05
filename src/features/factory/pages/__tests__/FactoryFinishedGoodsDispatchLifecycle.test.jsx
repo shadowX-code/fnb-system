@@ -83,7 +83,8 @@ describe("Factory Finished Goods Dispatch mounted lifecycle", () => {
     const { listing, loadData } = mount();
     const cancel = vi.spyOn(factoryService, "cancelFinishedGoodDispatch").mockResolvedValue({ ...dispatch, status: "cancelled" });
     await screen.findAllByText("D-1");
-    fireEvent.click(within(historyRow()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(historyRow()).getByRole("button", { name: "More row actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(cancel).toHaveBeenCalledWith(dispatch));
     expect(cancel).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(listing).toHaveBeenCalledTimes(2));

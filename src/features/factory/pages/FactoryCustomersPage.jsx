@@ -6,6 +6,7 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FactoryPagination, { useFactoryClientPagination } from "../components/FactoryPagination.jsx";
 import FactoryMasterTableToolbar from "../components/FactoryMasterTableToolbar.jsx";
+import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import { FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
 import useFactoryNavigation from "../hooks/useFactoryNavigation.js";
@@ -33,7 +34,7 @@ export default function FactoryCustomersPage() {
         { key: "contact", label: "Contact Person", className: "w-[21%]", render: (row) => row.contact_person || "—" },
         { key: "phone", label: "Phone", className: "w-[18%]", render: (row) => row.phone || "—" },
         { key: "status", label: "Status", className: "w-[11%]", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Archived"}</Badge> },
-        { key: "actions", label: "Actions", align: "right", render: (row) => <div className="flex justify-end gap-2 whitespace-nowrap">{can("factory_customers.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => nav.openEditCustomer(row)}>Edit</button> : null}{can("factory_customers.delete") && row.status !== "archived" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => nav.archiveCustomer(row)}>Archive</button> : null}</div> },
+        { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions secondaryActions={[can("factory_customers.edit") ? { label: "Edit", onClick: () => nav.openEditCustomer(row) } : null, can("factory_customers.delete") && row.status !== "archived" ? { label: "Archive", destructive: true, onClick: () => nav.archiveCustomer(row) } : null]} /> },
       ]} emptyTitle="No Factory customers" />
       <FactoryPagination page={pager.page} pageSize={pager.pageSize} total={rows.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} />
     </Card>

@@ -8,7 +8,7 @@ import JobOrderModal from "../components/JobOrderModal.jsx";
 import { createJobOrdersListingBridge } from "../hooks/jobOrdersListingBridge.js";
 import { AccessIssueNotice, FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
-import FactoryRowAction from "../components/FactoryRowAction.jsx";
+import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import FactoryBulkSelectionModal, { CompactSelect, Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -2616,15 +2616,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
     { key: "received_by", label: "Received By", render: (row) => row.completed_by_name || row.created_by_name || "—" },
     { key: "verified_by", label: "Verified By", render: (row) => row.verified_by_name || (row.status === "awaiting_verification" ? "Awaiting Verification" : "—") },
-    { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        <FactoryRowAction onClick={() => setModal({ type: "receiving-batch-detail", value: row })} />
-        {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => { setEditingReceiving(row); setReceivingTab("receive"); }}>Edit</button> : null}
-        {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => completeReceivingBatch(row)}><PackageCheck size={13} /> Complete</button> : null}
-        {row.status === "awaiting_verification" && can("factory_raw_receiving.verify") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => verifyReceivingBatch(row)}><Check size={13} /> Verify</button> : null}
-        {row.status === "draft" && can("factory_raw_receiving.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelReceivingBatch(row)}>Cancel</button> : null}
-      </div>
-    ) },
+    { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setModal({ type: "receiving-batch-detail", value: row })} primaryAction={row.status === "draft" && can("factory_raw_receiving.edit") ? { label: "Complete", onClick: () => completeReceivingBatch(row) } : row.status === "awaiting_verification" && can("factory_raw_receiving.verify") ? { label: "Verify", onClick: () => verifyReceivingBatch(row) } : null} secondaryActions={[row.status === "draft" && can("factory_raw_receiving.edit") ? { label: "Edit", onClick: () => { setEditingReceiving(row); setReceivingTab("receive"); } } : null, row.status === "draft" && can("factory_raw_receiving.delete") ? { label: "Cancel", destructive: true, onClick: () => cancelReceivingBatch(row) } : null]} /> },
   ];
 
   const productionColumns = [
@@ -2646,15 +2638,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   ];
 
   function stockCheckColumns(stockType) {
-    const renderActions = (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        <FactoryRowAction onClick={() => setModal({ type: "stock-check", stockType, value: row, readOnly: true })} />
-        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.edit" : "factory_product_stock_check.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>Edit</button> : null}
-        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.submit" : "factory_product_stock_check.submit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>Submit</button> : null}
-        {row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
-        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.edit") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteStockCheck(stockType, row)}>Delete</button> : null}
-      </div>
-    );
+    const renderActions = (row) => <FactoryRowActions onView={() => setModal({ type: "stock-check", stockType, value: row, readOnly: true })} primaryAction={row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.submit" : "factory_product_stock_check.submit") ? { label: "Submit", onClick: () => setModal({ type: "stock-check", stockType, value: row }) } : row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? { label: "Approve", onClick: () => approveStockCheck(stockType, row) } : null} secondaryActions={[row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.edit" : "factory_product_stock_check.edit") ? { label: "Edit", onClick: () => setModal({ type: "stock-check", stockType, value: row }) } : null, row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.edit") ? { label: "Delete", destructive: true, onClick: () => deleteStockCheck(stockType, row) } : null]} />;
     return [
       { key: "check_date", label: "Date", render: (row) => formatFactoryDate(row.check_date) },
       { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
@@ -3300,14 +3284,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const dispatchSummaryReady = dispatchSnapshotReady && !factoryListingPage.summaryError;
     const dispatchRows = dispatchSnapshotReady ? factoryListingPage.rows : [];
     const customersTodayUpdating = dispatchCustomersTodayUpdating;
-    const renderDispatchActions = (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        <FactoryRowAction onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })} />
-        {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" })}>Edit</button> : null}
-        {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
-        {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
-      </div>
-    );
+    const renderDispatchActions = (row) => <FactoryRowActions onView={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })} primaryAction={row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? { label: "Complete", onClick: () => completeFinishedGoodDispatch(row) } : null} secondaryActions={[row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? { label: "Edit", onClick: () => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" }) } : null, row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? { label: "Cancel", destructive: true, onClick: () => cancelFinishedGoodDispatch(row) } : null]} />;
     const dispatchColumns = [
       { key: "dispatch_date", label: "Date", render: (row) => formatFactoryDate(row.dispatch_date) },
       { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div className="font-bold text-text-primary">{row.dispatch_no}</div> },

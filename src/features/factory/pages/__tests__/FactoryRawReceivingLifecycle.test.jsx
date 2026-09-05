@@ -74,7 +74,8 @@ describe("Factory Raw Receiving mounted lifecycle", () => {
     const { listing } = mount();
     const cancel = vi.spyOn(factoryService, "cancelRawMaterialReceivingBatch").mockResolvedValue({ ...receiving, status: "cancelled" });
     await screen.findAllByText("R-1");
-    fireEvent.click(within(historyRow()).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(within(historyRow()).getByRole("button", { name: "More row actions" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
     await waitFor(() => expect(cancel).toHaveBeenCalledWith(receiving));
     expect(cancel).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(listing).toHaveBeenCalledTimes(2));
