@@ -42,10 +42,7 @@ export function formatDateDisplay(value, placeholder = "Select date") {
 }
 
 export function formatFactoryDate(value) {
-  if (!value) return "—";
-  const [year, month, day] = String(value).slice(0, 10).split("-");
-  if (year && month && day) return `${year}-${month}-${day}`;
-  return String(value).slice(0, 10) || "—";
+  return formatFactoryListDate(value);
 }
 
 export function formatFactoryListDate(value) {
@@ -77,10 +74,8 @@ export function formatFactoryReadableDate(value) {
 }
 
 export function formatFactoryDateTime(value) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16).replace("T", " ");
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const { date, time } = formatFactoryListDateTime(value);
+  return time ? `${date} ${time}` : date;
 }
 
 export function formatFactoryAuditDateTime(value) {

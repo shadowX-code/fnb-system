@@ -57,7 +57,7 @@ describe("FactoryMestiFinishedProductStorageControlPage", () => {
     expect(await screen.findByRole("dialog", { name: "Finished Product Storage Record" })).not.toBeNull();
     expect(screen.getByText("JO260903-01")).not.toBeNull();
     expect(screen.getByText("PRD-20260903-VQX5")).not.toBeNull();
-    expect(screen.getAllByText("2027-03-03")).toHaveLength(3);
+    expect(screen.getAllByText("03/03/2027")).toHaveLength(3);
     expect(screen.getAllByText("Isaac")).toHaveLength(3);
   });
 });
