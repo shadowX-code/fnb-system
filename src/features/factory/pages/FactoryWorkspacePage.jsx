@@ -2952,7 +2952,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onCancelEdit={() => { setEditingReceiving(null); setReceivingTab("history"); }}
           />
         ) : (
-          <Card title="Receiving History" description={factoryListingPage.hasLoaded ? `${factoryListingPage.loadedTotal} receiving document(s).` : "Supplier receiving documents."}>
+          <Card>
             {listingLoadState("receiving-history", "Receiving History")}
             <FactoryTable
               columns={receivingBatchColumns}
@@ -2994,7 +2994,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Clock3} label="Submitted" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.submitted || 0) : data.rawStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={Number(factoryListingPage.summary.submitted || data.rawStockChecks.some((row) => row.status === "submitted")) ? "warning" : "success"} />
           <MetricCard icon={AlertTriangle} label="Critical Rows" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.critical_rows || 0) : criticalRows.length} helper="Requires review" tone={Number(factoryListingPage.summary.critical_rows || criticalRows.length) ? "danger" : "success"} />
         </div>
-        <Card title="Raw Material Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
+        <Card>
           {listingLoadState("raw-stock-checks", "Raw Material Stock Checks")}
           {stockCheckHistoryList("raw", rawStockCheckRows, "No raw material stock checks", "Create a stock check to capture physical counts.")}
           {listingPagination("raw-stock-checks")}
@@ -3337,7 +3337,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Truck} label="Customers Today" value={dispatchSummaryReady && !customersTodayUpdating ? Number(factoryListingPage.summary.customers_today || 0) : "—"} helper={!dispatchSummaryReady || customersTodayUpdating ? "Updating…" : "Unique dispatch customers"} />
         </div>
         {dispatchTab === "history" ? dispatchHistoryFilterControls() : null}
-        <Card title="Finished Goods Dispatch" description="Create drafts first, then complete them to deduct Packaging SKU stock and create Product Movement rows.">
+        <Card>
           <div className="space-y-4 p-4">
             <div className="inline-flex rounded-xl border border-border bg-white p-1">
               <button className={`rounded-lg px-4 py-2 text-sm font-bold ${dispatchTab === "history" ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setDispatchTab("history")}>Dispatch History</button>
@@ -3428,7 +3428,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Clock3} label="Submitted" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.submitted || 0) : data.productStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={Number(factoryListingPage.summary.submitted || data.productStockChecks.some((row) => row.status === "submitted")) ? "warning" : "success"} />
           <MetricCard icon={AlertTriangle} label="Variance Rows" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.variance_rows || 0) : data.productStockChecks.flatMap((row) => row.items || []).filter((item) => item.count_status !== "skip" && item.variance_status !== "Skipped" && Number(item.variance_qty || 0) !== 0).length} helper="Counted rows with a difference" tone="warning" />
         </div>
-        <Card title="Finished Goods Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
+        <Card>
           {listingLoadState("product-stock-checks", "Product Stock Checks")}
           {stockCheckHistoryList("product", productStockCheckRows, "No finished goods stock checks", "Create a stock check to capture physical counts.")}
           {listingPagination("product-stock-checks")}
