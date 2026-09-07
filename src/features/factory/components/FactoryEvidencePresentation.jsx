@@ -46,14 +46,14 @@ export function FactoryEvidenceGrid({ items = [] }) {
   </dl>;
 }
 
-export function FactoryEvidencePreview({ label, items = [], onOpen, onPreview, unavailableLabel = "Evidence unavailable" }) {
+export function FactoryEvidencePreview({ label, items = [], onOpen, onPreview, unavailableLabel = "Evidence unavailable", tone = "success" }) {
   const [visible, setVisible] = useState(false);
   const unavailable = label === unavailableLabel;
   if (!items.length && (!onPreview || unavailable)) return <span className="cursor-help" title="No QC check evidence is available for this Production record.">{unavailableLabel}</span>;
   function preview() { setVisible(true); onPreview?.(); }
   return <span className="relative inline-flex" onMouseEnter={preview} onMouseLeave={() => setVisible(false)} onFocus={preview} onBlur={() => setVisible(false)}>
     <button type="button" className="text-left" aria-label={`View QC evidence: ${label}`} aria-expanded={visible} onClick={onOpen}>
-      <FactoryStatusBadge tone="success">{label}</FactoryStatusBadge>
+      <FactoryStatusBadge tone={tone}>{label}</FactoryStatusBadge>
     </button>
     {visible ? <span role="tooltip" className="pointer-events-none absolute bottom-full left-0 z-tooltip-layer mb-2 w-64 rounded-lg border border-border bg-surface p-3 text-left shadow-lg">
       <span className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">QC checks</span>

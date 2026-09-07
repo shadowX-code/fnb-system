@@ -109,7 +109,7 @@ export default function FactoryMestiFoodProcessingControlPage() {
       label: "Product",
       render: (row) => <div><b>{row.product_name || "—"}</b><div className="text-xs text-text-secondary">{[row.product_code, row.variant_name].filter(Boolean).join(" · ")}</div></div>,
     },
-    { key: "qc", label: "QC", render: (row) => { const detailRow = detailFor(row); return <FactoryEvidencePreview label={row.qc_summary || row.qc_status || "Evidence unavailable"} items={detailRow.qc_checks} onPreview={() => loadEvidence(row)} onOpen={() => loadEvidence(row, true)} />; } },
+    { key: "qc", label: "QC", render: (row) => { const detailRow = detailFor(row); return <FactoryEvidencePreview label={row.qc_summary || row.qc_status || "Evidence unavailable"} tone={qcTone(row)} items={detailRow.qc_checks} onPreview={() => loadEvidence(row)} onOpen={() => loadEvidence(row, true)} />; } },
     { key: "start", label: "Time (Start)", render: (row) => factoryTimeAmPmLabel(row.start_time) },
     {
       key: "complete",
