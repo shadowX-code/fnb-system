@@ -1,5 +1,6 @@
 import { useState } from "react";
 import FactoryStatusBadge from "./FactoryStatusBadge.jsx";
+import FactorySummaryCard, { FactorySummaryCardGroup } from "./FactorySummaryCard.jsx";
 
 const toneClass = {
   neutral: "text-text-primary",
@@ -10,18 +11,9 @@ const toneClass = {
 };
 
 export function FactoryOperationalSummary({ items = [], status, actions }) {
-  return (
-    <div className="flex flex-wrap items-center gap-x-1 gap-y-2" aria-label="Operational summary">
-      <div className="flex flex-wrap divide-x divide-border rounded-lg border border-border bg-surface px-1 py-1">
-        {items.map((item) => <div key={item.label} className="px-3 py-0.5">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted">{item.label}</div>
-          <div className={`mt-0.5 text-sm font-semibold ${toneClass[item.tone] || toneClass.neutral}`}>{item.value}</div>
-        </div>)}
-      </div>
-      {status ? <div className="ml-1">{status}</div> : null}
-      {actions ? <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div> : null}
-    </div>
-  );
+  return <FactorySummaryCardGroup label="Operational summary" status={status} actions={actions}>
+    {items.map((item) => <FactorySummaryCard key={item.label} variant="compact" {...item} />)}
+  </FactorySummaryCardGroup>;
 }
 
 export function FactoryEvidenceHeader({ title, subtitle, status }) {

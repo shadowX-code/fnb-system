@@ -56,10 +56,10 @@ export default function MetricCard({
         {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 type-micro font-semibold text-text-secondary">{status}</span> : null}
       </div>
       <div className={`mt-0.5 min-w-0 break-words tracking-tight text-text-primary ${valueBaseClass} ${valueClass}`}>{value}</div>
-      <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
+      {helper || subtitle || trend ? <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
         <span className="min-w-0 truncate text-text-secondary">{helper || subtitle}</span>
         {trend ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
-      </div>
+      </div> : null}
       {insight ? <div className="type-caption text-text-muted">{insight}</div> : null}
     </Component>
   );
