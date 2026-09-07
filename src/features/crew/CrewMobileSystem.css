@@ -122,69 +122,102 @@
   --crew-hero-foreground-secondary: #d3e0e0;
   --crew-hero-foreground-muted: #b2c4c7;
   --crew-hero-icon: #76d8c7;
-  --crew-hero-badge-bg: #214a48;
+  --crew-hero-badge-bg: #1b4746;
   --crew-hero-badge-fg: #d8f3ed;
-  --crew-hero-control-bg: rgb(16 30 36 / .78);
-  --crew-hero-control-fg: #f3f7f5;
-  --crew-hero-art-tint: rgb(9 27 32 / .34);
+  --crew-hero-surface: #0d292e;
+  --crew-hero-surface-raised: #12353a;
+  --crew-hero-surface-border: rgb(175 225 216 / .16);
+  --crew-hero-control-bg: rgb(18 51 55 / .84);
+  --crew-hero-control-fg: #e9f1ef;
+  --crew-hero-artwork-opacity: .46;
+  --crew-hero-artwork-filter: saturate(.86) contrast(1.12) brightness(.72);
+  --crew-hero-content-shield: linear-gradient(90deg, rgb(7 29 34 / .96) 0%, rgb(7 29 34 / .9) 43%, rgb(7 29 34 / .6) 67%, rgb(7 29 34 / .12) 100%);
   color-scheme: dark;
 }
 
 .crew-v2-app { width: min(100%, var(--crew-mobile-content-max)); min-height: 100dvh; margin: 0 auto; padding: var(--crew-mobile-page-block) var(--crew-mobile-page-inline) var(--crew-mobile-page-bottom); color-scheme: light; }
 :root[data-crew-theme="dark"] .crew-v2-app { color-scheme: dark; }
-/* Dark hero artwork is deliberately isolated from its content. The tint is a
-   sibling layer above the artwork, while all copy and controls remain opaque. */
+/* Dark heroes are composed from a native surface, an artwork-only layer, a
+   directional content shield, then foreground. Art stays dimensional without
+   turning the whole card into a grey, filtered composite. */
 :root[data-crew-theme="dark"] :is(.crew-home-attendance-main, .crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero) {
   position: relative;
   isolation: isolate;
-  background-color: var(--crew-color-surface-subtle);
+  --crew-color-deep-teal: var(--crew-hero-foreground);
+  --crew-color-text-secondary: var(--crew-hero-foreground-secondary);
+  --crew-color-text-muted: var(--crew-hero-foreground-muted);
+  --crew-color-surface: var(--crew-hero-surface);
+  --crew-color-surface-subtle: var(--crew-hero-surface-raised);
+  --crew-color-border: var(--crew-hero-surface-border);
+  --crew-color-divider: rgb(175 225 216 / .14);
+  background-color: var(--crew-hero-surface);
+  background-image: none;
+  box-shadow: 0 14px 28px rgb(0 0 0 / .2), inset 0 1px rgb(214 247 241 / .04);
 }
-:root[data-crew-theme="dark"] :is(.crew-home-attendance-main, .crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero)::after {
+:root[data-crew-theme="dark"] :is(.crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero)::before {
   position: absolute;
   z-index: 0;
   inset: 0;
-  background: var(--crew-hero-art-tint);
+  background-position: inherit;
+  background-repeat: no-repeat;
+  background-size: cover;
+  content: "";
+  filter: var(--crew-hero-artwork-filter);
+  mix-blend-mode: soft-light;
+  opacity: var(--crew-hero-artwork-opacity);
+  pointer-events: none;
+}
+:root[data-crew-theme="dark"] .crew-reward-hero::before { background-image: var(--crew-reward-hero-background); }
+:root[data-crew-theme="dark"] .crew-growth-performance-hero::before { background-image: var(--crew-growth-performance-background); }
+:root[data-crew-theme="dark"] .crew-performance-final-hero::before { background-image: var(--crew-performance-detail-background); }
+:root[data-crew-theme="dark"] :is(.crew-home-attendance-main, .crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero)::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: var(--crew-hero-content-shield);
   content: "";
   pointer-events: none;
 }
-:root[data-crew-theme="dark"] :is(.crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero) > :not(.crew-me-profile-credential-art) {
+:root[data-crew-theme="dark"] :is(.crew-home-attendance-copy, .crew-home-clock-zone, .crew-me-profile-hero > :not(.crew-me-profile-credential-art), .crew-reward-hero > *, .crew-growth-performance-hero > *, .crew-performance-final-hero > *) {
   position: relative;
-  z-index: 1;
+  z-index: 2;
+}
+:root[data-crew-theme="dark"] :is(.crew-home-attendance-art, .crew-me-profile-credential-art) {
+  z-index: 0;
+  filter: var(--crew-hero-artwork-filter);
+  mix-blend-mode: soft-light;
+  opacity: var(--crew-hero-artwork-opacity);
+}
+:root[data-crew-theme="dark"] .crew-learning-journey-hero {
+  --crew-color-deep-teal: var(--crew-hero-foreground);
+  --crew-color-text-secondary: var(--crew-hero-foreground-secondary);
+  --crew-color-text-muted: var(--crew-hero-foreground-muted);
+  --crew-color-surface: var(--crew-hero-surface);
+  --crew-color-border: var(--crew-hero-surface-border);
+  --crew-color-divider: rgb(175 225 216 / .14);
+  background: var(--crew-hero-surface);
+  box-shadow: 0 14px 28px rgb(0 0 0 / .2), inset 0 1px rgb(214 247 241 / .04);
+}
+:root[data-crew-theme="dark"] .crew-learning-journey-art {
+  z-index: 0;
+  filter: var(--crew-hero-artwork-filter);
+  mix-blend-mode: soft-light;
+  opacity: var(--crew-hero-artwork-opacity);
 }
 :root[data-crew-theme="dark"] .crew-learning-journey-hero::after {
-  background: var(--crew-hero-art-tint);
+  z-index: 1;
+  background: var(--crew-hero-content-shield);
+}
+:root[data-crew-theme="dark"] .crew-learning-journey-hero > :not(.crew-learning-journey-art) {
+  z-index: 2;
 }
 
-/* Canonical foreground hierarchy for every image-backed Crew hero. */
-:root[data-crew-theme="dark"] :is(.crew-home-attendance-main, .crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero, .crew-learning-journey-hero) {
-  color: var(--crew-hero-foreground);
-}
-:root[data-crew-theme="dark"] :is(
-  .crew-home-current-time, .crew-home-current-time b, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked, .crew-home-ready-context b, .crew-home-attendance-copy dd, .crew-home-clock-action, .crew-home-clock-action strong, .crew-home-complete-ring, .crew-home-complete-ring strong,
-  .crew-me-profile-copy strong,
-  .crew-reward-hero-total strong, .crew-reward-hero-metrics strong,
-  .crew-growth-performance-copy h2, .crew-growth-performance-score-readout, .crew-growth-performance-score strong,
-  .crew-performance-final-total strong, .crew-performance-final-hero-copy h2,
-  .crew-learning-journey-hero h2, .crew-learning-journey-progress strong
-) { color: var(--crew-hero-foreground); }
-:root[data-crew-theme="dark"] :is(
-  .crew-home-ready-context small, .crew-home-attendance-copy > p, .crew-home-attendance-copy dt, .crew-home-clock-action small, .crew-home-complete-ring small, .crew-home-gps,
-  .crew-me-profile-copy small,
-  .crew-reward-hero-kicker span, .crew-reward-hero-total small, .crew-reward-hero-total p, .crew-reward-hero-metrics small,
-  .crew-growth-performance-copy p, .crew-growth-performance-copy > .crew-growth-performance-trend, .crew-growth-performance-trend > svg, .crew-growth-performance-trend > i, .crew-growth-performance-score b,
-  .crew-performance-final-period > strong, .crew-performance-final-total span, .crew-performance-final-hero-copy p, .crew-performance-final-hero-copy > small,
-  .crew-learning-journey-hero > p, .crew-learning-journey-progress-total
-) { color: var(--crew-hero-foreground-secondary); }
-:root[data-crew-theme="dark"] :is(.crew-me-profile-copy .crew-me-outlet, .crew-learning-journey-progress strong small) { color: var(--crew-hero-foreground-muted); }
-:root[data-crew-theme="dark"] :is(.crew-home-clock-action, .crew-home-complete-ring, .crew-growth-performance-copy .crew-mobile-secondary) {
-  border-color: color-mix(in srgb, var(--crew-hero-foreground) 20%, transparent);
-  background: var(--crew-hero-control-bg);
-  color: var(--crew-hero-control-fg);
-}
-:root[data-crew-theme="dark"] .crew-home-attendance-copy > .crew-ui-status {
-  background: var(--crew-hero-badge-bg);
-  color: var(--crew-hero-badge-fg);
-}
+/* Artwork profiles preserve a single system while respecting each composition. */
+:root[data-crew-theme="dark"] .crew-home-attendance-main { --crew-hero-content-shield: linear-gradient(90deg, rgb(7 29 34 / .96) 0%, rgb(7 29 34 / .91) 48%, rgb(7 29 34 / .48) 74%, rgb(7 29 34 / .1) 100%); }
+:root[data-crew-theme="dark"] .crew-me-profile-hero { --crew-hero-artwork-opacity: .38; --crew-hero-content-shield: linear-gradient(90deg, rgb(7 29 34 / .93) 0%, rgb(7 29 34 / .84) 58%, rgb(7 29 34 / .36) 100%); }
+:root[data-crew-theme="dark"] .crew-reward-hero { --crew-hero-artwork-opacity: .5; --crew-hero-content-shield: linear-gradient(90deg, rgb(7 29 34 / .96) 0%, rgb(7 29 34 / .9) 47%, rgb(7 29 34 / .55) 72%, rgb(7 29 34 / .18) 100%); }
+:root[data-crew-theme="dark"] .crew-growth-performance-hero { --crew-hero-artwork-opacity: .48; --crew-hero-content-shield: linear-gradient(90deg, rgb(7 29 34 / .96) 0%, rgb(7 29 34 / .88) 42%, rgb(7 29 34 / .44) 70%, rgb(7 29 34 / .14) 100%); }
+:root[data-crew-theme="dark"] .crew-performance-final-hero { --crew-hero-artwork-opacity: .5; --crew-hero-content-shield: linear-gradient(90deg, rgb(7 29 34 / .96) 0%, rgb(7 29 34 / .9) 48%, rgb(7 29 34 / .48) 74%, rgb(7 29 34 / .14) 100%); }
 .crew-ui-page { color: var(--crew-color-text); }
 .crew-ui-focus-surface { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: var(--crew-shadow-focus); }
 .crew-ui-functional-surface { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }
