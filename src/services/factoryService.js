@@ -3754,6 +3754,17 @@ export const factoryService = {
     return data ? mapProduction(data) : null;
   },
 
+  async getProductionEvidence(productionId) {
+    if (!productionId) return null;
+    const { data, error } = await supabase
+      .from("factory_productions")
+      .select(productionSelectDetailed)
+      .eq("id", productionId)
+      .maybeSingle();
+    throwSupabaseError("factory.production.evidence", error);
+    return data ? mapProduction(data) : null;
+  },
+
   async getJobOrderNoPreview() {
     const { data, error } = await supabase.rpc("factory_preview_job_order_no");
     throwSupabaseError("factory.job_order.preview_no", error);

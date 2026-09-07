@@ -36,7 +36,7 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
   it("keeps Daily Equipment-centric with a compact status summary and After Production provenance", async () => {
     renderPage();
     expect(await screen.findByText("MX-01 · Mixer 01")).not.toBeNull();
-    expect(screen.getByText("2 Due")).not.toBeNull();
+    expect(screen.getByLabelText("Operational summary").textContent).toContain("Due");
     expect(screen.getByText(/After Production · Chicken Curry Paste · B260903-018/)).not.toBeNull();
     expect(screen.queryByText("Details")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Complete" }));

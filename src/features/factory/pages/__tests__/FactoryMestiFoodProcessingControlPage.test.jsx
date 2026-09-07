@@ -12,6 +12,7 @@ const awaitingRow = {
   finished_good_id: "finished-good-1",
   product_code: "QA-1",
   qc_summary: "Passed · 3/3",
+  qc_checks: [{ id: "qc-1", qc_name: "Temperature", result: "pass", notes: "72 C", recorded_at: "2026-09-04T01:30:00.000Z" }],
   start_time: "09:00:00",
   completed_at: "2026-09-04T02:00:00.000Z",
   good_output_qty: 10,
@@ -27,6 +28,7 @@ afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 describe("Factory MeSTI Food Processing Control", () => {
   it("projects completed Production evidence and keeps verification state in the detail drawer", async () => {
     vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([awaitingRow]);
+    vi.spyOn(factoryService, "getProductionEvidence").mockResolvedValue(null);
     render(<FactoryMestiFoodProcessingControlPage />);
 
     expect(await screen.findByText("QA Sauce")).toBeTruthy();
@@ -35,8 +37,19 @@ describe("Factory MeSTI Food Processing Control", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "View QA Sauce" }));
     expect(await screen.findByText("Food Processing Evidence")).toBeTruthy();
-    expect(screen.getAllByText("Completed By").length).toBeGreaterThan(1);
+    expect(screen.getByText("QC Evidence")).toBeTruthy();
+    expect(screen.getByText("Temperature")).toBeTruthy();
+    expect(screen.getByText("72 C")).toBeTruthy();
     expect(screen.getAllByText("Awaiting Verification").length).toBeGreaterThan(0);
+  });
+
+  it("keeps unavailable QC evidence non-actionable", async () => {
+    vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([{ ...awaitingRow, qc_summary: "Evidence unavailable", qc_checks: [] }]);
+    vi.spyOn(factoryService, "getProductionEvidence").mockResolvedValue(null);
+    render(<FactoryMestiFoodProcessingControlPage />);
+
+    expect(await screen.findByText("Evidence unavailable")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /View QC evidence/i })).toBeNull();
   });
 
   it("sends canonical report filters to the projection service", async () => {

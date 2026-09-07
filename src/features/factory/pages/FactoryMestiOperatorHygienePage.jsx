@@ -10,6 +10,7 @@ import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import FactoryViewTabs from "../components/FactoryViewTabs.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
+import { FactoryOperationalSummary } from "../components/FactoryEvidencePresentation.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -166,12 +167,7 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
     {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</div> : null}
 
     {tab === "daily" ? <>
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-        <span className="font-bold text-text-primary">{stats.inspected} Inspected</span><span className="text-emerald-700">{stats.compliant} Compliant</span><span className={stats.nonCompliant ? "text-rose-700" : "text-text-secondary"}>{stats.nonCompliant} Non-Compliant</span><SessionStatusBadge value={session?.status || "draft"} />
-        <button className="btn-secondary ml-auto" type="button" onClick={() => setSessionDetailOpen(true)}><ClipboardList size={15} />Session Details</button>
-        {isDraft ? <><button type="button" className="btn-secondary" onClick={markAllPass} disabled={!entries.length || !can("factory_mesti_operator_hygiene.manage")}>Mark All Pass</button><button type="button" className="btn-primary" disabled={!entries.length || !can("factory_mesti_operator_hygiene.submit")} onClick={submit}>Submit Inspection</button></> : null}
-        {session?.status === "submitted" ? <button type="button" className="btn-primary" disabled={!can("factory_mesti_operator_hygiene.verify")} onClick={verify} title={session.submitted_by === currentEmployeeId ? "Self-verification is blocked by the server." : undefined}><Check size={15} />Verify</button> : null}
-      </div>
+      <FactoryOperationalSummary items={[{ label: "Inspected", value: stats.inspected }, { label: "Compliant", value: stats.compliant, tone: "success" }, { label: "Non-Compliant", value: stats.nonCompliant, tone: stats.nonCompliant ? "danger" : "neutral" }]} status={<SessionStatusBadge value={session?.status || "draft"} />} actions={<><button className="btn-secondary" type="button" onClick={() => setSessionDetailOpen(true)}><ClipboardList size={15} />Session Details</button>{isDraft ? <><button type="button" className="btn-secondary" onClick={markAllPass} disabled={!entries.length || !can("factory_mesti_operator_hygiene.manage")}>Mark All Pass</button><button type="button" className="btn-primary" disabled={!entries.length || !can("factory_mesti_operator_hygiene.submit")} onClick={submit}>Submit Inspection</button></> : null}{session?.status === "submitted" ? <button type="button" className="btn-primary" disabled={!can("factory_mesti_operator_hygiene.verify")} onClick={verify} title={session.submitted_by === currentEmployeeId ? "Self-verification is blocked by the server." : undefined}><Check size={15} />Verify</button> : null}</>} />
       <FactoryDailyToolbar><FactoryDailyDateField><FeedXDatePicker value={date} onChange={setDate} /></FactoryDailyDateField></FactoryDailyToolbar>
       <FactoryDataSurface><FactoryTable rows={entries} columns={columns} emptyTitle="No Operators Selected" emptyDescription="Add active employees below." /></FactoryDataSurface>
       {isDraft ? <div className="rounded-xl border border-border bg-white p-3"><Field label="Add Operator"><SearchableSelect value="" options={employeeOptions} placeholder="Select canonical Employee" onChange={addEmployee} /></Field></div> : null}
