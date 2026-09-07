@@ -282,7 +282,7 @@
   font-weight:600
 }
 .crew-performance-final-hero-copy>small.is-down{
-  color:var(--crew-color-danger-surface)
+  color:var(--crew-color-text-secondary)
 }
 .crew-performance-final-hero-copy>small.is-down svg{
   transform:rotate(180deg)

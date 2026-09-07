@@ -96,7 +96,10 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain(".crew-v2-nav button { display: grid;");
     expect(system).toContain(':root[data-crew-theme="dark"] .crew-v2-nav');
     expect(system).toContain(':root[data-crew-theme-transition] .crew-v2-shell');
-    expect(system).toContain("background-blend-mode: multiply");
+    expect(system).toContain("--crew-hero-foreground");
+    expect(system).toContain("--crew-hero-art-tint");
+    expect(system).toContain("Dark hero artwork is deliberately isolated from its content");
+    expect(system).not.toContain("background-blend-mode: multiply");
     expect(homeComponent).not.toContain('className="crew-v2-avatar"');
   });
 

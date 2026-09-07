@@ -30,6 +30,15 @@
   --crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, var(--crew-color-surface));
   --crew-color-icon-neutral-bg: #e6ebec;
   --crew-color-icon-neutral-fg: #728086;
+  --crew-hero-foreground: var(--crew-color-deep-teal);
+  --crew-hero-foreground-secondary: var(--crew-color-text-secondary);
+  --crew-hero-foreground-muted: var(--crew-color-text-muted);
+  --crew-hero-icon: var(--crew-color-cyan);
+  --crew-hero-badge-bg: var(--crew-color-success-surface);
+  --crew-hero-badge-fg: var(--crew-color-success);
+  --crew-hero-control-bg: color-mix(in srgb, var(--crew-color-surface) 88%, transparent);
+  --crew-hero-control-fg: var(--crew-color-deep-teal);
+  --crew-hero-art-tint: transparent;
   --crew-radius-functional: 14px;
   --crew-radius-focus: 18px;
   --crew-radius-control: 10px;
@@ -109,25 +118,72 @@
   --crew-color-icon-neutral-fg: #9aadb4;
   --crew-color-scrim: rgb(3 10 14 / .7);
   --crew-shadow-focus: 0 12px 28px rgb(0 0 0 / .22);
+  --crew-hero-foreground: #f3f7f5;
+  --crew-hero-foreground-secondary: #d3e0e0;
+  --crew-hero-foreground-muted: #b2c4c7;
+  --crew-hero-icon: #76d8c7;
+  --crew-hero-badge-bg: #214a48;
+  --crew-hero-badge-fg: #d8f3ed;
+  --crew-hero-control-bg: rgb(16 30 36 / .78);
+  --crew-hero-control-fg: #f3f7f5;
+  --crew-hero-art-tint: rgb(9 27 32 / .34);
   color-scheme: dark;
 }
 
 .crew-v2-app { width: min(100%, var(--crew-mobile-content-max)); min-height: 100dvh; margin: 0 auto; padding: var(--crew-mobile-page-block) var(--crew-mobile-page-inline) var(--crew-mobile-page-bottom); color-scheme: light; }
 :root[data-crew-theme="dark"] .crew-v2-app { color-scheme: dark; }
-:root[data-crew-theme="dark"] :is(.crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero) {
-  background-color: color-mix(in srgb, var(--crew-color-surface-subtle) 76%, var(--crew-color-mist-mint));
-  background-blend-mode: multiply;
+/* Dark hero artwork is deliberately isolated from its content. The tint is a
+   sibling layer above the artwork, while all copy and controls remain opaque. */
+:root[data-crew-theme="dark"] :is(.crew-home-attendance-main, .crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero) {
+  position: relative;
+  isolation: isolate;
+  background-color: var(--crew-color-surface-subtle);
 }
-:root[data-crew-theme="dark"] .crew-home-attendance-main::after {
+:root[data-crew-theme="dark"] :is(.crew-home-attendance-main, .crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero)::after {
   position: absolute;
   z-index: 0;
   inset: 0;
-  background: rgb(9 27 32 / .28);
+  background: var(--crew-hero-art-tint);
   content: "";
   pointer-events: none;
 }
+:root[data-crew-theme="dark"] :is(.crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero) > :not(.crew-me-profile-credential-art) {
+  position: relative;
+  z-index: 1;
+}
 :root[data-crew-theme="dark"] .crew-learning-journey-hero::after {
-  background: rgb(9 27 32 / .3);
+  background: var(--crew-hero-art-tint);
+}
+
+/* Canonical foreground hierarchy for every image-backed Crew hero. */
+:root[data-crew-theme="dark"] :is(.crew-home-attendance-main, .crew-me-profile-hero, .crew-reward-hero, .crew-growth-performance-hero, .crew-performance-final-hero, .crew-learning-journey-hero) {
+  color: var(--crew-hero-foreground);
+}
+:root[data-crew-theme="dark"] :is(
+  .crew-home-current-time, .crew-home-current-time b, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked, .crew-home-ready-context b, .crew-home-attendance-copy dd, .crew-home-clock-action, .crew-home-clock-action strong, .crew-home-complete-ring, .crew-home-complete-ring strong,
+  .crew-me-profile-copy strong,
+  .crew-reward-hero-total strong, .crew-reward-hero-metrics strong,
+  .crew-growth-performance-copy h2, .crew-growth-performance-score-readout, .crew-growth-performance-score strong,
+  .crew-performance-final-total strong, .crew-performance-final-hero-copy h2,
+  .crew-learning-journey-hero h2, .crew-learning-journey-progress strong
+) { color: var(--crew-hero-foreground); }
+:root[data-crew-theme="dark"] :is(
+  .crew-home-ready-context small, .crew-home-attendance-copy > p, .crew-home-attendance-copy dt, .crew-home-clock-action small, .crew-home-complete-ring small, .crew-home-gps,
+  .crew-me-profile-copy small,
+  .crew-reward-hero-kicker span, .crew-reward-hero-total small, .crew-reward-hero-total p, .crew-reward-hero-metrics small,
+  .crew-growth-performance-copy p, .crew-growth-performance-copy > .crew-growth-performance-trend, .crew-growth-performance-trend > svg, .crew-growth-performance-trend > i, .crew-growth-performance-score b,
+  .crew-performance-final-period > strong, .crew-performance-final-total span, .crew-performance-final-hero-copy p, .crew-performance-final-hero-copy > small,
+  .crew-learning-journey-hero > p, .crew-learning-journey-progress-total
+) { color: var(--crew-hero-foreground-secondary); }
+:root[data-crew-theme="dark"] :is(.crew-me-profile-copy .crew-me-outlet, .crew-learning-journey-progress strong small) { color: var(--crew-hero-foreground-muted); }
+:root[data-crew-theme="dark"] :is(.crew-home-clock-action, .crew-home-complete-ring, .crew-growth-performance-copy .crew-mobile-secondary) {
+  border-color: color-mix(in srgb, var(--crew-hero-foreground) 20%, transparent);
+  background: var(--crew-hero-control-bg);
+  color: var(--crew-hero-control-fg);
+}
+:root[data-crew-theme="dark"] .crew-home-attendance-copy > .crew-ui-status {
+  background: var(--crew-hero-badge-bg);
+  color: var(--crew-hero-badge-fg);
 }
 .crew-ui-page { color: var(--crew-color-text); }
 .crew-ui-focus-surface { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: var(--crew-shadow-focus); }
