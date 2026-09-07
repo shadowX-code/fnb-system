@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 
 export const CREW_THEME_STORAGE_KEY = "feedx.crew.theme";
+let transitionTimer;
 
 function systemTheme() {
   return window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
@@ -20,7 +21,13 @@ export function resolveCrewTheme(preference = readCrewThemePreference()) {
 }
 
 function applyCrewTheme(theme) {
-  document.documentElement.dataset.crewTheme = theme;
+  const root = document.documentElement;
+  root.dataset.crewTheme = theme;
+  root.dataset.crewThemeTransition = "true";
+  window.clearTimeout(transitionTimer);
+  transitionTimer = window.setTimeout(() => {
+    delete root.dataset.crewThemeTransition;
+  }, 260);
 }
 
 export default function useCrewTheme() {

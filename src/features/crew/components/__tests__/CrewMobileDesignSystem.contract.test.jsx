@@ -94,6 +94,10 @@ describe("Crew Mobile design system contract", () => {
     expect(system).toContain(".crew-v2-nav button.active::before { display: none;");
     expect(system).toContain(".crew-v2-nav { position: fixed;");
     expect(system).toContain(".crew-v2-nav button { display: grid;");
+    expect(system).toContain(':root[data-crew-theme="dark"] .crew-v2-nav');
+    expect(system).toContain(':root[data-crew-theme-transition] .crew-v2-shell');
+    expect(system).toContain("background-blend-mode: multiply");
+    expect(homeComponent).not.toContain('className="crew-v2-avatar"');
   });
 
   it("loads canonical and feature presentation in an explicit cascade order", () => {
