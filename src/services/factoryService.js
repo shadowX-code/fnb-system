@@ -814,6 +814,7 @@ function mapFinishedGoodBatchTraceability(row) {
   const dispatchAllocations = Array.isArray(row.dispatch_allocations) ? row.dispatch_allocations : [];
   const positiveAdjustmentEvents = Array.isArray(row.positive_adjustment_events) ? row.positive_adjustment_events : [];
   const stockCheckAdjustments = Array.isArray(row.stock_check_adjustments) ? row.stock_check_adjustments : [];
+  const rawMaterialUsage = Array.isArray(row.raw_material_usage) ? row.raw_material_usage : [];
   const reconciliationDiagnostics = Array.isArray(row.reconciliation_diagnostics)
     ? row.reconciliation_diagnostics
     : Array.isArray(row.diagnostics) ? row.diagnostics : [];
@@ -866,6 +867,8 @@ function mapFinishedGoodBatchTraceability(row) {
     reconciliation_status: row.reconciliation_status || "mismatch",
     dispatch_allocations: dispatchAllocations,
     stock_check_adjustments: stockCheckAdjustments,
+    raw_material_usage_available: Boolean(row.raw_material_usage_available),
+    raw_material_usage: rawMaterialUsage,
     reconciliation_diagnostics: reconciliationDiagnostics,
     diagnostics: reconciliationDiagnostics,
     qc_checks: Array.isArray(row.qc_checks) ? row.qc_checks : [],
