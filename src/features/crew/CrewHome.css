@@ -237,7 +237,7 @@
   font-size:16px
 }
 
-.crew-v2-home-header .crew-home-theme-toggle {
+.crew-v2-home-header > div:last-child button.crew-home-theme-toggle {
   width: 44px;
   height: 44px;
   border: 1px solid var(--crew-color-border);
