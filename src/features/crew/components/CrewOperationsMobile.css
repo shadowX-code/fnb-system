@@ -195,7 +195,7 @@
 .crew-ops-redo-dialog p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-body); }
 .crew-ops-redo-dialog > div { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .crew-ops-redo-dialog button { width: 100%; }
-.crew-ops-redo-confirm { border-color: color-mix(in srgb, var(--crew-color-warning) 42%, var(--crew-color-border)); background: color-mix(in srgb, var(--crew-color-warning) 8%, white); color: var(--crew-color-warning); }
+.crew-ops-redo-confirm { border-color: color-mix(in srgb, var(--crew-color-warning) 42%, var(--crew-color-border)); background: color-mix(in srgb, var(--crew-color-warning) 8%, var(--crew-color-surface)); color: var(--crew-color-warning); }
 .crew-ops-item {
   align-items: flex-start;
   padding: 13px 1px;
@@ -220,7 +220,7 @@
 
 }
 .crew-ops-item.is-exception .crew-ops-item-state,.crew-ops-item.is-needs_attention .crew-ops-item-state {
-  background: color-mix(in srgb, var(--crew-color-warning) 12%, white);
+  background: color-mix(in srgb, var(--crew-color-warning) 12%, var(--crew-color-surface));
   color: var(--crew-color-warning);
 
 }
@@ -272,7 +272,7 @@
 }
 .crew-ops-choice.is-warning {
   border-color: color-mix(in srgb, var(--crew-color-warning) 34%, var(--crew-color-border));
-  background: color-mix(in srgb, var(--crew-color-warning) 8%, white);
+  background: color-mix(in srgb, var(--crew-color-warning) 8%, var(--crew-color-surface));
   color: var(--crew-color-warning);
 
 }

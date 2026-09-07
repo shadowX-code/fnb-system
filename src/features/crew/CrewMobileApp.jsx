@@ -4,6 +4,7 @@ import { BookOpen, Gift, Home, Sparkles, UserRound } from "lucide-react";
 import useCrewSession from "./hooks/useCrewSession.js";
 import useCrewRoute from "./hooks/useCrewRoute.js";
 import useCrewAttendance from "./hooks/useCrewAttendance.js";
+import useCrewTheme from "./hooks/useCrewTheme.js";
 import CrewLogin from "./components/CrewLogin.jsx";
 import CrewHomeMobile from "./components/CrewHomeMobile.jsx";
 import CrewMeMobile from "./components/CrewMeMobile.jsx";
@@ -47,6 +48,7 @@ export default function CrewMobileApp({ onNotify }) {
 
 function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, route, onNotify }) {
   const { t } = useTranslation();
+  const { theme, toggleTheme } = useCrewTheme();
   const { screen, growthInitialView, entry, navigate } = route;
   const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave } = data;
   const clock = useCrewAttendance({ session, attendance, context, roster, refresh, screen });
@@ -58,7 +60,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
 
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     <Suspense fallback={<CrewRouteLoading />}>
-    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} />)}
+    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} />)}
     {screen === "learn" && <CrewLearningMobile token={session.token} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={refresh} onViewPerformance={() => navigate("growth", { growthInitialView: "performance" })} />}
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading} error={growthError} onRetry={refresh} onNavigate={navigate} onViewChange={(view) => { if (view === "overview" || view === "performance") navigate("growth", { growthInitialView: view }); }} />}

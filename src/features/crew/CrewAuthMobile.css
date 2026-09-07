@@ -9,7 +9,7 @@
   width: min(100%, 430px);
   min-height: 100dvh;
   margin: 0 auto;
-  background: #fff;
+  background: var(--crew-color-surface);
 
 }
 
@@ -30,7 +30,7 @@
   min-height: 100dvh;
   flex-direction: column;
   overflow: hidden;
-  background: #fff;
+  background: var(--crew-color-surface);
   padding: max(30px, env(safe-area-inset-top)) 28px max(24px, env(safe-area-inset-bottom));
 
 }
@@ -42,7 +42,7 @@
   width: 230px;
   height: 230px;
   border-radius: 50%;
-  background: #f0faf6;
+  background: var(--crew-color-surface-subtle);
   content: "";
   pointer-events: none;
 
@@ -117,13 +117,13 @@
 }
 
 .crew-v2-login-copy h1 span {
-  color: #22ad61;
+  color: var(--crew-color-success);
 
 }
 
 .crew-v2-login-copy p {
   margin: 24px 0 0;
-  color: #52627d;
+  color: var(--crew-color-text-secondary);
   font-size: 15px;
   line-height: 1.55;
 
@@ -145,7 +145,7 @@
 }
 
 .crew-v2-login form > label {
-  color: #1c2b48;
+  color: var(--crew-color-text);
   font-size: 13px;
   font-weight: 780;
 
@@ -156,15 +156,15 @@
   grid-template-columns: 92px 1fr;
   min-height: 58px;
   overflow: hidden;
-  border: 1px solid #cbd5e1;
+  border: 1px solid var(--crew-color-border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--crew-color-surface);
   transition: border-color .18s ease, box-shadow .18s ease;
 
 }
 
 .crew-auth-mobile-field:focus-within {
-  border-color: #24af66;
+  border-color: var(--crew-color-success);
   box-shadow: 0 0 0 4px rgb(36 175 102 / .13);
 
 }
@@ -212,7 +212,7 @@
 }
 
 .crew-auth-mobile-field input::placeholder {
-  color: #7a879a;
+  color: var(--crew-color-text-muted);
   opacity: 1;
   font-weight: 520;
 
@@ -243,14 +243,14 @@
   place-items: center;
   border: 0;
   border-radius: 50%;
-  background: #f1f4f7;
+  background: var(--crew-color-mineral);
   color: var(--crew-v2-navy);
   transition: background .18s ease, transform .18s ease;
 
 }
 
 .crew-v2-login-back:hover {
-  background: #e9eef2;
+  background: var(--crew-color-divider);
 
 }
 
@@ -260,7 +260,7 @@
 }
 
 .crew-v2-login.is-passcode {
-  background: #fff;
+  background: var(--crew-color-surface);
 
 }
 
@@ -308,14 +308,14 @@
 .crew-auth-masked-mobile {
   display: block;
   margin-top: 12px;
-  color: #52617a;
+  color: var(--crew-color-text-secondary);
   font-size: 18px;
   letter-spacing: .02em;
 
 }
 
 .crew-auth-masked-mobile::first-letter {
-  color: #20b75e;
+  color: var(--crew-color-success);
 
 }
 
@@ -339,9 +339,9 @@
 .crew-v2-keypad button {
   width: 76px;
   height: 58px;
-  border: 1px solid #e0e6ec;
+  border: 1px solid var(--crew-color-border);
   border-radius: 14px;
-  background: #fbfcfd;
+  background: var(--crew-color-surface-raised);
   color: var(--crew-v2-navy);
   box-shadow: 0 3px 8px rgb(17 29 61 / .035);
   font-size: 23px;
@@ -351,15 +351,15 @@
 }
 
 .crew-v2-keypad button:hover {
-  border-color: #cfe4da;
-  background: #f6fbf8;
+  border-color: var(--crew-color-border);
+  background: var(--crew-color-surface-subtle);
   box-shadow: 0 5px 12px rgb(17 29 61 / .055);
 
 }
 
 .crew-v2-keypad button:active {
   transform: scale(.95);
-  border-color: #9ed9bf;
+  border-color: var(--crew-color-border);
   background: var(--crew-v2-mint);
   color: var(--crew-v2-green-dark);
 
@@ -385,7 +385,7 @@
 
 .crew-auth-security svg {
   flex: 0 0 auto;
-  color: #20b75e;
+  color: var(--crew-color-success);
 
 }
 
@@ -403,9 +403,9 @@
 
 .crew-v2-error {
   border-radius: 10px;
-  background: #fff0f2;
+  background: var(--crew-color-danger-surface);
   padding: 10px 12px;
-  color: #a9233b;
+  color: var(--crew-color-danger);
   font-size:var(--crew-type-helper);
   font-weight: 680;
 
@@ -419,7 +419,7 @@
 .crew-v2-spinner {
   width: 17px;
   height: 17px;
-  border: 2px solid #d2dde4;
+  border: 2px solid var(--crew-color-border);
   border-top-color: var(--crew-v2-green);
   border-radius: 50%;
   animation: crew-v2-spin .8s linear infinite;
@@ -524,7 +524,7 @@
   min-height: 820px;
   margin-top: 20px;
   margin-bottom: 20px;
-  border: 1px solid #dfe6ed;
+  border: 1px solid var(--crew-color-divider);
   border-radius: 16px;
 
 }

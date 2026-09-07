@@ -10,16 +10,16 @@
 .crew-v2-passcode-dots span {
   width: 18px;
   height: 18px;
-  border: 2px solid #a6b2c3;
+  border: 2px solid var(--crew-color-text-muted);
   border-radius: 50%;
-  background: #fff;
-  box-shadow: inset 0 0 0 4px white;
+  background: var(--crew-color-surface);
+  box-shadow: inset 0 0 0 4px var(--crew-color-surface);
   transition: border-color .18s ease, background .18s ease, transform .18s ease;
 
 }
 .crew-v2-passcode-dots span.filled {
-  border-color: #20b75e;
-  background: #20b75e;
+  border-color: var(--crew-color-success);
+  background: var(--crew-color-success);
   transform: scale(1.06);
 
 }
@@ -28,9 +28,9 @@
   align-items: center;
   gap: 13px;
   border-radius: 15px;
-  background: #36bd94;
+  background: var(--crew-color-cyan);
   padding: 18px;
-  color: white;
+  color: var(--crew-color-primary-fg);
 
 }
 .crew-v2-profile-hero > div {
@@ -68,7 +68,7 @@
   margin-top: 14px;
   border: 1px solid var(--crew-v2-border);
   border-radius: 13px;
-  background: white;
+  background: var(--crew-color-surface);
   padding: 14px;
 
 }
@@ -80,16 +80,16 @@
 .crew-v2-passcode-form label, .crew-v2-clock-confirm label {
   display: grid;
   gap: 5px;
-  color: #40516a;
+  color: var(--crew-color-text-secondary);
   font-size:var(--crew-type-helper);
   font-weight: 720;
 
 }
 .crew-v2-passcode-form input, .crew-v2-clock-confirm input, .crew-v2-clock-confirm select {
   min-height: 43px;
-  border: 1px solid #ccd6df;
+  border: 1px solid var(--crew-color-border);
   border-radius: 10px;
-  background: white;
+  background: var(--crew-color-surface);
   padding: 0 11px;
   color: var(--crew-v2-ink);
   font-size:var(--crew-type-helper);
@@ -109,11 +109,11 @@
 
 }
 .crew-v2-menu > * > svg:first-child {
-  color: #4d617b;
+  color: var(--crew-color-text-secondary);
 
 }
 .crew-v2-menu em {
-  color: #7b899b;
+  color: var(--crew-color-text-muted);
   font-size:var(--crew-type-helper);
   font-style: normal;
 
@@ -226,7 +226,7 @@
   overflow: hidden;
   border: 1px solid var(--crew-v2-border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--crew-color-surface);
 
 }
 
@@ -241,7 +241,7 @@
   border: 0;
   background: transparent;
   padding: 11px 13px;
-  color: #53647b;
+  color: var(--crew-color-text-secondary);
   text-align: left;
 
 }
@@ -279,7 +279,7 @@
 .crew-me-pending {
   flex: 0 0 auto;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--crew-color-warning) 12%, white);
+  background: color-mix(in srgb, var(--crew-color-warning) 12%, var(--crew-color-surface));
   padding: 5px 8px;
   color: var(--crew-color-warning);
   font-size:var(--crew-type-helper);

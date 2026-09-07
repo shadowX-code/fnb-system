@@ -17,8 +17,8 @@
 .crew-performance-component-evidence strong { font-size: var(--crew-type-label); font-weight: 650; line-height: 1.25; }
 .crew-performance-component-evidence small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.35; }
 .crew-performance-component-evidence .crew-ui-icon-container { font-style: normal; }
-.crew-performance-component-section.is-improve { border-radius: var(--crew-radius-functional); background: color-mix(in srgb, var(--crew-color-mist-mint) 22%, white); padding: 11px; }
-.crew-performance-component-section.is-improve.is-warning { background: color-mix(in srgb, var(--crew-color-warning) 6%, white); }
+.crew-performance-component-section.is-improve { border-radius: var(--crew-radius-functional); background: color-mix(in srgb, var(--crew-color-mist-mint) 22%, var(--crew-color-surface)); padding: 11px; }
+.crew-performance-component-section.is-improve.is-warning { background: color-mix(in srgb, var(--crew-color-warning) 6%, var(--crew-color-surface)); }
 .crew-performance-component-section ul { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
 .crew-performance-component-section li { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: start; gap: 8px; color: var(--crew-color-text); font-size: var(--crew-type-body); line-height: 1.42; }
 .crew-performance-component-section.is-success li svg { color: var(--crew-color-success); }

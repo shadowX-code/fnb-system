@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import { Bell, CalendarCheck, CalendarDays, Check, ChevronRight, ClipboardCheck, Clock3, Fingerprint, MapPin, ShieldCheck } from "lucide-react";
+import { Bell, CalendarCheck, CalendarDays, Check, ChevronRight, ClipboardCheck, Clock3, Fingerprint, MapPin, Moon, ShieldCheck, Sun } from "lucide-react";
 import CrewHomeClockMotion from "../CrewHomeClockMotion.jsx";
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
@@ -17,7 +17,7 @@ function HomeScheduleRow({ entry, label, onClick }) {
 }
 
 
-export default function CrewHomeMobile({ session, attendance, context, roster, operations, clock, navigate, onOpenTask }) {
+export default function CrewHomeMobile({ session, attendance, context, roster, operations, clock, navigate, onOpenTask, theme, onToggleTheme }) {
   const { t } = useTranslation();
   const employee = session.employee || {};
   const firstName = employee.nickname || employee.full_name?.split(" ")[0] || t("auth.crew");
@@ -52,7 +52,7 @@ export default function CrewHomeMobile({ session, attendance, context, roster, o
       : { tone: "is-pending", label: t("locationEvidence.notConfigured"), title: t("locationEvidence.notConfiguredHelp") };
 
   return <section className="crew-v2-home">
-      <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName} <Clock3 className="crew-home-shift-status-icon" size={18} aria-hidden="true" /></h1><small>{employee.position || t("home.crewMember")} · {context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small></div><div><button type="button" aria-label={t("me.notifications")}><Bell size={18} /></button><span className="crew-v2-avatar">{firstName.slice(0, 1)}</span></div></header>
+      <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName} <Clock3 className="crew-home-shift-status-icon" size={18} aria-hidden="true" /></h1><small>{employee.position || t("home.crewMember")} · {context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small></div><div><button type="button" className="crew-home-theme-toggle" aria-label={theme === "dark" ? t("theme.switchToLight") : t("theme.switchToDark")} onClick={onToggleTheme}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button><button type="button" aria-label={t("me.notifications")}><Bell size={18} /></button><span className="crew-v2-avatar">{firstName.slice(0, 1)}</span></div></header>
       <section className={`crew-home-attendance is-${attendanceMode}`} aria-label={t("locationEvidence.attendanceStatus")}>
         <div className="crew-home-attendance-main">
           <img className="crew-home-attendance-art" src={crewHomeAttendanceMintBackground} alt="" aria-hidden="true" />

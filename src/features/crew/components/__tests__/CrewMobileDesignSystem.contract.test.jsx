@@ -124,7 +124,7 @@ describe("Crew Mobile design system contract", () => {
     [
       "--crew-color-icon-default-bg: var(--crew-color-success-surface)",
       "--crew-color-icon-default-fg: var(--crew-color-deep-teal)",
-      "--crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, white)",
+      "--crew-color-icon-selected-bg: color-mix(in srgb, var(--crew-color-mist-mint) 58%, var(--crew-color-surface))",
       "--crew-color-icon-neutral-bg: #e6ebec",
       "--crew-color-icon-neutral-fg: #728086",
       ".crew-ui-icon-container.is-active, .crew-ui-icon-container.is-live",
@@ -246,7 +246,7 @@ describe("Crew Mobile design system contract", () => {
   });
 
   it("keeps task availability expression and compact controls on canonical shared owners", () => {
-    expect(system).toContain(".crew-ui-note--warning { background: color-mix(in srgb, var(--crew-color-warning) 10%, white);");
+    expect(system).toContain(".crew-ui-note--warning { background: color-mix(in srgb, var(--crew-color-warning) 10%, var(--crew-color-surface));");
     expect(operations).toContain("isCrewTaskUnavailable(detail, availabilityNow)");
     expect(operations).toContain("crew-ui-note crew-ui-note--warning crew-ops-availability-notice");
     expect(operations).toContain("unavailable={unavailable}");
@@ -303,7 +303,7 @@ describe("Crew Mobile design system contract", () => {
     expect(learningStyles).toContain('.crew-module-head.is-completed .crew-module-progress { color:var(--crew-color-success); }');
     expect(learningStyles).toContain('.crew-lesson-row strong { color:var(--crew-color-text); font-size:var(--crew-type-section-title);');
     expect(learningStyles).toContain('.crew-lesson-row small { color:var(--crew-color-text-secondary); font-size:var(--crew-type-helper);');
-    expect(learningStyles).toContain('.crew-lesson-row.is-current { background:color-mix(in srgb,var(--crew-color-mist-mint) 30%,white); }');
+    expect(learningStyles).toContain('.crew-lesson-row.is-current { background:color-mix(in srgb,var(--crew-color-mist-mint) 30%, var(--crew-color-surface)); }');
     expect(learningStyles).toContain('.crew-learning-home .crew-module-order { display:grid; width:30px; height:30px;');
     expect(learningStyles).toContain('.crew-learning-reader .crew-learning-lesson-header h2 { margin:0; color:var(--crew-color-deep-teal);');
     expect(learningStyles).toContain('.crew-learning-reader .crew-learning-summary { margin:0; color:var(--crew-color-text-secondary); font-size:var(--crew-type-secondary);');

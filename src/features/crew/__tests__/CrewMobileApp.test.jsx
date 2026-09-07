@@ -86,9 +86,30 @@ beforeEach(() => {
   mocks.updateMyProfilePhoto.mockReset().mockResolvedValue({ profile_photo_path: "employee-a/profile.webp", profile_photo_url: "https://example.test/profile.webp" });
 });
 
-afterEach(async () => { cleanup(); await i18n.changeLanguage("en"); });
+afterEach(async () => { cleanup(); document.documentElement.removeAttribute("data-crew-theme"); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it("applies and persists the Home-only Crew theme choice without adding a second route control", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    const first = render(<CrewMobileApp />);
+
+    const toggle = await screen.findByRole("button", { name: "Switch to dark mode" });
+    fireEvent.click(toggle);
+    expect(document.documentElement.dataset.crewTheme).toBe("dark");
+    expect(localStorage.getItem("feedx.crew.theme")).toBe("dark");
+
+    fireEvent.click(screen.getByRole("button", { name: "Learn" }));
+    await screen.findByRole("heading", { name: "Learn" });
+    expect(screen.queryByRole("button", { name: /Switch to (dark|light) mode/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    await screen.findByRole("button", { name: "Switch to light mode" });
+    first.unmount();
+
+    render(<CrewMobileApp />);
+    expect(await screen.findByRole("button", { name: "Switch to light mode" })).not.toBeNull();
+    expect(document.documentElement.dataset.crewTheme).toBe("dark");
+  });
+
   it("keeps navigation mounted and hides Home business empties until required projections settle", async () => {
     let resolveOperations;
     mocks.operationsToday.mockReturnValueOnce(new Promise((resolve) => { resolveOperations = resolve; }));

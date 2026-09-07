@@ -60,8 +60,8 @@
 .crew-reward-potential .crew-reward-potential-label { color: var(--crew-color-deep-teal); font-size: var(--crew-type-helper); font-weight: 700; }
 .crew-reward-potential .is-current .crew-reward-potential-label,.crew-reward-potential .is-current strong { color: var(--crew-color-cyan); }
 .crew-reward-potential > div > span { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 600; }
-.crew-reward-potential em { display: inline-flex; width: fit-content; align-items: center; border-radius: 999px; background: color-mix(in srgb, var(--crew-color-mist-mint) 34%, white); padding: 3px 7px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-style: normal; font-weight: 700; line-height: 1.2; white-space: nowrap; }
-.crew-reward-potential .is-current em { background: color-mix(in srgb, var(--crew-color-cyan) 10%, white); color: var(--crew-color-cyan); }
+.crew-reward-potential em { display: inline-flex; width: fit-content; align-items: center; border-radius: 999px; background: color-mix(in srgb, var(--crew-color-mist-mint) 34%, var(--crew-color-surface)); padding: 3px 7px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-style: normal; font-weight: 700; line-height: 1.2; white-space: nowrap; }
+.crew-reward-potential .is-current em { background: color-mix(in srgb, var(--crew-color-cyan) 10%, var(--crew-color-surface)); color: var(--crew-color-cyan); }
 .crew-reward-potential-rail { position: relative; grid-column: 1 / -1; height: 4px; overflow: visible; margin: 10px 5px 0; border-radius: 999px; background: var(--crew-color-divider); }
 .crew-reward-potential-rail::before { display: block; width: var(--crew-reward-progress); max-width: 100%; height: 100%; border-radius: inherit; background: var(--crew-color-cyan); content: ""; }
 .crew-reward-potential-rail i { position: absolute; top: 50%; left: var(--crew-reward-progress); width: 16px; height: 16px; box-sizing: border-box; border: 2px solid var(--crew-color-cyan); border-radius: 50%; background: var(--crew-color-surface); transform: translate(-50%, -50%); }
@@ -80,14 +80,14 @@
 .crew-reward-history-empty { display: grid; justify-items: center; gap: 6px; border: 1px solid color-mix(in srgb, var(--crew-color-border) 70%, transparent); border-radius: var(--crew-radius-functional); padding: 24px 16px; text-align: center; }
 .crew-reward-history-empty strong { color: var(--crew-color-text); font-size: var(--crew-type-label); }
 .crew-reward-history-empty p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
-.crew-reward-unavailable { display: grid; justify-items: center; gap: 8px; border-radius: var(--crew-radius-functional); background: color-mix(in srgb, var(--crew-color-mist-mint) 25%, white); padding: 32px 20px; text-align: center; }
+.crew-reward-unavailable { display: grid; justify-items: center; gap: 8px; border-radius: var(--crew-radius-functional); background: color-mix(in srgb, var(--crew-color-mist-mint) 25%, var(--crew-color-surface)); padding: 32px 20px; text-align: center; }
 .crew-reward-unavailable p { max-width: 280px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.45; }
 .crew-reward-finalized { display: flex; align-items: center; gap: 12px; color: var(--crew-color-success); }
 
 .crew-reward-formula { display: grid; gap: 4px; margin-top: 12px; border-radius: var(--crew-radius-control); background: var(--crew-color-mineral); padding: 10px 12px; }
 .crew-reward-formula small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-reward-formula strong { color: var(--crew-color-text); font-size: var(--crew-type-helper); font-weight: 600; line-height: 1.45; }
-.crew-reward-formula.is-result { background: color-mix(in srgb, var(--crew-color-cyan) 8%, white); }
+.crew-reward-formula.is-result { background: color-mix(in srgb, var(--crew-color-cyan) 8%, var(--crew-color-surface)); }
 .crew-reward-modal-history { display: grid; }
 .crew-reward-modal-history > div { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--crew-color-divider); padding: 12px 0; }
 .crew-reward-modal-history > div:first-child { padding-top: 0; }
