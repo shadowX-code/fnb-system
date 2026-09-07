@@ -186,7 +186,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
             row.verified_at ? { key: "verified", label: `Verified ${row.verified_by_name || "—"} · ${formatFactoryDateTime(row.verified_at)}` } : null,
             note ? { key: "note", label: `Note: ${note}`, title: note } : null,
           ]} />;
-          return <FactoryOperationalRow key={row.id} primary={row.task_name} secondary={recurrenceLabel(row)} evidence={evidence} status={<StatusBadge status={row.status} variant="emphasized" />} actions={<FactoryRowActions primaryAction={canComplete ? { label: "Complete", icon: Check, onClick: () => act("complete", row) } : canVerify ? { label: "Verify", onClick: () => act("verify", row, "verified") } : null} secondaryActions={canVerify ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: () => act("verify", row, "unsatisfactory") }] : []} directSingleSecondary />} />;
+          return <FactoryOperationalRow key={row.id} primary={row.task_name} secondary={recurrenceLabel(row)} evidence={evidence} status={<StatusBadge status={row.status} variant="emphasized" />} actions={<FactoryRowActions primaryAction={canComplete ? { label: "Complete", icon: Check, onClick: () => act("complete", row) } : canVerify ? { label: "Verify", onClick: () => act("verify", row, "verified") } : null} secondaryActions={canVerify ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: () => act("verify", row, "unsatisfactory") }] : []} />} />;
         })}</FactoryOperationalGroup>)}</div>}
     </div> : null}
 

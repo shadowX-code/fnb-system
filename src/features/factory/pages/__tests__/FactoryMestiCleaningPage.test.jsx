@@ -76,6 +76,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     renderPage();
     expect(await screen.findByRole("button", { name: "Verify" })).not.toBeNull();
     expect(screen.getByText(/Completed Aisha/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More row actions" }));
     fireEvent.click(screen.getByRole("button", { name: "Mark unsatisfactory" }));
     await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "unsatisfactory"));
     cleanup();

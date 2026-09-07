@@ -4,19 +4,32 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
-import { FactoryCellDateTime } from "../components/FactoryTableCell.jsx";
+import { FactoryCellDateTime, FactoryCellEntity, FactoryCellMuted, FactoryCellText } from "../components/FactoryTableCell.jsx";
 import { FactoryEvidenceGrid, FactoryEvidenceHeader, FactoryEvidencePreview, FactoryEvidenceSection } from "../components/FactoryEvidencePresentation.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import { factoryService } from "../../../services/factoryService.js";
-import { formatFactoryDate, formatFactoryDateTime } from "../utils/factoryDates.js";
+import { formatFactoryDate, formatFactoryDateTime, formatFactoryListDateTime } from "../utils/factoryDates.js";
 import { quantity } from "../utils/factoryFormatters.js";
 import { factoryTimeAmPmLabel } from "../components/productionExecution/productionExecutionHelpers.js";
 
+function productName(row) {
+  const name = String(row.product_name || "").trim();
+  const variant = String(row.variant_name || "").trim();
+  const suffix = variant ? ` - ${variant}` : "";
+  return suffix && name.endsWith(suffix) ? name.slice(0, -suffix.length).trim() : name || "—";
+}
+
+function productReference(row) {
+  return [row.product_code, row.variant_name].filter(Boolean).join(" · ");
+}
+
 function verificationEvidence(row) {
-  return row.verified_by_name || (row.verification_status === "awaiting_verification" ? "Awaiting Verification" : "—");
+  if (row.verified_by_name) return <FactoryCellText primary={row.verified_by_name} secondary={row.verified_at ? formatFactoryDateTime(row.verified_at) : ""} />;
+  if (row.verification_status === "awaiting_verification") return <FactoryStatusBadge status="awaiting_verification">Awaiting Verification</FactoryStatusBadge>;
+  return <FactoryCellMuted />;
 }
 
 function qcTone(row) {
@@ -107,17 +120,14 @@ export default function FactoryMestiFoodProcessingControlPage() {
     {
       key: "product",
       label: "Product",
-      render: (row) => <div><b>{row.product_name || "—"}</b><div className="text-xs text-text-secondary">{[row.product_code, row.variant_name].filter(Boolean).join(" · ")}</div></div>,
+      render: (row) => <FactoryCellEntity name={productName(row)} code={productReference(row)} />,
     },
     { key: "qc", label: "QC", render: (row) => { const detailRow = detailFor(row); return <FactoryEvidencePreview label={row.qc_summary || row.qc_status || "Evidence unavailable"} tone={qcTone(row)} items={detailRow.qc_checks} onPreview={() => loadEvidence(row)} onOpen={() => loadEvidence(row, true)} />; } },
-    { key: "start", label: "Time (Start)", render: (row) => factoryTimeAmPmLabel(row.start_time) },
+    { key: "start", label: "Start", render: (row) => <FactoryCellDateTime date={formatFactoryDate(row.production_date)} time={factoryTimeAmPmLabel(row.start_time)} /> },
     {
       key: "complete",
-      label: "Time (Complete)",
-      render: (row) => {
-        const [date, ...time] = formatFactoryDateTime(row.completed_at).split(" ");
-        return <FactoryCellDateTime date={date} time={time.join(" ")} />;
-      },
+      label: "Complete",
+      render: (row) => { const { date, time } = formatFactoryListDateTime(row.completed_at); return <FactoryCellDateTime date={date} time={time} />; },
     },
     { key: "qty", label: "Quantity", render: (row) => quantity(row.good_output_qty || row.actual_output_qty, row.uom) },
     { key: "expiry", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },

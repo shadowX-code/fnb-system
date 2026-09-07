@@ -39,6 +39,8 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     expect(screen.getByLabelText("Operational summary").textContent).toContain("Due");
     expect(screen.getByText(/After Production · Chicken Curry Paste · B260903-018/)).not.toBeNull();
     expect(screen.queryByText("Details")).toBeNull();
+    expect(screen.getByRole("button", { name: "Complete" }).className).toContain("btn-primary");
+    expect(screen.getByRole("button", { name: "View Daily Cleaning details" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Complete" }));
     await waitFor(() => expect(factoryService.completeMestiEquipmentCleaningOccurrence).toHaveBeenCalledWith("occ-1"));
   });
@@ -47,7 +49,8 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     factoryService.listMestiEquipmentCleaningDay.mockResolvedValue([{ ...occurrence, status: "completed", completed_by: "employee-2" }]);
     renderPage();
     expect(await screen.findByRole("button", { name: "Verify" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Unsatisfactory" }));
+    fireEvent.click(screen.getByRole("button", { name: "More row actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Mark unsatisfactory" }));
     await waitFor(() => expect(factoryService.verifyMestiEquipmentCleaningOccurrence).toHaveBeenCalledWith("occ-1", "unsatisfactory"));
     cleanup();
     factoryService.listMestiEquipmentCleaningDay.mockResolvedValue([{ ...occurrence, status: "completed", completed_by: "employee-1" }]);

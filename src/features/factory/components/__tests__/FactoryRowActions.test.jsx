@@ -25,4 +25,14 @@ describe("FactoryRowActions", () => {
     expect(screen.getByRole("button", { name: "View details" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "More row actions" })).toBeNull();
   });
+
+  it("keeps a destructive-only secondary action protected in the overflow", () => {
+    const remove = vi.fn();
+    render(<FactoryRowActions directSingleSecondary secondaryActions={[{ label: "Delete", destructive: true, onClick: remove }]} />);
+
+    expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "More row actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(remove).toHaveBeenCalledOnce();
+  });
 });
