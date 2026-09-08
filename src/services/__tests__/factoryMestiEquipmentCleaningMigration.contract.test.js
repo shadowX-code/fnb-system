@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903220000_factory_mesti_equipment_cleaning_sop_after_production.sql"), "utf8");
 const lifecycleMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903200000_factory_mesti_cleaning_of_equipment.sql"), "utf8");
+const roleControlledVerificationMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260908065636_factory_mesti_equipment_cleaning_role_controlled_verification.sql"), "utf8");
 
 describe("Factory MeSTI Equipment Cleaning migration contract", () => {
   it("uses versioned scheduled requirements and production-plus-equipment identities", () => {
@@ -42,5 +43,12 @@ describe("Factory MeSTI Equipment Cleaning migration contract", () => {
     expect(migration).toContain("factory_save_mesti_equipment_cleaning_requirement");
     expect(migration).toContain("v_created boolean:=false");
     expect(migration).toContain("v_saved:=v_current");
+  });
+
+  it("uses the canonical review permission, rather than actor identity, for current Equipment Cleaning verification", () => {
+    expect(roleControlledVerificationMigration).toContain("create or replace function public.factory_mesti_verify_equipment_cleaning_occurrence");
+    expect(roleControlledVerificationMigration).toContain("current_user_has_permission('factory_mesti_equipment_cleaning.review')");
+    expect(roleControlledVerificationMigration).not.toContain("v_occurrence.completed_by = v_employee.id");
+    expect(roleControlledVerificationMigration).not.toContain("Self-verification is not allowed.");
   });
 });

@@ -45,7 +45,7 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     await waitFor(() => expect(factoryService.completeMestiEquipmentCleaningOccurrence).toHaveBeenCalledWith("occ-1"));
   });
 
-  it("uses canonical review permission and suppresses self-verification", async () => {
+  it("uses canonical review permission and allows a permitted completing actor to verify", async () => {
     factoryService.listMestiEquipmentCleaningDay.mockResolvedValue([{ ...occurrence, status: "completed", completed_by: "employee-2" }]);
     renderPage();
     expect(await screen.findByRole("button", { name: "Verify" })).not.toBeNull();
@@ -56,7 +56,8 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     factoryService.listMestiEquipmentCleaningDay.mockResolvedValue([{ ...occurrence, status: "completed", completed_by: "employee-1" }]);
     renderPage();
     await waitFor(() => expect(factoryService.listMestiEquipmentCleaningDay).toHaveBeenCalled());
-    expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+    await waitFor(() => expect(factoryService.verifyMestiEquipmentCleaningOccurrence).toHaveBeenCalledWith("occ-1", "verified"));
   });
 
   it("renders one Monthly row per Equipment and retains every same-day obligation in the drill-down", async () => {
