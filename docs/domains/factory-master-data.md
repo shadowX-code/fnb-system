@@ -28,6 +28,7 @@ Restaurant suppliers and recipes remain restaurant-owned unless a deliberate sha
 
 Product Recipe/BOM Draft saves use the established trusted save authority so header and component changes remain atomic and validated.
 Each BOM component persists its `recipe_usage_uom` for audit stability. Raw Material master data is the only authority for a new BOM row: a valid package conversion uses its dimensional Base UOM; otherwise Recipe usage uses Storage UOM. Recipe users edit quantity, not UOM. Existing BOM quantities and usage UOMs remain historical evidence and are never reinterpreted or rewritten by a Raw Material conversion change. Recipe previews may show incomplete cost where no declared path exists, and never invent a package conversion.
+For both Product Recipes and Production SOPs, Create establishes only the first Finished Good family. Once any Draft, Active, or Archived version exists, continuation is only through the canonical New Version authority. Trusted saves serialize first-family creation and reject concurrent duplicate family creation without exposing database constraint text.
 Published or execution-ready recipes and SOPs are versioned or pinned according to current contracts.
 Later edits must not rewrite the recipe, BOM, or SOP context attached to historical production.
 
