@@ -26,6 +26,7 @@ import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crew
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
+const FACTORY_WORKPLACE = "Factory";
 const MANAGEMENT_WORKPLACE = "Management";
 const employmentTypeOptions = [
   { value: "probation", label: "Probation" },
@@ -294,7 +295,7 @@ function getRequiredUserFields(values) {
     employment_type: "Employment Type is required.",
     employment_status: "Employment Status is required.",
     position: "Position is required.",
-    workplace: "Work Place / Outlet is required.",
+    workplace: "Workplace is required.",
   };
   if (values.enable_system_login) {
     required.email = "Email is required.";
@@ -1029,7 +1030,7 @@ function UserFormModal({
                 <span>{values.position || "-"}</span>
                 {selectedPosition?.status === "inactive" ? <span className="ml-2"><Badge tone="warning">Disabled</Badge></span> : null}
               </ReadOnlyField>
-              <ReadOnlyField label="Work Place / Outlet">{values.workplace || "Missing"}</ReadOnlyField>
+              <ReadOnlyField label="Workplace">{values.workplace || "Missing"}</ReadOnlyField>
               <ReadOnlyField label="Employee Code">{values.employee_code || "-"}</ReadOnlyField>
               <ReadOnlyField label="Joined Date">{formatDateForView(values.joined_date)}</ReadOnlyField>
               {isEndedEmployment ? <ReadOnlyField label={values.employment_status === "terminated" ? "Terminated Date" : "Resigned Date"}>{formatDateForView(values.resigned_date)}</ReadOnlyField> : null}
@@ -1066,10 +1067,10 @@ function UserFormModal({
                 onChange={(nextValue) => updateValue("position", nextValue)}
               />
             </FormField>
-            <FormField label="Work Place / Outlet" required error={visibleError("workplace")}>
+            <FormField label="Workplace" required error={visibleError("workplace")}>
               <SelectField
                 value={values.workplace}
-                placeholder="Select work place"
+                placeholder="Select workplace"
                 buttonClassName={visibleError("workplace") ? "border-rose-200" : ""}
                 searchable
                 options={workplaceOptions.map((workplace) => ({ value: workplace, label: workplace }))}
@@ -1331,8 +1332,8 @@ export default function UsersPage({ ui, store, auth }) {
       const accessibleOutlets = getAccessibleOutlets(auth, store?.outlets ?? []);
       const outletNames = accessibleOutlets.map((outlet) => outlet.name).filter(Boolean);
       const baseOptions = outletNames.length ? outletNames : fallbackWorkplaceOptions;
-      const managementOptions = hasAllOutletAccess(auth) ? [MANAGEMENT_WORKPLACE] : [];
-      return [...new Set([...managementOptions, ...baseOptions])];
+      const sharedWorkplaceOptions = hasAllOutletAccess(auth) ? [FACTORY_WORKPLACE, MANAGEMENT_WORKPLACE] : [];
+      return [...new Set([...sharedWorkplaceOptions, ...baseOptions])];
     },
     [auth, store?.outlets],
   );
@@ -1715,7 +1716,7 @@ export default function UsersPage({ ui, store, auth }) {
         );
       },
     },
-    { key: "workplace", header: "Work Place", render: (row) => row.workplace || <Badge tone="warning">Missing</Badge> },
+    { key: "workplace", header: "Workplace", render: (row) => row.workplace || <Badge tone="warning">Missing</Badge> },
     { key: "employment_type", header: "Employment Type", render: (row) => <Badge tone={employmentTypeTone(row.employment_type)}>{employmentTypeLabel(row.employment_type)}</Badge> },
     { key: "employment_status", header: "Employment Status", render: (row) => <Badge tone={employmentTone(row.employment_status)}>{employmentStatusLabel(row.employment_status)}</Badge> },
     { key: "account", header: "Admin Access", render: (row) => {
@@ -1804,10 +1805,10 @@ export default function UsersPage({ ui, store, auth }) {
             onApply={(nextValue) => setRoleFilter(nextValue || "all")}
           />
         </FieldLabel>
-        <FieldLabel label="Work Place">
+        <FieldLabel label="Workplace">
           <FilterPopover
             value={workplaceFilter === "all" ? "" : workplaceFilter}
-            placeholder="All Work Places"
+            placeholder="All Workplaces"
             className="min-w-44"
             options={workplaces.map((workplace) => ({ value: workplace, label: workplace }))}
             onApply={(nextValue) => setWorkplaceFilter(nextValue || "all")}

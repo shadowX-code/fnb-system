@@ -45,6 +45,15 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Users page employee/auth lifecycle guards", () => {
+  it("offers Factory as a canonical Workplace alongside Management for all-outlet employee administrators", async () => {
+    mount(["employees.view", "employees.create"]);
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "Add Employee" }));
+    fireEvent.click(screen.getByText("Select workplace"));
+    expect(await screen.findByRole("button", { name: "Factory", exact: true })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Management", exact: true })).toBeTruthy();
+  });
+
   it("keeps a view-only employee directory from exposing create, edit, enable, or disable mutations", async () => {
     mount(["employees.view"]);
     await screen.findByText("Aisha");

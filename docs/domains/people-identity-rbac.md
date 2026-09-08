@@ -26,7 +26,7 @@ Employee identity, job position, role, Admin access, and Crew Access are distinc
 Editing an employee must not silently replace role or Auth linkage.
 Role configuration is saved through the established trusted authority so permission replacement is atomic and auditable.
 Employment-state changes must be respected by downstream Admin and Crew authorities.
-The Employee Master workplace is the current canonical input to Crew outlet scope. Crew Workforce may mirror that resolved outlet for credentials, but does not own a competing employee-outlet mapping; an Employee Master workplace change is the authoritative transfer event.
+The Employee Master Workplace is the current canonical input to Crew outlet scope. Crew Workforce may mirror that resolved outlet for credentials, but does not own a competing employee-outlet mapping; an Employee Master workplace change is the authoritative transfer event. `Factory` and `Management` are canonical non-outlet Workplace values. Factory employee selection uses one shared eligibility source: active employees whose Workplace is Factory or Management. It does not alter historical actor/provenance evidence or non-Factory employee selection.
 
 The module registry defines available capabilities; roles grant permission to them but do not redefine route ownership.
 UI gating mirrors authority for usability while RLS and trusted functions enforce access.

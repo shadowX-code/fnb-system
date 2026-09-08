@@ -781,7 +781,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
                       <tr>
                         <th className="px-4 py-3 text-left">Employee</th>
                         <th className="px-4 py-3 text-left">Position</th>
-                        <th className="px-4 py-3 text-left">Work Place</th>
+                        <th className="px-4 py-3 text-left">Workplace</th>
                         <th className="px-4 py-3 text-left">Account</th>
                         <th className="px-4 py-3 text-left">Employment</th>
                       </tr>

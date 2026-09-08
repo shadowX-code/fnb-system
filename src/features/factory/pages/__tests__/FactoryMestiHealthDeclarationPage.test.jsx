@@ -34,4 +34,16 @@ describe("FactoryMestiHealthDeclarationPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Submit Declaration" }));
     await waitFor(() => expect(factoryService.submitMestiHealthDeclaration).toHaveBeenCalledWith(expect.objectContaining({ declaration_type: "visitor", visitor_name: "QA Visitor", symptoms: ["fever"], entry_decision: "entry_restricted" })));
   });
+
+  it("renders only the canonical Factory eligibility options while retaining historical employee provenance", async () => {
+    factoryService.listMestiHealthDeclarations.mockResolvedValue([{ id: "historic-outlet", declaration_type: "employee", declared_at: "2026-09-08T08:00:00Z", employee_snapshot: { employee_name: "Outlet Historic Actor", position: "Service Crew" }, health_status: "fit_for_work", symptoms: [], recorded_by_name: "Outlet Historic Actor" }]);
+    factoryService.listMestiHealthDeclarationOptions.mockResolvedValue({ employees: [{ id: "factory", name: "Factory Operator", position: "Operator", workplace: "Factory" }, { id: "management", name: "Management Reviewer", position: "Manager", workplace: "Management" }] });
+    render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
+    expect((await screen.findAllByText("Outlet Historic Actor")).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Employee Declaration" }));
+    fireEvent.click(screen.getByText("Select employee"));
+    expect(await screen.findByRole("button", { name: /Factory Operator/ })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Management Reviewer/ })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /Outlet Historic Actor/ })).toBeNull();
+  });
 });

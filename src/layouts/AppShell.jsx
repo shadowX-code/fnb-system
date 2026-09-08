@@ -703,7 +703,7 @@ function MyProfileModal({ auth, onClose }) {
         <ProfileSection title="Employment Info" icon={Building2}>
           <ReadOnlyProfileField label="Department" value={profile.department} />
           <ReadOnlyProfileField label="Job Position" value={profile.position} />
-          <ReadOnlyProfileField label="Work Place / Outlet" value={workplace} />
+          <ReadOnlyProfileField label="Workplace" value={workplace} />
           <ReadOnlyProfileField label="Employment Status" value={String(profile.employment_status || "—").replace(/_/g, " ")} />
           <ReadOnlyProfileField label="Joined Date" value={formatDateForProfile(profile.joined_date)} />
           <ReadOnlyProfileField label="Resigned Date" value={formatDateForProfile(profile.resigned_date)} />

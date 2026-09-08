@@ -72,6 +72,15 @@ describe("Factory MeSTI Operator Hygiene", () => {
     await waitFor(() => expect(factoryService.saveMestiOperatorHygiene).toHaveBeenCalledWith(expect.objectContaining({ entries: [expect.objectContaining({ clothing_result: "pass", hygiene_result: "pass", issue: "", action_taken: "" })] })));
   });
 
+  it("uses the shared Factory employee scope for new operator selection without rewriting existing evidence", async () => {
+    const scopedDaily = { ...draftDaily, employees: [{ id: "factory", name: "Factory Operator", position: "Operator", workplace: "Factory" }, { id: "management", name: "Management Reviewer", position: "Manager", workplace: "Management" }] };
+    renderPage({ daily: scopedDaily });
+    fireEvent.click(await screen.findByRole("button", { name: "Add Operator" }));
+    expect(await screen.findByRole("button", { name: "Factory Operator - Operator" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Management Reviewer - Manager" })).toBeTruthy();
+    expect(screen.getByText("Aisha")).toBeTruthy();
+  });
+
   it("shows session evidence and blocks self-verification errors", async () => {
     renderPage({ daily: submittedDaily });
     expect(await screen.findByText("Submitted")).not.toBeNull();
