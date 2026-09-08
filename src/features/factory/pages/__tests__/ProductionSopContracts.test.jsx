@@ -25,6 +25,7 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
   it("preserves the SOP builder payload for linkage, version, steps, timing, QC checks, and remarks", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<ProductionSopBuilderModal initialValue={draftSop} productFamilies={[family]} recipes={[recipe]} equipment={[equipment]} sops={[draftSop]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={onSave} />);
+    fireEvent.click(screen.getByRole("button", { name: "SOP Settings" }));
     fireEvent.click(screen.getByRole("checkbox", { name: /MX-01.*Mixer 01/i }));
     fireEvent.click(screen.getByRole("button", { name: "Save SOP" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
@@ -41,6 +42,34 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
       equipment_ids: [equipment.id],
       steps: [expect.objectContaining({ step_no: 1, step_name: "Cook", estimated_time_minutes: 10, qc_checks: [expect.objectContaining({ checklist_template_id: template.id, qc_name: template.name, qc_type: "checklist" })] })],
     })));
+  });
+
+  it("uses a collapsed builder outline with progressive step, QC, and sub-step editing", () => {
+    const multiStepSop = {
+      ...draftSop,
+      steps: [
+        ...draftSop.steps,
+        { id: "step-2", step_no: 2, step_name: "Pack", estimated_time_minutes: 5, ingredient_material_ids: [], sub_steps: [{ id: "sub-2", sequence_no: 1, instruction: "Fill pack", estimated_minutes: 5, remarks: "" }], qc_checks: [], remarks: "" },
+      ],
+    };
+    render(<ProductionSopBuilderModal initialValue={multiStepSop} productFamilies={[family]} recipes={[recipe]} equipment={[equipment]} sops={[multiStepSop]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={vi.fn()} />);
+
+    expect(screen.getByText("2 steps · 1 sub-steps · 1 QC")).not.toBeNull();
+    expect(screen.queryByLabelText("Step Name *")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /01 Cook/ }));
+    expect(screen.getByLabelText("Step Name *")).not.toBeNull();
+    expect(screen.getByText("Temperature")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(screen.getByLabelText("QC Check *")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Collapse All" }));
+    expect(screen.queryByLabelText("Step Name *")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Expand All" }));
+    expect(screen.getAllByLabelText("Step Name *")).toHaveLength(2);
+    expect(screen.getByText("2.1")).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Duplicate step" })[0]);
+    expect(screen.getByText("3 steps · 1 sub-steps · 2 QC")).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove step" })[1]);
+    expect(screen.getByText("2 steps · 1 sub-steps · 1 QC")).not.toBeNull();
   });
 
   it("renders active, draft, and legacy QC document paths without inventing missing history", () => {
