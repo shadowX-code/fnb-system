@@ -17,6 +17,11 @@ describe("FactoryFinishedGoodsPage smoke", () => {
   it("renders grouped and commercial table views, then opens the read-only detail modal", () => {
     renderPage();
     expect(screen.getByText("Sambal")).not.toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Total Balance" })).not.toBeNull();
+    expect(screen.queryByText("SAM-500")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /sambal/i, expanded: false }));
+    expect(screen.getByRole("columnheader", { name: "SKU" })).not.toBeNull();
+    expect(screen.getAllByText("SAM-500").every((element) => !element.classList.contains("badge"))).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Table View" }));
     expect(screen.getAllByText("RM2.50").length).toBeGreaterThan(0);
     expect(screen.getAllByText("RM10.00").length).toBeGreaterThan(0);

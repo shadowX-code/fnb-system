@@ -35,4 +35,16 @@ describe("FactoryRowActions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(remove).toHaveBeenCalledOnce();
   });
+
+  it("supports visible common actions while keeping a destructive action protected", () => {
+    const edit = vi.fn();
+    const archive = vi.fn();
+    render(<FactoryRowActions directActions={[{ label: "Edit Packaging SKU", onClick: edit }]} secondaryActions={[{ label: "Archive", destructive: true, onClick: archive }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Edit Packaging SKU" }));
+    expect(edit).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByRole("button", { name: "More row actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    expect(archive).toHaveBeenCalledOnce();
+  });
 });

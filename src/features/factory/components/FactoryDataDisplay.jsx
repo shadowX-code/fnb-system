@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import { RefreshCw } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 
@@ -5,7 +6,7 @@ export function FactoryDataSurface({ children, className = "" }) {
   return <section className={`factory-data-surface ${className}`.trim()}>{children}</section>;
 }
 
-export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick, density = "compact", headerStyle = "uppercase", rowHover = "", loading = false, loadingRows = 4, rowKey = (row) => row.id }) {
+export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick, density = "compact", headerStyle = "uppercase", rowHover = "", loading = false, loadingRows = 4, rowKey = (row) => row.id, renderAfterRow }) {
   if (!rows.length && !loading) return <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>;
   const compact = density === "compact";
   const headerClass = headerStyle === "sentence"
@@ -29,19 +30,24 @@ export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRo
             <tr key={`loading-${index}`} className="factory-table-row border-b border-border last:border-0">
               {columns.map((column) => <td key={column.key} className={`${column.className || ""} ${cellPadding}`}><div className="h-3 animate-pulse rounded bg-slate-100" /></td>)}
             </tr>
-          )) : rows.map((row) => (
-            <tr
-              key={rowKey(row) ?? row.id ?? row.raw_material_id ?? row.logical_requirement_id}
-              className={`factory-table-row border-b border-border last:border-0 ${rowHover ? `transition ${hoverClass}` : ""} ${onRowClick ? "cursor-pointer" : ""}`}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-            >
-              {columns.map((column) => (
-                <td key={column.key} className={`${column.className || ""} ${cellPadding} text-sm ${column.align === "right" ? "text-right" : ""}`}>
-                  {column.render ? column.render(row) : row[column.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
+          )) : rows.map((row) => {
+            const key = rowKey(row) ?? row.id ?? row.raw_material_id ?? row.logical_requirement_id;
+            const after = renderAfterRow?.(row);
+            return <Fragment key={key}>
+              <tr
+                key={key}
+                className={`factory-table-row border-b border-border last:border-0 ${rowHover ? `transition ${hoverClass}` : ""} ${onRowClick ? "cursor-pointer" : ""}`}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
+                {columns.map((column) => (
+                  <td key={column.key} className={`${column.className || ""} ${cellPadding} text-sm ${column.align === "right" ? "text-right" : ""}`}>
+                    {column.render ? column.render(row) : row[column.key]}
+                  </td>
+                ))}
+              </tr>
+              {after ? <tr key={`${key}-detail`} className="factory-table-row"><td className="p-0" colSpan={columns.length}>{after}</td></tr> : null}
+            </Fragment>;
+          })}
         </tbody>
       </table>
     </div>
