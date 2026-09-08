@@ -55,4 +55,11 @@ describe("FactoryRowActions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Archive Packaging SKU" }));
     expect(archive).toHaveBeenCalledOnce();
   });
+
+  it("keeps a desktop direct action and its narrow-screen fallback in one shared action contract", () => {
+    render(<FactoryRowActions directActions={[{ label: "Archive Packaging SKU", desktopOnly: true, onClick: vi.fn() }]} secondaryActions={[{ label: "Archive", mobileOnly: true, destructive: true, onClick: vi.fn() }]} />);
+
+    expect(screen.getByRole("button", { name: "Archive Packaging SKU" }).className).toContain("md:inline-flex");
+    expect(screen.getByRole("button", { name: "More row actions" }).className).toContain("md:hidden");
+  });
 });

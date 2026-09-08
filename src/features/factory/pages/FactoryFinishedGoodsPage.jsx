@@ -76,8 +76,8 @@ export default function FactoryFinishedGoodsPage() {
   const toggleGroup = (groupKey) => setExpandedGroups((current) => ({ ...current, [groupKey]: !current[groupKey] }));
   const renderSkuActions = (sku, group = null) => <FactoryRowActions onView={() => setSelectedProduct(sku)} directActions={can("factory_finished_goods.edit") ? [
     { label: "Edit Packaging SKU", icon: Pencil, onClick: () => navigation.openFinishedGoodPackagingSku(group, sku) },
-    ...(sku.status !== "archived" ? [{ label: "Archive Packaging SKU", icon: Archive, onClick: () => navigation.archiveFinishedGoodPackagingSku(sku) }] : []),
-  ] : []} />;
+    ...(sku.status !== "archived" ? [{ label: "Archive Packaging SKU", icon: Archive, desktopOnly: true, onClick: () => navigation.archiveFinishedGoodPackagingSku(sku) }] : []),
+  ] : []} secondaryActions={can("factory_finished_goods.edit") && sku.status !== "archived" ? [{ label: "Archive", destructive: true, mobileOnly: true, onClick: () => navigation.archiveFinishedGoodPackagingSku(sku) }] : []} />;
   const skuColumns = (group) => [
     { key: "sku", label: "SKU", render: (sku) => <span className="font-semibold text-text-primary">{sku.product_code || <FactoryCellMuted />}</span> },
     { key: "pack_size", label: "Pack Size", render: (sku) => packSizeText(sku) || <FactoryCellMuted /> },
