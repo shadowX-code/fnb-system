@@ -21,4 +21,10 @@ describe("Factory Finished Good family create eligibility", () => {
     const families = [active("existing")];
     expect(finishedGoodFamiliesWithoutRecords(families, [{ finished_good_id: "existing" }], "existing")).toEqual(families);
   });
+
+  it("matches canonical and nested Finished Good references even when IDs arrive in different representations", () => {
+    const families = [active("existing"), active("available")];
+    const records = [{ product_family_id: "other", finished_good: { id: "existing" } }];
+    expect(finishedGoodFamiliesWithoutRecords(families, records).map((family) => family.id)).toEqual(["available"]);
+  });
 });
