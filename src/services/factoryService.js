@@ -306,6 +306,11 @@ function mapRawMaterialCategory(row) {
 }
 
 function mapFactorySupplier(row) {
+  const linkedMaterialIds = Array.isArray(row.material_links)
+    ? row.material_links.map((link) => link.raw_material_id).filter(Boolean)
+    : Array.isArray(row.linked_material_ids)
+      ? row.linked_material_ids.filter(Boolean)
+      : [];
   return {
     id: row.id,
     supplier_name: row.supplier_name || "",
@@ -315,6 +320,8 @@ function mapFactorySupplier(row) {
     email: row.email || "",
     status: row.status || "active",
     remarks: row.remarks || "",
+    linked_material_ids: linkedMaterialIds,
+    linked_material_count: Number(row.linked_material_count ?? linkedMaterialIds.length),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -1269,7 +1276,7 @@ const equipmentCategorySelect = "id,name,category_code,status,sort_order,created
 const equipmentSelect = "id,equipment_code,name,category_id,current_location_id,status,notes,created_at,updated_at,category:factory_equipment_categories(id,name,category_code,status),location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location)";
 const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,shelf_life_days,storage_location_id,storage_location,recommended_storage,b2b_price,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,is_storage_location,status),product_family:factory_product_families(name_en,name_cn,name_bm,is_halal,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,is_storage_location,status,remarks,created_at,updated_at";
-const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
+const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at,material_links:factory_supplier_raw_material_links(raw_material_id)";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
 const mestiCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,locations:factory_mesti_cleaning_requirement_locations(location_id,location:factory_storage_locations(id,location_name,location_code,location_type,status,is_storage_location))";
 const mestiEquipmentCleaningRequirementSelect = "id,logical_requirement_id,task_name,recurrence_type,recurrence_weekdays,status,effective_from,effective_until,version_no,superseded_by,created_at,updated_at,equipment_links:factory_mesti_equipment_cleaning_requirement_equipment(equipment_id,equipment:factory_equipment(id,equipment_code,name,status,current_location_id,location:factory_storage_locations(location_name)))";
@@ -2746,6 +2753,41 @@ export const factoryService = {
       after: data,
     });
     return mapFactorySupplier(data);
+  },
+
+  async getFactorySupplierRawMaterialEligibility(supplierId, { linkedOnly = true } = {}) {
+    if (!supplierId) return [];
+    const { data, error } = await supabase.rpc("factory_supplier_raw_material_eligibility", {
+      p_supplier_id: supplierId,
+      p_linked_only: linkedOnly,
+    });
+    throwSupabaseError("factory.supplier_material_eligibility", error);
+    return (data || []).map((row) => ({
+      ...mapRawMaterial({
+        ...row,
+        id: row.raw_material_id,
+        category: row.category || "",
+        status: "active",
+      }),
+      is_linked: Boolean(row.is_linked),
+    }));
+  },
+
+  async saveFactorySupplierRawMaterialLinks(supplier, rawMaterialIds = []) {
+    const normalizedIds = [...new Set((rawMaterialIds || []).filter(Boolean))];
+    const { data, error } = await supabase.rpc("factory_save_supplier_raw_material_links", {
+      p_supplier_id: supplier.id,
+      p_raw_material_ids: normalizedIds,
+    });
+    throwSupabaseError("factory.supplier_material_links.save", error);
+    await logFactoryAction({
+      action: "factory_supplier_material_links_updated",
+      target: supplier.supplier_name,
+      description: "Factory Supplier linked Raw Materials updated.",
+      before: { linked_material_ids: supplier.linked_material_ids || [] },
+      after: data,
+    });
+    return data || { supplier_id: supplier.id, linked_material_ids: normalizedIds };
   },
 
   async saveStorageLocation(location, employeeId) {

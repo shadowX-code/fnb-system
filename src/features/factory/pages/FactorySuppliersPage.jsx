@@ -21,6 +21,7 @@ export default function FactorySuppliersPage() {
   const pager = useFactoryClientPagination("suppliers", rows.length, 20, search);
   const active = suppliers.filter((supplier) => supplier.status === "active").length;
   const canManage = can("factory_suppliers.manage");
+  const canLinkMaterials = can("factory_suppliers.edit") || canManage;
 
   return <div className="space-y-5">
     <PageHeader section="System" title="Suppliers" description="Manage Factory supplier master data used by raw material receiving documents." actions={can("factory_suppliers.create") || canManage ? <button className="btn-primary" type="button" onClick={nav.openCreateSupplier}><Truck size={15} /> Create Supplier</button> : null} />
@@ -31,8 +32,9 @@ export default function FactorySuppliersPage() {
         { key: "supplier", label: "Supplier", className: "w-[30%]", render: (row) => <FactoryCellEntity name={row.supplier_name || "—"} code={row.supplier_code} /> },
         { key: "contact", label: "Contact Person", className: "w-[23%]", render: (row) => row.contact_person || <FactoryCellMuted /> },
         { key: "phone", label: "Phone", className: "w-[19%]", render: (row) => row.phone || <FactoryCellMuted /> },
-        { key: "status", label: "Status", className: "w-[13%]", render: (row) => <FactoryStatusBadge status={row.status === "active" ? "Active" : "Archived"} /> },
-        { key: "actions", label: "Actions", className: "w-[15%]", align: "right", render: (row) => <FactoryRowActions directActions={can("factory_suppliers.edit") ? [{ label: "Edit Supplier", onClick: () => nav.openEditSupplier(row) }] : []} secondaryActions={[(can("factory_suppliers.delete") || canManage) && row.status !== "archived" ? { label: "Archive", destructive: true, onClick: () => nav.archiveSupplier(row) } : null]} /> },
+        { key: "linked_materials", label: "Linked Materials", className: "w-[14%]", render: (row) => canLinkMaterials && row.status === "active" ? <button className="text-sm font-semibold text-primary transition hover:underline focus:underline" type="button" onClick={() => nav.openManageSupplierMaterials(row)}>{row.linked_material_count || 0} linked</button> : <span className="text-sm font-semibold text-text-secondary">{row.linked_material_count || 0} linked</span> },
+        { key: "status", label: "Status", className: "w-[11%]", render: (row) => <FactoryStatusBadge status={row.status === "active" ? "Active" : "Archived"} /> },
+        { key: "actions", label: "Actions", className: "w-[13%]", align: "right", render: (row) => <FactoryRowActions directActions={can("factory_suppliers.edit") ? [{ label: "Edit Supplier", onClick: () => nav.openEditSupplier(row) }] : []} secondaryActions={[(can("factory_suppliers.delete") || canManage) && row.status !== "archived" ? { label: "Archive", destructive: true, onClick: () => nav.archiveSupplier(row) } : null]} /> },
       ]} emptyTitle="No Factory suppliers" />
       <FactoryPagination page={pager.page} pageSize={pager.pageSize} total={rows.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} />
     </FactoryDataSurface>

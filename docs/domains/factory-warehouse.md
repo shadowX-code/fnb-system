@@ -24,7 +24,7 @@ Factory Production owns production execution and batch creation; Factory Master 
 
 ## Lifecycle And Business Rules
 
-Raw receiving validates supplier/reference, material, quantity, lot, and storage context before accepted stock becomes available. Completion freezes the selected material's Acceptance Procedure and Control Methods on every item, posts canonical stock evidence, and moves the document to Awaiting Verification. A separately permitted active employee verifies the document; the receiving actor cannot self-verify, and verification evidence is immutable and retry-safe.
+Raw receiving validates supplier/reference, material, quantity, lot, and storage context before accepted stock becomes available. New Receiving selection and trusted saves require an active canonical Supplier ↔ Raw Material link; there is no fallback to all materials for an unlinked Supplier. Changing Supplier requires an explicit confirmation before incompatible draft rows are cleared. Completion freezes the selected material's Acceptance Procedure and Control Methods on every item, posts canonical stock evidence, and moves the document to Awaiting Verification. A separately permitted active employee verifies the document; the receiving actor cannot self-verify, and verification evidence is immutable and retry-safe. Existing historical receipts remain visible regardless of their current master-data link state.
 Raw and finished-goods balances are server-derived from canonical posted evidence or established read models.
 Transfers, issues, returns, adjustments, and stock checks use controlled lifecycle paths.
 

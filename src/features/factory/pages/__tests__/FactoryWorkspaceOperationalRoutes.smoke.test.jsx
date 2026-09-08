@@ -107,6 +107,7 @@ function setup(response = data) {
   });
   vi.spyOn(factoryService, "listOperationalJobOrders").mockResolvedValue({ jobs: [plannedJob, job, inProgressJob, completedJob], productions: [completedProduction], summary: { scheduled: 1, released: 1, inProgress: 1, completedToday: 1, outputByUom: [{ quantity: 9, uom: "kg" }], completionRate: 100 } });
   vi.spyOn(factoryService, "getRawMaterialReceivingNoPreview").mockResolvedValue("R260809-02");
+  vi.spyOn(factoryService, "getFactorySupplierRawMaterialEligibility").mockResolvedValue(data.rawMaterials);
   vi.spyOn(factoryService, "getFinishedGoodDispatchNoPreview").mockResolvedValue("D260809-02");
   vi.spyOn(factoryService, "getStockCheckNoPreview").mockResolvedValue("RMSC-260809-02");
   vi.spyOn(factoryService, "getFinishedGoodInventoryReconciliation").mockResolvedValue([]);
@@ -299,7 +300,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     const receiving = render(<FactoryWorkspacePage initialTab="raw-receiving" auth={auth} ui={ui} />);
     fireEvent.click(await screen.findByRole("button", { name: "Receive Raw Material" }));
     expect(screen.getByText("Save Draft")).not.toBeNull();
-    expect(screen.getByText("Select Raw Material")).not.toBeNull();
+    expect(screen.getByText("Select Supplier first")).not.toBeNull();
     receiving.unmount();
 
     const dispatch = render(<FactoryWorkspacePage initialTab="finished-goods-dispatch" auth={auth} ui={ui} />);

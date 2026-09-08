@@ -49,6 +49,7 @@ import RawMaterialImagePreviewModal from "../modals/rawMaterials/FactoryRawMater
 import RawMaterialCategoryModal from "../modals/rawMaterials/FactoryRawMaterialCategoryModal.jsx";
 import StorageLocationModal from "../modals/FactoryStorageLocationModal.jsx";
 import FactorySupplierModal from "../modals/FactorySupplierModal.jsx";
+import FactorySupplierLinkedMaterialsModal from "../modals/FactorySupplierLinkedMaterialsModal.jsx";
 import FactoryCustomerModal from "../modals/FactoryCustomerModal.jsx";
 import FactoryEquipmentModal, { FactoryEquipmentCategoryModal } from "../modals/FactoryEquipmentModal.jsx";
 import ProductionPlanningParModal from "../modals/ProductionPlanningParModal.jsx";
@@ -117,7 +118,7 @@ function employeeDisplayName(auth) {
   return auth?.profile?.nickname || auth?.profile?.full_name || auth?.profile?.email || "";
 }
 
-function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, onClose, onSelect, error, buttonRef }) {
+function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, onClose, onSelect, error, buttonRef, disabled = false }) {
   const [query, setQuery] = useState("");
   const anchorRef = useRef(null);
   const selected = materials.find((material) => material.id === value);
@@ -139,6 +140,7 @@ function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, 
         ref={setButtonNode}
         className={`min-h-[54px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
         type="button"
+        disabled={disabled}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={onToggle}
@@ -633,12 +635,15 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   const [fieldErrors, setFieldErrors] = useState({});
   const [openMaterialRowId, setOpenMaterialRowId] = useState(null);
   const [receivingBulkSelectOpen, setReceivingBulkSelectOpen] = useState(false);
+  const [supplierEligibility, setSupplierEligibility] = useState([]);
+  const [supplierEligibilityLoading, setSupplierEligibilityLoading] = useState(false);
+  const [pendingSupplierChange, setPendingSupplierChange] = useState(null);
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
-  const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
+  const eligibleRawMaterials = supplierEligibility;
   const activeStorageLocations = storageLocations.filter((location) => location.status === "active" && location.is_storage_location !== false);
   const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: supplier.supplier_code || supplier.status }));
   const storageLocationOptions = activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") }));
-  const receivingBulkItems = rawMaterials.map((material) => ({
+  const receivingBulkItems = eligibleRawMaterials.map((material) => ({
     id: material.id,
     primary: rawMaterialLabel(material) || "Raw Material",
     secondary: material.name_cn || "",
@@ -646,8 +651,8 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
     code: material.material_code || "No material code",
     meta: [material.uom || "No UOM", material.storage_location || "No default storage"].join(" · "),
     category: material.category || "",
-    disabled: material.status !== "active",
-    statusLabel: material.status === "active" ? "Active" : jobStatusLabel(material.status),
+    disabled: false,
+    statusLabel: "Active",
     source: material,
   }));
   const receivingNoPreview = useFactoryNumberPreview({
@@ -659,8 +664,27 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   });
 
   useEffect(() => {
-    if (receivingBulkSelectOpen && !rawMaterials.length) setReceivingBulkSelectOpen(false);
-  }, [rawMaterials.length, receivingBulkSelectOpen]);
+    let active = true;
+    if (!form.supplier_id) {
+      setSupplierEligibility([]);
+      setSupplierEligibilityLoading(false);
+      return () => { active = false; };
+    }
+    setSupplierEligibilityLoading(true);
+    factoryService.getFactorySupplierRawMaterialEligibility(form.supplier_id)
+      .then((rows) => active && setSupplierEligibility(rows))
+      .catch((loadError) => {
+        if (!active) return;
+        setSupplierEligibility([]);
+        setError(loadError.message || "Unable to load Supplier Raw Material eligibility.");
+      })
+      .finally(() => active && setSupplierEligibilityLoading(false));
+    return () => { active = false; };
+  }, [form.supplier_id]);
+
+  useEffect(() => {
+    if (receivingBulkSelectOpen && !eligibleRawMaterials.length) setReceivingBulkSelectOpen(false);
+  }, [eligibleRawMaterials.length, receivingBulkSelectOpen]);
 
   function updateItem(rowId, patchValue) {
     setForm((current) => ({ ...current, items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patchValue } : item) }));
@@ -668,6 +692,56 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
 
   function addReceivingRow() {
     setForm((current) => ({ ...current, items: [...current.items, makeRow()] }));
+  }
+
+  function clearMaterialItem(item) {
+    return {
+      ...item,
+      raw_material_id: "",
+      supplier_lot_no: "",
+      internal_batch_no: "",
+      received_qty: "",
+      uom: "",
+      storage_location_id: "",
+      storage_location: "",
+      expiry_date: "",
+      expiry_source: "",
+      expiry_confirmed: false,
+      expiry_tracking_mode: "optional",
+      remarks: "",
+    };
+  }
+
+  async function requestSupplierChange(supplierId) {
+    if (supplierId === form.supplier_id) return;
+    const selectedItems = form.items.filter((item) => item.raw_material_id);
+    if (!selectedItems.length) {
+      setForm((current) => ({ ...current, supplier_id: supplierId }));
+      return;
+    }
+    setError("");
+    try {
+      const nextEligibility = await factoryService.getFactorySupplierRawMaterialEligibility(supplierId);
+      setPendingSupplierChange({
+        supplierId,
+        eligibleIds: nextEligibility.map((material) => material.id),
+        selectedCount: selectedItems.length,
+      });
+    } catch (loadError) {
+      setError(loadError.message || "Unable to check Supplier Raw Material eligibility.");
+    }
+  }
+
+  function confirmSupplierChange() {
+    if (!pendingSupplierChange) return;
+    const eligibleIds = new Set(pendingSupplierChange.eligibleIds);
+    setForm((current) => ({
+      ...current,
+      supplier_id: pendingSupplierChange.supplierId,
+      items: current.items.map((item) => item.raw_material_id && !eligibleIds.has(item.raw_material_id) ? clearMaterialItem(item) : item),
+    }));
+    setPendingSupplierChange(null);
+    setOpenMaterialRowId(null);
   }
 
   function addSelectedRawMaterials(selectedItems) {
@@ -691,7 +765,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   }
 
   async function selectRawMaterial(rowId, rawMaterialId) {
-    const material = activeRawMaterials.find((row) => row.id === rawMaterialId);
+    const material = eligibleRawMaterials.find((row) => row.id === rawMaterialId);
     setFieldErrors((current) => ({ ...current, [`${rowId}.raw_material_id`]: "", [`${rowId}.uom`]: "" }));
     updateItem(rowId, {
       raw_material_id: rawMaterialId,
@@ -768,8 +842,10 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   }
 
   function renderMaterialPicker(item) {
-    const material = activeRawMaterials.find((row) => row.id === item.raw_material_id);
-    return <><RawMaterialCellPicker value={item.raw_material_id} materials={activeRawMaterials} placeholder="Select Raw Material" open={openMaterialRowId === item.row_id} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{material?.acceptance_procedure ? <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-xs text-sky-900"><span className="font-bold">Acceptance:</span> {material.acceptance_procedure}</div> : null}{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</>;
+    const material = eligibleRawMaterials.find((row) => row.id === item.raw_material_id);
+    const noSupplier = !form.supplier_id;
+    const noEligibleMaterials = Boolean(form.supplier_id) && !supplierEligibilityLoading && !eligibleRawMaterials.length;
+    return <><RawMaterialCellPicker value={item.raw_material_id} materials={eligibleRawMaterials} placeholder={noSupplier ? "Select Supplier first" : supplierEligibilityLoading ? "Loading linked Raw Materials..." : noEligibleMaterials ? "No raw materials linked to this supplier" : "Select Raw Material"} open={openMaterialRowId === item.row_id} disabled={noSupplier || supplierEligibilityLoading || noEligibleMaterials} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{material?.acceptance_procedure ? <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-xs text-sky-900"><span className="font-bold">Acceptance:</span> {material.acceptance_procedure}</div> : null}{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</>;
   }
 
   function renderInternalBatch(item) {
@@ -794,7 +870,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
       <form className="space-y-5 p-5" onSubmit={(event) => submit("draft", event)}>
         <div className="grid gap-3 lg:grid-cols-4">
           <Field label="Supplier *" error={fieldErrors.supplier_id}>
-            <SearchableSelect value={form.supplier_id} options={supplierOptions} placeholder="Select Supplier" error={Boolean(fieldErrors.supplier_id)} buttonRef={(node) => { fieldRefs.current.supplier_id = node; }} onChange={(supplierId) => setForm((current) => ({ ...current, supplier_id: supplierId }))} />
+            <SearchableSelect value={form.supplier_id} options={supplierOptions} placeholder="Select Supplier" error={Boolean(fieldErrors.supplier_id)} buttonRef={(node) => { fieldRefs.current.supplier_id = node; }} onChange={requestSupplierChange} />
           </Field>
           <Field label="Receiving No."><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className={`text-sm font-bold ${initialBatch?.batch_no || receivingNoPreview.value ? "text-text-primary" : "text-text-secondary"}`}>{initialBatch?.batch_no || receivingNoPreview.value || (receivingNoPreview.loading ? "Loading preview..." : "—")}</div>{initialBatch?.id ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Assigned</div> : receivingNoPreview.value ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}{!initialBatch?.batch_no && receivingNoPreview.error ? <button className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary hover:underline" type="button" onClick={receivingNoPreview.retry}><RefreshCw size={11} /> Retry</button> : null}</div></Field>
           <Field label="Received Date *" error={fieldErrors.received_date}>
@@ -828,8 +904,9 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button className="btn-secondary h-9 px-3 text-sm" type="button" onClick={addReceivingRow}><Plus size={15} /> Add Row</button>
-            <button className="btn-secondary h-9 px-3 text-sm" type="button" onClick={() => setReceivingBulkSelectOpen(true)}><ClipboardList size={15} /> Select Multiple</button>
+            <button className="btn-secondary h-9 px-3 text-sm" type="button" disabled={!form.supplier_id || supplierEligibilityLoading || !eligibleRawMaterials.length} onClick={() => setReceivingBulkSelectOpen(true)}><ClipboardList size={15} /> Select Multiple</button>
           </div>
+          {form.supplier_id && !supplierEligibilityLoading && !eligibleRawMaterials.length ? <div className="mt-3 text-sm font-semibold text-text-secondary">No raw materials linked to this supplier.</div> : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
           {error ? <div className="mr-auto text-sm font-semibold text-rose-600">{error}</div> : null}
@@ -850,6 +927,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
         onAdd={addSelectedRawMaterials}
       />
     ) : null}
+    {pendingSupplierChange ? <Modal title="Change Supplier?" description="Selected receiving items will be checked against the new Supplier's linked Raw Materials. Any incompatible items will be cleared." onClose={() => setPendingSupplierChange(null)} footer={<><button className="btn-secondary" type="button" onClick={() => setPendingSupplierChange(null)}>Keep current Supplier</button><button className="btn-primary" type="button" onClick={confirmSupplierChange}>Change Supplier</button></>}><p className="text-sm text-text-secondary">{pendingSupplierChange.selectedCount} selected receiving item{pendingSupplierChange.selectedCount === 1 ? "" : "s"} will be rechecked before the Supplier changes.</p></Modal> : null}
     </>
   );
 }
@@ -1799,6 +1877,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
     ui?.notify?.({ title: "Factory supplier archived", tone: "success" });
     if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
+  }
+
+  async function saveFactorySupplierLinkedMaterials(supplier, rawMaterialIds) {
+    try {
+      await factoryService.saveFactorySupplierRawMaterialLinks(supplier, rawMaterialIds);
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save linked Raw Materials", message: error.message, tone: "error" });
+      throw error;
+    }
+    ui?.notify?.({ title: "Supplier linked Raw Materials updated", tone: "success" });
     await refreshFactoryAfterMutation();
   }
 
@@ -3427,6 +3516,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openBatchTraceabilityDispatch={canViewDispatchHistory ? openBatchTraceabilityDispatch : undefined}
           openCreateSupplier={() => setModal({ type: "factory-suppliers" })}
           openEditSupplier={(supplier) => setModal({ type: "factory-suppliers", value: supplier })}
+          openManageSupplierMaterials={(supplier) => setModal({ type: "factory-supplier-material-links", supplier })}
           archiveSupplier={archiveFactorySupplier}
           openCreateCustomer={() => setModal({ type: "factory-customers" })}
           openEditCustomer={(customer) => setModal({ type: "factory-customers", value: customer })}
@@ -3576,6 +3666,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           onClose={() => setModal(null)}
           onSave={saveFactorySupplier}
+        />
+      ) : null}
+      {modal?.type === "factory-supplier-material-links" ? (
+        <FactorySupplierLinkedMaterialsModal
+          supplier={modal.supplier}
+          loadEligibility={(supplierId) => factoryService.getFactorySupplierRawMaterialEligibility(supplierId, { linkedOnly: false })}
+          onSave={saveFactorySupplierLinkedMaterials}
+          onClose={() => setModal(null)}
         />
       ) : null}
       {modal?.type === "factory-customers" ? (

@@ -23,8 +23,8 @@ const baseData = {
   rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], auditLogs: [], accessIssues: [],
 };
 
-function mount({ ui = { confirm: vi.fn().mockResolvedValue(true), notify: vi.fn() }, auth = makeAuth(), batch = receiving } = {}) {
-  const data = { ...baseData, receivings: [batch], receivingBatches: [batch] };
+function mount({ ui = { confirm: vi.fn().mockResolvedValue(true), notify: vi.fn() }, auth = makeAuth(), batch = receiving, data: dataOverride, eligibility = baseData.rawMaterials } = {}) {
+  const data = { ...baseData, ...dataOverride, receivings: [batch], receivingBatches: [batch] };
   const loadData = vi.spyOn(factoryService, "listFactoryData").mockResolvedValue(data);
   const listing = vi.spyOn(factoryService, "listFactoryListingPage").mockResolvedValue({ rows: [batch], summary: {}, totalCount: 1, page: 1, pageSize: 20 });
   vi.spyOn(factoryService, "getRawMaterialReceivingNoPreview").mockResolvedValue("R-NEW");
@@ -32,6 +32,7 @@ function mount({ ui = { confirm: vi.fn().mockResolvedValue(true), notify: vi.fn(
     uom: "kg", storage_location_id: "loc-1", storage_location: "Raw Store",
     expiry_tracking_mode: "not_applicable", internal_batch_no: "R-NEW",
   });
+  vi.spyOn(factoryService, "getFactorySupplierRawMaterialEligibility").mockImplementation((supplierId) => Promise.resolve(typeof eligibility === "function" ? eligibility(supplierId) : eligibility));
   render(<FactoryWorkspacePage initialTab="raw-receiving" auth={auth} ui={ui} />);
   return { listing, loadData };
 }
@@ -44,7 +45,7 @@ async function prepareNew() {
   fireEvent.click(await screen.findByRole("button", { name: "Receive Raw Material" }));
   fireEvent.click(screen.getByRole("button", { name: "Supplier *" }));
   fireEvent.click(await screen.findByText("Supplier"));
-  fireEvent.click(screen.getByRole("button", { name: "Select Raw Material" }));
+  fireEvent.click(await screen.findByRole("button", { name: "Select Raw Material" }));
   fireEvent.click(await screen.findByText("Chili"));
   await waitFor(() => expect(document.querySelector('[data-factory-row-field="receiving-qty"]')).not.toBeNull());
   fireEvent.change(document.querySelector('[data-factory-row-field="receiving-qty"]'), { target: { value: "2" } });
@@ -197,5 +198,30 @@ describe("Factory Raw Receiving mounted lifecycle", () => {
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+  });
+
+  it("shows no selectable materials when the selected Supplier has no active links", async () => {
+    mount({ eligibility: [] });
+    fireEvent.click(await screen.findByRole("button", { name: "Receive Raw Material" }));
+    fireEvent.click(screen.getByRole("button", { name: "Supplier *" }));
+    fireEvent.click(await screen.findByText("Supplier"));
+    expect(await screen.findByText("No raw materials linked to this supplier.")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "No raw materials linked to this supplier" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Select Multiple" }).disabled).toBe(true);
+  });
+
+  it("confirms a Supplier change before clearing materials that are not linked to the next Supplier", async () => {
+    const supplierTwo = { id: "supplier-2", supplier_name: "Supplier Two", status: "active" };
+    mount({
+      data: { factorySuppliers: [...baseData.factorySuppliers, supplierTwo] },
+      eligibility: (supplierId) => supplierId === "supplier-2" ? [] : baseData.rawMaterials,
+    });
+
+    await prepareNew();
+    fireEvent.click(screen.getByRole("button", { name: "Supplier *" }));
+    fireEvent.click(await screen.findByText("Supplier Two"));
+    expect(await screen.findByText("Change Supplier?")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Change Supplier" }));
+    expect(await screen.findByText("No raw materials linked to this supplier.")).not.toBeNull();
   });
 });
