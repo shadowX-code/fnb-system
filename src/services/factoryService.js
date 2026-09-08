@@ -3380,6 +3380,7 @@ export const factoryService = {
       p_recipe: { ...(recipe.id ? { id: recipe.id } : {}), ...payload },
       p_bom_items: items,
     });
+    if (error?.message === "FACTORY_RECIPE_FAMILY_EXISTS") throw new Error("This Finished Good already has a Product Recipe. Create a new version from the existing Recipe instead.");
     throwSupabaseError("factory.recipe.save", error);
     const saved = { ...(result?.recipe ?? result), items: result?.items ?? [] };
 
@@ -4198,6 +4199,7 @@ export const factoryService = {
       p_created_by: null,
       p_equipment_ids: [...new Set((sop.equipment_ids || []).filter(Boolean))],
     });
+    if (error?.message === "FACTORY_SOP_FAMILY_EXISTS") throw new Error("This Finished Good already has an SOP. Create a new version from the existing SOP instead.");
     throwSupabaseError("factory.sop.save_structure", error);
     const sopId = Array.isArray(result) ? result[0]?.sop_id : result?.sop_id;
     if (!sopId) throw new Error("Production SOP save did not return an SOP id.");

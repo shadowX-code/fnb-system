@@ -11,6 +11,7 @@ import { todayInput, formatFactoryDate } from "../../utils/factoryDates.js";
 import { percent, quantity, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../../utils/factoryFormatters.js";
 import { jobStatusLabel } from "../../utils/factoryStatus.js";
 import { productionSopDisplayName } from "../../utils/productionSop.js";
+import { finishedGoodFamiliesWithoutRecords } from "../../utils/factoryFamilyEligibility.js";
 
 function emptySopQcCheck(index = 0) {
   return {
@@ -104,8 +105,8 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
             : [],
       }))
     : [emptySopStep(0)];
-  const productOptions = productFamilies
-    .filter((family) => family.status === "active" || family.id === initialValue?.finished_good_id)
+  const eligibleProductFamilies = finishedGoodFamiliesWithoutRecords(productFamilies, sops, initialValue?.finished_good_id);
+  const productOptions = eligibleProductFamilies
     .map((family) => ({ value: family.id, label: family.name_en, helper: family.name_cn || family.category || "Finished Good" }));
   const [form, setForm] = useState(() => ({
     sop_code: "",
@@ -135,6 +136,10 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
   const recipeIngredientIds = new Set(recipeIngredients.map((item) => item.raw_material_id));
   const calculatedMinutes = form.steps.reduce((sum, step) => sum + sopStepEstimatedMinutes(step), 0);
   const qcPresetOptions = activeQcTemplates.map((template) => ({ value: template.id, label: template.name }));
+
+  if (!isEdit && !eligibleProductFamilies.length) {
+    return <Modal title="Create Production SOP" description="All Finished Goods already have an SOP. Create a new version from an existing SOP instead." size="md" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><EmptyState title="No eligible Finished Goods" description="All Finished Goods already have an SOP. Create a new version from an existing SOP instead." /></Modal>;
+  }
 
   function nextVersionForFinishedGood(finishedGoodId) {
     const maxVersion = sops.filter((sop) => sop.finished_good_id === finishedGoodId).reduce((max, sop) => Math.max(max, Number(String(sop.version || "").replace(/\D/g, "")) || 0), 0);
@@ -292,7 +297,7 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
         <section>
           <div className="mb-3 text-sm font-black text-text-primary">SOP Header</div>
           <div className="grid gap-3 md:grid-cols-3">
-            <Field label="Finished Good *"><SearchableSelect value={form.finished_good_id || ""} options={productOptions} placeholder="Select Finished Good" searchPlaceholder="Search finished goods" emptyText="No finished goods" disabled={isLocked} onChange={selectFinishedGood} /></Field>
+            <Field label="Finished Good *"><SearchableSelect value={form.finished_good_id || ""} options={productOptions} placeholder="Select Finished Good" searchPlaceholder="Search eligible finished goods" emptyText="All Finished Goods already have an SOP. Create a new version from an existing SOP instead." disabled={isLocked} onChange={selectFinishedGood} /></Field>
             <Field label="Version"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{form.version || "v1"}</div></Field>
             <Field label="Estimated Time"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className="text-sm font-bold text-text-primary">{sopMinutesLabel(calculatedMinutes)}</div><div className="text-[10.5px] font-semibold text-text-muted">Calculated from process steps</div></div></Field>
             <Field label="Effective Date"><FeedXDatePicker value={form.effective_date || ""} disabled={isLocked} onChange={(nextDate) => setForm((current) => ({ ...current, effective_date: nextDate }))} /></Field>
