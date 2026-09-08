@@ -785,6 +785,41 @@
     background-color: var(--theme-table-row-hover) !important;
   }
 
+  .factory-segmented-control {
+    display: inline-flex;
+    gap: 3px;
+    border: 1px solid var(--theme-border);
+    border-radius: var(--radius-control);
+    background: var(--theme-subtle);
+    padding: 3px;
+  }
+
+  .factory-segmented-control button {
+    min-height: 32px;
+    border-radius: calc(var(--radius-control) - 3px);
+    padding: 0 12px;
+    color: var(--theme-muted);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    transition: background-color 150ms ease, box-shadow 150ms ease, color 150ms ease;
+  }
+
+  .factory-segmented-control button:hover {
+    color: var(--theme-text);
+  }
+
+  .factory-segmented-control button:focus-visible {
+    outline: 2px solid color-mix(in srgb, var(--theme-primary) 55%, transparent);
+    outline-offset: 1px;
+  }
+
+  .factory-segmented-control button.is-active {
+    background: var(--theme-surface-raised);
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.10);
+    color: var(--theme-text);
+  }
+
   .factory-cell-text {
     display: grid;
     gap: 2px;

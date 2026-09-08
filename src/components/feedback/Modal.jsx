@@ -23,7 +23,7 @@ export default function Modal({
 
   return (
     <div className="fixed inset-0 z-modal-layer flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm">
-      <div role="dialog" aria-modal="true" aria-label={title} className={`relative z-modal-content-layer flex max-h-[85vh] w-full ${widthClass} flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-card ${panelClassName}`}>
+      <div role="dialog" aria-modal="true" aria-label={title} className={`relative z-modal-content-layer flex max-h-[85vh] w-full ${widthClass} flex-col overflow-hidden rounded-2xl border border-border bg-[var(--theme-surface-raised)] shadow-card ${panelClassName}`}>
         <div className="shrink-0 flex items-start justify-between gap-4 border-b border-border p-4">
           <div>
             <h2 className="type-title font-bold text-text-primary">{title}</h2>
@@ -37,7 +37,7 @@ export default function Modal({
           </div>
         </div>
         <div className={`min-h-0 flex-1 overflow-y-auto p-4 ${bodyClassName}`}>{children}</div>
-        {footer ? <div className={`sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t border-border bg-slate-50 p-3 ${footerClassName}`}>{footer}</div> : null}
+        {footer ? <div className={`sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t border-border bg-[var(--theme-surface-nested)] p-3 ${footerClassName}`}>{footer}</div> : null}
       </div>
     </div>
   );

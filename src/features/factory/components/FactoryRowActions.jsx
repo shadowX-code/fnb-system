@@ -15,8 +15,9 @@ export default function FactoryRowActions({ onView, viewLabel = "View details", 
     {onView ? <FactoryRowAction label={viewLabel} onClick={onView} /> : null}
     {visibleActions.map((action) => {
       const Icon = action.icon || Pencil;
+      const buttonClass = action.compact ? "btn-secondary h-7 gap-1 px-2 text-xs" : "btn-secondary h-8 px-2.5 text-xs";
       return action.variant === "button"
-        ? <button key={action.key || action.label} className="btn-secondary h-8 px-2.5 text-xs" type="button" disabled={action.disabled} onClick={action.onClick}>{action.icon ? <Icon size={14} /> : null}{action.label}</button>
+        ? <button key={action.key || action.label} className={buttonClass} type="button" disabled={action.disabled} onClick={action.onClick}>{action.icon ? <Icon size={14} /> : null}{action.label}</button>
         : <button key={action.key || action.label} className="icon-btn h-8 w-8" type="button" aria-label={action.label} title={action.label} disabled={action.disabled} onClick={action.onClick}><Icon size={16} /></button>;
     })}
     {directSingleSecondary && actions.length === 1 && !actions[0].destructive ? (() => { const action = actions[0]; const Icon = action.icon || Pencil; return <button className="icon-btn h-8 w-8" type="button" aria-label={action.label} title={action.label} disabled={action.disabled} onClick={action.onClick}><Icon size={16} /></button>; })() : null}

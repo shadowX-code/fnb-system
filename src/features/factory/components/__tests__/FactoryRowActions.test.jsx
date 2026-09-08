@@ -47,4 +47,12 @@ describe("FactoryRowActions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(archive).toHaveBeenCalledOnce();
   });
+
+  it("supports a direct compact destructive action when its owner confirms before mutation", () => {
+    const archive = vi.fn();
+    render(<FactoryRowActions directActions={[{ label: "Archive Packaging SKU", onClick: archive }]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Archive Packaging SKU" }));
+    expect(archive).toHaveBeenCalledOnce();
+  });
 });

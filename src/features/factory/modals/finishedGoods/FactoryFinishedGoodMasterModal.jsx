@@ -118,7 +118,7 @@ export default function FinishedGoodMasterModal({ initialValue, categories, stor
       onClose={saving ? undefined : onClose}
       footer={(
         <>
-          {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive</button> : <span />}
+          {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-secondary" type="button" disabled={saving} onClick={archive}>Archive</button> : <span />}
           <div className="flex gap-2">
             {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
             <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
@@ -130,13 +130,13 @@ export default function FinishedGoodMasterModal({ initialValue, categories, stor
       <form id="factory-finished-good-form" className="space-y-4" onSubmit={submit}>
         <div className="space-y-5">
           <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-            <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Finished Good</div>
+            <div className="text-[10.5px] font-semibold text-text-muted">Finished Good</div>
             <div className="mt-1 text-lg font-bold text-text-primary">{parentName}</div>
             <div className="mt-1 text-sm font-semibold text-text-secondary">Category: {parentCategory}</div>
             {fieldErrors.category_id ? <div className="mt-2 text-xs font-semibold text-rose-600">Edit the Finished Good and select a category before adding Packaging SKUs.</div> : null}
           </section>
 
-          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+          <section className="space-y-3 rounded-2xl border border-border bg-[var(--theme-subtle)] p-4">
             <Field label="SKU Code *" error={fieldErrors.product_code}>
               <input ref={(node) => { fieldRefs.current.product_code = node; }} className={inputClass(fieldErrors.product_code)} value={form.product_code || ""} onChange={(event) => {
                 setFieldErrors((current) => ({ ...current, product_code: "" }));
@@ -183,7 +183,7 @@ export default function FinishedGoodMasterModal({ initialValue, categories, stor
                 />
               </Field>
             </div>
-            <div className="rounded-xl border border-border bg-white px-3 py-2">
+            <div className="rounded-xl border border-border bg-[var(--theme-surface-raised)] px-3 py-2">
               <div className="text-[10.5px] font-semibold text-text-muted">Display</div>
               <div className="mt-1 text-sm font-bold text-text-primary">{packagingSkuDisplayName(form)}</div>
             </div>
@@ -260,7 +260,7 @@ export default function FinishedGoodMasterModal({ initialValue, categories, stor
             </Field>
           </section>
 
-          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+          <section className="space-y-3 rounded-2xl border border-border bg-[var(--theme-subtle)] p-4">
             <div>
               <div className="text-sm font-semibold text-text-primary">Notes</div>
               <div className="mt-1 text-sm text-text-secondary">Internal remarks for warehouse and production teams.</div>
