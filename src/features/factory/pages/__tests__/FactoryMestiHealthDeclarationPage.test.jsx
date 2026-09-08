@@ -26,6 +26,38 @@ describe("FactoryMestiHealthDeclarationPage", () => {
     expect(screen.getByLabelText("Fever").checked).toBe(false);
   });
 
+  it("presents the separately selectable symptom taxonomy", async () => {
+    render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Visitor Declaration" }));
+    ["Vomiting", "Sore throat", "Skin infection / open wound", "Eye infection / discharge", "Ear infection / discharge", "Nose infection / discharge"].forEach((name) => {
+      expect(screen.getByLabelText(name)).toBeTruthy();
+    });
+    expect(screen.queryByLabelText("Ear / nose / eye infection")).toBeNull();
+  });
+
+  it("requires Other symptom detail and submits only canonical symptom codes", async () => {
+    render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Visitor Declaration" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Visitor Name" }), { target: { value: "QA Visitor" } });
+    fireEvent.click(screen.getByLabelText("Other"));
+    const detail = screen.getByRole("textbox", { name: "Please specify" });
+    expect(detail.required).toBe(true);
+    fireEvent.change(detail, { target: { value: "Temporary symptom" } });
+    fireEvent.click(screen.getByLabelText("Eye infection / discharge"));
+    fireEvent.click(screen.getByRole("button", { name: "Submit Declaration" }));
+    await waitFor(() => expect(factoryService.submitMestiHealthDeclaration).toHaveBeenCalledWith(expect.objectContaining({
+      symptoms: ["eye_infection_discharge", "other"],
+      other_symptom_detail: "Temporary symptom",
+      entry_decision: "entry_restricted",
+    })));
+  });
+
+  it("renders the historical combined symptom safely without offering it for new declarations", async () => {
+    factoryService.listMestiHealthDeclarations.mockResolvedValue([{ id: "legacy-combined", declaration_type: "visitor", declared_at: "2026-09-08T08:00:00Z", visitor_name: "Historic visitor", health_status: "health_issue_declared", symptoms: ["ear_nose_eye_infection"], recorded_by_name: "Outlet Historic Actor" }]);
+    render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
+    expect(await screen.findByText("Ear / nose / eye infection (legacy)")).toBeTruthy();
+  });
+
   it("submits visitor evidence through the canonical trusted service with the derived entry defaults", async () => {
     render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
     fireEvent.click(await screen.findByRole("button", { name: "Visitor Declaration" }));
