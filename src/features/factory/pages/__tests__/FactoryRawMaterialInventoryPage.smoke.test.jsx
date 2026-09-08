@@ -15,10 +15,20 @@ afterEach(cleanup);
 describe("FactoryRawMaterialInventoryPage smoke", () => {
   it("renders inventory, filters it, uses the image fallback, and opens detail without edit access", () => {
     renderPage((key) => key === "factory_raw_inventory.view");
-    expect(screen.getByText("Chili")).not.toBeNull(); expect(screen.getAllByText("Low Stock").length).toBeGreaterThan(0); expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.getByText("Chili")).not.toBeNull(); expect(screen.getAllByText("Low Stock").length).toBeGreaterThan(0); expect(screen.getByText("Active")).not.toBeNull(); expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     fireEvent.change(screen.getByPlaceholderText("Search material/code"), { target: { value: "missing" } }); expect(screen.getByText("No raw materials")).not.toBeNull();
     fireEvent.change(screen.getByPlaceholderText("Search material/code"), { target: { value: "Chili" } }); fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByText("Material Record")).not.toBeNull(); expect(screen.getByText("Dry Store A")).not.toBeNull();
+  });
+
+  it("keeps lifecycle status independent from stock condition and exposes direct master actions", () => {
+    const archived = { ...material, id: "rm-archived", name: "Archived Chili", current_balance: 0, status: "archived" };
+    const saveRawMaterial = vi.fn().mockResolvedValue({ ...archived, status: "active" });
+    const archiveRawMaterial = vi.fn();
+    render(<FactoryPermissionsProvider permissionSet={[]} can={(key) => ["factory_raw_inventory.view", "factory_raw_inventory.edit"].includes(key)}><FactoryMasterDataProvider data={{ ...data, rawMaterials: [material, archived] }}><FactoryNavigationProvider {...navigation} saveRawMaterial={saveRawMaterial} archiveRawMaterial={archiveRawMaterial}><FactoryRawMaterialInventoryPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
+    expect(screen.queryByRole("columnheader", { name: "Code" })).toBeNull(); expect(screen.queryByRole("columnheader", { name: "Category" })).toBeNull(); expect(screen.queryByRole("columnheader", { name: "UOM" })).toBeNull();
+    expect(screen.getAllByText("CHI · Spices").length).toBeGreaterThan(0); expect(screen.getByRole("button", { name: "Edit" })).not.toBeNull(); expect(screen.getByRole("button", { name: "Archive" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Restore" })); expect(saveRawMaterial).toHaveBeenCalledWith(expect.objectContaining({ id: "rm-archived", status: "active" }));
   });
 
   it("keeps every collection boundary safe for empty, missing, and permission-cleared master data", () => {

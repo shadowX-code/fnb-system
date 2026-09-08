@@ -4,7 +4,7 @@ import { useFactoryPagedQuery } from "../components/FactoryPagination.jsx";
 import useFactoryPermissions from "./useFactoryPermissions.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 
-const initialFilters = { product: "", category: "", batch: "", movementType: "", dateFrom: "", dateTo: "" };
+const initialFilters = { search: "", category: "", movementType: "", dateFrom: "", dateTo: "" };
 
 export default function useProductMovementsQuery({ onNotify, onPermissionDenied }) {
   const { can, permissionSet } = useFactoryPermissions();

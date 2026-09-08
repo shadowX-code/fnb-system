@@ -3533,6 +3533,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openCreateRawMaterial={() => setModal({ type: "raw-material" })}
           openEditRawMaterial={(material) => setModal({ type: "raw-material", value: material })}
           saveRawMaterial={saveRawMaterial}
+          archiveRawMaterial={archiveRawMaterial}
           importRawMaterials={importRawMaterials}
           openRawMaterialCost={(material) => setModal({ type: "raw-material-cost", material })}
           openRawMaterialImage={(material) => setModal({ type: "raw-material-image", material })}

@@ -1929,19 +1929,18 @@ export const factoryService = {
     const params = {
       p_date_from: filters.dateFrom || null,
       p_date_to: filters.dateTo || null,
-      p_product_search: String(filters.product || "").trim() || null,
+      p_search: String(filters.search || "").trim() || null,
       p_category_id: databaseUuid(filters.category),
       p_movement_type: String(filters.movementType || "").trim() || null,
-      p_batch_source_search: String(filters.batch || "").trim() || null,
     };
     const [pageResult, summaryResult] = await Promise.all([
       supabase
-        .rpc("factory_list_product_movements", params, { count: "exact" })
+        .rpc("factory_list_product_movements_global_search", params, { count: "exact" })
         .order("movement_date", { ascending: false })
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .range(from, to),
-      supabase.rpc("factory_product_movements_summary", params),
+      supabase.rpc("factory_product_movements_global_search_summary", params),
     ]);
     throwSupabaseError("factory.product_movements.page", pageResult.error);
     throwSupabaseError("factory.product_movements.summary", summaryResult.error);

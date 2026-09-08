@@ -74,6 +74,29 @@ describe("Factory stock-changing trusted RPC contracts", () => {
     });
   });
 
+  it("uses one canonical Product Movement search across product, SKU, batch, and source evidence", async () => {
+    const pageQuery = {
+      order: vi.fn(),
+      range: vi.fn(),
+    };
+    pageQuery.order.mockReturnValue(pageQuery);
+    pageQuery.range.mockResolvedValue({ data: [], count: 0, error: null });
+    mocks.rpc.mockImplementation((name) => name === "factory_list_product_movements_global_search"
+      ? pageQuery
+      : Promise.resolve({ data: { stock_in_count: 0, stock_out_count: 0, filtered_skus: [], movement_types: [], categories: [] }, error: null }));
+
+    await factoryService.listProductMovementsPage({
+      filters: { search: "PB-01", dateFrom: "2026-09-01", dateTo: "2026-09-08", category: "11111111-1111-4111-8111-111111111111", movementType: "Dispatch" },
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_list_product_movements_global_search", {
+      p_date_from: "2026-09-01", p_date_to: "2026-09-08", p_search: "PB-01", p_category_id: "11111111-1111-4111-8111-111111111111", p_movement_type: "Dispatch",
+    }, { count: "exact" });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_product_movements_global_search_summary", {
+      p_date_from: "2026-09-01", p_date_to: "2026-09-08", p_search: "PB-01", p_category_id: "11111111-1111-4111-8111-111111111111", p_movement_type: "Dispatch",
+    });
+  });
+
   it("maps MeSTI Cleaning requirements to its trusted authority without role settings", async () => {
     const requirement = { task_name: "Floor", location_ids: ["loc-1", "loc-2"], recurrence_type: "daily" };
     mocks.rpc.mockResolvedValue({ data: { id: "req-1", ...requirement, location_names: ["Cooking", "Dry Store"] }, error: null });

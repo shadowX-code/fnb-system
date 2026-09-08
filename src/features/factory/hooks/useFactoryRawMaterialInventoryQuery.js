@@ -25,7 +25,7 @@ export default function useFactoryRawMaterialInventoryQuery({ filters }) {
       const latest = latestCost(receivingRows, material); const balance = Number(material.current_balance || 0); const converted = latest.missing ? null : convert(balance, material.uom, latest.uom);
       return { ...material, last_receiving_date: lastReceiving?.received_date || "", last_consumption_date: lastConsumption?.movement_date || "", latest_cost: latest.unitCost, latest_cost_uom: latest.uom, latest_cost_missing: latest.missing, latest_cost_source: latest.source, latest_cost_unsupported: !latest.missing && converted == null, inventory_value: converted == null ? null : converted * latest.unitCost, stock_status: balance <= 0 ? "Out of Stock" : Number(material.min_stock_level || 0) > 0 && balance <= Number(material.min_stock_level) ? "Low Stock" : "In Stock" };
     });
-    const rows = allRows.filter((row) => includesText(`${row.name} ${row.name_en} ${row.name_cn} ${row.name_bm} ${row.material_code}`, filters.material) && (!filters.status || row.status === filters.status || row.stock_status === filters.status) && (!filters.category || row.category_id === filters.category || row.category === filters.category));
+    const rows = allRows.filter((row) => includesText(`${row.name} ${row.name_en} ${row.name_cn} ${row.name_bm} ${row.material_code}`, filters.material) && (!filters.status || row.status === filters.status) && (!filters.category || row.category_id === filters.category || row.category === filters.category));
     return { rows, allRows, categories, loading: false, error: "", errorKind: "", retry: () => {} };
   }, [can, categories, filters, materials, movementRows, receivingRows]);
 }
