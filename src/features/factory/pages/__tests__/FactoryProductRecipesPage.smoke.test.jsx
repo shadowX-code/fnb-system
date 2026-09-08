@@ -21,18 +21,28 @@ describe("FactoryProductRecipesPage", () => {
   it("renders grouped Draft and Active Recipes, opens detail, and exposes only permitted actions", () => {
     renderPage(["factory_product_recipes.view", "factory_product_recipes.edit"]);
     expect(screen.getByText("Product Recipes / BOM")).not.toBeNull();
+    expect(screen.queryByText("Recipe Records")).toBeNull();
     expect(screen.getByText("v1")).not.toBeNull(); expect(screen.getByText("v2")).not.toBeNull();
-    expect(screen.getAllByRole("button", { name: "Edit" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "Edit Recipe" }).length).toBeGreaterThan(0);
     expect(screen.queryByRole("button", { name: "Activate" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Delete" })).toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(screen.getByText("BOM Materials")).not.toBeNull();
+  });
+
+  it("filters grouped recipes through the shared Factory filter bar and clears the active filter", () => {
+    renderPage(["factory_product_recipes.view"]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), { target: { value: "v2" } });
+    expect(screen.getByText("Filtered by")).not.toBeNull();
+    expect(screen.queryByText("v1")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getByText("v1")).not.toBeNull();
   });
 
   it("keeps lifecycle and Create Recipe controls hidden for View-only users", () => {
     renderPage(["factory_product_recipes.view"]);
     expect(screen.queryByRole("button", { name: "Create Recipe" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit Recipe" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Activate" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
   });

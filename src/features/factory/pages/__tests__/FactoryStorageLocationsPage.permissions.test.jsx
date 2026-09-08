@@ -17,7 +17,7 @@ describe("Storage Location permission rendering", () => {
     expect(screen.getByRole("button", { name: /^location$/i })).not.toBeNull(); expect(screen.queryByRole("button", { name: "Edit" })).toBeNull(); expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
   });
   it("shows only the operation granted by Edit or Delete", () => {
-    const edit = renderPage(["factory_storage_locations.view", "factory_storage_locations.edit"]); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); expect(screen.getByRole("button", { name: "Edit" })).not.toBeNull(); expect(screen.queryByRole("button", { name: "Archive" })).toBeNull(); edit.unmount();
+    const edit = renderPage(["factory_storage_locations.view", "factory_storage_locations.edit"]); expect(screen.getByRole("button", { name: "Edit Location" })).not.toBeNull(); expect(screen.queryByRole("button", { name: "More row actions" })).toBeNull(); edit.unmount();
     renderPage(["factory_storage_locations.view", "factory_storage_locations.delete"]); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); expect(screen.queryByRole("button", { name: "Edit" })).toBeNull(); expect(screen.getByRole("button", { name: "Archive" })).not.toBeNull();
   });
 });

@@ -23,19 +23,30 @@ describe("FactoryProductionSopPage smoke", () => {
     renderPage(["factory_production_sop.view", "factory_production_sop.create", "factory_production_sop.edit", "factory_production_sop.delete", "factory_production_sop.manage"]);
     expect(screen.getByText("Sambal")).not.toBeNull();
     expect(screen.getByText("Legacy Sambal")).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    expect(screen.queryByText("Production SOP Records")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(screen.getByText("Legacy temperature")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
     fireEvent.click(screen.getByRole("button", { name: "Create SOP" }));
     expect(screen.getByText("Create Production SOP")).not.toBeNull();
   });
 
+  it("filters grouped SOP versions through the shared Factory filter bar and clears the active filter", () => {
+    renderPage(["factory_production_sop.view"]);
+    fireEvent.change(screen.getByRole("textbox", { name: "Search" }), { target: { value: "legacy" } });
+    expect(screen.getByText("Filtered by")).not.toBeNull();
+    expect(screen.queryByText("Sambal")).toBeNull();
+    expect(screen.getByText("Legacy Sambal")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getAllByText("Sambal").length).toBeGreaterThan(0);
+  });
+
   it("keeps View-only SOP presentation read-only and hides lifecycle, builder, and QC management controls", () => {
     renderPage(["factory_production_sop.view"]);
-    expect(screen.getByText("Production SOP Records")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Production SOP" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Create SOP" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Manage QC Checks" })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit SOP" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Activate" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Archive" })).toBeNull();
   });
