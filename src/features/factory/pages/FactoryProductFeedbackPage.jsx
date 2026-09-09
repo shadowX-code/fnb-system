@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ClipboardList, Copy, Eye, Link2, Pencil, Plus, QrCode, Trash2 } from "lucide-react";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -24,7 +24,17 @@ function displayAnswer(value) { return Array.isArray(value) ? value.join(", ") :
 const campaignContentDefaults = (campaign = {}) => ({ title: { en: campaign.name || "", zh: "", ms: "" }, description: { en: "", zh: "", ms: "" }, intro_title: { en: "", zh: "", ms: "" }, intro_body: { en: "", zh: "", ms: "" }, thank_you_title: { en: "Thank you", zh: "谢谢您的反馈", ms: "Terima kasih" }, thank_you_body: { en: campaign.thank_you_en || "", zh: campaign.thank_you_zh || "", ms: "" } });
 export function productFeedbackCampaignEditorState(campaign = {}) {
   const defaults = campaignContentDefaults(campaign); const content = campaign.content || {};
-  return { ...campaign, questions: campaign.questions?.length ? campaign.questions : sambalFeedbackTemplate, content: { ...defaults, ...content, ...Object.fromEntries(Object.keys(defaults).map((key) => [key, { ...defaults[key], ...(content[key] || {}) }])) }, branding: { ...(campaign.branding || {}) } };
+  return { ...campaign, questions: campaign.questions?.length ? campaign.questions : sambalFeedbackTemplate, content: { ...defaults, ...content, ...Object.fromEntries(Object.keys(defaults).map((key) => [key, { ...defaults[key], ...(content[key] || {}) }])) }, branding: campaign.branding && typeof campaign.branding === "object" && !Array.isArray(campaign.branding) ? { ...campaign.branding } : {} };
+}
+
+const campaignBrandingAssetFields = new Set(["logo_url", "hero_url", "thank_you_image_url"]);
+
+export function applyCampaignBrandingAsset(form, field, publicUrl) {
+  if (!campaignBrandingAssetFields.has(field)) throw new Error("Unsupported campaign branding asset.");
+  const value = String(publicUrl || "").trim();
+  if (!value) throw new Error("Image upload did not return a usable asset.");
+  const branding = form?.branding && typeof form.branding === "object" && !Array.isArray(form.branding) ? form.branding : {};
+  return { ...form, branding: { ...branding, [field]: value } };
 }
 
 export default function FactoryProductFeedbackPage({ auth, onNotify }) {
@@ -118,22 +128,30 @@ export function CampaignEditorModal({ campaign, finishedGoods, onClose, onSave, 
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
   const [translating, setTranslating] = useState(false);
+  const uploadRequest = useRef(0);
+  const isMounted = useRef(true);
+  useEffect(() => () => { isMounted.current = false; }, []);
   const updateContent = (field, value) => setForm((current) => ({ ...current, content: { ...current.content, [field]: { ...(current.content?.[field] || {}), [language]: value } } }));
-  const updateBranding = (field, value) => setForm((current) => ({ ...current, branding: { ...current.branding, [field]: value } }));
+  const updateBranding = (field, value) => setForm((current) => ({ ...current, branding: { ...(current.branding && typeof current.branding === "object" ? current.branding : {}), [field]: value } }));
   const upload = async (event, field) => {
-    const file = event.target.files?.[0];
-    event.target.value = "";
+    const input = event.currentTarget;
+    const file = input?.files?.[0];
+    if (input) input.value = "";
     if (!file) return;
+    const requestId = ++uploadRequest.current;
     setUploading(field); setUploadError(null);
     try {
-      // Keep the persisted asset intact until this campaign save succeeds.
       const image = await factoryService.uploadProductFeedbackImage(file, form, field);
-      updateBranding(field, image.publicUrl);
+      if (requestId !== uploadRequest.current || !isMounted.current) return;
+      setForm((current) => applyCampaignBrandingAsset(current, field, image?.publicUrl));
     } catch (error) {
+      if (requestId !== uploadRequest.current || !isMounted.current) return;
       const message = error.message || "Unable to upload this image.";
       setUploadError({ field, message });
       onNotify?.({ title: "Image upload failed", message, tone: "error" });
-    } finally { setUploading(""); }
+    } finally {
+      if (requestId === uploadRequest.current && isMounted.current) setUploading("");
+    }
   };
   const translateContent = async () => {
     const fields = ["title", "description", "intro_title", "intro_body", "thank_you_title", "thank_you_body"];

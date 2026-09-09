@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../FactoryProductFeedbackPublic.jsx";
-import { CampaignEditorModal, campaignSummaryCards, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
+import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
 
@@ -77,6 +77,17 @@ describe("Factory Product Feedback public contract", () => {
     expect(form.branding.hero_url).toBe("https://cdn.example/hero.webp");
   });
 
+  it("updates only the requested branding asset and rejects malformed upload results", () => {
+    const form = { name: "Sambal", content: { title: { en: "Sambal" } }, questions: sambalFeedbackTemplate, branding: { logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero.webp" } };
+    expect(applyCampaignBrandingAsset(form, "hero_url", "https://cdn.example/new-hero.webp")).toEqual(expect.objectContaining({
+      content: form.content,
+      questions: form.questions,
+      branding: { logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/new-hero.webp" },
+    }));
+    expect(() => applyCampaignBrandingAsset(form, "hero_url", "")).toThrow("usable asset");
+    expect(() => applyCampaignBrandingAsset(form, "unexpected", "https://cdn.example/image.webp")).toThrow("Unsupported");
+  });
+
   it("uses previews rather than storage URLs and saves branding with unrelated edits", async () => {
     const onSave = vi.fn().mockResolvedValue({});
     render(<CampaignEditorModal campaign={{ id: "campaign-1", name: "Sambal", questions: sambalFeedbackTemplate, branding: { logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero.webp", thank_you_image_url: "https://cdn.example/thanks.webp", primary_color: "#137a44", accent_color: "#1863a8" } }} finishedGoods={[]} onClose={vi.fn()} onSave={onSave} onNotify={vi.fn()} />);
@@ -109,6 +120,29 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.queryByAltText("Logo preview")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Campaign" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ branding: expect.objectContaining({ logo_url: null }) })));
+  });
+
+  it("keeps form state and prior assets intact across failed and repeated replacements", async () => {
+    const onSave = vi.fn().mockResolvedValue({});
+    const onNotify = vi.fn();
+    factoryService.uploadProductFeedbackImage
+      .mockRejectedValueOnce(new Error("Upload unavailable"))
+      .mockResolvedValueOnce({ publicUrl: "https://cdn.example/hero-v2.webp" })
+      .mockResolvedValueOnce({ publicUrl: "https://cdn.example/hero-v3.webp" });
+    render(<CampaignEditorModal campaign={{ id: "campaign-1", name: "Sambal", questions: sambalFeedbackTemplate, branding: { logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero-v1.webp", thank_you_image_url: "https://cdn.example/thanks.webp" } }} finishedGoods={[]} onClose={vi.fn()} onSave={onSave} onNotify={onNotify} />);
+    const inputs = () => [...document.querySelectorAll('input[type="file"]')];
+    const first = new File(["first"], "hero-one.png", { type: "image/png" });
+    fireEvent.change(inputs()[1], { target: { files: [first] } });
+    await waitFor(() => expect(onNotify).toHaveBeenCalledWith(expect.objectContaining({ title: "Image upload failed" })));
+    expect(screen.getByAltText("Hero / poster preview").getAttribute("src")).toBe("https://cdn.example/hero-v1.webp");
+    fireEvent.change(inputs()[1], { target: { files: [new File(["second"], "hero-two.png", { type: "image/png" })] } });
+    await waitFor(() => expect(screen.getByAltText("Hero / poster preview").getAttribute("src")).toBe("https://cdn.example/hero-v2.webp"));
+    fireEvent.change(inputs()[1], { target: { files: [new File(["third"], "hero-three.png", { type: "image/png" })] } });
+    await waitFor(() => expect(screen.getByAltText("Hero / poster preview").getAttribute("src")).toBe("https://cdn.example/hero-v3.webp"));
+    expect(screen.getByAltText("Logo preview").getAttribute("src")).toBe("https://cdn.example/logo.webp");
+    expect(screen.getByAltText("Thank-you artwork preview").getAttribute("src")).toBe("https://cdn.example/thanks.webp");
+    fireEvent.click(screen.getByRole("button", { name: "Save Campaign" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ branding: expect.objectContaining({ hero_url: "https://cdn.example/hero-v3.webp", logo_url: "https://cdn.example/logo.webp", thank_you_image_url: "https://cdn.example/thanks.webp" }) })));
   });
 
   it("shows campaign context with Question 1 and preserves answers and language", async () => {
