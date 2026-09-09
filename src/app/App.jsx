@@ -14,9 +14,11 @@ import { purchaseRecordService } from "../services/purchaseRecordService.js";
 import { operatingExpenseService } from "../services/operatingExpenseService.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
+import PublicHomepage from "../auth/PublicHomepage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
 import { getSidebarSections } from "../../config/modules.ts";
+import { isPublicSurface } from "./hostnameRouting.js";
 
 const outletCacheKey = "feedx.cachedOutlets";
 
@@ -268,6 +270,7 @@ function RbacDiagnosticsPanel({ auth, loads }) {
 }
 
 export default function App() {
+  if (isPublicSurface()) return <PublicHomepage />;
   const auth = useAuth();
   const authOutletScopeKey = useMemo(
     () => `${auth.profile?.role_outlet_access_type ?? auth.profile?.role?.outlet_access_type ?? ""}|${(auth.profile?.role_outlet_ids ?? auth.profile?.roleOutletIds ?? []).join("|")}`,

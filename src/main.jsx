@@ -2,6 +2,7 @@ import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./app/App.jsx";
 import { AuthProvider } from "./auth/AuthContext.jsx";
+import { isPublicSurface } from "./app/hostnameRouting.js";
 import "./styles/index.css";
 
 try {
@@ -16,8 +17,6 @@ try {
 
 createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    <AuthProvider>
-      <App />
-    </AuthProvider>
+    {isPublicSurface() ? <App /> : <AuthProvider><App /></AuthProvider>}
   </React.StrictMode>,
 );

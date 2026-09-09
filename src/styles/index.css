@@ -1696,6 +1696,70 @@
   }
 }
 
+/* feedx.my is a public-only presentation of the existing FeedX visual shell. */
+.feedx-public-grid {
+  grid-template-columns: minmax(19rem, 0.78fr) minmax(32rem, 1.72fr);
+  gap: clamp(1.25rem, 3vw, 4rem);
+}
+
+.feedx-public-grid .feedx-hologram {
+  min-height: min(92vh, 64rem);
+}
+
+.feedx-public-grid .feedx-hologram-art-wrap,
+.feedx-public-grid .feedx-hologram-particles {
+  width: clamp(94rem, 118vw, 126rem);
+}
+
+@media (max-width: 1023px) {
+  .feedx-public-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+    padding: 1.25rem;
+  }
+
+  .feedx-public-grid .feedx-brand-panel {
+    padding: 0.75rem 0 0;
+  }
+
+  .feedx-public-grid .feedx-hologram {
+    display: grid;
+    min-height: clamp(24rem, 58vw, 34rem);
+    margin-top: -2.5rem;
+  }
+
+  .feedx-public-grid .feedx-hologram-art-wrap,
+  .feedx-public-grid .feedx-hologram-particles {
+    width: clamp(46rem, 108vw, 68rem);
+  }
+}
+
+@media (max-width: 640px) {
+  .feedx-public-grid {
+    min-height: 100svh;
+    padding: 0.9rem 1rem 1.25rem;
+  }
+
+  .feedx-public-grid .feedx-brand-panel {
+    gap: 0.8rem;
+    padding: 0.25rem 0 0;
+  }
+
+  .feedx-public-grid .feedx-feature-list {
+    margin-top: 0.15rem;
+  }
+
+  .feedx-public-grid .feedx-hologram {
+    min-height: clamp(20rem, 74vw, 28rem);
+    margin-top: -1.4rem;
+  }
+
+  .feedx-public-grid .feedx-hologram-art-wrap,
+  .feedx-public-grid .feedx-hologram-particles {
+    width: clamp(33rem, 140vw, 48rem);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .feedx-brand-panel::before,
   .feedx-dashboard-visual,
