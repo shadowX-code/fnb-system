@@ -47,6 +47,10 @@ Growth/Performance, Reward, Learn, Cash Checkout, and Leave components use route
 
 ## Canonical Routing
 
+### Production Host Surfaces
+
+Production separates the public and operational browser surfaces by hostname. `feedx.my` is a public-only branded homepage using the shared FeedX login visual shell without any authentication controls. Its routing middleware redirects every non-root path to the public root, while the browser surface also normalizes hash deep links to that root. `os.feedx.my` is the canonical Admin/OS hostname and preserves the existing Admin login, hash deep links, Auth, RBAC, and RLS behavior. `feedx-os.vercel.app` remains an operational fallback. This hostname routing is Production-specific; Staging remains unchanged, and hostnames are presentation/routing boundaries rather than authorization boundaries.
+
 ### Admin Async Feature Boundaries
 
 The route registry owns one React lazy component identity each for Factory Workspace, Inventory Control, and Asset Tracking. Existing aliases/subroutes reuse that identity and pass their existing route props; Factory remains one workspace implementation, not a collection of independently owned route fragments. Dashboard-required services and read projections remain shared rather than copied into the delayed management pages.

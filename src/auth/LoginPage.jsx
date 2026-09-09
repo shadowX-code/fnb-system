@@ -98,6 +98,22 @@ export function AuthBrandPanel() {
   );
 }
 
+export function FeedXVisualShell({ children, variant = "auth" }) {
+  return (
+    <main className="feedx-login-shell">
+      <ParticleField />
+      <div className="feedx-login-glow feedx-login-glow-a" />
+      <div className="feedx-login-glow feedx-login-glow-b" />
+
+      <div className={`feedx-login-grid ${variant === "public" ? "feedx-public-grid" : ""}`}>
+        <AuthBrandPanel />
+        <HolographicRing />
+        {children}
+      </div>
+    </main>
+  );
+}
+
 export default function LoginPage() {
   const auth = useAuth();
   const [email, setEmail] = useState("");
@@ -137,17 +153,8 @@ export default function LoginPage() {
     }
   }
 
-  return (
-    <main className="feedx-login-shell">
-      <ParticleField />
-      <div className="feedx-login-glow feedx-login-glow-a" />
-      <div className="feedx-login-glow feedx-login-glow-b" />
-
-      <div className="feedx-login-grid">
-        <AuthBrandPanel />
-        <HolographicRing />
-
-        <section className="feedx-auth-panel">
+  return <FeedXVisualShell>
+    <section className="feedx-auth-panel">
           <div className="feedx-auth-card">
             <div>
               <h2 className="feedx-auth-title">Access Your <span>Operations Center</span></h2>
@@ -224,8 +231,6 @@ export default function LoginPage() {
               Your data is encrypted and secure
             </div>
           </div>
-        </section>
-      </div>
-    </main>
-  );
+    </section>
+  </FeedXVisualShell>;
 }
