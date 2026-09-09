@@ -120,22 +120,23 @@
 
 .feedback-choice-options button:hover,
 .feedback-price-options button:hover,
-.feedback-multi-options button:hover,
 .feedback-image-options button:hover { border-color: color-mix(in srgb, var(--feedback-primary) 45%, var(--border-subtle)); }
 .feedback-choice-options button.selected,
 .feedback-price-options button.selected,
-.feedback-multi-options button.selected,
 .feedback-image-options button.selected { border-color: var(--feedback-primary); background: color-mix(in srgb, var(--feedback-primary) 10%, var(--surface)); box-shadow: 0 0 0 1px color-mix(in srgb, var(--feedback-primary) 25%, transparent); }
 .feedback-choice-options button svg,
 .feedback-price-options button svg,
-.feedback-multi-options button svg,
 .feedback-image-options button svg { flex: 0 0 auto; color: transparent; }
 .feedback-choice-options button.selected svg,
 .feedback-price-options button.selected svg,
-.feedback-multi-options button.selected svg,
 .feedback-image-options button.selected svg { color: var(--feedback-primary); }
 
 .feedback-select-all { margin: 20px 0 -8px; color: var(--text-secondary, #64748b); font-size: 13px; font-weight: 650; }
+.feedback-multi-options button { justify-content: flex-start; border-radius: 9px; font-weight: 550; }
+.feedback-multi-options button:hover { border-color: color-mix(in srgb, var(--feedback-primary) 35%, var(--border-subtle)); }
+.feedback-multi-options button.selected { border-color: color-mix(in srgb, var(--feedback-primary) 62%, var(--border-subtle)); background: color-mix(in srgb, var(--feedback-primary) 6%, var(--surface)); box-shadow: none; }
+.feedback-multi-checkbox { display: grid; width: 20px; height: 20px; flex: 0 0 20px; place-items: center; border: 1.5px solid var(--text-muted, #94a3b8); border-radius: 4px; color: transparent; transition: background .15s ease, border-color .15s ease, color .15s ease; }
+.feedback-multi-options button.selected .feedback-multi-checkbox { border-color: var(--feedback-primary); background: var(--feedback-primary); color: #fff; }
 .feedback-question textarea { display: block; width: 100%; min-height: 138px; margin-top: 20px; padding: 14px; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 10px; resize: vertical; background: var(--surface-elevated, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 15px; }
 
 .feedback-rating { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }

@@ -107,9 +107,12 @@ describe("Factory Product Feedback public contract", () => {
     const questions = [{ key: "preferences", label_en: "Choose preferences", type: "multi_choice", required: true, min_selections: 1, options: [{ value: "taste", label_en: "Taste" }, { value: "texture", label_en: "Texture" }] }, { key: "comment", label_en: "Comment", type: "short_text", required: false, options: [] }];
     factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions } });
     render(<FactoryProductFeedbackPublic />);
-    expect(await screen.findByText("Select all that apply")).toBeTruthy();
+    expect(await screen.findByText("Select one or more")).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Taste" }).getAttribute("aria-checked")).toBe("false");
     expect(screen.getByRole("button", { name: /Continue · 0 selected/ }).disabled).toBe(true);
     fireEvent.click(screen.getByText("Taste"));
+    expect(screen.getByText("Select one or more · 1 selected")).toBeTruthy();
+    expect(screen.getByRole("checkbox", { name: "Taste" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("button", { name: /Continue · 1 selected/ }).disabled).toBe(false);
   });
 });
