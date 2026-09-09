@@ -20,13 +20,12 @@ describe("Factory Product Feedback public contract", () => {
     expect(isPublicProductFeedbackRoute()).toBe(true);
   });
 
-  it("preserves answers and language while moving through the mobile flow", async () => {
-    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", content: { title: { en: "Sambal tasting", zh: "参巴试吃", ms: "Rasa sambal" }, intro_title: { en: "Tell us about this sambal", zh: "告诉我们您对这款参巴的看法", ms: "Beritahu kami tentang sambal ini" } }, questions: sambalFeedbackTemplate.slice(0, 2) } });
+  it("shows campaign context with Question 1 and preserves answers and language", async () => {
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", content: { title: { en: "Sambal tasting", zh: "参巴试吃", ms: "Rasa sambal" }, description: { en: "A short tasting form", zh: "简短试吃表", ms: "Borang rasa ringkas" } }, questions: sambalFeedbackTemplate.slice(0, 2) } });
     render(<FactoryProductFeedbackPublic />);
-    await screen.findByText("Start feedback");
-    expect(screen.getByText("Tell us about this sambal")).toBeTruthy();
-    fireEvent.click(screen.getByText("Start feedback"));
     await screen.findByText("Usual spice tolerance");
+    expect(screen.getByText("Sambal tasting")).toBeTruthy();
+    expect(screen.getByText("A short tasting form")).toBeTruthy();
     fireEvent.click(screen.getByText("Mild"));
     await screen.findByText("How is the sambal spiciness?");
     fireEvent.click(screen.getByText("Back"));
@@ -39,7 +38,6 @@ describe("Factory Product Feedback public contract", () => {
   it("auto-advances a non-final single choice but never auto-submits the final answer", async () => {
     factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", questions: sambalFeedbackTemplate.slice(0, 2) } });
     render(<FactoryProductFeedbackPublic />);
-    fireEvent.click(await screen.findByText("Start feedback"));
     fireEvent.click(await screen.findByText("Mild"));
     await new Promise((resolve) => setTimeout(resolve, 220));
     expect(screen.getByRole("heading", { name: "How is the sambal spiciness?" })).toBeTruthy();
