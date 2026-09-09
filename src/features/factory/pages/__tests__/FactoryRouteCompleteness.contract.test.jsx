@@ -43,6 +43,7 @@ function setup() {
   vi.spyOn(factoryService, "listMestiRawMaterialControlStandards").mockResolvedValue([]);
   vi.spyOn(factoryService, "listMestiRawMaterialControlReceivingReport").mockResolvedValue([]);
   vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([]);
+  vi.spyOn(factoryService, "listProductFeedbackAdmin").mockResolvedValue({ campaigns: [], finished_goods: [] });
 }
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -66,8 +67,8 @@ describe("Factory route completeness contract", () => {
   });
 
   it("resolves every registered Factory route to its own labeled page instead of the generic Dashboard fallback", async () => {
-    expect(factoryModules).toHaveLength(31);
-    expect(factoryRoutes).toHaveLength(31);
+    expect(factoryModules).toHaveLength(32);
+    expect(factoryRoutes).toHaveLength(32);
 
     for (const module of factoryModules) {
       const route = factoryRoutes.find((candidate) => candidate.id === module.id);

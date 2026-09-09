@@ -44,6 +44,7 @@ Read these only when the task changes or depends on the corresponding cross-doma
 - [`domains/factory-production.md`](domains/factory-production.md): production planning, overview, job orders, execution, batches, and traceability.
 - [`domains/factory-warehouse.md`](domains/factory-warehouse.md): finished goods, dispatch, product movements, stock checks, raw receiving, and raw inventory.
 - [`domains/factory-master-data.md`](domains/factory-master-data.md): recipes/BOM, production SOP, storage/master data, suppliers, and customers owned by Factory.
+- [`domains/factory-product-feedback.md`](domains/factory-product-feedback.md): Factory tasting/R&D campaigns, anonymous token-bound response evidence, and analytics.
 
 ### Bounded Prototype
 

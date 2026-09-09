@@ -18,6 +18,7 @@ import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import CrewGuestFeedback, { isPublicFeedbackRoute } from "../features/crew/CrewGuestFeedback.jsx";
+import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../features/factory/FactoryProductFeedbackPublic.jsx";
 import { AuthProvider } from "../auth/AuthContext.jsx";
 import useToasts from "../components/feedback/useToasts.js";
 import { CrewAdminOutletProvider } from "../features/crew/context/CrewAdminOutletContext.jsx";
@@ -588,6 +589,10 @@ function AdminApp() {
   }
 
   const ui = { notify, confirm, navigate };
+
+  if (isPublicProductFeedbackRoute()) {
+    return <FactoryProductFeedbackPublic />;
+  }
 
   if (isPublicFeedbackRoute()) {
     return <CrewGuestFeedback />;

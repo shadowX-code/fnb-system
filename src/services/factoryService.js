@@ -1726,6 +1726,42 @@ export function factoryDataPlan(scope, hasPermission) {
 }
 
 export const factoryService = {
+  async listProductFeedbackAdmin() {
+    const { data, error } = await supabase.rpc("factory_product_feedback_admin_data", { p_campaign_id: null });
+    throwFactorySupabaseError("factory.listProductFeedbackAdmin", error);
+    return data || { campaigns: [], finished_goods: [] };
+  },
+
+  async getProductFeedbackCampaign(campaignId) {
+    const { data, error } = await supabase.rpc("factory_product_feedback_admin_data", { p_campaign_id: campaignId });
+    throwFactorySupabaseError("factory.getProductFeedbackCampaign", error);
+    return data;
+  },
+
+  async saveProductFeedbackCampaign(campaign) {
+    const { data, error } = await supabase.rpc("factory_product_feedback_save_campaign", { p_campaign: campaign });
+    throwFactorySupabaseError("factory.saveProductFeedbackCampaign", error);
+    return data;
+  },
+
+  async saveProductFeedbackVariant(variant) {
+    const { data, error } = await supabase.rpc("factory_product_feedback_save_variant", { p_variant: variant });
+    throwFactorySupabaseError("factory.saveProductFeedbackVariant", error);
+    return data;
+  },
+
+  async publicProductFeedbackEntry(token) {
+    const { data, error } = await supabase.rpc("factory_product_feedback_public_entry", { p_token: token });
+    throwFactorySupabaseError("factory.publicProductFeedbackEntry", error);
+    return data || { available: false };
+  },
+
+  async submitPublicProductFeedback({ token, answers, language, sessionToken }) {
+    const { data, error } = await supabase.rpc("factory_product_feedback_public_submit", { p_token: token, p_answers: answers, p_language: language || "en", p_session_token: sessionToken || null });
+    throwFactorySupabaseError("factory.submitPublicProductFeedback", error);
+    return data;
+  },
+
   async uploadRawMaterialImage(file, material = {}) {
     const safeName = String(material.material_code || material.name_en || material.name || "raw-material")
       .toLowerCase()

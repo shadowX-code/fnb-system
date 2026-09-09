@@ -29,6 +29,7 @@ vi.mock("../routes.jsx", () => ({ salesPurchaseRoutes: [
 ] }));
 vi.mock("../../layouts/AppShell.jsx", () => ({ default: ({ children }) => <main aria-label="Admin shell">{children}</main> }));
 vi.mock("../../features/crew/CrewGuestFeedback.jsx", () => ({ default: () => <h1>Feedback probe</h1>, isPublicFeedbackRoute: () => window.location.hash.startsWith("#feedback") || window.location.pathname.startsWith("/feedback/") }));
+vi.mock("../../features/factory/FactoryProductFeedbackPublic.jsx", () => ({ default: () => <h1>Product feedback probe</h1>, isPublicProductFeedbackRoute: () => window.location.pathname.startsWith("/feedback/product/") }));
 vi.mock("../../features/sales-purchase/services/operationsService.js", () => ({ operationsService: { getBootstrapData: () => ({ outlets: [], purchaseCategories: [] }) } }));
 vi.mock("../../services/outletService.js", () => ({ outletService: { listActiveOutlets: mocks.reads } }));
 vi.mock("../../services/supplierService.js", () => ({ supplierService: { listSuppliers: mocks.reads } }));

@@ -765,6 +765,7 @@ export const moduleRegistry: AppModule[] = [
   { id: "factory_mesti_waste_disposal", section: "MeSTI", label: "Waste Disposal Record", route: "/factory/mesti/waste-disposal-record", icon: "factory-mesti-waste-disposal", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, record: true, submit: true, verify: true } },
   { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },
   { id: "factory_mesti_food_processing_control", section: "MeSTI", label: "Food Processing Control", route: "/factory/mesti/food-processing-control", icon: "factory-mesti-food-processing-control", sidebar: true, workspace: "factory", permissions: {} },
+  { id: "factory_product_feedback", section: "Factory", label: "Product Feedback", route: "/factory/product-feedback", icon: "factory-product-feedback", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, manage: true } },
   {
     id: "factory_product_recipes",
     section: "Master Data",
