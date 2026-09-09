@@ -105,7 +105,11 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByAltText("Logo preview").closest("[data-preview-kind]")?.getAttribute("data-preview-kind")).toBe("logo");
     expect(screen.getByAltText("Hero / poster preview").closest("[data-preview-kind]")?.getAttribute("data-preview-kind")).toBe("hero");
     expect(screen.getByAltText("Thank-you artwork preview").closest("[data-preview-kind]")?.getAttribute("data-preview-kind")).toBe("thank-you");
-    expect(screen.getByRole("dialog").className).toContain("factory-product-feedback-campaign-modal");
+    const dialog = screen.getByRole("dialog");
+    expect(dialog.className).toContain("factory-product-feedback-campaign-modal");
+    // The modal shell must never become the scrolling ancestor of a hidden file input.
+    expect(dialog.className).toContain("overflow-clip");
+    expect(dialog.className).not.toContain("overflow-hidden");
   });
 
   it("uploads, replaces, and removes an image through branding state", async () => {
