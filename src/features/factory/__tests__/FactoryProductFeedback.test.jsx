@@ -14,6 +14,8 @@ describe("Factory Product Feedback public contract", () => {
     expect(sambalFeedbackTemplate.find((question) => question.key === "sambal_spiciness").options.map((item) => item.value)).toContain("Just right");
     expect(sambalFeedbackTemplate.find((question) => question.key === "sambal_spiciness").options.find((item) => item.value === "Just right")).toMatchObject({ label_zh: "刚刚好", label_ms: "Sesuai" });
     expect(sambalFeedbackTemplate.find((question) => question.key === "packaging_preference").type).toBe("image_choice");
+    expect(sambalFeedbackTemplate.find((question) => question.key === "overall_rating").analytics_role).toBe("overall_rating");
+    expect(sambalFeedbackTemplate.find((question) => question.key === "price_20g").options[0]).toMatchObject({ amount: 0.8, currency: "MYR", display_label: "RM0.80" });
   });
 
   it("recognizes the opaque Factory public route", () => {
@@ -93,5 +95,15 @@ describe("Factory Product Feedback public contract", () => {
     await new Promise((resolve) => setTimeout(resolve, 220));
     expect(factoryService.submitPublicProductFeedback).not.toHaveBeenCalled();
     expect(screen.getByText("Submit feedback")).toBeTruthy();
+  });
+
+  it("keeps multiple choice explicit and reports the selected count", async () => {
+    const questions = [{ key: "preferences", label_en: "Choose preferences", type: "multi_choice", required: true, min_selections: 1, options: [{ value: "taste", label_en: "Taste" }, { value: "texture", label_en: "Texture" }] }, { key: "comment", label_en: "Comment", type: "short_text", required: false, options: [] }];
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions } });
+    render(<FactoryProductFeedbackPublic />);
+    expect(await screen.findByText("Select all that apply")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Continue · 0 selected/ }).disabled).toBe(true);
+    fireEvent.click(screen.getByText("Taste"));
+    expect(screen.getByRole("button", { name: /Continue · 1 selected/ }).disabled).toBe(false);
   });
 });

@@ -24,6 +24,21 @@ const msOptionLabels = {
   "13–18": "13–18", "19–25": "19–25", "26–35": "26–35", "36–45": "36–45", "46+": "46+",
 };
 
+const questionRoles = {
+  overall_rating: "overall_rating",
+  purchase_intent: "purchase_intent",
+  sambal_spiciness: "taste_spiciness",
+  price_20g: "price_acceptance",
+};
+
+const priceOptions = [
+  ["RM0.80", 0.8],
+  ["RM1.00", 1],
+  ["RM1.50", 1.5],
+  ["RM2.00", 2],
+  ["RM2.50+", 2.5],
+];
+
 export const sambalFeedbackTemplate = [
   ["spice_tolerance", "Usual spice tolerance", "您平时能接受的辣度", "single_choice", ["Not spicy", "Mild", "Medium", "Very spicy", "Super spicy"]],
   ["sambal_spiciness", "How is the sambal spiciness?", "这款参巴辣度如何？", "single_choice", ["Too mild", "Just right", "Prefer spicier", "Too spicy"]],
@@ -33,9 +48,32 @@ export const sambalFeedbackTemplate = [
   ["purchase_intent", "Would you buy this?", "您会购买吗？", "single_choice", ["Yes", "Maybe", "No"]],
   ["matters_most", "What matters most to you?", "您最在意什么？", "multi_choice", ["Spiciness", "Aroma", "Texture", "Flavor", "Freshness", "Not oily", "Balanced sweetness", "Balanced saltiness"]],
   ["main_improvement", "What is the main improvement?", "最需要改善的是？", "single_choice", ["Spiciness", "Sweetness", "Saltiness", "Aroma", "Texture", "Packaging", "Portion", "Nothing — it’s good"]],
-  ["price_20g", "Acceptable price for a 20g pack", "20克包装可接受的价格", "price_choice", ["RM0.80", "RM1.00", "RM1.50", "RM2.00", "RM2.50+"]],
+  ["price_20g", "Acceptable price for a 20g pack", "20克包装可接受的价格", "price_choice", priceOptions],
   ["packaging_preference", "Packaging preference", "包装偏好", "image_choice", []],
   ["age", "Age range", "年龄范围", "single_choice", ["13–18", "19–25", "26–35", "36–45", "46+"]],
-].map(([key, labelEn, labelZh, type, options], order) => ({ key, label_en: labelEn, label_zh: labelZh, label_ms: bmLabels[labelEn] || labelEn, helper_en: "", helper_zh: "", helper_ms: "", type, required: key !== "packaging_preference", order: order + 1, options: options.map((value) => ({ value, label_en: value, label_zh: zhOptionLabels[value] || value, label_ms: msOptionLabels[value] || value })) }));
+].map(([key, labelEn, labelZh, type, options], order) => ({
+  key,
+  label_en: labelEn,
+  label_zh: labelZh,
+  label_ms: bmLabels[labelEn] || labelEn,
+  helper_en: "",
+  helper_zh: "",
+  helper_ms: "",
+  type,
+  required: key !== "packaging_preference",
+  order: order + 1,
+  analytics_role: questionRoles[key] || null,
+  analytics_target_value: key === "purchase_intent" ? "Yes" : key === "sambal_spiciness" ? "Just right" : null,
+  options: options.map((option) => {
+    const [value, amount] = Array.isArray(option) ? option : [option, null];
+    return {
+      value,
+      label_en: value,
+      label_zh: zhOptionLabels[value] || value,
+      label_ms: msOptionLabels[value] || value,
+      ...(amount === null ? {} : { amount, currency: "MYR", display_label: value }),
+    };
+  }),
+}));
 
 export const productFeedbackQuestionTypes = ["single_choice", "multi_choice", "rating", "price_choice", "short_text", "image_choice"];

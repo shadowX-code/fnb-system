@@ -15,7 +15,7 @@
     "qa:staging:crew-smoke": "node qa/staging/runStagingSmoke.mjs crew",
     "qa:staging:admin-smoke": "node qa/staging/runStagingSmoke.mjs admin",
     "test": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run",
-    "test:factory": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run src/features/factory"
+    "test:factory": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run --maxWorkers=1 src/features/factory"
   },
   "dependencies": {
     "@gsap/react": "^2.1.2",

@@ -8,6 +8,7 @@ Factory Product Feedback owns tasting and R&D campaign configuration, anonymous 
 - A campaign can use one shared link or optional variants, each with an opaque public token.
 - Questions are ordered campaign configuration. Response submission records the exact question snapshot and form version, so later campaign edits never reinterpret historical answers.
 - Campaign content supports English, Chinese, and Bahasa Malaysia. Admin-authenticated AI translation fills only missing draft content; generated copy remains editable before campaign save and never changes response snapshots.
+- Campaign questions may declare a small canonical analytics role (such as overall rating, purchase intent, spiciness, price acceptance, or a generic choice distribution). The trusted campaign analytics read model resolves KPIs from those roles, never by matching question wording. Price options may retain a display label while carrying structured amount and currency metadata.
 - Campaign branding is campaign-owned configuration for the public token-bound experience. It may provide logo, hero or completion artwork, and primary/accent colours without changing the public data boundary.
 - Responses are anonymous. A hashed local session token provides a repeat indicator only; it never blocks legitimate shared-device or variant submissions.
 
