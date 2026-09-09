@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../FactoryProductFeedbackPublic.jsx";
-import { CampaignEditorModal, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
+import { CampaignEditorModal, campaignSummaryCards, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 
 vi.mock("../../../services/factoryService.js", () => ({ factoryService: { publicProductFeedbackEntry: vi.fn(), submitPublicProductFeedback: vi.fn(), uploadProductFeedbackImage: vi.fn() } }));
@@ -16,6 +16,12 @@ describe("Factory Product Feedback public contract", () => {
     expect(sambalFeedbackTemplate.find((question) => question.key === "packaging_preference").type).toBe("image_choice");
     expect(sambalFeedbackTemplate.find((question) => question.key === "overall_rating").analytics_role).toBe("overall_rating");
     expect(sambalFeedbackTemplate.find((question) => question.key === "price_20g").options[0]).toMatchObject({ amount: 0.8, currency: "MYR", display_label: "RM0.80" });
+  });
+
+  it("renders only the campaign's canonical role-driven KPI cards", () => {
+    const cards = campaignSummaryCards({ responses: 3, kpis: [{ role: "overall_rating", question_key: "overall_rating", label: "Overall Rating", value: "4.5", tone: "success" }] });
+    expect(cards.map((item) => item.label)).toEqual(["Responses", "Overall Rating"]);
+    expect(campaignSummaryCards({ responses: 0, kpis: [] })).toEqual([expect.objectContaining({ label: "Responses", value: 0 })]);
   });
 
   it("recognizes the opaque Factory public route", () => {
