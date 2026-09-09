@@ -51,6 +51,7 @@ describe("Factory Product Feedback public contract", () => {
     fireEvent.change(screen.getAllByDisplayValue("Sambal")[0], { target: { value: "Sambal tasting" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Campaign" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: "Sambal tasting", branding: expect.objectContaining({ logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero.webp", thank_you_image_url: "https://cdn.example/thanks.webp", primary_color: "#137a44", accent_color: "#1863a8" }) })));
+    expect(onSave.mock.calls[0][0].questions).toBeUndefined();
   });
 
   it("uploads, replaces, and removes an image through branding state", async () => {

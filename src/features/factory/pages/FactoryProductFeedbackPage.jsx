@@ -111,7 +111,12 @@ export function CampaignEditorModal({ campaign, finishedGoods, onClose, onSave, 
   const save = async (event) => {
     event.preventDefault();
     setSaving(true); setSaveError("");
-    try { await onSave(form); }
+    try {
+      // Question changes remain owned by Form Builder. Branding/settings saves must not
+      // trip immutable response-snapshot protection on a live campaign.
+      const { questions, ...campaignSettings } = form;
+      await onSave(form.id ? campaignSettings : form);
+    }
     catch (error) {
       const message = error.message || "Unable to save campaign branding.";
       setSaveError(message);
