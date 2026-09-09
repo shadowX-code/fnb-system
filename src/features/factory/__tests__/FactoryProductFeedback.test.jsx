@@ -165,6 +165,21 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByRole("button", { name: "Save Campaign" })).toBeTruthy();
   });
 
+  it("uses compact campaign sections and shared date controls without reviving the retired intro fields", () => {
+    render(<CampaignEditorModal campaign={{ id: "campaign-1", name: "Sambal", questions: sambalFeedbackTemplate, content: { intro_title: { en: "Legacy cover" }, intro_body: { en: "Legacy copy" } } }} finishedGoods={[]} onClose={vi.fn()} onSave={vi.fn()} onNotify={vi.fn()} />);
+    expect(screen.getByText("Campaign Details")).toBeTruthy();
+    expect(screen.getByText("Schedule")).toBeTruthy();
+    expect(screen.getByText("Public Content")).toBeTruthy();
+    expect(screen.getByText("Campaign Branding")).toBeTruthy();
+    expect(screen.getByText("Internal name for Admin management.")).toBeTruthy();
+    expect(screen.getByText("Shown to customers on the feedback form.")).toBeTruthy();
+    expect(screen.getAllByRole("button", { name: "Select date" })).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Translate Missing" })).toBeTruthy();
+    expect(screen.queryByText("Intro title")).toBeNull();
+    expect(screen.queryByText("Intro body")).toBeNull();
+    expect(document.querySelector('input[type="date"]')).toBeNull();
+  });
+
   it("shows campaign context with Question 1 and preserves answers and language", async () => {
     factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", content: { title: { en: "Sambal tasting", zh: "参巴试吃", ms: "Rasa sambal" }, description: { en: "A short tasting form", zh: "简短试吃表", ms: "Borang rasa ringkas" } }, questions: sambalFeedbackTemplate.slice(0, 2) } });
     render(<FactoryProductFeedbackPublic />);
