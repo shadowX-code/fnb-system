@@ -18,6 +18,9 @@ it("redirects every non-root public request to the public root while preserving 
   expect(publicResponse.headers.get("location")).toBe("https://feedx.my/");
 
   expect(hostnameRoutingMiddleware(new Request("https://feedx.my/"))).toBeUndefined();
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/assets/index.js"))).toBeUndefined();
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/design-homepage/logo.png"))).toBeUndefined();
+  expect(hostnameRoutingMiddleware(new Request("https://feedx.my/holographic-ring.webp"))).toBeUndefined();
   expect(hostnameRoutingMiddleware(new Request("https://os.feedx.my/login"))).toBeUndefined();
   expect(hostnameRoutingMiddleware(new Request("https://os.feedx.my/admin/deep-link"))).toBeUndefined();
   expect(hostnameRoutingMiddleware(new Request("https://feedx-os.vercel.app/login"))).toBeUndefined();
