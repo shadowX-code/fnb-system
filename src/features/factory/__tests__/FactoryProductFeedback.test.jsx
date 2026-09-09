@@ -56,6 +56,16 @@ describe("Factory Product Feedback public contract", () => {
     expect(isPublicProductFeedbackRoute()).toBe(true);
   });
 
+  it("ignores a public campaign read that resolves after the page unmounts", async () => {
+    let resolveEntry;
+    factoryService.publicProductFeedbackEntry.mockReturnValueOnce(new Promise((resolve) => { resolveEntry = resolve; }));
+    const view = render(<FactoryProductFeedbackPublic />);
+    view.unmount();
+    resolveEntry({ available: true, campaign: { default_language: "en", questions: [] } });
+    await Promise.resolve();
+    expect(screen.queryByText("Feedback unavailable")).toBeNull();
+  });
+
   it("keeps persisted branding and localized content intact when reopening an existing campaign", () => {
     const campaign = {
       id: "campaign-1",

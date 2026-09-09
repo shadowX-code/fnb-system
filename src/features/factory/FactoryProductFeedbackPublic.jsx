@@ -21,7 +21,20 @@ function selectionMinimum(question) { return Math.max(Number(question?.min_selec
 export default function FactoryProductFeedbackPublic() {
   const [entry, setEntry] = useState(null); const [error, setError] = useState(""); const [language, setLanguage] = useState("en"); const [step, setStep] = useState(0); const [answers, setAnswers] = useState({}); const [submitting, setSubmitting] = useState(false); const [complete, setComplete] = useState(false);
   const token = useMemo(tokenFromLocation, []);
-  useEffect(() => { factoryService.publicProductFeedbackEntry(token).then((data) => { if (!data?.available) setError("unavailable"); else { setEntry(data); setLanguage(["en", "zh", "ms"].includes(data.campaign.default_language) ? data.campaign.default_language : "en"); } }).catch(() => setError("unavailable")); }, [token]);
+  useEffect(() => {
+    let current = true;
+    factoryService.publicProductFeedbackEntry(token)
+      .then((data) => {
+        if (!current) return;
+        if (!data?.available) setError("unavailable");
+        else {
+          setEntry(data);
+          setLanguage(["en", "zh", "ms"].includes(data.campaign.default_language) ? data.campaign.default_language : "en");
+        }
+      })
+      .catch(() => { if (current) setError("unavailable"); });
+    return () => { current = false; };
+  }, [token]);
   const campaign = entry?.campaign || {}; const questions = campaign.questions || []; const question = questions[step]; const value = answers[question?.key]; const text = copy[language];
   const content = campaign.content || {}; const branding = campaign.branding || {}; const style = { "--feedback-primary": brandColor(branding.primary_color, "#168546"), "--feedback-accent": brandColor(branding.accent_color, "#0f6e3b") };
   const setValue = (next) => setAnswers((current) => ({ ...current, [question.key]: next }));
