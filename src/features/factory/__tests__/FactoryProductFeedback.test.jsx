@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../FactoryProductFeedbackPublic.jsx";
+import { CampaignEditorModal, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 
-vi.mock("../../../services/factoryService.js", () => ({ factoryService: { publicProductFeedbackEntry: vi.fn(), submitPublicProductFeedback: vi.fn() } }));
+vi.mock("../../../services/factoryService.js", () => ({ factoryService: { publicProductFeedbackEntry: vi.fn(), submitPublicProductFeedback: vi.fn(), uploadProductFeedbackImage: vi.fn() } }));
 import { factoryService } from "../../../services/factoryService.js";
 
 describe("Factory Product Feedback public contract", () => {
@@ -18,6 +19,52 @@ describe("Factory Product Feedback public contract", () => {
   it("recognizes the opaque Factory public route", () => {
     window.history.pushState(null, "", "/feedback/product/opaque-token");
     expect(isPublicProductFeedbackRoute()).toBe(true);
+  });
+
+  it("keeps persisted branding and localized content intact when reopening an existing campaign", () => {
+    const campaign = {
+      id: "campaign-1",
+      name: "Sambal",
+      questions: sambalFeedbackTemplate,
+      content: { title: { en: "Sambal tasting", zh: "参巴试吃" }, description: { en: "Short form", ms: "Borang ringkas" } },
+      branding: { logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero.webp", thank_you_image_url: "https://cdn.example/thanks.webp", primary_color: "#137a44", accent_color: "#1863a8" },
+    };
+    const reopened = productFeedbackCampaignEditorState(campaign);
+    expect(reopened.branding).toEqual(campaign.branding);
+    expect(reopened.content.title).toMatchObject(campaign.content.title);
+    expect(reopened.content.description).toMatchObject(campaign.content.description);
+    expect(reopened.questions).toEqual(sambalFeedbackTemplate);
+  });
+
+  it("preserves an explicit image removal in the campaign editor payload", () => {
+    const form = productFeedbackCampaignEditorState({ name: "Sambal", branding: { logo_url: null, hero_url: "https://cdn.example/hero.webp" } });
+    expect(form.branding.logo_url).toBeNull();
+    expect(form.branding.hero_url).toBe("https://cdn.example/hero.webp");
+  });
+
+  it("uses previews rather than storage URLs and saves branding with unrelated edits", async () => {
+    const onSave = vi.fn().mockResolvedValue({});
+    render(<CampaignEditorModal campaign={{ id: "campaign-1", name: "Sambal", questions: sambalFeedbackTemplate, branding: { logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero.webp", thank_you_image_url: "https://cdn.example/thanks.webp", primary_color: "#137a44", accent_color: "#1863a8" } }} finishedGoods={[]} onClose={vi.fn()} onSave={onSave} onNotify={vi.fn()} />);
+    expect(screen.getByAltText("Logo preview")).toBeTruthy();
+    expect(screen.getByAltText("Hero / poster preview")).toBeTruthy();
+    expect(screen.queryByPlaceholderText("Image URL")).toBeNull();
+    fireEvent.change(screen.getAllByDisplayValue("Sambal")[0], { target: { value: "Sambal tasting" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Campaign" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: "Sambal tasting", branding: expect.objectContaining({ logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero.webp", thank_you_image_url: "https://cdn.example/thanks.webp", primary_color: "#137a44", accent_color: "#1863a8" }) })));
+  });
+
+  it("uploads, replaces, and removes an image through branding state", async () => {
+    factoryService.uploadProductFeedbackImage.mockResolvedValue({ publicUrl: "https://cdn.example/new-logo.webp" });
+    const onSave = vi.fn().mockResolvedValue({});
+    render(<CampaignEditorModal campaign={{ id: "campaign-1", name: "Sambal", questions: sambalFeedbackTemplate, branding: {} }} finishedGoods={[]} onClose={vi.fn()} onSave={onSave} onNotify={vi.fn()} />);
+    const file = new File(["image"], "logo.png", { type: "image/png" });
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
+    await waitFor(() => expect(factoryService.uploadProductFeedbackImage).toHaveBeenCalledWith(file, expect.any(Object), "logo_url"));
+    expect(screen.getByAltText("Logo preview").getAttribute("src")).toBe("https://cdn.example/new-logo.webp");
+    fireEvent.click(screen.getAllByRole("button", { name: "Remove" })[0]);
+    expect(screen.queryByAltText("Logo preview")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save Campaign" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ branding: expect.objectContaining({ logo_url: null }) })));
   });
 
   it("shows campaign context with Question 1 and preserves answers and language", async () => {

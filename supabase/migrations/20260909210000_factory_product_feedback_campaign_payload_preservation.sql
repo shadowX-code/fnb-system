@@ -1,0 +1,70 @@
+-- Preserve campaign-owned configuration when a consumer intentionally omits it.
+-- Explicit object values, including image removals represented by JSON null, remain authoritative.
+create or replace function public.factory_product_feedback_save_campaign(p_campaign jsonb)
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  v_actor uuid := public.factory_product_feedback_actor();
+  v_id uuid := nullif(p_campaign->>'id','')::uuid;
+  v_existing public.factory_product_feedback_campaigns%rowtype;
+  v_saved public.factory_product_feedback_campaigns%rowtype;
+  v_questions jsonb := p_campaign->'questions';
+  v_content jsonb := p_campaign->'content';
+  v_branding jsonb := p_campaign->'branding';
+begin
+  if not (public.current_user_has_permission('factory_product_feedback.create') or public.current_user_has_permission('factory_product_feedback.edit') or public.current_user_has_permission('factory_product_feedback.manage')) then
+    raise exception using errcode = '42501', message = 'Product Feedback management permission is required.';
+  end if;
+  if trim(coalesce(p_campaign->>'name','')) = '' then
+    raise exception using errcode = '22023', message = 'Campaign name is required.';
+  end if;
+
+  if v_id is not null then
+    select * into v_existing from public.factory_product_feedback_campaigns where id = v_id for update;
+    if not found then
+      raise exception using errcode = '22023', message = 'Campaign was not found.';
+    end if;
+    v_questions := coalesce(v_questions, v_existing.questions, '[]'::jsonb);
+    v_content := coalesce(v_content, v_existing.content, '{}'::jsonb);
+    v_branding := coalesce(v_branding, v_existing.branding, '{}'::jsonb);
+  else
+    v_questions := coalesce(v_questions, '[]'::jsonb);
+    v_content := coalesce(v_content, '{}'::jsonb);
+    v_branding := coalesce(v_branding, '{}'::jsonb);
+  end if;
+
+  if jsonb_typeof(v_questions) <> 'array' then
+    raise exception using errcode = '22023', message = 'Questions must be an ordered array.';
+  end if;
+  if jsonb_typeof(v_content) <> 'object' or jsonb_typeof(v_branding) <> 'object' then
+    raise exception using errcode = '22023', message = 'Campaign content and branding must be objects.';
+  end if;
+
+  if v_id is not null then
+    if v_existing.status <> 'draft' and exists(select 1 from public.factory_product_feedback_responses where campaign_id = v_id) and v_questions is distinct from v_existing.questions then
+      raise exception using errcode = '22023', message = 'Form questions are immutable after responses have been submitted.';
+    end if;
+    update public.factory_product_feedback_campaigns set
+      name = trim(p_campaign->>'name'),
+      finished_good_id = nullif(p_campaign->>'finished_good_id','')::uuid,
+      event_label = nullif(trim(p_campaign->>'event_label'),''),
+      starts_on = nullif(p_campaign->>'starts_on','')::date,
+      ends_on = nullif(p_campaign->>'ends_on','')::date,
+      status = coalesce(nullif(p_campaign->>'status',''), v_existing.status),
+      default_language = coalesce(nullif(p_campaign->>'default_language',''), 'en'),
+      thank_you_en = nullif(p_campaign->>'thank_you_en',''),
+      thank_you_zh = nullif(p_campaign->>'thank_you_zh',''),
+      questions = v_questions,
+      content = v_content,
+      branding = v_branding,
+      form_version = case when v_questions is distinct from v_existing.questions then v_existing.form_version + 1 else v_existing.form_version end,
+      updated_by = v_actor,
+      updated_at = now()
+    where id = v_id
+    returning * into v_saved;
+  else
+    insert into public.factory_product_feedback_campaigns(name, finished_good_id, event_label, starts_on, ends_on, status, default_language, thank_you_en, thank_you_zh, questions, content, branding, created_by, updated_by)
+    values(trim(p_campaign->>'name'), nullif(p_campaign->>'finished_good_id','')::uuid, nullif(trim(p_campaign->>'event_label'),''), nullif(p_campaign->>'starts_on','')::date, nullif(p_campaign->>'ends_on','')::date, coalesce(nullif(p_campaign->>'status',''),'draft'), coalesce(nullif(p_campaign->>'default_language',''),'en'), nullif(p_campaign->>'thank_you_en',''), nullif(p_campaign->>'thank_you_zh',''), v_questions, v_content, v_branding, v_actor, v_actor)
+    returning * into v_saved;
+  end if;
+  return to_jsonb(v_saved);
+end; $$;
