@@ -20,9 +20,10 @@ describe("Factory Product Feedback public contract", () => {
   });
 
   it("preserves answers and language while moving through the mobile flow", async () => {
-    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", content: { title: { en: "Sambal tasting", zh: "参巴试吃", ms: "Rasa sambal" } }, questions: sambalFeedbackTemplate.slice(0, 2) } });
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", content: { title: { en: "Sambal tasting", zh: "参巴试吃", ms: "Rasa sambal" }, intro_title: { en: "Tell us about this sambal", zh: "告诉我们您对这款参巴的看法", ms: "Beritahu kami tentang sambal ini" } }, questions: sambalFeedbackTemplate.slice(0, 2) } });
     render(<FactoryProductFeedbackPublic />);
     await screen.findByText("Start feedback");
+    expect(screen.getByText("Tell us about this sambal")).toBeTruthy();
     fireEvent.click(screen.getByText("Start feedback"));
     await screen.findByText("Usual spice tolerance");
     fireEvent.click(screen.getByText("Mild"));

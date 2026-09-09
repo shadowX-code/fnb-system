@@ -35,6 +35,7 @@ Deno.serve(async (request) => {
   try {
     const response = await fetch("https://api.openai.com/v1/responses", {
       method: "POST",
+      signal: AbortSignal.timeout(20_000),
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         model,
@@ -57,6 +58,9 @@ Deno.serve(async (request) => {
     }
     return json({ translations });
   } catch (cause) {
-    return json({ error: cause instanceof Error ? cause.message : "Translation request failed." }, 502);
+    const message = cause instanceof DOMException && cause.name === "TimeoutError"
+      ? "Translation timed out. Please try again or enter the translation manually."
+      : cause instanceof Error ? cause.message : "Translation request failed.";
+    return json({ error: message }, 502);
   }
 });
