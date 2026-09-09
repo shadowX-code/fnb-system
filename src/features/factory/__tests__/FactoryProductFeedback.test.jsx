@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../FactoryProductFeedbackPublic.jsx";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 
@@ -7,6 +7,7 @@ vi.mock("../../../services/factoryService.js", () => ({ factoryService: { public
 import { factoryService } from "../../../services/factoryService.js";
 
 describe("Factory Product Feedback public contract", () => {
+  afterEach(() => cleanup());
   it("keeps the required Sambal taxonomy ordered and versionable", () => {
     expect(sambalFeedbackTemplate).toHaveLength(11);
     expect(sambalFeedbackTemplate.find((question) => question.key === "sambal_spiciness").options.map((item) => item.value)).toContain("Just right");
@@ -18,14 +19,31 @@ describe("Factory Product Feedback public contract", () => {
     expect(isPublicProductFeedbackRoute()).toBe(true);
   });
 
-  it("preserves answers while moving through the one-question flow", async () => {
-    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", questions: sambalFeedbackTemplate.slice(0, 2) } });
+  it("preserves answers and language while moving through the mobile flow", async () => {
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", content: { title: { en: "Sambal tasting", zh: "参巴试吃", ms: "Rasa sambal" } }, questions: sambalFeedbackTemplate.slice(0, 2) } });
     render(<FactoryProductFeedbackPublic />);
+    await screen.findByText("Start feedback");
+    fireEvent.click(screen.getByText("Start feedback"));
     await screen.findByText("Usual spice tolerance");
     fireEvent.click(screen.getByText("Mild"));
-    fireEvent.click(screen.getByText("Continue"));
     await screen.findByText("How is the sambal spiciness?");
     fireEvent.click(screen.getByText("Back"));
-    await waitFor(() => expect(screen.getByText("Mild").className).toContain("selected"));
+    await screen.findByText("Mild");
+    await waitFor(() => expect(screen.getByText("Mild").closest("button")?.className).toContain("selected"));
+    fireEvent.click(screen.getByText("中文"));
+    expect(screen.getByText("您平时能接受的辣度")).toBeTruthy();
+  });
+
+  it("auto-advances a non-final single choice but never auto-submits the final answer", async () => {
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", questions: sambalFeedbackTemplate.slice(0, 2) } });
+    render(<FactoryProductFeedbackPublic />);
+    fireEvent.click(await screen.findByText("Start feedback"));
+    fireEvent.click(await screen.findByText("Mild"));
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(screen.getByRole("heading", { name: "How is the sambal spiciness?" })).toBeTruthy();
+    fireEvent.click(screen.getByText("Just right"));
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(factoryService.submitPublicProductFeedback).not.toHaveBeenCalled();
+    expect(screen.getByText("Submit feedback")).toBeTruthy();
   });
 });

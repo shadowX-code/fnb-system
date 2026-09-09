@@ -1762,6 +1762,24 @@ export const factoryService = {
     return data;
   },
 
+  async translateProductFeedbackContent({ sourceLanguage, units }) {
+    const { data, error } = await supabase.functions.invoke("factory-product-feedback-translate", {
+      body: { source_language: sourceLanguage, units },
+    });
+    throwFactorySupabaseError("factory.translateProductFeedbackContent", error || (data?.error ? { message: data.error } : null));
+    return data?.translations || [];
+  },
+
+  async uploadProductFeedbackImage(file, campaign = {}, kind = "hero") {
+    const safeName = String(campaign.name || "campaign")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "campaign";
+    return uploadOptimizedImage(file, {
+      bucket: "raw-material-images",
+      path: `product-feedback/${campaign.id || "draft"}/${kind}-${Date.now()}-${safeName}.webp`,
+      metadata: { module: "factory", entity: "product_feedback_campaign", campaign_id: campaign.id || "", kind },
+    });
+  },
+
   async uploadRawMaterialImage(file, material = {}) {
     const safeName = String(material.material_code || material.name_en || material.name || "raw-material")
       .toLowerCase()
