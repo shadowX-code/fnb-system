@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../FactoryProductFeedbackPublic.jsx";
 import { CampaignEditorModal, campaignSummaryCards, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
+import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
 
 vi.mock("../../../services/factoryService.js", () => ({ factoryService: { publicProductFeedbackEntry: vi.fn(), submitPublicProductFeedback: vi.fn(), uploadProductFeedbackImage: vi.fn() } }));
 import { factoryService } from "../../../services/factoryService.js";
@@ -18,10 +19,36 @@ describe("Factory Product Feedback public contract", () => {
     expect(sambalFeedbackTemplate.find((question) => question.key === "price_20g").options[0]).toMatchObject({ amount: 0.8, currency: "MYR", display_label: "RM0.80" });
   });
 
-  it("renders only the campaign's canonical role-driven KPI cards", () => {
+  it("keeps Responses as the only universal campaign summary card", () => {
     const cards = campaignSummaryCards({ responses: 3, kpis: [{ role: "overall_rating", question_key: "overall_rating", label: "Overall Rating", value: "4.5", tone: "success" }] });
-    expect(cards.map((item) => item.label)).toEqual(["Responses", "Overall Rating"]);
+    expect(cards.map((item) => item.label)).toEqual(["Responses"]);
     expect(campaignSummaryCards({ responses: 0, kpis: [] })).toEqual([expect.objectContaining({ label: "Responses", value: 0 })]);
+  });
+
+  it("builds universal deterministic insights without Sambal-only assumptions", () => {
+    const questions = [
+      { key: "design", label_en: "Preferred design", type: "single_choice", options: [{ value: "A", label_en: "Design A" }, { value: "B", label_en: "Design B" }] },
+      { key: "score", label_en: "Overall score", type: "rating", options: [] },
+      { key: "age", label_en: "Age range", type: "single_choice", options: [{ value: "18-25", label_en: "18-25" }, { value: "26-35", label_en: "26-35" }] },
+    ];
+    const responses = [{ answers: { design: "A", score: "4", age: "18-25" } }, { answers: { design: "A", score: "5", age: "18-25" } }, { answers: { design: "B", score: "3", age: "26-35" } }];
+    const insights = buildProductFeedbackInsights({ questions, responses });
+    expect(insights.responseCount).toBe(3);
+    expect(insights.questionInsights.find((item) => item.key === "design").distribution[0]).toMatchObject({ label: "Design A", percent: 67 });
+    expect(insights.questionInsights.find((item) => item.key === "score")).toMatchObject({ average: 4 });
+    expect(insights.segments).toEqual([]);
+    expect(insights.sampleNote).toContain("Directional only");
+  });
+
+  it("supports multi-select and price aggregates while leaving no-response campaigns empty", () => {
+    const questions = [
+      { key: "features", label_en: "Useful features", type: "multi_choice", options: [{ value: "taste", label_en: "Taste" }, { value: "speed", label_en: "Speed" }] },
+      { key: "price", label_en: "Accepted price", type: "price_choice", options: [{ value: "low", label_en: "RM1", amount: 1, currency: "MYR" }, { value: "high", label_en: "RM2", amount: 2, currency: "MYR" }] },
+    ];
+    const insights = buildProductFeedbackInsights({ questions, responses: [{ answers: { features: ["taste", "speed"], price: "low" } }, { answers: { features: ["taste"], price: "high" } }] });
+    expect(insights.questionInsights.find((item) => item.key === "features").distribution[0]).toMatchObject({ label: "Taste", count: 2 });
+    expect(insights.questionInsights.find((item) => item.key === "price")).toMatchObject({ average: 1.5, currency: "MYR" });
+    expect(buildProductFeedbackInsights({ questions, responses: [] }).questionInsights).toEqual([]);
   });
 
   it("recognizes the opaque Factory public route", () => {

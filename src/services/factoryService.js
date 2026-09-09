@@ -1770,6 +1770,12 @@ export const factoryService = {
     return data?.translations || [];
   },
 
+  async interpretProductFeedbackInsights(analytics) {
+    const { data, error } = await supabase.functions.invoke("factory-product-feedback-insights", { body: { analytics } });
+    throwFactorySupabaseError("factory.interpretProductFeedbackInsights", error || (data?.error ? { message: data.error } : null));
+    return data?.insights || [];
+  },
+
   async uploadProductFeedbackImage(file, campaign = {}, kind = "hero") {
     const safeName = String(campaign.name || "campaign")
       .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "campaign";
