@@ -11,6 +11,7 @@ describe("Factory Product Feedback public contract", () => {
   it("keeps the required Sambal taxonomy ordered and versionable", () => {
     expect(sambalFeedbackTemplate).toHaveLength(11);
     expect(sambalFeedbackTemplate.find((question) => question.key === "sambal_spiciness").options.map((item) => item.value)).toContain("Just right");
+    expect(sambalFeedbackTemplate.find((question) => question.key === "sambal_spiciness").options.find((item) => item.value === "Just right")).toMatchObject({ label_zh: "刚刚好", label_ms: "Sesuai" });
     expect(sambalFeedbackTemplate.find((question) => question.key === "packaging_preference").type).toBe("image_choice");
   });
 
