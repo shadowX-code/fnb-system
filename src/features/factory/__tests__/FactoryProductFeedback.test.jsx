@@ -145,6 +145,22 @@ describe("Factory Product Feedback public contract", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ branding: expect.objectContaining({ hero_url: "https://cdn.example/hero-v3.webp", logo_url: "https://cdn.example/logo.webp", thank_you_image_url: "https://cdn.example/thanks.webp" }) })));
   });
 
+  it("keeps the editor mounted when an upload returns no usable public asset", async () => {
+    factoryService.uploadProductFeedbackImage.mockReset();
+    factoryService.uploadProductFeedbackImage.mockResolvedValue({});
+    const onNotify = vi.fn();
+    render(<CampaignEditorModal campaign={{ id: "campaign-1", name: "Sambal", questions: sambalFeedbackTemplate, branding: { logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero.webp" } }} finishedGoods={[]} onClose={vi.fn()} onSave={vi.fn()} onNotify={onNotify} />);
+
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [new File(["image"], "invalid-result.png", { type: "image/png" })] } });
+
+    await waitFor(() => expect(onNotify).toHaveBeenCalledWith(expect.objectContaining({ title: "Image upload failed", message: "Image upload did not return a usable asset." })));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    expect(screen.getByLabelText("Campaign name").value).toBe("Sambal");
+    expect(screen.getByAltText("Logo preview").getAttribute("src")).toBe("https://cdn.example/logo.webp");
+    expect(screen.getByAltText("Hero / poster preview").getAttribute("src")).toBe("https://cdn.example/hero.webp");
+    expect(screen.getByRole("button", { name: "Save Campaign" })).toBeTruthy();
+  });
+
   it("shows campaign context with Question 1 and preserves answers and language", async () => {
     factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Sambal", default_language: "en", content: { title: { en: "Sambal tasting", zh: "参巴试吃", ms: "Rasa sambal" }, description: { en: "A short tasting form", zh: "简短试吃表", ms: "Borang rasa ringkas" } }, questions: sambalFeedbackTemplate.slice(0, 2) } });
     render(<FactoryProductFeedbackPublic />);
