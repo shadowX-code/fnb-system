@@ -4,9 +4,9 @@ import { factoryService } from "../../services/factoryService.js";
 import "./FactoryProductFeedbackPublic.css";
 
 const copy = {
-  en: { start: "Start feedback", back: "Back", continue: "Continue", submit: "Submit feedback", question: "Question", thankYou: "Thank you", unavailable: "Feedback unavailable", unavailableBody: "This feedback link is unavailable.", preparing: "Preparing feedback...", selectAll: "Select all that apply", placeholder: "Share your thoughts" },
-  zh: { start: "开始反馈", back: "返回", continue: "继续", submit: "提交反馈", question: "问题", thankYou: "谢谢您的反馈", unavailable: "反馈不可用", unavailableBody: "此反馈链接不可用。", preparing: "正在准备反馈...", selectAll: "请选择所有适用项", placeholder: "分享您的想法" },
-  ms: { start: "Mula maklum balas", back: "Kembali", continue: "Teruskan", submit: "Hantar maklum balas", question: "Soalan", thankYou: "Terima kasih", unavailable: "Maklum balas tidak tersedia", unavailableBody: "Pautan maklum balas ini tidak tersedia.", preparing: "Menyediakan maklum balas...", selectAll: "Pilih semua yang berkenaan", placeholder: "Kongsi pendapat anda" },
+  en: { back: "Back", continue: "Continue", submit: "Submit feedback", question: "Question", thankYou: "Thank you", unavailable: "Feedback unavailable", unavailableBody: "This feedback link is unavailable.", preparing: "Preparing feedback...", selectAll: "Select all that apply", placeholder: "Share your thoughts" },
+  zh: { back: "返回", continue: "继续", submit: "提交反馈", question: "问题", thankYou: "谢谢您的反馈", unavailable: "反馈不可用", unavailableBody: "此反馈链接不可用。", preparing: "正在准备反馈...", selectAll: "请选择所有适用项", placeholder: "分享您的想法" },
+  ms: { back: "Kembali", continue: "Teruskan", submit: "Hantar maklum balas", question: "Soalan", thankYou: "Terima kasih", unavailable: "Maklum balas tidak tersedia", unavailableBody: "Pautan maklum balas ini tidak tersedia.", preparing: "Menyediakan maklum balas...", selectAll: "Pilih semua yang berkenaan", placeholder: "Kongsi pendapat anda" },
 };
 
 export function isPublicProductFeedbackRoute() { return /^\/feedback\/product\/[^/]+/.test(window.location.pathname) || /^#feedback\/product\//.test(window.location.hash); }
