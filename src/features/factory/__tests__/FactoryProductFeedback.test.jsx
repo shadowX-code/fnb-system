@@ -62,6 +62,14 @@ describe("Factory Product Feedback public contract", () => {
     expect(onSave.mock.calls[0][0].questions).toBeUndefined();
   });
 
+  it("keeps logo, hero, and thank-you previews in bounded variant containers", () => {
+    render(<CampaignEditorModal campaign={{ id: "campaign-1", name: "Sambal", questions: sambalFeedbackTemplate, branding: { logo_url: "https://cdn.example/logo.webp", hero_url: "https://cdn.example/hero.webp", thank_you_image_url: "https://cdn.example/thanks.webp" } }} finishedGoods={[]} onClose={vi.fn()} onSave={vi.fn()} onNotify={vi.fn()} />);
+    expect(screen.getByAltText("Logo preview").closest("[data-preview-kind]")?.getAttribute("data-preview-kind")).toBe("logo");
+    expect(screen.getByAltText("Hero / poster preview").closest("[data-preview-kind]")?.getAttribute("data-preview-kind")).toBe("hero");
+    expect(screen.getByAltText("Thank-you artwork preview").closest("[data-preview-kind]")?.getAttribute("data-preview-kind")).toBe("thank-you");
+    expect(screen.getByRole("dialog").className).toContain("factory-product-feedback-campaign-modal");
+  });
+
   it("uploads, replaces, and removes an image through branding state", async () => {
     factoryService.uploadProductFeedbackImage.mockResolvedValue({ publicUrl: "https://cdn.example/new-logo.webp" });
     const onSave = vi.fn().mockResolvedValue({});
