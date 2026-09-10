@@ -196,6 +196,7 @@ describe("Factory Product Feedback public contract", () => {
     await screen.findByText("Usual spice tolerance");
     expect(screen.getByText("Sambal tasting")).toBeTruthy();
     expect(screen.getByText("A short tasting form")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "BM" })).toBeTruthy();
     fireEvent.click(screen.getByText("Mild"));
     await screen.findByText("How is the sambal spiciness?");
     fireEvent.click(screen.getByText("Back"));

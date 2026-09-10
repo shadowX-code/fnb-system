@@ -52,7 +52,7 @@ export default function FactoryProductFeedbackPublic() {
 }
 
 function PublicShell({ children, style }) { return <main className="product-feedback-public" style={style}>{children}</main>; }
-function LanguageSwitch({ language, onChange }) { return <div className="feedback-language-switch" aria-label="Language">{["en", "zh", "ms"].map((item) => <button type="button" className={language === item ? "active" : ""} key={item} onClick={() => onChange(item)}>{item === "zh" ? "中文" : item.toUpperCase()}</button>)}</div>; }
+function LanguageSwitch({ language, onChange }) { return <div className="feedback-language-switch" aria-label="Language">{["en", "zh", "ms"].map((item) => <button type="button" className={language === item ? "active" : ""} key={item} onClick={() => onChange(item)}>{item === "zh" ? "中文" : item === "ms" ? "BM" : "EN"}</button>)}</div>; }
 function QuestionControl({ question, language, value, onChange, onAutoAdvance, selectAllLabel, selectedLabel, placeholder }) {
   const options = question.options || [];
   if (question.type === "short_text") return <textarea value={value || ""} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />;
