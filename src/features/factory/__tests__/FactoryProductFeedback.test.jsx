@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile } from "../FactoryProductFeedbackPublic.jsx";
-import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
+import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
 
-vi.mock("../../../services/factoryService.js", () => ({ factoryService: { publicProductFeedbackEntry: vi.fn(), submitPublicProductFeedback: vi.fn(), uploadProductFeedbackImage: vi.fn() } }));
+vi.mock("../../../services/factoryService.js", () => ({ factoryService: { publicProductFeedbackEntry: vi.fn(), submitPublicProductFeedback: vi.fn(), uploadProductFeedbackImage: vi.fn(), translateProductFeedbackContent: vi.fn() } }));
 import { factoryService } from "../../../services/factoryService.js";
 
 describe("Factory Product Feedback public contract", () => {
@@ -250,6 +250,54 @@ describe("Factory Product Feedback public contract", () => {
     fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "012 345 6789" } });
     fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }));
     await waitFor(() => expect(factoryService.submitPublicProductFeedback).toHaveBeenCalledWith(expect.objectContaining({ answers: { taste: "good" }, contact: { name: "Amina", mobile: "+60123456789" } })));
+  });
+
+  it("persists localized helper text through Save Question and reopens it unchanged", async () => {
+    const onSave = vi.fn().mockResolvedValue({});
+    const campaign = {
+      questions: [{ key: "taste", label_en: "Taste", label_zh: "口味", label_ms: "Rasa", helper_en: "English helper", helper_zh: "中文提示", helper_ms: "Bantuan BM", type: "single_choice", options: [{ value: "good", label_en: "Good" }] }],
+    };
+    render(<FormBuilder campaign={campaign} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    expect(screen.getByDisplayValue("English helper")).toBeTruthy();
+    fireEvent.change(screen.getByDisplayValue("English helper"), { target: { value: "Saved helper" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith([expect.objectContaining({ helper_en: "Saved helper", helper_zh: "中文提示", helper_ms: "Bantuan BM" })]));
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    expect(screen.getByDisplayValue("Saved helper")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    expect(screen.getByDisplayValue("中文提示")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "BM" }));
+    expect(screen.getByDisplayValue("Bantuan BM")).toBeTruthy();
+  });
+
+  it("renders localized helper text with the English fallback and accepts historical questions without it", async () => {
+    const question = { key: "taste", label_en: "Taste", label_zh: "口味", helper_en: "Choose what you prefer", type: "single_choice", required: true, options: [{ value: "good", label_en: "Good" }] };
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions: [question] } });
+    render(<FactoryProductFeedbackPublic />);
+    expect(await screen.findByText("Choose what you prefer")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    expect(screen.getByText("Choose what you prefer")).toBeTruthy();
+    cleanup();
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions: [{ ...question, helper_en: undefined }] } });
+    render(<FactoryProductFeedbackPublic />);
+    await screen.findByText("Taste");
+    expect(screen.queryByText("Choose what you prefer")).toBeNull();
+  });
+
+  it("includes missing helper translations without overwriting an existing language", async () => {
+    factoryService.translateProductFeedbackContent.mockResolvedValue([
+      { id: "question:helper", language: "zh", text: "中文帮助" },
+    ]);
+    const onSave = vi.fn().mockResolvedValue({});
+    render(<FormBuilder campaign={{ questions: [{ key: "taste", label_en: "Taste", label_zh: "口味", label_ms: "Rasa", helper_en: "Choose carefully", helper_zh: "", helper_ms: "Kekalkan ini", type: "single_choice", options: [] }] }} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Translate missing" }));
+    await waitFor(() => expect(factoryService.translateProductFeedbackContent).toHaveBeenCalledWith(expect.objectContaining({ units: expect.arrayContaining([expect.objectContaining({ id: "question:helper", source: "Choose carefully", targets: ["zh"] })]) })));
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    expect(await screen.findByDisplayValue("中文帮助")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "BM" }));
+    expect(screen.getByDisplayValue("Kekalkan ini")).toBeTruthy();
   });
 
   it("preserves the existing final submit path when contact collection is disabled", async () => {
