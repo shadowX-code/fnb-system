@@ -271,12 +271,28 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByDisplayValue("Bantuan BM")).toBeTruthy();
   });
 
+  it("wires the real Save question button to one awaited canonical mutation", async () => {
+    let resolveSave;
+    const onSave = vi.fn().mockReturnValue(new Promise((resolve) => { resolveSave = resolve; }));
+    render(<FormBuilder campaign={{ questions: [{ key: "taste", label_en: "Taste", helper_en: "Before", type: "single_choice", options: [] }] }} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.change(screen.getByDisplayValue("Before"), { target: { value: "After" } });
+    const saveButton = screen.getByRole("button", { name: "Save question" });
+    expect(saveButton.type).toBe("button");
+    fireEvent.click(saveButton);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onSave).toHaveBeenCalledWith([expect.objectContaining({ helper_en: "After" })]);
+    expect(screen.getAllByRole("button", { name: "Saving…" }).every((button) => button.disabled)).toBe(true);
+    resolveSave({ questions: [{ key: "taste", label_en: "Taste", helper_en: "After", type: "single_choice", options: [] }] });
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Edit question" })).toBeNull());
+  });
+
   it("keeps the question editor open with a visible error when its canonical save fails", async () => {
-    const onSave = vi.fn().mockRejectedValue(new Error("Question configuration is immutable."));
+    const onSave = vi.fn().mockRejectedValue(new Error("Form questions are immutable after responses have been submitted."));
     render(<FormBuilder campaign={{ questions: [{ key: "taste", label_en: "Taste", helper_en: "Existing helper", type: "single_choice", options: [] }] }} editable onSave={onSave} onNotify={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
     fireEvent.click(screen.getByRole("button", { name: "Save question" }));
-    expect((await screen.findAllByRole("alert"))[0].textContent).toContain("Question configuration is immutable.");
+    expect((await screen.findAllByRole("alert"))[0].textContent).toContain("Form questions are immutable after responses have been submitted.");
     expect(screen.getByRole("heading", { name: "Edit question" })).toBeTruthy();
     expect(screen.getByDisplayValue("Existing helper")).toBeTruthy();
   });
