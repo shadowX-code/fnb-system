@@ -59,6 +59,26 @@ function throwFactorySupabaseError(scope, error) {
   }
 }
 
+async function productFeedbackTranslationError(error) {
+  const fallback = { code: "translation_unavailable", message: "AI translation is temporarily unavailable. Please retry.", retryable: true };
+  const context = error?.context;
+  if (!context || (typeof context.json !== "function" && typeof context.clone !== "function")) return fallback;
+  try {
+    const response = context.clone ? context.clone() : context;
+    const payload = await response.json();
+    const failure = payload?.error;
+    if (!failure || typeof failure !== "object") return fallback;
+    return {
+      code: String(failure.code || fallback.code),
+      message: String(failure.message || fallback.message),
+      retryable: Boolean(failure.retryable),
+      requestId: failure.request_id ? String(failure.request_id) : undefined,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
 export function strictTimeValueMinutes(value) {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || "").trim());
   return match ? (Number(match[1]) * 60) + Number(match[2]) : null;
@@ -1766,7 +1786,18 @@ export const factoryService = {
     const { data, error } = await supabase.functions.invoke("factory-product-feedback-translate", {
       body: { source_language: sourceLanguage, units },
     });
-    throwFactorySupabaseError("factory.translateProductFeedbackContent", error || (data?.error ? { message: data.error } : null));
+    if (error) {
+      const failure = await productFeedbackTranslationError(error);
+      const detailedError = new Error(failure.message);
+      Object.assign(detailedError, failure);
+      throw detailedError;
+    }
+    if (data?.error) {
+      const failure = typeof data.error === "object" ? data.error : { message: data.error };
+      const detailedError = new Error(String(failure.message || "AI translation is temporarily unavailable. Please retry."));
+      Object.assign(detailedError, failure);
+      throw detailedError;
+    }
     return data?.translations || [];
   },
 
