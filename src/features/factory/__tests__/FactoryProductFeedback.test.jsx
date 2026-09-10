@@ -432,6 +432,33 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByDisplayValue("Kekalkan ini")).toBeTruthy();
   });
 
+  it("sends one logical translation request for repeated clicks and keeps missing-only targets", async () => {
+    let resolveTranslation;
+    factoryService.translateProductFeedbackContent.mockClear();
+    factoryService.translateProductFeedbackContent.mockImplementationOnce(() => new Promise((resolve) => { resolveTranslation = resolve; }));
+    render(<FormBuilder campaign={{ questions: [{ key: "taste", label_en: "Taste", label_zh: "", label_ms: "Sudah ada", helper_en: "Choose carefully", helper_zh: "", helper_ms: "Kekalkan", type: "single_choice", options: [{ value: "good", label_en: "Good", label_zh: "", label_ms: "Baik" }] }] }} editable onSave={vi.fn()} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    const translate = screen.getByRole("button", { name: "AI Translate missing" });
+    fireEvent.click(translate);
+    fireEvent.click(translate);
+    expect(factoryService.translateProductFeedbackContent).toHaveBeenCalledTimes(1);
+    expect(factoryService.translateProductFeedbackContent).toHaveBeenCalledWith(expect.objectContaining({ units: expect.arrayContaining([expect.objectContaining({ id: "question:helper", targets: ["zh"] }), expect.objectContaining({ id: "option:0", targets: ["zh"] })]) }));
+    resolveTranslation([{ id: "question:helper", language: "zh", text: "请仔细选择" }, { id: "option:0", language: "zh", text: "好" }]);
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    await waitFor(() => expect(screen.getByDisplayValue("请仔细选择")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "BM" }));
+    expect(screen.getByDisplayValue("Kekalkan")).toBeTruthy();
+  });
+
+  it("shows a safe retryable translation failure instead of a raw Edge Function error", async () => {
+    const onNotify = vi.fn();
+    factoryService.translateProductFeedbackContent.mockRejectedValueOnce(Object.assign(new Error("Translation is busy right now. Please retry in a moment."), { code: "provider_rate_limited", retryable: true }));
+    render(<FormBuilder campaign={{ questions: [{ key: "taste", label_en: "Taste", helper_en: "Choose carefully", type: "single_choice", options: [] }] }} editable onSave={vi.fn()} onNotify={onNotify} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Translate missing" }));
+    await waitFor(() => expect(onNotify).toHaveBeenCalledWith({ title: "AI translation unavailable", message: "Translation is busy right now. Please retry in a moment.", tone: "error" }));
+  });
+
   it("preserves the existing final submit path when contact collection is disabled", async () => {
     const questions = [{ key: "taste", label_en: "Taste", type: "single_choice", required: true, options: [{ value: "good", label_en: "Good" }] }];
     factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions } });
