@@ -35,6 +35,11 @@ function providerOutput(result: Record<string, unknown>) {
   const output = Array.isArray(result.output) ? result.output : [];
   return String(result.output_text || output.flatMap((item: { content?: Array<{ text?: string }> }) => item.content || []).map((item: { text?: string }) => item.text || "").join(""));
 }
+function isUntranslatedChineseResult(source: string, translation: Translation) {
+  const normalizedSource = source.trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  const normalizedTranslation = String(translation.text || "").trim().replace(/\s+/g, " ").toLocaleLowerCase();
+  return translation.language === "zh" && normalizedSource === normalizedTranslation && /[a-z]/i.test(normalizedSource) && !/^[a-z]{1,4}\d[\w.-]*$/i.test(normalizedSource);
+}
 function validateTranslations(output: string, units: Unit[]) {
   let parsed: { translations?: Translation[] };
   try { parsed = JSON.parse(output || "{}"); } catch { throw new TranslationFailure("provider_response_invalid", "Translation returned an invalid response. Please retry.", true, 502); }
@@ -44,7 +49,8 @@ function validateTranslations(output: string, units: Unit[]) {
   const received = new Set<string>();
   for (const translation of translations) {
     const key = `${translation?.id}:${translation?.language}`;
-    if (!expected.has(key) || received.has(key) || !String(translation?.text || "").trim()) throw new TranslationFailure("provider_response_invalid", "Translation returned an invalid response. Please retry.", true, 502);
+    const source = units.find((unit) => unit.id === translation?.id)?.source || "";
+    if (!expected.has(key) || received.has(key) || !String(translation?.text || "").trim() || isUntranslatedChineseResult(source, translation)) throw new TranslationFailure("provider_response_invalid", "Translation returned an invalid response. Please retry.", true, 502);
     received.add(key);
   }
   return translations;

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile, productFeedbackTokenFromLocation, ratingEndpointLabel, ratingScale, ratingScore } from "../FactoryProductFeedbackPublic.jsx";
-import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackQuestionDraft } from "../pages/FactoryProductFeedbackPage.jsx";
+import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackQuestionDraft, productFeedbackTranslationMissing } from "../pages/FactoryProductFeedbackPage.jsx";
 import { productFeedbackPublicUrl } from "../productFeedbackPublicUrl.js";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
@@ -31,6 +31,13 @@ describe("Factory Product Feedback public contract", () => {
       expect(productFeedbackQuestionDraft({ key: type, type }, 1)).toMatchObject({ key: type, type, options: [], order: 1 });
     });
     expect(productFeedbackQuestionDraft({ key: "legacy", type: "unknown", options: null }, 2)).toMatchObject({ key: "legacy", type: "short_text", options: [], order: 2 });
+  });
+
+  it("treats an English copy in a Chinese option field as untranslated while preserving real localized text", () => {
+    expect(productFeedbackTranslationMissing("Too mild", "Too mild", "zh")).toBe(true);
+    expect(productFeedbackTranslationMissing("Too mild", "太不辣", "zh")).toBe(false);
+    expect(productFeedbackTranslationMissing("Too mild", "Terlalu kurang pedas", "ms")).toBe(false);
+    expect(productFeedbackTranslationMissing("RM1.00", "RM1.00", "zh")).toBe(false);
   });
 
   it("builds universal deterministic insights without Sambal-only assumptions", () => {
@@ -448,6 +455,28 @@ describe("Factory Product Feedback public contract", () => {
     await waitFor(() => expect(screen.getByDisplayValue("请仔细选择")).toBeTruthy());
     fireEvent.click(screen.getByRole("button", { name: "BM" }));
     expect(screen.getByDisplayValue("Kekalkan")).toBeTruthy();
+  });
+
+  it("replaces legacy English Chinese option copies, persists them, and renders them publicly", async () => {
+    const question = { key: "spice", label_en: "How spicy is it?", label_zh: "辣度如何？", label_ms: "Tahap kepedasan", helper_en: "Choose one", helper_zh: "请选择一项", helper_ms: "Pilih satu", type: "single_choice", required: true, options: [{ value: "too_mild", label_en: "Too mild", label_zh: "Too mild", label_ms: "Terlalu kurang pedas" }, { value: "just_right", label_en: "Just right", label_zh: "Just right", label_ms: "Sesuai" }] };
+    factoryService.translateProductFeedbackContent.mockResolvedValueOnce([{ id: "option:0", language: "zh", text: "太不辣" }, { id: "option:1", language: "zh", text: "刚刚好" }]);
+    const onSave = vi.fn().mockResolvedValue({});
+    render(<FormBuilder campaign={{ questions: [question] }} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.click(screen.getByRole("button", { name: "AI Translate missing" }));
+    await waitFor(() => expect(factoryService.translateProductFeedbackContent).toHaveBeenCalledWith(expect.objectContaining({ units: expect.arrayContaining([expect.objectContaining({ id: "option:0", targets: ["zh"] }), expect.objectContaining({ id: "option:1", targets: ["zh"] })]) })));
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    expect(await screen.findByDisplayValue("太不辣")).toBeTruthy();
+    expect(screen.getByDisplayValue("刚刚好")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith([expect.objectContaining({ options: [expect.objectContaining({ label_zh: "太不辣", label_ms: "Terlalu kurang pedas" }), expect.objectContaining({ label_zh: "刚刚好", label_ms: "Sesuai" })] })]));
+    cleanup();
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions: [{ ...question, options: [{ ...question.options[0], label_zh: "太不辣" }, { ...question.options[1], label_zh: "刚刚好" }] }] } });
+    render(<FactoryProductFeedbackPublic />);
+    await screen.findByText("How spicy is it?");
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    expect(await screen.findByText("太不辣")).toBeTruthy();
+    expect(screen.getByText("刚刚好")).toBeTruthy();
   });
 
   it("shows a safe retryable translation failure instead of a raw Edge Function error", async () => {
