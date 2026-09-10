@@ -22,7 +22,7 @@ vi.mock("../../hooks/useProductionPlanningQuery.js", () => ({
 }));
 
 describe("FactoryProductionPlanningPage data-bearing smoke", () => {
-  it("renders an active Packaging SKU with open-job, Par, coverage, and bounded action paths", () => {
+  it("keeps the three planning filters inline and bounds Edit Par to row overflow", () => {
     render(
       <FactoryPermissionsProvider permissionSet={["factory_production_planning.view", "factory_job_orders.create", "factory_finished_goods.edit"]} can={(key) => ["factory_production_planning.view", "factory_job_orders.create", "factory_finished_goods.edit"].includes(key)}>
         <FactoryMasterDataProvider data={{
@@ -38,8 +38,12 @@ describe("FactoryProductionPlanningPage data-bearing smoke", () => {
     expect(screen.getAllByText("Sambal").length).toBeGreaterThan(0);
     expect(screen.getAllByText("SAM-500").length).toBeGreaterThan(0);
     expect(screen.getByText("1 open order")).not.toBeNull();
+    expect(screen.getByText("Category")).not.toBeNull();
+    expect(screen.getAllByText("Status").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "More filters" })).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Create Job Order" })[0]);
-    fireEvent.click(screen.getAllByRole("button", { name: "Edit Par" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "More row actions" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Edit Par" }));
     expect(actions.openPlanningJobOrderDraft).toHaveBeenCalledWith(expect.objectContaining({ finished_good_id: "sku-1" }));
     expect(actions.openProductionPlanningPar).toHaveBeenCalledWith(expect.objectContaining({ id: "sku-1" }));
   });

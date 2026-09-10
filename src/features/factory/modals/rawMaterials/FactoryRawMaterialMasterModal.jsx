@@ -26,6 +26,8 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
     uom: "kg",
     conversion_package_quantity: "",
     conversion_base_uom: "",
+    acceptance_procedure: "",
+    control_methods: "",
     min_stock_level: 0,
     par_level: "",
     manual_unit_cost: "",
@@ -44,7 +46,7 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
   const [fieldErrors, setFieldErrors] = useState({});
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
-  const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
+  const activeStorageLocations = storageLocations.filter((location) => (location.is_storage_location !== false && location.status === "active") || location.id === form.storage_location_id);
   const storageLocationOptions = [
     { value: "", label: "No Storage Location", helper: "Leave blank" },
     ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
@@ -188,6 +190,10 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
             <Field label="Contains" error={fieldErrors.conversion_package_quantity}><input className={inputClass(fieldErrors.conversion_package_quantity)} type="number" min="0.0001" step="0.0001" value={form.conversion_package_quantity ?? ""} onChange={(event) => updateUomContract({ conversion_package_quantity: event.target.value })} /></Field>
             <Field label="Base UOM" error={fieldErrors.conversion_base_uom}><SearchableSelect value={form.conversion_base_uom || ""} options={baseOptions} placeholder="Base UOM" searchPlaceholder="Search UOM" onChange={(conversionBaseUom) => updateUomContract({ conversion_base_uom: conversionBaseUom })} /></Field>
           </div> : null}
+        </section>
+        <section className="grid gap-3 rounded-lg border border-border bg-slate-50 p-3 sm:grid-cols-2">
+          <Field label="Acceptance Procedure"><textarea className={inputClass()} rows={4} value={form.acceptance_procedure || ""} onChange={(event) => setForm((current) => ({ ...current, acceptance_procedure: event.target.value }))} placeholder="Read-only guidance shown during Receiving" /></Field>
+          <Field label="Control Methods"><textarea className={inputClass()} rows={4} value={form.control_methods || ""} onChange={(event) => setForm((current) => ({ ...current, control_methods: event.target.value }))} placeholder="Receiving control methods" /></Field>
         </section>
         <Field label={`Par Level${form.uom ? ` (${form.uom})` : ""}`}>
           <input className={inputClass()} type="number" min="0" step="0.0001" placeholder="Optional target stock level" value={form.par_level ?? ""} onChange={(event) => setForm((current) => ({ ...current, par_level: event.target.value }))} />

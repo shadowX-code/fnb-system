@@ -20,8 +20,89 @@ describe("Factory stock-changing trusted RPC contracts", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("factory_save_and_complete_finished_good_dispatch", expect.objectContaining({ p_request_id: "dispatch-request", p_customer_id: "customer-1", p_items: [{ finished_good_id: "sku-1", quantity: 2, batch_no: "", remarks: "", allocations: [{ batch_balance_id: "fg-batch-1", quantity: 2 }] }] }));
   });
 
+  it("uses the canonical Finished Goods batch-availability authority without recreating stock calculations", async () => {
+    mocks.rpc.mockResolvedValue({ data: {
+      finished_good_id: "sku-1", aggregate_balance: 35, allocatable_batch_balance: 16, unavailable_balance: 19,
+      batches: [{ batch_id: "batch-eligible", available_qty: 16, storage_location: "Freezer Store-A", storage_location_status: "active" }],
+      unavailable_batches: [{ batch_id: "batch-unmapped", unavailable_qty: 19, exclusion_reason: "Storage Location Missing" }],
+    }, error: null });
+
+    const availability = await factoryService.getFinishedGoodBatchAvailability({
+      finishedGoodId: "sku-1", dispatchDate: "2026-09-05",
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_get_finished_good_batch_availability", {
+      p_finished_good_id: "sku-1", p_dispatch_id: null, p_dispatch_date: "2026-09-05",
+    });
+    expect(availability).toMatchObject({ aggregate_balance: 35, allocatable_batch_balance: 16, unavailable_balance: 19 });
+    expect(availability.batches).toEqual([expect.objectContaining({ batch_id: "batch-eligible", available_qty: 16 })]);
+    expect(availability.unavailable_batches).toEqual([expect.objectContaining({ batch_id: "batch-unmapped", exclusion_reason: "Storage Location Missing" })]);
+  });
+
   it.each([["product", "factory_approve_product_stock_check"], ["raw", "factory_approve_raw_material_stock_check"]])("delegates %s stock-check approval to its trusted adjustment RPC", async (stockType, rpcName) => {
     mocks.rpc.mockResolvedValue({ error: null }); await factoryService.approveStockCheck(stockType, { id: "check-1", check_no: "SC-1" }, "employee-1");
     expect(mocks.rpc).toHaveBeenCalledWith(rpcName, { p_stock_check_id: "check-1", p_approved_by: null });
+  });
+
+  it("maps MeSTI Cleaning completion and verification to trusted RPCs", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: "occ-1", status: "completed" }, error: null });
+    await factoryService.completeMestiCleaningOccurrence("occ-1", "done");
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_mesti_complete_cleaning_occurrence", { p_occurrence_id: "occ-1", p_note: "done" });
+
+    await factoryService.verifyMestiCleaningOccurrence("occ-1", "verified", "ok");
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_mesti_verify_cleaning_occurrence", { p_occurrence_id: "occ-1", p_result: "verified", p_note: "ok" });
+  });
+
+  it("delegates Receiving verification to its document-level trusted RPC", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: "receiving-1", batch_no: "RB-1", status: "completed", verification_status: "verified", items: [] }, error: null });
+    await factoryService.verifyRawMaterialReceivingBatch({ id: "receiving-1", batch_no: "RB-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_verify_raw_material_receiving", { p_batch_id: "receiving-1" });
+  });
+  it("delegates Production verification to its trusted record authority", async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: "production-1", verification_status: "verified" }, error: null });
+    await factoryService.verifyProductionRecord({ id: "production-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_verify_production_record", { p_production_id: "production-1" });
+  });
+
+  it("uses the Food Processing projection's declared filter signature", async () => {
+    mocks.rpc.mockResolvedValue({ data: [], error: null });
+    await factoryService.listMestiFoodProcessingControl({
+      dateFrom: "2026-09-01", dateTo: "2026-09-04", product: "11111111-1111-4111-8111-111111111111", qcStatus: "Passed", verificationStatus: "verified", search: "PRD-1",
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_mesti_food_processing_control", {
+      p_date_from: "2026-09-01", p_date_to: "2026-09-04", p_finished_good_id: "11111111-1111-4111-8111-111111111111", p_qc_status: "Passed", p_verification_status: "verified", p_search: "PRD-1",
+    });
+  });
+
+  it("uses one canonical Product Movement search across product, SKU, batch, and source evidence", async () => {
+    const pageQuery = {
+      order: vi.fn(),
+      range: vi.fn(),
+    };
+    pageQuery.order.mockReturnValue(pageQuery);
+    pageQuery.range.mockResolvedValue({ data: [], count: 0, error: null });
+    mocks.rpc.mockImplementation((name) => name === "factory_list_product_movements_global_search"
+      ? pageQuery
+      : Promise.resolve({ data: { stock_in_count: 0, stock_out_count: 0, filtered_skus: [], movement_types: [], categories: [] }, error: null }));
+
+    await factoryService.listProductMovementsPage({
+      filters: { search: "PB-01", dateFrom: "2026-09-01", dateTo: "2026-09-08", category: "11111111-1111-4111-8111-111111111111", movementType: "Dispatch" },
+    });
+
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_list_product_movements_global_search", {
+      p_date_from: "2026-09-01", p_date_to: "2026-09-08", p_search: "PB-01", p_category_id: "11111111-1111-4111-8111-111111111111", p_movement_type: "Dispatch",
+    }, { count: "exact" });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_product_movements_global_search_summary", {
+      p_date_from: "2026-09-01", p_date_to: "2026-09-08", p_search: "PB-01", p_category_id: "11111111-1111-4111-8111-111111111111", p_movement_type: "Dispatch",
+    });
+  });
+
+  it("maps MeSTI Cleaning requirements to its trusted authority without role settings", async () => {
+    const requirement = { task_name: "Floor", location_ids: ["loc-1", "loc-2"], recurrence_type: "daily" };
+    mocks.rpc.mockResolvedValue({ data: { id: "req-1", ...requirement, location_names: ["Cooking", "Dry Store"] }, error: null });
+    await factoryService.saveMestiCleaningRequirement(requirement);
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_save_mesti_cleaning_requirement", { p_requirement: requirement });
+
+    expect(factoryService.saveMestiCleaningSettings).toBeUndefined();
   });
 });

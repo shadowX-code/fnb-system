@@ -38,14 +38,31 @@ export function formatDateDisplay(value, placeholder = "Select date") {
   if (!value) return placeholder;
   const [year, month, day] = String(value).split("-");
   if (!year || !month || !day) return placeholder;
-  return `${year}-${month}-${day}`;
+  return `${day}/${month}/${year}`;
 }
 
 export function formatFactoryDate(value) {
+  return formatFactoryListDate(value);
+}
+
+export function formatFactoryListDate(value) {
   if (!value) return "—";
   const [year, month, day] = String(value).slice(0, 10).split("-");
-  if (year && month && day) return `${year}-${month}-${day}`;
+  if (year && month && day) return `${day}/${month}/${year}`;
   return String(value).slice(0, 10) || "—";
+}
+
+export function formatFactoryListDateTime(value) {
+  if (!value) return { date: "—", time: "" };
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return { date: formatFactoryListDate(value), time: "" };
+  return { date: formatFactoryListDate(value), time: formatFactoryListTime(value) };
+}
+
+export function formatFactoryListTime(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "numeric", minute: "2-digit", hour12: true }).format(date).toUpperCase();
 }
 
 export function formatFactoryReadableDate(value) {
@@ -57,10 +74,8 @@ export function formatFactoryReadableDate(value) {
 }
 
 export function formatFactoryDateTime(value) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16).replace("T", " ");
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  const { date, time } = formatFactoryListDateTime(value);
+  return time ? `${date} ${time}` : date;
 }
 
 export function formatFactoryAuditDateTime(value) {

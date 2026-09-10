@@ -21,7 +21,7 @@ function renderPage(Page, { permissions, data, navigation }) {
 }
 
 function expectStatusBadge(label) {
-  expect(screen.getAllByText(label).some((element) => element.classList.contains("badge"))).toBe(true);
+  expect(screen.getAllByText(label).some((element) => element.closest(".badge"))).toBe(true);
 }
 
 afterEach(cleanup);
@@ -41,17 +41,17 @@ describe("Factory master-data action intents", () => {
   it("keeps Supplier, Customer, and Storage create/edit/archive identities at bounded navigation actions", () => {
     const supplierNav = { openCreateSupplier: vi.fn(), openEditSupplier: vi.fn(), archiveSupplier: vi.fn() };
     const supplierView = renderPage(FactorySuppliersPage, { permissions: ["factory_suppliers.view", "factory_suppliers.create", "factory_suppliers.edit", "factory_suppliers.delete"], data: { factorySuppliers: [supplier] }, navigation: supplierNav });
-    fireEvent.click(screen.getByRole("button", { name: /create supplier/i })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /create supplier/i })); fireEvent.click(screen.getByRole("button", { name: "Edit Supplier" })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(supplierNav.openCreateSupplier).toHaveBeenCalledTimes(1); expect(supplierNav.openEditSupplier).toHaveBeenCalledWith(supplier); expect(supplierNav.archiveSupplier).toHaveBeenCalledWith(supplier); supplierView.unmount();
 
     const customerNav = { openCreateCustomer: vi.fn(), openEditCustomer: vi.fn(), archiveCustomer: vi.fn() };
     const customerView = renderPage(FactoryCustomersPage, { permissions: ["factory_customers.view", "factory_customers.create", "factory_customers.edit", "factory_customers.delete"], data: { factoryCustomers: [customer] }, navigation: customerNav });
-    fireEvent.click(screen.getByRole("button", { name: /create customer/i })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /create customer/i })); fireEvent.click(screen.getByRole("button", { name: "Edit Customer" })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(customerNav.openCreateCustomer).toHaveBeenCalledTimes(1); expect(customerNav.openEditCustomer).toHaveBeenCalledWith(customer); expect(customerNav.archiveCustomer).toHaveBeenCalledWith(customer); customerView.unmount();
 
     const storageNav = { openCreateStorageLocation: vi.fn(), openEditStorageLocation: vi.fn(), archiveStorageLocation: vi.fn() };
     renderPage(FactoryStorageLocationsPage, { permissions: ["factory_storage_locations.view", "factory_storage_locations.create", "factory_storage_locations.edit", "factory_storage_locations.delete"], data: { storageLocations: [location] }, navigation: storageNav });
-    fireEvent.click(screen.getByRole("button", { name: /storage location/i })); fireEvent.click(screen.getByRole("button", { name: "Edit" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
+    fireEvent.click(screen.getByRole("button", { name: /^location$/i })); fireEvent.click(screen.getByRole("button", { name: "Edit Location" })); fireEvent.click(screen.getByRole("button", { name: "More row actions" })); fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     expect(storageNav.openCreateStorageLocation).toHaveBeenCalledTimes(1); expect(storageNav.openEditStorageLocation).toHaveBeenCalledWith(location); expect(storageNav.archiveStorageLocation).toHaveBeenCalledWith(location);
   });
 

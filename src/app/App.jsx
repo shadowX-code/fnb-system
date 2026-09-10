@@ -16,6 +16,7 @@ import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import PublicHomepage from "../auth/PublicHomepage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
+import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../features/factory/FactoryProductFeedbackPublic.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
 import { getSidebarSections } from "../../config/modules.ts";
 import { isPublicSurface } from "./hostnameRouting.js";
@@ -551,6 +552,10 @@ export default function App() {
   }
 
   const ui = { notify, confirm, navigate };
+
+  if (isPublicProductFeedbackRoute()) {
+    return <FactoryProductFeedbackPublic />;
+  }
 
   if (auth.loading || auth.contextLoading) {
     return (

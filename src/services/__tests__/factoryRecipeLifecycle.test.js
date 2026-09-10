@@ -92,4 +92,12 @@ describe("Factory Product Recipe trusted lifecycle service contracts", () => {
       expect(args.p_recipe).toEqual(expect.objectContaining({ id: draft.id, recipe_code: draft.recipe_code }));
     }
   });
+
+  it("turns a concurrent first-Recipe family conflict into a concise user-facing error", async () => {
+    const firstRecipe = { ...recipe, id: undefined, version: "v1", status: "draft", items: [{ raw_material_id: "material-1", quantity_used: 2, recipe_usage_uom: "kg" }] };
+    mocks.from.mockImplementation(() => recipeFetch({ id: recipe.product_family_id, name_en: recipe.recipe_name, status: "active" }));
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "FACTORY_RECIPE_FAMILY_EXISTS", code: "23505" } });
+
+    await expect(factoryService.saveProductRecipe(firstRecipe)).rejects.toThrow("This Finished Good already has a Product Recipe. Create a new version from the existing Recipe instead.");
+  });
 });

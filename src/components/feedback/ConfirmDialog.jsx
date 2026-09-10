@@ -29,7 +29,7 @@ export default function ConfirmDialog({ request, onCancel, onConfirm }) {
         <p className="mt-2 text-sm text-text-secondary">{request.message}</p>
         <div className="mt-5 flex justify-end gap-2">
           <button className="btn-secondary" type="button" onClick={onCancel}>
-            Cancel
+            {request.cancelLabel ?? "Cancel"}
           </button>
           <button
             className={request.danger ? "inline-flex h-10 items-center justify-center rounded-control bg-rose-600 px-4 text-sm font-semibold text-white transition hover:bg-rose-700" : "btn-primary"}

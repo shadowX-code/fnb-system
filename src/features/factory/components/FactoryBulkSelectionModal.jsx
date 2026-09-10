@@ -6,8 +6,8 @@ import Badge from "../../../components/ui/Badge.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import { FactoryBulkThumbnail, FactoryImagePreview } from "./FactoryImagePreview.jsx";
 
-export function Field({ label, children, error }) {
-  return <label className="block"><span className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">{label}</span><div className="mt-1.5">{children}</div>{error ? <div className="mt-1 text-xs font-semibold text-rose-600">{error}</div> : null}</label>;
+export function Field({ label, helper, children, error }) {
+  return <label className="block"><span className="text-[10.5px] font-semibold text-text-secondary">{label}</span>{helper ? <span className="mt-0.5 block text-xs leading-4 text-text-muted">{helper}</span> : null}<div className="mt-1.5">{children}</div>{error ? <div className="mt-1 text-xs font-semibold text-rose-600">{error}</div> : null}</label>;
 }
 
 export function inputClass(error) {

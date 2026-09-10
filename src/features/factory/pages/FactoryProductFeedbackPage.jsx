@@ -1,0 +1,300 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ClipboardList, Copy, Eye, Link2, Pencil, Plus, QrCode, Trash2 } from "lucide-react";
+import Modal from "../../../components/feedback/Modal.jsx";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
+import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
+import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import { FactoryEvidenceGrid, FactoryEvidenceHeader, FactoryEvidenceSection } from "../components/FactoryEvidencePresentation.jsx";
+import FactoryPagination, { useFactoryClientPagination } from "../components/FactoryPagination.jsx";
+import FactoryRowActions from "../components/FactoryRowActions.jsx";
+import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
+import FactorySummaryCard from "../components/FactorySummaryCard.jsx";
+import { CompactSelect, Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
+import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
+import SearchableSelect from "../components/SearchableSelect.jsx";
+import { FactoryCellEntity, FactoryCellMuted } from "../components/FactoryTableCell.jsx";
+import { formatFactoryDateTime } from "../utils/factoryDates.js";
+import { factoryService } from "../../../services/factoryService.js";
+import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
+import "../FactoryProductFeedbackPage.css";
+import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
+import { toDataURL } from "qrcode";
+
+function publicUrl(token) { return `${window.location.origin}/feedback/product/${token}`; }
+function displayAnswer(value) { return Array.isArray(value) ? value.join(", ") : value || "—"; }
+const campaignContentDefaults = (campaign = {}) => ({ title: { en: campaign.name || "", zh: "", ms: "" }, description: { en: "", zh: "", ms: "" }, intro_title: { en: "", zh: "", ms: "" }, intro_body: { en: "", zh: "", ms: "" }, thank_you_title: { en: "Thank you", zh: "谢谢您的反馈", ms: "Terima kasih" }, thank_you_body: { en: campaign.thank_you_en || "", zh: campaign.thank_you_zh || "", ms: "" } });
+const contactCollectionDefaults = { enabled: false, prompt: { en: "Interested in this product? Leave your details and we'll keep you updated.", zh: "对这款产品感兴趣？留下您的资料，我们会为您提供最新消息。", ms: "Berminat dengan produk ini? Tinggalkan butiran anda dan kami akan maklumkan perkembangan terkini." } };
+export function productFeedbackCampaignEditorState(campaign = {}) {
+  const defaults = campaignContentDefaults(campaign); const content = campaign.content || {};
+  const contactCollection = campaign.contact_collection || {};
+  return { ...campaign, questions: campaign.questions?.length ? campaign.questions : sambalFeedbackTemplate, content: { ...defaults, ...content, ...Object.fromEntries(Object.keys(defaults).map((key) => [key, { ...defaults[key], ...(content[key] || {}) }])) }, branding: campaign.branding && typeof campaign.branding === "object" && !Array.isArray(campaign.branding) ? { ...campaign.branding } : {}, contact_collection: { ...contactCollectionDefaults, ...contactCollection, prompt: { ...contactCollectionDefaults.prompt, ...(contactCollection.prompt || {}) } } };
+}
+
+const campaignBrandingAssetFields = new Set(["logo_url", "hero_url", "thank_you_image_url"]);
+
+function campaignBrandingAssetUrl(field, publicUrl) {
+  if (!campaignBrandingAssetFields.has(field)) throw new Error("Unsupported campaign branding asset.");
+  const value = String(publicUrl || "").trim();
+  if (!value) throw new Error("Image upload did not return a usable asset.");
+  return value;
+}
+
+export function applyCampaignBrandingAsset(form, field, publicUrl) {
+  const value = campaignBrandingAssetUrl(field, publicUrl);
+  const branding = form?.branding && typeof form.branding === "object" && !Array.isArray(form.branding) ? form.branding : {};
+  return { ...form, branding: { ...branding, [field]: value } };
+}
+
+export default function FactoryProductFeedbackPage({ auth, onNotify }) {
+  const [list, setList] = useState({ campaigns: [], finished_goods: [] }); const [detail, setDetail] = useState(null); const [selected, setSelected] = useState(null); const [tab, setTab] = useState("overview"); const [editor, setEditor] = useState(null); const [response, setResponse] = useState(null); const [variantName, setVariantName] = useState(""); const [search, setSearch] = useState(""); const [variant, setVariant] = useState("");
+  const can = (permission) => Boolean(auth?.hasPermission?.(permission)); const canEdit = can("factory_product_feedback.edit") || can("factory_product_feedback.manage") || can("factory_product_feedback.create");
+  const loadList = async () => { const data = await factoryService.listProductFeedbackAdmin(); setList(data); return data; };
+  const openCampaign = async (campaign) => { const data = await factoryService.getProductFeedbackCampaign(campaign.id); setSelected(campaign.id); setDetail(data); setTab("overview"); return data; };
+  const editCampaign = async (campaign) => { try { const data = await factoryService.getProductFeedbackCampaign(campaign.id); setEditor(data.campaign); } catch (error) { onNotify?.({ title: "Unable to open campaign", message: error.message, tone: "error" }); } };
+  useEffect(() => { loadList().catch((error) => onNotify?.({ title: "Unable to load Product Feedback", message: error.message, tone: "error" })); }, []);
+  const campaigns = useMemo(() => (list.campaigns || []).filter((campaign) => `${campaign.name} ${campaign.event_label || ""}`.toLowerCase().includes(search.toLowerCase())), [list, search]);
+  const responses = useMemo(() => (detail?.responses || []).filter((row) => (!variant || row.variant_id === variant) && JSON.stringify(row.answers).toLowerCase().includes(search.toLowerCase())), [detail, variant, search]);
+  const pager = useFactoryClientPagination("product-feedback-responses", responses.length, 20, `${selected || ""}:${search}:${variant}`);
+  async function saveCampaign(value) { const saved = await factoryService.saveProductFeedbackCampaign(value); setEditor(null); await loadList(); const data = await openCampaign(saved); onNotify?.({ title: "Campaign saved", tone: "success" }); return data?.campaign || saved; }
+  async function addVariant() { if (!variantName.trim()) return; await factoryService.saveProductFeedbackVariant({ campaign_id: selected, name: variantName.trim(), is_active: true }); setVariantName(""); await openCampaign({ id: selected }); }
+  function copyLink(token) { navigator.clipboard?.writeText(publicUrl(token)); onNotify?.({ title: "Public link copied", tone: "success" }); }
+  async function downloadQr(token, name = "product-feedback") { const href = await toDataURL(publicUrl(token), { width: 640, margin: 1 }); const link = document.createElement("a"); link.href = href; link.download = `${name}.png`; link.click(); }
+  const CampaignModal = CampaignEditorModal;
+  if (!selected) return <div className="space-y-5"><PageHeader section="Factory" title="Product Feedback" description="Create tasting campaigns and review anonymous product feedback." actions={canEdit ? <button className="btn-primary" type="button" onClick={() => setEditor({ name: "", status: "draft", default_language: "en", questions: sambalFeedbackTemplate })}><Plus size={15} /> Create Campaign</button> : null} /><FactoryFilterBar activeFilters={search ? [{ key: "search", label: "Search", value: search, onRemove: () => setSearch("") }] : []} onClear={() => setSearch("")}><Field label="Search"><input className={inputClass()} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns or events" /></Field></FactoryFilterBar><FactoryDataSurface><FactoryTable rows={campaigns} rowHover="mint" onRowClick={openCampaign} emptyTitle="No Product Feedback campaigns" emptyDescription="Create a campaign to collect tasting feedback." columns={[{ key: "name", label: "Campaign", render: (row) => <FactoryCellEntity name={row.name} code={row.event_label} /> }, { key: "period", label: "Period", render: (row) => [row.starts_on, row.ends_on].filter(Boolean).join(" – ") || <FactoryCellMuted>Open</FactoryCellMuted> }, { key: "responses", label: "Responses", align: "right", render: (row) => row.response_count || 0 }, { key: "status", label: "Status", render: (row) => <FactoryStatusBadge status={row.status === "live" ? "Active" : row.status === "closed" ? "Closed" : "Draft"} /> }, { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => openCampaign(row)} directActions={canEdit ? [{ label: "Edit campaign", onClick: () => editCampaign(row) }] : []} /> }]} /></FactoryDataSurface>{editor ? <CampaignModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}</div>;
+  const campaign = detail?.campaign || {}; const summary = detail?.summary || {};
+  if (tab === "overview") return <><CampaignOverview campaign={campaign} summary={summary} responses={detail?.responses || []} variants={detail?.variants || []} canEdit={canEdit} variantName={variantName} onVariantName={setVariantName} onAddVariant={addVariant} onCampaigns={() => { setSelected(null); setDetail(null); setSearch(""); }} onEdit={() => setEditor(campaign)} onTabChange={setTab} onCopy={copyLink} onDownload={downloadQr} />{editor ? <CampaignEditorModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}</>;
+  return <div className="space-y-5"><PageHeader section="Factory" title={campaign.name || "Product Feedback"} description={campaign.event_label || "Tasting campaign"} actions={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => { setSelected(null); setDetail(null); setSearch(""); }}>Campaigns</button>{canEdit ? <button className="btn-primary" type="button" onClick={() => setEditor(campaign)}>Edit Campaign</button> : null}</div>} /><div className="flex border-b border-border"><Tabs value={tab} onChange={setTab} /></div>{tab === "overview" ? <><div className="grid gap-3 md:grid-cols-4"><FactorySummaryCard icon={ClipboardList} label="Responses" value={summary.responses || 0} /><FactorySummaryCard icon={Star} tone="success" label="Overall Rating" value={summary.overall_rating || "—"} /><FactorySummaryCard icon={ThumbsUp} tone="success" label="Would Buy" value={`${summary.would_buy_percent || 0}%`} /><FactorySummaryCard icon={QrCode} tone="info" label="Just right spiciness" value={`${summary.just_right_spiciness_percent || 0}%`} /></div><FactoryDataSurface><div className="space-y-4 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-text-primary">Public feedback link</h2><p className="mt-1 text-sm text-text-secondary">Live campaigns can be shared by campaign or sample variant.</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => copyLink(campaign.public_id)}><Copy size={15} /> Copy link</button><button className="btn-secondary" type="button" onClick={() => downloadQr(campaign.public_id, campaign.name)}><QrCode size={15} /> QR PNG</button><a className="btn-secondary" href={publicUrl(campaign.public_id)} target="_blank" rel="noreferrer"><Eye size={15} /> Preview</a></div></div><div className="rounded-lg border border-border bg-[var(--theme-subtle)] p-3 text-sm font-medium text-text-secondary break-all">{publicUrl(campaign.public_id)}</div><div className="border-t border-border pt-4"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-text-primary">Variants / samples</h2>{canEdit ? <div className="flex gap-2"><input className={`${inputClass()} h-9`} value={variantName} placeholder="Sambal A" onChange={(event) => setVariantName(event.target.value)} /><button type="button" className="btn-secondary h-9" onClick={addVariant}>Add variant</button></div> : null}</div>{detail?.variants?.length ? <div className="grid gap-2 md:grid-cols-2">{detail.variants.map((item) => <div className="flex items-center justify-between rounded-lg border border-border p-3" key={item.id}><span className="font-semibold text-text-primary">{item.name}</span><div className="flex gap-2"><button className="icon-btn" title="Copy variant link" type="button" onClick={() => copyLink(item.public_token)}><Link2 size={15} /></button><button className="icon-btn" title="Download variant QR" type="button" onClick={() => downloadQr(item.public_token, item.name)}><QrCode size={15} /></button><a className="icon-btn" title="Preview variant" href={publicUrl(item.public_token)} target="_blank" rel="noreferrer"><Eye size={15} /></a></div></div>)}</div> : <p className="text-sm text-text-secondary">No variants. This campaign uses one shared public link.</p>}</div></div></FactoryDataSurface></> : null}{tab === "form" ? <FormBuilder campaign={campaign} editable={canEdit} onSave={async (questions) => saveCampaign({ ...campaign, questions })} onNotify={onNotify} /> : null}{tab === "responses" ? <><FactoryFilterBar activeFilters={[search && { key: "search", label: "Search", value: search, onRemove: () => setSearch("") }, variant && { key: "variant", label: "Variant", value: detail.variants?.find((item) => item.id === variant)?.name || variant, onRemove: () => setVariant("") }].filter(Boolean)} onClear={() => { setSearch(""); setVariant(""); }}><Field label="Search"><input className={inputClass()} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search answers" /></Field><Field label="Variant"><SearchableSelect value={variant} placeholder="All" options={[{ value: "", label: "All" }, ...(detail.variants || []).map((item) => ({ value: item.id, label: item.name }))]} onChange={setVariant} /></Field></FactoryFilterBar><FactoryDataSurface><FactoryTable rows={responses.slice(pager.from, pager.to)} emptyTitle="No feedback responses" columns={[{ key: "submitted", label: "Submitted", render: (row) => formatFactoryDateTime(row.submitted_at) }, { key: "variant", label: "Variant", render: (row) => row.variant_name || <FactoryCellMuted>Campaign</FactoryCellMuted> }, { key: "rating", label: "Rating", render: (row) => row.answers?.overall_rating || "—" }, { key: "intent", label: "Purchase Intent", render: (row) => row.answers?.purchase_intent || "—" }, { key: "repeat", label: "Repeat", render: (row) => row.repeat_index > 1 ? `Possible repeat #${row.repeat_index}` : "—" }, { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setResponse(row)} /> }]} /><FactoryPagination page={pager.page} pageSize={pager.pageSize} total={responses.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></FactoryDataSurface></> : null}{editor ? <CampaignModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}{response ? <ResponseModal response={response} onClose={() => setResponse(null)} /> : null}</div>;
+  return <div className="space-y-5"><PageHeader section="Factory" title={campaign.name || "Product Feedback"} description={campaign.event_label || "Tasting campaign"} actions={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => { setSelected(null); setDetail(null); setSearch(""); }}>Campaigns</button>{canEdit ? <button className="btn-primary" type="button" onClick={() => setEditor(campaign)}>Edit Campaign</button> : null}</div>} /><div className="flex border-b border-border"><Tabs value={tab} onChange={setTab} /></div>{tab === "overview" ? <><div className="grid gap-3 md:grid-cols-4">{campaignSummaryCards(summary).filter((item) => item.key === "responses" || (item.value !== null && item.value !== undefined && item.value !== "—")).map((item) => <FactorySummaryCard key={item.key} icon={item.icon} tone={item.tone} label={item.label} value={item.value} />)}</div><FactoryDataSurface><div className="space-y-4 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-text-primary">Public feedback link</h2><p className="mt-1 text-sm text-text-secondary">Live campaigns can be shared by campaign or sample variant.</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => copyLink(campaign.public_id)}><Copy size={15} /> Copy link</button><button className="btn-secondary" type="button" onClick={() => downloadQr(campaign.public_id, campaign.name)}><QrCode size={15} /> QR PNG</button><a className="btn-secondary" href={publicUrl(campaign.public_id)} target="_blank" rel="noreferrer"><Eye size={15} /> Preview</a></div></div><div className="rounded-lg border border-border bg-[var(--theme-subtle)] p-3 text-sm font-medium text-text-secondary break-all">{publicUrl(campaign.public_id)}</div><div className="border-t border-border pt-4"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-text-primary">Variants / samples</h2>{canEdit ? <div className="flex gap-2"><input className={`${inputClass()} h-9`} value={variantName} placeholder="Sambal A" onChange={(event) => setVariantName(event.target.value)} /><button type="button" className="btn-secondary h-9" onClick={addVariant}>Add variant</button></div> : null}</div>{detail?.variants?.length ? <div className="grid gap-2 md:grid-cols-2">{detail.variants.map((item) => <div className="flex items-center justify-between rounded-lg border border-border p-3" key={item.id}><span className="font-semibold text-text-primary">{item.name}</span><div className="flex gap-2"><button className="icon-btn" title="Copy variant link" type="button" onClick={() => copyLink(item.public_token)}><Link2 size={15} /></button><button className="icon-btn" title="Download variant QR" type="button" onClick={() => downloadQr(item.public_token, item.name)}><QrCode size={15} /></button><a className="icon-btn" title="Preview variant" href={publicUrl(item.public_token)} target="_blank" rel="noreferrer"><Eye size={15} /></a></div></div>)}</div> : <p className="text-sm text-text-secondary">No variants. This campaign uses one shared public link.</p>}</div></div></FactoryDataSurface></> : null}{tab === "form" ? <FormBuilder campaign={campaign} editable={canEdit} onSave={async (questions) => saveCampaign({ ...campaign, questions })} onNotify={onNotify} /> : null}{tab === "responses" ? <><FactoryFilterBar activeFilters={[search && { key: "search", label: "Search", value: search, onRemove: () => setSearch("") }, variant && { key: "variant", label: "Variant", value: detail.variants?.find((item) => item.id === variant)?.name || variant, onRemove: () => setVariant("") }].filter(Boolean)} onClear={() => { setSearch(""); setVariant(""); }}><Field label="Search"><input className={inputClass()} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search answers" /></Field><Field label="Variant"><SearchableSelect value={variant} placeholder="All" options={[{ value: "", label: "All" }, ...(detail.variants || []).map((item) => ({ value: item.id, label: item.name }))]} onChange={setVariant} /></Field></FactoryFilterBar><FactoryDataSurface><FactoryTable rows={responses.slice(pager.from, pager.to)} emptyTitle="No feedback responses" columns={[{ key: "submitted", label: "Submitted", render: (row) => formatFactoryDateTime(row.submitted_at) }, { key: "variant", label: "Variant", render: (row) => row.variant_name || <FactoryCellMuted>Campaign</FactoryCellMuted> }, { key: "rating", label: "Rating", render: (row) => row.answers?.overall_rating || "—" }, { key: "intent", label: "Purchase Intent", render: (row) => row.answers?.purchase_intent || "—" }, { key: "repeat", label: "Repeat", render: (row) => row.repeat_index > 1 ? `Possible repeat #${row.repeat_index}` : "—" }, { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setResponse(row)} /> }]} /><FactoryPagination page={pager.page} pageSize={pager.pageSize} total={responses.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></FactoryDataSurface></> : null}{editor ? <CampaignModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}{response ? <ResponseModal response={response} onClose={() => setResponse(null)} /> : null}</div>;
+}
+
+function Tabs({ value, onChange }) { return <>{["overview", "form", "responses"].map((item) => <button key={item} type="button" className={`px-4 py-3 text-sm font-semibold capitalize ${value === item ? "border-b-2 border-primary text-primary" : "text-text-secondary"}`} onClick={() => onChange(item)}>{item}</button>)}</>; }
+const languages = [{ key: "en", label: "EN" }, { key: "zh", label: "中文" }, { key: "ms", label: "BM" }];
+const types = [
+  { value: "single_choice", label: "Single Choice" },
+  { value: "multi_choice", label: "Multiple Choice" },
+  { value: "rating", label: "Rating" },
+  { value: "price_choice", label: "Price" },
+  { value: "short_text", label: "Short Answer" },
+  { value: "image_choice", label: "Image Choice" },
+];
+const emptyQuestion = (order) => ({ key: `question_${Date.now()}`, label_en: "New question", label_zh: "", label_ms: "", helper_en: "", helper_zh: "", helper_ms: "", type: "short_text", required: false, options: [], order });
+export function campaignSummaryCards(summary) {
+  return [{ key: "responses", icon: ClipboardList, label: "Responses", value: summary.responses || 0, tone: "neutral" }];
+}
+
+function CampaignOverview({ campaign, summary, responses, variants, canEdit, variantName, onVariantName, onAddVariant, onCampaigns, onEdit, onTabChange, onCopy, onDownload }) {
+  const insights = useMemo(() => buildProductFeedbackInsights({
+    questions: campaign.questions || [],
+    // Contact data is intentionally excluded from deterministic and AI insight inputs.
+    responses: responses.map(({ answers }) => ({ answers })),
+  }), [campaign.questions, responses]);
+  const [aiInsights, setAiInsights] = useState([]);
+  useEffect(() => {
+    let current = true;
+    setAiInsights([]);
+    if (!campaign.id || !insights.responseCount || !insights.findings.length) return undefined;
+    factoryService.interpretProductFeedbackInsights(insights)
+      .then((items) => { if (current) setAiInsights(items); })
+      .catch(() => { if (current) setAiInsights([]); });
+    return () => { current = false; };
+  }, [campaign.id, insights]);
+  return <div className="space-y-5"><PageHeader section="Factory" title={campaign.name || "Product Feedback"} description={campaign.event_label || "Tasting campaign"} actions={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={onCampaigns}>Campaigns</button>{canEdit ? <button className="btn-primary" type="button" onClick={onEdit}>Edit Campaign</button> : null}</div>} /><div className="flex border-b border-border"><Tabs value="overview" onChange={onTabChange} /></div><div className={`grid gap-3 ${campaign.contact_collection?.enabled ? "md:grid-cols-2" : "max-w-xs"}`}><FactorySummaryCard icon={ClipboardList} label="Responses" value={summary.responses || 0} />{campaign.contact_collection?.enabled ? <FactorySummaryCard icon={ClipboardList} tone="info" label="Contacts" value={summary.contacts || 0} /> : null}</div><FeedbackInsights insights={insights} aiInsights={aiInsights} /><FactoryDataSurface><div className="space-y-4 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-text-primary">Public feedback link</h2><p className="mt-1 text-sm text-text-secondary">Live campaigns can be shared by campaign or sample variant.</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => onCopy(campaign.public_id)}><Copy size={15} /> Copy link</button><button className="btn-secondary" type="button" onClick={() => onDownload(campaign.public_id, campaign.name)}><QrCode size={15} /> QR PNG</button><a className="btn-secondary" href={publicUrl(campaign.public_id)} target="_blank" rel="noreferrer"><Eye size={15} /> Preview</a></div></div><div className="rounded-lg border border-border bg-[var(--theme-subtle)] p-3 text-sm font-medium text-text-secondary break-all">{publicUrl(campaign.public_id)}</div><div className="border-t border-border pt-4"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-text-primary">Variants / samples</h2>{canEdit ? <div className="flex gap-2"><input className={`${inputClass()} h-9`} value={variantName} placeholder="Sambal A" onChange={(event) => onVariantName(event.target.value)} /><button type="button" className="btn-secondary h-9" onClick={onAddVariant}>Add variant</button></div> : null}</div>{variants.length ? <div className="grid gap-2 md:grid-cols-2">{variants.map((item) => <div className="flex items-center justify-between rounded-lg border border-border p-3" key={item.id}><span className="font-semibold text-text-primary">{item.name}</span><div className="flex gap-2"><button className="icon-btn" title="Copy variant link" type="button" onClick={() => onCopy(item.public_token)}><Link2 size={15} /></button><button className="icon-btn" title="Download variant QR" type="button" onClick={() => onDownload(item.public_token)}><QrCode size={15} /></button><a className="icon-btn" title="Preview variant" href={publicUrl(item.public_token)} target="_blank" rel="noreferrer"><Eye size={15} /></a></div></div>)}</div> : <p className="text-sm text-text-secondary">No variants. This campaign uses one shared public link.</p>}</div></div></FactoryDataSurface></div>;
+}
+
+function FeedbackInsights({ insights, aiInsights = [] }) {
+  if (!insights.responseCount) return <FactoryDataSurface><section className="p-5"><h2 className="text-sm font-bold text-text-primary">Feedback Insights</h2><p className="mt-1 text-sm text-text-secondary">Insights appear after the first response is submitted.</p></section></FactoryDataSurface>;
+  return <FactoryDataSurface>
+    <section className="space-y-4 p-5">
+      <header>
+        <h2 className="text-base font-bold text-text-primary">Feedback Insights</h2>
+        <p className="mt-1 text-sm text-text-secondary">{insights.sampleNote} Interpretation uses only calculated aggregates.</p>
+      </header>
+      {aiInsights.length ? <section className="rounded-lg border border-border bg-[var(--theme-subtle)] p-4">
+        <h3 className="text-sm font-bold text-text-primary">Interpretation</h3>
+        <div className="mt-3 grid gap-3 md:grid-cols-2">{aiInsights.map((item) => <article key={`${item.section}:${item.text}`}><p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{item.section}</p><p className="mt-1 text-sm leading-6 text-text-secondary">{item.text}</p></article>)}</div>
+      </section> : null}
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
+        <section className="rounded-lg border border-border bg-[var(--theme-subtle)] p-4"><h3 className="text-sm font-bold text-text-primary">Key findings</h3><ul className="mt-3 space-y-2 text-sm leading-6 text-text-secondary">{insights.findings.map((finding) => <li key={finding}>{finding}</li>)}</ul></section>
+        <section className="grid gap-3 sm:grid-cols-2">{insights.questionInsights.slice(0, 4).map((item) => <article className="rounded-lg border border-border p-4" key={item.key}><h3 className="text-sm font-bold text-text-primary">{item.label}</h3>{item.type === "rating" ? <p className="mt-3 text-2xl font-bold text-text-primary">{item.average.toFixed(2)}<span className="ml-1 text-sm font-medium text-text-secondary">/ 5</span></p> : item.type === "price" && item.average !== null ? <p className="mt-3 text-2xl font-bold text-text-primary">{item.currency} {item.average.toFixed(2)}</p> : <div className="mt-3 space-y-2">{item.distribution.slice(0, 3).map((option) => <div key={option.value}><div className="flex justify-between gap-3 text-xs"><span className="truncate text-text-secondary">{option.label}</span><span className="font-semibold text-text-primary">{option.percent}%</span></div><div className="mt-1 h-1.5 overflow-hidden rounded-full bg-[var(--theme-subtle)]"><div className="h-full rounded-full bg-primary" style={{ width: `${option.percent}%` }} /></div></div>)}</div>}</article>)}</section>
+      </div>
+      {insights.segments.length ? <section className="border-t border-border pt-4"><h3 className="text-sm font-bold text-text-primary">Segment differences</h3><div className="mt-3 grid gap-3 md:grid-cols-2">{insights.segments.map((segment) => <article className="rounded-lg border border-border p-4" key={segment.segmentLabel}><p className="text-xs font-semibold uppercase tracking-wide text-text-muted">{segment.segmentLabel} · {segment.outcomeLabel}</p><div className="mt-2 space-y-1 text-sm text-text-secondary">{segment.values.map((item) => <p key={item.segment}><span className="font-semibold text-text-primary">{item.segment}</span> · {item.kind === "average" ? `${item.value.toFixed(2)} / 5` : item.value} <span className="text-text-muted">(n={item.count})</span></p>)}</div></article>)}</div></section> : null}
+    </section>
+  </FactoryDataSurface>;
+}
+
+
+export function CampaignEditorModal({ campaign, finishedGoods, onClose, onSave, onNotify }) {
+  const [form, setForm] = useState(() => productFeedbackCampaignEditorState(campaign));
+  const [language, setLanguage] = useState("en");
+  const [uploading, setUploading] = useState("");
+  const [uploadError, setUploadError] = useState(null);
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [translating, setTranslating] = useState(false);
+  const uploadRequest = useRef(0);
+  const isMounted = useRef(true);
+  useEffect(() => () => { isMounted.current = false; }, []);
+  const updateContent = (field, value) => setForm((current) => ({ ...current, content: { ...current.content, [field]: { ...(current.content?.[field] || {}), [language]: value } } }));
+  const updateBranding = (field, value) => setForm((current) => ({ ...current, branding: { ...(current.branding && typeof current.branding === "object" ? current.branding : {}), [field]: value } }));
+  const upload = async (event, field) => {
+    const input = event.currentTarget;
+    const file = input?.files?.[0];
+    if (input) input.value = "";
+    if (!file) return;
+    const requestId = ++uploadRequest.current;
+    setUploading(field); setUploadError(null);
+    try {
+      const image = await factoryService.uploadProductFeedbackImage(file, form, field);
+      // Validate before entering React's state queue. A rejected result must remain in this
+      // handler so it cannot turn into a render-phase failure inside the modal subtree.
+      const assetUrl = campaignBrandingAssetUrl(field, image?.publicUrl);
+      if (requestId !== uploadRequest.current || !isMounted.current) return;
+      setForm((current) => {
+        const branding = current.branding && typeof current.branding === "object" && !Array.isArray(current.branding) ? current.branding : {};
+        return { ...current, branding: { ...branding, [field]: assetUrl } };
+      });
+    } catch (error) {
+      if (requestId !== uploadRequest.current || !isMounted.current) return;
+      const message = error.message || "Unable to upload this image.";
+      setUploadError({ field, message });
+      onNotify?.({ title: "Image upload failed", message, tone: "error" });
+    } finally {
+      if (requestId === uploadRequest.current && isMounted.current) setUploading("");
+    }
+  };
+  const translateContent = async () => {
+    const fields = ["title", "description", "thank_you_title", "thank_you_body"];
+    const targets = languages.filter((item) => item.key !== language).map((item) => item.key);
+    const units = fields.flatMap((field) => {
+      const source = form.content?.[field]?.[language] || (field === "title" && language === "en" ? form.name : "");
+      const missing = targets.filter((target) => !form.content?.[field]?.[target]);
+      return String(source || "").trim() && missing.length ? [{ id: `content:${field}`, source, targets: missing }] : [];
+    });
+    if (!units.length) return;
+    setTranslating(true);
+    try {
+      const results = await factoryService.translateProductFeedbackContent({ sourceLanguage: language, units });
+      setForm((current) => {
+        const next = structuredClone(current);
+        results.forEach((result) => {
+          const field = String(result.id).split(":")[1];
+          next.content[field] = { ...(next.content[field] || {}), [result.language]: result.text };
+        });
+        return next;
+      });
+    } catch (error) {
+      onNotify?.({ title: "AI translation unavailable", message: error.message, tone: "error" });
+    } finally { setTranslating(false); }
+  };
+  const save = async (event) => {
+    event.preventDefault();
+    if (form.starts_on && form.ends_on && form.ends_on < form.starts_on) {
+      const message = "End date must be on or after start date.";
+      setSaveError(message);
+      onNotify?.({ title: "Campaign schedule needs attention", message, tone: "error" });
+      return;
+    }
+    setSaving(true); setSaveError("");
+    try {
+      // Question changes remain owned by Form Builder. Branding/settings saves must not
+      // trip immutable response-snapshot protection on a live campaign.
+      const { questions, ...campaignSettings } = form;
+      await onSave(form.id ? campaignSettings : form);
+    }
+    catch (error) {
+      const message = error.message || "Unable to save campaign branding.";
+      setSaveError(message);
+      onNotify?.({ title: "Campaign save failed", message, tone: "error" });
+    } finally { setSaving(false); }
+  };
+  const scheduleError = form.starts_on && form.ends_on && form.ends_on < form.starts_on ? "End date must be on or after start date." : "";
+  return <CampaignEditorSections form={form} setForm={setForm} finishedGoods={finishedGoods} language={language} onLanguage={setLanguage} translating={translating} onTranslate={translateContent} uploading={uploading} uploadError={uploadError} onUpload={upload} onRemove={updateBranding} scheduleError={scheduleError} saveError={saveError} onClose={onClose} saving={saving} onSave={save} />;
+}
+
+function CampaignEditorSections({ form, setForm, finishedGoods, language, onLanguage, translating, onTranslate, uploading, uploadError, onUpload, onRemove, scheduleError, saveError, onClose, saving, onSave }) {
+  const updateContent = (field, value) => setForm((current) => ({ ...current, content: { ...current.content, [field]: { ...(current.content?.[field] || {}), [language]: value } } }));
+  const updateBranding = (field, value) => setForm((current) => ({ ...current, branding: { ...current.branding, [field]: value } }));
+  return <Modal title={form.id ? "Edit Campaign" : "Create Campaign"} onClose={onClose} size="lg" panelClassName="factory-product-feedback-campaign-modal" bodyClassName="factory-product-feedback-campaign-modal-body" footer={<><button type="button" className="btn-secondary" disabled={saving} onClick={onClose}>Cancel</button><button className="btn-primary" form="product-feedback-campaign-form" disabled={saving || Boolean(uploading)} type="submit">{saving ? "Saving…" : "Save Campaign"}</button></>}><form id="product-feedback-campaign-form" className="space-y-5" onSubmit={onSave}>
+    <CampaignEditorSection title="Campaign Details">
+      <div className="grid gap-3 md:grid-cols-2"><Field label="Campaign Name" helper="Internal name for Admin management."><input aria-label="Campaign name" required className={inputClass()} value={form.name || ""} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value, content: { ...current.content, title: { ...(current.content?.title || {}), en: event.target.value } } }))} /></Field><Field label="Finished Good"><SearchableSelect value={form.finished_good_id || ""} placeholder="Optional" options={[{ value: "", label: "None" }, ...(finishedGoods || []).map((item) => ({ value: item.id, label: `${item.code || ""} ${item.name}` }))]} onChange={(finished_good_id) => setForm((current) => ({ ...current, finished_good_id }))} /></Field><Field label="Event / Location (Optional)"><input className={inputClass()} value={form.event_label || ""} onChange={(event) => setForm((current) => ({ ...current, event_label: event.target.value }))} /></Field><Field label="Status"><SearchableSelect value={form.status || "draft"} options={[{ value: "draft", label: "Draft" }, { value: "live", label: "Live" }, { value: "closed", label: "Closed" }]} onChange={(status) => setForm((current) => ({ ...current, status }))} /></Field></div>
+    </CampaignEditorSection>
+    <CampaignEditorSection title="Schedule">
+      <div className="grid gap-3 md:grid-cols-2"><Field label="Start Date"><FeedXDatePicker value={form.starts_on || ""} placeholder="Select date" onChange={(starts_on) => setForm((current) => ({ ...current, starts_on }))} /></Field><Field label="End Date" error={scheduleError}><FeedXDatePicker value={form.ends_on || ""} placeholder="Select date" error={scheduleError} onChange={(ends_on) => setForm((current) => ({ ...current, ends_on }))} /></Field></div>
+    </CampaignEditorSection>
+    <CampaignEditorSection title="Public Content" actions={<div className="flex items-center gap-2"><button type="button" className="btn-secondary h-8" disabled={translating} onClick={onTranslate}>{translating ? "Translating…" : "Translate Missing"}</button><LanguageTabs value={language} onChange={onLanguage} /></div>}>
+      <div className="grid gap-3"><Field label="Campaign Title" helper="Shown to customers on the feedback form."><input className={inputClass()} value={form.content?.title?.[language] || ""} onChange={(event) => updateContent("title", event.target.value)} /></Field><Field label="Description"><textarea className={`${inputClass()} min-h-20`} value={form.content?.description?.[language] || ""} onChange={(event) => updateContent("description", event.target.value)} /></Field><div className="grid gap-3 md:grid-cols-2"><Field label="Thank-you Title"><input className={inputClass()} value={form.content?.thank_you_title?.[language] || ""} onChange={(event) => updateContent("thank_you_title", event.target.value)} /></Field><Field label="Thank-you Message"><textarea className={`${inputClass()} min-h-20`} value={form.content?.thank_you_body?.[language] || ""} onChange={(event) => updateContent("thank_you_body", event.target.value)} /></Field></div></div>
+    </CampaignEditorSection>
+    <CampaignEditorSection title="Campaign Branding">
+      <div className="grid gap-3 md:grid-cols-2"><Field label="Primary Color"><input type="color" className="h-10 w-full rounded-lg border border-border bg-surface p-1" value={form.branding?.primary_color || "#168546"} onChange={(event) => updateBranding("primary_color", event.target.value)} /></Field><Field label="Accent Color"><input type="color" className="h-10 w-full rounded-lg border border-border bg-surface p-1" value={form.branding?.accent_color || "#0f6e3b"} onChange={(event) => updateBranding("accent_color", event.target.value)} /></Field><CampaignBrandingImageField label="Logo" field="logo_url" variant="logo" value={form.branding?.logo_url} uploading={uploading === "logo_url"} error={uploadError?.field === "logo_url" ? uploadError.message : ""} onUpload={onUpload} onRemove={onRemove} /><CampaignBrandingImageField label="Hero / poster" field="hero_url" variant="hero" value={form.branding?.hero_url} uploading={uploading === "hero_url"} error={uploadError?.field === "hero_url" ? uploadError.message : ""} onUpload={onUpload} onRemove={onRemove} /><CampaignBrandingImageField label="Thank-you artwork" field="thank_you_image_url" variant="thank-you" value={form.branding?.thank_you_image_url} uploading={uploading === "thank_you_image_url"} error={uploadError?.field === "thank_you_image_url" ? uploadError.message : ""} onUpload={onUpload} onRemove={onRemove} /></div>
+    </CampaignEditorSection>
+    <CampaignEditorSection title="Contact Collection">
+      <label className="flex items-center gap-3 text-sm font-semibold text-text-primary"><input type="checkbox" checked={Boolean(form.contact_collection?.enabled)} onChange={(event) => setForm((current) => ({ ...current, contact_collection: { ...current.contact_collection, enabled: event.target.checked } }))} /> Allow respondents to leave contact details</label>
+      {form.contact_collection?.enabled ? <div className="mt-3"><Field label="Prompt"><textarea className={`${inputClass()} min-h-20`} value={form.contact_collection?.prompt?.[language] || ""} onChange={(event) => setForm((current) => ({ ...current, contact_collection: { ...current.contact_collection, prompt: { ...current.contact_collection.prompt, [language]: event.target.value } } }))} /></Field><p className="mt-2 text-xs text-text-secondary">Name and mobile number are optional. Contact details are stored separately from feedback answers.</p></div> : null}
+    </CampaignEditorSection>
+    {saveError ? <p className="rounded-lg border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger" role="alert">{saveError}</p> : null}
+  </form></Modal>;
+}
+
+function CampaignEditorSection({ title, actions, children }) {
+  return <section className="border-t border-border pt-4 first:border-t-0 first:pt-0"><div className="mb-3 flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-text-primary">{title}</h3>{actions}</div>{children}</section>;
+}
+
+function CampaignBrandingImageField({ label, field, variant, value, uploading, error, onUpload, onRemove }) {
+  return <div className={`factory-campaign-branding-field factory-campaign-branding-field--${variant}`}><Field label={label}><div className="factory-campaign-branding-control"><div className="factory-campaign-branding-preview" data-preview-kind={variant}>{value ? <img className="factory-campaign-branding-preview-image" src={value} alt={`${label} preview`} /> : <span className="factory-campaign-branding-preview-empty">No image uploaded</span>}</div><div className="factory-campaign-branding-actions"><label className="btn-secondary cursor-pointer">{uploading ? "Uploading…" : value ? "Replace" : "Upload"}<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(event) => onUpload(event, field)} /></label>{value ? <button type="button" className="btn-secondary" disabled={uploading} onClick={() => onRemove(field, null)}>Remove</button> : null}</div>{error ? <p className="text-xs font-medium text-danger" role="alert">{error}</p> : null}</div></Field></div>;
+}
+
+export function FormBuilder({ campaign, editable, onSave, onNotify }) {
+  const [questions, setQuestions] = useState(campaign.questions || []);
+  const questionsRef = useRef(questions);
+  const [editing, setEditing] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveNotice, setSaveNotice] = useState("");
+  const replaceQuestions = (next) => { questionsRef.current = next; setQuestions(next); };
+  const applyCanonicalQuestions = (saved, fallback) => replaceQuestions(saved?.questions || fallback);
+  const changeQuestions = (updater) => replaceQuestions(updater(questionsRef.current));
+  useEffect(() => { if (!saving) replaceQuestions(campaign.questions || []); }, [campaign.id]);
+  const move = (index, change) => {
+    const target = index + change;
+    if (target < 0 || target >= questionsRef.current.length) return;
+    changeQuestions((current) => {
+      const next = [...current];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next.map((item, order) => ({ ...item, order: order + 1 }));
+    });
+  };
+  const persist = async (nextQuestions, successMessage) => {
+    if (saving) return false;
+    setSaving(true); setSaveError(""); setSaveNotice("");
+    try {
+      const saved = await onSave(nextQuestions);
+      applyCanonicalQuestions(saved, nextQuestions);
+      setSaveNotice(successMessage);
+      return true;
+    } catch (error) {
+      const message = error?.message || "Unable to save form changes.";
+      setSaveError(message);
+      onNotify?.({ title: "Form save failed", message, tone: "error" });
+      return false;
+    } finally { setSaving(false); }
+  };
+  const save = () => persist(questionsRef.current, "Form saved.");
+  const saveQuestion = async (question) => {
+    const nextQuestions = questionsRef.current.map((item, index) => index === editing ? question : item);
+    if (await persist(nextQuestions, "Question saved.")) setEditing(null);
+  };
+  return <FactoryDataSurface><div className="space-y-2 p-3">{questions.map((question, index) => <div className="flex items-center gap-3 rounded-lg border border-border px-3 py-2" key={question.key}><span className="w-6 text-xs font-semibold text-text-muted">{index + 1}</span><button type="button" className="min-w-0 flex-1 text-left" onClick={() => editable && !saving && setEditing(index)}><span className="block truncate text-sm font-semibold text-text-primary">{question.label_en}</span><span className="block text-xs text-text-secondary">{question.type.replace("_", " ")} · {question.required ? "Required" : "Optional"} · {question.options?.length || 0} options</span></button>{editable ? <div className="flex shrink-0 gap-1"><button className="icon-btn" type="button" title="Edit question" disabled={saving} onClick={() => setEditing(index)}><Pencil size={15} /></button><button className="icon-btn" type="button" title="Move up" disabled={saving} onClick={() => move(index, -1)}>↑</button><button className="icon-btn" type="button" title="Move down" disabled={saving} onClick={() => move(index, 1)}>↓</button><button className="icon-btn" type="button" title="Duplicate" disabled={saving} onClick={() => changeQuestions((current) => [...current, { ...question, key: `${question.key}_copy_${Date.now()}`, order: current.length + 1 }])}>⧉</button><button className="icon-btn text-danger" type="button" title="Delete" disabled={saving} onClick={() => changeQuestions((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div> : null}</div>)}{saveError && editing === null ? <p className="text-sm font-medium text-danger" role="alert">{saveError}</p> : null}{saveNotice ? <p className="text-sm font-medium text-success" role="status">{saveNotice}</p> : null}{editable ? <div className="flex justify-between pt-3"><button className="btn-secondary" type="button" disabled={saving} onClick={() => { changeQuestions((current) => [...current, emptyQuestion(current.length + 1)]); setEditing(questionsRef.current.length); }}>Add question</button><button className="btn-primary" disabled={saving} type="button" onClick={save}>{saving ? "Saving…" : "Save form"}</button></div> : null}</div>{editing !== null ? <QuestionEditor question={questions[editing]} saving={saving} error={saveError} onClose={() => !saving && setEditing(null)} onSave={saveQuestion} onNotify={onNotify} /> : null}</FactoryDataSurface>;
+}
+
+function QuestionEditor({ question, onClose, onSave, onNotify, saving = false, error = "" }) {
+  const [draft, setDraft] = useState(() => ({ ...question, options: question.options || [] })); const [language, setLanguage] = useState("en"); const [translating, setTranslating] = useState(false); const [draggedOption, setDraggedOption] = useState(null); const supportsOptions = draft.type !== "short_text";
+  const translationComplete = languages.map(({ key, label }) => ({ key, label, complete: Boolean(draft[`label_${key}`]) && draft.options.every((option) => !option[`label_en`] || Boolean(option[`label_${key}`])) }));
+  const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value })); const setOption = (index, field, value) => setDraft((current) => ({ ...current, options: current.options.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
+  const changeType = (type) => { if (type === draft.type) return; if (draft.options.length && !window.confirm("Changing question type may discard incompatible option settings. Continue?")) return; setField("type", type); };
+  const moveOption = (from, to) => { if (from === to || to < 0 || to >= draft.options.length) return; setDraft((current) => { const options = [...current.options]; const [item] = options.splice(from, 1); options.splice(to, 0, item); return { ...current, options }; }); };
+  const translate = async () => { const units = []; const targets = languages.filter((item) => item.key !== language).map((item) => item.key); [["label", draft[`label_${language}`]], ["helper", draft[`helper_${language}`]]].forEach(([kind, source]) => { if (String(source || "").trim()) units.push({ id: `question:${kind}`, source, targets: targets.filter((target) => !draft[`${kind}_${target}`]) }); }); draft.options.forEach((option, index) => { const source = option[`label_${language}`]; if (String(source || "").trim()) units.push({ id: `option:${index}`, source, targets: targets.filter((target) => !option[`label_${target}`]) }); }); if (!units.length) return; setTranslating(true); try { const results = await factoryService.translateProductFeedbackContent({ sourceLanguage: language, units }); setDraft((current) => { const next = structuredClone(current); results.forEach((result) => { const [scope, index] = String(result.id).split(":"); if (scope === "question") next[`${index}_${result.language}`] = result.text; if (scope === "option" && next.options[Number(index)]) next.options[Number(index)][`label_${result.language}`] = result.text; }); return next; }); } catch (error) { onNotify?.({ title: "AI translation unavailable", message: error.message, tone: "error" }); } finally { setTranslating(false); } };
+  return <Modal title="Edit question" onClose={onClose} size="lg"><div className="space-y-4"><div className="flex flex-wrap items-center justify-between gap-2"><LanguageTabs value={language} onChange={setLanguage} /><div className="flex items-center gap-2"><span className="text-xs font-semibold text-text-secondary">{translationComplete.map((item) => `${item.label} ${item.complete ? "✓" : "○"}`).join(" · ")}</span><button type="button" className="btn-secondary" disabled={translating || saving} onClick={translate}>{translating ? "Translating…" : "AI Translate missing"}</button></div></div><div className="grid gap-3 md:grid-cols-2"><Field label="Question"><input required disabled={saving} className={inputClass()} value={draft[`label_${language}`] || ""} onChange={(event) => setField(`label_${language}`, event.target.value)} /></Field><Field label="Question type"><CompactSelect value={draft.type} options={types} ariaLabel="Question type" onChange={changeType} /></Field></div><Field label="Helper text"><textarea disabled={saving} className={inputClass()} value={draft[`helper_${language}`] || ""} onChange={(event) => setField(`helper_${language}`, event.target.value)} /></Field>{error ? <p className="text-sm font-medium text-danger" role="alert">{error}</p> : null}<label className="flex items-center gap-2 text-sm font-semibold text-text-primary"><input type="checkbox" disabled={saving} checked={Boolean(draft.required)} onChange={(event) => setField("required", event.target.checked)} /> Required</label>{draft.type === "multi_choice" ? <Field label="Minimum selections"><input className={inputClass()} disabled={saving} type="number" min="1" value={draft.min_selections || 1} onChange={(event) => setField("min_selections", Math.max(Number(event.target.value || 1), 1))} /></Field> : null}{supportsOptions ? <section className="space-y-2 border-t border-border pt-4"><div className="flex items-center justify-between"><h3 className="text-sm font-bold text-text-primary">Options</h3><button className="btn-secondary" disabled={saving} type="button" onClick={() => setField("options", [...draft.options, { value: `option_${draft.options.length + 1}`, label_en: "New option", label_zh: "", label_ms: "", image_url: "", ...(draft.type === "price_choice" ? { amount: null, currency: "MYR", display_label: "New option" } : {}) }])}>Add option</button></div>{draft.options.map((option, index) => <div draggable={!saving} onDragStart={() => setDraggedOption(index)} onDragOver={(event) => event.preventDefault()} onDrop={() => { moveOption(draggedOption, index); setDraggedOption(null); }} className="grid cursor-grab gap-2 rounded-lg border border-border p-2 md:grid-cols-[auto_1fr_1fr_auto]" key={`${option.value}-${index}`}><span className="self-center text-xs font-bold text-text-muted" title="Drag to reorder">⋮⋮</span><input disabled={saving} className={inputClass()} value={option[`label_${language}`] || ""} placeholder={`Label (${language.toUpperCase()})`} onChange={(event) => setOption(index, `label_${language}`, event.target.value)} />{draft.type === "image_choice" ? <input disabled={saving} className={inputClass()} value={option.image_url || ""} placeholder="Image URL" onChange={(event) => setOption(index, "image_url", event.target.value)} /> : draft.type === "price_choice" ? <div className="grid grid-cols-2 gap-2"><input disabled={saving} className={inputClass()} type="number" min="0" step="0.01" value={option.amount ?? ""} placeholder="Amount" onChange={(event) => setOption(index, "amount", event.target.value === "" ? null : Number(event.target.value))} /><input disabled={saving} className={inputClass()} value={option.currency || "MYR"} placeholder="Currency" onChange={(event) => setOption(index, "currency", event.target.value.toUpperCase())} /></div> : <span className="self-center text-xs text-text-secondary">{option.value !== (option.label_en || option.value) ? `Value: ${option.value}` : ""}</span>}<div className="flex gap-1"><button className="icon-btn" disabled={saving} title="Move option up" type="button" onClick={() => moveOption(index, index - 1)}>↑</button><button className="icon-btn" disabled={saving} title="Move option down" type="button" onClick={() => moveOption(index, index + 1)}>↓</button><button className="icon-btn text-danger" disabled={saving} title="Delete option" type="button" onClick={() => setField("options", draft.options.filter((_, optionIndex) => optionIndex !== index))}><Trash2 size={15} /></button></div></div>)}</section> : null}<div className="flex justify-end gap-2"><button className="btn-secondary" disabled={saving} type="button" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving} type="button" onClick={() => onSave(draft)}>{saving ? "Saving…" : "Save question"}</button></div></div></Modal>;
+}
+
+function LanguageTabs({ value, onChange }) { return <div className="inline-flex rounded-lg border border-border p-1">{languages.map((item) => <button key={item.key} className={`rounded-md px-2.5 py-1 text-xs font-bold ${value === item.key ? "bg-[var(--theme-subtle)] text-primary" : "text-text-secondary"}`} type="button" onClick={() => onChange(item.key)}>{item.label}</button>)}</div>; }
+function ResponseModal({ response, onClose }) { const questions = response.questions_snapshot || []; const contact = response.contact; return <Modal title="Feedback response" onClose={onClose}><div className="space-y-4"><FactoryEvidenceHeader title={response.variant_name || "Campaign response"} subtitle={formatFactoryDateTime(response.submitted_at)} status={response.repeat_index > 1 ? { label: `Possible repeat #${response.repeat_index}`, tone: "warning" } : null} /><FactoryEvidenceSection title="Answers"><FactoryEvidenceGrid items={questions.map((question) => ({ label: question.label_en, value: displayAnswer(response.answers?.[question.key]), fullWidth: question.type === "short_text" }))} /></FactoryEvidenceSection>{contact ? <FactoryEvidenceSection title="Contact details"><FactoryEvidenceGrid items={[{ label: "Name", value: contact.name || "—" }, { label: "Mobile number", value: contact.normalized_mobile || "—" }, { label: "Consent", value: contact.consented_at ? formatFactoryDateTime(contact.consented_at) : "—" }]} /></FactoryEvidenceSection> : null}</div></Modal>; }

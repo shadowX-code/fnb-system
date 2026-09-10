@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -7,6 +7,8 @@ import FactoryPagination, { FactoryTableLoadState, useFactoryClientPagination, u
 import JobOrderModal from "../components/JobOrderModal.jsx";
 import { createJobOrdersListingBridge } from "../hooks/jobOrdersListingBridge.js";
 import { AccessIssueNotice, FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
+import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import FactoryBulkSelectionModal, { CompactSelect, Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
@@ -14,15 +16,26 @@ import FactoryAuditTrailPage from "./FactoryAuditTrailPage.jsx";
 import FactorySuppliersPage from "./FactorySuppliersPage.jsx";
 import FactoryCustomersPage from "./FactoryCustomersPage.jsx";
 import FactoryStorageLocationsPage from "./FactoryStorageLocationsPage.jsx";
+import FactoryEquipmentPage from "./FactoryEquipmentPage.jsx";
 import FactoryProductionPlanningPage from "./FactoryProductionPlanningPage.jsx";
 import FactoryDashboardPage from "./FactoryDashboardPage.jsx";
 import FactoryFinishedGoodsPage from "./FactoryFinishedGoodsPage.jsx";
 import FactoryRawMaterialInventoryPage from "./FactoryRawMaterialInventoryPage.jsx";
+import FactoryMestiCleaningPage from "./FactoryMestiCleaningPage.jsx";
+import FactoryMestiEquipmentCleaningPage from "./FactoryMestiEquipmentCleaningPage.jsx";
+import FactoryMestiCalibrationPage from "./FactoryMestiCalibrationPage.jsx";
+import FactoryMestiHealthDeclarationPage from "./FactoryMestiHealthDeclarationPage.jsx";
+import FactoryMestiOperatorHygienePage from "./FactoryMestiOperatorHygienePage.jsx";
+import FactoryMestiWasteDisposalPage from "./FactoryMestiWasteDisposalPage.jsx";
+import FactoryMestiRawMaterialControlPage from "./FactoryMestiRawMaterialControlPage.jsx";
+import FactoryMestiFoodProcessingControlPage from "./FactoryMestiFoodProcessingControlPage.jsx";
+import FactoryMestiFinishedProductStorageControlPage from "./FactoryMestiFinishedProductStorageControlPage.jsx";
 import FactoryProductRecipesPage from "./FactoryProductRecipesPage.jsx";
 import FactoryProductionSopPage from "./FactoryProductionSopPage.jsx";
 import FactoryProductionOverviewPage from "./FactoryProductionOverviewPage.jsx";
 import FactoryJobOrdersPage from "./FactoryJobOrdersPage.jsx";
 import FactoryBatchTraceabilityPage from "./FactoryBatchTraceabilityPage.jsx";
+import FactoryProductFeedbackPage from "./FactoryProductFeedbackPage.jsx";
 import { activeRecipeForSku, finishedGoodParentKey, inheritedRecipeUom } from "../utils/productionPlanning.js";
 import { productionSopDisplayName } from "../utils/productionSop.js";
 import { canEditFinishedGoods, canOpenRawMaterialReceiving } from "../utils/factoryPermissionActions.js";
@@ -37,7 +50,9 @@ import RawMaterialImagePreviewModal from "../modals/rawMaterials/FactoryRawMater
 import RawMaterialCategoryModal from "../modals/rawMaterials/FactoryRawMaterialCategoryModal.jsx";
 import StorageLocationModal from "../modals/FactoryStorageLocationModal.jsx";
 import FactorySupplierModal from "../modals/FactorySupplierModal.jsx";
+import FactorySupplierLinkedMaterialsModal from "../modals/FactorySupplierLinkedMaterialsModal.jsx";
 import FactoryCustomerModal from "../modals/FactoryCustomerModal.jsx";
+import FactoryEquipmentModal, { FactoryEquipmentCategoryModal } from "../modals/FactoryEquipmentModal.jsx";
 import ProductionPlanningParModal from "../modals/ProductionPlanningParModal.jsx";
 import FactoryProductMovementsPage from "./FactoryProductMovementsPage.jsx";
 import FactoryRawMaterialMovementsPage from "./FactoryRawMaterialMovementsPage.jsx";
@@ -104,7 +119,7 @@ function employeeDisplayName(auth) {
   return auth?.profile?.nickname || auth?.profile?.full_name || auth?.profile?.email || "";
 }
 
-function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, onClose, onSelect, error, buttonRef }) {
+function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, onClose, onSelect, error, buttonRef, disabled = false }) {
   const [query, setQuery] = useState("");
   const anchorRef = useRef(null);
   const selected = materials.find((material) => material.id === value);
@@ -126,6 +141,7 @@ function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, 
         ref={setButtonNode}
         className={`min-h-[54px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
         type="button"
+        disabled={disabled}
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={onToggle}
@@ -392,7 +408,7 @@ function createRawMaterialReceivingRequestId() {
   return crypto.randomUUID();
 }
 
-function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }) {
+function CompletedJobOrderResultModal({ job, production, recipes = [], canVerify = false, onVerify, onClose }) {
   const matchingRecipe = production
     ? recipes.find((recipe) => recipe.status === "active" && recipe.product_family_id && recipe.product_family_id === production.product_family_id)
       || recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id && recipe.finished_good_id === production.finished_good_id)
@@ -444,6 +460,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
       { label: "Shelf Life Applied", value: shelfLifeConfigured ? `${production.shelf_life_days_snapshot} days` : "—" },
       { label: "Actual Pack Qty", value: quantity(production.actual_pack_qty || production.good_output_qty, "packs") },
       { label: "Actual Output Qty", value: quantity(outputQty, production.uom) },
+      { label: "Verification", value: production.verification_status === "verified" ? "Verified" : production.verification_status === "awaiting_verification" ? "Awaiting Verification" : "—", secondary: production.verified_at ? formatFactoryDateTime(production.verified_at) : "" },
     ],
   ] : [];
 
@@ -453,7 +470,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
       description="Read-only production completion record for this Job Order."
       size="xl"
       onClose={onClose}
-      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+      footer={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={onClose}>Close</button>{canVerify && production?.verification_status === "awaiting_verification" ? <button className="btn-primary" type="button" onClick={onVerify}>Verify Production Record</button> : null}</div>}
     >
       <div className="space-y-4">
         <Card title="Job Order Summary" description="Original production planning details.">
@@ -619,12 +636,15 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   const [fieldErrors, setFieldErrors] = useState({});
   const [openMaterialRowId, setOpenMaterialRowId] = useState(null);
   const [receivingBulkSelectOpen, setReceivingBulkSelectOpen] = useState(false);
+  const [supplierEligibility, setSupplierEligibility] = useState([]);
+  const [supplierEligibilityLoading, setSupplierEligibilityLoading] = useState(false);
+  const [pendingSupplierChange, setPendingSupplierChange] = useState(null);
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
-  const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
-  const activeStorageLocations = storageLocations.filter((location) => location.status === "active");
+  const eligibleRawMaterials = supplierEligibility;
+  const activeStorageLocations = storageLocations.filter((location) => location.status === "active" && location.is_storage_location !== false);
   const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: supplier.supplier_code || supplier.status }));
   const storageLocationOptions = activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") }));
-  const receivingBulkItems = rawMaterials.map((material) => ({
+  const receivingBulkItems = eligibleRawMaterials.map((material) => ({
     id: material.id,
     primary: rawMaterialLabel(material) || "Raw Material",
     secondary: material.name_cn || "",
@@ -632,8 +652,8 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
     code: material.material_code || "No material code",
     meta: [material.uom || "No UOM", material.storage_location || "No default storage"].join(" · "),
     category: material.category || "",
-    disabled: material.status !== "active",
-    statusLabel: material.status === "active" ? "Active" : jobStatusLabel(material.status),
+    disabled: false,
+    statusLabel: "Active",
     source: material,
   }));
   const receivingNoPreview = useFactoryNumberPreview({
@@ -645,8 +665,27 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   });
 
   useEffect(() => {
-    if (receivingBulkSelectOpen && !rawMaterials.length) setReceivingBulkSelectOpen(false);
-  }, [rawMaterials.length, receivingBulkSelectOpen]);
+    let active = true;
+    if (!form.supplier_id) {
+      setSupplierEligibility([]);
+      setSupplierEligibilityLoading(false);
+      return () => { active = false; };
+    }
+    setSupplierEligibilityLoading(true);
+    factoryService.getFactorySupplierRawMaterialEligibility(form.supplier_id)
+      .then((rows) => active && setSupplierEligibility(rows))
+      .catch((loadError) => {
+        if (!active) return;
+        setSupplierEligibility([]);
+        setError(loadError.message || "Unable to load Supplier Raw Material eligibility.");
+      })
+      .finally(() => active && setSupplierEligibilityLoading(false));
+    return () => { active = false; };
+  }, [form.supplier_id]);
+
+  useEffect(() => {
+    if (receivingBulkSelectOpen && !eligibleRawMaterials.length) setReceivingBulkSelectOpen(false);
+  }, [eligibleRawMaterials.length, receivingBulkSelectOpen]);
 
   function updateItem(rowId, patchValue) {
     setForm((current) => ({ ...current, items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patchValue } : item) }));
@@ -654,6 +693,56 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
 
   function addReceivingRow() {
     setForm((current) => ({ ...current, items: [...current.items, makeRow()] }));
+  }
+
+  function clearMaterialItem(item) {
+    return {
+      ...item,
+      raw_material_id: "",
+      supplier_lot_no: "",
+      internal_batch_no: "",
+      received_qty: "",
+      uom: "",
+      storage_location_id: "",
+      storage_location: "",
+      expiry_date: "",
+      expiry_source: "",
+      expiry_confirmed: false,
+      expiry_tracking_mode: "optional",
+      remarks: "",
+    };
+  }
+
+  async function requestSupplierChange(supplierId) {
+    if (supplierId === form.supplier_id) return;
+    const selectedItems = form.items.filter((item) => item.raw_material_id);
+    if (!selectedItems.length) {
+      setForm((current) => ({ ...current, supplier_id: supplierId }));
+      return;
+    }
+    setError("");
+    try {
+      const nextEligibility = await factoryService.getFactorySupplierRawMaterialEligibility(supplierId);
+      setPendingSupplierChange({
+        supplierId,
+        eligibleIds: nextEligibility.map((material) => material.id),
+        selectedCount: selectedItems.length,
+      });
+    } catch (loadError) {
+      setError(loadError.message || "Unable to check Supplier Raw Material eligibility.");
+    }
+  }
+
+  function confirmSupplierChange() {
+    if (!pendingSupplierChange) return;
+    const eligibleIds = new Set(pendingSupplierChange.eligibleIds);
+    setForm((current) => ({
+      ...current,
+      supplier_id: pendingSupplierChange.supplierId,
+      items: current.items.map((item) => item.raw_material_id && !eligibleIds.has(item.raw_material_id) ? clearMaterialItem(item) : item),
+    }));
+    setPendingSupplierChange(null);
+    setOpenMaterialRowId(null);
   }
 
   function addSelectedRawMaterials(selectedItems) {
@@ -677,7 +766,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   }
 
   async function selectRawMaterial(rowId, rawMaterialId) {
-    const material = activeRawMaterials.find((row) => row.id === rawMaterialId);
+    const material = eligibleRawMaterials.find((row) => row.id === rawMaterialId);
     setFieldErrors((current) => ({ ...current, [`${rowId}.raw_material_id`]: "", [`${rowId}.uom`]: "" }));
     updateItem(rowId, {
       raw_material_id: rawMaterialId,
@@ -754,7 +843,10 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
   }
 
   function renderMaterialPicker(item) {
-    return <><RawMaterialCellPicker value={item.raw_material_id} materials={activeRawMaterials} placeholder="Select Raw Material" open={openMaterialRowId === item.row_id} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</>;
+    const material = eligibleRawMaterials.find((row) => row.id === item.raw_material_id);
+    const noSupplier = !form.supplier_id;
+    const noEligibleMaterials = Boolean(form.supplier_id) && !supplierEligibilityLoading && !eligibleRawMaterials.length;
+    return <><RawMaterialCellPicker value={item.raw_material_id} materials={eligibleRawMaterials} placeholder={noSupplier ? "Select Supplier first" : supplierEligibilityLoading ? "Loading linked Raw Materials..." : noEligibleMaterials ? "No raw materials linked to this supplier" : "Select Raw Material"} open={openMaterialRowId === item.row_id} disabled={noSupplier || supplierEligibilityLoading || noEligibleMaterials} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{material?.acceptance_procedure ? <div className="mt-2 rounded-md border border-sky-200 bg-sky-50 px-2 py-1.5 text-xs text-sky-900"><span className="font-bold">Acceptance:</span> {material.acceptance_procedure}</div> : null}{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</>;
   }
 
   function renderInternalBatch(item) {
@@ -779,7 +871,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
       <form className="space-y-5 p-5" onSubmit={(event) => submit("draft", event)}>
         <div className="grid gap-3 lg:grid-cols-4">
           <Field label="Supplier *" error={fieldErrors.supplier_id}>
-            <SearchableSelect value={form.supplier_id} options={supplierOptions} placeholder="Select Supplier" error={Boolean(fieldErrors.supplier_id)} buttonRef={(node) => { fieldRefs.current.supplier_id = node; }} onChange={(supplierId) => setForm((current) => ({ ...current, supplier_id: supplierId }))} />
+            <SearchableSelect value={form.supplier_id} options={supplierOptions} placeholder="Select Supplier" error={Boolean(fieldErrors.supplier_id)} buttonRef={(node) => { fieldRefs.current.supplier_id = node; }} onChange={requestSupplierChange} />
           </Field>
           <Field label="Receiving No."><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className={`text-sm font-bold ${initialBatch?.batch_no || receivingNoPreview.value ? "text-text-primary" : "text-text-secondary"}`}>{initialBatch?.batch_no || receivingNoPreview.value || (receivingNoPreview.loading ? "Loading preview..." : "—")}</div>{initialBatch?.id ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Assigned</div> : receivingNoPreview.value ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}{!initialBatch?.batch_no && receivingNoPreview.error ? <button className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary hover:underline" type="button" onClick={receivingNoPreview.retry}><RefreshCw size={11} /> Retry</button> : null}</div></Field>
           <Field label="Received Date *" error={fieldErrors.received_date}>
@@ -813,8 +905,9 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button className="btn-secondary h-9 px-3 text-sm" type="button" onClick={addReceivingRow}><Plus size={15} /> Add Row</button>
-            <button className="btn-secondary h-9 px-3 text-sm" type="button" onClick={() => setReceivingBulkSelectOpen(true)}><ClipboardList size={15} /> Select Multiple</button>
+            <button className="btn-secondary h-9 px-3 text-sm" type="button" disabled={!form.supplier_id || supplierEligibilityLoading || !eligibleRawMaterials.length} onClick={() => setReceivingBulkSelectOpen(true)}><ClipboardList size={15} /> Select Multiple</button>
           </div>
+          {form.supplier_id && !supplierEligibilityLoading && !eligibleRawMaterials.length ? <div className="mt-3 text-sm font-semibold text-text-secondary">No raw materials linked to this supplier.</div> : null}
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
           {error ? <div className="mr-auto text-sm font-semibold text-rose-600">{error}</div> : null}
@@ -835,6 +928,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
         onAdd={addSelectedRawMaterials}
       />
     ) : null}
+    {pendingSupplierChange ? <Modal title="Change Supplier?" description="Selected receiving items will be checked against the new Supplier's linked Raw Materials. Any incompatible items will be cleared." onClose={() => setPendingSupplierChange(null)} footer={<><button className="btn-secondary" type="button" onClick={() => setPendingSupplierChange(null)}>Keep current Supplier</button><button className="btn-primary" type="button" onClick={confirmSupplierChange}>Change Supplier</button></>}><p className="text-sm text-text-secondary">{pendingSupplierChange.selectedCount} selected receiving item{pendingSupplierChange.selectedCount === 1 ? "" : "s"} will be rechecked before the Supplier changes.</p></Modal> : null}
     </>
   );
 }
@@ -861,10 +955,12 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
           <h3 className="text-sm font-black uppercase tracking-[0.08em] text-text-primary">Document Information</h3>
           <div className="mt-4 grid gap-x-12 gap-y-3 md:grid-cols-2">
             {[
-              ...(batch.status === "completed"
+              ...(batch.status === "completed" || batch.status === "awaiting_verification" || batch.status === "verified"
                 ? [
-                    ["Completed At", formatFactoryDateTime(batch.completed_at)],
-                    ["Completed By", batch.completed_by_name || "—"],
+                    ["Receive Time", formatFactoryDateTime(batch.completed_at)],
+                    ["Received By", batch.completed_by_name || "—"],
+                    ["Verified By", batch.verified_by_name || (batch.status === "awaiting_verification" ? "Awaiting Verification" : "—")],
+                    ["Verified At", batch.verified_at ? formatFactoryDateTime(batch.verified_at) : "—"],
                   ]
                 : [["Receiving Date", formatFactoryDate(batch.received_date)]]),
               ["Supplier", batch.supplier_name || "—"],
@@ -888,6 +984,8 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
               { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
               { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location ? <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">{row.storage_location}</span> : "—" },
               { key: "expiry_date", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },
+              { key: "acceptance_procedure_snapshot", label: "Acceptance Procedure", render: (row) => row.acceptance_procedure_snapshot || "—" },
+              { key: "control_methods_snapshot", label: "Control Methods", render: (row) => row.control_methods_snapshot || "—" },
             ]}
             rows={itemRows}
             emptyTitle="No receiving items"
@@ -1032,12 +1130,13 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
 // Production SOP builder, document, and QC preset presentation live in modals/sop.
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], storageLocations: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], auditLogs: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], storageLocations: [], equipment: [], equipmentCategories: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], mestiCleaningRequirements: [], mestiEquipmentCleaningRequirements: [], mestiCalibrationRequirements: [], auditLogs: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
   const [editingReceiving, setEditingReceiving] = useState(null);
   const [dispatchTab, setDispatchTab] = useState("history");
+  const [dispatchCloseRequestNonce, setDispatchCloseRequestNonce] = useState(0);
   const [receivingHistoryFilters, setReceivingHistoryFilters] = useState({ dateFrom: "", dateTo: "", supplier: "" });
   const [dispatchHistoryFilters, setDispatchHistoryFilters] = useState({ dateFrom: "", dateTo: "", customer: "", status: "" });
   const [dispatchCustomersTodayUpdating, setDispatchCustomersTodayUpdating] = useState(false);
@@ -1487,6 +1586,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function verifyProductionRecord(production) {
+    try {
+      await factoryService.verifyProductionRecord(production);
+    } catch (error) {
+      ui?.notify?.({ title: "Unable to verify Production Record", message: error.message, tone: "error" });
+      return;
+    }
+    ui?.notify?.({ title: "Production Record verified", tone: "success" });
+    setModal(null);
+    await loadData();
+  }
+
   function receivingMatchesHistoryFilters(batch) {
     if (!batch) return false;
     if (receivingHistoryFilters.dateFrom && batch.received_date < receivingHistoryFilters.dateFrom) return false;
@@ -1573,6 +1684,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   async function completeReceivingBatch(form) {
     return mutateReceiving(form, true);
+  }
+
+  async function verifyReceivingBatch(batch) {
+    if (receivingMutationRef.current.has(batch.id)) return;
+    receivingMutationRef.current.add(batch.id);
+    try {
+      const verified = await factoryService.verifyRawMaterialReceivingBatch(batch);
+      const refreshPage = applyReceivingMutation(batch, verified);
+      ui?.notify?.({ title: "Receiving verified", tone: "success" });
+      await refreshReceivingHistory(refreshPage, "verification");
+      void loadData({ silent: true });
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to verify receiving", message: isFactoryPermissionError(error) ? "Your current role does not allow this Receiving action." : error.message, tone: "error" });
+    } finally {
+      receivingMutationRef.current.delete(batch.id);
+    }
   }
 
   async function cancelReceivingBatch(batch) {
@@ -1694,6 +1821,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     await refreshFactoryAfterMutation();
   }
 
+  async function saveFactoryEquipment(form) {
+    try { await factoryService.saveFactoryEquipment(form, auth?.profile?.id); } catch (error) { ui?.notify?.({ title: "Failed to save Equipment", message: error.message, tone: "error" }); throw error; }
+    ui?.notify?.({ title: form.id ? "Equipment updated" : "Equipment created", tone: "success" }); setModal(null); await refreshFactoryAfterMutation();
+  }
+
+  async function saveFactoryEquipmentCategory(form) {
+    try { await factoryService.saveFactoryEquipmentCategory(form, auth?.profile?.id); } catch (error) { ui?.notify?.({ title: "Failed to save Equipment category", message: error.message, tone: "error" }); throw error; }
+    await refreshFactoryAfterMutation();
+  }
+
   async function archiveStorageLocation(location, options = {}) {
     const confirmed = await ui?.confirm?.({
       title: "Archive Storage Location?",
@@ -1741,6 +1878,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
     ui?.notify?.({ title: "Factory supplier archived", tone: "success" });
     if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
+  }
+
+  async function saveFactorySupplierLinkedMaterials(supplier, rawMaterialIds) {
+    try {
+      await factoryService.saveFactorySupplierRawMaterialLinks(supplier, rawMaterialIds);
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save linked Raw Materials", message: error.message, tone: "error" });
+      throw error;
+    }
+    ui?.notify?.({ title: "Supplier linked Raw Materials updated", tone: "success" });
     await refreshFactoryAfterMutation();
   }
 
@@ -2283,7 +2431,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       console.error("[Factory] Dispatch completed, but its local listing snapshot could not be updated.", snapshotError);
     }
     setDispatchTab("history");
-    setModal({ type: "finished-good-dispatch", value: completed, mode: "view" });
+    setModal(null);
     ui?.notify?.({ title: "Dispatch completed successfully.", tone: "success" });
     void refreshFinishedGoodsDispatches({ page: refreshPage, reason: "direct completion" });
     void loadData({ silent: true });
@@ -2557,15 +2705,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       return Object.entries(totals).map(([uom, value]) => quantity(value, uom)).join(" · ") || "—";
     } },
     { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
-    { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
-    { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving-batch-detail", value: row })}>View</button>
-        {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => { setEditingReceiving(row); setReceivingTab("receive"); }}>Edit</button> : null}
-        {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => completeReceivingBatch(row)}><PackageCheck size={13} /> Complete</button> : null}
-        {row.status === "draft" && can("factory_raw_receiving.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelReceivingBatch(row)}>Cancel</button> : null}
-      </div>
-    ) },
+    { key: "received_by", label: "Received By", render: (row) => row.completed_by_name || row.created_by_name || "—" },
+    { key: "verified_by", label: "Verified By", render: (row) => row.verified_by_name || (row.status === "awaiting_verification" ? "Awaiting Verification" : "—") },
+    { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setModal({ type: "receiving-batch-detail", value: row })} primaryAction={row.status === "draft" && can("factory_raw_receiving.edit") ? { label: "Complete", onClick: () => completeReceivingBatch(row) } : row.status === "awaiting_verification" && can("factory_raw_receiving.verify") ? { label: "Verify", onClick: () => verifyReceivingBatch(row) } : null} secondaryActions={[row.status === "draft" && can("factory_raw_receiving.edit") ? { label: "Edit", onClick: () => { setEditingReceiving(row); setReceivingTab("receive"); } } : null, row.status === "draft" && can("factory_raw_receiving.delete") ? { label: "Cancel", destructive: true, onClick: () => cancelReceivingBatch(row) } : null]} /> },
   ];
 
   const productionColumns = [
@@ -2587,15 +2729,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   ];
 
   function stockCheckColumns(stockType) {
-    const renderActions = (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row, readOnly: true })}>View</button>
-        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.edit" : "factory_product_stock_check.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>Edit</button> : null}
-        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.submit" : "factory_product_stock_check.submit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>Submit</button> : null}
-        {row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
-        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.edit") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteStockCheck(stockType, row)}>Delete</button> : null}
-      </div>
-    );
+    const renderActions = (row) => <FactoryRowActions onView={() => setModal({ type: "stock-check", stockType, value: row, readOnly: true })} primaryAction={row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.submit" : "factory_product_stock_check.submit") ? { label: "Submit", onClick: () => setModal({ type: "stock-check", stockType, value: row }) } : row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? { label: "Approve", onClick: () => approveStockCheck(stockType, row) } : null} secondaryActions={[row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.edit" : "factory_product_stock_check.edit") ? { label: "Edit", onClick: () => setModal({ type: "stock-check", stockType, value: row }) } : null, row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.edit") ? { label: "Delete", destructive: true, onClick: () => deleteStockCheck(stockType, row) } : null]} />;
     return [
       { key: "check_date", label: "Date", render: (row) => formatFactoryDate(row.check_date) },
       { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
@@ -2717,18 +2851,25 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       .filter((name) => !data.factorySuppliers.some((supplier) => supplier.supplier_name === name))
       .map((name) => ({ value: name, label: name, helper: "Legacy supplier" }));
     return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-4">
-        <Field label="Date From">
+      <FactoryFilterBar
+        activeFilters={[
+          receivingHistoryFilters.dateFrom && { key: "date-from", label: "Date", value: receivingHistoryFilters.dateFrom, onRemove: () => setReceivingHistoryFilters((current) => ({ ...current, dateFrom: "" })) },
+          receivingHistoryFilters.dateTo && { key: "date-to", label: "To", value: receivingHistoryFilters.dateTo, onRemove: () => setReceivingHistoryFilters((current) => ({ ...current, dateTo: "" })) },
+          receivingHistoryFilters.supplier && { key: "supplier", label: "Supplier", value: (supplierOptions.find((option) => option.value === receivingHistoryFilters.supplier) || fallbackSupplierOptions.find((option) => option.value === receivingHistoryFilters.supplier))?.label || receivingHistoryFilters.supplier, onRemove: () => setReceivingHistoryFilters((current) => ({ ...current, supplier: "" })) },
+        ].filter(Boolean)}
+        onClear={() => setReceivingHistoryFilters({ dateFrom: "", dateTo: "", supplier: "" })}
+      >
+        <Field label="Date">
           <FeedXDatePicker
             value={receivingHistoryFilters.dateFrom}
-            placeholder="Start date"
+            placeholder="From"
             onChange={(dateFrom) => setReceivingHistoryFilters((current) => ({ ...current, dateFrom }))}
           />
         </Field>
-        <Field label="Date To">
+        <Field label="To">
           <FeedXDatePicker
             value={receivingHistoryFilters.dateTo}
-            placeholder="End date"
+            placeholder="To"
             onChange={(dateTo) => setReceivingHistoryFilters((current) => ({ ...current, dateTo }))}
           />
         </Field>
@@ -2742,28 +2883,34 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onChange={(supplier) => setReceivingHistoryFilters((current) => ({ ...current, supplier }))}
           />
         </Field>
-        <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setReceivingHistoryFilters({ dateFrom: "", dateTo: "", supplier: "" })}>Clear</button>
-        </div>
-      </div>
+      </FactoryFilterBar>
     );
   }
 
   function dispatchHistoryFilterControls() {
     const customerOptions = data.factoryCustomers.map((customer) => ({ value: customer.id, label: customer.customer_name, helper: customer.customer_code || customer.customer_type || customer.status }));
     return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-5">
-        <Field label="Date From">
+      <FactoryFilterBar
+        activeFilters={[
+          dispatchHistoryFilters.dateFrom && { key: "date-from", label: "Date", value: dispatchHistoryFilters.dateFrom, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, dateFrom: "" })) },
+          dispatchHistoryFilters.dateTo && { key: "date-to", label: "To", value: dispatchHistoryFilters.dateTo, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, dateTo: "" })) },
+          dispatchHistoryFilters.customer && { key: "customer", label: "Customer", value: customerOptions.find((option) => option.value === dispatchHistoryFilters.customer)?.label || dispatchHistoryFilters.customer, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, customer: "" })) },
+          dispatchHistoryFilters.status && { key: "status", label: "Status", value: dispatchHistoryFilters.status, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, status: "" })) },
+        ].filter(Boolean)}
+        onClear={() => setDispatchHistoryFilters({ dateFrom: "", dateTo: "", customer: "", status: "" })}
+        moreFilters={<Field label="Status"><SearchableSelect value={dispatchHistoryFilters.status} options={[{ value: "", label: "All" }, { value: "draft", label: "Draft" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} placeholder="All" searchPlaceholder="Search status" emptyText="No matching status" onChange={(status) => setDispatchHistoryFilters((current) => ({ ...current, status }))} /></Field>}
+      >
+        <Field label="Date">
           <FeedXDatePicker
             value={dispatchHistoryFilters.dateFrom}
-            placeholder="Start date"
+            placeholder="From"
             onChange={(dateFrom) => setDispatchHistoryFilters((current) => ({ ...current, dateFrom }))}
           />
         </Field>
-        <Field label="Date To">
+        <Field label="To">
           <FeedXDatePicker
             value={dispatchHistoryFilters.dateTo}
-            placeholder="End date"
+            placeholder="To"
             onChange={(dateTo) => setDispatchHistoryFilters((current) => ({ ...current, dateTo }))}
           />
         </Field>
@@ -2777,25 +2924,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onChange={(customer) => setDispatchHistoryFilters((current) => ({ ...current, customer }))}
           />
         </Field>
-        <Field label="Status">
-          <SearchableSelect
-            value={dispatchHistoryFilters.status}
-            options={[
-              { value: "", label: "All" },
-              { value: "draft", label: "Draft" },
-              { value: "completed", label: "Completed" },
-              { value: "cancelled", label: "Cancelled" },
-            ]}
-            placeholder="All"
-            searchPlaceholder="Search status"
-            emptyText="No matching status"
-            onChange={(status) => setDispatchHistoryFilters((current) => ({ ...current, status }))}
-          />
-        </Field>
-        <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setDispatchHistoryFilters({ dateFrom: "", dateTo: "", customer: "", status: "" })}>Clear</button>
-        </div>
-      </div>
+      </FactoryFilterBar>
     );
   }
 
@@ -2872,6 +3001,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Raw Material"
           title="Raw Material Receiving"
           description="Record supplier delivery documents with multiple raw material item rows."
+          actions={!showReceivingEntry && canCreateReceiving ? <button className="btn-primary" type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("receive"); }}><Plus size={15} /> Receive Raw Material</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Truck} label="Receiving Documents" value={factoryListingPage.hasLoaded ? Number(receivingSummary.documents || 0) : "—"} helper="Supplier delivery batches" />
@@ -2880,11 +3010,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Tag} label="Active Suppliers" value={activeSuppliers.length} helper="Available for receiving" />
         </div>
         {!showReceivingEntry ? receivingHistoryFilterControls() : null}
-
-        <div className="inline-flex rounded-xl border border-border bg-white p-1">
-          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${!showReceivingEntry ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("history"); }}>Receiving History</button>
-          {canCreateReceiving ? <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${showReceivingEntry && !editingReceiving ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("receive"); }}>Receive Raw Material</button> : null}
-        </div>
 
         {showReceivingEntry ? (
           <RawReceivingEntryPanel
@@ -2898,7 +3023,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onCancelEdit={() => { setEditingReceiving(null); setReceivingTab("history"); }}
           />
         ) : (
-          <Card title="Receiving History" description={factoryListingPage.hasLoaded ? `${factoryListingPage.loadedTotal} receiving document(s).` : "Supplier receiving documents."}>
+          <Card>
             {listingLoadState("receiving-history", "Receiving History")}
             <FactoryTable
               columns={receivingBatchColumns}
@@ -2940,7 +3065,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Clock3} label="Submitted" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.submitted || 0) : data.rawStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={Number(factoryListingPage.summary.submitted || data.rawStockChecks.some((row) => row.status === "submitted")) ? "warning" : "success"} />
           <MetricCard icon={AlertTriangle} label="Critical Rows" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.critical_rows || 0) : criticalRows.length} helper="Requires review" tone={Number(factoryListingPage.summary.critical_rows || criticalRows.length) ? "danger" : "success"} />
         </div>
-        <Card title="Raw Material Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
+        <Card>
           {listingLoadState("raw-stock-checks", "Raw Material Stock Checks")}
           {stockCheckHistoryList("raw", rawStockCheckRows, "No raw material stock checks", "Create a stock check to capture physical counts.")}
           {listingPagination("raw-stock-checks")}
@@ -3250,14 +3375,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const dispatchSummaryReady = dispatchSnapshotReady && !factoryListingPage.summaryError;
     const dispatchRows = dispatchSnapshotReady ? factoryListingPage.rows : [];
     const customersTodayUpdating = dispatchCustomersTodayUpdating;
-    const renderDispatchActions = (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })}>View</button>
-        {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" })}>Edit</button> : null}
-        {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
-        {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
-      </div>
-    );
+    const renderDispatchActions = (row) => <FactoryRowActions onView={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })} primaryAction={row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? { label: "Complete", onClick: () => completeFinishedGoodDispatch(row) } : null} secondaryActions={[row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? { label: "Edit", onClick: () => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" }) } : null, row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? { label: "Cancel", destructive: true, onClick: () => cancelFinishedGoodDispatch(row) } : null]} />;
     const dispatchColumns = [
       { key: "dispatch_date", label: "Date", render: (row) => formatFactoryDate(row.dispatch_date) },
       { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div className="font-bold text-text-primary">{row.dispatch_no}</div> },
@@ -3275,6 +3393,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Warehouse"
           title="Finished Goods Dispatch"
           description="Record outbound Packaging SKU dispatches to customers or outlets. Completion creates finished goods stock-out movements."
+          actions={dispatchTab === "history"
+            ? <button className="btn-primary" type="button" disabled={!can("factory_finished_goods_dispatch.create")} onClick={() => setDispatchTab("create")}><Plus size={15} /> Create Dispatch</button>
+            : <button className="btn-secondary" type="button" onClick={() => setDispatchCloseRequestNonce((current) => current + 1)}><ArrowLeft size={15} /> Back to History</button>}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Draft" value={dispatchSummaryReady ? Number(factoryListingPage.summary.draft || 0) : "—"} helper={dispatchSummaryReady ? "Awaiting completion" : "Updating…"} tone={dispatchSummaryReady && Number(factoryListingPage.summary.draft || 0) ? "warning" : "success"} />
@@ -3283,12 +3404,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Truck} label="Customers Today" value={dispatchSummaryReady && !customersTodayUpdating ? Number(factoryListingPage.summary.customers_today || 0) : "—"} helper={!dispatchSummaryReady || customersTodayUpdating ? "Updating…" : "Unique dispatch customers"} />
         </div>
         {dispatchTab === "history" ? dispatchHistoryFilterControls() : null}
-        <Card title="Finished Goods Dispatch" description="Create drafts first, then complete them to deduct Packaging SKU stock and create Product Movement rows.">
-          <div className="space-y-4 p-4">
-            <div className="inline-flex rounded-xl border border-border bg-white p-1">
-              <button className={`rounded-lg px-4 py-2 text-sm font-bold ${dispatchTab === "history" ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setDispatchTab("history")}>Dispatch History</button>
-              <button className={`rounded-lg px-4 py-2 text-sm font-bold ${dispatchTab === "create" ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setDispatchTab("create")} disabled={!can("factory_finished_goods_dispatch.create")}>Create Dispatch</button>
-            </div>
+        <Card>
+          <div className={dispatchTab === "create" ? "p-4" : ""}>
             {dispatchTab === "create" ? (
               can("factory_finished_goods_dispatch.create") ? (
                 <FinishedGoodDispatchModal
@@ -3297,6 +3414,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                   onClose={() => setDispatchTab("history")}
                   onSave={saveFinishedGoodDispatch}
                   onComplete={can("factory_finished_goods_dispatch.complete") ? saveAndCompleteFinishedGoodDispatch : undefined}
+                  closeRequestNonce={dispatchCloseRequestNonce}
                   embedded
                 />
               ) : (
@@ -3374,7 +3492,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Clock3} label="Submitted" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.submitted || 0) : data.productStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={Number(factoryListingPage.summary.submitted || data.productStockChecks.some((row) => row.status === "submitted")) ? "warning" : "success"} />
           <MetricCard icon={AlertTriangle} label="Variance Rows" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.variance_rows || 0) : data.productStockChecks.flatMap((row) => row.items || []).filter((item) => item.count_status !== "skip" && item.variance_status !== "Skipped" && Number(item.variance_qty || 0) !== 0).length} helper="Counted rows with a difference" tone="warning" />
         </div>
-        <Card title="Finished Goods Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
+        <Card>
           {listingLoadState("product-stock-checks", "Product Stock Checks")}
           {stockCheckHistoryList("product", productStockCheckRows, "No finished goods stock checks", "Create a stock check to capture physical counts.")}
           {listingPagination("product-stock-checks")}
@@ -3399,6 +3517,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openBatchTraceabilityDispatch={canViewDispatchHistory ? openBatchTraceabilityDispatch : undefined}
           openCreateSupplier={() => setModal({ type: "factory-suppliers" })}
           openEditSupplier={(supplier) => setModal({ type: "factory-suppliers", value: supplier })}
+          openManageSupplierMaterials={(supplier) => setModal({ type: "factory-supplier-material-links", supplier })}
           archiveSupplier={archiveFactorySupplier}
           openCreateCustomer={() => setModal({ type: "factory-customers" })}
           openEditCustomer={(customer) => setModal({ type: "factory-customers", value: customer })}
@@ -3415,6 +3534,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openCreateRawMaterial={() => setModal({ type: "raw-material" })}
           openEditRawMaterial={(material) => setModal({ type: "raw-material", value: material })}
           saveRawMaterial={saveRawMaterial}
+          archiveRawMaterial={archiveRawMaterial}
           importRawMaterials={importRawMaterials}
           openRawMaterialCost={(material) => setModal({ type: "raw-material-cost", material })}
           openRawMaterialImage={(material) => setModal({ type: "raw-material-image", material })}
@@ -3442,7 +3562,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <>
       <FactoryOperationalJobsProvider route={initialTab} auth={auth} refreshKey={data} onPermissionDenied={clearOperationalPermission}>{(operationalJobs) => <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
-      {initialTab === "production-overview" ? <FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={(job, options) => setModal({ type: "job", value: job, readOnly: options?.readOnly })} startJob={(job) => setModal({ type: "start-production", job })} completeProduction={(job, options) => setModal(options?.processOnly ? { type: "production-process", job, readOnly: Boolean(options.readOnly) } : { type: "production", job })} viewCompletedResult={viewCompletedJobOrder} releaseJob={releaseJobOrder} cancelJob={cancelJobOrder} /> : initialTab === "job-orders" ? <FactoryJobOrdersPage data={data} auth={auth} can={can} onCreate={() => setModal({ type: "job" })} onView={(job) => setModal({ type: "job", value: job, readOnly: true })} onEdit={(job) => setModal({ type: "job", value: job, readOnly: false })} onRelease={releaseJobOrder} onDelete={deleteJobOrder} onCancel={cancelJobOrder} onStart={(job) => setModal({ type: "start-production", job })} onViewProcess={(job, readOnly) => setModal({ type: "production-process", job, readOnly })} onComplete={(job) => setModal({ type: "production", job })} onViewResult={viewCompletedJobOrder} jobOrdersListingBridge={jobOrdersListingBridge} onPermissionDenied={clearJobOrdersListingPermission} onNotify={ui?.notify} jobFinishedGoodName={jobFinishedGoodName} productionQcTone={productionQcTone} productionQcDisplayLabel={productionQcDisplayLabel} /> : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction(operationalJobs) : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
+      {initialTab === "product-feedback" ? <FactoryProductFeedbackPage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-equipment-cleaning" ? <FactoryMestiEquipmentCleaningPage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-food-processing-control" ? <FactoryMestiFoodProcessingControlPage /> : <>
+      {initialTab === "mesti-calibration" ? <FactoryMestiCalibrationPage onNotify={ui?.notify} onRefreshFactoryData={loadData} /> : initialTab === "mesti-operator-hygiene" ? <FactoryMestiOperatorHygienePage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-waste-disposal" ? <FactoryMestiWasteDisposalPage auth={auth} onNotify={ui?.notify} /> : initialTab === "mesti-raw-material-control" ? <FactoryMestiRawMaterialControlPage /> : initialTab === "mesti-health-declaration" ? <FactoryMestiHealthDeclarationPage onNotify={ui?.notify} /> : initialTab === "mesti-finished-product-storage-control" ? <FactoryMestiFinishedProductStorageControlPage onNotify={ui?.notify} /> : initialTab === "equipment" ? <FactoryEquipmentPage onCreate={() => setModal({ type: "equipment" })} onEdit={(value) => setModal({ type: "equipment", value })} onManageCategories={() => setModal({ type: "equipment-categories" })} /> : initialTab === "production-overview" ? <FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={(job, options) => setModal({ type: "job", value: job, readOnly: options?.readOnly })} startJob={(job) => setModal({ type: "start-production", job })} completeProduction={(job, options) => setModal(options?.processOnly ? { type: "production-process", job, readOnly: Boolean(options.readOnly) } : { type: "production", job })} viewCompletedResult={viewCompletedJobOrder} releaseJob={releaseJobOrder} cancelJob={cancelJobOrder} /> : initialTab === "job-orders" ? <FactoryJobOrdersPage data={data} auth={auth} can={can} onCreate={() => setModal({ type: "job" })} onView={(job) => setModal({ type: "job", value: job, readOnly: true })} onEdit={(job) => setModal({ type: "job", value: job, readOnly: false })} onRelease={releaseJobOrder} onDelete={deleteJobOrder} onCancel={cancelJobOrder} onStart={(job) => setModal({ type: "start-production", job })} onViewProcess={(job, readOnly) => setModal({ type: "production-process", job, readOnly })} onComplete={(job) => setModal({ type: "production", job })} onViewResult={viewCompletedJobOrder} jobOrdersListingBridge={jobOrdersListingBridge} onPermissionDenied={clearJobOrdersListingPermission} onNotify={ui?.notify} jobFinishedGoodName={jobFinishedGoodName} productionQcTone={productionQcTone} productionQcDisplayLabel={productionQcDisplayLabel} /> : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction(operationalJobs) : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "mesti-cleaning" ? <FactoryMestiCleaningPage auth={auth} onNotify={ui?.notify} /> : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
+      </>}
       </>}</FactoryOperationalJobsProvider>
       {modal?.type === "job" ? (
         <JobOrderModal
@@ -3461,6 +3583,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           job={modal.job}
           production={modal.production}
           recipes={data.recipes}
+          canVerify={can("factory_production.verify")}
+          onVerify={() => verifyProductionRecord(modal.production)}
           onClose={() => setModal(null)}
         />
       ) : null}
@@ -3537,11 +3661,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onSave={saveStorageLocation}
         />
       ) : null}
+      {modal?.type === "equipment" ? <FactoryEquipmentModal initialValue={modal.value} categories={data.equipmentCategories} locations={data.storageLocations} onClose={() => setModal(null)} onSave={saveFactoryEquipment} /> : null}
+      {modal?.type === "equipment-categories" ? <FactoryEquipmentCategoryModal categories={data.equipmentCategories} onClose={() => setModal(null)} onSave={saveFactoryEquipmentCategory} /> : null}
       {modal?.type === "factory-suppliers" ? (
         <FactorySupplierModal
           initialValue={modal.value}
           onClose={() => setModal(null)}
           onSave={saveFactorySupplier}
+        />
+      ) : null}
+      {modal?.type === "factory-supplier-material-links" ? (
+        <FactorySupplierLinkedMaterialsModal
+          supplier={modal.supplier}
+          loadEligibility={(supplierId) => factoryService.getFactorySupplierRawMaterialEligibility(supplierId, { linkedOnly: false })}
+          onSave={saveFactorySupplierLinkedMaterials}
+          onClose={() => setModal(null)}
         />
       ) : null}
       {modal?.type === "factory-customers" ? (
@@ -3560,6 +3694,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           sops={data.sops}
           finishedGoods={data.finishedGoods}
           storageLocations={data.storageLocations}
+          equipment={data.equipment}
           auth={auth}
           notify={ui?.notify}
           onClose={() => setModal(null)}

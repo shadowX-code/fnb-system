@@ -1,32 +1,53 @@
+import { Fragment } from "react";
 import { RefreshCw } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 
-export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick }) {
-  if (!rows.length) return <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>;
+export function FactoryDataSurface({ children, className = "" }) {
+  return <section className={`factory-data-surface ${className}`.trim()}>{children}</section>;
+}
+
+export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick, density = "compact", headerStyle = "uppercase", rowHover = "", loading = false, loadingRows = 4, rowKey = (row) => row.id, renderAfterRow }) {
+  if (!rows.length && !loading) return <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>;
+  const compact = density === "compact";
+  const headerClass = headerStyle === "sentence"
+    ? "text-xs font-semibold text-text-secondary"
+    : "text-[11px] font-semibold uppercase tracking-[0.06em] text-text-muted";
+  const headerPadding = compact ? "px-4 py-2.5" : "px-4 py-2.5";
+  const cellPadding = compact ? "px-4 py-2.5" : "px-4 py-3";
+  const hoverClass = rowHover === "mint" ? "factory-table-row-mint" : "factory-table-row-neutral";
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-left">
+    <div className="factory-table overflow-x-auto">
+      <table className="w-full min-w-[760px] text-left" aria-busy={loading}>
         <thead>
-          <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+          <tr className={`factory-table-header border-b border-border ${headerClass}`}>
             {columns.map((column) => (
-              <th key={column.key} className={`${column.className || ""} px-4 py-2.5 ${column.align === "right" ? "text-right" : ""}`}>{column.label}</th>
+              <th key={column.key} className={`${column.className || ""} ${headerPadding} ${column.align === "right" ? "text-right" : ""}`}>{column.label}</th>
             ))}
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.id}
-              className={`border-b border-border last:border-0 ${onRowClick ? "cursor-pointer transition hover:bg-slate-50" : ""}`}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-            >
-              {columns.map((column) => (
-                <td key={column.key} className={`${column.className || ""} px-4 py-3 text-sm ${column.align === "right" ? "text-right" : ""}`}>
-                  {column.render ? column.render(row) : row[column.key]}
-                </td>
-              ))}
+          {loading && !rows.length ? Array.from({ length: loadingRows }, (_, index) => (
+            <tr key={`loading-${index}`} className="factory-table-row border-b border-border last:border-0">
+              {columns.map((column) => <td key={column.key} className={`${column.className || ""} ${cellPadding}`}><div className="h-3 animate-pulse rounded bg-slate-100" /></td>)}
             </tr>
-          ))}
+          )) : rows.map((row) => {
+            const key = rowKey(row) ?? row.id ?? row.raw_material_id ?? row.logical_requirement_id;
+            const after = renderAfterRow?.(row);
+            return <Fragment key={key}>
+              <tr
+                key={key}
+                className={`factory-table-row border-b border-border last:border-0 ${rowHover ? `transition ${hoverClass}` : ""} ${onRowClick ? "cursor-pointer" : ""}`}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+              >
+                {columns.map((column) => (
+                  <td key={column.key} className={`${column.className || ""} ${cellPadding} text-sm ${column.align === "right" ? "text-right" : ""}`}>
+                    {column.render ? column.render(row) : row[column.key]}
+                  </td>
+                ))}
+              </tr>
+              {after ? <tr key={`${key}-detail`} className="factory-table-row"><td className="p-0" colSpan={columns.length}>{after}</td></tr> : null}
+            </Fragment>;
+          })}
         </tbody>
       </table>
     </div>

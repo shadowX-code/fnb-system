@@ -45,20 +45,19 @@ describe("Factory Job Orders Phase A", () => {
     render(<FactoryWorkspacePage initialTab="job-orders" auth={auth()} ui={{ notify: vi.fn() }} />);
     await screen.findByText("JO-draft");
     expect(screen.getAllByRole("button", { name: "Release" }).length).toBe(2);
-    expect(screen.getAllByRole("button", { name: "Edit" }).length).toBe(2);
-    expect(screen.getByRole("button", { name: "Delete" })).not.toBeNull();
-    expect(screen.getAllByRole("button", { name: "Cancel" }).length).toBe(2);
     expect(screen.getByRole("button", { name: "Start Production" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "View Process" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Complete" })).not.toBeNull();
-    expect(screen.getAllByRole("button", { name: "View" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "View details" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "View process" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "View result" })).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "More row actions" }).length).toBe(3);
   });
 
   it("hides protected Job Order and Production actions without their exact permission keys while retaining completed View", async () => {
     setup();
     render(<FactoryWorkspacePage initialTab="job-orders" auth={auth([])} ui={{ notify: vi.fn() }} />);
     await screen.findByText("JO-completed");
-    ["Create Job Order", "Release", "Edit", "Delete", "Cancel", "Start Production", "View Process", "Complete"].forEach((name) => expect(screen.queryByRole("button", { name })).toBeNull());
-    expect(screen.getAllByRole("button", { name: "View" }).length).toBeGreaterThan(0);
+    ["Create Job Order", "Release", "Start Production", "Complete", "More row actions"].forEach((name) => expect(screen.queryByRole("button", { name })).toBeNull());
+    expect(screen.getAllByRole("button", { name: /View (details|process|result)/ }).length).toBeGreaterThan(0);
   });
 });

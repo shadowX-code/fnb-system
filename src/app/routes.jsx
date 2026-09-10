@@ -297,6 +297,16 @@ export const routeDetails = {
     permission: "factory_product_stock_check.view",
     props: { initialTab: "product-stock-check" },
   },
+  factory_mesti_cleaning: { description: "Complete and verify MeSTI Cleaning of Area requirements with monthly compliance history.", component: FactoryWorkspacePage, permission: "factory_mesti_cleaning.view", props: { initialTab: "mesti-cleaning" } },
+  factory_mesti_equipment_cleaning: { description: "Complete and verify scheduled and after-operation MeSTI equipment cleaning.", component: FactoryWorkspacePage, permission: "factory_mesti_equipment_cleaning.view", props: { initialTab: "mesti-equipment-cleaning" } },
+  factory_mesti_calibration: { description: "Schedule, record and verify Factory equipment calibration.", component: FactoryWorkspacePage, permission: "factory_mesti_calibration.view", props: { initialTab: "mesti-calibration" } },
+  factory_mesti_finished_product_storage_control: { description: "Read-only MeSTI projection of completed Production Finished Goods storage evidence.", component: FactoryWorkspacePage, permission: "factory_mesti_cleaning.view", props: { initialTab: "mesti-finished-product-storage-control" } },
+  factory_mesti_health_declaration: { component: FactoryWorkspacePage, permission: "factory_mesti_health_declaration.view", props: { initialTab: "mesti-health-declaration" } },
+  factory_mesti_operator_hygiene: { component: FactoryWorkspacePage, permission: "factory_mesti_operator_hygiene.view", props: { initialTab: "mesti-operator-hygiene" } },
+  factory_mesti_waste_disposal: { component: FactoryWorkspacePage, permission: "factory_mesti_waste_disposal.view", props: { initialTab: "mesti-waste-disposal" } },
+  factory_mesti_raw_material_control: { component: FactoryWorkspacePage, permission: "factory_raw_receiving.view", props: { initialTab: "mesti-raw-material-control" } },
+  factory_mesti_food_processing_control: { component: FactoryWorkspacePage, permission: "factory_production.view", props: { initialTab: "mesti-food-processing-control" } },
+  factory_product_feedback: { component: FactoryWorkspacePage, permission: "factory_product_feedback.view", props: { initialTab: "product-feedback" } },
   factory_product_recipes: {
     description: "Manage standard raw material BOMs for Finished Goods production defaults.",
     component: FactoryWorkspacePage,
@@ -309,6 +319,7 @@ export const routeDetails = {
     permission: "factory_production_sop.view OR factory_production_sop.create OR factory_production_sop.edit OR factory_production_sop.manage",
     props: { initialTab: "production-sop" },
   },
+  factory_equipment: { description: "Manage canonical Factory equipment and actual production-use evidence.", component: FactoryWorkspacePage, permission: "factory_equipment.view OR factory_equipment.create OR factory_equipment.edit OR factory_equipment.manage", props: { initialTab: "equipment" } },
   factory_audit_logs: {
     description: "Review read-only Factory module audit events and document changes.",
     component: FactoryWorkspacePage,
@@ -316,7 +327,7 @@ export const routeDetails = {
     props: { initialTab: "audit-logs" },
   },
   factory_storage_locations: {
-    description: "Manage Factory storage locations used by raw material and finished goods master records.",
+    description: "Manage Factory Locations and storage eligibility for stock workflows.",
     component: FactoryWorkspacePage,
     permission: "factory_storage_locations.view",
     props: { initialTab: "storage-locations" },

@@ -65,6 +65,7 @@ describe("Factory Production SOP and QC preset trusted lifecycle contracts", () 
       p_recipe_id: "recipe-1",
       p_recipe_version: "v2",
       p_created_by: null,
+      p_equipment_ids: [],
       p_steps: [expect.objectContaining({
         step_no: 1,
         step_name: "Cook",
@@ -74,6 +75,13 @@ describe("Factory Production SOP and QC preset trusted lifecycle contracts", () 
         qc_checks: [expect.objectContaining({ sequence_no: 1, qc_type: "checklist", checklist_template_id: "qc-1", qc_name: "Temperature", is_required: true })],
       })],
     });
+  });
+
+  it("turns a concurrent first-SOP family conflict into a concise user-facing error", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "FACTORY_SOP_FAMILY_EXISTS", code: "23505" } });
+    await expect(factoryService.saveProductionSop({
+      finished_good_id: "family-1", title: "Sambal Production SOP · v1", steps: [{ step_name: "Cook", estimated_time_minutes: 1, qc_checks: [], sub_steps: [] }],
+    })).rejects.toThrow("This Finished Good already has an SOP. Create a new version from the existing SOP instead.");
   });
 
   it("routes activation, new version, archive, and restore through exact trusted SOP RPCs", async () => {

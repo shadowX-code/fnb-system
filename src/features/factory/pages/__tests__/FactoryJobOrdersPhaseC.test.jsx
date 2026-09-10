@@ -58,7 +58,7 @@ describe("Factory Job Orders Phase C Start Production", () => {
   it("opens the Workspace-owned completed result with one job-specific detail lookup", async () => {
     const detail = setupCompleted({ id: "production-1", batch_no: "PB-001", production_date: "2026-08-09", start_time: "08:00", end_date: "2026-08-09", end_time: "10:00", actual_pack_qty: 20, good_output_qty: 10, uom: "kg", operator_name: "Isaac Tan", notes: "QC passed" });
     mount(); await screen.findByText("JO-COMPLETED");
-    fireEvent.click(within(screen.getByText("JO-COMPLETED").closest("tr")).getByRole("button", { name: "View" }));
+    fireEvent.click(within(screen.getByText("JO-COMPLETED").closest("tr")).getByRole("button", { name: "View result" }));
     await waitFor(() => expect(detail).toHaveBeenCalledWith("completed"));
     expect(detail).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
@@ -68,7 +68,7 @@ describe("Factory Job Orders Phase C Start Production", () => {
   it("keeps completed result core data usable when optional result fields are absent", async () => {
     setupCompleted({ id: "production-optional", batch_no: "PB-OPTIONAL", actual_pack_qty: 4, good_output_qty: 2, uom: "kg" });
     mount(); await screen.findByText("JO-COMPLETED");
-    fireEvent.click(within(screen.getByText("JO-COMPLETED").closest("tr")).getByRole("button", { name: "View" }));
+    fireEvent.click(within(screen.getByText("JO-COMPLETED").closest("tr")).getByRole("button", { name: "View result" }));
     expect(await screen.findByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
     expect(screen.getByText("PB-OPTIONAL")).not.toBeNull();
   });
@@ -78,7 +78,7 @@ describe("Factory Job Orders Phase C Start Production", () => {
     const listing = vi.spyOn(factoryService, "listFactoryListingPage").mockResolvedValue({ rows: [completed], summary: {}, totalCount: 1, page: 1, pageSize: 20 });
     const detail = vi.spyOn(factoryService, "getProductionByJobOrder").mockRejectedValue(new Error("result failed"));
     const notify = vi.fn(); mount(notify); await screen.findByText("JO-COMPLETED");
-    fireEvent.click(within(screen.getByText("JO-COMPLETED").closest("tr")).getByRole("button", { name: "View" }));
+    fireEvent.click(within(screen.getByText("JO-COMPLETED").closest("tr")).getByRole("button", { name: "View result" }));
     await waitFor(() => expect(detail).toHaveBeenCalledWith("completed"));
     expect(detail).toHaveBeenCalledTimes(1); expect(listing).toHaveBeenCalledTimes(1);
     expect(screen.queryByRole("heading", { name: "Completed Job Order Result" })).toBeNull();

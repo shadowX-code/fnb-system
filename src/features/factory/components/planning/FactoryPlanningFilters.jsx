@@ -1,13 +1,22 @@
 import SearchableSelect from "../SearchableSelect.jsx";
 import { Field, inputClass } from "../FactoryBulkSelectionModal.jsx";
+import FactoryFilterBar from "../FactoryFilterBar.jsx";
 import { planningCategoryOptions, planningStatusOptions } from "../../utils/factoryPlanningFormatters.js";
 
 export default function FactoryPlanningFilters({ filters, onChange, categories, finishedGoods }) {
   const categoryOptions = planningCategoryOptions(categories, finishedGoods);
+  const activeFilters = [
+    filters.product && { key: "product", label: "Search", value: filters.product, onRemove: () => onChange({ product: "" }) },
+    filters.status && { key: "status", label: "Status", value: filters.status, onRemove: () => onChange({ status: "" }) },
+    filters.category && { key: "category", label: "Category", value: categoryOptions.find((option) => option.value === filters.category)?.label || filters.category, onRemove: () => onChange({ category: "" }) },
+  ].filter(Boolean);
 
   return (
-    <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-3">
-      <Field label="Product">
+    <FactoryFilterBar
+      activeFilters={activeFilters}
+      onClear={() => onChange({ product: "", category: "", status: "" })}
+    >
+      <Field label="Search">
         <input className={inputClass()} value={filters.product} onChange={(event) => onChange({ product: event.target.value })} placeholder="Search product or SKU" />
       </Field>
       <Field label="Category">
@@ -30,6 +39,6 @@ export default function FactoryPlanningFilters({ filters, onChange, categories, 
           onChange={(status) => onChange({ status })}
         />
       </Field>
-    </div>
+    </FactoryFilterBar>
   );
 }

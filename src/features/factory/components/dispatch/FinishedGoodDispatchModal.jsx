@@ -17,7 +17,7 @@ import { createFinishedGoodDispatchRequestId, factoryActivityDateTime, finishedG
 import { dispatchAllocationTotal } from "../allocation/finishedGoodBatchAllocationHelpers.js";
 import { focusVisibleFactoryRowField } from "../../utils/factoryDom.js";
 
-export default function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, embedded = false, mode = "edit" }) {
+export default function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, embedded = false, mode = "edit", closeRequestNonce = 0 }) {
   const makeItem = (overrides = {}) => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false, ...overrides });
   const [form, setForm] = useState(() => ({
     dispatch_date: malaysiaBusinessDateInput(),
@@ -38,9 +38,12 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
   const [dispatchNoPreviewState, setDispatchNoPreviewState] = useState(() => ({ value: initialValue?.dispatch_no || "", loading: !initialValue?.dispatch_no, error: "" }));
   const [dispatchNoPreviewRetry, setDispatchNoPreviewRetry] = useState(0);
   const [batchAvailabilityBySku, setBatchAvailabilityBySku] = useState({});
+  const [formDirty, setFormDirty] = useState(false);
+  const [discardPrompt, setDiscardPrompt] = useState(false);
   const batchAvailabilityRequestRef = useRef({});
   const dispatchNoPreviewRequestRef = useRef(0);
   const submissionRef = useRef(false);
+  const closeRequestNonceRef = useRef(closeRequestNonce);
   const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
   const isReadOnly = isViewMode;
   const saving = Boolean(submittingAction);
@@ -301,6 +304,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
   }
 
   function updateItem(rowId, patch) {
+    setFormDirty(true);
     setForm((current) => ({
       ...current,
       items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patch } : item),
@@ -308,6 +312,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
   }
 
   function updateItemQuantity(rowId, value) {
+    setFormDirty(true);
     setForm((current) => ({
       ...current,
       items: current.items.map((item) => {
@@ -417,12 +422,14 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
   }
 
   function addItem() {
+    setFormDirty(true);
     setForm((current) => ({ ...current, items: [...current.items, makeItem()] }));
   }
 
   function addSelectedDispatchSkus(selectedItems) {
     const newRows = selectedItems.map((item) => makeItem({ finished_good_id: item.id }));
     if (!newRows.length) return;
+    setFormDirty(true);
     setForm((current) => {
       const hasOnlyBlankRow = current.items.length === 1 && !current.items[0].finished_good_id && !current.items[0].quantity && !current.items[0].remarks;
       return { ...current, items: [...(hasOnlyBlankRow ? [] : current.items), ...newRows] };
@@ -432,6 +439,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
   }
 
   function removeItem(rowId) {
+    setFormDirty(true);
     setForm((current) => ({ ...current, items: current.items.length > 1 ? current.items.filter((item) => item.row_id !== rowId) : current.items }));
   }
 
@@ -528,6 +536,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
         });
         setBatchAvailabilityBySku({});
       }
+      setFormDirty(false);
     } catch (submitError) {
       setError(finishedGoodDispatchOperatorError(submitError, action === "complete" ? "Unable to complete the Dispatch. Please retry." : "Unable to save the Dispatch Draft. Please retry."));
     } finally {
@@ -535,6 +544,21 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
       setSubmittingAction("");
     }
   }
+
+  function requestClose() {
+    if (saving) return;
+    if (!isReadOnly && formDirty) {
+      setDiscardPrompt(true);
+      return;
+    }
+    onClose?.();
+  }
+
+  useEffect(() => {
+    if (closeRequestNonce === closeRequestNonceRef.current) return;
+    closeRequestNonceRef.current = closeRequestNonce;
+    requestClose();
+  }, [closeRequestNonce]);
 
   const formContent = (
     <form id={embedded ? undefined : "factory-finished-good-dispatch-form"} className="space-y-4" onSubmit={(event) => submit(event, "draft")}>
@@ -553,6 +577,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
               disabled={isReadOnly}
               onChange={(value) => {
                 const customer = activeCustomers.find((row) => row.id === value);
+                setFormDirty(true);
                 setForm((current) => ({ ...current, customer_id: value, customer_name: customer?.customer_name || "" }));
               }}
             />
@@ -563,7 +588,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
             value={form.dispatch_date || ""}
             required
             disabled={isReadOnly}
-            onChange={(nextDate) => setForm((current) => ({ ...current, dispatch_date: nextDate }))}
+            onChange={(nextDate) => { setFormDirty(true); setForm((current) => ({ ...current, dispatch_date: nextDate })); }}
           />
         </Field>
         <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
@@ -575,17 +600,16 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
       </div>
 
       {showReferenceField ? <Field label="Reference / DO No.">
-        <input className={inputClass()} value={form.reference_no || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
+        <input className={inputClass()} value={form.reference_no || ""} disabled={isReadOnly} onChange={(event) => { setFormDirty(true); setForm((current) => ({ ...current, reference_no: event.target.value })); }} />
       </Field> : null}
 
       <Field label="Remarks">
-        <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+        <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isReadOnly} onChange={(event) => { setFormDirty(true); setForm((current) => ({ ...current, remarks: event.target.value })); }} />
       </Field>
 
-      <div className="rounded-2xl border border-border bg-white">
+      <div className="border border-border bg-surface">
         <div className="border-b border-border px-4 py-3">
           <div className="font-bold text-text-primary">Dispatch Items</div>
-          <div className="text-sm text-text-secondary">Packaging SKU quantities and Batch allocations for this Dispatch.</div>
         </div>
         <div className="space-y-3 p-4">
           <div className="space-y-3 md:hidden">
@@ -629,7 +653,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
                   <Field label="Remarks">
                     <input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} />
                   </Field>
-                  {!isReadOnly ? <button className="btn-secondary w-full justify-center px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.row_id)}>Remove Item</button> : null}
+                  {!isReadOnly ? <button className="icon-btn ml-auto flex h-9 w-9 items-center justify-center text-rose-700 hover:bg-rose-50" type="button" aria-label="Remove item" title="Remove item" onClick={() => removeItem(item.row_id)}><Trash2 size={15} /></button> : null}
                 </div>
               );
             })}
@@ -637,14 +661,14 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
           <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1080px] text-left">
               <thead>
-                <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
-                  <th className="px-3 py-2.5">Packaging SKU</th>
+                <tr className="border-b border-border bg-surface-muted text-[11px] font-semibold uppercase tracking-wide text-text-muted">
+                  <th className="px-3 py-2.5">Product / SKU</th>
                   <th className="px-3 py-2.5">Stock Available</th>
                   <th className="px-3 py-2.5">Dispatch Qty</th>
                   <th className="px-3 py-2.5">Batch Allocation</th>
                   <th className="px-3 py-2.5">Pack Size</th>
                   <th className="px-3 py-2.5">Remarks</th>
-                  <th className="px-3 py-2.5 text-right">Action</th>
+                  <th className="w-12 px-3 py-2.5 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -678,7 +702,7 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
                       <td className="px-3 py-3 text-sm font-semibold text-text-secondary">{sku ? packSizeText(sku) || "—" : "—"}</td>
                       <td className="px-3 py-3"><input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} /></td>
                       <td className="px-3 py-3 text-right">
-                        {!isReadOnly ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.row_id)}>Remove</button> : null}
+                        {!isReadOnly ? <button className="icon-btn ml-auto flex h-8 w-8 items-center justify-center text-rose-700 hover:bg-rose-50" type="button" aria-label="Remove item" title="Remove item" onClick={() => removeItem(item.row_id)}><Trash2 size={15} /></button> : null}
                       </td>
                     </tr>
                   );
@@ -690,12 +714,15 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
         </div>
       </div>
 
+      {discardPrompt ? <div className="flex flex-wrap items-center justify-between gap-3 border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900"><span className="font-semibold">Discard unsaved Dispatch changes?</span><span className="flex shrink-0 items-center gap-2"><button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={() => setDiscardPrompt(false)}>Keep editing</button><button className="btn-danger h-8 px-3 text-xs" type="button" onClick={onClose}>Discard changes</button></span></div> : null}
+
       {embedded && !isReadOnly ? (
         <div className="space-y-2 border-t border-border pt-4">
           {completeBlockReason ? <div className="text-right text-xs font-semibold text-amber-800">{completeBlockReason}</div> : null}
-          <div className="flex flex-wrap justify-end gap-2">
-            <button className="btn-secondary" type="submit" disabled={saving || Boolean(saveDraftBlockReason)}>{submittingAction === "draft" ? "Saving..." : "Save Draft"}</button>
-            {onComplete ? <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" type="button" disabled={saving || Boolean(completeBlockReason)} onClick={() => submit(null, "complete")}>{submittingAction === "complete" ? "Completing..." : "Complete Dispatch"}</button> : null}
+          <div className="flex items-center justify-end gap-2 overflow-x-auto whitespace-nowrap">
+            <button className="btn-secondary shrink-0" type="button" disabled={saving} onClick={requestClose}>Cancel</button>
+            <button className="btn-secondary shrink-0" type="submit" disabled={saving || Boolean(saveDraftBlockReason)}>{submittingAction === "draft" ? "Saving..." : "Save Draft"}</button>
+            {onComplete ? <button className="btn-primary shrink-0 bg-emerald-600 hover:bg-emerald-700" type="button" disabled={saving || Boolean(completeBlockReason)} onClick={() => submit(null, "complete")}>{submittingAction === "complete" ? "Completing..." : "Complete Dispatch"}</button> : null}
           </div>
         </div>
       ) : null}
@@ -744,12 +771,12 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
         title={isReadOnly ? "View Finished Goods Dispatch" : initialValue?.id ? "Edit Finished Goods Dispatch" : "Create Finished Goods Dispatch"}
         description="Record outbound Packaging SKU dispatch from Factory warehouse."
         size="xl"
-        onClose={saving ? undefined : onClose}
+        onClose={saving ? undefined : requestClose}
         footer={(
-          <div className="flex w-full flex-wrap items-center justify-end gap-2">
-            <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>{isReadOnly ? "Close" : "Cancel"}</button>
-            {!isReadOnly ? <button className="btn-secondary" type="submit" form="factory-finished-good-dispatch-form" disabled={saving || Boolean(saveDraftBlockReason)}>{submittingAction === "draft" ? "Saving..." : "Save Draft"}</button> : null}
-            {!isReadOnly && onComplete ? <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" type="button" disabled={saving || Boolean(completeBlockReason)} onClick={() => submit(null, "complete")}>{submittingAction === "complete" ? "Completing..." : "Complete Dispatch"}</button> : null}
+          <div className="flex w-full items-center justify-end gap-2 overflow-x-auto whitespace-nowrap">
+            <button className="btn-secondary shrink-0" type="button" disabled={saving} onClick={requestClose}>{isReadOnly ? "Close" : "Cancel"}</button>
+            {!isReadOnly ? <button className="btn-secondary shrink-0" type="submit" form="factory-finished-good-dispatch-form" disabled={saving || Boolean(saveDraftBlockReason)}>{submittingAction === "draft" ? "Saving..." : "Save Draft"}</button> : null}
+            {!isReadOnly && onComplete ? <button className="btn-primary shrink-0 bg-emerald-600 hover:bg-emerald-700" type="button" disabled={saving || Boolean(completeBlockReason)} onClick={() => submit(null, "complete")}>{submittingAction === "complete" ? "Completing..." : "Complete Dispatch"}</button> : null}
             {!isReadOnly && completeBlockReason ? <div className="basis-full text-right text-xs font-semibold text-amber-800">{completeBlockReason}</div> : null}
           </div>
         )}

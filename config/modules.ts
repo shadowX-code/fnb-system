@@ -571,6 +571,16 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, delete: true, submit: true, approve: true, export: true },
   },
+  { id: "factory_mesti_cleaning", section: "MeSTI", label: "Cleaning of Area", route: "/factory/mesti/cleaning-of-area", icon: "factory-mesti-cleaning", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true } },
+  { id: "factory_mesti_equipment_cleaning", section: "MeSTI", label: "Cleaning of Equipment", route: "/factory/mesti/cleaning-of-equipment", icon: "factory-mesti-cleaning", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true } },
+  { id: "factory_mesti_calibration", section: "MeSTI", label: "Calibration Schedule & Record", route: "/factory/mesti/calibration", icon: "factory-mesti-calibration", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, complete: true, review: true, manage: true } },
+  { id: "factory_mesti_finished_product_storage_control", section: "MeSTI", label: "Finished Product Storage Control", route: "/factory/mesti/finished-product-storage-control", icon: "factory-mesti-finished-product-storage-control", sidebar: true, workspace: "factory", permissions: {} },
+  { id: "factory_mesti_health_declaration", section: "MeSTI", label: "Health Declaration", route: "/factory/mesti/health-declaration", icon: "factory-mesti-health-declaration", sidebar: true, workspace: "factory", permissions: { view: true, create: true, manage: true } },
+  { id: "factory_mesti_operator_hygiene", section: "MeSTI", label: "Operator Hygiene Inspection", route: "/factory/mesti/operator-hygiene-inspection", icon: "factory-mesti-operator-hygiene", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, submit: true, verify: true } },
+  { id: "factory_mesti_waste_disposal", section: "MeSTI", label: "Waste Disposal Record", route: "/factory/mesti/waste-disposal-record", icon: "factory-mesti-waste-disposal", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, record: true, submit: true, verify: true } },
+  { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },
+  { id: "factory_mesti_food_processing_control", section: "MeSTI", label: "Food Processing Control", route: "/factory/mesti/food-processing-control", icon: "factory-mesti-food-processing-control", sidebar: true, workspace: "factory", permissions: {} },
+  { id: "factory_product_feedback", section: "Factory", label: "Product Feedback", route: "/factory/product-feedback", icon: "factory-product-feedback", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, manage: true } },
   {
     id: "factory_product_recipes",
     section: "Master Data",
@@ -591,6 +601,7 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
   },
+  { id: "factory_equipment", section: "Master Data", label: "Equipment", route: "/factory/equipment", icon: "factory-equipment", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, manage: true } },
   {
     id: "factory_audit_logs",
     section: "System",
@@ -604,7 +615,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "factory_storage_locations",
     section: "System",
-    label: "Storage Locations",
+    label: "Locations",
     route: "/factory/storage-locations",
     icon: "factory-storage-locations",
     sidebar: true,
