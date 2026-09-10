@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../FactoryProductFeedbackPublic.jsx";
+import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile } from "../FactoryProductFeedbackPublic.jsx";
 import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
@@ -229,5 +229,36 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByText("Select one or more · 1 selected")).toBeTruthy();
     expect(screen.getByRole("checkbox", { name: "Taste" }).getAttribute("aria-checked")).toBe("true");
     expect(screen.getByRole("button", { name: /Continue · 1 selected/ }).disabled).toBe(false);
+  });
+
+  it("normalizes Malaysian mobile input without accepting malformed values", () => {
+    expect(normalizeMalaysiaMobile("012-345 6789")).toBe("+60123456789");
+    expect(normalizeMalaysiaMobile("60123456789")).toBe("+60123456789");
+    expect(normalizeMalaysiaMobile("+60 12 345 6789")).toBe("+60123456789");
+    expect(normalizeMalaysiaMobile("+44 20 1234 5678")).toBeNull();
+  });
+
+  it("keeps optional contact separate from answers and sends it only after the final question", async () => {
+    const questions = [{ key: "taste", label_en: "Taste", type: "single_choice", required: true, options: [{ value: "good", label_en: "Good" }] }];
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", contact_collection: { enabled: true, prompt: { en: "Keep me updated" } }, questions } });
+    factoryService.submitPublicProductFeedback.mockResolvedValue({ submitted: true });
+    render(<FactoryProductFeedbackPublic />);
+    fireEvent.click(await screen.findByText("Good"));
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(screen.getByText("Optional")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Amina" } });
+    fireEvent.change(screen.getByLabelText("Mobile number"), { target: { value: "012 345 6789" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }));
+    await waitFor(() => expect(factoryService.submitPublicProductFeedback).toHaveBeenCalledWith(expect.objectContaining({ answers: { taste: "good" }, contact: { name: "Amina", mobile: "+60123456789" } })));
+  });
+
+  it("preserves the existing final submit path when contact collection is disabled", async () => {
+    const questions = [{ key: "taste", label_en: "Taste", type: "single_choice", required: true, options: [{ value: "good", label_en: "Good" }] }];
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions } });
+    render(<FactoryProductFeedbackPublic />);
+    fireEvent.click(await screen.findByText("Good"));
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(screen.queryByText("Optional")).toBeNull();
+    expect(screen.getByRole("button", { name: "Submit feedback" })).toBeTruthy();
   });
 });

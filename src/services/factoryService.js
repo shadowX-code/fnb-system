@@ -1756,8 +1756,8 @@ export const factoryService = {
     return data || { available: false };
   },
 
-  async submitPublicProductFeedback({ token, answers, language, sessionToken }) {
-    const { data, error } = await supabase.rpc("factory_product_feedback_public_submit", { p_token: token, p_answers: answers, p_language: language || "en", p_session_token: sessionToken || null });
+  async submitPublicProductFeedback({ token, answers, language, sessionToken, contact = {} }) {
+    const { data, error } = await supabase.rpc("factory_product_feedback_public_submit", { p_token: token, p_answers: answers, p_language: language || "en", p_session_token: sessionToken || null, p_contact: contact });
     throwFactorySupabaseError("factory.submitPublicProductFeedback", error);
     return data;
   },

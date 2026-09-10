@@ -139,6 +139,15 @@
 .feedback-multi-options button.selected .feedback-multi-checkbox { border-color: var(--feedback-primary); background: var(--feedback-primary); color: #fff; }
 .feedback-question textarea { display: block; width: 100%; min-height: 138px; margin-top: 20px; padding: 14px; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 10px; resize: vertical; background: var(--surface-elevated, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 15px; }
 
+.feedback-contact-step { display: grid; gap: 14px; }
+.feedback-contact-step h1 { margin-top: 0; }
+.feedback-optional { width: fit-content; border-radius: 999px; background: var(--surface-muted, #f1f5f9); color: var(--text-secondary, #64748b); padding: 4px 8px; font-size: 12px; font-weight: 700; }
+.feedback-contact-step label { display: grid; gap: 7px; color: var(--text-secondary, #64748b); font-size: 13px; font-weight: 700; }
+.feedback-contact-step input { width: 100%; min-height: 46px; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 10px; background: var(--surface-elevated, #fff); color: var(--text-primary, #111827); padding: 0 13px; font: inherit; font-size: 15px; }
+.feedback-contact-step input:focus-visible { outline: 3px solid color-mix(in srgb, var(--feedback-primary) 35%, transparent); outline-offset: 2px; }
+.feedback-contact-consent { margin: 0; color: var(--text-muted, #94a3b8); font-size: 12px; line-height: 1.5; }
+.feedback-contact-error { margin: 0; color: #dc2626; font-size: 13px; font-weight: 650; }
+
 .feedback-rating { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
 .feedback-rating button { display: inline-flex; min-width: 54px; min-height: 54px; flex: 1 1 54px; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 10px; background: var(--surface-elevated, #fff); color: var(--text-secondary, #64748b); cursor: pointer; }
 .feedback-rating button.selected { border-color: var(--feedback-primary); background: color-mix(in srgb, var(--feedback-primary) 10%, var(--surface)); color: var(--feedback-primary); }
