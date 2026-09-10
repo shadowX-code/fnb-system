@@ -1,7 +1,8 @@
 import { lazy, useSyncExternalStore } from "react";
 import { isCrewHash } from "../features/crew/crewRoute.js";
 import PublicHomepage from "../auth/PublicHomepage.jsx";
-import { isPublicSurface } from "./hostnameRouting.js";
+import FactoryProductFeedbackPublic from "../features/factory/FactoryProductFeedbackPublic.jsx";
+import { isProductFeedbackPublicSurface, isPublicSurface } from "./hostnameRouting.js";
 import WorkspaceBoundary from "./WorkspaceBoundary.jsx";
 
 const AdminEntry = lazy(() => import("./AdminApp.jsx"));
@@ -19,6 +20,7 @@ function subscribe(listener) {
 const getWorkspace = () => isCrewHash() ? "crew" : "admin";
 
 export default function App() {
+  if (isProductFeedbackPublicSurface()) return <FactoryProductFeedbackPublic />;
   if (isPublicSurface()) return <PublicHomepage />;
   const workspace = useSyncExternalStore(subscribe, getWorkspace);
   // Internal routes retain their canonical route/session owners and lifetimes.

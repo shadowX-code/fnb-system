@@ -19,8 +19,9 @@ import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import "../FactoryProductFeedbackPage.css";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
 import { toDataURL } from "qrcode";
+import { productFeedbackPublicUrl } from "../productFeedbackPublicUrl.js";
 
-function publicUrl(token) { return `${window.location.origin}/feedback/product/${token}`; }
+function publicUrl(token) { return productFeedbackPublicUrl(token); }
 function displayAnswer(value) { return Array.isArray(value) ? value.join(", ") : value || "—"; }
 const campaignContentDefaults = (campaign = {}) => ({ title: { en: campaign.name || "", zh: "", ms: "" }, description: { en: "", zh: "", ms: "" }, intro_title: { en: "", zh: "", ms: "" }, intro_body: { en: "", zh: "", ms: "" }, thank_you_title: { en: "Thank you", zh: "谢谢您的反馈", ms: "Terima kasih" }, thank_you_body: { en: campaign.thank_you_en || "", zh: campaign.thank_you_zh || "", ms: "" } });
 const contactCollectionDefaults = { enabled: false, prompt: { en: "Interested in this product? Leave your details and we'll keep you updated.", zh: "对这款产品感兴趣？留下您的资料，我们会为您提供最新消息。", ms: "Berminat dengan produk ini? Tinggalkan butiran anda dan kami akan maklumkan perkembangan terkini." } };
