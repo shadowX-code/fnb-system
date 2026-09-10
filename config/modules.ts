@@ -89,6 +89,7 @@ export const moduleSectionOrder = [
   "Factory",
   "Warehouse",
   "Raw Material",
+  "MeSTI",
   "Master Data",
   "People",
   "System",
