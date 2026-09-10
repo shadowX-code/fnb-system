@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile, productFeedbackTokenFromLocation } from "../FactoryProductFeedbackPublic.jsx";
+import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile, productFeedbackTokenFromLocation, ratingEndpointLabel, ratingScale, ratingScore } from "../FactoryProductFeedbackPublic.jsx";
 import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackQuestionDraft } from "../pages/FactoryProductFeedbackPage.jsx";
 import { productFeedbackPublicUrl } from "../productFeedbackPublicUrl.js";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
@@ -253,6 +253,36 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByRole("button", { name: /Continue · 1 selected/ }).disabled).toBe(false);
   });
 
+  it("renders rating as a numeric star control without leaking legacy option keys", async () => {
+    const questions = [{ key: "overall_rating", label_en: "Overall rating", label_zh: "整体评分", label_ms: "Penilaian keseluruhan", helper_en: "Choose a score", helper_zh: "请选择评分", helper_ms: "Pilih skor", type: "rating", required: true, options: [1, 2, 3, 4, 5].map((score) => ({ value: `option_${score}`, label_en: "" })), rating_low_label_en: "Poor", rating_low_label_zh: "差", rating_low_label_ms: "Lemah", rating_high_label_en: "Excellent", rating_high_label_zh: "优秀", rating_high_label_ms: "Cemerlang" }];
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions } });
+    render(<FactoryProductFeedbackPublic />);
+    await screen.findByRole("radiogroup", { name: "Overall rating" });
+    expect(screen.queryByText("option_1")).toBeNull();
+    expect(screen.getByText("Poor")).toBeTruthy();
+    expect(screen.getByText("Excellent")).toBeTruthy();
+    fireEvent.click(screen.getByRole("radio", { name: "Rate 4 out of 5" }));
+    expect(screen.getByText("4 / 5")).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Rate 4 out of 5" }).getAttribute("aria-checked")).toBe("true");
+    await new Promise((resolve) => setTimeout(resolve, 220));
+    expect(screen.getByRole("button", { name: "Submit feedback" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("4 / 5")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    expect(screen.getByRole("heading", { name: "整体评分" })).toBeTruthy();
+    expect(screen.getByText("差")).toBeTruthy();
+    expect(screen.getByText("优秀")).toBeTruthy();
+  });
+
+  it("keeps legacy rating answer keys readable while new rating choices are numeric", () => {
+    expect(ratingScale({})).toBe(5);
+    expect(ratingScale({ rating_scale: 9 })).toBe(5);
+    expect(ratingScore("option_4")).toBe(4);
+    expect(ratingScore("4")).toBe(4);
+    expect(ratingScore("option_9")).toBeNull();
+    expect(ratingEndpointLabel({ rating_low_label_en: "Poor", rating_low_label_zh: "差" }, "zh", "low")).toBe("差");
+  });
+
   it("normalizes Malaysian mobile input without accepting malformed values", () => {
     expect(normalizeMalaysiaMobile("012-345 6789")).toBe("+60123456789");
     expect(normalizeMalaysiaMobile("60123456789")).toBe("+60123456789");
@@ -291,6 +321,18 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByDisplayValue("中文提示")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "BM" }));
     expect(screen.getByDisplayValue("Bantuan BM")).toBeTruthy();
+  });
+
+  it("uses compact localized rating settings without exposing generic option editing", () => {
+    render(<FormBuilder campaign={{ questions: [{ key: "score", label_en: "Score", type: "rating", required: true, options: [{ value: "option_1", label_en: "option_1" }] }] }} editable onSave={vi.fn()} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    expect(screen.getByText("Rating scale")).toBeTruthy();
+    expect(screen.getByText("1–5 stars")).toBeTruthy();
+    expect(screen.queryByText("Options")).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("Poor"), { target: { value: "Poor" } });
+    fireEvent.click(screen.getByRole("button", { name: "中文" }));
+    fireEvent.change(screen.getByPlaceholderText("Poor"), { target: { value: "差" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
   });
 
   it("opens a complete first-question draft from an empty form and safely supports cancel then re-add", () => {

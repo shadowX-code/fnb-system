@@ -26,6 +26,14 @@ function questionHelper(question, language) { return question?.[`helper_${langua
 function optionLabel(option, language) { return option?.[`label_${language}`] || option?.display_label || option?.label_en || option?.value || ""; }
 function brandColor(value, fallback) { return /^#[0-9a-f]{6}$/i.test(String(value || "")) ? value : fallback; }
 function selectionMinimum(question) { return Math.max(Number(question?.min_selections || (question?.required ? 1 : 0)), 0); }
+export function ratingScale(question) { return Math.min(Math.max(Number(question?.rating_scale) || 5, 1), 5); }
+export function ratingScore(value) {
+  const match = String(value || "").match(/(?:^|_)0*([1-5])$/);
+  return match ? Number(match[1]) : null;
+}
+export function ratingEndpointLabel(question, language, endpoint) {
+  return question?.[`rating_${endpoint}_label_${language}`] || question?.[`rating_${endpoint}_label_en`] || "";
+}
 export function normalizeMalaysiaMobile(value) {
   const raw = String(value || "").trim().replace(/[^0-9+]/g, "");
   if (!raw) return "";
@@ -77,7 +85,19 @@ function LanguageSwitch({ language, onChange }) { return <div className="feedbac
 function QuestionControl({ question, language, value, onChange, onAutoAdvance, selectAllLabel, selectedLabel, placeholder }) {
   const options = question.options || [];
   if (question.type === "short_text") return <textarea value={value || ""} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} />;
-  if (question.type === "rating") return <div className="feedback-rating" role="radiogroup">{options.map((option) => <button key={option.value} type="button" aria-label={`${option.value} stars`} aria-pressed={value === option.value} className={value === option.value ? "selected" : ""} onClick={() => onAutoAdvance(option.value)}><Star size={23} fill={value === option.value ? "currentColor" : "none"} /><span>{option.value}</span></button>)}</div>;
+  if (question.type === "rating") {
+    const scale = ratingScale(question); const selectedScore = ratingScore(value);
+    const selectScore = (score) => onAutoAdvance(String(score));
+    return <div className="feedback-rating-control"><div className="feedback-rating" role="radiogroup" aria-label={questionLabel(question, language)}>{Array.from({ length: scale }, (_, index) => {
+      const score = index + 1; const filled = selectedScore !== null && score <= selectedScore;
+      return <button key={score} type="button" role="radio" aria-label={`Rate ${score} out of ${scale}`} aria-checked={selectedScore === score} className={filled ? "is-filled" : ""} onClick={() => selectScore(score)} onKeyDown={(event) => {
+        if (!['ArrowLeft', 'ArrowDown', 'ArrowRight', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        const nextScore = event.key === 'Home' ? 1 : event.key === 'End' ? scale : Math.min(scale, Math.max(1, score + (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 1)));
+        selectScore(nextScore);
+      }}><Star aria-hidden="true" size={30} fill={filled ? "currentColor" : "none"} /></button>;
+    })}</div>{selectedScore !== null ? <p className="feedback-rating-value" aria-live="polite">{selectedScore} / {scale}</p> : null}<div className="feedback-rating-endpoints"><span>{ratingEndpointLabel(question, language, "low")}</span><span>{ratingEndpointLabel(question, language, "high")}</span></div></div>;
+  }
   if (question.type === "image_choice") return <div className="feedback-image-options">{options.map((option) => <button key={option.value} type="button" className={value === option.value ? "selected" : ""} onClick={() => onChange(option.value)}>{option.image_url ? <img src={option.image_url} alt="" /> : <span className="feedback-image-placeholder" />}{optionLabel(option, language)}<Check size={17} /></button>)}</div>;
   if (question.type === "multi_choice") { const selectedCount = Array.isArray(value) ? value.length : 0; return <><p className="feedback-select-all">{selectAllLabel}{selectedCount ? ` · ${selectedCount} ${selectedLabel}` : ""}</p><div className="feedback-multi-options">{options.map((option) => { const selected = Array.isArray(value) && value.includes(option.value); return <button key={option.value} type="button" role="checkbox" aria-checked={selected} className={selected ? "selected" : ""} onClick={() => onChange(selected ? value.filter((item) => item !== option.value) : [...(value || []), option.value])}><span className="feedback-multi-checkbox" aria-hidden="true"><Check size={15} /></span><span>{optionLabel(option, language)}</span></button>; })}</div></>; }
   return <div className={question.type === "price_choice" ? "feedback-price-options" : "feedback-choice-options"}>{options.map((option) => <button key={option.value} type="button" aria-pressed={value === option.value} className={value === option.value ? "selected" : ""} onClick={() => onAutoAdvance(option.value)}><span>{optionLabel(option, language)}</span><Check size={18} /></button>)}</div>;
