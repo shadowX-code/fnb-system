@@ -49,6 +49,12 @@ function setup() {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Factory route completeness contract", () => {
+  it("keeps the canonical Factory sidebar section order without duplicate sections", () => {
+    const labels = getSidebarSections("factory").map((section) => section.label);
+    expect(labels.slice(0, 4)).toEqual(["Factory", "Warehouse", "Raw Material", "MeSTI"]);
+    expect(new Set(labels).size).toBe(labels.length);
+  });
+
   it("exposes one unified Health Declaration MeSTI route with Employee as its default workflow", () => {
     const items = getSidebarSections("factory").find((section) => section.label === "MeSTI")?.items || [];
     expect(items.filter((item) => item.label === "Health Declaration")).toEqual([{ id: "factory_mesti_health_declaration", label: "Health Declaration" }]);
