@@ -148,10 +148,15 @@
 .feedback-contact-consent { margin: 0; color: var(--text-muted, #94a3b8); font-size: 12px; line-height: 1.5; }
 .feedback-contact-error { margin: 0; color: #dc2626; font-size: 13px; font-weight: 650; }
 
-.feedback-rating { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
-.feedback-rating button { display: inline-flex; min-width: 54px; min-height: 54px; flex: 1 1 54px; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 10px; background: var(--surface-elevated, #fff); color: var(--text-secondary, #64748b); cursor: pointer; }
-.feedback-rating button.selected { border-color: var(--feedback-primary); background: color-mix(in srgb, var(--feedback-primary) 10%, var(--surface)); color: var(--feedback-primary); }
-.feedback-rating button span { font-size: 12px; font-weight: 700; }
+.feedback-rating-control { margin-top: 20px; }
+.feedback-rating { display: flex; gap: clamp(4px, 2vw, 10px); align-items: center; justify-content: center; }
+.feedback-rating button { display: grid; width: clamp(44px, 13vw, 58px); height: clamp(44px, 13vw, 58px); place-items: center; padding: 0; border: 0; border-radius: 9px; background: transparent; color: var(--text-muted, #94a3b8); cursor: pointer; transition: color .15s ease, background .15s ease, transform .15s ease; }
+.feedback-rating button:hover { background: color-mix(in srgb, var(--feedback-primary) 8%, var(--surface)); color: var(--feedback-primary); }
+.feedback-rating button.is-filled { color: var(--feedback-primary); }
+.feedback-rating button:active { transform: scale(.94); }
+.feedback-rating-value { margin: 10px 0 0; color: var(--text-primary, #111827); font-size: 14px; font-weight: 750; text-align: center; }
+.feedback-rating-endpoints { display: flex; justify-content: space-between; gap: 16px; min-height: 18px; margin-top: 8px; color: var(--text-secondary, #64748b); font-size: 12px; font-weight: 650; }
+.feedback-rating-endpoints span:last-child { text-align: right; }
 
 .feedback-image-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-top: 20px; }
 .feedback-image-options button { display: grid; min-height: 0; padding: 9px; }
