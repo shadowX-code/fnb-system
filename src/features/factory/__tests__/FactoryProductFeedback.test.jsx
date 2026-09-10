@@ -271,6 +271,30 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByDisplayValue("Bantuan BM")).toBeTruthy();
   });
 
+  it("keeps the question editor open with a visible error when its canonical save fails", async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error("Question configuration is immutable."));
+    render(<FormBuilder campaign={{ questions: [{ key: "taste", label_en: "Taste", helper_en: "Existing helper", type: "single_choice", options: [] }] }} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
+    expect((await screen.findAllByRole("alert"))[0].textContent).toContain("Question configuration is immutable.");
+    expect(screen.getByRole("heading", { name: "Edit question" })).toBeTruthy();
+    expect(screen.getByDisplayValue("Existing helper")).toBeTruthy();
+  });
+
+  it("uses returned canonical questions and disables structural saves while a question save is pending", async () => {
+    let resolveSave;
+    const onSave = vi.fn().mockReturnValueOnce(new Promise((resolve) => { resolveSave = resolve; }));
+    render(<FormBuilder campaign={{ questions: [{ key: "taste", label_en: "Taste", helper_en: "Old helper", type: "single_choice", options: [] }] }} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.change(screen.getByDisplayValue("Old helper"), { target: { value: "Canonical helper" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
+    expect(screen.getAllByRole("button", { name: "Saving…" }).some((button) => button.disabled)).toBe(true);
+    resolveSave({ questions: [{ key: "taste", label_en: "Taste", helper_en: "Canonical helper", type: "single_choice", options: [] }] });
+    await waitFor(() => expect(screen.getByText("Question saved.")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    expect(screen.getByDisplayValue("Canonical helper")).toBeTruthy();
+  });
+
   it("renders localized helper text with the English fallback and accepts historical questions without it", async () => {
     const question = { key: "taste", label_en: "Taste", label_zh: "口味", helper_en: "Choose what you prefer", type: "single_choice", required: true, options: [{ value: "good", label_en: "Good" }] };
     factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions: [question] } });
