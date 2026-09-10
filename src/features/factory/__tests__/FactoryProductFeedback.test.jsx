@@ -272,6 +272,9 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByRole("heading", { name: "整体评分" })).toBeTruthy();
     expect(screen.getByText("差")).toBeTruthy();
     expect(screen.getByText("优秀")).toBeTruthy();
+    factoryService.submitPublicProductFeedback.mockResolvedValue({ submitted: true });
+    fireEvent.click(screen.getByRole("button", { name: "提交反馈" }));
+    await waitFor(() => expect(factoryService.submitPublicProductFeedback).toHaveBeenCalledWith(expect.objectContaining({ answers: { overall_rating: "4" } })));
   });
 
   it("keeps legacy rating answer keys readable while new rating choices are numeric", () => {
