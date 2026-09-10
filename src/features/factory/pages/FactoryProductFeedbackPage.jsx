@@ -83,7 +83,11 @@ export function campaignSummaryCards(summary) {
 }
 
 function CampaignOverview({ campaign, summary, responses, variants, canEdit, variantName, onVariantName, onAddVariant, onCampaigns, onEdit, onTabChange, onCopy, onDownload }) {
-  const insights = useMemo(() => buildProductFeedbackInsights({ questions: campaign.questions || [], responses }), [campaign.questions, responses]);
+  const insights = useMemo(() => buildProductFeedbackInsights({
+    questions: campaign.questions || [],
+    // Contact data is intentionally excluded from deterministic and AI insight inputs.
+    responses: responses.map(({ answers }) => ({ answers })),
+  }), [campaign.questions, responses]);
   const [aiInsights, setAiInsights] = useState([]);
   useEffect(() => {
     let current = true;
