@@ -19,7 +19,7 @@ import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute } from "../features/factory/FactoryProductFeedbackPublic.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
 import { getSidebarSections } from "../../config/modules.ts";
-import { isPublicSurface } from "./hostnameRouting.js";
+import { isProductFeedbackPublicSurface, isPublicSurface } from "./hostnameRouting.js";
 
 const outletCacheKey = "feedx.cachedOutlets";
 
@@ -271,6 +271,7 @@ function RbacDiagnosticsPanel({ auth, loads }) {
 }
 
 export default function App() {
+  if (isProductFeedbackPublicSurface()) return <FactoryProductFeedbackPublic />;
   if (isPublicSurface()) return <PublicHomepage />;
   const auth = useAuth();
   const authOutletScopeKey = useMemo(

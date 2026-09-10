@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile } from "../FactoryProductFeedbackPublic.jsx";
+import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile, productFeedbackTokenFromLocation } from "../FactoryProductFeedbackPublic.jsx";
 import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackQuestionDraft } from "../pages/FactoryProductFeedbackPage.jsx";
+import { productFeedbackPublicUrl } from "../productFeedbackPublicUrl.js";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
 
@@ -61,6 +62,20 @@ describe("Factory Product Feedback public contract", () => {
   it("recognizes the opaque Factory public route", () => {
     window.history.pushState(null, "", "/feedback/product/opaque-token");
     expect(isPublicProductFeedbackRoute()).toBe(true);
+  });
+
+  it("uses the dedicated Production public hostname while preserving the Staging route contract", () => {
+    expect(productFeedbackPublicUrl("opaque-token", { origin: "https://os.feedx.my", hostname: "os.feedx.my" })).toBe("https://feedback.feedx.my/opaque-token");
+    expect(productFeedbackPublicUrl("variant-token", { origin: "https://feedx-os.vercel.app", hostname: "feedx-os.vercel.app" })).toBe("https://feedback.feedx.my/variant-token");
+    expect(productFeedbackPublicUrl("opaque-token", { origin: "https://fnb-system-staging.vercel.app", hostname: "fnb-system-staging.vercel.app" })).toBe("https://fnb-system-staging.vercel.app/feedback/product/opaque-token");
+  });
+
+  it("recognizes and resolves an opaque token on the dedicated public hostname only", () => {
+    const location = { hostname: "feedback.feedx.my", pathname: "/opaque-token", hash: "" };
+    expect(isPublicProductFeedbackRoute(location)).toBe(true);
+    expect(productFeedbackTokenFromLocation(location)).toBe("opaque-token");
+    expect(isPublicProductFeedbackRoute({ hostname: "feedback.feedx.my", pathname: "/factory_dashboard", hash: "" })).toBe(true);
+    expect(productFeedbackTokenFromLocation({ hostname: "feedback.feedx.my", pathname: "/factory_dashboard", hash: "" })).toBe("factory_dashboard");
   });
 
   it("ignores a public campaign read that resolves after the page unmounts", async () => {

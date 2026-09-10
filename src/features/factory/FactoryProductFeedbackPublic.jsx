@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, ChevronRight, Send, Star } from "lucide-react";
 import { factoryService } from "../../services/factoryService.js";
+import { isProductFeedbackPublicHostname } from "../../app/hostnameRouting.js";
 import "./FactoryProductFeedbackPublic.css";
 
 const copy = {
@@ -9,8 +10,16 @@ const copy = {
   ms: { back: "Kembali", continue: "Teruskan", selected: "dipilih", submit: "Hantar maklum balas", skip: "Langkau", optional: "Pilihan", name: "Nama", mobile: "Nombor telefon", consent: "Dengan memberikan butiran anda, anda bersetuju bahawa kami boleh menghubungi anda tentang produk ini.", contactPrompt: "Berminat dengan produk ini? Tinggalkan butiran anda dan kami akan maklumkan perkembangan terkini.", invalidMobile: "Masukkan nombor mudah alih Malaysia yang sah.", question: "Soalan", thankYou: "Terima kasih", unavailable: "Maklum balas tidak tersedia", unavailableBody: "Pautan maklum balas ini tidak tersedia.", preparing: "Menyediakan maklum balas...", selectAll: "Pilih satu atau lebih", placeholder: "Kongsi pendapat anda" },
 };
 
-export function isPublicProductFeedbackRoute() { return /^\/feedback\/product\/[^/]+/.test(window.location.pathname) || /^#feedback\/product\//.test(window.location.hash); }
-function tokenFromLocation() { const path = window.location.pathname.match(/^\/feedback\/product\/([^/]+)/); return path?.[1] || window.location.hash.match(/^#feedback\/product\/([^/]+)/)?.[1] || ""; }
+export function isPublicProductFeedbackRoute(location = window.location) {
+  return isProductFeedbackPublicHostname(location.hostname)
+    ? /^\/[^/]+\/?$/.test(location.pathname)
+    : /^\/feedback\/product\/[^/]+/.test(location.pathname) || /^#feedback\/product\//.test(location.hash);
+}
+export function productFeedbackTokenFromLocation(location = window.location) {
+  if (isProductFeedbackPublicHostname(location.hostname)) return location.pathname.match(/^\/([^/]+)\/?$/)?.[1] || "";
+  const path = location.pathname.match(/^\/feedback\/product\/([^/]+)/);
+  return path?.[1] || location.hash.match(/^#feedback\/product\/([^/]+)/)?.[1] || "";
+}
 function localized(value, language, fallback = "") { return value?.[language] || value?.en || fallback; }
 function questionLabel(question, language) { return question?.[`label_${language}`] || question?.label_en || "Question"; }
 function questionHelper(question, language) { return question?.[`helper_${language}`] || question?.helper_en || ""; }
@@ -26,7 +35,7 @@ export function normalizeMalaysiaMobile(value) {
 
 export default function FactoryProductFeedbackPublic() {
   const [entry, setEntry] = useState(null); const [error, setError] = useState(""); const [language, setLanguage] = useState("en"); const [step, setStep] = useState(0); const [answers, setAnswers] = useState({}); const [contactStep, setContactStep] = useState(false); const [contact, setContact] = useState({ name: "", mobile: "" }); const [contactError, setContactError] = useState(""); const [submitting, setSubmitting] = useState(false); const [complete, setComplete] = useState(false);
-  const token = useMemo(tokenFromLocation, []);
+  const token = useMemo(() => productFeedbackTokenFromLocation(), []);
   useEffect(() => {
     let current = true;
     factoryService.publicProductFeedbackEntry(token)

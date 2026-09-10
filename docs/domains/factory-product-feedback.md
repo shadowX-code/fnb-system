@@ -27,4 +27,4 @@ Factory Product Feedback owns tasting and R&D campaign configuration, anonymous 
 
 - Finished Good is an optional Factory master-data reference, not a duplicated product master.
 - The Factory module consumes campaign analytics and evidence through its read RPC; it does not calculate response authority client-side.
-- The public route is `/feedback/product/<opaque-token>`.
+- Staging and compatibility links use `/feedback/product/<opaque-token>`. Production canonical links use `https://feedback.feedx.my/<opaque-token>`; legacy Production OS links redirect there without changing the opaque token or public read authority.
