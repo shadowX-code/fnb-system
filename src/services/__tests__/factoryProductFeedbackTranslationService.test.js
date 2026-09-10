@@ -33,4 +33,18 @@ describe("Factory Product Feedback translation service", () => {
     mocks.invoke.mockResolvedValue({ data: null, error: edgeFailure(code, message, retryable) });
     await expect(factoryService.translateProductFeedbackContent({ sourceLanguage: "en", units: [{ id: "question:label", source: "Question", targets: ["zh"] }] })).rejects.toMatchObject({ message, code, retryable, requestId: "request-1" });
   });
+
+  it("never exposes an unstructured relay error as Admin copy", async () => {
+    mocks.invoke.mockResolvedValue({ data: { error: "Edge Function returned a non-2xx status code" }, error: null });
+    await expect(factoryService.translateProductFeedbackContent({ sourceLanguage: "en", units: [{ id: "question:label", source: "Question", targets: ["zh"] }] })).rejects.toMatchObject({
+      code: "translation_unavailable",
+      message: "AI translation is temporarily unavailable. Please retry.",
+      retryable: true,
+    });
+  });
+
+  it("reads the structured payload from a real response context", async () => {
+    mocks.invoke.mockResolvedValue({ data: null, error: { context: new Response(JSON.stringify({ error: { code: "provider_timeout", message: "Translation timed out. Please retry.", retryable: true, request_id: "request-response" } }), { status: 504, headers: { "Content-Type": "application/json" } }) } });
+    await expect(factoryService.translateProductFeedbackContent({ sourceLanguage: "en", units: [{ id: "question:label", source: "Question", targets: ["zh"] }] })).rejects.toMatchObject({ message: "Translation timed out. Please retry.", code: "provider_timeout", retryable: true, requestId: "request-response" });
+  });
 });

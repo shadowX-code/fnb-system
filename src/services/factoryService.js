@@ -59,6 +59,18 @@ function throwFactorySupabaseError(scope, error) {
   }
 }
 
+function productFeedbackTranslationFailure(payload) {
+  const fallback = { code: "translation_unavailable", message: "AI translation is temporarily unavailable. Please retry.", retryable: true };
+  const failure = payload?.error ?? payload;
+  if (!failure || typeof failure !== "object") return fallback;
+  return {
+    code: String(failure.code || fallback.code),
+    message: String(failure.message || fallback.message),
+    retryable: Boolean(failure.retryable),
+    requestId: failure.request_id ? String(failure.request_id) : undefined,
+  };
+}
+
 async function productFeedbackTranslationError(error) {
   const fallback = { code: "translation_unavailable", message: "AI translation is temporarily unavailable. Please retry.", retryable: true };
   const context = error?.context;
@@ -66,14 +78,7 @@ async function productFeedbackTranslationError(error) {
   try {
     const response = context.clone ? context.clone() : context;
     const payload = await response.json();
-    const failure = payload?.error;
-    if (!failure || typeof failure !== "object") return fallback;
-    return {
-      code: String(failure.code || fallback.code),
-      message: String(failure.message || fallback.message),
-      retryable: Boolean(failure.retryable),
-      requestId: failure.request_id ? String(failure.request_id) : undefined,
-    };
+    return productFeedbackTranslationFailure(payload);
   } catch {
     return fallback;
   }
@@ -1793,8 +1798,8 @@ export const factoryService = {
       throw detailedError;
     }
     if (data?.error) {
-      const failure = typeof data.error === "object" ? data.error : { message: data.error };
-      const detailedError = new Error(String(failure.message || "AI translation is temporarily unavailable. Please retry."));
+      const failure = productFeedbackTranslationFailure(data);
+      const detailedError = new Error(failure.message);
       Object.assign(detailedError, failure);
       throw detailedError;
     }
