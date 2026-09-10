@@ -6,6 +6,10 @@ const sql = fs.readFileSync(
   path.resolve("supabase/migrations/20260910020000_factory_product_feedback_contact_collection.sql"),
   "utf8",
 ).toLowerCase();
+const publicEntrySql = fs.readFileSync(
+  path.resolve("supabase/migrations/20260910023000_factory_product_feedback_public_contact_collection.sql"),
+  "utf8",
+).toLowerCase();
 
 describe("Factory Product Feedback contact collection contract", () => {
   it("stores contact evidence separately from immutable feedback answers", () => {
@@ -20,5 +24,12 @@ describe("Factory Product Feedback contact collection contract", () => {
     expect(sql).toContain("normalized_mobile");
     expect(sql).toContain("revoke all on table public.factory_product_feedback_response_contacts from public, anon, authenticated");
     expect(sql).toContain("grant execute on function public.factory_product_feedback_public_submit(text, jsonb, text, text, jsonb) to anon, authenticated");
+  });
+
+  it("exposes only enabled contact configuration to valid public campaigns", () => {
+    expect(publicEntrySql).toContain("'contact_collection'");
+    expect(publicEntrySql).toContain("'prompt'");
+    expect(publicEntrySql).not.toContain("normalized_mobile");
+    expect(publicEntrySql).not.toContain("factory_product_feedback_response_contacts");
   });
 });
