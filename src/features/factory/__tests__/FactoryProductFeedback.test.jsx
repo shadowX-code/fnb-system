@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile } from "../FactoryProductFeedbackPublic.jsx";
-import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState } from "../pages/FactoryProductFeedbackPage.jsx";
+import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackQuestionDraft } from "../pages/FactoryProductFeedbackPage.jsx";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
 
@@ -23,6 +23,13 @@ describe("Factory Product Feedback public contract", () => {
     const cards = campaignSummaryCards({ responses: 3, kpis: [{ role: "overall_rating", question_key: "overall_rating", label: "Overall Rating", value: "4.5", tone: "success" }] });
     expect(cards.map((item) => item.label)).toEqual(["Responses"]);
     expect(campaignSummaryCards({ responses: 0, kpis: [] })).toEqual([expect.objectContaining({ label: "Responses", value: 0 })]);
+  });
+
+  it("initializes a complete safe draft for every supported question type", () => {
+    ["single_choice", "multi_choice", "rating", "price_choice", "short_text", "image_choice"].forEach((type) => {
+      expect(productFeedbackQuestionDraft({ key: type, type }, 1)).toMatchObject({ key: type, type, options: [], order: 1 });
+    });
+    expect(productFeedbackQuestionDraft({ key: "legacy", type: "unknown", options: null }, 2)).toMatchObject({ key: "legacy", type: "short_text", options: [], order: 2 });
   });
 
   it("builds universal deterministic insights without Sambal-only assumptions", () => {
@@ -269,6 +276,31 @@ describe("Factory Product Feedback public contract", () => {
     expect(screen.getByDisplayValue("中文提示")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "BM" }));
     expect(screen.getByDisplayValue("Bantuan BM")).toBeTruthy();
+  });
+
+  it("opens a complete first-question draft from an empty form and safely supports cancel then re-add", () => {
+    render(<FormBuilder campaign={{ id: "empty", questions: [] }} editable onSave={vi.fn()} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Add question" }));
+    expect(screen.getByRole("heading", { name: "Edit question" })).toBeTruthy();
+    expect(screen.getByDisplayValue("New question")).toBeTruthy();
+    expect(screen.queryByText("Options")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByTitle("Edit question")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add question" }));
+    expect(screen.getByRole("heading", { name: "Edit question" })).toBeTruthy();
+  });
+
+  it("removes stale selection after deleting the last question and persists a re-added first question", async () => {
+    const onSave = vi.fn().mockResolvedValue({ questions: [{ key: "question_saved", label_en: "First question", type: "short_text", required: false, options: [], order: 1 }] });
+    render(<FormBuilder campaign={{ id: "delete-last", questions: [{ key: "only", label_en: "Only question", type: "short_text", required: false, options: [] }] }} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    expect(screen.queryByTitle("Edit question")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add question" }));
+    fireEvent.change(screen.getByDisplayValue("New question"), { target: { value: "First question" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith([expect.objectContaining({ label_en: "First question", options: [] })]));
+    await waitFor(() => expect(screen.queryByRole("heading", { name: "Edit question" })).toBeNull());
+    expect(screen.getByText("First question")).toBeTruthy();
   });
 
   it("wires the real Save question button to one awaited canonical mutation", async () => {

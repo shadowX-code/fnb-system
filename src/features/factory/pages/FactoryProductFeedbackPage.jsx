@@ -77,7 +77,18 @@ const types = [
   { value: "short_text", label: "Short Answer" },
   { value: "image_choice", label: "Image Choice" },
 ];
+const questionTypes = new Set(types.map((item) => item.value));
 const emptyQuestion = (order) => ({ key: `question_${Date.now()}`, label_en: "New question", label_zh: "", label_ms: "", helper_en: "", helper_zh: "", helper_ms: "", type: "short_text", required: false, options: [], order });
+export function productFeedbackQuestionDraft(question, order = 1) {
+  const fallback = emptyQuestion(order);
+  const next = question && typeof question === "object" ? { ...fallback, ...question } : fallback;
+  return {
+    ...next,
+    type: questionTypes.has(next.type) ? next.type : fallback.type,
+    options: Array.isArray(next.options) ? next.options : [],
+    order: Number.isFinite(next.order) ? next.order : order,
+  };
+}
 export function campaignSummaryCards(summary) {
   return [{ key: "responses", icon: ClipboardList, label: "Responses", value: summary.responses || 0, tone: "neutral" }];
 }
@@ -247,10 +258,15 @@ export function FormBuilder({ campaign, editable, onSave, onNotify }) {
   const [questions, setQuestions] = useState(campaign.questions || []);
   const questionsRef = useRef(questions);
   const [editing, setEditing] = useState(null);
+  const [newQuestionKey, setNewQuestionKey] = useState(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveNotice, setSaveNotice] = useState("");
-  const replaceQuestions = (next) => { questionsRef.current = next; setQuestions(next); };
+  const replaceQuestions = (next) => {
+    questionsRef.current = next;
+    setQuestions(next);
+    setEditing((current) => current !== null && current >= next.length ? null : current);
+  };
   const applyCanonicalQuestions = (saved, fallback) => replaceQuestions(saved?.questions || fallback);
   const changeQuestions = (updater) => replaceQuestions(updater(questionsRef.current));
   useEffect(() => { if (!saving) replaceQuestions(campaign.questions || []); }, [campaign.id]);
@@ -281,13 +297,27 @@ export function FormBuilder({ campaign, editable, onSave, onNotify }) {
   const save = () => persist(questionsRef.current, "Form saved.");
   const saveQuestion = async (question) => {
     const nextQuestions = questionsRef.current.map((item, index) => index === editing ? question : item);
-    if (await persist(nextQuestions, "Question saved.")) setEditing(null);
+    if (await persist(nextQuestions, "Question saved.")) { setNewQuestionKey(null); setEditing(null); }
   };
-  return <FactoryDataSurface><div className="space-y-2 p-3">{questions.map((question, index) => <div className="flex items-center gap-3 rounded-lg border border-border px-3 py-2" key={question.key}><span className="w-6 text-xs font-semibold text-text-muted">{index + 1}</span><button type="button" className="min-w-0 flex-1 text-left" onClick={() => editable && !saving && setEditing(index)}><span className="block truncate text-sm font-semibold text-text-primary">{question.label_en}</span><span className="block text-xs text-text-secondary">{question.type.replace("_", " ")} · {question.required ? "Required" : "Optional"} · {question.options?.length || 0} options</span></button>{editable ? <div className="flex shrink-0 gap-1"><button className="icon-btn" type="button" title="Edit question" disabled={saving} onClick={() => setEditing(index)}><Pencil size={15} /></button><button className="icon-btn" type="button" title="Move up" disabled={saving} onClick={() => move(index, -1)}>↑</button><button className="icon-btn" type="button" title="Move down" disabled={saving} onClick={() => move(index, 1)}>↓</button><button className="icon-btn" type="button" title="Duplicate" disabled={saving} onClick={() => changeQuestions((current) => [...current, { ...question, key: `${question.key}_copy_${Date.now()}`, order: current.length + 1 }])}>⧉</button><button className="icon-btn text-danger" type="button" title="Delete" disabled={saving} onClick={() => changeQuestions((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div> : null}</div>)}{saveError && editing === null ? <p className="text-sm font-medium text-danger" role="alert">{saveError}</p> : null}{saveNotice ? <p className="text-sm font-medium text-success" role="status">{saveNotice}</p> : null}{editable ? <div className="flex justify-between pt-3"><button className="btn-secondary" type="button" disabled={saving} onClick={() => { changeQuestions((current) => [...current, emptyQuestion(current.length + 1)]); setEditing(questionsRef.current.length); }}>Add question</button><button className="btn-primary" disabled={saving} type="button" onClick={save}>{saving ? "Saving…" : "Save form"}</button></div> : null}</div>{editing !== null ? <QuestionEditor question={questions[editing]} saving={saving} error={saveError} onClose={() => !saving && setEditing(null)} onSave={saveQuestion} onNotify={onNotify} /> : null}</FactoryDataSurface>;
+  const addQuestion = () => {
+    const index = questionsRef.current.length;
+    const question = emptyQuestion(index + 1);
+    replaceQuestions([...questionsRef.current, question]);
+    setNewQuestionKey(question.key);
+    setEditing(index);
+  };
+  const editingQuestion = editing === null ? null : questions[editing];
+  const closeQuestionEditor = () => {
+    if (saving) return;
+    if (editingQuestion?.key === newQuestionKey) replaceQuestions(questionsRef.current.filter((question) => question.key !== newQuestionKey));
+    setNewQuestionKey(null);
+    setEditing(null);
+  };
+  return <FactoryDataSurface><div className="space-y-2 p-3">{questions.map((question, index) => <div className="flex items-center gap-3 rounded-lg border border-border px-3 py-2" key={question.key}><span className="w-6 text-xs font-semibold text-text-muted">{index + 1}</span><button type="button" className="min-w-0 flex-1 text-left" onClick={() => editable && !saving && setEditing(index)}><span className="block truncate text-sm font-semibold text-text-primary">{question.label_en}</span><span className="block text-xs text-text-secondary">{question.type.replace("_", " ")} · {question.required ? "Required" : "Optional"} · {question.options?.length || 0} options</span></button>{editable ? <div className="flex shrink-0 gap-1"><button className="icon-btn" type="button" title="Edit question" disabled={saving} onClick={() => setEditing(index)}><Pencil size={15} /></button><button className="icon-btn" type="button" title="Move up" disabled={saving} onClick={() => move(index, -1)}>↑</button><button className="icon-btn" type="button" title="Move down" disabled={saving} onClick={() => move(index, 1)}>↓</button><button className="icon-btn" type="button" title="Duplicate" disabled={saving} onClick={() => changeQuestions((current) => [...current, { ...question, key: `${question.key}_copy_${Date.now()}`, order: current.length + 1 }])}>⧉</button><button className="icon-btn text-danger" type="button" title="Delete" disabled={saving} onClick={() => changeQuestions((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /></button></div> : null}</div>)}{saveError && editing === null ? <p className="text-sm font-medium text-danger" role="alert">{saveError}</p> : null}{saveNotice ? <p className="text-sm font-medium text-success" role="status">{saveNotice}</p> : null}{editable ? <div className="flex justify-between pt-3"><button className="btn-secondary" type="button" disabled={saving} onClick={addQuestion}>Add question</button><button className="btn-primary" disabled={saving} type="button" onClick={save}>{saving ? "Saving…" : "Save form"}</button></div> : null}</div>{editingQuestion ? <QuestionEditor key={editingQuestion.key} question={editingQuestion} saving={saving} error={saveError} onClose={closeQuestionEditor} onSave={saveQuestion} onNotify={onNotify} /> : null}</FactoryDataSurface>;
 }
 
 function QuestionEditor({ question, onClose, onSave, onNotify, saving = false, error = "" }) {
-  const [draft, setDraft] = useState(() => ({ ...question, options: question.options || [] })); const [language, setLanguage] = useState("en"); const [translating, setTranslating] = useState(false); const [draggedOption, setDraggedOption] = useState(null); const supportsOptions = draft.type !== "short_text";
+  const [draft, setDraft] = useState(() => productFeedbackQuestionDraft(question, question.order)); const [language, setLanguage] = useState("en"); const [translating, setTranslating] = useState(false); const [draggedOption, setDraggedOption] = useState(null); const supportsOptions = draft.type !== "short_text";
   const translationComplete = languages.map(({ key, label }) => ({ key, label, complete: Boolean(draft[`label_${key}`]) && draft.options.every((option) => !option[`label_en`] || Boolean(option[`label_${key}`])) }));
   const setField = (field, value) => setDraft((current) => ({ ...current, [field]: value })); const setOption = (index, field, value) => setDraft((current) => ({ ...current, options: current.options.map((item, itemIndex) => itemIndex === index ? { ...item, [field]: value } : item) }));
   const changeType = (type) => { if (type === draft.type) return; if (draft.options.length && !window.confirm("Changing question type may discard incompatible option settings. Continue?")) return; setField("type", type); };
