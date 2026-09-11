@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile, productFeedbackTokenFromLocation, ratingEndpointLabel, ratingScale, ratingScore } from "../FactoryProductFeedbackPublic.jsx";
-import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackQuestionDraft, productFeedbackTranslationMissing } from "../pages/FactoryProductFeedbackPage.jsx";
+import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackFormCompleteness, productFeedbackLanguageCompleteness, productFeedbackPresentationOnlyQuestionChange, productFeedbackQuestionDraft, productFeedbackTranslationMissing } from "../pages/FactoryProductFeedbackPage.jsx";
 import { productFeedbackPublicUrl } from "../productFeedbackPublicUrl.js";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
@@ -38,6 +38,20 @@ describe("Factory Product Feedback public contract", () => {
     expect(productFeedbackTranslationMissing("Too mild", "太不辣", "zh")).toBe(false);
     expect(productFeedbackTranslationMissing("Too mild", "Terlalu kurang pedas", "ms")).toBe(false);
     expect(productFeedbackTranslationMissing("RM1.00", "RM1.00", "zh")).toBe(false);
+  });
+
+  it("reports language completeness from question, helper, options, and rating endpoints", () => {
+    const question = { key: "score", label_en: "Score", label_zh: "评分", label_ms: "Skor", helper_en: "Choose a score", helper_zh: "请选择", helper_ms: "Pilih skor", type: "rating", rating_low_label_en: "Poor", rating_low_label_zh: "差", rating_low_label_ms: "Lemah", rating_high_label_en: "Excellent", rating_high_label_zh: "优秀", rating_high_label_ms: "Cemerlang", options: [] };
+    expect(productFeedbackLanguageCompleteness(question, "zh")).toBe("Complete");
+    expect(productFeedbackLanguageCompleteness({ ...question, rating_high_label_zh: "" }, "zh")).toBe("Partial");
+    expect(productFeedbackFormCompleteness([question, { ...question, key: "missing", label_ms: "" }])).toMatchObject({ en: 2, zh: 2, ms: 1 });
+  });
+
+  it("keeps helper and localization edits presentation-only while treating answer semantics as structural", () => {
+    const current = { key: "taste", label_en: "Taste", helper_en: "Before", type: "single_choice", required: false, options: [{ value: "good", label_en: "Good" }] };
+    expect(productFeedbackPresentationOnlyQuestionChange(current, { ...current, helper_en: "After", label_zh: "口味" })).toBe(true);
+    expect(productFeedbackPresentationOnlyQuestionChange(current, { ...current, required: true })).toBe(false);
+    expect(productFeedbackPresentationOnlyQuestionChange(current, { ...current, options: [{ value: "good", label_en: "Great" }] })).toBe(false);
   });
 
   it("builds universal deterministic insights without Sambal-only assumptions", () => {
@@ -496,5 +510,35 @@ describe("Factory Product Feedback public contract", () => {
     await new Promise((resolve) => setTimeout(resolve, 220));
     expect(screen.queryByText("Optional")).toBeNull();
     expect(screen.getByRole("button", { name: "Submit feedback" })).toBeTruthy();
+  });
+
+  it("keeps option additional text separate from answers and submits it with the selected option", async () => {
+    const questions = [{ key: "preference", label_en: "Preference", type: "single_choice", required: true, options: [{ value: "other", label_en: "Other", allow_additional_text: true }] }];
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions } });
+    factoryService.submitPublicProductFeedback.mockResolvedValue({ submitted: true });
+    render(<FactoryProductFeedbackPublic />);
+    fireEvent.click(await screen.findByText("Other"));
+    fireEvent.change(screen.getByLabelText("Please specify (optional)"), { target: { value: "Less sweet" } });
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }));
+    await waitFor(() => expect(factoryService.submitPublicProductFeedback).toHaveBeenCalledWith(expect.objectContaining({ answers: { preference: "other" }, answerDetails: { preference: { other: "Less sweet" } } })));
+  });
+
+  it("reorders questions from the drag handle and keeps keyboard reorder available", () => {
+    render(<FormBuilder campaign={{ questions: [{ key: "one", label_en: "One", type: "short_text", options: [] }, { key: "two", label_en: "Two", type: "short_text", options: [] }] }} editable onSave={vi.fn()} onNotify={vi.fn()} />);
+    const first = screen.getByRole("button", { name: "Reorder question 1" });
+    fireEvent.keyDown(first, { key: "ArrowDown" });
+    expect(screen.getAllByText(/One|Two/, { selector: "span" }).map((node) => node.textContent)).toContain("Two");
+    expect(screen.getAllByRole("button", { name: /Reorder question/ })[0].getAttribute("aria-label")).toBe("Reorder question 1");
+  });
+
+  it("requires an explicit new version for structural edits after responses", async () => {
+    const onSave = vi.fn().mockResolvedValue({ questions: [{ key: "taste", label_en: "Taste", helper_en: "Before", type: "single_choice", options: [{ value: "good", label_en: "Good" }] }] });
+    const campaign = { response_count: 1, questions: [{ key: "taste", label_en: "Taste", helper_en: "Before", type: "single_choice", options: [{ value: "good", label_en: "Good" }] }] };
+    render(<FormBuilder campaign={campaign} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByTitle("Duplicate"));
+    fireEvent.click(screen.getByRole("button", { name: "Save form" }));
+    expect(screen.getByRole("heading", { name: "Create a new form version?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Save as New Version" }));
+    await waitFor(() => expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ form_change: "new_version", items: expect.any(Array) })));
   });
 });

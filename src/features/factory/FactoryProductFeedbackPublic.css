@@ -137,6 +137,9 @@
 .feedback-multi-options button.selected { border-color: color-mix(in srgb, var(--feedback-primary) 62%, var(--border-subtle)); background: color-mix(in srgb, var(--feedback-primary) 6%, var(--surface)); box-shadow: none; }
 .feedback-multi-checkbox { display: grid; width: 20px; height: 20px; flex: 0 0 20px; place-items: center; border: 1.5px solid var(--text-muted, #94a3b8); border-radius: 4px; color: transparent; transition: background .15s ease, border-color .15s ease, color .15s ease; }
 .feedback-multi-options button.selected .feedback-multi-checkbox { border-color: var(--feedback-primary); background: var(--feedback-primary); color: #fff; }
+.feedback-option-detail { display: grid; gap: 8px; }
+.feedback-option-detail input { width: 100%; min-height: 42px; padding: 0 13px; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 9px; background: var(--surface-elevated, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 14px; }
+.feedback-option-detail input:focus-visible { outline: 3px solid color-mix(in srgb, var(--feedback-primary) 35%, transparent); outline-offset: 2px; }
 .feedback-question textarea { display: block; width: 100%; min-height: 138px; margin-top: 20px; padding: 14px; border: 1px solid var(--border-subtle, #e5e7eb); border-radius: 10px; resize: vertical; background: var(--surface-elevated, #fff); color: var(--text-primary, #111827); font: inherit; font-size: 15px; }
 
 .feedback-contact-step { display: grid; gap: 14px; }
