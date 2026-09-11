@@ -6,6 +6,23 @@ const displayFor = (question, value) => optionFor(question, value)?.display_labe
 const percent = (count, total) => total ? Math.round((count / total) * 100) : 0;
 const isDemographic = (question) => question?.analytics_role === "demographic" || demographicPattern.test(`${question?.key || ""} ${labelFor(question)}`);
 
+function semanticQuestion(question = {}) {
+  const next = structuredClone(question);
+  delete next.order;
+  next.required = Boolean(next.required);
+  ["helper_en", "helper_zh", "helper_ms", "label_zh", "label_ms", "rating_low_label_en", "rating_low_label_zh", "rating_low_label_ms", "rating_high_label_en", "rating_high_label_zh", "rating_high_label_ms"].forEach((key) => delete next[key]);
+  next.options = (next.options || []).map((option) => { const value = { ...option }; delete value.label_zh; delete value.label_ms; return value; });
+  return next;
+}
+function compatibleResponses(question, responses) {
+  const expected = JSON.stringify(semanticQuestion(question));
+  return responses.filter((response) => {
+    if (!response.questions_snapshot) return true;
+    const snapshot = response.questions_snapshot.find((item) => item.key === question.key);
+    return snapshot && JSON.stringify(semanticQuestion(snapshot)) === expected;
+  });
+}
+
 function answersFor(responses, key) {
   return responses.flatMap((response) => {
     const answer = response?.answers?.[key];
@@ -22,6 +39,7 @@ function distribution(question, responses) {
 }
 
 function questionInsight(question, responses) {
+  responses = compatibleResponses(question, responses);
   const answered = answersFor(responses, question.key);
   if (!answered.length || question.type === "short_text") return null;
   if (question.type === "rating") {
@@ -44,9 +62,11 @@ function segmentInsights(questions, responses, outcomes) {
   const demographic = questions.filter(isDemographic);
   const outcome = outcomes.find((item) => item.type === "rating") || outcomes.find((item) => item.type === "choice");
   if (!demographic.length || !outcome || responses.length < 3) return [];
+  const outcomeQuestion = questions.find((question) => question.key === outcome.key);
   return demographic.flatMap((segment) => {
+    const compatible = compatibleResponses(segment, compatibleResponses(outcomeQuestion, responses));
     const groups = new Map();
-    responses.forEach((response) => {
+    compatible.forEach((response) => {
       const value = response?.answers?.[segment.key];
       const answer = response?.answers?.[outcome.key];
       if (value === undefined || answer === undefined || answer === "") return;
