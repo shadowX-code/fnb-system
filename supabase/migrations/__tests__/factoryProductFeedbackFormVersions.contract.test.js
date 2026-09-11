@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260911054825_factory_product_feedback_form_versions.sql"), "utf8");
+const contactReadbackSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260911061827_factory_product_feedback_form_version_contact_readback.sql"), "utf8");
 
 describe("Product Feedback form versions", () => {
   it("links every response to an immutable canonical form definition", () => {
@@ -24,5 +25,12 @@ describe("Product Feedback form versions", () => {
     expect(sql).toContain("p_answer_details jsonb default '{}'::jsonb");
     expect(sql).toContain("allow_additional_text");
     expect(sql).toContain("Additional answer details are invalid.");
+  });
+
+  it("retains separately stored contact evidence in the authenticated versioned read model", () => {
+    expect(contactReadbackSql).toContain("rename to factory_product_feedback_admin_data_base");
+    expect(contactReadbackSql).toContain("factory_product_feedback_response_contacts");
+    expect(contactReadbackSql).toContain("'answer_details', r.answer_details");
+    expect(contactReadbackSql).toContain("'{summary,contacts}'");
   });
 });
