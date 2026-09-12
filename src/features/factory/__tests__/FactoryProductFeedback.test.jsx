@@ -374,6 +374,7 @@ describe("Factory Product Feedback public contract", () => {
   it("removes stale selection after deleting the last question and persists a re-added first question", async () => {
     const onSave = vi.fn().mockResolvedValue({ questions: [{ key: "question_saved", label_en: "First question", type: "short_text", required: false, options: [], order: 1 }] });
     render(<FormBuilder campaign={{ id: "delete-last", questions: [{ key: "only", label_en: "Only question", type: "short_text", required: false, options: [] }] }} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByTitle("More question actions"));
     fireEvent.click(screen.getByRole("button", { name: "Delete" }));
     expect(screen.queryByTitle("Edit question")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Add question" }));
@@ -529,6 +530,34 @@ describe("Factory Product Feedback public contract", () => {
     fireEvent.keyDown(first, { key: "ArrowDown" });
     expect(screen.getAllByText(/One|Two/, { selector: "span" }).map((node) => node.textContent)).toContain("Two");
     expect(screen.getAllByRole("button", { name: /Reorder question/ })[0].getAttribute("aria-label")).toBe("Reorder question 1");
+  });
+
+  it("keeps language status compact and only enables structural save when needed", () => {
+    const complete = { key: "taste", label_en: "Taste", label_zh: "味道", label_ms: "Rasa", helper_en: "Choose", helper_zh: "选择", helper_ms: "Pilih", type: "single_choice", options: [{ value: "good", label_en: "Good", label_zh: "好", label_ms: "Bagus" }] };
+    render(<FormBuilder campaign={{ questions: [complete] }} editable onSave={vi.fn()} onNotify={vi.fn()} />);
+    expect(screen.getByText("1 Questions · EN 1/1 · 中文 1/1 · BM 1/1")).toBeTruthy();
+    expect(screen.getByLabelText("EN: Complete")).toBeTruthy();
+    expect(screen.getByLabelText("中文: Complete")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Translations complete" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Saved" }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Duplicate question" }));
+    expect(screen.getByRole("button", { name: "Save form" }).disabled).toBe(false);
+  });
+
+  it("uses a compact option text-response setting and clears a deselected multi-choice detail", async () => {
+    const questions = [{ key: "preference", label_en: "Preference", type: "multi_choice", required: true, options: [{ value: "other", label_en: "Other", allow_additional_text: true }] }, { key: "comment", label_en: "Comment", type: "short_text", options: [] }];
+    factoryService.publicProductFeedbackEntry.mockResolvedValue({ available: true, campaign: { name: "Tasting", default_language: "en", questions } });
+    render(<FactoryProductFeedbackPublic />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Other" }));
+    fireEvent.change(screen.getByLabelText("Please specify (optional)"), { target: { value: "Less sweet" } });
+    fireEvent.click(screen.getByRole("checkbox", { name: "Other" }));
+    expect(screen.queryByLabelText("Please specify (optional)")).toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Other" }));
+    fireEvent.click(screen.getByRole("button", { name: /Continue · 1 selected/ }));
+    fireEvent.change(await screen.findByRole("textbox"), { target: { value: "Done" } });
+    factoryService.submitPublicProductFeedback.mockResolvedValue({ submitted: true });
+    fireEvent.click(screen.getByRole("button", { name: "Submit feedback" }));
+    await waitFor(() => expect(factoryService.submitPublicProductFeedback).toHaveBeenCalledWith(expect.objectContaining({ answerDetails: {} })));
   });
 
   it("requires an explicit new version for structural edits after responses", async () => {
