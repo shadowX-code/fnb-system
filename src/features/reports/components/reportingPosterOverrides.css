@@ -1,1 +1,3 @@
 .poster-table-row { grid-template-columns: 32px repeat(4, minmax(0, 1fr)); }
+.report-poster__inside { grid-template-rows: auto auto auto minmax(0, 1fr); }
+.report-poster__footer { align-self: end; }
