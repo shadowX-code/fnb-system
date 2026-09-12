@@ -564,7 +564,7 @@ export function FormBuilder({ campaign, editable, onSave, onNotify }) {
         <details className="factory-feedback-form-versions">
           <summary title="View form versions" aria-label="View form versions">v{activeVersion} <span aria-hidden="true">·</span> Active</summary>
           <div className="factory-feedback-form-versions-popover">
-            <p>Form versions</p>
+            <h3>Form versions</h3>
             {versions.map((version) => <div className="factory-feedback-form-version-row" key={version.id || version.version}>
               <span>v{version.version}{version.active ? " · Active" : ""}</span>
               <small>{version.question_count ?? "—"} questions · {version.response_count ?? "—"} responses</small>

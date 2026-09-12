@@ -178,7 +178,7 @@
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.14);
 }
 
-.factory-feedback-form-versions > div > p {
+.factory-feedback-form-versions > div > h3 {
   margin: 0 0 0.125rem;
   color: var(--theme-text-primary);
   font-size: 0.75rem;
