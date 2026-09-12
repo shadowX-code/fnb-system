@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260911054825_factory_product_feedback_form_versions.sql"), "utf8");
 const contactReadbackSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260911061827_factory_product_feedback_form_version_contact_readback.sql"), "utf8");
+const versionMetadataSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260912060441_factory_product_feedback_form_version_metadata.sql"), "utf8");
 
 describe("Product Feedback form versions", () => {
   it("links every response to an immutable canonical form definition", () => {
@@ -32,5 +33,12 @@ describe("Product Feedback form versions", () => {
     expect(contactReadbackSql).toContain("factory_product_feedback_response_contacts");
     expect(contactReadbackSql).toContain("'answer_details', r.answer_details");
     expect(contactReadbackSql).toContain("'{summary,contacts}'");
+  });
+
+  it("projects active version metadata without changing immutable response evidence", () => {
+    expect(versionMetadataSql).toContain("'active', f.id = c.active_form_version_id");
+    expect(versionMetadataSql).toContain("'question_count', jsonb_array_length(f.questions)");
+    expect(versionMetadataSql).toContain("'response_count', (select count(*) from public.factory_product_feedback_responses r where r.form_version_id = f.id)");
+    expect(versionMetadataSql).toContain("'{form_versions}'");
   });
 });
