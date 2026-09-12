@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import FactoryProductFeedbackPublic, { isPublicProductFeedbackRoute, normalizeMalaysiaMobile, productFeedbackTokenFromLocation, ratingEndpointLabel, ratingScale, ratingScore } from "../FactoryProductFeedbackPublic.jsx";
-import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackFormCompleteness, productFeedbackLanguageCompleteness, productFeedbackPresentationOnlyQuestionChange, productFeedbackQuestionDraft, productFeedbackTranslationMissing } from "../pages/FactoryProductFeedbackPage.jsx";
+import { applyCampaignBrandingAsset, CampaignEditorModal, campaignSummaryCards, FormBuilder, productFeedbackCampaignEditorState, productFeedbackFormCompleteness, productFeedbackLanguageCompleteness, productFeedbackPresentationOnlyQuestionChange, productFeedbackQuestionDraft, productFeedbackStructuralDraftChanges, productFeedbackTranslationMissing, ResponseModal } from "../pages/FactoryProductFeedbackPage.jsx";
 import { productFeedbackPublicUrl } from "../productFeedbackPublicUrl.js";
 import { sambalFeedbackTemplate } from "../productFeedbackTemplate.js";
 import { buildProductFeedbackInsights } from "../utils/productFeedbackInsights.js";
@@ -52,6 +52,7 @@ describe("Factory Product Feedback public contract", () => {
     expect(productFeedbackPresentationOnlyQuestionChange(current, { ...current, helper_en: "After", label_zh: "口味" })).toBe(true);
     expect(productFeedbackPresentationOnlyQuestionChange(current, { ...current, required: true })).toBe(false);
     expect(productFeedbackPresentationOnlyQuestionChange(current, { ...current, options: [{ value: "good", label_en: "Great" }] })).toBe(false);
+    expect(productFeedbackPresentationOnlyQuestionChange(current, { ...productFeedbackQuestionDraft(current, 1), helper_en: "After" })).toBe(true);
   });
 
   it("builds universal deterministic insights without Sambal-only assumptions", () => {
@@ -571,8 +572,50 @@ describe("Factory Product Feedback public contract", () => {
     render(<FormBuilder campaign={campaign} editable onSave={onSave} onNotify={vi.fn()} />);
     fireEvent.click(screen.getByTitle("Duplicate question"));
     fireEvent.click(screen.getByRole("button", { name: "Save form" }));
-    expect(screen.getByRole("heading", { name: "Create a new form version?" })).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Save as New Version" }));
+    expect(screen.getByRole("heading", { name: "Create Form Version 2?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create Version 2" }));
     await waitFor(() => expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ form_change: "new_version", items: expect.any(Array) })));
+  });
+
+  it("surfaces active form-version metadata and calculates only structural draft changes", () => {
+    const baseline = [{ key: "taste", label_en: "Taste", helper_en: "Before", type: "single_choice", options: [{ value: "good", label_en: "Good" }] }];
+    const changed = [{ ...baseline[0], helper_en: "Presentation only" }, { ...baseline[0], key: "new", label_en: "New question" }];
+    expect(productFeedbackStructuralDraftChanges(baseline, [{ ...baseline[0], helper_en: "Presentation only" }]).count).toBe(0);
+    expect(productFeedbackStructuralDraftChanges(baseline, changed)).toMatchObject({ count: 1 });
+    render(<FormBuilder campaign={{ form_version: 2, questions: baseline, form_versions: [{ id: "v2", version: 2, active: true, question_count: 1, response_count: 4, created_at: "2026-09-12T06:00:00Z" }] }} editable onSave={vi.fn()} onNotify={vi.fn()} />);
+    expect(screen.getByTitle("View form versions").textContent).toContain("v2");
+    fireEvent.click(screen.getByTitle("View form versions"));
+    expect(screen.getByText("1 questions · 4 responses")).toBeTruthy();
+  });
+
+  it("keeps presentation-only saves in place but drafts structural edits until Version 3 is confirmed", async () => {
+    const onSave = vi.fn().mockImplementation(async (value) => ({ questions: Array.isArray(value) ? value : value.items }));
+    const campaign = { response_count: 3, form_version: 2, questions: [{ key: "taste", label_en: "Taste", helper_en: "Before", type: "single_choice", options: [] }] };
+    render(<FormBuilder campaign={campaign} editable onSave={onSave} onNotify={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.change(screen.getByDisplayValue("Before"), { target: { value: "Presentation copy" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith([expect.objectContaining({ helper_en: "Presentation copy" })]));
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.change(screen.getByDisplayValue("Taste"), { target: { value: "Changed taste" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByText("Draft changes · 1")).not.toHaveLength(0);
+    expect(screen.getByText("Saving will create v3")).toBeTruthy();
+    expect(screen.getByText("Modified")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Edit question" }));
+    fireEvent.change(screen.getByDisplayValue("Presentation copy"), { target: { value: "Updated presentation copy" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save question" }));
+    await waitFor(() => expect(onSave).toHaveBeenLastCalledWith([expect.objectContaining({ label_en: "Taste", helper_en: "Updated presentation copy" })]));
+    expect(screen.getAllByText("Draft changes · 1")).not.toHaveLength(0);
+    fireEvent.click(screen.getByRole("button", { name: "Save form" }));
+    expect(screen.getByRole("heading", { name: "Create Form Version 3?" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Create Version 3" }));
+    await waitFor(() => expect(onSave).toHaveBeenLastCalledWith(expect.objectContaining({ form_change: "new_version", items: [expect.objectContaining({ label_en: "Changed taste" })] })));
+  });
+
+  it("marks historical response detail with its pinned form version", () => {
+    render(<ResponseModal response={{ submitted_at: "2026-09-12T06:00:00Z", form_version: 1, questions_snapshot: [], answers: {} }} activeFormVersion={2} onClose={vi.fn()} />);
+    expect(screen.getByText(/Form v1/)).toBeTruthy();
   });
 });

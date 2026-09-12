@@ -62,10 +62,10 @@ export default function FactoryProductFeedbackPage({ auth, onNotify }) {
   async function downloadQr(token, name = "product-feedback") { const href = await toDataURL(publicUrl(token), { width: 640, margin: 1 }); const link = document.createElement("a"); link.href = href; link.download = `${name}.png`; link.click(); }
   const CampaignModal = CampaignEditorModal;
   if (!selected) return <div className="space-y-5"><PageHeader section="Factory" title="Product Feedback" description="Create tasting campaigns and review anonymous product feedback." actions={canEdit ? <button className="btn-primary" type="button" onClick={() => setEditor({ name: "", status: "draft", default_language: "en", questions: sambalFeedbackTemplate })}><Plus size={15} /> Create Campaign</button> : null} /><FactoryFilterBar activeFilters={search ? [{ key: "search", label: "Search", value: search, onRemove: () => setSearch("") }] : []} onClear={() => setSearch("")}><Field label="Search"><input className={inputClass()} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search campaigns or events" /></Field></FactoryFilterBar><FactoryDataSurface><FactoryTable rows={campaigns} rowHover="mint" onRowClick={openCampaign} emptyTitle="No Product Feedback campaigns" emptyDescription="Create a campaign to collect tasting feedback." columns={[{ key: "name", label: "Campaign", render: (row) => <FactoryCellEntity name={row.name} code={row.event_label} /> }, { key: "period", label: "Period", render: (row) => [row.starts_on, row.ends_on].filter(Boolean).join(" – ") || <FactoryCellMuted>Open</FactoryCellMuted> }, { key: "responses", label: "Responses", align: "right", render: (row) => row.response_count || 0 }, { key: "status", label: "Status", render: (row) => <FactoryStatusBadge status={row.status === "live" ? "Active" : row.status === "closed" ? "Closed" : "Draft"} /> }, { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => openCampaign(row)} directActions={canEdit ? [{ label: "Edit campaign", onClick: () => editCampaign(row) }] : []} /> }]} /></FactoryDataSurface>{editor ? <CampaignModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}</div>;
-  const campaign = detail?.campaign || {}; const summary = detail?.summary || {};
+  const campaign = { ...(detail?.campaign || {}), form_versions: detail?.form_versions || [] }; const summary = detail?.summary || {};
   if (tab === "overview") return <><CampaignOverview campaign={campaign} summary={summary} responses={detail?.responses || []} variants={detail?.variants || []} canEdit={canEdit} variantName={variantName} onVariantName={setVariantName} onAddVariant={addVariant} onCampaigns={() => { setSelected(null); setDetail(null); setSearch(""); }} onEdit={() => setEditor(campaign)} onTabChange={setTab} onCopy={copyLink} onDownload={downloadQr} />{editor ? <CampaignEditorModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}</>;
-  return <div className="space-y-5"><PageHeader section="Factory" title={campaign.name || "Product Feedback"} description={campaign.event_label || "Tasting campaign"} actions={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => { setSelected(null); setDetail(null); setSearch(""); }}>Campaigns</button>{canEdit ? <button className="btn-primary" type="button" onClick={() => setEditor(campaign)}>Edit Campaign</button> : null}</div>} /><div className="flex border-b border-border"><Tabs value={tab} onChange={setTab} /></div>{tab === "overview" ? <><div className="grid gap-3 md:grid-cols-4"><FactorySummaryCard icon={ClipboardList} label="Responses" value={summary.responses || 0} /><FactorySummaryCard icon={Star} tone="success" label="Overall Rating" value={summary.overall_rating || "—"} /><FactorySummaryCard icon={ThumbsUp} tone="success" label="Would Buy" value={`${summary.would_buy_percent || 0}%`} /><FactorySummaryCard icon={QrCode} tone="info" label="Just right spiciness" value={`${summary.just_right_spiciness_percent || 0}%`} /></div><FactoryDataSurface><div className="space-y-4 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-text-primary">Public feedback link</h2><p className="mt-1 text-sm text-text-secondary">Live campaigns can be shared by campaign or sample variant.</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => copyLink(campaign.public_id)}><Copy size={15} /> Copy link</button><button className="btn-secondary" type="button" onClick={() => downloadQr(campaign.public_id, campaign.name)}><QrCode size={15} /> QR PNG</button><a className="btn-secondary" href={publicUrl(campaign.public_id)} target="_blank" rel="noreferrer"><Eye size={15} /> Preview</a></div></div><div className="rounded-lg border border-border bg-[var(--theme-subtle)] p-3 text-sm font-medium text-text-secondary break-all">{publicUrl(campaign.public_id)}</div><div className="border-t border-border pt-4"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-text-primary">Variants / samples</h2>{canEdit ? <div className="flex gap-2"><input className={`${inputClass()} h-9`} value={variantName} placeholder="Sambal A" onChange={(event) => setVariantName(event.target.value)} /><button type="button" className="btn-secondary h-9" onClick={addVariant}>Add variant</button></div> : null}</div>{detail?.variants?.length ? <div className="grid gap-2 md:grid-cols-2">{detail.variants.map((item) => <div className="flex items-center justify-between rounded-lg border border-border p-3" key={item.id}><span className="font-semibold text-text-primary">{item.name}</span><div className="flex gap-2"><button className="icon-btn" title="Copy variant link" type="button" onClick={() => copyLink(item.public_token)}><Link2 size={15} /></button><button className="icon-btn" title="Download variant QR" type="button" onClick={() => downloadQr(item.public_token, item.name)}><QrCode size={15} /></button><a className="icon-btn" title="Preview variant" href={publicUrl(item.public_token)} target="_blank" rel="noreferrer"><Eye size={15} /></a></div></div>)}</div> : <p className="text-sm text-text-secondary">No variants. This campaign uses one shared public link.</p>}</div></div></FactoryDataSurface></> : null}{tab === "form" ? <FormBuilder campaign={campaign} editable={canEdit} onSave={async (questions) => saveCampaign({ ...campaign, questions })} onNotify={onNotify} /> : null}{tab === "responses" ? <><FactoryFilterBar activeFilters={[search && { key: "search", label: "Search", value: search, onRemove: () => setSearch("") }, variant && { key: "variant", label: "Variant", value: detail.variants?.find((item) => item.id === variant)?.name || variant, onRemove: () => setVariant("") }].filter(Boolean)} onClear={() => { setSearch(""); setVariant(""); }}><Field label="Search"><input className={inputClass()} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search answers" /></Field><Field label="Variant"><SearchableSelect value={variant} placeholder="All" options={[{ value: "", label: "All" }, ...(detail.variants || []).map((item) => ({ value: item.id, label: item.name }))]} onChange={setVariant} /></Field></FactoryFilterBar><FactoryDataSurface><FactoryTable rows={responses.slice(pager.from, pager.to)} emptyTitle="No feedback responses" columns={[{ key: "submitted", label: "Submitted", render: (row) => formatFactoryDateTime(row.submitted_at) }, { key: "variant", label: "Variant", render: (row) => row.variant_name || <FactoryCellMuted>Campaign</FactoryCellMuted> }, { key: "rating", label: "Rating", render: (row) => row.answers?.overall_rating || "—" }, { key: "intent", label: "Purchase Intent", render: (row) => row.answers?.purchase_intent || "—" }, { key: "repeat", label: "Repeat", render: (row) => row.repeat_index > 1 ? `Possible repeat #${row.repeat_index}` : "—" }, { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setResponse(row)} /> }]} /><FactoryPagination page={pager.page} pageSize={pager.pageSize} total={responses.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></FactoryDataSurface></> : null}{editor ? <CampaignModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}{response ? <ResponseModal response={response} onClose={() => setResponse(null)} /> : null}</div>;
-  return <div className="space-y-5"><PageHeader section="Factory" title={campaign.name || "Product Feedback"} description={campaign.event_label || "Tasting campaign"} actions={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => { setSelected(null); setDetail(null); setSearch(""); }}>Campaigns</button>{canEdit ? <button className="btn-primary" type="button" onClick={() => setEditor(campaign)}>Edit Campaign</button> : null}</div>} /><div className="flex border-b border-border"><Tabs value={tab} onChange={setTab} /></div>{tab === "overview" ? <><div className="grid gap-3 md:grid-cols-4">{campaignSummaryCards(summary).filter((item) => item.key === "responses" || (item.value !== null && item.value !== undefined && item.value !== "—")).map((item) => <FactorySummaryCard key={item.key} icon={item.icon} tone={item.tone} label={item.label} value={item.value} />)}</div><FactoryDataSurface><div className="space-y-4 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-text-primary">Public feedback link</h2><p className="mt-1 text-sm text-text-secondary">Live campaigns can be shared by campaign or sample variant.</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => copyLink(campaign.public_id)}><Copy size={15} /> Copy link</button><button className="btn-secondary" type="button" onClick={() => downloadQr(campaign.public_id, campaign.name)}><QrCode size={15} /> QR PNG</button><a className="btn-secondary" href={publicUrl(campaign.public_id)} target="_blank" rel="noreferrer"><Eye size={15} /> Preview</a></div></div><div className="rounded-lg border border-border bg-[var(--theme-subtle)] p-3 text-sm font-medium text-text-secondary break-all">{publicUrl(campaign.public_id)}</div><div className="border-t border-border pt-4"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-text-primary">Variants / samples</h2>{canEdit ? <div className="flex gap-2"><input className={`${inputClass()} h-9`} value={variantName} placeholder="Sambal A" onChange={(event) => setVariantName(event.target.value)} /><button type="button" className="btn-secondary h-9" onClick={addVariant}>Add variant</button></div> : null}</div>{detail?.variants?.length ? <div className="grid gap-2 md:grid-cols-2">{detail.variants.map((item) => <div className="flex items-center justify-between rounded-lg border border-border p-3" key={item.id}><span className="font-semibold text-text-primary">{item.name}</span><div className="flex gap-2"><button className="icon-btn" title="Copy variant link" type="button" onClick={() => copyLink(item.public_token)}><Link2 size={15} /></button><button className="icon-btn" title="Download variant QR" type="button" onClick={() => downloadQr(item.public_token, item.name)}><QrCode size={15} /></button><a className="icon-btn" title="Preview variant" href={publicUrl(item.public_token)} target="_blank" rel="noreferrer"><Eye size={15} /></a></div></div>)}</div> : <p className="text-sm text-text-secondary">No variants. This campaign uses one shared public link.</p>}</div></div></FactoryDataSurface></> : null}{tab === "form" ? <FormBuilder campaign={campaign} editable={canEdit} onSave={async (questions) => saveCampaign({ ...campaign, questions })} onNotify={onNotify} /> : null}{tab === "responses" ? <><FactoryFilterBar activeFilters={[search && { key: "search", label: "Search", value: search, onRemove: () => setSearch("") }, variant && { key: "variant", label: "Variant", value: detail.variants?.find((item) => item.id === variant)?.name || variant, onRemove: () => setVariant("") }].filter(Boolean)} onClear={() => { setSearch(""); setVariant(""); }}><Field label="Search"><input className={inputClass()} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search answers" /></Field><Field label="Variant"><SearchableSelect value={variant} placeholder="All" options={[{ value: "", label: "All" }, ...(detail.variants || []).map((item) => ({ value: item.id, label: item.name }))]} onChange={setVariant} /></Field></FactoryFilterBar><FactoryDataSurface><FactoryTable rows={responses.slice(pager.from, pager.to)} emptyTitle="No feedback responses" columns={[{ key: "submitted", label: "Submitted", render: (row) => formatFactoryDateTime(row.submitted_at) }, { key: "variant", label: "Variant", render: (row) => row.variant_name || <FactoryCellMuted>Campaign</FactoryCellMuted> }, { key: "rating", label: "Rating", render: (row) => row.answers?.overall_rating || "—" }, { key: "intent", label: "Purchase Intent", render: (row) => row.answers?.purchase_intent || "—" }, { key: "repeat", label: "Repeat", render: (row) => row.repeat_index > 1 ? `Possible repeat #${row.repeat_index}` : "—" }, { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setResponse(row)} /> }]} /><FactoryPagination page={pager.page} pageSize={pager.pageSize} total={responses.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></FactoryDataSurface></> : null}{editor ? <CampaignModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}{response ? <ResponseModal response={response} onClose={() => setResponse(null)} /> : null}</div>;
+  return <div className="space-y-5"><PageHeader section="Factory" title={campaign.name || "Product Feedback"} description={campaign.event_label || "Tasting campaign"} actions={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => { setSelected(null); setDetail(null); setSearch(""); }}>Campaigns</button>{canEdit ? <button className="btn-primary" type="button" onClick={() => setEditor(campaign)}>Edit Campaign</button> : null}</div>} /><div className="flex border-b border-border"><Tabs value={tab} onChange={setTab} /></div>{tab === "overview" ? <><div className="grid gap-3 md:grid-cols-4"><FactorySummaryCard icon={ClipboardList} label="Responses" value={summary.responses || 0} /><FactorySummaryCard icon={Star} tone="success" label="Overall Rating" value={summary.overall_rating || "—"} /><FactorySummaryCard icon={ThumbsUp} tone="success" label="Would Buy" value={`${summary.would_buy_percent || 0}%`} /><FactorySummaryCard icon={QrCode} tone="info" label="Just right spiciness" value={`${summary.just_right_spiciness_percent || 0}%`} /></div><FactoryDataSurface><div className="space-y-4 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-text-primary">Public feedback link</h2><p className="mt-1 text-sm text-text-secondary">Live campaigns can be shared by campaign or sample variant.</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => copyLink(campaign.public_id)}><Copy size={15} /> Copy link</button><button className="btn-secondary" type="button" onClick={() => downloadQr(campaign.public_id, campaign.name)}><QrCode size={15} /> QR PNG</button><a className="btn-secondary" href={publicUrl(campaign.public_id)} target="_blank" rel="noreferrer"><Eye size={15} /> Preview</a></div></div><div className="rounded-lg border border-border bg-[var(--theme-subtle)] p-3 text-sm font-medium text-text-secondary break-all">{publicUrl(campaign.public_id)}</div><div className="border-t border-border pt-4"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-text-primary">Variants / samples</h2>{canEdit ? <div className="flex gap-2"><input className={`${inputClass()} h-9`} value={variantName} placeholder="Sambal A" onChange={(event) => setVariantName(event.target.value)} /><button type="button" className="btn-secondary h-9" onClick={addVariant}>Add variant</button></div> : null}</div>{detail?.variants?.length ? <div className="grid gap-2 md:grid-cols-2">{detail.variants.map((item) => <div className="flex items-center justify-between rounded-lg border border-border p-3" key={item.id}><span className="font-semibold text-text-primary">{item.name}</span><div className="flex gap-2"><button className="icon-btn" title="Copy variant link" type="button" onClick={() => copyLink(item.public_token)}><Link2 size={15} /></button><button className="icon-btn" title="Download variant QR" type="button" onClick={() => downloadQr(item.public_token)}><QrCode size={15} /></button><a className="icon-btn" title="Preview variant" href={publicUrl(item.public_token)} target="_blank" rel="noreferrer"><Eye size={15} /></a></div></div>)}</div> : <p className="text-sm text-text-secondary">No variants. This campaign uses one shared public link.</p>}</div></div></FactoryDataSurface></> : null}{tab === "form" ? <FormBuilder campaign={campaign} editable={canEdit} onSave={async (questions) => saveCampaign({ ...campaign, questions })} onNotify={onNotify} /> : null}{tab === "responses" ? <><FactoryFilterBar activeFilters={[search && { key: "search", label: "Search", value: search, onRemove: () => setSearch("") }, variant && { key: "variant", label: "Variant", value: detail.variants?.find((item) => item.id === variant)?.name || variant, onRemove: () => setVariant("") }].filter(Boolean)} onClear={() => { setSearch(""); setVariant(""); }}><Field label="Search"><input className={inputClass()} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search answers" /></Field><Field label="Variant"><SearchableSelect value={variant} placeholder="All" options={[{ value: "", label: "All" }, ...(detail.variants || []).map((item) => ({ value: item.id, label: item.name }))]} onChange={setVariant} /></Field></FactoryFilterBar><FactoryDataSurface><FactoryTable rows={responses.slice(pager.from, pager.to)} emptyTitle="No feedback responses" columns={[{ key: "submitted", label: "Submitted", render: (row) => formatFactoryDateTime(row.submitted_at) }, { key: "variant", label: "Variant", render: (row) => row.variant_name || <FactoryCellMuted>Campaign</FactoryCellMuted> }, { key: "rating", label: "Rating", render: (row) => row.answers?.overall_rating || "—" }, { key: "intent", label: "Purchase Intent", render: (row) => row.answers?.purchase_intent || "—" }, { key: "repeat", label: "Repeat", render: (row) => row.repeat_index > 1 ? `Possible repeat #${row.repeat_index}` : "—" }, { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setResponse(row)} /> }]} /><FactoryPagination page={pager.page} pageSize={pager.pageSize} total={responses.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></FactoryDataSurface></> : null}{editor ? <CampaignModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}{response ? <ResponseModal response={response} activeFormVersion={campaign.form_version} onClose={() => setResponse(null)} /> : null}</div>;
+  return <div className="space-y-5"><PageHeader section="Factory" title={campaign.name || "Product Feedback"} description={campaign.event_label || "Tasting campaign"} actions={<div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => { setSelected(null); setDetail(null); setSearch(""); }}>Campaigns</button>{canEdit ? <button className="btn-primary" type="button" onClick={() => setEditor(campaign)}>Edit Campaign</button> : null}</div>} /><div className="flex border-b border-border"><Tabs value={tab} onChange={setTab} /></div>{tab === "overview" ? <><div className="grid gap-3 md:grid-cols-4">{campaignSummaryCards(summary).filter((item) => item.key === "responses" || (item.value !== null && item.value !== undefined && item.value !== "—")).map((item) => <FactorySummaryCard key={item.key} icon={item.icon} tone={item.tone} label={item.label} value={item.value} />)}</div><FactoryDataSurface><div className="space-y-4 p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-sm font-semibold text-text-primary">Public feedback link</h2><p className="mt-1 text-sm text-text-secondary">Live campaigns can be shared by campaign or sample variant.</p></div><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => copyLink(campaign.public_id)}><Copy size={15} /> Copy link</button><button className="btn-secondary" type="button" onClick={() => downloadQr(campaign.public_id, campaign.name)}><QrCode size={15} /> QR PNG</button><a className="btn-secondary" href={publicUrl(campaign.public_id)} target="_blank" rel="noreferrer"><Eye size={15} /> Preview</a></div></div><div className="rounded-lg border border-border bg-[var(--theme-subtle)] p-3 text-sm font-medium text-text-secondary break-all">{publicUrl(campaign.public_id)}</div><div className="border-t border-border pt-4"><div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-semibold text-text-primary">Variants / samples</h2>{canEdit ? <div className="flex gap-2"><input className={`${inputClass()} h-9`} value={variantName} placeholder="Sambal A" onChange={(event) => setVariantName(event.target.value)} /><button type="button" className="btn-secondary h-9" onClick={addVariant}>Add variant</button></div> : null}</div>{detail?.variants?.length ? <div className="grid gap-2 md:grid-cols-2">{detail.variants.map((item) => <div className="flex items-center justify-between rounded-lg border border-border p-3" key={item.id}><span className="font-semibold text-text-primary">{item.name}</span><div className="flex gap-2"><button className="icon-btn" title="Copy variant link" type="button" onClick={() => copyLink(item.public_token)}><Link2 size={15} /></button><button className="icon-btn" title="Download variant QR" type="button" onClick={() => downloadQr(item.public_token, item.name)}><QrCode size={15} /></button><a className="icon-btn" title="Preview variant" href={publicUrl(item.public_token)} target="_blank" rel="noreferrer"><Eye size={15} /></a></div></div>)}</div> : <p className="text-sm text-text-secondary">No variants. This campaign uses one shared public link.</p>}</div></div></FactoryDataSurface></> : null}{tab === "form" ? <FormBuilder campaign={campaign} editable={canEdit} onSave={async (questions) => saveCampaign({ ...campaign, questions })} onNotify={onNotify} /> : null}{tab === "responses" ? <><FactoryFilterBar activeFilters={[search && { key: "search", label: "Search", value: search, onRemove: () => setSearch("") }, variant && { key: "variant", label: "Variant", value: detail.variants?.find((item) => item.id === variant)?.name || variant, onRemove: () => setVariant("") }].filter(Boolean)} onClear={() => { setSearch(""); setVariant(""); }}><Field label="Search"><input className={inputClass()} value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search answers" /></Field><Field label="Variant"><SearchableSelect value={variant} placeholder="All" options={[{ value: "", label: "All" }, ...(detail.variants || []).map((item) => ({ value: item.id, label: item.name }))]} onChange={setVariant} /></Field></FactoryFilterBar><FactoryDataSurface><FactoryTable rows={responses.slice(pager.from, pager.to)} emptyTitle="No feedback responses" columns={[{ key: "submitted", label: "Submitted", render: (row) => formatFactoryDateTime(row.submitted_at) }, { key: "variant", label: "Variant", render: (row) => row.variant_name || <FactoryCellMuted>Campaign</FactoryCellMuted> }, { key: "rating", label: "Rating", render: (row) => row.answers?.overall_rating || "—" }, { key: "intent", label: "Purchase Intent", render: (row) => row.answers?.purchase_intent || "—" }, { key: "repeat", label: "Repeat", render: (row) => row.repeat_index > 1 ? `Possible repeat #${row.repeat_index}` : "—" }, { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setResponse(row)} /> }]} /><FactoryPagination page={pager.page} pageSize={pager.pageSize} total={responses.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></FactoryDataSurface></> : null}{editor ? <CampaignModal campaign={editor} finishedGoods={list.finished_goods} onClose={() => setEditor(null)} onSave={saveCampaign} onNotify={onNotify} /> : null}{response ? <ResponseModal response={response} activeFormVersion={campaign.form_version} onClose={() => setResponse(null)} /> : null}</div>;
 }
 
 function Tabs({ value, onChange }) { return <>{["overview", "form", "responses"].map((item) => <button key={item} type="button" className={`px-4 py-3 text-sm font-semibold capitalize ${value === item ? "border-b-2 border-primary text-primary" : "text-text-secondary"}`} onClick={() => onChange(item)}>{item}</button>)}</>; }
@@ -289,10 +289,62 @@ function presentationQuestion(question = {}) {
   delete next.helper_en; delete next.helper_zh; delete next.helper_ms; delete next.label_zh; delete next.label_ms;
   delete next.rating_low_label_en; delete next.rating_low_label_zh; delete next.rating_low_label_ms;
   delete next.rating_high_label_en; delete next.rating_high_label_zh; delete next.rating_high_label_ms;
+  if (next.type !== "rating") delete next.rating_scale;
   next.options = (next.options || []).map((option) => { const value = { ...option }; delete value.label_zh; delete value.label_ms; return value; });
   return next;
 }
-export function productFeedbackPresentationOnlyQuestionChange(previous, next) { return JSON.stringify(presentationQuestion(previous)) === JSON.stringify(presentationQuestion(next)); }
+function stableQuestionJson(value) {
+  if (Array.isArray(value)) return `[${value.map(stableQuestionJson).join(",")}]`;
+  if (value && typeof value === "object") return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableQuestionJson(value[key])}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+export function productFeedbackPresentationOnlyQuestionChange(previous, next) { return stableQuestionJson(presentationQuestion(previous)) === stableQuestionJson(presentationQuestion(next)); }
+
+function productFeedbackQuestionEditorChangeIsPresentationOnly(previous = {}, next = {}) {
+  return productFeedbackPresentationOnlyQuestionChange(previous, next);
+}
+
+function applyQuestionPresentation(activeQuestion = {}, draftQuestion = {}) {
+  const next = { ...activeQuestion };
+  ["helper_en", "helper_zh", "helper_ms", "label_zh", "label_ms", "rating_low_label_en", "rating_low_label_zh", "rating_low_label_ms", "rating_high_label_en", "rating_high_label_zh", "rating_high_label_ms"].forEach((field) => {
+    next[field] = draftQuestion[field] || "";
+  });
+  const draftOptions = new Map((draftQuestion.options || []).map((option) => [option.value, option]));
+  next.options = (activeQuestion.options || []).map((option) => {
+    const draftOption = draftOptions.get(option.value);
+    return draftOption ? { ...option, label_zh: draftOption.label_zh || "", label_ms: draftOption.label_ms || "" } : option;
+  });
+  return next;
+}
+
+export function productFeedbackStructuralDraftChanges(baseline = [], current = []) {
+  const original = Array.isArray(baseline) ? baseline : [];
+  const next = Array.isArray(current) ? current : [];
+  const originalByKey = new Map(original.map((question, index) => [question.key, { question, index }]));
+  const nextByKey = new Map(next.map((question, index) => [question.key, { question, index }]));
+  const addedKeys = next.filter((question) => !originalByKey.has(question.key)).map((question) => question.key);
+  const removedKeys = original.filter((question) => !nextByKey.has(question.key)).map((question) => question.key);
+  const modifiedKeys = new Set();
+
+  next.forEach((question, index) => {
+    const previous = originalByKey.get(question.key);
+    if (!previous) return;
+    if (!productFeedbackQuestionEditorChangeIsPresentationOnly(previous.question, question) || previous.index !== index) modifiedKeys.add(question.key);
+  });
+
+  const summary = [];
+  if (addedKeys.length) summary.push(`${addedKeys.length} added`);
+  if (modifiedKeys.size) summary.push(`${modifiedKeys.size} modified`);
+  if (removedKeys.length) summary.push(`${removedKeys.length} removed`);
+
+  return {
+    addedKeys: new Set(addedKeys),
+    modifiedKeys,
+    removedKeys: new Set(removedKeys),
+    count: addedKeys.length + modifiedKeys.size + removedKeys.length,
+    summary,
+  };
+}
 function questionTranslationUnits(question, index) {
   const targets = ["zh", "ms"];
   const units = [["label", question.label_en], ["helper", question.helper_en], ["rating_low_label", question.rating_low_label_en], ["rating_high_label", question.rating_high_label_en]].flatMap(([field, source]) => {
@@ -341,22 +393,208 @@ function FormLanguageProgress({ completeness, total }) {
 
 export function FormBuilder({ campaign, editable, onSave, onNotify }) {
   const [questions, setQuestions] = useState(campaign.questions || []);
-  const questionsRef = useRef(questions); const [editing, setEditing] = useState(null); const [newQuestionKey, setNewQuestionKey] = useState(null); const [saving, setSaving] = useState(false); const [saveError, setSaveError] = useState(""); const [saveNotice, setSaveNotice] = useState(""); const [dragged, setDragged] = useState(null); const [dragOver, setDragOver] = useState(null); const [confirmVersion, setConfirmVersion] = useState(null); const translatingRef = useRef(false); const [translating, setTranslating] = useState(false); const [structuralDirty, setStructuralDirty] = useState(false);
-  const replaceQuestions = (next) => { questionsRef.current = next; setQuestions(next); setEditing((current) => current !== null && current >= next.length ? null : current); };
-  const changeQuestions = (updater, structural = true) => { replaceQuestions(updater(questionsRef.current)); if (structural) setStructuralDirty(true); };
-  useEffect(() => { if (!saving) { replaceQuestions(campaign.questions || []); setStructuralDirty(false); setSaveNotice(""); } }, [campaign.id]);
-  const reorder = (from, to) => { if (from === to || to < 0 || to >= questionsRef.current.length) return; changeQuestions((current) => { const next = [...current]; const [item] = next.splice(from, 1); next.splice(to, 0, item); return next.map((question, order) => ({ ...question, order: order + 1 })); }); };
+  const [baselineQuestions, setBaselineQuestions] = useState(campaign.questions || []);
+  const questionsRef = useRef(questions);
+  const [editing, setEditing] = useState(null);
+  const [newQuestionKey, setNewQuestionKey] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const [saveNotice, setSaveNotice] = useState("");
+  const [dragged, setDragged] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+  const [confirmVersion, setConfirmVersion] = useState(null);
+  const translatingRef = useRef(false);
+  const [translating, setTranslating] = useState(false);
+  const [structuralDirty, setStructuralDirty] = useState(false);
   const hasResponses = Number(campaign.response_count || campaign.responses_count || 0) > 0 || Boolean(campaign.has_responses);
-  const persist = async (nextQuestions, message, formChange = "", clearsStructuralDirty = false) => { if (saving) return false; setSaving(true); setSaveError(""); setSaveNotice(""); try { const saved = await onSave(formChange ? { items: nextQuestions, form_change: formChange } : nextQuestions); replaceQuestions(saved?.questions || nextQuestions); if (clearsStructuralDirty) setStructuralDirty(false); setSaveNotice(message); return true; } catch (error) { const messageText = error?.message || "Unable to save form changes."; if (error?.message?.includes("FORM_VERSION_REQUIRED")) { setConfirmVersion({ questions: nextQuestions, message }); return false; } setSaveError(messageText); onNotify?.({ title: "Form save failed", message: messageText, tone: "error" }); return false; } finally { setSaving(false); } };
-  const saveStructural = (nextQuestions = questionsRef.current, message = "Form saved.") => { if (hasResponses) return setConfirmVersion({ questions: nextQuestions, message }); return persist(nextQuestions, message, "", true); };
-  const saveQuestion = async (question) => { const next = questionsRef.current.map((item, index) => index === editing ? question : item); const structural = hasResponses && !productFeedbackPresentationOnlyQuestionChange(questionsRef.current[editing], question); if (structural) return setConfirmVersion({ questions: next, message: "New form version saved." }); if (await persist(next, "Question saved.", "", question.key === newQuestionKey)) { setNewQuestionKey(null); setEditing(null); } };
-  const saveNewVersion = async () => { const request = confirmVersion; setConfirmVersion(null); if (request && await persist(request.questions, request.message, "new_version", true)) { setNewQuestionKey(null); setEditing(null); } };
-  const addQuestion = () => { const index = questionsRef.current.length; const question = emptyQuestion(index + 1); replaceQuestions([...questionsRef.current, question]); setNewQuestionKey(question.key); setEditing(index); };
-  const closeQuestionEditor = () => { const question = editing === null ? null : questionsRef.current[editing]; if (!saving && question?.key === newQuestionKey) replaceQuestions(questionsRef.current.filter((item) => item.key !== newQuestionKey)); setNewQuestionKey(null); setEditing(null); };
+  const activeVersion = Number(campaign.form_version || 1);
+  const draftChanges = productFeedbackStructuralDraftChanges(baselineQuestions, questions);
+  const hasVersionDraft = hasResponses && draftChanges.count > 0;
+  const versions = (campaign.form_versions?.length ? campaign.form_versions : [{ version: activeVersion, active: true, question_count: (campaign.questions || []).length, response_count: campaign.response_count || 0, created_at: campaign.updated_at }]).map((version) => ({ ...version, active: version.active ?? Number(version.version) === activeVersion }));
+
+  const replaceQuestions = (next) => {
+    questionsRef.current = next;
+    setQuestions(next);
+    setEditing((current) => current !== null && current >= next.length ? null : current);
+  };
+  const changeQuestions = (updater, structural = true) => {
+    replaceQuestions(updater(questionsRef.current));
+    if (structural) setStructuralDirty(true);
+  };
+
+  useEffect(() => {
+    if (!saving) {
+      replaceQuestions(campaign.questions || []);
+      setBaselineQuestions(campaign.questions || []);
+      setStructuralDirty(false);
+      setSaveNotice("");
+    }
+  }, [campaign.id, campaign.form_version]);
+
+  const reorder = (from, to) => {
+    if (from === to || to < 0 || to >= questionsRef.current.length) return;
+    changeQuestions((current) => {
+      const next = [...current];
+      const [item] = next.splice(from, 1);
+      next.splice(to, 0, item);
+      return next.map((question, order) => ({ ...question, order: order + 1 }));
+    });
+  };
+  const persist = async (nextQuestions, message, formChange = "", clearsStructuralDirty = false, afterSave) => {
+    if (saving) return false;
+    setSaving(true);
+    setSaveError("");
+    setSaveNotice("");
+    try {
+      const saved = await onSave(formChange ? { items: nextQuestions, form_change: formChange } : nextQuestions);
+      const savedQuestions = saved?.questions || nextQuestions;
+      if (afterSave) afterSave(savedQuestions);
+      else replaceQuestions(savedQuestions);
+      if (clearsStructuralDirty) {
+        setBaselineQuestions(savedQuestions);
+        setStructuralDirty(false);
+      }
+      setSaveNotice(message);
+      return true;
+    } catch (error) {
+      const messageText = error?.message || "Unable to save form changes.";
+      if (error?.message?.includes("FORM_VERSION_REQUIRED")) {
+        setConfirmVersion({ questions: nextQuestions, message, changes: productFeedbackStructuralDraftChanges(baselineQuestions, nextQuestions) });
+        return false;
+      }
+      setSaveError(messageText);
+      onNotify?.({ title: "Form save failed", message: messageText, tone: "error" });
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+  const requestNewVersion = (nextQuestions = questionsRef.current, message = `Version ${activeVersion + 1} created.`) => {
+    setConfirmVersion({ questions: nextQuestions, message, changes: productFeedbackStructuralDraftChanges(baselineQuestions, nextQuestions) });
+  };
+  const saveStructural = () => {
+    if (hasResponses) return requestNewVersion();
+    return persist(questionsRef.current, "Form saved.", "", true);
+  };
+  const saveQuestion = async (question) => {
+    const next = questionsRef.current.map((item, index) => index === editing ? question : item);
+    const questionIsPresentationOnly = productFeedbackQuestionEditorChangeIsPresentationOnly(questionsRef.current[editing], question);
+    if (hasResponses && !questionIsPresentationOnly) {
+      replaceQuestions(next);
+      setStructuralDirty(true);
+      setNewQuestionKey(null);
+      setEditing(null);
+      setSaveNotice("Draft structural changes are ready to save as a new version.");
+      return;
+    }
+    if (hasResponses) {
+      const activeQuestions = baselineQuestions.map((item) => item.key === question.key ? applyQuestionPresentation(item, question) : item);
+      if (await persist(activeQuestions, "Question saved.", "", false, (savedQuestions) => {
+        setBaselineQuestions(savedQuestions);
+        replaceQuestions(next);
+      })) {
+        setNewQuestionKey(null);
+        setEditing(null);
+      }
+      return;
+    }
+    if (await persist(next, "Question saved.", "", question.key === newQuestionKey)) {
+      setNewQuestionKey(null);
+      setEditing(null);
+    }
+  };
+  const saveNewVersion = async () => {
+    const request = confirmVersion;
+    setConfirmVersion(null);
+    if (request && await persist(request.questions, request.message, "new_version", true)) {
+      setNewQuestionKey(null);
+      setEditing(null);
+    }
+  };
+  const addQuestion = () => {
+    const index = questionsRef.current.length;
+    const question = emptyQuestion(index + 1);
+    replaceQuestions([...questionsRef.current, question]);
+    setNewQuestionKey(question.key);
+    setEditing(index);
+  };
+  const closeQuestionEditor = () => {
+    const question = editing === null ? null : questionsRef.current[editing];
+    if (!saving && question?.key === newQuestionKey) {
+      const next = questionsRef.current.filter((item) => item.key !== newQuestionKey);
+      replaceQuestions(next);
+      if (hasResponses) setStructuralDirty(productFeedbackStructuralDraftChanges(baselineQuestions, next).count > 0);
+    }
+    setNewQuestionKey(null);
+    setEditing(null);
+  };
   const translationUnits = questionsRef.current.flatMap((question, index) => questionTranslationUnits(question, index));
-  const translateMissing = async () => { if (translatingRef.current || !translationUnits.length) return; translatingRef.current = true; setTranslating(true); try { const results = await factoryService.translateProductFeedbackContent({ sourceLanguage: "en", units: translationUnits }); const next = applyQuestionTranslations(questionsRef.current, results); await persist(next, "Missing translations saved."); } catch (error) { onNotify?.({ title: "AI translation unavailable", message: error.message, tone: "error" }); } finally { translatingRef.current = false; setTranslating(false); } };
-  const completeness = productFeedbackFormCompleteness(questions); const editingQuestion = editing === null ? null : questions[editing];
-  return <FactoryDataSurface><div className="factory-feedback-form-builder"><div className="factory-feedback-form-toolbar"><div className="factory-feedback-form-progress"><span className="factory-feedback-form-summary">{questions.length} Questions</span><FormLanguageProgress completeness={completeness} total={questions.length} /></div>{editable ? <div className="flex flex-wrap items-center gap-2"><button className="btn-secondary" type="button" disabled={saving || translating || !translationUnits.length} onClick={translateMissing}>{translating ? "Translating…" : translationUnits.length ? "Translate Missing" : "Translations complete"}</button><button className="btn-secondary" type="button" disabled={saving} onClick={addQuestion}><Plus size={15} /> Add question</button></div> : null}</div><div className="factory-feedback-question-list">{questions.map((question, index) => <div className={`factory-feedback-question-row ${dragged === index ? "is-dragging" : ""} ${dragOver === index && dragged !== index ? "is-drop-target" : ""}`} key={question.key} onDragOver={(event) => { event.preventDefault(); setDragOver(index); }} onDragLeave={() => setDragOver((current) => current === index ? null : current)} onDrop={() => { reorder(dragged, index); setDragged(null); setDragOver(null); }}><button className="factory-feedback-drag-grip" type="button" title="Drag to reorder. Use Arrow keys as a keyboard fallback." aria-label={`Reorder question ${index + 1}`} draggable={!saving} disabled={saving} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDragged(index); }} onDragEnd={() => { setDragged(null); setDragOver(null); }} onKeyDown={(event) => { if (event.key === "ArrowUp") { event.preventDefault(); reorder(index, index - 1); } if (event.key === "ArrowDown") { event.preventDefault(); reorder(index, index + 1); } }}><GripVertical size={17} /></button><span className="factory-feedback-question-number">{String(index + 1).padStart(2, "0")}</span><button type="button" className="factory-feedback-question-content" onClick={() => editable && !saving && setEditing(index)}><span>{question.label_en}</span><small>{questionMetadata(question)}</small></button><div className="factory-feedback-question-translation"><LanguageIndicators question={question} /></div>{editable ? <div className="factory-feedback-question-actions"><button className="icon-btn factory-feedback-row-action" type="button" aria-label="Edit question" title="Edit question" disabled={saving} onClick={() => setEditing(index)}><Pencil size={15} /></button><button className="icon-btn factory-feedback-row-action" type="button" aria-label="Duplicate question" title="Duplicate question" disabled={saving} onClick={() => changeQuestions((current) => [...current, { ...question, key: `${question.key}_copy_${Date.now()}`, order: current.length + 1 }])}><Copy size={15} /></button><details className="factory-feedback-question-menu"><summary className="icon-btn" aria-label="More question actions" title="More question actions"><Ellipsis size={17} /></summary><div><button type="button" disabled={saving} onClick={() => changeQuestions((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /> Delete</button></div></details></div> : null}</div>)}</div>{saveError && editing === null ? <p className="text-sm font-medium text-danger" role="alert">{saveError}</p> : null}{saveNotice ? <p className="factory-feedback-save-notice" role="status">{saveNotice}</p> : null}{editable ? <div className="factory-feedback-form-save"><span>{structuralDirty ? "Structural changes not saved" : "Saved"}</span><button className={structuralDirty ? "btn-primary" : "btn-secondary"} disabled={saving || !structuralDirty} type="button" onClick={() => saveStructural()}>{saving ? "Saving…" : structuralDirty ? "Save form" : "Saved"}</button></div> : null}</div>{editingQuestion ? <QuestionEditor key={editingQuestion.key} question={editingQuestion} saving={saving} error={saveError} onClose={closeQuestionEditor} onSave={saveQuestion} onNotify={onNotify} /> : null}{confirmVersion ? <Modal title="Create a new form version?" onClose={() => setConfirmVersion(null)} footer={<><button className="btn-secondary" type="button" onClick={() => setConfirmVersion(null)}>Cancel</button><button className="btn-primary" type="button" onClick={saveNewVersion}>Save as New Version</button></>}><p className="text-sm text-text-secondary">Existing responses remain linked to the previous version. New responses will use the updated form.</p></Modal> : null}</FactoryDataSurface>;
+  const translateMissing = async () => {
+    if (translatingRef.current || !translationUnits.length) return;
+    translatingRef.current = true;
+    setTranslating(true);
+    try {
+      const results = await factoryService.translateProductFeedbackContent({ sourceLanguage: "en", units: translationUnits });
+      const next = applyQuestionTranslations(questionsRef.current, results);
+      if (hasResponses) {
+        const activeQuestions = baselineQuestions.map((question) => applyQuestionPresentation(question, next.find((item) => item.key === question.key) || question));
+        await persist(activeQuestions, "Missing translations saved.", "", false, (savedQuestions) => {
+          setBaselineQuestions(savedQuestions);
+          replaceQuestions(next);
+        });
+      } else {
+        await persist(next, "Missing translations saved.");
+      }
+    } catch (error) {
+      onNotify?.({ title: "AI translation unavailable", message: error.message, tone: "error" });
+    } finally {
+      translatingRef.current = false;
+      setTranslating(false);
+    }
+  };
+  const completeness = productFeedbackFormCompleteness(questions);
+  const editingQuestion = editing === null ? null : questions[editing];
+  const saveEnabled = structuralDirty || hasVersionDraft;
+
+  return <FactoryDataSurface><div className="factory-feedback-form-builder">
+    <div className="factory-feedback-form-toolbar">
+      <div className="factory-feedback-form-progress">
+        <span className="factory-feedback-form-summary">{questions.length} Questions</span>
+        <FormLanguageProgress completeness={completeness} total={questions.length} />
+        <details className="factory-feedback-form-versions">
+          <summary title="View form versions" aria-label="View form versions">v{activeVersion} <span aria-hidden="true">·</span> Active</summary>
+          <div className="factory-feedback-form-versions-popover">
+            <p>Form versions</p>
+            {versions.map((version) => <div className="factory-feedback-form-version-row" key={version.id || version.version}>
+              <span>v{version.version}{version.active ? " · Active" : ""}</span>
+              <small>{version.question_count ?? "—"} questions · {version.response_count ?? "—"} responses</small>
+              <time>{version.created_at ? formatFactoryDateTime(version.created_at) : "—"}</time>
+            </div>)}
+          </div>
+        </details>
+      </div>
+      {editable ? <div className="flex flex-wrap items-center gap-2">
+        <button className="btn-secondary" type="button" disabled={saving || translating || !translationUnits.length} onClick={translateMissing}>{translating ? "Translating…" : translationUnits.length ? "Translate Missing" : "Translations complete"}</button>
+        <button className="btn-secondary" type="button" disabled={saving} onClick={addQuestion}><Plus size={15} /> Add question</button>
+      </div> : null}
+    </div>
+    {hasVersionDraft ? <div className="factory-feedback-version-draft" role="status"><strong>Draft changes · {draftChanges.count}</strong><span>Saving will create v{activeVersion + 1}</span></div> : null}
+    <div className="factory-feedback-question-list">
+      {questions.map((question, index) => {
+        const rowChange = hasVersionDraft ? (draftChanges.addedKeys.has(question.key) ? "New" : draftChanges.modifiedKeys.has(question.key) ? "Modified" : "") : "";
+        return <div className={`factory-feedback-question-row ${dragged === index ? "is-dragging" : ""} ${dragOver === index && dragged !== index ? "is-drop-target" : ""}`} key={question.key} onDragOver={(event) => { event.preventDefault(); setDragOver(index); }} onDragLeave={() => setDragOver((current) => current === index ? null : current)} onDrop={() => { reorder(dragged, index); setDragged(null); setDragOver(null); }}>
+          <button className="factory-feedback-drag-grip" type="button" title="Drag to reorder. Use Arrow keys as a keyboard fallback." aria-label={`Reorder question ${index + 1}`} draggable={!saving} disabled={saving} onDragStart={(event) => { event.dataTransfer.effectAllowed = "move"; setDragged(index); }} onDragEnd={() => { setDragged(null); setDragOver(null); }} onKeyDown={(event) => { if (event.key === "ArrowUp") { event.preventDefault(); reorder(index, index - 1); } if (event.key === "ArrowDown") { event.preventDefault(); reorder(index, index + 1); } }}><GripVertical size={17} /></button>
+          <span className="factory-feedback-question-number">{String(index + 1).padStart(2, "0")}</span>
+          <button type="button" className="factory-feedback-question-content" onClick={() => editable && !saving && setEditing(index)}><span>{question.label_en}{rowChange ? <em className={`factory-feedback-question-draft is-${rowChange.toLowerCase()}`}>{rowChange}</em> : null}</span><small>{questionMetadata(question)}</small></button>
+          <div className="factory-feedback-question-translation"><LanguageIndicators question={question} /></div>
+          {editable ? <div className="factory-feedback-question-actions"><button className="icon-btn factory-feedback-row-action" type="button" aria-label="Edit question" title="Edit question" disabled={saving} onClick={() => setEditing(index)}><Pencil size={15} /></button><button className="icon-btn factory-feedback-row-action" type="button" aria-label="Duplicate question" title="Duplicate question" disabled={saving} onClick={() => changeQuestions((current) => [...current, { ...question, key: `${question.key}_copy_${Date.now()}`, order: current.length + 1 }])}><Copy size={15} /></button><details className="factory-feedback-question-menu"><summary className="icon-btn" aria-label="More question actions" title="More question actions"><Ellipsis size={17} /></summary><div><button type="button" disabled={saving} onClick={() => changeQuestions((current) => current.filter((_, itemIndex) => itemIndex !== index))}><Trash2 size={15} /> Delete</button></div></details></div> : null}
+        </div>;
+      })}
+    </div>
+    {saveError && editing === null ? <p className="text-sm font-medium text-danger" role="alert">{saveError}</p> : null}
+    {saveNotice ? <p className="factory-feedback-save-notice" role="status">{saveNotice}</p> : null}
+    {editable ? <div className="factory-feedback-form-save"><span>{hasVersionDraft ? `Draft changes · ${draftChanges.count}` : saveEnabled ? "Structural changes not saved" : "Saved"}</span><button className={saveEnabled ? "btn-primary" : "btn-secondary"} disabled={saving || !saveEnabled} type="button" onClick={saveStructural}>{saving ? "Saving…" : saveEnabled ? "Save form" : "Saved"}</button></div> : null}
+  </div>{editingQuestion ? <QuestionEditor key={editingQuestion.key} question={editingQuestion} saving={saving} error={saveError} onClose={closeQuestionEditor} onSave={saveQuestion} onNotify={onNotify} /> : null}{confirmVersion ? <Modal title={`Create Form Version ${activeVersion + 1}?`} onClose={() => setConfirmVersion(null)} footer={<><button className="btn-secondary" type="button" onClick={() => setConfirmVersion(null)}>Cancel</button><button className="btn-primary" type="button" disabled={saving} onClick={saveNewVersion}>{saving ? "Saving…" : `Create Version ${activeVersion + 1}`}</button></>}><div className="space-y-3 text-sm text-text-secondary"><p>Existing responses remain on Version {activeVersion}. New responses will use Version {activeVersion + 1}.</p>{confirmVersion.changes?.summary?.length ? <p className="font-medium text-text-primary">{confirmVersion.changes.summary.join(" · ")}</p> : null}</div></Modal> : null}</FactoryDataSurface>;
 }
 
 function QuestionEditor({ question, onClose, onSave, onNotify, saving = false, error = "" }) {
@@ -370,4 +608,4 @@ function QuestionEditor({ question, onClose, onSave, onNotify, saving = false, e
 }
 
 function LanguageTabs({ value, onChange }) { return <div className="inline-flex rounded-lg border border-border p-1">{languages.map((item) => <button key={item.key} className={`rounded-md px-2.5 py-1 text-xs font-bold ${value === item.key ? "bg-[var(--theme-subtle)] text-primary" : "text-text-secondary"}`} type="button" onClick={() => onChange(item.key)}>{item.label}</button>)}</div>; }
-function ResponseModal({ response, onClose }) { const questions = response.questions_snapshot || []; const contact = response.contact; return <Modal title="Feedback response" onClose={onClose}><div className="space-y-4"><FactoryEvidenceHeader title={response.variant_name || "Campaign response"} subtitle={formatFactoryDateTime(response.submitted_at)} status={response.repeat_index > 1 ? { label: `Possible repeat #${response.repeat_index}`, tone: "warning" } : null} /><FactoryEvidenceSection title="Answers"><FactoryEvidenceGrid items={questions.map((question) => { const value = response.answers?.[question.key]; const details = Object.entries(response.answer_details?.[question.key] || {}).filter(([, text]) => String(text || "").trim()).map(([option, text]) => `${option}: ${text}`); return { label: question.label_en, value: details.length ? `${displayAnswer(value)} — ${details.join("; ")}` : displayAnswer(value), fullWidth: question.type === "short_text" }; })} /></FactoryEvidenceSection>{contact ? <FactoryEvidenceSection title="Contact details"><FactoryEvidenceGrid items={[{ label: "Name", value: contact.name || "—" }, { label: "Mobile number", value: contact.normalized_mobile || "—" }, { label: "Consent", value: contact.consented_at ? formatFactoryDateTime(contact.consented_at) : "—" }]} /></FactoryEvidenceSection> : null}</div></Modal>; }
+export function ResponseModal({ response, activeFormVersion, onClose }) { const questions = response.questions_snapshot || []; const contact = response.contact; const isHistoricalVersion = Number(response.form_version || 0) < Number(activeFormVersion || 0); return <Modal title="Feedback response" onClose={onClose}><div className="space-y-4"><FactoryEvidenceHeader title={response.variant_name || "Campaign response"} subtitle={`${formatFactoryDateTime(response.submitted_at)}${isHistoricalVersion ? ` · Form v${response.form_version}` : ""}`} status={response.repeat_index > 1 ? { label: `Possible repeat #${response.repeat_index}`, tone: "warning" } : null} /><FactoryEvidenceSection title="Answers"><FactoryEvidenceGrid items={questions.map((question) => { const value = response.answers?.[question.key]; const details = Object.entries(response.answer_details?.[question.key] || {}).filter(([, text]) => String(text || "").trim()).map(([option, text]) => `${option}: ${text}`); return { label: question.label_en, value: details.length ? `${displayAnswer(value)} — ${details.join("; ")}` : displayAnswer(value), fullWidth: question.type === "short_text" }; })} /></FactoryEvidenceSection>{contact ? <FactoryEvidenceSection title="Contact details"><FactoryEvidenceGrid items={[{ label: "Name", value: contact.name || "—" }, { label: "Mobile number", value: contact.normalized_mobile || "—" }, { label: "Consent", value: contact.consented_at ? formatFactoryDateTime(contact.consented_at) : "—" }]} /></FactoryEvidenceSection> : null}</div></Modal>; }
