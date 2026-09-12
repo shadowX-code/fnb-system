@@ -5,6 +5,7 @@ import FilterBar from "../../../components/forms/FilterBar.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { getAccessibleOutletOptions } from "../../../utils/accessControl.js";
 import { reportingService } from "../../../services/reportingService.js";
+import { outletService } from "../../../services/outletService.js";
 import MonthlyProfitPoster from "../components/MonthlyProfitPoster.jsx";
 import YearlyPnlPoster from "../components/YearlyPnlPoster.jsx";
 import { reportMonths, statusLabel } from "../components/reportingFormatters.js";
@@ -71,7 +72,11 @@ export default function ReportsPage({ store, ui, auth }) {
 
   const generatedStatus = generated?.reportType === "monthly" ? statusLabel(generated.dataset.financialCompleteness) : statusLabel(generated?.dataset.completeness, generated?.dataset.periodMode);
   const exportDisabled = !generated || !hasExportPermission || Boolean(exporting);
-  const renderPoster = () => (generated.reportType === "monthly" ? <MonthlyProfitPoster dataset={generated.dataset} /> : <YearlyPnlPoster dataset={generated.dataset} />);
+  const renderPoster = () => {
+    const canonicalOutlet = store.outlets.find((item) => item.id === generated.dataset.outlet?.id) ?? generated.dataset.outlet;
+    const logoUrl = canonicalOutlet?.logo_path ? outletService.logoPublicUrl(canonicalOutlet.logo_path, canonicalOutlet.logo_version) : "";
+    return generated.reportType === "monthly" ? <MonthlyProfitPoster dataset={generated.dataset} outlet={canonicalOutlet} logoUrl={logoUrl} /> : <YearlyPnlPoster dataset={generated.dataset} outlet={canonicalOutlet} logoUrl={logoUrl} />;
+  };
 
   return <div className="space-y-5">
     <PageHeader section="Overview" title="Reports" description="Generate outlet-scoped financial poster previews from the canonical Reporting read contract." />
@@ -85,8 +90,8 @@ export default function ReportsPage({ store, ui, auth }) {
     {error ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{error}</div> : null}
     {generated ? <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-white px-4 py-3">
-        <div><div className="text-xs font-bold uppercase tracking-wide text-text-muted">Preview context</div><div className="mt-1 text-sm font-semibold text-text-primary">{generated.dataset.outlet?.name ?? "Outlet"} · {generated.reportType === "monthly" ? `${reportMonths[generated.filters.month - 1]?.label} ${generated.filters.year}` : generated.filters.year}</div><div className="mt-1 text-xs text-text-secondary">Status: <b>{generatedStatus}</b></div></div>
-        <div className="flex flex-wrap items-center gap-2"><button className="btn-secondary" type="button" onClick={() => download("png")} disabled={exportDisabled} title={!hasExportPermission ? "reports.export permission is required" : undefined}><Download size={15} />{exporting === "png" ? "Preparing PNG…" : "Download PNG"}</button><button className="btn-secondary" type="button" onClick={() => download("pdf")} disabled={exportDisabled} title={!hasExportPermission ? "reports.export permission is required" : undefined}><FileText size={15} />{exporting === "pdf" ? "Preparing PDF…" : "Download PDF"}</button><button className="btn-secondary" type="button" onClick={generate} disabled={loading || Boolean(exporting)}><RefreshCw size={15} className={loading ? "animate-spin" : ""} />Regenerate</button></div>
+        <div className="flex items-baseline gap-2"><span className="text-sm font-semibold text-text-primary">{generated.dataset.outlet?.name ?? "Outlet"} · {generated.reportType === "monthly" ? `${reportMonths[generated.filters.month - 1]?.label} ${generated.filters.year}` : generated.filters.year}</span><span className="text-xs text-text-secondary">{generatedStatus}</span></div>
+        <div className="flex flex-wrap items-center gap-2"><div className="flex overflow-hidden rounded-lg border border-border"><button className="btn-secondary rounded-none border-0" type="button" onClick={() => download("png")} disabled={exportDisabled} title={!hasExportPermission ? "reports.export permission is required" : undefined}><Download size={15} />{exporting === "png" ? "Preparing PNG…" : "Download PNG"}</button><button className="btn-secondary rounded-none border-0 border-l border-border" type="button" onClick={() => download("pdf")} disabled={exportDisabled} title={!hasExportPermission ? "reports.export permission is required" : undefined}><FileText size={15} />{exporting === "pdf" ? "Preparing PDF…" : "Download PDF"}</button></div><button className="btn-ghost" type="button" onClick={generate} disabled={loading || Boolean(exporting)}><RefreshCw size={15} className={loading ? "animate-spin" : ""} />Regenerate</button></div>
       </div>
       {!hasExportPermission ? <p className="text-xs text-text-muted">Download controls require the <b>reports.export</b> permission.</p> : null}
       {exportError ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{exportError}</div> : null}
