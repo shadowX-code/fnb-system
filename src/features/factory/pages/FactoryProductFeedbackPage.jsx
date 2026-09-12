@@ -318,7 +318,8 @@ function applyQuestionTranslations(questions, results) {
 function questionMetadata(question) {
   const type = types.find((item) => item.value === question.type)?.label || "Question";
   const details = [type, question.required ? "Required" : "Optional"];
-  if (!['rating', 'short_text'].includes(question.type)) details.push(`${question.options?.length || 0} options`);
+  const optionCount = question.options?.length || 0;
+  if (!['rating', 'short_text'].includes(question.type) && optionCount) details.push(`${optionCount} options`);
   return details.join(" · ");
 }
 
