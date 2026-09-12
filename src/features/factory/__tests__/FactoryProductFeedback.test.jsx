@@ -535,11 +535,16 @@ describe("Factory Product Feedback public contract", () => {
   it("keeps language status compact and only enables structural save when needed", () => {
     const complete = { key: "taste", label_en: "Taste", label_zh: "味道", label_ms: "Rasa", helper_en: "Choose", helper_zh: "选择", helper_ms: "Pilih", type: "single_choice", options: [{ value: "good", label_en: "Good", label_zh: "好", label_ms: "Bagus" }] };
     render(<FormBuilder campaign={{ questions: [complete] }} editable onSave={vi.fn()} onNotify={vi.fn()} />);
-    expect(screen.getByText("1 Questions · EN 1/1 · 中文 1/1 · BM 1/1")).toBeTruthy();
+    expect(screen.getByText("1 Questions")).toBeTruthy();
+    expect(screen.getByLabelText("EN: Complete, 1 of 1 questions translated")).toBeTruthy();
+    expect(screen.getByLabelText("中文: Complete, 1 of 1 questions translated")).toBeTruthy();
+    expect(screen.getByLabelText("BM: Complete, 1 of 1 questions translated")).toBeTruthy();
     expect(screen.getByLabelText("EN: Complete")).toBeTruthy();
     expect(screen.getByLabelText("中文: Complete")).toBeTruthy();
     expect(screen.getByRole("button", { name: "Translations complete" }).disabled).toBe(true);
     expect(screen.getByRole("button", { name: "Saved" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Edit question" }).textContent).toBe("");
+    expect(screen.getByRole("button", { name: "Duplicate question" }).textContent).toBe("");
     fireEvent.click(screen.getByRole("button", { name: "Duplicate question" }));
     expect(screen.getByRole("button", { name: "Save form" }).disabled).toBe(false);
   });
@@ -564,7 +569,7 @@ describe("Factory Product Feedback public contract", () => {
     const onSave = vi.fn().mockResolvedValue({ questions: [{ key: "taste", label_en: "Taste", helper_en: "Before", type: "single_choice", options: [{ value: "good", label_en: "Good" }] }] });
     const campaign = { response_count: 1, questions: [{ key: "taste", label_en: "Taste", helper_en: "Before", type: "single_choice", options: [{ value: "good", label_en: "Good" }] }] };
     render(<FormBuilder campaign={campaign} editable onSave={onSave} onNotify={vi.fn()} />);
-    fireEvent.click(screen.getByTitle("Duplicate"));
+    fireEvent.click(screen.getByTitle("Duplicate question"));
     fireEvent.click(screen.getByRole("button", { name: "Save form" }));
     expect(screen.getByRole("heading", { name: "Create a new form version?" })).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Save as New Version" }));
