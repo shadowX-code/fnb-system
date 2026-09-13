@@ -38,6 +38,21 @@ describe("Reporting datasets", () => {
     expect(report.financialCompleteness).toBe("complete");
   });
 
+  it("preserves Product Analytics quantities and category contributions without using Financial Revenue", () => {
+    const report = buildMonthlyReportingDataset({
+      financialContract: financialContract(),
+      productContract: {
+        product_data_status: "available",
+        total_product_sales_revenue: 725,
+        top_products: [{ product_name: "Nasi Lemak", category_name: "Mains", quantity: 12, sales_revenue: 350 }],
+        category_contributions: [{ category_name: "Mains", sales_revenue: 500 }, { category_name: "Drinks", sales_revenue: 225 }],
+      },
+    });
+    expect(report.totalProductSalesRevenue).toBe(725);
+    expect(report.topProducts[0]).toMatchObject({ quantity: 12, sales_revenue: 350 });
+    expect(report.categoryContributions).toEqual([{ category_name: "Mains", sales_revenue: 500 }, { category_name: "Drinks", sales_revenue: 225 }]);
+  });
+
   it("returns a fixed twelve-row YTD dataset with null future and missing months", () => {
     const august = financialContract();
     const yearly = buildYearlyFinancialDataset({ outlet: august.outlet, year: 2026, monthlyContracts: [august], currentYear: 2026, currentMonth: 8 });
