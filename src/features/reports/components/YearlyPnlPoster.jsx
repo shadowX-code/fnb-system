@@ -41,8 +41,8 @@ function Chart({ months }) {
   const maxRevenue = Math.max(...revenues.filter((value) => value !== null), 0);
   const step = maxRevenue > 100000 ? 50000 : 25000;
   const chartMax = Math.max(step, Math.ceil(maxRevenue / step) * step);
-  const top = 20;
-  const bottom = 150;
+  const top = 12;
+  const bottom = 115;
   const left = 64;
   const right = 978;
   const chartHeight = bottom - top;
@@ -53,11 +53,11 @@ function Chart({ months }) {
 
   return <div className="poster-yearly-chart">
     <div className="poster-yearly-chart__head"><h3>Monthly Revenue Performance</h3></div>
-    <svg className="poster-trend" viewBox="0 0 1000 205" role="img" aria-label="Monthly Revenue Performance: revenue bars">
+    <svg className="poster-trend" viewBox="0 0 1000 155" role="img" aria-label="Monthly Revenue Performance: revenue bars">
       {ticks.filter((tick) => tick !== 0).map((tick) => <g key={tick}><line className="poster-chart-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)}/><text className="poster-chart-axis-label" x={left - 12} y={y(tick) + 4} textAnchor="end">{shortMoney(tick)}</text></g>)}
       <line className="poster-chart-zero" x1={left} x2={right} y1={bottom} y2={bottom}/><text className="poster-chart-axis-label" x={left - 12} y={bottom + 4} textAnchor="end">{shortMoney(0)}</text>
       {revenues.map((value, index) => value === null ? null : <g key={`revenue-${index}`}><rect className="revenue-bar" fill={REVENUE} x={x(index) - 17} y={y(value)} width="34" height={bottom - y(value)} rx="2"/><text className="poster-chart-value" x={x(index)} y={y(value) - 6} textAnchor="middle">{shortMoney(value).replace("RM ", "")}</text></g>)}
-      {months.map((month, index) => <text className="poster-chart-month" key={month.month} x={x(index)} y="180" textAnchor="middle">{compactMonth(month.month)}</text>)}
+      {months.map((month, index) => <text className="poster-chart-month" key={month.month} x={x(index)} y="140" textAnchor="middle">{compactMonth(month.month)}</text>)}
     </svg>
   </div>;
 }
