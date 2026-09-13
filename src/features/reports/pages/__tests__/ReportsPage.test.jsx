@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const { getMonthlyOutletReport, getYearlyOutletFinancialReport } = vi.hoisted(() => ({ getMonthlyOutletReport: vi.fn(), getYearlyOutletFinancialReport: vi.fn() }));
 vi.mock("../../../../services/reportingService.js", () => ({ reportingService: { getMonthlyOutletReport, getYearlyOutletFinancialReport } }));
 const { exportPoster } = vi.hoisted(() => ({ exportPoster: vi.fn() }));
-vi.mock("../../services/reportPosterExport.js", () => ({ exportPoster }));
+vi.mock("../../services/reportPosterExport.js", () => ({ exportPoster, REPORT_POSTER_LOGICAL_WIDTH: 1200, REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT: 1500, REPORT_POSTER_YEARLY_LOGICAL_HEIGHT: 1200 * 297 / 210 }));
 import ReportsPage from "../ReportsPage.jsx";
 
 const outlet = { id: "outlet-a", name: "Outlet A" };
@@ -18,7 +18,7 @@ const monthlyDataset = {
 const yearlyDataset = {
   reportType: "yearly", outlet, year: 2026, periodMode: "ytd", completeness: "incomplete",
   totals: { revenue: { amount: 100, presence: "present" }, purchaseBasedCogs: { amount: 20, presence: "present" }, opex: { amount: 0, presence: "present" }, netProfit: { amount: 80, presence: "present" } },
-  months: Array.from({ length: 12 }, (_, index) => ({ month: index + 1, financials: { revenue: { amount: index === 0 ? 100 : null, presence: index === 0 ? "present" : "missing" }, purchaseBasedCogs: { amount: null, presence: "missing" }, opex: { amount: null, presence: "missing" }, netProfit: { amount: null, presence: "missing" } } })),
+  months: Array.from({ length: 12 }, (_, index) => ({ month: index + 1, financials: { revenue: { amount: index === 0 ? 100 : null, presence: index === 0 ? "present" : "missing" }, purchaseBasedCogs: { amount: index === 0 ? 20 : null, presence: index === 0 ? "present" : "missing" }, opex: { amount: index === 0 ? 0 : null, presence: index === 0 ? "present" : "missing" }, netProfit: { amount: index === 0 ? 80 : null, presence: index === 0 ? "present" : "missing" } } })),
 };
 
 beforeEach(() => { cleanup(); getMonthlyOutletReport.mockReset(); getYearlyOutletFinancialReport.mockReset(); exportPoster.mockReset(); ui.notify.mockReset(); });
@@ -50,6 +50,8 @@ describe("ReportsPage", () => {
     expect(screen.getAllByText("1 / 12 months reported")).toHaveLength(2);
     expect(screen.getAllByText("Performance Snapshot")).toHaveLength(2);
     expect(screen.getAllByText("Monthly P&L Details")).toHaveLength(2);
+    expect(screen.getAllByText("20.0%")).toHaveLength(2);
+    expect(screen.getAllByText("80.0% Margin")).toHaveLength(2);
   });
 
   it("exports only the current generated dataset and prevents export before Generate", async () => {
