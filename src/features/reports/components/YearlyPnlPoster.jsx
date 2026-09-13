@@ -56,7 +56,7 @@ function Chart({ months }) {
       <line className="poster-chart-zero" x1={left} x2={right} y1={zero} y2={zero}/>
       {revenues.map((value, index) => value === null ? null : <g key={`revenue-${index}`}><rect className="revenue-bar" fill={REVENUE} x={x(index) - 13} y={Math.min(y(value), zero)} width="26" height={Math.abs(zero - y(value))} rx="2"/><text className="poster-chart-value" x={x(index)} y={Math.min(y(value), zero) - 6} textAnchor="middle">{shortMoney(value).replace("RM ", "")}</text></g>)}
       {profits.map((value, index) => value !== null && profits[index + 1] !== null ? <line key={`profit-line-${index}`} className="profit-line" stroke={PROFIT} x1={x(index)} y1={y(value)} x2={x(index + 1)} y2={y(profits[index + 1])}/> : null)}
-      {profits.map((value, index) => value === null ? null : <circle key={`profit-point-${index}`} className="profit-point" fill={value < 0 ? "#a34b4b" : PROFIT} cx={x(index)} cy={y(value)} r="5"/>)}
+      {profits.map((value, index) => value === null ? null : <g key={`profit-point-${index}`}><circle className="profit-point" fill={value < 0 ? "#a34b4b" : PROFIT} cx={x(index)} cy={y(value)} r="3.6"/><text className={`poster-profit-value ${value < 0 ? "is-negative" : ""}`} x={x(index)} y={y(value) - 7} textAnchor="middle">{shortMoney(value).replace("RM ", "")}</text></g>)}
       {months.map((month, index) => <text className="poster-chart-month" key={month.month} x={x(index)} y="222" textAnchor="middle">{compactMonth(month.month)}</text>)}
     </svg>
   </div>;
