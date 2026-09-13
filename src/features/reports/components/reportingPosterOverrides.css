@@ -35,8 +35,8 @@
 .poster-yearly-chart__head, .poster-yearly-details__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-bottom:.5cqw; border-bottom:1px solid rgb(23 51 50 / .2); }
 .poster-yearly-chart__head h3, .poster-yearly-details__head h3, .poster-snapshot__title { margin: 0; color:#173332; font-size:1.5cqw; font-weight:850; letter-spacing:-.015em; line-height:1.1; }
 .report-poster--yearly .poster-trend { display:block; width:100%; height:14.667cqw; margin-top:.583cqw; overflow:visible; }
-.poster-chart-grid { stroke: #bfd2cd; stroke-width: 1.15; }
-.poster-chart-zero { stroke: #829d96; stroke-width: 1.45; }
+.poster-chart-grid { stroke: #a9c1bb; stroke-width: 1.3; }
+.poster-chart-zero { stroke: #78968e; stroke-width: 1.55; }
 .report-poster--yearly .poster-chart-axis-label, .report-poster--yearly .poster-chart-month, .report-poster--yearly .poster-chart-value { fill:#617572; font-family:Inter,ui-sans-serif,system-ui,sans-serif; font-size:.875cqw; font-weight:650; }
 .report-poster--yearly .poster-chart-month { fill:#35514d; font-size:.917cqw; font-weight:750; }
 .report-poster--yearly .poster-chart-value { fill:#087066; font-size:.875cqw; font-weight:850; }
