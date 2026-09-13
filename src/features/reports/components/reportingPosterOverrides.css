@@ -3,7 +3,8 @@
 .report-poster__footer { align-self: end; }
 
 /* The Yearly variant mirrors the approved editorial A4 composition. */
-.report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 295px 145px minmax(360px,1fr) auto; min-height:100%; padding:28px 34px 24px; }
+.report-poster--yearly { aspect-ratio:210 / 297; }
+.report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 295px 145px minmax(430px,1fr) auto; min-height:100%; padding:28px 34px 24px; }
 .poster-yearly-head { position: relative; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
 .poster-yearly-head__identity { display:flex; align-items:center; min-height:22px; color:#173332; font-size:10px; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
 .poster-yearly-head__identity img { display:block; max-width:150px; max-height:28px; object-fit:contain; object-position:left center; }
@@ -56,18 +57,15 @@
 .poster-snapshot__item.is-negative em { color: #a34b4b; }
 .poster-yearly-details { display:flex; flex-direction:column; min-height:0; margin-top:15px; }
 .poster-yearly-details__head span { color: var(--muted); font-size: 8px; font-weight: 650; }
-.report-poster--yearly .poster-financial-table { display:grid; grid-template-rows:31px repeat(12,minmax(28px,1fr)); flex:1; margin-top:6px; }
-.report-poster--yearly .poster-table-row { grid-template-columns:55px repeat(4,minmax(0,1fr)); min-height:28px; font-size:9px; }
+.report-poster--yearly .poster-financial-table { display:grid; grid-template-rows:34px repeat(12,minmax(36px,1fr)); flex:1; margin-top:6px; }
+.report-poster--yearly .poster-table-row { grid-template-columns:55px repeat(4,minmax(0,1fr)); min-height:36px; font-size:9px; }
 .report-poster--yearly .poster-table-row--head { min-height:31px; padding:0 8px; background:#eaf5f1; color:#315854; font-size:8px; }
+.report-poster--yearly .poster-table-figure { display:grid; gap:2px; min-width:0; overflow:visible; white-space:normal; }
+.report-poster--yearly .poster-table-figure b { overflow:hidden; color:inherit; font-size:9px; font-weight:750; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
+.report-poster--yearly .poster-table-figure small { overflow:hidden; color:#617572; font-size:7px; font-weight:650; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
+.report-poster--yearly .poster-table-row strong .poster-table-figure small { color:inherit; opacity:.72; }
 .report-poster--yearly .report-poster__footer { margin-top:16px; padding-top:12px; align-self:auto; }
 
 @media (max-width: 420px) {
-  .report-poster--yearly .report-poster__inside { display:block; padding:19px 17px; }
-  .poster-yearly-head h2 { font-size:37px; }
-  .poster-yearly-head h3 { font-size:17px; }
-  .poster-completeness { display:block; }
-  .poster-completeness p { margin-top: 5px; }
-  .poster-completeness aside { margin-top:7px; padding:0; border:0; }
-  .poster-snapshot__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px 0; }
-  .poster-snapshot__item:nth-child(3) { padding-left: 0; border-left: 0; }
+  .report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 295px 145px minmax(430px,1fr) auto; padding:28px 34px 24px; }
 }

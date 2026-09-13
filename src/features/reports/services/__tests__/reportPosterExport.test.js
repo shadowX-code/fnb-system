@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getPosterNode, outletSlug, reportExportFilename } from "../reportPosterExport.js";
+import { getPosterNode, outletSlug, reportExportFilename, REPORT_POSTER_YEARLY_LOGICAL_HEIGHT, YEARLY_POSTER_PNG_HEIGHT, YEARLY_POSTER_PNG_WIDTH } from "../reportPosterExport.js";
 
 describe("reportPosterExport filenames", () => {
   it("creates stable safe filenames for monthly reports", () => {
@@ -17,6 +17,12 @@ describe("reportPosterExport filenames", () => {
 });
 
 describe("reportPosterExport capture surface", () => {
+  it("defines a true A4 yearly capture surface and print-resolution PNG target", () => {
+    expect(REPORT_POSTER_YEARLY_LOGICAL_HEIGHT).toBeCloseTo(1200 * 297 / 210);
+    expect(YEARLY_POSTER_PNG_WIDTH).toBe(2480);
+    expect(YEARLY_POSTER_PNG_HEIGHT).toBe(3508);
+  });
+
   it("selects the poster canvas rather than its preview or export host wrapper", () => {
     const host = document.createElement("div");
     host.className = "preview-scale-wrapper";

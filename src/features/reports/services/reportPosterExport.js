@@ -1,5 +1,13 @@
 export const REPORT_POSTER_LOGICAL_WIDTH = 1200;
-const REPORT_POSTER_LOGICAL_HEIGHT = 1500;
+export const REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT = 1500;
+export const REPORT_POSTER_YEARLY_LOGICAL_HEIGHT = REPORT_POSTER_LOGICAL_WIDTH * 297 / 210;
+export const YEARLY_POSTER_PNG_WIDTH = 2480;
+export const YEARLY_POSTER_PNG_HEIGHT = 3508;
+
+function posterSurface(reportType) {
+  if (reportType === "yearly") return { height: REPORT_POSTER_YEARLY_LOGICAL_HEIGHT, pixelRatio: YEARLY_POSTER_PNG_WIDTH / REPORT_POSTER_LOGICAL_WIDTH, pngWidth: YEARLY_POSTER_PNG_WIDTH, pngHeight: YEARLY_POSTER_PNG_HEIGHT };
+  return { height: REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT, pixelRatio: 2, pngWidth: REPORT_POSTER_LOGICAL_WIDTH * 2, pngHeight: REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT * 2 };
+}
 
 export function outletSlug(outletName) {
   const normalized = String(outletName ?? "outlet").normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
@@ -25,9 +33,10 @@ function waitForLayout() {
   return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 }
 
-function assertLogicalPosterSurface(poster) {
+function assertLogicalPosterSurface(poster, reportType) {
   const { width, height } = poster.getBoundingClientRect();
-  if (Math.round(width) !== REPORT_POSTER_LOGICAL_WIDTH || Math.round(height) !== REPORT_POSTER_LOGICAL_HEIGHT) {
+  const surface = posterSurface(reportType);
+  if (Math.round(width) !== REPORT_POSTER_LOGICAL_WIDTH || Math.abs(height - surface.height) > 1) {
     throw new Error("The export poster did not reach its fixed logical canvas size.");
   }
 }
@@ -50,20 +59,22 @@ function assertCanvasHasPosterContent(canvas) {
   if (meaningfulPixels < 120) throw new Error("The poster capture was blank. No file was downloaded.");
 }
 
-async function capturePoster(element) {
+async function capturePoster(element, reportType) {
   const poster = getPosterNode(element);
   if (!poster) throw new Error("The generated poster is no longer available for export.");
   await document.fonts?.ready;
   await waitForLayout();
-  assertLogicalPosterSurface(poster);
+  assertLogicalPosterSurface(poster, reportType);
+  const surface = posterSurface(reportType);
   const { toCanvas } = await import("html-to-image");
   const canvas = await toCanvas(poster, {
     backgroundColor: "#f7fbfa",
     cacheBust: true,
-    pixelRatio: 2,
+    pixelRatio: surface.pixelRatio,
     width: REPORT_POSTER_LOGICAL_WIDTH,
-    height: REPORT_POSTER_LOGICAL_HEIGHT,
+    height: surface.height,
   });
+  if (canvas.width !== surface.pngWidth || canvas.height !== surface.pngHeight) throw new Error("The poster image did not reach its required export resolution.");
   assertCanvasHasPosterContent(canvas);
   return canvas;
 }
@@ -87,19 +98,20 @@ export async function exportPoster({ element, reportType, dataset, filters, form
     periodMode: dataset?.periodMode,
     format,
   });
-  const posterCanvas = await capturePoster(element);
+  const posterCanvas = await capturePoster(element, reportType);
   const png = posterCanvas.toDataURL("image/png");
 
   if (format === "pdf") {
     const { jsPDF } = await import("jspdf");
+    const yearly = reportType === "yearly";
     const pdf = new jsPDF({
       orientation: "portrait",
-      unit: "px",
-      format: [REPORT_POSTER_LOGICAL_WIDTH, REPORT_POSTER_LOGICAL_HEIGHT],
-      hotfixes: ["px_scaling"],
+      unit: yearly ? "mm" : "px",
+      format: yearly ? "a4" : [REPORT_POSTER_LOGICAL_WIDTH, REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT],
+      ...(yearly ? {} : { hotfixes: ["px_scaling"] }),
       compress: true,
     });
-    pdf.addImage(png, "PNG", 0, 0, REPORT_POSTER_LOGICAL_WIDTH, REPORT_POSTER_LOGICAL_HEIGHT, undefined, "FAST");
+    pdf.addImage(png, "PNG", 0, 0, yearly ? 210 : REPORT_POSTER_LOGICAL_WIDTH, yearly ? 297 : REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT, undefined, "FAST");
     pdf.save(filename);
   } else {
     downloadDataUrl(png, filename);

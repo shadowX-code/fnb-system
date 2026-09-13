@@ -14,6 +14,14 @@ function negative(metric) { return metric?.presence === "present" && Number(metr
 function hasRevenue(month) { return month.financials.revenue?.presence === "present"; }
 function hasProfit(month) { return month.financials.netProfit?.presence === "present"; }
 function shortMoney(value) { return `${value < 0 ? "-" : ""}RM ${(Math.abs(value) / 1000).toFixed(value % 1000 ? 1 : 0)}k`; }
+function monthlyRate(metric, revenue, suffix = "") {
+  if (metric?.presence !== "present" || revenue?.presence !== "present" || !Number(revenue.amount)) return "—";
+  return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${suffix}`;
+}
+
+function TableFigure({ metric, revenue, net = false, showRate = true }) {
+  return <span className="poster-table-figure"><b>{money(metric)}</b>{showRate && metric?.presence === "present" ? <small>{monthlyRate(metric, revenue, net ? " Margin" : "")}</small> : null}</span>;
+}
 
 function YearlyHeader({ dataset, outlet, logoUrl, reported }) {
   const name = outlet?.name ?? dataset.outlet?.name ?? "Outlet";
@@ -85,7 +93,7 @@ export default function YearlyPnlPoster({ dataset, outlet, logoUrl }) {
     <YearlyHeader dataset={dataset} outlet={outlet} logoUrl={logoUrl} reported={reported}/>
     <section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(dataset.totals.revenue)} percentage={percent(dataset.totals.revenue, dataset.totals.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(dataset.totals.purchaseBasedCogs)} percentage={percent(dataset.totals.purchaseBasedCogs, dataset.totals.revenue)}/><MetricValue label="OpEx" metric={money(dataset.totals.opex)} percentage={percent(dataset.totals.opex, dataset.totals.revenue)}/><MetricValue className="is-profit" label="Net Profit" metric={money(dataset.totals.netProfit)} percentage={percent(dataset.totals.netProfit, dataset.totals.revenue, { net: true })}/></section>
     <Completeness months={dataset.months}/><Chart months={dataset.months}/><Snapshot months={dataset.months}/>
-    <section className="poster-yearly-details"><div className="poster-yearly-details__head"><h3>Monthly P&amp;L Details</h3><span>— No data available</span></div><div className="poster-financial-table"><div className="poster-table-row poster-table-row--head"><span>Month</span><span>Revenue</span><span>COGS</span><span>OpEx</span><span>Net Profit</span></div>{dataset.months.map((month) => <div className={`poster-table-row ${!hasRevenue(month) ? "is-missing" : ""}`} key={month.month}><span>{compactMonth(month.month)}</span><span>{money(month.financials.revenue)}</span><span>{money(month.financials.purchaseBasedCogs)}</span><span>{money(month.financials.opex)}</span><strong className={negative(month.financials.netProfit) ? "is-negative" : ""}>{money(month.financials.netProfit)}</strong></div>)}</div></section>
+    <section className="poster-yearly-details"><div className="poster-yearly-details__head"><h3>Monthly P&amp;L Details</h3><span>— No data available</span></div><div className="poster-financial-table"><div className="poster-table-row poster-table-row--head"><span>Month</span><span>Revenue</span><span>COGS</span><span>OpEx</span><span>Net Profit</span></div>{dataset.months.map((month) => <div className={`poster-table-row ${!hasRevenue(month) ? "is-missing" : ""}`} key={month.month}><span>{compactMonth(month.month)}</span><TableFigure metric={month.financials.revenue} revenue={month.financials.revenue} showRate={false}/><TableFigure metric={month.financials.purchaseBasedCogs} revenue={month.financials.revenue}/><TableFigure metric={month.financials.opex} revenue={month.financials.revenue}/><strong className={negative(month.financials.netProfit) ? "is-negative" : ""}><TableFigure metric={month.financials.netProfit} revenue={month.financials.revenue} net/></strong></div>)}</div></section>
     <PosterFooter type="Annual Financial Performance" period={period} status={statusLabel(dataset.completeness, dataset.periodMode)}/>
   </PosterShell>;
 }

@@ -9,7 +9,7 @@ import { outletService } from "../../../services/outletService.js";
 import MonthlyProfitPoster from "../components/MonthlyProfitPoster.jsx";
 import YearlyPnlPoster from "../components/YearlyPnlPoster.jsx";
 import { reportMonths, statusLabel } from "../components/reportingFormatters.js";
-import { exportPoster } from "../services/reportPosterExport.js";
+import { exportPoster, REPORT_POSTER_LOGICAL_WIDTH, REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT, REPORT_POSTER_YEARLY_LOGICAL_HEIGHT } from "../services/reportPosterExport.js";
 
 function defaultPeriod() {
   const now = new Date();
@@ -97,7 +97,7 @@ export default function ReportsPage({ store, ui, auth }) {
       {exportError ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-800">{exportError}</div> : null}
       {exportSuccess ? <p role="status" className="text-sm font-semibold text-emerald-700">{exportSuccess}</p> : null}
       <div className="rounded-3xl border border-border bg-slate-100/80 p-3 sm:p-6"><div className="mx-auto w-full max-w-[760px]">{renderPoster()}</div></div>
-      <div ref={exportPosterRef} aria-hidden="true" style={{ position: "fixed", left: "-10000px", top: 0, width: "1200px", height: "1500px", overflow: "hidden", pointerEvents: "none" }}>{renderPoster()}</div>
+      <div ref={exportPosterRef} aria-hidden="true" style={{ position: "fixed", left: "-10000px", top: 0, width: `${REPORT_POSTER_LOGICAL_WIDTH}px`, height: `${generated.reportType === "yearly" ? REPORT_POSTER_YEARLY_LOGICAL_HEIGHT : REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT}px`, overflow: "hidden", pointerEvents: "none" }}>{renderPoster()}</div>
     </section> : <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-10 text-center"><FileBarChart2 className="mx-auto text-primary" size={28} /><h2 className="mt-3 text-base font-bold text-text-primary">Generate a report preview</h2><p className="mx-auto mt-1 max-w-md text-sm text-text-secondary">Choose a report type, outlet and period. The poster will use server-authoritative Reporting data only.</p></div>}
   </div>;
 }
