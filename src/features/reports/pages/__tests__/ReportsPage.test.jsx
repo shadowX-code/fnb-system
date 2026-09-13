@@ -48,6 +48,8 @@ describe("ReportsPage", () => {
     expect(screen.getAllByText("Jan").length).toBeGreaterThan(0);
     expect(screen.getAllByText("YTD / Incomplete").length).toBeGreaterThan(0);
     expect(screen.getAllByText("1 / 12 months reported")).toHaveLength(2);
+    expect(screen.getAllByText("Monthly Revenue Performance")).toHaveLength(2);
+    expect(screen.getAllByRole("img", { name: "Monthly Revenue Performance: revenue bars" })).toHaveLength(1);
     expect(screen.getAllByText("Performance Snapshot")).toHaveLength(2);
     expect(screen.getAllByText("Monthly P&L Details")).toHaveLength(2);
     expect(screen.getAllByText("20.0%")).toHaveLength(2);
