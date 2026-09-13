@@ -63,6 +63,49 @@
 .report-poster--yearly .poster-table-row strong .poster-table-figure small { color:inherit; opacity:.72; }
 .report-poster--yearly .report-poster__footer { margin-top:1.333cqw; padding-top:1cqw; align-self:auto; font-size:.917cqw; }
 
+/* Monthly follows the frozen Yearly A4 type, identity and KPI system while retaining product-sales priorities. */
+.report-poster--monthly { aspect-ratio:210 / 297; container-type:inline-size; }
+.report-poster--monthly .report-poster__inside { display:grid; grid-template-rows:auto auto minmax(0,1fr) auto; min-height:100%; padding:2.333cqw 2.833cqw 2cqw; }
+.poster-monthly-head { position:relative; padding-bottom:1cqw; border-bottom:1px solid var(--line); }
+.poster-monthly-head__identity { display:flex; align-items:center; min-height:2.167cqw; color:#173332; font-size:1.25cqw; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
+.poster-monthly-head__identity img { display:block; max-width:13.5cqw; max-height:2.667cqw; object-fit:contain; object-position:left center; }
+.poster-monthly-head .report-poster__status { position:absolute; top:0; right:0; padding:.5cqw .75cqw; font-size:.917cqw; white-space:nowrap; }
+.poster-monthly-head__type { margin-top:1.083cqw; color:#173332; font-size:1.083cqw; font-weight:850; letter-spacing:.13em; text-transform:uppercase; }
+.poster-monthly-head h2 { margin:.25cqw 0 0; color:#102f2f; font-family:Baskerville, "Iowan Old Style", "Palatino Linotype", Georgia, serif; font-size:4.5cqw; line-height:.94; letter-spacing:-.015em; font-weight:700; font-kerning:normal; font-feature-settings:"lnum" 1, "tnum" 1; }
+.poster-monthly-head h3 { margin:.417cqw 0 0; color:#173332; font-family:Georgia, "Times New Roman", serif; font-size:1.917cqw; line-height:1.05; font-weight:700; }
+.report-poster--monthly .poster-financial-summary { grid-template-columns:1.55fr repeat(3,minmax(0,1fr)); gap:.833cqw; padding:1.083cqw 0 1cqw; }
+.report-poster--monthly .poster-metric { min-height:7.5cqw; padding:1.167cqw 1cqw; border:0; border-radius:.583cqw; background:#f6f8f7; }
+.report-poster--monthly .poster-metric.is-revenue { background:#087b70; color:#fff; }
+.report-poster--monthly .poster-metric.is-revenue .poster-metric-label, .report-poster--monthly .poster-metric.is-revenue .poster-metric-percent { color:#e9fbf7; }
+.report-poster--monthly .poster-metric.is-profit { background:#ecf7f4; }
+.report-poster--monthly .poster-metric.is-revenue .poster-value { color:#fff; font-size:2.25cqw; }
+.report-poster--monthly .poster-metric.is-profit .poster-value { font-size:1.917cqw; }
+.report-poster--monthly .poster-value { margin-top:.75cqw; font-size:1.75cqw; }
+.report-poster--monthly .poster-metric-label { font-size:1cqw; }
+.report-poster--monthly .poster-metric-qualifier { font-size:.833cqw; }
+.report-poster--monthly .poster-metric-percent { margin-top:.417cqw; font-size:.917cqw; }
+.report-poster--monthly .poster-rankings { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1.5cqw; min-height:0; border-top:1px solid var(--line); padding-top:1.167cqw; }
+.report-poster--monthly .poster-ranking { display:flex; flex-direction:column; min-width:0; }
+.report-poster--monthly .poster-ranking + .poster-ranking { border-left:1px solid var(--line); padding-left:1.5cqw; }
+.report-poster--monthly .poster-ranking__head { display:flex; align-items:baseline; justify-content:space-between; gap:.75cqw; margin-bottom:.75cqw; padding-bottom:.5cqw; border-bottom:1px solid rgb(23 51 50 / .2); }
+.report-poster--monthly .poster-ranking h3 { margin:0; color:#173332; font-family:Baskerville, "Iowan Old Style", Georgia, serif; font-size:1.833cqw; font-weight:700; letter-spacing:-.01em; line-height:1.1; }
+.report-poster--monthly .poster-ranking p { margin:0; color:var(--muted); font-size:.917cqw; font-weight:650; text-align:right; white-space:nowrap; }
+.report-poster--monthly .poster-ranking ol { display:grid; grid-auto-rows:minmax(5.25cqw,1fr); flex:1; min-height:0; margin:0; padding:0; list-style:none; }
+.report-poster--monthly .poster-rank { position:relative; display:grid; grid-template-columns:2.083cqw minmax(0,1fr) auto; gap:.75cqw; align-items:center; min-height:5.25cqw; padding:.5cqw 0; border-bottom:1px solid rgb(16 45 44 / .09); }
+.report-poster--monthly .poster-rank:before { content:none; }
+.report-poster--monthly .poster-rank__number { display:grid; place-items:center; width:1.5cqw; height:1.5cqw; border-radius:50%; background:#eef6f3; color:#315854; font-size:.917cqw; font-weight:800; font-variant-numeric:tabular-nums; }
+.report-poster--monthly .poster-ranking--low .poster-rank__number { background:#f2f4f3; color:#617572; }
+.report-poster--monthly .poster-rank__content { display:grid; gap:.25cqw; min-width:0; }
+.report-poster--monthly .poster-rank__name { display:-webkit-box; overflow:hidden; color:var(--ink); font-size:1.167cqw; font-weight:750; line-height:1.12; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
+.report-poster--monthly .poster-rank__category { display:block; overflow:hidden; color:var(--muted); font-size:1cqw; font-weight:600; line-height:1.1; text-overflow:ellipsis; white-space:nowrap; }
+.report-poster--monthly .poster-rank__figures { min-width:9.5cqw; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.report-poster--monthly .poster-rank__figures strong { display:block; color:#173332; font-size:1.167cqw; font-weight:800; }
+.report-poster--monthly .poster-rank__figures small { display:block; margin-top:.167cqw; color:var(--muted); font-size:1cqw; font-weight:650; }
+.report-poster--monthly .poster-product-empty { min-height:0; margin-top:1.167cqw; border-top:1px solid var(--line); font-size:1.167cqw; }
+.report-poster--monthly .poster-product-empty strong { font-family:Baskerville, "Iowan Old Style", Georgia, serif; font-size:2cqw; }
+.report-poster--monthly .poster-product-empty p { max-width:40cqw; margin-top:.5cqw; font-size:1.167cqw; }
+.report-poster--monthly .report-poster__footer { margin-top:1.333cqw; padding-top:1cqw; align-self:auto; font-size:.917cqw; }
+
 @media (max-width: 420px) {
   .report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 17cqw 13.25cqw minmax(37.5cqw,1fr) auto; padding:2.333cqw 2.833cqw 2cqw; }
 }
