@@ -42,6 +42,7 @@ export function buildMonthlyReportingDataset({ financialContract, productContrac
     financialCompleteness: financial.financialCompleteness,
     topProducts: productContract?.top_products ?? [],
     lowestProducts: productContract?.lowest_products ?? [],
+    categoryContributions: productContract?.category_contributions ?? [],
     productDataStatus: productContract?.product_data_status ?? "unavailable",
     totalProductSalesRevenue: numberOrNull(productContract?.total_product_sales_revenue),
   };
