@@ -18,7 +18,7 @@
 .report-poster--yearly .poster-metric.is-revenue { background:#087b70; color:#fff; }
 .report-poster--yearly .poster-metric.is-revenue .poster-metric-label, .report-poster--yearly .poster-metric.is-revenue .poster-metric-percent { color:#e9fbf7; }
 .report-poster--yearly .poster-metric.is-profit { background:#ecf7f4; }
-.report-poster--yearly .poster-metric.is-revenue .poster-value { color:#fff; font-size:27px; }
+.report-poster--yearly .poster-metric.is-revenue .poster-value { color:#fff; font-size:22px; }
 .report-poster--yearly .poster-metric.is-profit .poster-value { font-size:20px; }
 .report-poster--yearly .poster-value { margin-top:9px; font-size:19px; }
 .report-poster--yearly .poster-metric-label { font-size:9px; }
