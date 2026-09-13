@@ -1,7 +1,77 @@
 import { compactMonth, money, statusLabel } from "./reportingFormatters.js";
 import { MetricValue, PosterFooter, PosterHeader, PosterShell } from "./reportingPosterPrimitives.jsx";
-function percent(metric, revenue, { revenueMetric = false, net = false } = {}) { if (revenueMetric && metric?.presence === "present") return "100%"; if (metric?.presence !== "present" || revenue?.presence !== "present" || !Number(revenue.amount)) return "—"; return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${net ? " Net Margin" : " of Revenue"}`; }
+
+const REVENUE = "#147d70";
+const PROFIT = "#375e86";
+
+function percent(metric, revenue, { revenueMetric = false, net = false } = {}) {
+  if (revenueMetric && metric?.presence === "present") return "100%";
+  if (metric?.presence !== "present" || revenue?.presence !== "present" || !Number(revenue.amount)) return "—";
+  return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${net ? " Net Margin" : " of Revenue"}`;
+}
+
 function negative(metric) { return metric?.presence === "present" && Number(metric.amount) < 0; }
-function missingPeriods(months) { return months.filter((month) => month.financials.revenue?.presence !== "present").map((month) => compactMonth(month.month)).join(", "); }
-function Chart({ months }) { const revenues = months.map((month) => month.financials.revenue?.presence === "present" ? Number(month.financials.revenue.amount) : null); const profits = months.map((month) => month.financials.netProfit?.presence === "present" ? Number(month.financials.netProfit.amount) : null); const maxRevenue = Math.max(...revenues.filter((value) => value !== null), 1); const profitValues = profits.filter((value) => value !== null); const minProfit = Math.min(...profitValues, 0); const maxProfit = Math.max(...profitValues, 0); const profitRange = Math.max(maxProfit - minProfit, 1); const x = (index) => 14 + index * 22; const profitY = (value) => 76 - ((value - minProfit) / profitRange) * 54; return <><svg className="poster-trend" viewBox="0 0 280 100" role="img" aria-label="Monthly Financial Performance: revenue bars and net profit line"><path className="axis" d="M 8 76 H 276"/>{revenues.map((value, index) => value === null ? null : <rect key={`revenue-${index}`} className="revenue-bar" fill="#147d70" x={x(index) - 6} y={76 - Math.max(2, value / maxRevenue * 54)} width="12" height={Math.max(2, value / maxRevenue * 54)} rx="1"/>)}{profits.map((value, index) => value !== null && profits[index + 1] !== null ? <line key={`profit-line-${index}`} className="profit-line" stroke="#375e86" x1={x(index)} y1={profitY(value)} x2={x(index + 1)} y2={profitY(profits[index + 1])}/> : null)}{profits.map((value, index) => value === null ? null : <circle key={`profit-point-${index}`} className="profit-point" fill="#375e86" cx={x(index)} cy={profitY(value)} r="2.8"/>)}</svg><div className="poster-trend-labels">{months.map((month) => <span key={month.month}>{compactMonth(month.month).slice(0, 1)}</span>)}</div></>; }
-export default function YearlyPnlPoster({ dataset, outlet, logoUrl }) { const incomplete = dataset.completeness !== "complete"; const period = dataset.periodMode === "ytd" ? `${dataset.year} YTD` : `${dataset.year}`; return <PosterShell kind="yearly" label="Yearly P&L Report poster"><PosterHeader type="Annual Financial Performance" outlet={outlet ?? dataset.outlet} logoUrl={logoUrl} period={period} status={statusLabel(dataset.completeness, dataset.periodMode)} incomplete={incomplete}/><section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(dataset.totals.revenue)} percentage={percent(dataset.totals.revenue, dataset.totals.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(dataset.totals.purchaseBasedCogs)} percentage={percent(dataset.totals.purchaseBasedCogs, dataset.totals.revenue)}/><MetricValue label="OpEx" metric={money(dataset.totals.opex)} percentage={percent(dataset.totals.opex, dataset.totals.revenue)}/><MetricValue className="is-profit" label="Net Profit" metric={money(dataset.totals.netProfit)} percentage={percent(dataset.totals.netProfit, dataset.totals.revenue, { net: true })}/></section><section className="poster-yearly-body">{incomplete ? <p className="poster-missing">Missing: {missingPeriods(dataset.months) || "Financial source evidence"}</p> : null}<div className="poster-trend-head"><h3>Monthly Financial Performance</h3><div className="poster-legend"><span><i/>Revenue</span><span><i className="is-profit"/>Net Profit</span></div></div><Chart months={dataset.months}/><div className="poster-financial-table"><div className="poster-table-row poster-table-row--head"><span>Month</span><span>Revenue</span><span>COGS</span><span>OpEx</span><span>Net</span></div>{dataset.months.map((month) => <div className={`poster-table-row ${month.financials.revenue?.presence !== "present" ? "is-missing" : ""}`} key={month.month}><span>{compactMonth(month.month)}</span><span>{money(month.financials.revenue)}</span><span>{money(month.financials.purchaseBasedCogs)}</span><span>{money(month.financials.opex)}</span><strong className={negative(month.financials.netProfit) ? "is-negative" : ""}>{money(month.financials.netProfit)}</strong></div>)}</div></section><PosterFooter type="Annual Financial Performance" period={period} status={statusLabel(dataset.completeness, dataset.periodMode)}/></PosterShell>; }
+function hasRevenue(month) { return month.financials.revenue?.presence === "present"; }
+function hasProfit(month) { return month.financials.netProfit?.presence === "present"; }
+function shortMoney(value) { return `${value < 0 ? "-" : ""}RM ${(Math.abs(value) / 1000).toFixed(value % 1000 ? 1 : 0)}k`; }
+
+function Chart({ months }) {
+  const revenues = months.map((month) => hasRevenue(month) ? Number(month.financials.revenue.amount) : null);
+  const profits = months.map((month) => hasProfit(month) ? Number(month.financials.netProfit.amount) : null);
+  const values = [...revenues, ...profits].filter((value) => value !== null);
+  const maxValue = Math.max(...values, 0);
+  const minValue = Math.min(...values, 0);
+  const step = maxValue > 100000 ? 50000 : 25000;
+  const chartMax = Math.max(step, Math.ceil(maxValue / step) * step);
+  const chartMin = minValue < 0 ? Math.floor(minValue / step) * step : 0;
+  const top = 24;
+  const bottom = 246;
+  const left = 64;
+  const right = 978;
+  const chartHeight = bottom - top;
+  const chartWidth = right - left;
+  const y = (value) => bottom - ((value - chartMin) / Math.max(chartMax - chartMin, 1)) * chartHeight;
+  const zero = y(0);
+  const x = (index) => left + ((index + 0.5) / months.length) * chartWidth;
+  const ticks = Array.from({ length: 5 }, (_, index) => chartMin + ((chartMax - chartMin) / 4) * index);
+
+  return <div className="poster-yearly-chart">
+    <div className="poster-yearly-chart__head"><h3>Monthly Performance</h3><div className="poster-legend"><span><i/>Revenue</span><span><i className="is-profit"/>Net Profit</span></div></div>
+    <svg className="poster-trend" viewBox="0 0 1000 286" role="img" aria-label="Monthly Financial Performance: revenue bars and net profit line">
+      {ticks.map((tick) => <g key={tick}><line className="poster-chart-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)}/><text className="poster-chart-axis-label" x={left - 12} y={y(tick) + 4} textAnchor="end">{shortMoney(tick)}</text></g>)}
+      <line className="poster-chart-zero" x1={left} x2={right} y1={zero} y2={zero}/>
+      {revenues.map((value, index) => value === null ? null : <rect key={`revenue-${index}`} className="revenue-bar" fill={REVENUE} x={x(index) - 13} y={Math.min(y(value), zero)} width="26" height={Math.abs(zero - y(value))} rx="2"/>)}
+      {profits.map((value, index) => value !== null && profits[index + 1] !== null ? <line key={`profit-line-${index}`} className="profit-line" stroke={PROFIT} x1={x(index)} y1={y(value)} x2={x(index + 1)} y2={y(profits[index + 1])}/> : null)}
+      {profits.map((value, index) => value === null ? null : <circle key={`profit-point-${index}`} className="profit-point" fill={value < 0 ? "#a34b4b" : PROFIT} cx={x(index)} cy={y(value)} r="5"/>)}
+      {months.map((month, index) => <text className="poster-chart-month" key={month.month} x={x(index)} y="276" textAnchor="middle">{compactMonth(month.month)}</text>)}
+    </svg>
+  </div>;
+}
+
+function Snapshot({ months }) {
+  const revenueMonths = months.filter(hasRevenue);
+  const profitMonths = months.filter(hasProfit);
+  const bestRevenue = revenueMonths.reduce((best, month) => !best || Number(month.financials.revenue.amount) > Number(best.financials.revenue.amount) ? month : best, null);
+  const bestProfit = profitMonths.reduce((best, month) => !best || Number(month.financials.netProfit.amount) > Number(best.financials.netProfit.amount) ? month : best, null);
+  const lowProfit = profitMonths.reduce((lowest, month) => !lowest || Number(month.financials.netProfit.amount) < Number(lowest.financials.netProfit.amount) ? month : lowest, null);
+  const item = (label, month, metric, tone = "") => <div className={`poster-snapshot__item ${tone}`}><span>{label}</span><strong>{month ? compactMonth(month.month) : "—"}</strong><em>{month ? money(month.financials[metric]) : "—"}</em></div>;
+  return <section className="poster-snapshot" aria-label="Performance Snapshot"><div className="poster-snapshot__title">Performance Snapshot <span>Reported period</span></div><div className="poster-snapshot__grid">{item("Best Revenue Month", bestRevenue, "revenue")}{item("Best Net Profit Month", bestProfit, "netProfit")}{item("Lowest Net Profit Month", lowProfit, "netProfit", "is-negative")}<div className="poster-snapshot__item"><span>Reported Months</span><strong>{revenueMonths.length} / {months.length}</strong><em>{(revenueMonths.length / months.length * 100).toFixed(1)}% of year</em></div></div></section>;
+}
+
+function Completeness({ months }) {
+  const reported = months.filter(hasRevenue).length;
+  const missing = months.filter((month) => !hasRevenue(month)).map((month) => compactMonth(month.month)).join(", ");
+  return <section className="poster-completeness"><div><strong>{reported} / {months.length} months reported</strong><span>Data Completeness</span></div><p>Missing data: {missing || "None"}</p></section>;
+}
+
+export default function YearlyPnlPoster({ dataset, outlet, logoUrl }) {
+  const incomplete = dataset.completeness !== "complete";
+  const period = dataset.periodMode === "ytd" ? `${dataset.year} YTD` : `${dataset.year}`;
+  return <PosterShell kind="yearly" label="Yearly P&L Report poster">
+    <PosterHeader type="Annual Financial Performance" outlet={outlet ?? dataset.outlet} logoUrl={logoUrl} period={period} status={statusLabel(dataset.completeness, dataset.periodMode)} incomplete={incomplete}/>
+    <section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(dataset.totals.revenue)} percentage={percent(dataset.totals.revenue, dataset.totals.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(dataset.totals.purchaseBasedCogs)} percentage={percent(dataset.totals.purchaseBasedCogs, dataset.totals.revenue)}/><MetricValue label="OpEx" metric={money(dataset.totals.opex)} percentage={percent(dataset.totals.opex, dataset.totals.revenue)}/><MetricValue className="is-profit" label="Net Profit" metric={money(dataset.totals.netProfit)} percentage={percent(dataset.totals.netProfit, dataset.totals.revenue, { net: true })}/></section>
+    <Completeness months={dataset.months}/><Chart months={dataset.months}/><Snapshot months={dataset.months}/>
+    <section className="poster-yearly-details"><div className="poster-yearly-details__head"><h3>Monthly P&amp;L Details</h3><span>— No data available</span></div><div className="poster-financial-table"><div className="poster-table-row poster-table-row--head"><span>Month</span><span>Revenue</span><span>COGS</span><span>OpEx</span><span>Net Profit</span></div>{dataset.months.map((month) => <div className={`poster-table-row ${!hasRevenue(month) ? "is-missing" : ""}`} key={month.month}><span>{compactMonth(month.month)}</span><span>{money(month.financials.revenue)}</span><span>{money(month.financials.purchaseBasedCogs)}</span><span>{money(month.financials.opex)}</span><strong className={negative(month.financials.netProfit) ? "is-negative" : ""}>{money(month.financials.netProfit)}</strong></div>)}</div></section>
+    <PosterFooter type="Annual Financial Performance" period={period} status={statusLabel(dataset.completeness, dataset.periodMode)}/>
+  </PosterShell>;
+}

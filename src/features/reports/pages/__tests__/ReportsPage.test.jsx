@@ -47,6 +47,9 @@ describe("ReportsPage", () => {
     expect(screen.getAllByLabelText("Yearly P&L Report poster")).toHaveLength(2);
     expect(screen.getAllByText("Jan").length).toBeGreaterThan(0);
     expect(screen.getAllByText("YTD / Incomplete").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1 / 12 months reported")).toHaveLength(2);
+    expect(screen.getAllByText("Performance Snapshot")).toHaveLength(2);
+    expect(screen.getAllByText("Monthly P&L Details")).toHaveLength(2);
   });
 
   it("exports only the current generated dataset and prevents export before Generate", async () => {
