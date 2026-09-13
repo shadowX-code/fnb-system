@@ -59,6 +59,19 @@ function assertCanvasHasPosterContent(canvas) {
   if (meaningfulPixels < 120) throw new Error("The poster capture was blank. No file was downloaded.");
 }
 
+function normalizeExportResolution(canvas, surface) {
+  if (canvas.width === surface.pngWidth && canvas.height === surface.pngHeight) return canvas;
+  const normalized = document.createElement("canvas");
+  normalized.width = surface.pngWidth;
+  normalized.height = surface.pngHeight;
+  const context = normalized.getContext("2d");
+  if (!context) throw new Error("The poster image could not be normalized for export.");
+  context.fillStyle = "#f7fbfa";
+  context.fillRect(0, 0, normalized.width, normalized.height);
+  context.drawImage(canvas, 0, 0, normalized.width, normalized.height);
+  return normalized;
+}
+
 async function capturePoster(element, reportType) {
   const poster = getPosterNode(element);
   if (!poster) throw new Error("The generated poster is no longer available for export.");
@@ -74,9 +87,9 @@ async function capturePoster(element, reportType) {
     width: REPORT_POSTER_LOGICAL_WIDTH,
     height: surface.height,
   });
-  if (canvas.width !== surface.pngWidth || canvas.height !== surface.pngHeight) throw new Error("The poster image did not reach its required export resolution.");
-  assertCanvasHasPosterContent(canvas);
-  return canvas;
+  const normalizedCanvas = normalizeExportResolution(canvas, surface);
+  assertCanvasHasPosterContent(normalizedCanvas);
+  return normalizedCanvas;
 }
 
 function downloadDataUrl(dataUrl, filename) {
