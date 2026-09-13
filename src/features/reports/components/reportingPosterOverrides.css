@@ -10,8 +10,8 @@
 .report-poster--yearly .report-poster__heading { margin-top: 7px; }
 .report-poster--yearly .report-poster__title { font-size: 28px; letter-spacing: -.03em; }
 .report-poster--yearly .poster-financial-summary { padding: 12px 0; }
-.report-poster--yearly .poster-metric.is-revenue .poster-value { font-size: 23px; }
-.report-poster--yearly .poster-metric.is-profit .poster-value { font-size: 22px; }
+.report-poster--yearly .poster-metric.is-revenue .poster-value { font-size: 19px; }
+.report-poster--yearly .poster-metric.is-profit .poster-value { font-size: 18px; }
 .poster-completeness { display: flex; align-items: center; gap: 18px; padding: 9px 12px; background: #f1f7f5; border: 1px solid #d7e9e3; border-radius: 7px; color: #234541; }
 .poster-completeness div { display: grid; gap: 1px; min-width: 145px; }
 .poster-completeness strong { font-size: 12px; line-height: 1.1; }
