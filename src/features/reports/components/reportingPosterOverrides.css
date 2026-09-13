@@ -4,7 +4,7 @@
 
 /* The Yearly variant mirrors the approved editorial A4 composition. */
 .report-poster--yearly { aspect-ratio:210 / 297; container-type:inline-size; }
-.report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 24.583cqw 12.083cqw minmax(35.833cqw,1fr) auto; min-height:100%; padding:2.333cqw 2.833cqw 2cqw; }
+.report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 19.25cqw 13.25cqw minmax(37.5cqw,1fr) auto; min-height:100%; padding:2.333cqw 2.833cqw 2cqw; }
 .poster-yearly-head { position: relative; padding-bottom: 1cqw; border-bottom: 1px solid var(--line); }
 .poster-yearly-head__identity { display:flex; align-items:center; min-height:1.833cqw; color:#173332; font-size:.833cqw; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
 .poster-yearly-head__identity img { display:block; max-width:12.5cqw; max-height:2.333cqw; object-fit:contain; object-position:left center; }
@@ -27,45 +27,42 @@
 .report-poster--yearly .poster-metric-percent { margin-top:.417cqw; font-size:.667cqw; }
 .poster-completeness { display:grid; grid-template-columns:12.917cqw minmax(20.417cqw, 1fr) minmax(21.667cqw, 1.25fr); align-items:center; gap:1.333cqw; padding:1cqw 1.167cqw; background:#fbf8f1; border:1px solid #f0e3c8; border-radius:.583cqw; color:#234541; }
 .poster-completeness div { display:grid; gap:.167cqw; }
-.poster-completeness strong { font-size:1.083cqw; line-height:1.1; }
-.poster-completeness span { color:var(--muted); font-size:.583cqw; font-weight:750; text-transform:uppercase; letter-spacing:.06em; }
-.poster-completeness p { margin:0; font-size:.75cqw; font-weight:650; }
-.poster-completeness aside { margin:0; padding-left:1.333cqw; border-left:1px solid #dfbd83; color:#35514d; font-size:.667cqw; line-height:1.45; }
+.poster-completeness strong { font-size:1.25cqw; line-height:1.1; }
+.poster-completeness span { color:var(--muted); font-size:.667cqw; font-weight:750; text-transform:uppercase; letter-spacing:.06em; }
+.poster-completeness p { margin:0; font-size:.875cqw; font-weight:650; }
+.poster-completeness aside { margin:0; padding-left:1.333cqw; border-left:1px solid #dfbd83; color:#35514d; font-size:.75cqw; line-height:1.45; }
 .poster-yearly-chart { min-height:0; margin-top:1.25cqw; }
 .poster-yearly-chart__head, .poster-yearly-details__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.poster-yearly-chart__head h3, .poster-yearly-details__head h3 { margin: 0; font-size: 1.083cqw; letter-spacing: -.01em; }
-.poster-yearly-chart .poster-legend { font-size: .667cqw; }
-.report-poster--yearly .poster-trend { display:block; width:100%; height:20.833cqw; margin-top:.583cqw; overflow:visible; }
+.poster-yearly-chart__head h3, .poster-yearly-details__head h3 { margin: 0; font-size: 1.25cqw; letter-spacing: -.01em; }
+.report-poster--yearly .poster-trend { display:block; width:100%; height:16.667cqw; margin-top:.583cqw; overflow:visible; }
 .poster-chart-grid { stroke: #d9e6e2; stroke-width: 1; }
 .poster-chart-zero { stroke: #93aaa4; stroke-width: 1.2; }
-.poster-chart-axis-label, .poster-chart-month, .poster-chart-value, .poster-profit-value { fill:#617572; font-family:Inter,ui-sans-serif,system-ui,sans-serif; font-size:9px; font-weight:650; }
-.poster-chart-month { fill:#35514d; font-size:9px; font-weight:750; }
-.poster-chart-value { fill:#087066; font-size:8px; font-weight:850; }
-.poster-profit-value { fill:#375e86; font-size:8px; font-weight:850; }
-.poster-profit-value.is-negative { fill:#a34b4b; }
+.report-poster--yearly .poster-chart-axis-label, .report-poster--yearly .poster-chart-month, .report-poster--yearly .poster-chart-value { fill:#617572; font-family:Inter,ui-sans-serif,system-ui,sans-serif; font-size:.875cqw; font-weight:650; }
+.report-poster--yearly .poster-chart-month { fill:#35514d; font-size:.917cqw; font-weight:750; }
+.report-poster--yearly .poster-chart-value { fill:#087066; font-size:.875cqw; font-weight:850; }
 .report-poster--yearly .revenue-bar { opacity: .9; }
-.report-poster--yearly .profit-line { stroke-width:1.35; stroke-linecap:round; opacity:.86; }
 .poster-snapshot { align-self:stretch; margin-top:1.083cqw; border:0; border-radius:.583cqw; padding:1.417cqw 1.333cqw; background:#f7f8f5; }
-.poster-snapshot__title { font-size:1cqw; font-weight:850; }
-.poster-snapshot__title span { color:var(--muted); font-size:.75cqw; font-weight:600; margin-left:.417cqw; }
+.poster-snapshot__title { font-size:1.167cqw; font-weight:850; }
+.poster-snapshot__title span { color:var(--muted); font-size:.833cqw; font-weight:600; margin-left:.417cqw; }
 .poster-snapshot__grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:1.083cqw; }
 .poster-snapshot__item { display:grid; gap:.333cqw; min-width:0; padding:0 1cqw; border-left:1px solid var(--line); }
 .poster-snapshot__item:first-child { padding-left: 0; border-left: 0; }
-.poster-snapshot__item span { color:var(--muted); font-size:.667cqw; font-weight:700; }
-.poster-snapshot__item strong { font-size:1cqw; }
-.poster-snapshot__item em { color:var(--teal); font-size:1.167cqw; font-style:normal; font-weight:850; white-space:nowrap; }
+.poster-snapshot__item span { color:var(--muted); font-size:.833cqw; font-weight:700; }
+.poster-snapshot__item strong { font-size:1.167cqw; }
+.poster-snapshot__item em { color:var(--teal); font-size:1.333cqw; font-style:normal; font-weight:850; white-space:nowrap; }
 .poster-snapshot__item.is-negative em { color: #a34b4b; }
 .poster-yearly-details { display:flex; flex-direction:column; min-height:0; margin-top:1.25cqw; }
-.poster-yearly-details__head span { color: var(--muted); font-size: .667cqw; font-weight: 650; }
-.report-poster--yearly .poster-financial-table { display:grid; grid-template-rows:2.833cqw repeat(12,minmax(3cqw,1fr)); flex:1; margin-top:.5cqw; }
-.report-poster--yearly .poster-table-row { grid-template-columns:4.583cqw repeat(4,minmax(0,1fr)); min-height:3cqw; font-size:.75cqw; }
-.report-poster--yearly .poster-table-row--head { min-height:2.583cqw; padding:0 .667cqw; background:#eaf5f1; color:#315854; font-size:.667cqw; }
+.poster-yearly-details__head span { color: var(--muted); font-size: .75cqw; font-weight: 650; }
+.report-poster--yearly .poster-financial-table { display:grid; grid-template-rows:3cqw repeat(12,minmax(3.25cqw,1fr)); flex:1; margin-top:.5cqw; }
+.report-poster--yearly .poster-table-row { grid-template-columns:4.583cqw repeat(4,minmax(0,1fr)); min-height:3.25cqw; font-size:.875cqw; }
+.report-poster--yearly .poster-table-row--head { min-height:3cqw; padding:0 .667cqw; background:#eaf5f1; color:#315854; font-size:.75cqw; }
+.report-poster--yearly .poster-table-row > span:first-child { font-size:.875cqw; }
 .report-poster--yearly .poster-table-figure { display:grid; gap:2px; min-width:0; overflow:visible; white-space:normal; }
-.report-poster--yearly .poster-table-figure b { overflow:hidden; color:inherit; font-size:.75cqw; font-weight:750; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
-.report-poster--yearly .poster-table-figure small { overflow:hidden; color:#617572; font-size:.583cqw; font-weight:650; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
+.report-poster--yearly .poster-table-figure b { overflow:hidden; color:inherit; font-size:.875cqw; font-weight:750; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
+.report-poster--yearly .poster-table-figure small { overflow:hidden; color:#617572; font-size:.7cqw; font-weight:650; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
 .report-poster--yearly .poster-table-row strong .poster-table-figure small { color:inherit; opacity:.72; }
-.report-poster--yearly .report-poster__footer { margin-top:1.333cqw; padding-top:1cqw; align-self:auto; font-size:.667cqw; }
+.report-poster--yearly .report-poster__footer { margin-top:1.333cqw; padding-top:1cqw; align-self:auto; font-size:.75cqw; }
 
 @media (max-width: 420px) {
-  .report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 24.583cqw 12.083cqw minmax(35.833cqw,1fr) auto; padding:2.333cqw 2.833cqw 2cqw; }
+  .report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 19.25cqw 13.25cqw minmax(37.5cqw,1fr) auto; padding:2.333cqw 2.833cqw 2cqw; }
 }

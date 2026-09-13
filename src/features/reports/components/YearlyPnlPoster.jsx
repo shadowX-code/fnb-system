@@ -2,7 +2,6 @@ import { compactMonth, money, statusLabel } from "./reportingFormatters.js";
 import { MetricValue, PosterFooter, PosterShell } from "./reportingPosterPrimitives.jsx";
 
 const REVENUE = "#147d70";
-const PROFIT = "#375e86";
 
 function percent(metric, revenue, { revenueMetric = false, net = false } = {}) {
   if (revenueMetric && metric?.presence === "present") return "100%";
@@ -13,7 +12,7 @@ function percent(metric, revenue, { revenueMetric = false, net = false } = {}) {
 function negative(metric) { return metric?.presence === "present" && Number(metric.amount) < 0; }
 function hasRevenue(month) { return month.financials.revenue?.presence === "present"; }
 function hasProfit(month) { return month.financials.netProfit?.presence === "present"; }
-function shortMoney(value) { return `${value < 0 ? "-" : ""}RM ${(Math.abs(value) / 1000).toFixed(value % 1000 ? 1 : 0)}k`; }
+function shortMoney(value) { return value === 0 ? "RM 0" : `${value < 0 ? "-" : ""}RM ${(Math.abs(value) / 1000).toFixed(value % 1000 ? 1 : 0)}k`; }
 function monthlyRate(metric, revenue, suffix = "") {
   if (metric?.presence !== "present" || revenue?.presence !== "present" || !Number(revenue.amount)) return "—";
   return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${suffix}`;
@@ -39,33 +38,26 @@ function YearlyHeader({ dataset, outlet, logoUrl, reported }) {
 
 function Chart({ months }) {
   const revenues = months.map((month) => hasRevenue(month) ? Number(month.financials.revenue.amount) : null);
-  const profits = months.map((month) => hasProfit(month) ? Number(month.financials.netProfit.amount) : null);
-  const values = [...revenues, ...profits].filter((value) => value !== null);
-  const maxValue = Math.max(...values, 0);
-  const minValue = Math.min(...values, 0);
-  const step = maxValue > 100000 ? 50000 : 25000;
-  const chartMax = Math.max(step, Math.ceil(maxValue / step) * step);
-  const chartMin = minValue < 0 ? Math.floor(minValue / step) * step : 0;
-  const top = 28;
-  const bottom = 184;
+  const maxRevenue = Math.max(...revenues.filter((value) => value !== null), 0);
+  const step = maxRevenue > 100000 ? 50000 : 25000;
+  const chartMax = Math.max(step, Math.ceil(maxRevenue / step) * step);
+  const top = 20;
+  const bottom = 150;
   const left = 64;
   const right = 978;
   const chartHeight = bottom - top;
   const chartWidth = right - left;
-  const y = (value) => bottom - ((value - chartMin) / Math.max(chartMax - chartMin, 1)) * chartHeight;
-  const zero = y(0);
+  const y = (value) => bottom - (value / chartMax) * chartHeight;
   const x = (index) => left + ((index + 0.5) / months.length) * chartWidth;
-  const ticks = Array.from({ length: 5 }, (_, index) => chartMin + ((chartMax - chartMin) / 4) * index);
+  const ticks = Array.from({ length: Math.round(chartMax / step) + 1 }, (_, index) => index * step);
 
   return <div className="poster-yearly-chart">
-    <div className="poster-yearly-chart__head"><h3>Monthly Performance</h3><div className="poster-legend"><span><i/>Revenue</span><span><i className="is-profit"/>Net Profit</span></div></div>
-    <svg className="poster-trend" viewBox="0 0 1000 250" role="img" aria-label="Monthly Financial Performance: revenue bars and net profit line">
-      {ticks.map((tick) => <g key={tick}><line className="poster-chart-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)}/><text className="poster-chart-axis-label" x={left - 12} y={y(tick) + 4} textAnchor="end">{shortMoney(tick)}</text></g>)}
-      <line className="poster-chart-zero" x1={left} x2={right} y1={zero} y2={zero}/>
-      {revenues.map((value, index) => value === null ? null : <g key={`revenue-${index}`}><rect className="revenue-bar" fill={REVENUE} x={x(index) - 13} y={Math.min(y(value), zero)} width="26" height={Math.abs(zero - y(value))} rx="2"/><text className="poster-chart-value" x={x(index)} y={Math.min(y(value), zero) - 6} textAnchor="middle">{shortMoney(value).replace("RM ", "")}</text></g>)}
-      {profits.map((value, index) => value !== null && profits[index + 1] !== null ? <line key={`profit-line-${index}`} className="profit-line" stroke={PROFIT} x1={x(index)} y1={y(value)} x2={x(index + 1)} y2={y(profits[index + 1])}/> : null)}
-      {profits.map((value, index) => value === null ? null : <g key={`profit-point-${index}`}><circle className="profit-point" fill={value < 0 ? "#a34b4b" : PROFIT} cx={x(index)} cy={y(value)} r="3.6"/><text className={`poster-profit-value ${value < 0 ? "is-negative" : ""}`} x={x(index)} y={y(value) - 7} textAnchor="middle">{shortMoney(value).replace("RM ", "")}</text></g>)}
-      {months.map((month, index) => <text className="poster-chart-month" key={month.month} x={x(index)} y="222" textAnchor="middle">{compactMonth(month.month)}</text>)}
+    <div className="poster-yearly-chart__head"><h3>Monthly Revenue Performance</h3></div>
+    <svg className="poster-trend" viewBox="0 0 1000 205" role="img" aria-label="Monthly Revenue Performance: revenue bars">
+      {ticks.filter((tick) => tick !== 0).map((tick) => <g key={tick}><line className="poster-chart-grid" x1={left} x2={right} y1={y(tick)} y2={y(tick)}/><text className="poster-chart-axis-label" x={left - 12} y={y(tick) + 4} textAnchor="end">{shortMoney(tick)}</text></g>)}
+      <line className="poster-chart-zero" x1={left} x2={right} y1={bottom} y2={bottom}/><text className="poster-chart-axis-label" x={left - 12} y={bottom + 4} textAnchor="end">{shortMoney(0)}</text>
+      {revenues.map((value, index) => value === null ? null : <g key={`revenue-${index}`}><rect className="revenue-bar" fill={REVENUE} x={x(index) - 17} y={y(value)} width="34" height={bottom - y(value)} rx="2"/><text className="poster-chart-value" x={x(index)} y={y(value) - 6} textAnchor="middle">{shortMoney(value).replace("RM ", "")}</text></g>)}
+      {months.map((month, index) => <text className="poster-chart-month" key={month.month} x={x(index)} y="180" textAnchor="middle">{compactMonth(month.month)}</text>)}
     </svg>
   </div>;
 }
