@@ -13,7 +13,7 @@
 .poster-yearly-head h3 { margin:5px 0 0; color:#173332; font-family:Georgia, "Times New Roman", serif; font-size:20px; line-height:1.05; font-weight:700; }
 .poster-yearly-head p { margin:8px 0 0; color:#35514d; font-size:9px; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
 .poster-yearly-head p b { margin:0 6px; }
-.report-poster--yearly .poster-financial-summary { gap:10px; padding:13px 0 12px; }
+.report-poster--yearly .poster-financial-summary { grid-template-columns:1.55fr repeat(3, minmax(0, 1fr)); gap:10px; padding:13px 0 12px; }
 .report-poster--yearly .poster-metric { min-height:90px; padding:14px 12px; border:0; border-radius:7px; background:#f6f8f7; }
 .report-poster--yearly .poster-metric.is-revenue { background:#087b70; color:#fff; }
 .report-poster--yearly .poster-metric.is-revenue .poster-metric-label, .report-poster--yearly .poster-metric.is-revenue .poster-metric-percent { color:#e9fbf7; }
