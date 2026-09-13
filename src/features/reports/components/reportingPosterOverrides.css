@@ -8,7 +8,7 @@
 .poster-yearly-head { position: relative; padding-bottom: 1cqw; border-bottom: 1px solid var(--line); }
 .poster-yearly-head__identity { display:flex; align-items:center; min-height:2.167cqw; color:#173332; font-size:1.25cqw; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
 .poster-yearly-head__identity img { display:block; max-width:13.5cqw; max-height:2.667cqw; object-fit:contain; object-position:left center; }
-.poster-yearly-head .report-poster__status { position:absolute; top:0; right:0; padding:.5cqw .75cqw; font-size:.917cqw; }
+.poster-yearly-head .report-poster__status { position:absolute; top:0; right:0; padding:.5cqw .75cqw; font-size:.917cqw; white-space:nowrap; }
 .poster-yearly-head__type { margin-top:1.083cqw; color:#173332; font-size:1.083cqw; font-weight:850; letter-spacing:.13em; text-transform:uppercase; }
 .poster-yearly-head h2 { margin:.25cqw 0 0; color:#102f2f; font-family:Baskerville, "Iowan Old Style", "Palatino Linotype", Georgia, serif; font-size:4.5cqw; line-height:.94; letter-spacing:-.015em; font-weight:700; font-kerning:normal; font-feature-settings:"lnum" 1, "tnum" 1; }
 .poster-yearly-head h3 { margin:.417cqw 0 0; color:#173332; font-family:Georgia, "Times New Roman", serif; font-size:1.917cqw; line-height:1.05; font-weight:700; }
