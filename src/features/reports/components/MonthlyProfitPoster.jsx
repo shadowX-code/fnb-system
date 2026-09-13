@@ -50,7 +50,7 @@ function CategoryContribution({ rows, totalSales }) {
   })).filter((row) => row.value > 0);
   let offset = 0;
   return <section className="poster-category-contribution">
-    <div className="poster-ranking__head"><h3>Category Contribution</h3><p>Product sales revenue</p></div>
+    <div className="poster-ranking__head"><h3>Category Contribution</h3><p>Product sales · Share</p></div>
     <div className="poster-category-contribution__summary">
       <svg className="poster-category-donut" viewBox="0 0 120 120" role="img" aria-label="Category contribution by product sales revenue">
         <circle cx="60" cy="60" r="42" pathLength="100" fill="none" stroke="#edf3f1" strokeWidth="17" />
@@ -63,7 +63,6 @@ function CategoryContribution({ rows, totalSales }) {
         <text x="60" y="57" textAnchor="middle" className="poster-category-donut__total">{categories.length}</text>
         <text x="60" y="70" textAnchor="middle" className="poster-category-donut__label">categories</text>
       </svg>
-      <p>Share of total completed product sales for this period.</p>
     </div>
     <ol className="poster-category-list">{categories.map((category, index) => {
       const share = Number(totalSales) > 0 ? category.value / Number(totalSales) * 100 : 0;
@@ -71,7 +70,7 @@ function CategoryContribution({ rows, totalSales }) {
         <span className="poster-category-row__swatch" style={{ backgroundColor: categoryColors[index % categoryColors.length] }} />
         <span className="poster-category-row__name" title={category.name}>{category.name}</span>
         <span className="poster-category-row__figures"><strong>{share.toFixed(1)}%</strong><small>{money({ amount: category.value, presence: "present" })}</small></span>
-        <span className="poster-category-row__bar"><i style={{ width: `${Math.max(share, 2)}%`, backgroundColor: categoryColors[index % categoryColors.length] }} /></span>
+        <span className="poster-category-row__bar"><i style={{ width: `${share}%` }} /></span>
       </li>;
     })}</ol>
   </section>;

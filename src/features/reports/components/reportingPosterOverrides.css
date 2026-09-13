@@ -101,20 +101,19 @@
 .report-poster--monthly .poster-rank__figures { min-width:9.5cqw; text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
 .report-poster--monthly .poster-rank__figures strong { display:block; color:#173332; font-size:1.167cqw; font-weight:800; }
 .report-poster--monthly .poster-rank__figures small { display:block; margin-top:.167cqw; color:var(--muted); font-size:1cqw; font-weight:650; }
-.report-poster--monthly .poster-category-contribution__summary { display:grid; grid-template-columns:12cqw minmax(0,1fr); align-items:center; gap:1cqw; margin:.333cqw 0 .583cqw; padding:.5cqw 0 .75cqw; border-bottom:1px solid rgb(16 45 44 / .09); }
-.report-poster--monthly .poster-category-donut { display:block; width:11.5cqw; height:11.5cqw; overflow:visible; }
+.report-poster--monthly .poster-category-contribution__summary { display:flex; justify-content:center; margin:.5cqw 0 .75cqw; padding:.25cqw 0 .875cqw; border-bottom:1px solid rgb(16 45 44 / .09); }
+.report-poster--monthly .poster-category-donut { display:block; width:14cqw; height:14cqw; overflow:visible; }
 .report-poster--monthly .poster-category-donut__total { fill:#173332; font-family:Baskerville, "Iowan Old Style", Georgia, serif; font-size:20px; font-weight:700; }
 .report-poster--monthly .poster-category-donut__label { fill:#617572; font-family:Inter,ui-sans-serif,system-ui,sans-serif; font-size:8px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; }
-.report-poster--monthly .poster-category-contribution__summary p { margin:0; color:#49635f; font-size:.958cqw; font-weight:650; line-height:1.35; }
-.report-poster--monthly .poster-category-list { display:grid; grid-auto-rows:minmax(5.15cqw,1fr); flex:1; min-height:0; margin:0; padding:0; list-style:none; }
-.report-poster--monthly .poster-category-row { display:grid; grid-template-columns:1.25cqw minmax(0,1fr) auto; grid-template-rows:auto .75cqw; column-gap:.5cqw; align-content:center; padding:.45cqw 0; border-bottom:1px solid rgb(16 45 44 / .09); }
+.report-poster--monthly .poster-category-list { display:flex; flex:0 0 auto; flex-direction:column; gap:.667cqw; margin:0; padding:0; list-style:none; }
+.report-poster--monthly .poster-category-row { display:grid; grid-template-columns:1.25cqw minmax(0,1fr) auto; grid-template-rows:minmax(2.75cqw,auto) .417cqw; column-gap:.5cqw; align-items:center; padding:.25cqw 0 .5cqw; border-bottom:1px solid rgb(16 45 44 / .09); }
 .report-poster--monthly .poster-category-row__swatch { width:.833cqw; height:.833cqw; align-self:center; border-radius:50%; }
 .report-poster--monthly .poster-category-row__name { display:-webkit-box; overflow:hidden; color:var(--ink); font-size:1.083cqw; font-weight:750; line-height:1.1; -webkit-box-orient:vertical; -webkit-line-clamp:2; }
-.report-poster--monthly .poster-category-row__figures { grid-column:3; grid-row:1; min-width:8.5cqw; text-align:right; font-variant-numeric:tabular-nums; }
+.report-poster--monthly .poster-category-row__figures { grid-column:3; grid-row:1; align-self:center; min-width:8.5cqw; text-align:right; font-variant-numeric:tabular-nums; }
 .report-poster--monthly .poster-category-row__figures strong { display:block; color:#173332; font-size:1.083cqw; font-weight:850; line-height:1.05; }
 .report-poster--monthly .poster-category-row__figures small { display:block; margin-top:.125cqw; color:var(--muted); font-size:.917cqw; font-weight:650; line-height:1.05; }
-.report-poster--monthly .poster-category-row__bar { grid-column:2 / 4; grid-row:2; display:block; height:.25cqw; margin-top:.417cqw; overflow:hidden; border-radius:99px; background:#e8f0ee; }
-.report-poster--monthly .poster-category-row__bar i { display:block; height:100%; border-radius:inherit; }
+.report-poster--monthly .poster-category-row__bar { grid-column:2 / 4; grid-row:2; display:block; height:.417cqw; margin-top:.25cqw; overflow:hidden; border-radius:99px; background:#e5efec; }
+.report-poster--monthly .poster-category-row__bar i { display:block; height:100%; border-radius:inherit; background:#4b9a91; }
 .report-poster--monthly .poster-product-empty { min-height:0; margin-top:1.167cqw; border-top:1px solid var(--line); font-size:1.167cqw; }
 .report-poster--monthly .poster-product-empty strong { font-family:Baskerville, "Iowan Old Style", Georgia, serif; font-size:2cqw; }
 .report-poster--monthly .poster-product-empty p { max-width:40cqw; margin-top:.5cqw; font-size:1.167cqw; }
