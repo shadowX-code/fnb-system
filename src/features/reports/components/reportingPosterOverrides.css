@@ -3,39 +3,39 @@
 .report-poster__footer { align-self: end; }
 
 /* The Yearly variant mirrors the approved editorial A4 composition. */
-.report-poster--yearly { aspect-ratio:210 / 297; }
-.report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 295px 145px minmax(430px,1fr) auto; min-height:100%; padding:28px 34px 24px; }
-.poster-yearly-head { position: relative; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-.poster-yearly-head__identity { display:flex; align-items:center; min-height:22px; color:#173332; font-size:10px; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
-.poster-yearly-head__identity img { display:block; max-width:150px; max-height:28px; object-fit:contain; object-position:left center; }
+.report-poster--yearly { aspect-ratio:210 / 297; container-type:inline-size; }
+.report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 24.583cqw 12.083cqw minmax(35.833cqw,1fr) auto; min-height:100%; padding:2.333cqw 2.833cqw 2cqw; }
+.poster-yearly-head { position: relative; padding-bottom: 1cqw; border-bottom: 1px solid var(--line); }
+.poster-yearly-head__identity { display:flex; align-items:center; min-height:1.833cqw; color:#173332; font-size:.833cqw; font-weight:850; letter-spacing:.12em; text-transform:uppercase; }
+.poster-yearly-head__identity img { display:block; max-width:12.5cqw; max-height:2.333cqw; object-fit:contain; object-position:left center; }
 .poster-yearly-head .report-poster__status { position:absolute; top:0; right:0; }
-.poster-yearly-head__type { margin-top:15px; color:#173332; font-size:11px; font-weight:850; letter-spacing:.15em; text-transform:uppercase; }
-.poster-yearly-head h2 { margin:3px 0 0; color:#102f2f; font-family:Georgia, "Times New Roman", serif; font-size:48px; line-height:.96; letter-spacing:-.035em; }
-.poster-yearly-head h3 { margin:5px 0 0; color:#173332; font-family:Georgia, "Times New Roman", serif; font-size:20px; line-height:1.05; font-weight:700; }
-.poster-yearly-head p { margin:8px 0 0; color:#35514d; font-size:9px; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
+.poster-yearly-head__type { margin-top:1.25cqw; color:#173332; font-size:.917cqw; font-weight:850; letter-spacing:.15em; text-transform:uppercase; }
+.poster-yearly-head h2 { margin:.25cqw 0 0; color:#102f2f; font-family:Georgia, "Times New Roman", serif; font-size:4cqw; line-height:.96; letter-spacing:-.035em; }
+.poster-yearly-head h3 { margin:.417cqw 0 0; color:#173332; font-family:Georgia, "Times New Roman", serif; font-size:1.667cqw; line-height:1.05; font-weight:700; }
+.poster-yearly-head p { margin:.667cqw 0 0; color:#35514d; font-size:.75cqw; font-weight:750; letter-spacing:.13em; text-transform:uppercase; }
 .poster-yearly-head p b { margin:0 6px; }
-.report-poster--yearly .poster-financial-summary { grid-template-columns:1.55fr repeat(3, minmax(0, 1fr)); gap:10px; padding:13px 0 12px; }
-.report-poster--yearly .poster-metric { min-height:90px; padding:14px 12px; border:0; border-radius:7px; background:#f6f8f7; }
+.report-poster--yearly .poster-financial-summary { grid-template-columns:1.55fr repeat(3, minmax(0, 1fr)); gap:.833cqw; padding:1.083cqw 0 1cqw; }
+.report-poster--yearly .poster-metric { min-height:7.5cqw; padding:1.167cqw 1cqw; border:0; border-radius:.583cqw; background:#f6f8f7; }
 .report-poster--yearly .poster-metric.is-revenue { background:#087b70; color:#fff; }
 .report-poster--yearly .poster-metric.is-revenue .poster-metric-label, .report-poster--yearly .poster-metric.is-revenue .poster-metric-percent { color:#e9fbf7; }
 .report-poster--yearly .poster-metric.is-profit { background:#ecf7f4; }
-.report-poster--yearly .poster-metric.is-revenue .poster-value { color:#fff; font-size:22px; }
-.report-poster--yearly .poster-metric.is-profit .poster-value { font-size:18px; }
-.report-poster--yearly .poster-value { margin-top:9px; font-size:17px; }
-.report-poster--yearly .poster-metric-label { font-size:9px; }
-.report-poster--yearly .poster-metric-qualifier { font-size:7px; }
-.report-poster--yearly .poster-metric-percent { margin-top:5px; font-size:8px; }
-.poster-completeness { display:grid; grid-template-columns:155px minmax(245px, 1fr) minmax(260px, 1.25fr); align-items:center; gap:16px; padding:12px 14px; background:#fbf8f1; border:1px solid #f0e3c8; border-radius:7px; color:#234541; }
-.poster-completeness div { display:grid; gap:2px; }
-.poster-completeness strong { font-size:13px; line-height:1.1; }
-.poster-completeness span { color:var(--muted); font-size:7px; font-weight:750; text-transform:uppercase; letter-spacing:.06em; }
-.poster-completeness p { margin:0; font-size:9px; font-weight:650; }
-.poster-completeness aside { margin:0; padding-left:16px; border-left:1px solid #dfbd83; color:#35514d; font-size:8px; line-height:1.45; }
-.poster-yearly-chart { min-height:0; margin-top:15px; }
+.report-poster--yearly .poster-metric.is-revenue .poster-value { color:#fff; font-size:1.833cqw; }
+.report-poster--yearly .poster-metric.is-profit .poster-value { font-size:1.5cqw; }
+.report-poster--yearly .poster-value { margin-top:.75cqw; font-size:1.417cqw; }
+.report-poster--yearly .poster-metric-label { font-size:.75cqw; }
+.report-poster--yearly .poster-metric-qualifier { font-size:.583cqw; }
+.report-poster--yearly .poster-metric-percent { margin-top:.417cqw; font-size:.667cqw; }
+.poster-completeness { display:grid; grid-template-columns:12.917cqw minmax(20.417cqw, 1fr) minmax(21.667cqw, 1.25fr); align-items:center; gap:1.333cqw; padding:1cqw 1.167cqw; background:#fbf8f1; border:1px solid #f0e3c8; border-radius:.583cqw; color:#234541; }
+.poster-completeness div { display:grid; gap:.167cqw; }
+.poster-completeness strong { font-size:1.083cqw; line-height:1.1; }
+.poster-completeness span { color:var(--muted); font-size:.583cqw; font-weight:750; text-transform:uppercase; letter-spacing:.06em; }
+.poster-completeness p { margin:0; font-size:.75cqw; font-weight:650; }
+.poster-completeness aside { margin:0; padding-left:1.333cqw; border-left:1px solid #dfbd83; color:#35514d; font-size:.667cqw; line-height:1.45; }
+.poster-yearly-chart { min-height:0; margin-top:1.25cqw; }
 .poster-yearly-chart__head, .poster-yearly-details__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
-.poster-yearly-chart__head h3, .poster-yearly-details__head h3 { margin: 0; font-size: 13px; letter-spacing: -.01em; }
-.poster-yearly-chart .poster-legend { font-size: 8px; }
-.report-poster--yearly .poster-trend { display:block; width:100%; height:250px; margin-top:7px; overflow:visible; }
+.poster-yearly-chart__head h3, .poster-yearly-details__head h3 { margin: 0; font-size: 1.083cqw; letter-spacing: -.01em; }
+.poster-yearly-chart .poster-legend { font-size: .667cqw; }
+.report-poster--yearly .poster-trend { display:block; width:100%; height:20.833cqw; margin-top:.583cqw; overflow:visible; }
 .poster-chart-grid { stroke: #d9e6e2; stroke-width: 1; }
 .poster-chart-zero { stroke: #93aaa4; stroke-width: 1.2; }
 .poster-chart-axis-label, .poster-chart-month, .poster-chart-value, .poster-profit-value { fill:#617572; font-family:Inter,ui-sans-serif,system-ui,sans-serif; font-size:9px; font-weight:650; }
@@ -45,27 +45,27 @@
 .poster-profit-value.is-negative { fill:#a34b4b; }
 .report-poster--yearly .revenue-bar { opacity: .9; }
 .report-poster--yearly .profit-line { stroke-width:1.35; stroke-linecap:round; opacity:.86; }
-.poster-snapshot { align-self:stretch; margin-top:13px; border:0; border-radius:7px; padding:17px 16px; background:#f7f8f5; }
-.poster-snapshot__title { font-size:12px; font-weight:850; }
-.poster-snapshot__title span { color:var(--muted); font-size:9px; font-weight:600; margin-left:5px; }
-.poster-snapshot__grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:13px; }
-.poster-snapshot__item { display:grid; gap:4px; min-width:0; padding:0 12px; border-left:1px solid var(--line); }
+.poster-snapshot { align-self:stretch; margin-top:1.083cqw; border:0; border-radius:.583cqw; padding:1.417cqw 1.333cqw; background:#f7f8f5; }
+.poster-snapshot__title { font-size:1cqw; font-weight:850; }
+.poster-snapshot__title span { color:var(--muted); font-size:.75cqw; font-weight:600; margin-left:.417cqw; }
+.poster-snapshot__grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); margin-top:1.083cqw; }
+.poster-snapshot__item { display:grid; gap:.333cqw; min-width:0; padding:0 1cqw; border-left:1px solid var(--line); }
 .poster-snapshot__item:first-child { padding-left: 0; border-left: 0; }
-.poster-snapshot__item span { color:var(--muted); font-size:8px; font-weight:700; }
-.poster-snapshot__item strong { font-size:12px; }
-.poster-snapshot__item em { color:var(--teal); font-size:14px; font-style:normal; font-weight:850; white-space:nowrap; }
+.poster-snapshot__item span { color:var(--muted); font-size:.667cqw; font-weight:700; }
+.poster-snapshot__item strong { font-size:1cqw; }
+.poster-snapshot__item em { color:var(--teal); font-size:1.167cqw; font-style:normal; font-weight:850; white-space:nowrap; }
 .poster-snapshot__item.is-negative em { color: #a34b4b; }
-.poster-yearly-details { display:flex; flex-direction:column; min-height:0; margin-top:15px; }
-.poster-yearly-details__head span { color: var(--muted); font-size: 8px; font-weight: 650; }
-.report-poster--yearly .poster-financial-table { display:grid; grid-template-rows:34px repeat(12,minmax(36px,1fr)); flex:1; margin-top:6px; }
-.report-poster--yearly .poster-table-row { grid-template-columns:55px repeat(4,minmax(0,1fr)); min-height:36px; font-size:9px; }
-.report-poster--yearly .poster-table-row--head { min-height:31px; padding:0 8px; background:#eaf5f1; color:#315854; font-size:8px; }
+.poster-yearly-details { display:flex; flex-direction:column; min-height:0; margin-top:1.25cqw; }
+.poster-yearly-details__head span { color: var(--muted); font-size: .667cqw; font-weight: 650; }
+.report-poster--yearly .poster-financial-table { display:grid; grid-template-rows:2.833cqw repeat(12,minmax(3cqw,1fr)); flex:1; margin-top:.5cqw; }
+.report-poster--yearly .poster-table-row { grid-template-columns:4.583cqw repeat(4,minmax(0,1fr)); min-height:3cqw; font-size:.75cqw; }
+.report-poster--yearly .poster-table-row--head { min-height:2.583cqw; padding:0 .667cqw; background:#eaf5f1; color:#315854; font-size:.667cqw; }
 .report-poster--yearly .poster-table-figure { display:grid; gap:2px; min-width:0; overflow:visible; white-space:normal; }
-.report-poster--yearly .poster-table-figure b { overflow:hidden; color:inherit; font-size:9px; font-weight:750; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
-.report-poster--yearly .poster-table-figure small { overflow:hidden; color:#617572; font-size:7px; font-weight:650; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
+.report-poster--yearly .poster-table-figure b { overflow:hidden; color:inherit; font-size:.75cqw; font-weight:750; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
+.report-poster--yearly .poster-table-figure small { overflow:hidden; color:#617572; font-size:.583cqw; font-weight:650; line-height:1.05; text-overflow:ellipsis; white-space:nowrap; }
 .report-poster--yearly .poster-table-row strong .poster-table-figure small { color:inherit; opacity:.72; }
-.report-poster--yearly .report-poster__footer { margin-top:16px; padding-top:12px; align-self:auto; }
+.report-poster--yearly .report-poster__footer { margin-top:1.333cqw; padding-top:1cqw; align-self:auto; font-size:.667cqw; }
 
 @media (max-width: 420px) {
-  .report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 295px 145px minmax(430px,1fr) auto; padding:28px 34px 24px; }
+  .report-poster--yearly .report-poster__inside { display:grid; grid-template-rows:auto auto auto 24.583cqw 12.083cqw minmax(35.833cqw,1fr) auto; padding:2.333cqw 2.833cqw 2cqw; }
 }
