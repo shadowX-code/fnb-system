@@ -1,12 +1,12 @@
 export const REPORT_POSTER_LOGICAL_WIDTH = 1200;
-export const REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT = 1500;
+export const REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT = REPORT_POSTER_LOGICAL_WIDTH * 297 / 210;
 export const REPORT_POSTER_YEARLY_LOGICAL_HEIGHT = REPORT_POSTER_LOGICAL_WIDTH * 297 / 210;
 export const YEARLY_POSTER_PNG_WIDTH = 2480;
 export const YEARLY_POSTER_PNG_HEIGHT = 3508;
 
 function posterSurface(reportType) {
-  if (reportType === "yearly") return { height: REPORT_POSTER_YEARLY_LOGICAL_HEIGHT, pixelRatio: YEARLY_POSTER_PNG_WIDTH / REPORT_POSTER_LOGICAL_WIDTH, pngWidth: YEARLY_POSTER_PNG_WIDTH, pngHeight: YEARLY_POSTER_PNG_HEIGHT };
-  return { height: REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT, pixelRatio: 2, pngWidth: REPORT_POSTER_LOGICAL_WIDTH * 2, pngHeight: REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT * 2 };
+  const height = reportType === "yearly" ? REPORT_POSTER_YEARLY_LOGICAL_HEIGHT : REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT;
+  return { height, pixelRatio: YEARLY_POSTER_PNG_WIDTH / REPORT_POSTER_LOGICAL_WIDTH, pngWidth: YEARLY_POSTER_PNG_WIDTH, pngHeight: YEARLY_POSTER_PNG_HEIGHT };
 }
 
 export function outletSlug(outletName) {
@@ -116,15 +116,13 @@ export async function exportPoster({ element, reportType, dataset, filters, form
 
   if (format === "pdf") {
     const { jsPDF } = await import("jspdf");
-    const yearly = reportType === "yearly";
     const pdf = new jsPDF({
       orientation: "portrait",
-      unit: yearly ? "mm" : "px",
-      format: yearly ? "a4" : [REPORT_POSTER_LOGICAL_WIDTH, REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT],
-      ...(yearly ? {} : { hotfixes: ["px_scaling"] }),
+      unit: "mm",
+      format: "a4",
       compress: true,
     });
-    pdf.addImage(png, "PNG", 0, 0, yearly ? 210 : REPORT_POSTER_LOGICAL_WIDTH, yearly ? 297 : REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT, undefined, "FAST");
+    pdf.addImage(png, "PNG", 0, 0, 210, 297, undefined, "FAST");
     pdf.save(filename);
   } else {
     downloadDataUrl(png, filename);

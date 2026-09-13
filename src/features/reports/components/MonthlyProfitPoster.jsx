@@ -1,5 +1,49 @@
 import { money, periodLabel, statusLabel } from "./reportingFormatters.js";
-import { MetricValue, PosterFooter, PosterHeader, PosterShell } from "./reportingPosterPrimitives.jsx";
-function percent(metric, revenue, { revenueMetric = false, net = false } = {}) { if (revenueMetric && metric?.presence === "present") return "100%"; if (metric?.presence !== "present" || revenue?.presence !== "present" || !Number(revenue.amount)) return "—"; return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${net ? " Net Margin" : " of Revenue"}`; }
-function Ranking({ title, rows, totalSales, low = false }) { const max = Math.max(...rows.map((row) => Number(row.sales_revenue ?? row.salesRevenue ?? 0)), 1); return <section className={`poster-ranking ${low ? "poster-ranking--low" : ""}`}><div className="poster-ranking__head"><h3>{title}</h3><p>Product sales revenue · mix</p></div><ol>{rows.map((row, index) => { const value = Number(row.sales_revenue ?? row.salesRevenue ?? 0); const name = row.product_name ?? row.productName ?? "Unnamed product"; const category = row.category_name ?? row.category; const mix = Number(totalSales) > 0 ? `${(value / Number(totalSales) * 100).toFixed(1)}%` : "—"; return <li key={`${category}-${name}-${index}`} className="poster-rank" style={{ "--bar": `${Math.max(5, (value / max) * 100)}%` }}><span className="poster-rank__number">{index + 1}</span><span className="poster-rank__name" title={name}>{name}<span className="poster-rank__category">{category || "Uncategorised"}</span></span><span className="poster-rank__figures"><strong>{money({ amount: value, presence: "present" })}</strong><small>{mix}</small></span></li>; })}</ol></section>; }
-export default function MonthlyProfitPoster({ dataset, outlet, logoUrl }) { const unavailable = dataset.productDataStatus !== "available"; const financials = dataset.financials; const incomplete = dataset.financialCompleteness !== "complete"; return <PosterShell kind="monthly" label="Monthly Profit Report poster"><PosterHeader type="Monthly Profit Report" outlet={outlet ?? dataset.outlet} logoUrl={logoUrl} period={periodLabel(dataset.period)} status={statusLabel(dataset.financialCompleteness)} incomplete={incomplete}/><section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(financials.revenue)} percentage={percent(financials.revenue, financials.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(financials.purchaseBasedCogs)} percentage={percent(financials.purchaseBasedCogs, financials.revenue)}/><MetricValue label="OpEx" metric={money(financials.opex)} percentage={percent(financials.opex, financials.revenue)}/><MetricValue className="is-profit" label="Net Profit" metric={money(financials.netProfit)} percentage={percent(financials.netProfit, financials.revenue, { net: true })}/></section>{unavailable ? <section className="poster-product-empty"><div><strong>Product performance unavailable</strong><p>No completed Product Analytics report exists for this period. Financial reporting remains available.</p></div></section> : <section className="poster-rankings"><Ranking title="Top 10 Best Selling" rows={dataset.topProducts ?? []} totalSales={dataset.totalProductSalesRevenue}/><Ranking title="Bottom 10 by Sales" rows={dataset.lowestProducts ?? []} totalSales={dataset.totalProductSalesRevenue} low/></section>}<PosterFooter type="Monthly Profit Report" period={periodLabel(dataset.period)} status={statusLabel(dataset.financialCompleteness)}/></PosterShell>; }
+import { MetricValue, PosterFooter, PosterShell } from "./reportingPosterPrimitives.jsx";
+
+function percent(metric, revenue, { revenueMetric = false, net = false } = {}) {
+  if (revenueMetric && metric?.presence === "present") return "100%";
+  if (metric?.presence !== "present" || revenue?.presence !== "present" || !Number(revenue.amount)) return "—";
+  return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${net ? " Net Margin" : " of Revenue"}`;
+}
+
+function MonthlyHeader({ outlet, logoUrl, period, status, incomplete }) {
+  const name = outlet?.name ?? "Outlet";
+  return <header className="poster-monthly-head">
+    <div className="poster-monthly-head__identity">{logoUrl ? <img src={logoUrl} alt={`${name} logo`} /> : <span>{name}</span>}</div>
+    <span className={`report-poster__status ${incomplete ? "is-incomplete" : ""}`}>{status}</span>
+    <div className="poster-monthly-head__type">Monthly Profit Report</div>
+    <h2>{period}</h2>
+    <h3>{name}</h3>
+  </header>;
+}
+
+function Ranking({ title, rows, totalSales, low = false }) {
+  return <section className={`poster-ranking ${low ? "poster-ranking--low" : ""}`}>
+    <div className="poster-ranking__head"><h3>{title}</h3><p>Product sales revenue · mix</p></div>
+    <ol>{rows.map((row, index) => {
+      const value = Number(row.sales_revenue ?? row.salesRevenue ?? 0);
+      const name = row.product_name ?? row.productName ?? "Unnamed product";
+      const category = row.category_name ?? row.category;
+      const mix = Number(totalSales) > 0 ? `${(value / Number(totalSales) * 100).toFixed(1)}%` : "—";
+      return <li key={`${category}-${name}-${index}`} className="poster-rank">
+        <span className="poster-rank__number">{index + 1}</span>
+        <span className="poster-rank__content"><strong className="poster-rank__name" title={name}>{name}</strong><span className="poster-rank__category">{category || "Uncategorised"}</span></span>
+        <span className="poster-rank__figures"><strong>{money({ amount: value, presence: "present" })}</strong><small>{mix} mix</small></span>
+      </li>;
+    })}</ol>
+  </section>;
+}
+
+export default function MonthlyProfitPoster({ dataset, outlet, logoUrl }) {
+  const unavailable = dataset.productDataStatus !== "available";
+  const financials = dataset.financials;
+  const incomplete = dataset.financialCompleteness !== "complete";
+  const period = periodLabel(dataset.period);
+  return <PosterShell kind="monthly" label="Monthly Profit Report poster">
+    <MonthlyHeader outlet={outlet ?? dataset.outlet} logoUrl={logoUrl} period={period} status={statusLabel(dataset.financialCompleteness)} incomplete={incomplete}/>
+    <section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(financials.revenue)} percentage={percent(financials.revenue, financials.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(financials.purchaseBasedCogs)} percentage={percent(financials.purchaseBasedCogs, financials.revenue)}/><MetricValue label="OpEx" metric={money(financials.opex)} percentage={percent(financials.opex, financials.revenue)}/><MetricValue className="is-profit" label="Net Profit" metric={money(financials.netProfit)} percentage={percent(financials.netProfit, financials.revenue, { net: true })}/></section>
+    {unavailable ? <section className="poster-product-empty"><div><strong>Product performance unavailable</strong><p>No completed Product Analytics report exists for this period. Financial reporting remains available.</p></div></section> : <section className="poster-rankings"><Ranking title="Top 10 Best Selling" rows={dataset.topProducts ?? []} totalSales={dataset.totalProductSalesRevenue}/><Ranking title="Bottom 10 by Sales" rows={dataset.lowestProducts ?? []} totalSales={dataset.totalProductSalesRevenue} low/></section>}
+    <PosterFooter type="Monthly Profit Report" period={period} status={statusLabel(dataset.financialCompleteness)}/>
+  </PosterShell>;
+}
