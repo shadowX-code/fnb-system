@@ -84,6 +84,19 @@ describe("Factory Production SOP and QC preset trusted lifecycle contracts", () 
     })).rejects.toThrow("This Finished Good already has an SOP. Create a new version from the existing SOP instead.");
   });
 
+  it("normalizes a duplicate Step Description to empty without changing the required Step Name", async () => {
+    mocks.rpc.mockResolvedValue({ data: { sop_id: sop.id }, error: null });
+    await factoryService.saveProductionSop({
+      id: sop.id,
+      finished_good_id: "family-1",
+      title: sop.title,
+      steps: [{ step_name: "Prepare ingredients", description: "Prepare ingredients", estimated_time_minutes: 0, qc_checks: [], sub_steps: [] }],
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_save_production_sop_structure", expect.objectContaining({
+      p_steps: [expect.objectContaining({ step_name: "Prepare ingredients", description: "" })],
+    }));
+  });
+
   it("routes activation, new version, archive, and restore through exact trusted SOP RPCs", async () => {
     mocks.rpc.mockResolvedValue({ data: { sop_id: sop.id }, error: null });
     await factoryService.activateProductionSop({ ...sop, status: "draft" });

@@ -40,6 +40,13 @@ function normalizeSopMinutes(value, label, blankValue = 0) {
   return numeric;
 }
 
+function normalizeSopStepDescription(description, stepName) {
+  const value = String(description || "").trim();
+  if (!value) return "";
+  const normalized = (text) => String(text || "").trim().toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+  return normalized(value) === normalized(stepName) ? "" : value;
+}
+
 function databaseUuid(value) {
   const text = String(value || "").trim();
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : null;
@@ -1124,7 +1131,7 @@ function mapProductionSop(row) {
       step_no: normalizeNumber(step.step_no),
       process_name: step.process_name || step.instruction || "",
       step_name: step.process_name || step.instruction || "",
-      description: step.description || step.instruction || "",
+      description: normalizeSopStepDescription(step.description, step.process_name || step.instruction),
       control_point: step.control_point || step.qc_label || "",
       qc_label: step.qc_label || step.control_point || "",
       materials: step.materials || "",
@@ -4292,7 +4299,7 @@ export const factoryService = {
         id: databaseUuid(step.id),
         step_no: index + 1,
         step_name: String(step.step_name || step.process_name || "").trim(),
-        description: String(step.description || "").trim(),
+        description: normalizeSopStepDescription(step.description, step.step_name || step.process_name),
         estimated_time_minutes: estimatedMinutes,
         qc_checks: (step.qc_checks ?? []).map((qc, qcIndex) => ({
           id: databaseUuid(qc.id),
