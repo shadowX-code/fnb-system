@@ -18,7 +18,7 @@ import ProductRecipeDetailModal from "../modals/recipes/ProductRecipeDetailModal
 import ProductRecipeModal from "../modals/recipes/ProductRecipeModal.jsx";
 import { costDisplay, recipeCostInfo } from "../utils/factoryCosting.js";
 import { formatFactoryDate } from "../utils/factoryDates.js";
-import { quantity } from "../utils/factoryFormatters.js";
+import { money, quantity } from "../utils/factoryFormatters.js";
 import { canArchiveActiveProductRecipe, canDeleteDraftProductRecipe } from "../utils/factoryPermissionActions.js";
 import { jobStatusLabel } from "../utils/factoryStatus.js";
 
@@ -27,6 +27,11 @@ function recipeReadiness(recipe) {
   return recipe.product_family_id || recipe.finished_good_id
     ? { isReady: true, label: "Ready", tone: "green" }
     : { isReady: false, label: "Finished Good missing", tone: "amber" };
+}
+
+function costPerKgDisplay(cost) {
+  if (!cost?.itemRows?.length || cost.missingCostRows || cost.unsupportedCostRows || !Number.isFinite(Number(cost.costPerUnit)) || Number(cost.costPerUnit) <= 0) return "—";
+  return `${money(cost.costPerUnit)}/kg`;
 }
 
 function productFirstRecipes(recipes, productFamilies, receivings) {
@@ -93,6 +98,7 @@ export default function FactoryProductRecipesPage() {
     { key: "standard_output", label: "Standard Output", render: (row) => <span className="whitespace-nowrap text-sm text-text-secondary">{quantity(row.yield_quantity, row.uom)}</span> },
     { key: "materials", label: "Materials", align: "right", render: (row) => <span className="font-medium text-text-primary">{row.items?.length || 0}</span> },
     { key: "cost", label: "Recipe Cost", align: "right", render: (row) => <span className="whitespace-nowrap font-semibold tabular-nums text-text-primary">{costDisplay(row.cost.standardCost, row.cost.missingCostRows, row.cost.unsupportedCostRows)}</span> },
+    { key: "cost_per_kg", label: "Cost / kg", align: "right", render: (row) => <span className="whitespace-nowrap tabular-nums text-text-secondary">{costPerKgDisplay(row.cost)}</span> },
     { key: "status", label: "Status", render: (row) => <FactoryStatusBadge status={jobStatusLabel(row.status)} /> },
     { key: "updated", label: "Updated", render: (row) => row.updated_at ? formatFactoryDate(row.updated_at) : <FactoryCellMuted /> },
     { key: "actions", label: "Actions", align: "right", render: renderActions },
