@@ -5,8 +5,12 @@ import Modal from "../../../../components/feedback/Modal.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
 import FloatingLayer from "../../../../components/ui/FloatingLayer.jsx";
 import FeedXDatePicker from "../../components/FeedXDatePicker.jsx";
+import FactoryMasterDataManagerModal from "../../components/FactoryMasterDataManagerModal.jsx";
+import FactoryRowActions from "../../components/FactoryRowActions.jsx";
+import FactoryStatusBadge from "../../components/FactoryStatusBadge.jsx";
 import SearchableSelect from "../../components/SearchableSelect.jsx";
 import { Field, inputClass } from "../../components/FactoryBulkSelectionModal.jsx";
+import { FactoryCellMuted, FactoryCellText } from "../../components/FactoryTableCell.jsx";
 import { todayInput, formatFactoryDate } from "../../utils/factoryDates.js";
 import { percent, quantity, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../../utils/factoryFormatters.js";
 import { jobStatusLabel } from "../../utils/factoryStatus.js";
@@ -471,46 +475,62 @@ export function QcChecklistPresetManagerModal({ templates = [], sops = [], onClo
     runLifecycle(onDelete, template);
   }
 
-  return (
-    <Modal title="QC Checklist Presets" description="Manage reusable QC checks for Production SOP steps." size="2xl" onClose={saving ? undefined : onClose} footer={<button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Close</button>}>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.4fr)]">
-        <form className="space-y-4" onSubmit={submit}>
-          <div>
-            <div className="text-sm font-black text-text-primary">{form.id ? "Edit QC Check" : "Create QC Check"}</div>
-            <div className="mt-1 text-xs font-semibold text-text-secondary">Preset instructions provide a starting point and remain editable in each Draft SOP.</div>
-          </div>
-          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-          <Field label="QC Check Name *"><input className={inputClass()} value={form.name} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-          <Field label="Result Mode"><SearchableSelect value={form.result_mode} options={resultModeOptions} placeholder="Select result mode" disabled={saving} onChange={(value) => setForm((current) => ({ ...current, result_mode: value }))} /></Field>
-          <Field label="Default Instructions"><textarea className={inputClass()} rows={4} value={form.description} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field>
-          <Field label="Status"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><Badge tone={form.is_active ? "success" : "neutral"}>{form.is_active ? "Active" : "Archived"}</Badge></div></Field>
-          <div className="flex flex-wrap gap-2">
-            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Save QC Check" : "Create QC Check"}</button>
-            {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={resetForm}>Cancel Edit</button> : null}
-          </div>
-        </form>
+  const columns = [
+    { key: "check", label: "QC Check", render: (template) => <FactoryCellText primary={template.name} secondary={template.description || "No default instructions"} /> },
+    { key: "result-mode", label: "Result Mode", render: (template) => <FactoryCellMuted>{template.result_mode === "remarks" ? "Remarks" : "Checklist"}</FactoryCellMuted> },
+    {
+      key: "usage",
+      label: "SOP Usage",
+      align: "right",
+      render: (template) => {
+        const references = referenceCounts.get(template.id) || 0;
+        return <FactoryCellMuted>{references} SOP {references === 1 ? "reference" : "references"}</FactoryCellMuted>;
+      },
+    },
+    { key: "status", label: "Status", render: (template) => <FactoryStatusBadge status={template.is_active !== false ? "Active" : "Archived"} /> },
+    {
+      key: "actions",
+      label: "Actions",
+      align: "right",
+      render: (template) => {
+        const references = referenceCounts.get(template.id) || 0;
+        return <FactoryRowActions
+          directSingleSecondary
+          disabled={saving}
+          secondaryActions={[
+            { label: "Edit", onClick: () => beginEdit(template) },
+            template.is_active !== false
+              ? { label: "Archive", destructive: true, onClick: () => runLifecycle(onArchive, template) }
+              : { label: "Restore", onClick: () => runLifecycle(onRestore, template) },
+            !references ? { label: "Delete", destructive: true, onClick: () => requestDelete(template) } : null,
+          ].filter(Boolean)}
+        />;
+      },
+    },
+  ];
 
-        <section className="min-w-0">
-          <div className="mb-3 flex items-center justify-between gap-3"><div><div className="text-sm font-black text-text-primary">Preset Records</div><div className="mt-1 text-xs font-semibold text-text-secondary">Archived checks remain visible in historical SOPs.</div></div><Badge tone="neutral">{templates.length}</Badge></div>
-          {orderedTemplates.length ? <div className="space-y-2">
-            {orderedTemplates.map((template) => {
-              const references = referenceCounts.get(template.id) || 0;
-              const active = template.is_active !== false;
-              return <article key={template.id} className="rounded-xl border border-border bg-white p-3 sm:p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0"><div className="font-bold text-text-primary">{template.name}</div><div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-semibold text-text-secondary"><span>{template.result_mode === "remarks" ? "Remarks" : "Checklist"}</span><span>{references} SOP reference{references === 1 ? "" : "s"}</span></div>{template.description ? <div className="mt-2 text-sm font-semibold text-text-secondary">{template.description}</div> : null}</div>
-                  <Badge tone={active ? "success" : "neutral"}>{active ? "Active" : "Archived"}</Badge>
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => beginEdit(template)}>Edit</button>
-                  {active ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" disabled={saving} onClick={() => runLifecycle(onArchive, template)}>Archive</button> : <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" disabled={saving} onClick={() => runLifecycle(onRestore, template)}>Restore</button>}
-                  {!references ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" disabled={saving} onClick={() => requestDelete(template)}>Delete</button> : null}
-                </div>
-              </article>;
-            })}
-          </div> : <EmptyState title="No QC Checklist Presets" description="Create a reusable QC check for Production SOP steps." />}
-        </section>
+  return <FactoryMasterDataManagerModal
+    title="QC Checklist Presets"
+    description="Maintain reusable QC checks without changing saved SOP evidence."
+    editorTitle={form.id ? "Edit QC Check" : "Create QC Check"}
+    editorDescription="Preset instructions provide a starting point and remain editable in each Draft SOP."
+    saving={saving}
+    onClose={onClose}
+    columns={columns}
+    rows={orderedTemplates}
+    emptyTitle="No QC Checklist Presets"
+    emptyDescription="Create a reusable QC check for Production SOP steps."
+    editor={<form className="space-y-4" onSubmit={submit}>
+      {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{error}</div> : null}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="QC Check Name *"><input className={inputClass()} value={form.name} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
+        <Field label="Result Mode"><SearchableSelect value={form.result_mode} options={resultModeOptions} placeholder="Select result mode" disabled={saving} onChange={(value) => setForm((current) => ({ ...current, result_mode: value }))} /></Field>
       </div>
-    </Modal>
-  );
+      <Field label="Default Instructions"><textarea className={inputClass()} rows={3} value={form.description} disabled={saving} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field>
+      <div className="flex flex-wrap gap-2">
+        <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Save Changes" : "Create QC Check"}</button>
+        {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={resetForm}>Cancel</button> : null}
+      </div>
+    </form>}
+  />;
 }

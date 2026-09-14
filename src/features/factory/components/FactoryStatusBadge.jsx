@@ -26,6 +26,7 @@ const toneByStatus = {
   released: "blue",
   informational: "blue",
   depleted: "gray",
+  archived: "gray",
   inactive: "gray",
   draft: "gray",
   cancelled: "gray",
