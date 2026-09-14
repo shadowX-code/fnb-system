@@ -3,6 +3,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260914120606_factory_sop_draft_equipment_activation_guard.sql"), "utf8");
+const internalGrantSql = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260914121605_factory_sop_draft_equipment_internal_rpc_grants.sql"),
+  "utf8",
+);
 
 describe("Factory Production SOP Draft Equipment lifecycle", () => {
   it("allows Draft creation and Draft saves without Equipment validation", () => {
@@ -29,5 +33,15 @@ describe("Factory Production SOP Draft Equipment lifecycle", () => {
     expect(sql).toContain("set search_path = public, pg_temp");
     expect(sql).toContain("grant execute on function public.factory_save_production_sop_structure");
     expect(sql).toContain("grant execute on function public.factory_activate_production_sop(uuid) to authenticated;");
+  });
+
+  it("keeps renamed lifecycle implementations inaccessible to API roles", () => {
+    expect(internalGrantSql).toContain(
+      "revoke all on function public.factory_save_production_sop_structure_impl_20260914(",
+    );
+    expect(internalGrantSql).toContain("from public, anon, authenticated;");
+    expect(internalGrantSql).toContain(
+      "revoke all on function public.factory_activate_production_sop_impl_20260914(uuid)",
+    );
   });
 });
