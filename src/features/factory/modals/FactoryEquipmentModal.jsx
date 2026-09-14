@@ -1,13 +1,90 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
+import FactoryMasterDataManagerModal from "../components/FactoryMasterDataManagerModal.jsx";
+import FactoryRowActions from "../components/FactoryRowActions.jsx";
+import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import { FactoryCellMuted, FactoryCellText } from "../components/FactoryTableCell.jsx";
 
-export function FactoryEquipmentCategoryModal({ categories = [], onClose, onSave }) {
-  const [draft, setDraft] = useState({ name: "", category_code: "", status: "active" });
+const emptyCategory = () => ({ name: "", category_code: "", status: "active" });
+
+export function FactoryEquipmentCategoryModal({ categories = [], equipment = [], onClose, onSave }) {
+  const [draft, setDraft] = useState(emptyCategory);
   const [saving, setSaving] = useState(false);
-  async function submit(event) { event.preventDefault(); setSaving(true); try { await onSave(draft); setDraft({ name: "", category_code: "", status: "active" }); } finally { setSaving(false); } }
-  return <Modal title="Manage Equipment Categories" description="Categories in use are retained for historical equipment records." size="lg" onClose={saving ? undefined : onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><form className="space-y-3" onSubmit={submit}><div className="grid gap-3 sm:grid-cols-3"><Field label="Name *"><input className={inputClass()} value={draft.name} onChange={(e) => setDraft((x) => ({ ...x, name: e.target.value }))} /></Field><Field label="Code"><input className={inputClass()} value={draft.category_code} onChange={(e) => setDraft((x) => ({ ...x, category_code: e.target.value }))} /></Field><div className="flex items-end"><button className="btn-primary w-full" disabled={saving}>Add Category</button></div></div><div className="divide-y rounded-lg border border-border">{categories.map((category) => <div key={category.id} className="flex items-center justify-between gap-3 px-3 py-2"><div><div className="font-bold text-text-primary">{category.name}</div><div className="text-xs text-text-secondary">{category.category_code || "No code"}</div></div><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => onSave({ ...category, status: category.status === "active" ? "inactive" : "active" })}>{category.status === "active" ? "Deactivate" : "Reactivate"}</button></div>)}</div></form></Modal>;
+  const [error, setError] = useState("");
+  const usageCounts = useMemo(() => equipment.reduce((counts, item) => {
+    if (item.category_id) counts.set(item.category_id, (counts.get(item.category_id) || 0) + 1);
+    return counts;
+  }, new Map()), [equipment]);
+
+  function resetDraft() {
+    setError("");
+    setDraft(emptyCategory());
+  }
+
+  async function save(nextDraft) {
+    setError("");
+    setSaving(true);
+    try {
+      await onSave(nextDraft);
+      if (nextDraft.id === draft.id || !nextDraft.id) resetDraft();
+    } catch (nextError) {
+      setError(nextError.message || "Unable to save Equipment Category.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    if (!String(draft.name || "").trim()) {
+      setError("Equipment category name is required.");
+      return;
+    }
+    await save(draft);
+  }
+
+  const columns = [
+    { key: "category", label: "Category", render: (category) => <FactoryCellText primary={category.name} secondary={category.category_code || "No code"} /> },
+    { key: "code", label: "Code", render: (category) => <span className="font-medium text-text-primary">{category.category_code || <FactoryCellMuted />}</span> },
+    { key: "usage", label: "Equipment", align: "right", render: (category) => <span className="font-medium text-text-primary">{usageCounts.get(category.id) || 0}</span> },
+    { key: "status", label: "Status", render: (category) => <FactoryStatusBadge status={category.status === "inactive" ? "Inactive" : "Active"} /> },
+    {
+      key: "actions",
+      label: "Actions",
+      align: "right",
+      render: (category) => <FactoryRowActions
+        directSingleSecondary
+        secondaryActions={[
+          { label: "Edit", onClick: () => { setError(""); setDraft({ id: category.id, name: category.name || "", category_code: category.category_code || "", status: category.status || "active" }); } },
+          { label: category.status === "active" ? "Deactivate" : "Reactivate", destructive: category.status === "active", onClick: () => save({ ...category, status: category.status === "active" ? "inactive" : "active" }) },
+        ]}
+      />,
+    },
+  ];
+
+  return <FactoryMasterDataManagerModal
+    title="Equipment Categories"
+    description="Maintain the optional, unique category code used to identify Factory equipment groups."
+    editorTitle={draft.id ? "Edit category" : "Create category"}
+    editorDescription="Inactive categories remain on existing equipment and cannot be selected for new active setup."
+    saving={saving}
+    onClose={onClose}
+    columns={columns}
+    rows={categories}
+    emptyTitle="No equipment categories"
+    emptyDescription="Create a category before assigning it to Factory equipment."
+    editor={<form className="space-y-3" onSubmit={submit}>
+      {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">{error}</div> : null}
+      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px_180px]">
+        <Field label="Category Name *"><input className={inputClass()} value={draft.name} disabled={saving} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} /></Field>
+        <Field label="Code"><input className={inputClass()} value={draft.category_code} disabled={saving} onChange={(event) => setDraft((current) => ({ ...current, category_code: event.target.value }))} /></Field>
+        <Field label="Status"><SearchableSelect value={draft.status} disabled={saving} options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} placeholder="Select status" onChange={(status) => setDraft((current) => ({ ...current, status }))} /></Field>
+      </div>
+      <div className="flex items-center gap-2"><button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : draft.id ? "Save Changes" : "Add Category"}</button>{draft.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={resetDraft}>Cancel</button> : null}</div>
+    </form>}
+  />;
 }
 
 export default function FactoryEquipmentModal({ initialValue, categories = [], locations = [], onClose, onSave }) {

@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
 import FactoryCustomerModal from "../../modals/FactoryCustomerModal.jsx";
+import { FactoryEquipmentCategoryModal } from "../../modals/FactoryEquipmentModal.jsx";
 import FactorySupplierModal from "../../modals/FactorySupplierModal.jsx";
 import StorageLocationModal from "../../modals/FactoryStorageLocationModal.jsx";
 import ProductionPlanningParModal from "../../modals/ProductionPlanningParModal.jsx";
@@ -52,6 +53,21 @@ describe("Factory master-data modal contracts", () => {
     render(<RawMaterialCategoryModal categories={[]} onClose={vi.fn()} onSave={vi.fn()} />);
     expect(screen.getByText("No categories")).not.toBeNull();
     expect(screen.getByText("Create a category before saving raw material master records.")).not.toBeNull();
+  });
+
+  it("uses the shared manager table for Finished Good and Equipment categories with live usage counts", () => {
+    const equipmentCategory = { id: "equipment-category-1", name: "Mixing", category_code: "MIX", status: "active" };
+    const finishedView = render(<FinishedGoodCategoryModal categories={[category]} productFamilies={[{ id: "family-2", category_id: category.id }]} canEdit onClose={vi.fn()} onSave={vi.fn()} onArchive={vi.fn()} />);
+    expect(screen.getByRole("columnheader", { name: "Products" })).not.toBeNull();
+    expect(screen.getByText("1")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "More row actions" })).not.toBeNull();
+    finishedView.unmount();
+
+    render(<FactoryEquipmentCategoryModal categories={[equipmentCategory]} equipment={[{ id: "equipment-1", category_id: equipmentCategory.id }]} onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByRole("columnheader", { name: "Code" })).not.toBeNull();
+    expect(screen.getAllByText("MIX")).toHaveLength(2);
+    expect(screen.getByRole("columnheader", { name: "Equipment" })).not.toBeNull();
+    expect(screen.getByText("1")).not.toBeNull();
   });
 
   it("keeps inventory storage selectors limited to active storage-enabled Locations", () => {
@@ -163,6 +179,7 @@ describe("Factory master-data modal contracts", () => {
 
     const archiveFinishedCategory = vi.fn().mockResolvedValue(undefined);
     const categoryView = render(<FinishedGoodCategoryModal categories={[category]} canEdit onClose={vi.fn()} onSave={vi.fn()} onArchive={archiveFinishedCategory} />);
+    fireEvent.click(screen.getByRole("button", { name: "More row actions" }));
     fireEvent.click(screen.getByRole("button", { name: "Archive" }));
     await waitFor(() => expect(archiveFinishedCategory).toHaveBeenCalledWith(category));
     categoryView.unmount();

@@ -3662,7 +3662,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
       ) : null}
       {modal?.type === "equipment" ? <FactoryEquipmentModal initialValue={modal.value} categories={data.equipmentCategories} locations={data.storageLocations} onClose={() => setModal(null)} onSave={saveFactoryEquipment} /> : null}
-      {modal?.type === "equipment-categories" ? <FactoryEquipmentCategoryModal categories={data.equipmentCategories} onClose={() => setModal(null)} onSave={saveFactoryEquipmentCategory} /> : null}
+      {modal?.type === "equipment-categories" ? <FactoryEquipmentCategoryModal categories={data.equipmentCategories} equipment={data.equipment} onClose={() => setModal(null)} onSave={saveFactoryEquipmentCategory} /> : null}
       {modal?.type === "factory-suppliers" ? (
         <FactorySupplierModal
           initialValue={modal.value}
@@ -3770,6 +3770,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "finished-good-category" ? (
         <FinishedGoodCategoryModal
           categories={data.finishedGoodCategories}
+          productFamilies={data.productFamilies}
           canEdit={can("factory_finished_goods.edit")}
           onClose={() => setModal(null)}
           onSave={(form) => saveFinishedGoodCategory(form, { keepOpen: true })}
