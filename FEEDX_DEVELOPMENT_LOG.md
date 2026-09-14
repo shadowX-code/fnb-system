@@ -1,5 +1,7 @@
 # FeedX Development Log
 
+- Factory Production SOP Equipment lifecycle: Draft SOPs may now be created and edited without Equipment while clearly marked as incomplete configuration; activation remains a trusted, server-enforced boundary requiring at least one active canonical Equipment binding. Existing versioning, permissions, audit, production snapshots, and SOP-bound After Production equipment-cleaning evidence remain unchanged.
+
 - Added the Factory Equipment foundation: canonical Equipment Categories and Equipment instances use Factory Locations, while idempotent actual Production Equipment Usage evidence snapshots the selected machine and batch/product/SOP context without coupling to Restaurant assets or SOP planning text.
 - Added Factory MeSTI Calibration Schedule & Record: trusted versioned Equipment/Calibration-Type requirements, module-level role settings, server-calculated monthly due dates, Schedule and Records projections, and immutable calibration snapshots. A verified Pass alone renews validity; verified Fail evidence remains Failed until a later verified Pass.
 

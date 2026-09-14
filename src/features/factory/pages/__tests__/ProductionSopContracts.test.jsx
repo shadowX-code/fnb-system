@@ -44,6 +44,15 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
     })));
   });
 
+  it("allows a Draft SOP to save without Equipment and shows the activation configuration requirement", async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    render(<ProductionSopBuilderModal initialValue={{ ...draftSop, equipment_ids: [] }} productFamilies={[family]} recipes={[recipe]} equipment={[equipment]} sops={[draftSop]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={onSave} />);
+    fireEvent.click(screen.getByRole("button", { name: "SOP Settings" }));
+    expect(screen.getByText("Equipment configuration is incomplete. Drafts can be saved; assign at least one active Equipment before activation.")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save SOP" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ status: "draft", equipment_ids: [] })));
+  });
+
   it("uses a collapsed builder outline with progressive step, QC, and sub-step editing", () => {
     const multiStepSop = {
       ...draftSop,
