@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import ConfirmDialog from "../components/feedback/ConfirmDialog.jsx";
 import ToastViewport from "../components/feedback/ToastViewport.jsx";
 import AppShell from "../layouts/AppShell.jsx";
@@ -623,7 +623,9 @@ export default function App() {
           </div>
         ) : null}
         <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
-        <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />
+        <Suspense fallback={<div className="card p-6 text-sm font-semibold text-text-secondary" role="status">Loading workspace...</div>}>
+          <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />
+        </Suspense>
       </AppShell>
       <ToastViewport
         toasts={toasts}

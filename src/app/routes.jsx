@@ -1,3 +1,4 @@
+import { lazy } from "react";
 import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOverviewPage.jsx";
 import SPDashboardPage from "../features/sales-purchase/pages/SPDashboardPage.jsx";
 import AlertsInsightsPage from "../features/sales-purchase/pages/AlertsInsightsPage.jsx";
@@ -22,8 +23,9 @@ import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.j
 import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
 import RolesPage from "../features/company-users/pages/RolesPage.jsx";
 import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
-import FactoryWorkspacePage from "../features/factory/pages/FactoryWorkspacePage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
+
+const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
   const isFactoryModule = String(moduleId).startsWith("factory_");
