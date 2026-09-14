@@ -10,6 +10,7 @@ import MonthlyProfitPoster from "../components/MonthlyProfitPoster.jsx";
 import YearlyPnlPoster from "../components/YearlyPnlPoster.jsx";
 import { reportMonths, statusLabel } from "../components/reportingFormatters.js";
 import { exportPoster, REPORT_POSTER_LOGICAL_WIDTH, REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT, REPORT_POSTER_YEARLY_LOGICAL_HEIGHT } from "../services/reportPosterExport.js";
+import { financialTerminology } from "../../../utils/financialTerminology.js";
 
 function defaultPeriod() {
   const now = new Date();
@@ -81,7 +82,7 @@ export default function ReportsPage({ store, ui, auth }) {
   return <div className="space-y-5">
     <PageHeader section="Overview" title="Reports" description="Generate outlet-scoped financial poster previews from the canonical Reporting read contract." />
     <FilterBar actions={<button className="btn-primary" type="button" onClick={generate} disabled={loading || !draft.outletId}><FileBarChart2 size={15} />{loading ? "Generating…" : "Generate Report"}</button>}>
-      <SelectField label="Report Type" value={draft.reportType} options={[{ value: "monthly", label: "Monthly Profit" }, { value: "yearly", label: "Yearly P&L" }]} onChange={(reportType) => setDraft((current) => ({ ...current, reportType }))} />
+      <SelectField label="Report Type" value={draft.reportType} options={[{ value: "monthly", label: financialTerminology.monthlyPnl }, { value: "yearly", label: financialTerminology.yearlyPnl }]} onChange={(reportType) => setDraft((current) => ({ ...current, reportType }))} />
       <SelectField label="Outlet" value={draft.outletId} options={outletOptions} placeholder="Select outlet" searchable onChange={(outletId) => setDraft((current) => ({ ...current, outletId }))} />
       {draft.reportType === "monthly" ? <SelectField label="Month" value={draft.month} options={reportMonths} onChange={(month) => setDraft((current) => ({ ...current, month: Number(month) }))} /> : null}
       <SelectField label="Year" value={draft.year} options={yearOptions} onChange={(year) => setDraft((current) => ({ ...current, year: Number(year) }))} />

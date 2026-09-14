@@ -18,7 +18,7 @@ export function reportExportFilename({ reportType, outletName, year, month, peri
   const outlet = outletSlug(outletName);
   const extension = format === "pdf" ? "pdf" : "png";
   if (reportType === "monthly") {
-    return `monthly-profit-report_${outlet}_${year}-${String(month).padStart(2, "0")}.${extension}`;
+    return `monthly-pnl-report_${outlet}_${year}-${String(month).padStart(2, "0")}.${extension}`;
   }
   const ytd = periodMode === "ytd" ? "-ytd" : "";
   return `yearly-pnl-report_${outlet}_${year}${ytd}.${extension}`;

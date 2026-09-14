@@ -153,7 +153,7 @@ export const routeDetails = {
     component: OutletPnlPage,
   },
   reports: {
-    description: "Generate outlet-scoped Monthly Profit and Yearly P&L poster previews from the canonical Reporting read contract.",
+    description: "Generate outlet-scoped Monthly P&L and Yearly P&L poster previews from the canonical Reporting read contract.",
     component: ReportsPage,
   },
   product_analytics: {

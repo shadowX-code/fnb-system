@@ -10,6 +10,7 @@ import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { months } from "../data/mockData.js";
 import { getSalesBreakdown, percentageChange, sumAmount, toCurrency, toPercent } from "../utils/analytics.js";
 import { canExport, getAccessibleOutletOptions, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { financialTerminology } from "../../../utils/financialTerminology.js";
 
 function defaultYear(store) {
   const years = [...store.salesRecords, ...store.purchaseRecords, ...(store.operatingExpenses ?? [])]
@@ -182,10 +183,10 @@ function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingR
     });
   }
   if (total.netProfit < 0) {
-    insights.push({ tone: "danger", icon: AlertTriangle, label: "Critical", title: "Net profit is negative.", body: `${signedCurrency(total.netProfit)} YTD net profit. Review COGS and OpEx immediately.` });
+    insights.push({ tone: "danger", icon: AlertTriangle, label: "Critical", title: `${financialTerminology.ebitda} is negative.`, body: `${signedCurrency(total.netProfit)} YTD ${financialTerminology.ebitda}. Review COGS and OpEx immediately.` });
   }
   if (total.margin < 15 && total.revenue > 0) {
-    insights.push({ tone: "warning", icon: TrendingDown, label: "Margin", title: "Net margin dropped below healthy threshold.", body: `${toPercent(total.margin)} YTD margin. Review pricing, wastage and controllable expenses.` });
+    insights.push({ tone: "warning", icon: TrendingDown, label: "Margin", title: `${financialTerminology.ebitdaMargin} dropped below healthy threshold.`, body: `${toPercent(total.margin)} YTD ${financialTerminology.ebitdaMargin.toLowerCase()}. Review pricing, wastage and controllable expenses.` });
   }
   const cogsRatio = total.revenue > 0 ? (total.cogs / total.revenue) * 100 : 0;
   if (cogsRatio > 45) {
@@ -194,7 +195,7 @@ function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingR
     insights.push({ tone: "warning", icon: BarChart3, label: "COGS", title: `COGS ratio increased by ${toPercent(latestCogsRatio - previousCogsRatio)} this month.`, body: "Compare purchase invoices against sales movement for the latest active month." });
   }
   if (previousTotal?.revenue && total.revenue > previousTotal.revenue && total.netProfit < previousTotal.netProfit) {
-    insights.push({ tone: "warning", icon: CircleDollarSign, label: "Profit", title: "Revenue increased but net profit dropped.", body: "Sales improved YoY, but profit conversion weakened. Review cost movement." });
+    insights.push({ tone: "warning", icon: CircleDollarSign, label: financialTerminology.ebitda, title: `Revenue increased but ${financialTerminology.ebitda} dropped.`, body: "Sales improved YoY, but profit conversion weakened. Review cost movement." });
   }
   if (missingOpexCount) {
     insights.push({ tone: "info", icon: Info, label: "OpEx", title: `Operating expense data missing for ${missingOpexCount} months.`, body: "P&L can render with RM0 OpEx, but management reporting is clearer after entry." });
@@ -204,7 +205,7 @@ function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingR
   if (topOutlet && groupNetProfit > 0) {
     const contribution = (topOutlet.netProfit / groupNetProfit) * 100;
     if (contribution >= 50) {
-      insights.push({ tone: "info", icon: Building2, label: "Group", title: `${topOutlet.outlet.name} contributes ${toPercent(contribution)} of group net profit.`, body: "Monitor concentration risk and outlet dependency in monthly management review." });
+      insights.push({ tone: "info", icon: Building2, label: "Group", title: `${topOutlet.outlet.name} contributes ${toPercent(contribution)} of group ${financialTerminology.ebitda}.`, body: "Monitor concentration risk and outlet dependency in monthly management review." });
     }
   }
   if (!insights.length) {
@@ -219,7 +220,7 @@ function BreakdownBar({ total }) {
     { label: "Revenue", value: total.revenue, color: "bg-slate-900", ring: "#0f172a", muted: true },
     { label: "COGS", value: total.cogs, color: "bg-emerald-500", ring: "#22c55e" },
     { label: "OpEx", value: total.opex, color: "bg-amber-400", ring: "#f59e0b" },
-    { label: "Net Profit", value: Math.max(total.netProfit, 0), color: "bg-blue-500", ring: "#3b82f6" },
+    { label: financialTerminology.ebitda, value: Math.max(total.netProfit, 0), color: "bg-blue-500", ring: "#3b82f6" },
   ];
   const cogsPct = (parts[1].value / absolute) * 100;
   const opexPct = (parts[2].value / absolute) * 100;
@@ -236,7 +237,7 @@ function BreakdownBar({ total }) {
         <div className="grid h-40 w-40 place-items-center rounded-full p-2" style={{ background: ringBackground }}>
           <div className="grid h-[7.1rem] w-[7.1rem] place-items-center rounded-full bg-surface text-center shadow-[inset_0_0_0_1px_rgba(226,232,240,0.9)]">
             <div>
-              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-muted">Net Margin</div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-muted">{financialTerminology.ebitdaMargin}</div>
               <div className={`mt-1 text-2xl font-semibold tracking-tight ${total.margin < 0 ? "text-rose-600" : "text-text-primary"}`}>{toPercent(total.margin)}</div>
               <div className="mt-1 text-[10px] font-semibold text-text-muted">YTD</div>
             </div>
@@ -251,7 +252,7 @@ function BreakdownBar({ total }) {
                 <span className={`h-2 w-2 rounded-full ${part.color}`} />
                 {part.label}
               </span>
-              <span className="text-sm font-bold text-text-primary">{part.label === "Net Profit" ? signedCurrency(total.netProfit) : toCurrency(part.value)}</span>
+              <span className="text-sm font-bold text-text-primary">{part.label === financialTerminology.ebitda ? signedCurrency(total.netProfit) : toCurrency(part.value)}</span>
             </div>
             <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
               <div
@@ -317,8 +318,8 @@ export default function OutletPnlPage({ store, ui, auth }) {
     { key: "revenue", header: "Revenue", align: "right", render: (row) => toCurrency(row.revenue) },
     { key: "cogs", header: "COGS", align: "right", render: (row) => toCurrency(row.cogs) },
     { key: "opex", header: "OpEx", align: "right", render: (row) => toCurrency(row.opex) },
-    { key: "netProfit", header: "Net Profit", align: "right", render: (row) => <span className={row.netProfit < 0 ? "font-bold text-rose-600" : "font-bold text-text-primary"}>{toCurrency(row.netProfit)}</span> },
-    { key: "margin", header: "Margin %", align: "right", render: (row) => toPercent(row.margin) },
+    { key: "netProfit", header: financialTerminology.ebitda, align: "right", render: (row) => <span className={row.netProfit < 0 ? "font-bold text-rose-600" : "font-bold text-text-primary"}>{toCurrency(row.netProfit)}</span> },
+    { key: "margin", header: `${financialTerminology.ebitdaMargin} %`, align: "right", render: (row) => toPercent(row.margin) },
     {
       key: "contribution",
       header: "Contribution %",
@@ -393,16 +394,16 @@ export default function OutletPnlPage({ store, ui, auth }) {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <PnlKpiCard label="Total Revenue" value={toCurrency(current.total.revenue)} helper={yoy(current.total.revenue, previous.total.revenue)} icon={TrendingUp} insight="Saved net sales across selected outlets." />
         <PnlKpiCard label="Gross Profit" value={toCurrency(current.total.grossProfit)} helper={yoy(current.total.grossProfit, previous.total.grossProfit)} icon={BarChart3} insight="Revenue after COGS before OpEx." />
-        <PnlKpiCard primary label="Net Profit" value={signedCurrency(current.total.netProfit)} helper={yoy(current.total.netProfit, previous.total.netProfit)} tone={current.total.netProfit < 0 ? "danger" : "success"} icon={current.total.netProfit < 0 ? TrendingDown : TrendingUp} insight="Management profit after purchases and OpEx." />
+        <PnlKpiCard primary label={financialTerminology.ebitda} value={signedCurrency(current.total.netProfit)} helper={yoy(current.total.netProfit, previous.total.netProfit)} tone={current.total.netProfit < 0 ? "danger" : "success"} icon={current.total.netProfit < 0 ? TrendingDown : TrendingUp} insight={financialTerminology.ebitdaExplanation} />
         <PnlKpiCard
           primary
-          label="Net Profit Margin"
+          label={financialTerminology.ebitdaMargin}
           value={toPercent(current.total.margin)}
           helper={yoy(current.total.margin, previous.total.margin)}
           tone={current.total.margin < 5 ? "danger" : current.total.margin < 15 ? "warning" : "success"}
           icon={CircleDollarSign}
           badge={<span className={`rounded-full border px-2 py-1 text-[11px] font-bold ${marginHealth.className}`}>{marginHealth.label}</span>}
-          insight="Executive profitability health indicator."
+          insight={financialTerminology.ebitdaExplanation}
         />
       </div>
 
@@ -430,22 +431,22 @@ export default function OutletPnlPage({ store, ui, auth }) {
             />
           </div>
         </Card>
-        <Card title="Net Profit Trend" description="Net profit after COGS and monthly OpEx.">
+        <Card title={financialTerminology.ebitdaTrend} description={financialTerminology.ebitdaExplanation}>
           <div className="p-4">
             <TrendChart
               labels={months.map((month) => month.label)}
               type="area"
               tension={0.38}
               series={[
-                { name: `${year} Net Profit`, data: current.monthly.map((item) => item.netProfit), stroke: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", fill: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", area: true, areaOpacity: 0.12, format: toCurrency },
-                { name: `${year - 1} Net Profit`, data: previous.monthly.map((item) => item.netProfit), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency },
+                { name: `${year} ${financialTerminology.ebitda}`, data: current.monthly.map((item) => item.netProfit), stroke: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", fill: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", area: true, areaOpacity: 0.12, format: toCurrency },
+                { name: `${year - 1} ${financialTerminology.ebitda}`, data: previous.monthly.map((item) => item.netProfit), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency },
               ]}
               highlightIndex={new Date().getMonth()}
               renderTooltip={({ label, index }) => (
                 <TrendSeriesTooltip
                   label={label}
-                  currentLabel={`${year} Net Profit`}
-                  previousLabel={`${year - 1} Net Profit`}
+                  currentLabel={`${year} ${financialTerminology.ebitda}`}
+                  previousLabel={`${year - 1} ${financialTerminology.ebitda}`}
                   currentValue={current.monthly[index]?.netProfit}
                   previousValue={previous.monthly[index]?.netProfit}
                   valueClassName={current.monthly[index]?.netProfit < 0 ? "text-rose-600" : "text-text-primary"}
@@ -472,7 +473,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
                   <PnlStatementRow label="Revenue" amount={toCurrency(item.revenue)} ratio="" />
                   <PnlStatementRow label="COGS" amount={`-${toCurrency(item.cogs)}`} ratio={pnlRatio(item.cogs, item.revenue)} />
                   <PnlStatementRow label="OpEx" amount={`-${toCurrency(item.opex)}`} ratio={pnlRatio(item.opex, item.revenue)} />
-                  <div className="mt-1.5 flex justify-between border-t border-border pt-2.5"><span className="text-xs font-bold text-text-primary">Net Profit</span><strong className={`text-base font-bold ${item.netProfit < 0 ? "text-rose-500" : "text-text-primary"}`}>{signedCurrency(item.netProfit)}</strong></div>
+                  <div className="mt-1.5 flex justify-between border-t border-border pt-2.5"><span className="text-xs font-bold text-text-primary">{financialTerminology.ebitda}</span><strong className={`text-base font-bold ${item.netProfit < 0 ? "text-rose-500" : "text-text-primary"}`}>{signedCurrency(item.netProfit)}</strong></div>
                 </div>
               </div>
             ))}

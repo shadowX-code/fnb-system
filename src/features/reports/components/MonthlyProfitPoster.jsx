@@ -1,10 +1,11 @@
 import { money, periodLabel, statusLabel } from "./reportingFormatters.js";
 import { MetricValue, PosterFooter, PosterShell } from "./reportingPosterPrimitives.jsx";
+import { financialTerminology } from "../../../utils/financialTerminology.js";
 
 function percent(metric, revenue, { revenueMetric = false, net = false } = {}) {
   if (revenueMetric && metric?.presence === "present") return "100%";
   if (metric?.presence !== "present" || revenue?.presence !== "present" || !Number(revenue.amount)) return "—";
-  return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${net ? " Net Margin" : " of Revenue"}`;
+  return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${net ? ` ${financialTerminology.ebitdaMargin}` : " of Revenue"}`;
 }
 
 function MonthlyHeader({ outlet, logoUrl, period, status, incomplete }) {
@@ -12,7 +13,7 @@ function MonthlyHeader({ outlet, logoUrl, period, status, incomplete }) {
   return <header className="poster-monthly-head">
     <div className="poster-monthly-head__identity">{logoUrl ? <img src={logoUrl} alt={`${name} logo`} /> : <span>{name}</span>}</div>
     <span className={`report-poster__status ${incomplete ? "is-incomplete" : ""}`}>{status}</span>
-    <div className="poster-monthly-head__type">Monthly Profit Report</div>
+    <div className="poster-monthly-head__type">{financialTerminology.monthlyPnl} Report</div>
     <h2>{period}</h2>
     <h3>{name}</h3>
   </header>;
@@ -81,10 +82,10 @@ export default function MonthlyProfitPoster({ dataset, outlet, logoUrl }) {
   const financials = dataset.financials;
   const incomplete = dataset.financialCompleteness !== "complete";
   const period = periodLabel(dataset.period);
-  return <PosterShell kind="monthly" label="Monthly Profit Report poster">
+  return <PosterShell kind="monthly" label="Monthly P&L Report poster">
     <MonthlyHeader outlet={outlet ?? dataset.outlet} logoUrl={logoUrl} period={period} status={statusLabel(dataset.financialCompleteness)} incomplete={incomplete}/>
-    <section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(financials.revenue)} percentage={percent(financials.revenue, financials.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(financials.purchaseBasedCogs)} percentage={percent(financials.purchaseBasedCogs, financials.revenue)}/><MetricValue label="OpEx" metric={money(financials.opex)} percentage={percent(financials.opex, financials.revenue)}/><MetricValue className="is-profit" label="Net Profit" metric={money(financials.netProfit)} percentage={percent(financials.netProfit, financials.revenue, { net: true })}/></section>
+    <section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(financials.revenue)} percentage={percent(financials.revenue, financials.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(financials.purchaseBasedCogs)} percentage={percent(financials.purchaseBasedCogs, financials.revenue)}/><MetricValue label="OpEx" metric={money(financials.opex)} percentage={percent(financials.opex, financials.revenue)}/><MetricValue className="is-profit" label={financialTerminology.ebitda} metric={money(financials.netProfit)} percentage={percent(financials.netProfit, financials.revenue, { net: true })}/></section>
     {unavailable ? <section className="poster-product-empty"><div><strong>Product performance unavailable</strong><p>No completed Product Analytics report exists for this period. Financial reporting remains available.</p></div></section> : <section className="poster-rankings"><Ranking title="Top 10 Best Selling" rows={dataset.topProducts ?? []} totalSales={dataset.totalProductSalesRevenue}/><CategoryContribution rows={dataset.categoryContributions ?? []} totalSales={dataset.totalProductSalesRevenue}/></section>}
-    <PosterFooter type="Monthly Profit Report" period={period} status={statusLabel(dataset.financialCompleteness)}/>
+    <PosterFooter type={`${financialTerminology.monthlyPnl} Report`} period={period} status={statusLabel(dataset.financialCompleteness)}/>
   </PosterShell>;
 }

@@ -5,7 +5,7 @@ describe("reportPosterExport filenames", () => {
   it("creates stable safe filenames for monthly reports", () => {
     expect(outletSlug("QA Demo — Café #1")).toBe("qa-demo-cafe-1");
     expect(reportExportFilename({ reportType: "monthly", outletName: "QA Demo — Café #1", year: 2026, month: 2, format: "png" }))
-      .toBe("monthly-profit-report_qa-demo-cafe-1_2026-02.png");
+      .toBe("monthly-pnl-report_qa-demo-cafe-1_2026-02.png");
   });
 
   it("marks yearly YTD files and keeps complete yearly files concise", () => {
