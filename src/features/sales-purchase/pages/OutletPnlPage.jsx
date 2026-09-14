@@ -186,7 +186,7 @@ function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingR
     insights.push({ tone: "danger", icon: AlertTriangle, label: "Critical", title: `${financialTerminology.ebitda} is negative.`, body: `${signedCurrency(total.netProfit)} YTD ${financialTerminology.ebitda}. Review COGS and OpEx immediately.` });
   }
   if (total.margin < 15 && total.revenue > 0) {
-    insights.push({ tone: "warning", icon: TrendingDown, label: "Margin", title: `${financialTerminology.ebitdaMargin} dropped below healthy threshold.`, body: `${toPercent(total.margin)} YTD ${financialTerminology.ebitdaMargin.toLowerCase()}. Review pricing, wastage and controllable expenses.` });
+    insights.push({ tone: "warning", icon: TrendingDown, label: "Margin", title: `${financialTerminology.ebitdaMargin} dropped below healthy threshold.`, body: `${toPercent(total.margin)} YTD ${financialTerminology.ebitdaMargin}. Review pricing, wastage and controllable expenses.` });
   }
   const cogsRatio = total.revenue > 0 ? (total.cogs / total.revenue) * 100 : 0;
   if (cogsRatio > 45) {
