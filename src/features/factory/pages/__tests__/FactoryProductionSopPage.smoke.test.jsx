@@ -11,20 +11,30 @@ const recipe = { id: "recipe-1", product_family_id: family.id, version: "v2", st
 const draft = { id: "sop-draft", finished_good_id: family.id, product_name: "Sambal", version: "v2", status: "draft", effective_date: "2026-08-09", recipe_id: recipe.id, recipe_version: recipe.version, linked_recipe: recipe, steps: [{ id: "step-1", step_no: 1, step_name: "Cook", estimated_time_minutes: 10, qc_checks: [{ id: "qc-1", qc_name: "Temperature", qc_type: "checklist", checklist_template_id: "template-1", is_required: true }], ingredient_material_ids: [] }] };
 const active = { ...draft, id: "sop-active", version: "v1", status: "active" };
 const legacy = { id: "sop-legacy", product_name: "Legacy Sambal", version: "v1", status: "archived", steps: [{ id: "legacy-step", step_no: 1, process_name: "Cook", estimated_time_minutes: 8, qc_required: true, qc_label: "Legacy temperature", qc_target_value: "80C", ingredient_material_ids: [] }] };
+const activeEquipment = { id: "equipment-1", equipment_code: "MX-01", name: "Mixer", status: "active" };
 const actions = { saveProductionSop: vi.fn(), activateProductionSop: vi.fn(), archiveProductionSop: vi.fn(), restoreProductionSop: vi.fn(), createProductionSopNewVersion: vi.fn(), deleteProductionSop: vi.fn(), createQcChecklistTemplate: vi.fn(), updateQcChecklistTemplate: vi.fn(), archiveQcChecklistTemplate: vi.fn(), restoreQcChecklistTemplate: vi.fn(), deleteQcChecklistTemplate: vi.fn() };
 
-function renderPage(permissions, { productFamilies = [family, eligibleFamily], sops = [draft, active, legacy] } = {}) {
-  return render(<FactoryPermissionsProvider permissionSet={permissions} can={(permission) => permissions.includes(permission)}><FactoryMasterDataProvider data={{ productFamilies, recipes: [recipe], sops, qcChecklistTemplates: [{ id: "template-1", name: "Temperature", result_mode: "checklist", is_active: true }] }}><FactoryNavigationProvider {...actions}><FactoryProductionSopPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
+function renderPage(permissions, { productFamilies = [family, eligibleFamily], sops = [draft, active, legacy], equipment = [] } = {}) {
+  return render(<FactoryPermissionsProvider permissionSet={permissions} can={(permission) => permissions.includes(permission)}><FactoryMasterDataProvider data={{ productFamilies, recipes: [recipe], sops, equipment, qcChecklistTemplates: [{ id: "template-1", name: "Temperature", result_mode: "checklist", is_active: true }] }}><FactoryNavigationProvider {...actions}><FactoryProductionSopPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
 }
 
 afterEach(() => cleanup());
 
 describe("FactoryProductionSopPage smoke", () => {
-  it("renders Draft, Active, and legacy SOP records then opens detail and builder presentation", () => {
+  it("renders one current SOP per product with structure, QC, readiness, and on-demand version history", () => {
     renderPage(["factory_production_sop.view", "factory_production_sop.create", "factory_production_sop.edit", "factory_production_sop.delete", "factory_production_sop.manage"]);
     expect(screen.getByText("Sambal")).not.toBeNull();
     expect(screen.getByText("Legacy Sambal")).not.toBeNull();
     expect(screen.queryByText("Production SOP Records")).toBeNull();
+    expect(screen.getByText("Products with SOP")).not.toBeNull();
+    expect(screen.getByText("Needs Setup")).not.toBeNull();
+    expect(screen.getAllByText("1 step").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("1 QC").length).toBeGreaterThan(0);
+    expect(screen.getByText("10 min")).not.toBeNull();
+    expect(screen.getByText("Equipment missing")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Show 2 versions for Sambal" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show 2 versions for Sambal" }));
+    expect(screen.getByText("Version history")).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(screen.getByText("Legacy temperature")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
@@ -40,6 +50,23 @@ describe("FactoryProductionSopPage smoke", () => {
     expect(screen.getByText("Legacy Sambal")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     expect(screen.getAllByText("Sambal").length).toBeGreaterThan(0);
+  });
+
+  it("uses the existing active-Equipment activation guard for readiness and the visible Activate action", () => {
+    const readyDraft = { ...draft, equipment_ids: [activeEquipment.id] };
+    renderPage(["factory_production_sop.view", "factory_production_sop.edit"], { sops: [readyDraft], equipment: [activeEquipment] });
+    expect(screen.getByText("Ready")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Activate" }));
+    expect(actions.activateProductionSop).toHaveBeenCalledWith(expect.objectContaining({ id: readyDraft.id }));
+  });
+
+  it("filters product-first rows by setup readiness without inventing a separate activation rule", () => {
+    renderPage(["factory_production_sop.view"]);
+    fireEvent.click(screen.getByRole("button", { name: "Setup" }));
+    fireEvent.click(screen.getByText("Needs setup"));
+    expect(screen.getByText("Filtered by")).not.toBeNull();
+    expect(screen.queryByText("Legacy Sambal")).toBeNull();
+    expect(screen.getByText("Sambal")).not.toBeNull();
   });
 
   it("keeps View-only SOP presentation read-only and hides lifecycle, builder, and QC management controls", () => {
