@@ -15,6 +15,7 @@ import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
+import useFactoryLatestRequest from "../hooks/useFactoryLatestRequest.js";
 import { formatFactoryDate, formatFactoryDateTime, malaysiaBusinessDateInput } from "../utils/factoryDates.js";
 
 const resultOptions = [{ value: "pass", label: "Pass" }, { value: "fail", label: "Fail" }];
@@ -90,6 +91,7 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
   const [sessionDetailOpen, setSessionDetailOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const runLatestRequest = useFactoryLatestRequest();
   const currentEmployeeId = auth?.profile?.id || "";
   const entries = daily.entries || [];
   const session = daily.session || null;
@@ -102,18 +104,14 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
   const employeeOptions = useMemo(() => (daily.employees || []).filter((employee) => !selected.has(employee.id)).map((employee) => ({ value: employee.id, label: [employee.name, employee.position].filter(Boolean).join(" - ") })), [daily.employees, selected]);
   const visibleMatrix = useMemo(() => matrix.filter((row) => `${row.employee_name || ""} ${row.position || ""}`.toLowerCase().includes(employeeQuery.toLowerCase())), [employeeQuery, matrix]);
 
-  const loadDaily = useCallback(async () => {
-    setLoading(true); setError("");
-    try { setDaily(await factoryService.getMestiOperatorHygieneDaily(date)); }
-    catch (loadError) { setError(loadError.message || "Unable to load Operator Hygiene Inspection."); }
-    finally { setLoading(false); }
-  }, [date]);
-  const loadMonthly = useCallback(async () => {
-    setLoading(true); setError("");
-    try { setMatrix(await factoryService.listMestiOperatorHygieneMonthly(month)); }
-    catch (loadError) { setError(loadError.message || "Unable to load monthly Operator Hygiene Inspection."); }
-    finally { setLoading(false); }
-  }, [month]);
+  const loadDaily = useCallback(() => runLatestRequest(
+    () => factoryService.getMestiOperatorHygieneDaily(date),
+    { onStart: () => { setLoading(true); setError(""); }, onSuccess: setDaily, onError: (loadError) => setError(loadError.message || "Unable to load Operator Hygiene Inspection."), onFinally: () => setLoading(false) },
+  ), [date, runLatestRequest]);
+  const loadMonthly = useCallback(() => runLatestRequest(
+    () => factoryService.listMestiOperatorHygieneMonthly(month),
+    { onStart: () => { setLoading(true); setError(""); }, onSuccess: setMatrix, onError: (loadError) => setError(loadError.message || "Unable to load monthly Operator Hygiene Inspection."), onFinally: () => setLoading(false) },
+  ), [month, runLatestRequest]);
   useEffect(() => { if (tab === "daily") loadDaily(); }, [tab, loadDaily]);
   useEffect(() => { if (tab === "monthly") loadMonthly(); }, [tab, loadMonthly]);
 

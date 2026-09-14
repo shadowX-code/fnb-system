@@ -11,6 +11,7 @@ import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
+import useFactoryLatestRequest from "../hooks/useFactoryLatestRequest.js";
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
 import { factoryService } from "../../../services/factoryService.js";
 import { formatFactoryDate, malaysiaBusinessDateInput } from "../utils/factoryDates.js";
@@ -46,13 +47,17 @@ export default function FactoryMestiCalibrationPage({ onNotify, onRefreshFactory
   const [recordForm, setRecordForm] = useState(null);
   const [filters, setFilters] = useState({ query: "", status: "", location: "" });
   const [error, setError] = useState("");
+  const runLatestRequest = useFactoryLatestRequest();
   const requirements = master.mestiCalibrationRequirements || [];
   const equipment = master.equipment || [];
   const canManage = can("factory_mesti_calibration.manage");
   const locations = useMemo(() => [...new Set([...schedule.map((row) => row.location_name), ...records.map((row) => row.equipment_snapshot?.location_name)].filter(Boolean))].sort(), [records, schedule]);
   const visibleSchedule = useMemo(() => schedule.filter((row) => matches(row, filters)), [filters, schedule]);
   const visibleRecords = useMemo(() => records.filter((row) => matches(row, filters)), [filters, records]);
-  const load = useCallback(async () => { try { setError(""); const [nextSchedule, nextRecords] = await Promise.all([factoryService.listMestiCalibrationSchedule(), factoryService.listMestiCalibrationRecords()]); setSchedule(nextSchedule); setRecords(nextRecords); } catch (reason) { setError(reason.message || "Unable to load Calibration."); } }, []);
+  const load = useCallback(() => runLatestRequest(
+    () => Promise.all([factoryService.listMestiCalibrationSchedule(), factoryService.listMestiCalibrationRecords()]),
+    { onStart: () => setError(""), onSuccess: ([nextSchedule, nextRecords]) => { setSchedule(nextSchedule); setRecords(nextRecords); }, onError: (reason) => setError(reason.message || "Unable to load Calibration.") },
+  ), [runLatestRequest]);
   useEffect(() => { load(); }, [load]);
   async function saveRequirement(event) { event.preventDefault(); try { const saved = await factoryService.saveMestiCalibrationRequirement(requirement); setRequirement(null); await onRefreshFactoryData?.({ silent: true }); await load(); onNotify?.({ title: saved?.version_created ? "Calibration requirement version created" : "Calibration requirement unchanged", tone: "success" }); } catch (reason) { setError(reason.message); } }
   async function record(event) { event.preventDefault(); try { await factoryService.recordMestiCalibration(recording.id, recordForm); setRecording(null); await load(); onNotify?.({ title: "Calibration recorded", tone: "success" }); } catch (reason) { setError(reason.message); } }

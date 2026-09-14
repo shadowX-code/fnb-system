@@ -16,6 +16,7 @@ import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
+import useFactoryLatestRequest from "../hooks/useFactoryLatestRequest.js";
 import { formatFactoryDate, formatFactoryDateTime, malaysiaBusinessDateInput } from "../utils/factoryDates.js";
 
 const statusTone = { draft: "neutral", submitted: "warning", verified: "success" };
@@ -40,10 +41,20 @@ export default function FactoryMestiWasteDisposalPage({ auth, onNotify }) {
   const [tab, setTab] = useState("daily"); const [date, setDate] = useState(malaysiaBusinessDateInput()); const [month, setMonth] = useState(currentMonth());
   const [daily, setDaily] = useState({ locations: [] }); const [monthly, setMonthly] = useState([]); const [requirements, setRequirements] = useState([]); const [locations, setLocations] = useState([]);
   const [detail, setDetail] = useState(null); const [eventForm, setEventForm] = useState(null); const [requirementForm, setRequirementForm] = useState(null); const [error, setError] = useState(""); const [loading, setLoading] = useState(false);
+  const runLatestRequest = useFactoryLatestRequest();
   const session = daily.session; const draft = !session || session.status === "draft";
-  const loadDaily = useCallback(async () => { setLoading(true); setError(""); try { setDaily(await factoryService.getMestiWasteDisposalDaily(date)); } catch (reason) { setError(reason.message || "Unable to load Waste Disposal Record."); } finally { setLoading(false); } }, [date]);
-  const loadSetup = useCallback(async () => { setLoading(true); setError(""); try { const [nextRequirements, options] = await Promise.all([factoryService.listMestiWasteDisposalRequirements(), factoryService.listMestiWasteDisposalLocations()]); setRequirements(nextRequirements); setLocations(options); } catch (reason) { setError(reason.message || "Unable to load Waste Disposal setup."); } finally { setLoading(false); } }, []);
-  const loadMonthly = useCallback(async () => { setLoading(true); setError(""); try { setMonthly(await factoryService.listMestiWasteDisposalMonthly(month)); } catch (reason) { setError(reason.message || "Unable to load monthly Waste Disposal Record."); } finally { setLoading(false); } }, [month]);
+  const loadDaily = useCallback(() => runLatestRequest(
+    () => factoryService.getMestiWasteDisposalDaily(date),
+    { onStart: () => { setLoading(true); setError(""); }, onSuccess: setDaily, onError: (reason) => setError(reason.message || "Unable to load Waste Disposal Record."), onFinally: () => setLoading(false) },
+  ), [date, runLatestRequest]);
+  const loadSetup = useCallback(() => runLatestRequest(
+    () => Promise.all([factoryService.listMestiWasteDisposalRequirements(), factoryService.listMestiWasteDisposalLocations()]),
+    { onStart: () => { setLoading(true); setError(""); }, onSuccess: ([nextRequirements, options]) => { setRequirements(nextRequirements); setLocations(options); }, onError: (reason) => setError(reason.message || "Unable to load Waste Disposal setup."), onFinally: () => setLoading(false) },
+  ), [runLatestRequest]);
+  const loadMonthly = useCallback(() => runLatestRequest(
+    () => factoryService.listMestiWasteDisposalMonthly(month),
+    { onStart: () => { setLoading(true); setError(""); }, onSuccess: setMonthly, onError: (reason) => setError(reason.message || "Unable to load monthly Waste Disposal Record."), onFinally: () => setLoading(false) },
+  ), [month, runLatestRequest]);
   useEffect(() => { if (tab === "daily") loadDaily(); if (tab === "monthly") loadMonthly(); if (tab === "setup") loadSetup(); }, [tab, loadDaily, loadMonthly, loadSetup]);
   const summary = useMemo(() => (daily.locations || []).reduce((total, location) => ({ locations: total.locations + 1, required: total.required + Number(location.required_count || 0), completed: total.completed + Number(location.completed_count || 0) }), { locations: 0, required: 0, completed: 0 }), [daily]);
   async function record(event) { try { await factoryService.recordMestiWasteDisposal(date, event); setEventForm(null); await loadDaily(); onNotify?.({ title: "Waste disposal recorded", tone: "success" }); } catch (reason) { setError(reason.message || "Unable to record disposal."); } }

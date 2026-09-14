@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { uploadOptimizedImage } from "../utils/imageUpload.js";
+import { instrumentFactoryService, traceFactoryRequest } from "../features/factory/utils/factoryRuntimePerformance.js";
 
 function normalizeNumber(value, fallback = 0) {
   const numeric = Number(value);
@@ -1482,7 +1483,7 @@ function chunkFactoryIds(values, size = FACTORY_MASTER_ID_BATCH_SIZE) {
 
 async function runFactoryQuery(query, { label, stage, signal } = {}) {
   if (signal?.aborted) throw factoryAbortError();
-  const result = await (signal ? query.abortSignal(signal) : query);
+  const result = await traceFactoryRequest(`${label || "Factory"}: ${stage || "query"}`, () => signal ? query.abortSignal(signal) : query, { kind: "supabase" });
   if (signal?.aborted) throw factoryAbortError();
   if (result.error) throw factoryLoadError(label, stage, result.error);
   return result.data;
@@ -1757,7 +1758,7 @@ export function factoryDataPlan(scope, hasPermission) {
   };
 }
 
-export const factoryService = {
+const factoryServiceDefinition = {
   async listProductFeedbackAdmin() {
     const { data, error } = await supabase.rpc("factory_product_feedback_admin_data", { p_campaign_id: null });
     throwFactorySupabaseError("factory.listProductFeedbackAdmin", error);
@@ -4600,3 +4601,5 @@ export const factoryService = {
     });
   },
 };
+
+export const factoryService = instrumentFactoryService(factoryServiceDefinition);

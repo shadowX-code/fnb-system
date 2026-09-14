@@ -17,6 +17,7 @@ import { Field, inputClass as factoryInputClass } from "../components/FactoryBul
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
+import useFactoryLatestRequest from "../hooks/useFactoryLatestRequest.js";
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
 import { formatFactoryDate, formatFactoryDateTime, malaysiaBusinessDateInput } from "../utils/factoryDates.js";
 
@@ -112,23 +113,20 @@ export default function FactoryMestiEquipmentCleaningPage({ onNotify }) {
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
   const [equipmentQuery, setEquipmentQuery] = useState("");
   const [monthFilters, setMonthFilters] = useState({ query: "", location: "", status: "" });
+  const runLatestRequest = useFactoryLatestRequest();
   const activeEquipment = (masterData.equipment || []).filter((equipment) => equipment.status === "active");
   const canManage = can("factory_mesti_equipment_cleaning.manage");
   const canSaveSetup = canManage || can("factory_mesti_equipment_cleaning.create") || can("factory_mesti_equipment_cleaning.edit");
 
   useEffect(() => setRequirements(masterData.mestiEquipmentCleaningRequirements || []), [masterData.mestiEquipmentCleaningRequirements]);
-  const loadDaily = useCallback(async () => {
-    setLoading(true); setError("");
-    try { setDailyRows(await factoryService.listMestiEquipmentCleaningDay(date)); }
-    catch (loadError) { setError(loadError.message || "Unable to load Cleaning of Equipment."); }
-    finally { setLoading(false); }
-  }, [date]);
-  const loadMonthly = useCallback(async () => {
-    setLoading(true); setError("");
-    try { setMonthlyRows(await factoryService.listMestiEquipmentCleaningMonth(month)); }
-    catch (loadError) { setError(loadError.message || "Unable to load monthly Cleaning of Equipment."); }
-    finally { setLoading(false); }
-  }, [month]);
+  const loadDaily = useCallback(() => runLatestRequest(
+    () => factoryService.listMestiEquipmentCleaningDay(date),
+    { onStart: () => { setLoading(true); setError(""); }, onSuccess: setDailyRows, onError: (loadError) => setError(loadError.message || "Unable to load Cleaning of Equipment."), onFinally: () => setLoading(false) },
+  ), [date, runLatestRequest]);
+  const loadMonthly = useCallback(() => runLatestRequest(
+    () => factoryService.listMestiEquipmentCleaningMonth(month),
+    { onStart: () => { setLoading(true); setError(""); }, onSuccess: setMonthlyRows, onError: (loadError) => setError(loadError.message || "Unable to load monthly Cleaning of Equipment."), onFinally: () => setLoading(false) },
+  ), [month, runLatestRequest]);
   useEffect(() => { if (activeTab === "daily") loadDaily(); }, [activeTab, loadDaily]);
   useEffect(() => { if (activeTab === "monthly") loadMonthly(); }, [activeTab, loadMonthly]);
 
