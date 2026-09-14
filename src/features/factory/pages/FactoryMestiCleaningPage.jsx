@@ -18,6 +18,7 @@ import FactoryViewTabs from "../components/FactoryViewTabs.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
+import useFactoryLatestRequest from "../hooks/useFactoryLatestRequest.js";
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
 import { formatFactoryDate, formatFactoryDateTime, malaysiaBusinessDateInput } from "../utils/factoryDates.js";
 
@@ -120,24 +121,21 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [monthlyDetail, setMonthlyDetail] = useState(null);
   const [showRequirementForm, setShowRequirementForm] = useState(false);
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
+  const runLatestRequest = useFactoryLatestRequest();
   const activeLocations = (masterData.storageLocations || []).filter((location) => location.status === "active");
   const currentEmployeeId = auth?.profile?.id || "";
   const canManage = can("factory_mesti_cleaning.manage");
   const canSaveSetup = canManage || can("factory_mesti_cleaning.create") || can("factory_mesti_cleaning.edit");
 
   useEffect(() => setRequirements(masterData.mestiCleaningRequirements || []), [masterData.mestiCleaningRequirements]);
-  const loadDaily = useCallback(async () => {
-    setLoading(true); setError("");
-    try { setDailyRows(await factoryService.listMestiCleaningDay(date)); }
-    catch (loadError) { console.error("[Factory] Unable to load MeSTI Cleaning day.", loadError); setError(loadError.message || "Unable to load Cleaning of Area."); }
-    finally { setLoading(false); }
-  }, [date]);
-  const loadMonthly = useCallback(async () => {
-    setMonthLoading(true); setError("");
-    try { setMonthlyRows(await factoryService.listMestiCleaningMonth(month)); }
-    catch (loadError) { console.error("[Factory] Unable to load MeSTI Cleaning month.", loadError); setError(loadError.message || "Unable to load monthly Cleaning matrix."); }
-    finally { setMonthLoading(false); }
-  }, [month]);
+  const loadDaily = useCallback(() => runLatestRequest(
+    () => factoryService.listMestiCleaningDay(date),
+    { onStart: () => { setLoading(true); setError(""); }, onSuccess: setDailyRows, onError: (loadError) => { console.error("[Factory] Unable to load MeSTI Cleaning day.", loadError); setError(loadError.message || "Unable to load Cleaning of Area."); }, onFinally: () => setLoading(false) },
+  ), [date, runLatestRequest]);
+  const loadMonthly = useCallback(() => runLatestRequest(
+    () => factoryService.listMestiCleaningMonth(month),
+    { onStart: () => { setMonthLoading(true); setError(""); }, onSuccess: setMonthlyRows, onError: (loadError) => { console.error("[Factory] Unable to load MeSTI Cleaning month.", loadError); setError(loadError.message || "Unable to load monthly Cleaning matrix."); }, onFinally: () => setMonthLoading(false) },
+  ), [month, runLatestRequest]);
   useEffect(() => { if (activeTab === "daily") loadDaily(); }, [activeTab, loadDaily]);
   useEffect(() => { if (activeTab === "monthly") loadMonthly(); }, [activeTab, loadMonthly]);
 
