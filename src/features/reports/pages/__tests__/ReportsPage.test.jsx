@@ -30,7 +30,7 @@ describe("ReportsPage", () => {
     expect(screen.getByText("Generate a report preview")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     await waitFor(() => expect(getMonthlyOutletReport).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a" })));
-    expect(screen.getAllByLabelText("Monthly Profit Report poster")).toHaveLength(2);
+    expect(screen.getAllByLabelText("Monthly P&L Report poster")).toHaveLength(2);
     expect(screen.getAllByText(/Product performance unavailable/)).toHaveLength(2);
     expect(screen.getAllByText(/No completed Product Analytics report exists/)).toHaveLength(2);
     expect(screen.queryByText("Completed Product Analytics report")).toBeNull();
@@ -40,7 +40,7 @@ describe("ReportsPage", () => {
   it("switches to a 12-month Yearly/YTD poster and calls the yearly Reporting service", async () => {
     getYearlyOutletFinancialReport.mockResolvedValue(yearlyDataset);
     render(<ReportsPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    fireEvent.click(screen.getByRole("button", { name: "Monthly Profit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Monthly P&L" }));
     fireEvent.click(screen.getByRole("button", { name: "Yearly P&L" }));
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
     await waitFor(() => expect(getYearlyOutletFinancialReport).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a" })));
@@ -53,19 +53,19 @@ describe("ReportsPage", () => {
     expect(screen.getAllByText("Performance Snapshot")).toHaveLength(2);
     expect(screen.getAllByText("Monthly P&L Details")).toHaveLength(2);
     expect(screen.getAllByText("20.0%")).toHaveLength(2);
-    expect(screen.getAllByText("80.0% Margin")).toHaveLength(2);
+    expect(screen.getAllByText("80.0% EBITDA Margin")).toHaveLength(4);
   });
 
   it("exports only the current generated dataset and prevents export before Generate", async () => {
     getMonthlyOutletReport.mockResolvedValue(monthlyDataset);
-    exportPoster.mockResolvedValue("monthly-profit-report_outlet-a_2026-08.png");
+    exportPoster.mockResolvedValue("monthly-pnl-report_outlet-a_2026-08.png");
     render(<ReportsPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(screen.queryByRole("button", { name: "Download PNG" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
-    await waitFor(() => expect(screen.getAllByLabelText("Monthly Profit Report poster")).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByLabelText("Monthly P&L Report poster")).toHaveLength(2));
     fireEvent.click(screen.getByRole("button", { name: "Download PNG" }));
     await waitFor(() => expect(exportPoster).toHaveBeenCalledWith(expect.objectContaining({ reportType: "monthly", dataset: monthlyDataset, format: "png", element: expect.anything() })));
-    expect(screen.getByRole("status").textContent).toContain("monthly-profit-report_outlet-a_2026-08.png");
+    expect(screen.getByRole("status").textContent).toContain("monthly-pnl-report_outlet-a_2026-08.png");
   });
 
   it("keeps export disabled without reports.export and surfaces export failures", async () => {
@@ -73,7 +73,7 @@ describe("ReportsPage", () => {
     const noExportAuth = { ...auth, hasPermission: (permission) => permission !== "reports.export" };
     const { rerender } = render(<ReportsPage auth={noExportAuth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
-    await waitFor(() => expect(screen.getAllByLabelText("Monthly Profit Report poster")).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByLabelText("Monthly P&L Report poster")).toHaveLength(2));
     expect(screen.getByRole("button", { name: "Download PDF" }).disabled).toBe(true);
     expect(screen.getByText((_, node) => node?.textContent === "Download controls require the reports.export permission.")).toBeTruthy();
 
@@ -87,7 +87,7 @@ describe("ReportsPage", () => {
     getMonthlyOutletReport.mockResolvedValue(monthlyDataset);
     render(<ReportsPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(screen.getByRole("button", { name: "Generate Report" }));
-    await waitFor(() => expect(screen.getAllByLabelText("Monthly Profit Report poster")).toHaveLength(2));
+    await waitFor(() => expect(screen.getAllByLabelText("Monthly P&L Report poster")).toHaveLength(2));
     const exportHost = document.querySelector('[aria-hidden="true"][style*="1200px"]');
     expect(exportHost).toBeTruthy();
     expect(exportHost.style.left).toBe("-10000px");

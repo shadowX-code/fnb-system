@@ -1,12 +1,13 @@
 import { compactMonth, money, statusLabel } from "./reportingFormatters.js";
 import { MetricValue, PosterFooter, PosterShell } from "./reportingPosterPrimitives.jsx";
+import { financialTerminology } from "../../../utils/financialTerminology.js";
 
 const REVENUE = "#147d70";
 
 function percent(metric, revenue, { revenueMetric = false, net = false } = {}) {
   if (revenueMetric && metric?.presence === "present") return "100%";
   if (metric?.presence !== "present" || revenue?.presence !== "present" || !Number(revenue.amount)) return "—";
-  return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${net ? " Net Margin" : " of Revenue"}`;
+  return `${(Number(metric.amount) / Number(revenue.amount) * 100).toFixed(1)}%${net ? ` ${financialTerminology.ebitdaMargin}` : " of Revenue"}`;
 }
 
 function negative(metric) { return metric?.presence === "present" && Number(metric.amount) < 0; }
@@ -19,7 +20,7 @@ function monthlyRate(metric, revenue, suffix = "") {
 }
 
 function TableFigure({ metric, revenue, net = false, showRate = true }) {
-  return <span className="poster-table-figure"><b>{money(metric)}</b>{showRate && metric?.presence === "present" ? <small>{monthlyRate(metric, revenue, net ? " Margin" : "")}</small> : null}</span>;
+  return <span className="poster-table-figure"><b>{money(metric)}</b>{showRate && metric?.presence === "present" ? <small>{monthlyRate(metric, revenue, net ? ` ${financialTerminology.ebitdaMargin}` : "")}</small> : null}</span>;
 }
 
 function YearlyHeader({ dataset, outlet, logoUrl, reported }) {
@@ -69,7 +70,7 @@ function Snapshot({ months }) {
   const bestProfit = profitMonths.reduce((best, month) => !best || Number(month.financials.netProfit.amount) > Number(best.financials.netProfit.amount) ? month : best, null);
   const lowProfit = profitMonths.reduce((lowest, month) => !lowest || Number(month.financials.netProfit.amount) < Number(lowest.financials.netProfit.amount) ? month : lowest, null);
   const item = (label, month, metric, tone = "") => <div className={`poster-snapshot__item ${tone}`}><span>{label}</span><strong>{month ? compactMonth(month.month) : "—"}</strong><em>{month ? money(month.financials[metric]) : "—"}</em></div>;
-  return <section className="poster-snapshot" aria-label="Performance Snapshot"><div className="poster-snapshot__title">Performance Snapshot <span>Reported period</span></div><div className="poster-snapshot__grid">{item("Best Revenue Month", bestRevenue, "revenue")}{item("Best Net Profit Month", bestProfit, "netProfit")}{item("Lowest Net Profit Month", lowProfit, "netProfit", "is-negative")}<div className="poster-snapshot__item"><span>Reported Months</span><strong>{revenueMonths.length} / {months.length}</strong><em>{(revenueMonths.length / months.length * 100).toFixed(1)}% of year</em></div></div></section>;
+  return <section className="poster-snapshot" aria-label="Performance Snapshot"><div className="poster-snapshot__title">Performance Snapshot <span>Reported period</span></div><div className="poster-snapshot__grid">{item("Best Revenue Month", bestRevenue, "revenue")}{item(financialTerminology.bestEbitdaMonth, bestProfit, "netProfit")}{item(financialTerminology.lowestEbitdaMonth, lowProfit, "netProfit", "is-negative")}<div className="poster-snapshot__item"><span>Reported Months</span><strong>{revenueMonths.length} / {months.length}</strong><em>{(revenueMonths.length / months.length * 100).toFixed(1)}% of year</em></div></div></section>;
 }
 
 function Completeness({ months }) {
@@ -83,9 +84,9 @@ export default function YearlyPnlPoster({ dataset, outlet, logoUrl }) {
   const reported = dataset.months.filter(hasRevenue).length;
   return <PosterShell kind="yearly" label="Yearly P&L Report poster">
     <YearlyHeader dataset={dataset} outlet={outlet} logoUrl={logoUrl} reported={reported}/>
-    <section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(dataset.totals.revenue)} percentage={percent(dataset.totals.revenue, dataset.totals.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(dataset.totals.purchaseBasedCogs)} percentage={percent(dataset.totals.purchaseBasedCogs, dataset.totals.revenue)}/><MetricValue label="OpEx" metric={money(dataset.totals.opex)} percentage={percent(dataset.totals.opex, dataset.totals.revenue)}/><MetricValue className="is-profit" label="Net Profit" metric={money(dataset.totals.netProfit)} percentage={percent(dataset.totals.netProfit, dataset.totals.revenue, { net: true })}/></section>
+    <section className="poster-financial-summary"><MetricValue className="is-revenue" label="Revenue" metric={money(dataset.totals.revenue)} percentage={percent(dataset.totals.revenue, dataset.totals.revenue, { revenueMetric: true })}/><MetricValue label="COGS" qualifier="Purchase-based" metric={money(dataset.totals.purchaseBasedCogs)} percentage={percent(dataset.totals.purchaseBasedCogs, dataset.totals.revenue)}/><MetricValue label="OpEx" metric={money(dataset.totals.opex)} percentage={percent(dataset.totals.opex, dataset.totals.revenue)}/><MetricValue className="is-profit" label={financialTerminology.ebitda} metric={money(dataset.totals.netProfit)} percentage={percent(dataset.totals.netProfit, dataset.totals.revenue, { net: true })}/></section>
     <Completeness months={dataset.months}/><Chart months={dataset.months}/><Snapshot months={dataset.months}/>
-    <section className="poster-yearly-details"><div className="poster-yearly-details__head"><h3>Monthly P&amp;L Details</h3><span>— No data available</span></div><div className="poster-financial-table"><div className="poster-table-row poster-table-row--head"><span>Month</span><span>Revenue</span><span>COGS</span><span>OpEx</span><span>Net Profit</span></div>{dataset.months.map((month) => <div className={`poster-table-row ${!hasRevenue(month) ? "is-missing" : ""}`} key={month.month}><span>{compactMonth(month.month)}</span><TableFigure metric={month.financials.revenue} revenue={month.financials.revenue} showRate={false}/><TableFigure metric={month.financials.purchaseBasedCogs} revenue={month.financials.revenue}/><TableFigure metric={month.financials.opex} revenue={month.financials.revenue}/><strong className={negative(month.financials.netProfit) ? "is-negative" : ""}><TableFigure metric={month.financials.netProfit} revenue={month.financials.revenue} net/></strong></div>)}</div></section>
+    <section className="poster-yearly-details"><div className="poster-yearly-details__head"><h3>Monthly P&amp;L Details</h3><span>— No data available</span></div><div className="poster-financial-table"><div className="poster-table-row poster-table-row--head"><span>Month</span><span>Revenue</span><span>COGS</span><span>OpEx</span><span>{financialTerminology.ebitda}</span></div>{dataset.months.map((month) => <div className={`poster-table-row ${!hasRevenue(month) ? "is-missing" : ""}`} key={month.month}><span>{compactMonth(month.month)}</span><TableFigure metric={month.financials.revenue} revenue={month.financials.revenue} showRate={false}/><TableFigure metric={month.financials.purchaseBasedCogs} revenue={month.financials.revenue}/><TableFigure metric={month.financials.opex} revenue={month.financials.revenue}/><strong className={negative(month.financials.netProfit) ? "is-negative" : ""}><TableFigure metric={month.financials.netProfit} revenue={month.financials.revenue} net/></strong></div>)}</div></section>
     <PosterFooter type="Annual Financial Performance" period={period} status={statusLabel(dataset.completeness, dataset.periodMode)}/>
   </PosterShell>;
 }
