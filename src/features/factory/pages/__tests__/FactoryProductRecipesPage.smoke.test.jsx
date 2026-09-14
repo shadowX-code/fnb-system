@@ -13,9 +13,9 @@ const active = { id: "recipe-active", product_family_id: family.id, product_name
 const draft = { ...active, id: "recipe-draft", version: "v2", status: "draft" };
 const otherRecipe = { ...active, id: "recipe-other", product_family_id: otherFamily.id, product_name: otherFamily.name_en };
 
-function renderPage(permissions) {
+function renderPage(permissions, receivings = [{ raw_material_id: material.id, unit_cost: 5, uom: "kg" }]) {
   const can = (permission) => permissions.includes(permission);
-  return render(<FactoryPermissionsProvider permissionSet={permissions} can={can}><FactoryMasterDataProvider data={{ recipes: [draft, active, otherRecipe], productFamilies: [family, missingFamily, otherFamily], finishedGoods: [{ id: "sku-1", product_family_id: family.id, uom: "kg" }], rawMaterials: [material], receivings: [{ raw_material_id: material.id, unit_cost: 5, uom: "kg" }] }}><FactoryNavigationProvider saveProductRecipe={vi.fn()} activateProductRecipe={vi.fn()} archiveProductRecipe={vi.fn()} restoreProductRecipe={vi.fn()} createProductRecipeNewVersion={vi.fn()} deleteProductRecipe={vi.fn()}><FactoryProductRecipesPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
+  return render(<FactoryPermissionsProvider permissionSet={permissions} can={can}><FactoryMasterDataProvider data={{ recipes: [draft, active, otherRecipe], productFamilies: [family, missingFamily, otherFamily], finishedGoods: [{ id: "sku-1", product_family_id: family.id, uom: "kg" }], rawMaterials: [material], receivings }}><FactoryNavigationProvider saveProductRecipe={vi.fn()} activateProductRecipe={vi.fn()} archiveProductRecipe={vi.fn()} restoreProductRecipe={vi.fn()} createProductRecipeNewVersion={vi.fn()} deleteProductRecipe={vi.fn()}><FactoryProductRecipesPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
 }
 
 afterEach(cleanup);
@@ -27,6 +27,8 @@ describe("FactoryProductRecipesPage", () => {
     expect(screen.queryByText("Recipe Records")).toBeNull();
     expect(screen.getByRole("columnheader", { name: "Product" })).not.toBeNull();
     expect(screen.getByRole("columnheader", { name: "Standard Output" })).not.toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Cost / kg" })).not.toBeNull();
+    expect(screen.getAllByText("RM1.00/kg").length).toBeGreaterThan(0);
     expect(screen.getByText("Products with Recipe")).not.toBeNull();
     expect(screen.getByText("Missing Recipe")).not.toBeNull();
     expect(screen.getByText("v2")).not.toBeNull();
@@ -49,6 +51,11 @@ describe("FactoryProductRecipesPage", () => {
     expect(screen.queryByText("Other Sauce")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     expect(screen.getByText("Other Sauce")).not.toBeNull();
+  });
+
+  it("uses the canonical detail cost projection for Cost / kg and renders unavailable cost as muted dash", () => {
+    renderPage(["factory_product_recipes.view"], []);
+    expect(screen.getAllByText("—").length).toBeGreaterThan(0);
   });
 
   it("keeps lifecycle and Create Recipe controls hidden for View-only users", () => {
