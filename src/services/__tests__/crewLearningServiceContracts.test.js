@@ -100,6 +100,16 @@ describe("Crew learning mobile service boundaries", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("crew_admin_sop_usage", { p_sop_id: "sop-1" });
   });
 
+  it("returns unavailable published onboarding clone sources as handled preview errors", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: null,
+      error: { message: "The source outlet has no published onboarding." },
+    });
+
+    await expect(crewService.onboardingClonePreview("outlet-1", "outlet-2"))
+      .rejects.toThrow("The source outlet has no published onboarding.");
+  });
+
   it("uses dedicated authenticated authorities for non-draft transitions", async () => {
     await crewService.publishJourney("journey-1");
     await crewService.newJourneyVersion("journey-1");

@@ -854,7 +854,8 @@ export const crewService = {
       p_source_outlet_id: sourceOutletId,
       p_target_outlet_id: targetOutletId,
     });
-    throwSupabaseError("crew.onboardingClonePreview", error);
+    // A source without a Published onboarding is a normal clone-selection state.
+    if (error) throw new Error(error.message || "Unable to inspect this source outlet.");
     return data;
   },
 
