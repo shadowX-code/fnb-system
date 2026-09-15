@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const reconciliationMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260915110000_factory_product_stock_check_reconciliation_batches.sql"), "utf8");
 const submitMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260915111000_factory_product_stock_check_reconciliation_submit.sql"), "utf8");
+const submitCorrectionMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260915112000_factory_product_stock_check_reconciliation_submit_fix.sql"), "utf8");
 
 describe("Finished Goods Stock Check reconciliation batch authority", () => {
   it("keeps positive Stock Check evidence separate from Production and creates one traceable adjustment batch", () => {
@@ -21,6 +22,7 @@ describe("Finished Goods Stock Check reconciliation batch authority", () => {
     expect(reconciliationMigration).toContain("Only submitted stock checks can be approved.");
     expect(submitMigration).toContain("p_target_status, 'draft'");
     expect(submitMigration).toContain("set status = 'submitted'");
+    expect(submitCorrectionMigration).toContain("where stock_check.id = v_saved_id");
   });
 
   it("keeps selected existing-batch identity in the canonical save request", () => {
