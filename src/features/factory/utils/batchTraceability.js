@@ -2,7 +2,9 @@ import { quantity, signedQuantity } from "./factoryFormatters.js";
 
 export function traceBatchNo(batch) {
   const sourceType = String(batch?.batch_type || batch?.source_type || "").toLowerCase();
-  return sourceType && sourceType !== "production" ? "—" : batch?.batch_no || "—";
+  // Reconciliation batches are canonical, source-linked batch records. Show
+  // their ADJ reference without presenting them as Production evidence.
+  return sourceType && !["production", "adjustment"].includes(sourceType) ? "—" : batch?.batch_no || "—";
 }
 
 export function tracePackQuantity(value) { return quantity(value, Number(value || 0) === 1 ? "Pack" : "Packs"); }
