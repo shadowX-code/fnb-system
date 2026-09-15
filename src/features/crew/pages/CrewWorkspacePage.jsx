@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Clock3, ShieldCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import CrewAccessManagerModal from "../components/CrewAccessManagerModal.jsx";
 import CrewDisableAccessModal from "../components/CrewDisableAccessModal.jsx";
 import CrewSpecialAccessModal from "../components/CrewSpecialAccessModal.jsx";
-import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { employeeService } from "../../../services/employeeService.js";
 import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
@@ -16,6 +18,7 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [request, setRequest] = useState(null);
   const [specialAccessEmployee, setSpecialAccessEmployee] = useState(null);
   const [disableEmployee, setDisableEmployee] = useState(null);
@@ -30,11 +33,13 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
       return;
     }
     setLoading(true);
+    setLoadError("");
     try {
       const nextEmployees = await employeeService.listCrewAccessEmployees(outletId);
       if (generation === refreshGeneration.current) setEmployees(nextEmployees);
     } catch (error) {
       if (generation === refreshGeneration.current) {
+        setLoadError(error.message || "Unable to load Crew access.");
         ui.notify({ title: "Unable to load Crew access", message: error.message, tone: "error" });
       }
     } finally {
@@ -55,9 +60,9 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
 
   if (initialTab === "employees") return <div className="space-y-4">
     <PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." />
-    <CrewAdminToolbar outlet={outletControl} search={<label className="field"><span>Search Crew</span><input className="control w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, position or employee code" /></label>} />
+    <AdminFilterToolbar outlet={outletControl} search={<label className="field"><span>Search Crew</span><input className="control w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, position or employee code" /></label>} />
     <Card title="Employee Crew Access" description="Passcodes are never stored or shown again after generation.">
-      {loading ? <div className="p-8 text-sm font-semibold text-text-secondary">Loading employees…</div> : <DataTable tableClassName="min-w-[1120px]" rows={scopedEmployees} getRowKey={(row) => row.id} columns={employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee)} />}
+      <AsyncDataSurface loading={loading} error={loadError} hasData={scopedEmployees.length > 0} isEmpty={!scopedEmployees.length} emptyTitle={employees.length ? "No Crew match this search" : "No Crew access records"} emptyDescription={employees.length ? "Clear or adjust the search to see more Crew." : "Crew access records for this outlet will appear here."} onRetry={refresh}><DataTable tableClassName="min-w-[1120px]" rows={scopedEmployees} getRowKey={(row) => row.id} columns={employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee)} /></AsyncDataSurface>
     </Card>
     {request ? <CrewAccessManagerModal employee={request.employee} mode={request.mode} onClose={() => setRequest(null)} onSaved={refresh} /> : null}
     {specialAccessEmployee ? <CrewSpecialAccessModal employee={specialAccessEmployee} onClose={() => setSpecialAccessEmployee(null)} onSaved={refresh} /> : null}
@@ -66,7 +71,7 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
 
   return <div className="space-y-4">
     <PageHeader section="Crew · Overview" title="Crew Foundation" description="Mobile access and attendance are now a dedicated workforce workspace." />
-    <CrewAdminToolbar outlet={outletControl} />
+    <AdminFilterToolbar outlet={outletControl} />
     <div className="grid gap-4 md:grid-cols-3"><Metric icon={UsersRound} label="Crew Access Active" value={active.length} helper="Employees able to use Crew mobile" /><Metric icon={Clock3} label="Open shifts" value="—" helper="Attendance control is available in Crew" /><Metric icon={ShieldCheck} label="Access review" value={locked.length} helper="Locked Crew accounts need attention" tone="amber" /></div>
     <Card title="Crew Workspace" description="Crew access remains independent from Admin access."><div className="grid gap-3 md:grid-cols-2"><p className="rounded-xl bg-slate-50 p-4 text-sm text-text-secondary">Employees retain their existing role, Admin access state and Admin login history.</p><p className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">Mobile Crew access, attendance, learning, operations, performance and rewards remain scoped to the selected Outlet.</p></div></Card>
   </div>;

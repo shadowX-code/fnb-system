@@ -165,15 +165,12 @@ describe("Crew Leave Admin UI", () => {
 
   it("shows retry and filter-no-results states", async () => {
     mocks.leaveAdminData.mockRejectedValueOnce(new Error("Staging read failed"));
-    const first = render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
-    expect(await screen.findByRole("alert")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Retry" })).not.toBeNull();
-    first.unmount();
-    mocks.leaveAdminData.mockResolvedValue(data);
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
-    await screen.findByText("Alex Tan");
+    expect(await screen.findByRole("alert")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Alex Tan")).not.toBeNull();
     fireEvent.change(screen.getByPlaceholderText("Search employee name or position"), { target: { value: "Nobody" } });
     expect(screen.getByText("No requests match these filters")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Clear filters" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Clear all" })).not.toBeNull();
   });
 });

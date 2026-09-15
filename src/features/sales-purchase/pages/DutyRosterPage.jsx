@@ -4,6 +4,7 @@ import { CalendarDays, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clipbo
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import PublicationState from "../../../components/ui/PublicationState.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
@@ -2206,8 +2207,6 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   }
 
   const hasUnpublishedChanges = period?.status === "published" && period?.has_unpublished_changes;
-  const rosterStatusLabel = period?.status === "locked" ? "Locked" : hasUnpublishedChanges ? "Published · Unpublished changes" : period?.status === "published" ? "Published" : "Draft";
-  const statusTone = period?.status === "locked" ? "danger" : period?.status === "published" ? "success" : "warning";
 
   function selectRosterDate(date) {
     const next = viewMode === "month" ? startOfMonth(date) : startOfWeek(date);
@@ -2335,8 +2334,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         >
           <div className="relative flex flex-wrap items-center justify-between gap-2 border-b border-border bg-background/60 px-4 py-3">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge tone={statusTone}>{rosterStatusLabel}</Badge>
-              {period?.published_at ? <span className="text-xs text-text-secondary">Last published {formatPublishedAt(period.published_at)}</span> : null}
+              <PublicationState status={period?.status} unpublishedChanges={hasUnpublishedChanges} lastPublishedLabel={period?.published_at ? formatPublishedAt(period.published_at) : ""} />
               <span className="text-xs font-semibold text-text-secondary">{readOnly ? "Read-only" : "Editable"}</span>
               {selectedTemplate ? <span className="rounded-lg bg-primary/10 px-2 py-1 text-xs font-bold text-primary">Template: {selectedTemplate.name}</span> : null}
             </div>

@@ -1,13 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, Clock3, Eye, HelpCircle, MapPin, ShieldCheck, UsersRound } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CalendarDays, Clock3, Eye, HelpCircle, MapPin, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
-import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
+import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import FeedXDateRangePicker from "../../../components/ui/FeedXDateRangePicker.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
@@ -98,12 +101,16 @@ function attendanceState(row) {
 }
 
 const attendanceStatus = {
-  completed: { label: "Completed", tone: "success" },
-  on_shift: { label: "On Shift", tone: "info" },
-  incomplete: { label: "Incomplete", tone: "danger" },
-  exception: { label: "Exception", tone: "warning" },
-  no_roster: { label: "No Roster Match", tone: "neutral" },
+  completed: "Completed",
+  on_shift: "On Shift",
+  incomplete: "Incomplete",
+  exception: "Exception",
+  no_roster: "No Roster Match",
 };
+
+function attendanceStatusPresentation(value) {
+  return { label: attendanceStatus[value] || "Unavailable", tone: semanticStatusTone(value) };
+}
 
 function rowMatchesStatus(row, filter) {
   if (filter === ALL) return true;
@@ -134,7 +141,9 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
   const [rows, setRows] = useState([]);
   const [outlets, setOutlets] = useState(() => (store?.outlets || []).filter((row) => row.is_active !== false));
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [detail, setDetail] = useState(null);
+  const requestSequence = useRef(0);
 
   useEffect(() => { if (!outletId && sharedOutlet.outletId) setOutletIdState(sharedOutlet.outletId); }, [outletId, sharedOutlet.outletId]);
   const setOutletId = (value) => { setOutletIdState(value); if (value !== ALL) sharedOutlet.setOutletId(value); };
@@ -146,16 +155,25 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
     return () => { live = false; };
   }, [store?.outlets, ui]);
 
-  useEffect(() => {
-    if (!outletId) return undefined;
-    let live = true;
+  const loadAttendance = useCallback(async () => {
+    if (!outletId) {
+      setLoading(false);
+      return;
+    }
+    const requestId = ++requestSequence.current;
     setLoading(true);
-    crewService.listAttendance({ from, to, outletId: outletId === ALL ? null : outletId })
-      .then((data) => { if (live) setRows(data || []); })
-      .catch((error) => ui.notify({ title: "Unable to load attendance", message: error.message, tone: "error" }))
-      .finally(() => { if (live) setLoading(false); });
-    return () => { live = false; };
-  }, [from, outletId, to, ui]);
+    setLoadError("");
+    try {
+      const data = await crewService.listAttendance({ from, to, outletId: outletId === ALL ? null : outletId });
+      if (requestId === requestSequence.current) setRows(data || []);
+    } catch (error) {
+      if (requestId === requestSequence.current) setLoadError(error.message || "Unable to load attendance.");
+    } finally {
+      if (requestId === requestSequence.current) setLoading(false);
+    }
+  }, [from, outletId, to]);
+
+  useEffect(() => { loadAttendance(); }, [loadAttendance]);
 
   const employees = useMemo(() => Array.from(new Map(rows.map((row) => [row.employee?.id, row.employee]).filter(([id]) => id)).values()).sort((a, b) => (a.nickname || a.full_name || "").localeCompare(b.nickname || b.full_name || "")), [rows]);
   const positions = useMemo(() => [...new Set(rows.map((row) => row.employee?.position).filter(Boolean))].sort(), [rows]);
@@ -177,6 +195,11 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
   const attentionCount = summary.exceptions + summary.incomplete + summary.noRoster + summary.largeVariance;
 
   const isToday = from === today && to === today;
+  const activeFilters = [
+    employeeId !== ALL && { key: "employee", label: "Employee", value: employees.find((employee) => employee.id === employeeId)?.nickname || employees.find((employee) => employee.id === employeeId)?.full_name || "Selected", onRemove: () => setEmployeeId(ALL) },
+    position !== ALL && { key: "position", label: "Position", value: position, onRemove: () => setPosition(ALL) },
+    status !== ALL && { key: "status", label: "Attendance", value: status === "location_exception" ? "Location exception" : status === "no_roster" ? "No published roster" : status === "variance" ? "Late / variance" : status[0].toUpperCase() + status.slice(1), onRemove: () => setStatus(ALL) },
+  ].filter(Boolean);
 
   const columns = [
     { key: "employee", header: "Employee", width: "210px", render: (row) => <div><div className="font-bold text-text-primary">{row.employee?.nickname || row.employee?.full_name || "Employee"}</div><div className="mt-0.5 text-xs text-text-secondary">{row.employee?.position || "Crew"} · {row.outlet?.name || row.employee?.workplace || "Outlet"}</div>{row.schedule?.outlet_name && row.outlet?.name && row.schedule.outlet_name !== row.outlet.name ? <div className="mt-1 text-xs font-semibold text-amber-700">Worked at {row.outlet.name}</div> : null}</div> },
@@ -185,7 +208,7 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
     { key: "clock_out", header: "Clock Out", width: "112px", render: (row) => <TimeCell value={row.clock_out_at} /> },
     { key: "duration", header: "Duration", width: "112px", render: (row) => { const minutes = durationMinutes(row); return <div><div className="font-semibold text-text-primary">{formatDuration(minutes)}</div>{minutes > 1440 ? <div className="mt-1"><Badge tone="danger">Potential anomaly</Badge></div> : null}</div>; } },
     { key: "location", header: "Location", width: "150px", render: (row) => <LocationCell row={row} /> },
-    { key: "status", header: "Attendance Status", width: "150px", render: (row) => { const state = attendanceStatus[attendanceState(row)]; return <div><Badge tone={state.tone}>{state.label}</Badge>{row.schedule && row.schedule.entry_type !== "working" ? <div className="mt-1 text-xs text-text-secondary">Non-working day</div> : null}</div>; } },
+    { key: "status", header: "Attendance Status", width: "150px", render: (row) => { const state = attendanceStatusPresentation(attendanceState(row)); return <div><Badge tone={state.tone}>{state.label}</Badge>{row.schedule && row.schedule.entry_type !== "working" ? <div className="mt-1 text-xs text-text-secondary">Non-working day</div> : null}</div>; } },
     { key: "actions", header: "Actions", width: "76px", align: "right", render: (row) => <button className="icon-btn" type="button" aria-label={`View attendance for ${row.employee?.nickname || row.employee?.full_name || "employee"}`} title="View attendance" onClick={() => setDetail(row)}><Eye size={16} /></button> },
   ];
 
@@ -196,7 +219,7 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
       description="Review actual attendance against published roster and verified location evidence."
     />
 
-    <CrewAdminToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} allowAll allValue={ALL} />} time={<FeedXDateRangePicker from={from} to={to} today={today} onApply={(range) => { setFrom(range.from); setTo(range.to); }} />} filters={<><SelectField label="Employee" ariaLabel="Employee" value={employeeId} onChange={setEmployeeId} searchable options={[{ value: ALL, label: "All" }, ...employees.map((employee) => ({ value: employee.id, label: employee.nickname || employee.full_name }))]} /><SelectField label="Position" ariaLabel="Position" value={position} onChange={setPosition} options={[{ value: ALL, label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Attendance Status" ariaLabel="Attendance Status" value={status} onChange={setStatus} options={[{ value: ALL, label: "All" }, { value: "verified", label: "Verified" }, { value: "variance", label: "Late / Variance" }, { value: "location_exception", label: "Location Exception" }, { value: "incomplete", label: "Incomplete" }, { value: "no_roster", label: "No Published Roster" }]} /></>} secondary={<button className="icon-btn" type="button" aria-label="About attendance evidence" title="Roster variance is explainable evidence only; it does not directly alter Performance scores."><HelpCircle size={17} /></button>} />
+    <AdminFilterToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} allowAll allValue={ALL} />} period={<FeedXDateRangePicker from={from} to={to} today={today} onApply={(range) => { setFrom(range.from); setTo(range.to); }} />} filters={<><SelectField label="Employee" ariaLabel="Employee" value={employeeId} onChange={setEmployeeId} searchable options={[{ value: ALL, label: "All" }, ...employees.map((employee) => ({ value: employee.id, label: employee.nickname || employee.full_name }))]} /><SelectField label="Position" ariaLabel="Position" value={position} onChange={setPosition} options={[{ value: ALL, label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Attendance Status" ariaLabel="Attendance Status" value={status} onChange={setStatus} options={[{ value: ALL, label: "All" }, { value: "verified", label: "Verified" }, { value: "variance", label: "Late / Variance" }, { value: "location_exception", label: "Location Exception" }, { value: "incomplete", label: "Incomplete" }, { value: "no_roster", label: "No Published Roster" }]} /></>} activeFilters={activeFilters} onClear={() => { setEmployeeId(ALL); setPosition(ALL); setStatus(ALL); }} secondaryActions={<button className="icon-btn" type="button" aria-label="About attendance evidence" title="Roster variance is explainable evidence only; it does not directly alter Performance scores."><HelpCircle size={17} /></button>} />
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Attendance summary">
       <MetricCard icon={UsersRound} label={isToday ? "Present Today" : "Present in Range"} value={summary.present} helper="Crew with attendance evidence" size="compact" />
@@ -210,7 +233,9 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
     {attentionCount ? <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3" aria-label="Needs Attention"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2 font-bold text-text-primary"><AlertTriangle className="text-amber-600" size={17} />{attentionCount} attendance record signal{attentionCount === 1 ? "" : "s"} need review</div><p className="mt-1 text-xs text-text-secondary">Signals remain separate: location, session completion, roster matching, and large clock-in variance.</p></div><div className="flex flex-wrap gap-2">{summary.exceptions ? <button className="btn-secondary" type="button" onClick={() => setStatus("location_exception")}>{summary.exceptions} Location Exception{summary.exceptions === 1 ? "" : "s"}</button> : null}{summary.incomplete ? <button className="btn-secondary" type="button" onClick={() => setStatus("incomplete")}>{summary.incomplete} Incomplete</button> : null}{summary.noRoster ? <button className="btn-secondary" type="button" onClick={() => setStatus("no_roster")}>{summary.noRoster} No Roster</button> : null}{summary.largeVariance ? <button className="btn-secondary" type="button" onClick={() => setStatus("variance")}>{summary.largeVariance} Large Variance</button> : null}</div></div></section> : null}
 
     <Card title={isToday ? "Today’s Attendance" : "Attendance History"} description={`${visibleRows.length} record${visibleRows.length === 1 ? "" : "s"} shown · Execution and location states are reported separately.`}>
-      {loading ? <div className="p-8 text-sm font-semibold text-text-secondary">Loading attendance…</div> : visibleRows.length ? <div className="crew-attendance-table"><DataTable density="compact" tableClassName="min-w-[1100px]" rows={visibleRows} getRowKey={(row) => row.id} getRowClassName={issueClass} onRowClick={setDetail} columns={columns} /></div> : <div className="px-6 py-12 text-center"><ShieldCheck className="mx-auto text-primary" size={28} /><h3 className="mt-3 font-bold text-text-primary">No attendance records</h3><p className="mt-1 text-sm text-text-secondary">No records match the selected date, outlet, or filters.</p></div>}
+      <AsyncDataSurface loading={loading} error={loadError} hasData={visibleRows.length > 0} isEmpty={!visibleRows.length} emptyTitle="No attendance records" emptyDescription="No records match the selected date, outlet, or filters." onRetry={loadAttendance}>
+        <div className="crew-attendance-table"><DataTable density="compact" tableClassName="min-w-[1100px]" rows={visibleRows} getRowKey={(row) => row.id} getRowClassName={issueClass} onRowClick={setDetail} columns={columns} /></div>
+      </AsyncDataSurface>
     </Card>
     {detail ? <AttendanceDetail row={detail} onClose={() => setDetail(null)} /> : null}
   </div>;
@@ -238,7 +263,7 @@ function Evidence({ title, at, verified, exception, reason, distance, accuracy }
 function AttendanceDetail({ row, onClose }) {
   const schedule = rosterContext(row);
   const variance = varianceContext(row);
-  const status = attendanceStatus[attendanceState(row)];
+  const status = attendanceStatusPresentation(attendanceState(row));
   const minutes = durationMinutes(row);
   return <Modal title="Attendance Details" description={`${row.employee?.nickname || row.employee?.full_name || "Employee"} · ${formatDate(row.clock_in_at)}`} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
     <div className="space-y-4">

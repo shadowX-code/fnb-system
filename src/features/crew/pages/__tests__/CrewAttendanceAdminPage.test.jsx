@@ -111,4 +111,27 @@ describe("Crew Attendance Admin", () => {
     expect(await screen.findByText("No attendance records")).not.toBeNull();
     expect(screen.queryByText(/attendance record.*occurred on OFF/)).toBeNull();
   });
+
+  it("shows a retryable error instead of an empty table", async () => {
+    mocks.attendance.mockRejectedValueOnce(new Error("Attendance read failed")).mockResolvedValueOnce(fixture);
+    render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByRole("alert")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Verified Crew")).not.toBeNull();
+  });
+
+  it("does not let a superseded attendance response overwrite the current outlet", async () => {
+    let resolveFirst;
+    const stale = [row("stale", "Stale Outlet Crew")];
+    const fresh = [row("fresh", "All Outlets Crew")];
+    mocks.attendance.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; })).mockResolvedValueOnce(fresh);
+    render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
+    await waitFor(() => expect(resolveFirst).toBeTypeOf("function"));
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    fireEvent.click(screen.getByRole("button", { name: "All" }));
+    expect(await screen.findByText("All Outlets Crew")).not.toBeNull();
+    resolveFirst(stale);
+    await waitFor(() => expect(screen.queryByText("Stale Outlet Crew")).toBeNull());
+    expect(screen.getByText("All Outlets Crew")).not.toBeNull();
+  });
 });
