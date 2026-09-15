@@ -168,8 +168,8 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getAllByText("New Crew Onboarding")).toHaveLength(1);
     expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
     expect(screen.getAllByText("8", { selector: ".crew-onboarding-summary strong" })).toHaveLength(2);
-    expect(screen.getByText("Published v2")).not.toBeNull();
-    expect(screen.getByText("Unpublished changes · Draft v3")).not.toBeNull();
+    expect(screen.getByText("Published · Unpublished changes")).not.toBeNull();
+    expect(screen.getByText("v2")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Edit Draft" })).not.toBeNull();
     expect(screen.queryByText("Overview")).toBeNull();
     expect(screen.queryByText("Journey Settings")).toBeNull();
@@ -178,6 +178,10 @@ describe("Crew Learning architecture reset UI", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Crew Progress" }));
     expect(await screen.findByText("Alex Tan")).not.toBeNull();
     expect(screen.getAllByText("62%")).toHaveLength(2);
+    fireEvent.change(screen.getByLabelText("Search Crew"), { target: { value: "Alex" } });
+    expect(screen.getByRole("button", { name: "Clear all" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getByLabelText("Search Crew").value).toBe("");
   });
 
   it("opens module information without navigating to another page", async () => {
@@ -303,7 +307,7 @@ describe("Crew Learning architecture reset UI", () => {
   it("renders a retryable error instead of a false empty state when Onboarding times out", async () => {
     mocks.listOnboarding.mockRejectedValueOnce(new Error("canceling statement due to statement timeout"));
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
-    expect(await screen.findByText("Unable to load onboarding")).not.toBeNull();
+    expect(await screen.findByText("Unable to load Onboarding")).not.toBeNull();
     expect(screen.queryByText(/No onboarding setup for/)).toBeNull();
     mocks.listOnboarding.mockResolvedValueOnce([journey]);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));

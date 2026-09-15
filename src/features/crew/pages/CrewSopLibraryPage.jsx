@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowUp,
@@ -28,9 +27,15 @@ import {
 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
+import LoadingSkeleton from "../../../components/feedback/LoadingSkeleton.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
+import PublicationState from "../../../components/ui/PublicationState.jsx";
+import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import CrewSopImage from "../components/CrewSopImage.jsx";
@@ -38,7 +43,7 @@ import CrewSopDocument from "../components/CrewSopDocument.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
 import { parseSopBody, sanitizeSopHtml, serializeSopBody } from "../utils/sopDocumentContent.js";
-import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import LocalizedContentEditor from "../components/LocalizedContentEditor.jsx";
 import { detectContentLanguage, localizationLanguageSummary, sopLocalizationUnits } from "../utils/localizedContent.js";
@@ -307,12 +312,18 @@ function SopLibrary({ outletControl, outlet, sops, categories, loading, error, o
     const result = String(left.category || "").localeCompare(String(right.category || "")) || String(left.title).localeCompare(String(right.title));
     return categorySort === "asc" ? result : -result;
   }), [sops, query, categoryId, status, categorySort]);
+  const activeFilters = [
+    query && { key: "query", label: "Search", value: query, onRemove: () => setQuery("") },
+    categoryId && { key: "category", label: "Category", value: categories.find((category) => category.id === categoryId)?.name || "Selected", onRemove: () => setCategoryId("") },
+    status && { key: "status", label: "Status", value: status, onRemove: () => setStatus("") },
+  ].filter(Boolean);
+  const emptyTitle = sops.length ? "No SOPs match these filters" : "No SOPs yet";
+  const emptyDescription = sops.length ? "Adjust the search or filter selection." : `Create the first SOP for ${outlet?.name || "this outlet"}. You can start blank or clone an existing SOP.`;
 
-  if (loading) return <LibrarySkeleton />;
-  if (error) return <section className="crew-sop-table-card" role="alert"><div className="crew-sop-compact-empty"><EmptyState title="Unable to load SOP Library" description="The SOP list request failed. Retry to load the outlet library." /><button className="btn-primary" type="button" onClick={onRetry}>Retry</button></div></section>;
   return <div className="crew-sop-library-sections">
-    <CrewAdminToolbar ariaLabel="SOP filters" outlet={outletControl} search={<label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>} filters={<><SelectField label="Category" ariaLabel="Category" value={categoryId} onChange={setCategoryId} options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "", label: "All" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" }]} /></>} secondary={canManage ? <button className="btn-secondary" type="button" onClick={onManageCategories}><FolderCog size={15} /> Manage Categories</button> : null} primary={canManage ? <button className="btn-primary" type="button" onClick={onCreate}><Plus size={15} /> Create SOP</button> : null} />
+    <AdminFilterToolbar ariaLabel="SOP filters" outlet={outletControl} search={<label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>} filters={<><SelectField label="Category" ariaLabel="Category" value={categoryId} onChange={setCategoryId} options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "", label: "All" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" }]} /></>} activeFilters={activeFilters} onClear={() => { setQuery(""); setCategoryId(""); setStatus(""); }} secondaryActions={canManage ? <button className="btn-secondary" type="button" onClick={onManageCategories}><FolderCog size={15} /> Manage Categories</button> : null} primaryActions={canManage ? <button className="btn-primary" type="button" onClick={onCreate}><Plus size={15} /> Create SOP</button> : null} />
     <section className="crew-sop-table-card" aria-label="SOP list">
+    <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load SOP Library" hasData={rows.length > 0} isEmpty={!rows.length} emptyTitle={emptyTitle} emptyDescription={emptyDescription} emptyActions={!sops.length && canManage ? <button className="btn-primary" type="button" onClick={onCreate}>Create SOP</button> : null} onRetry={onRetry}>
     {rows.length ? <DataTable
       density="normal"
       tableClassName="min-w-[1040px] table-fixed"
@@ -326,42 +337,24 @@ function SopLibrary({ outletControl, outlet, sops, categories, loading, error, o
         { key: "ack", header: "Acknowledgement", width: "12%", render: (row) => (draftVersion(row)?.require_acknowledgement ?? currentVersion(row)?.require_acknowledgement) ? <Badge tone="warning">Required</Badge> : "Not required" },
         { key: "usage", header: "Usage", width: "14%", render: (row) => <button className="crew-sop-usage-link" type="button" onClick={() => onUsage(row)}>{Number(row.current_onboarding_count || 0)} Onboarding · {Number(row.pinned_assignment_count || 0)} Assigned</button> },
         { key: "updated", header: "Last Updated", width: "10%", render: (row) => formatDate(row.updated_at) },
-        { key: "status", header: "Status", width: "12%", render: (row) => currentVersion(row) && draftVersion(row) ? <span className="crew-sop-status-stack"><Badge tone="success">Published</Badge><small>Draft changes</small></span> : currentVersion(row) ? <Badge tone="success">Published</Badge> : <Badge tone="warning">Draft</Badge> },
+        { key: "status", header: "Status", width: "12%", render: (row) => <PublicationState status={currentVersion(row) ? "published" : "draft"} unpublishedChanges={Boolean(currentVersion(row) && draftVersion(row))} /> },
         { key: "actions", header: "", width: "190px", align: "right", render: (row) => <SopRowActions row={row} canManage={canManage} onOpen={onOpen} onEdit={onEdit} onNewVersion={onNewVersion} onDeleteDraft={onDeleteDraft} /> },
       ]}
-    /> : <div className="crew-sop-compact-empty"><EmptyState title={sops.length ? "No SOPs match these filters" : "No SOPs yet"} description={sops.length ? "Adjust the search or filter selection." : `Create the first SOP for ${outlet?.name || "this outlet"}. You can start blank or clone an existing SOP.`} />{!sops.length && canManage ? <div><button className="btn-primary" onClick={onCreate}>Create SOP</button></div> : null}</div>}
+    /> : null}
+    </AsyncDataSurface>
     </section>
   </div>;
 }
 
 function SopRowActions({ row, canManage, onOpen, onEdit, onNewVersion, onDeleteDraft }) {
-  const [menu, setMenu] = useState(null);
-  const buttonRef = useRef(null);
-  useEffect(() => {
-    if (!menu) return undefined;
-    const close = (event) => {
-      if (event.type === "keydown" && event.key !== "Escape") return;
-      if (event.type === "pointerdown" && (buttonRef.current?.contains(event.target) || event.target.closest?.(".crew-sop-more-menu"))) return;
-      setMenu(null);
-    };
-    window.addEventListener("scroll", close, true);
-    window.addEventListener("resize", close);
-    window.addEventListener("keydown", close);
-    window.addEventListener("pointerdown", close);
-    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); window.removeEventListener("keydown", close); window.removeEventListener("pointerdown", close); };
-  }, [menu]);
-  function toggleMenu() {
-    if (menu) return setMenu(null);
-    const rect = buttonRef.current?.getBoundingClientRect();
-    setMenu(rect ? { top: rect.bottom + 5, left: Math.max(8, rect.right - 180) } : null);
-  }
+  const [menuOpen, setMenuOpen] = useState(false);
   const published = currentVersion(row);
   const draft = draftVersion(row);
   return <div className="crew-sop-row-actions">
     <button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onOpen(row.id)}>View</button>
     {canManage && draft && !published ? <><button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onEdit(row)}>Edit</button><button className="btn-secondary crew-sop-compact-action is-danger" type="button" onClick={() => onDeleteDraft(row)}>Delete</button></> : null}
     {canManage && published && !draft ? <button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onNewVersion(row)}>New Version</button> : null}
-    {canManage && published && draft ? <><button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onEdit(row)}>Edit Draft</button><button ref={buttonRef} className="icon-btn crew-sop-compact-more" aria-label={`More actions for ${row.title}`} aria-expanded={Boolean(menu)} type="button" onClick={toggleMenu}><MoreHorizontal size={16} /></button>{menu ? createPortal(<div className="crew-sop-more-menu" role="menu" style={menu}><button role="menuitem" className="is-danger" type="button" onClick={() => { setMenu(null); onDeleteDraft(row); }}>Delete Draft</button></div>, document.body) : null}</> : null}
+    {canManage && published && draft ? <><button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onEdit(row)}>Edit Draft</button><ActionMenu open={menuOpen} onOpenChange={setMenuOpen} ariaLabel={`More actions for ${row.title}`} trigger={({ toggle, ariaLabel }) => <button className="icon-btn crew-sop-compact-more" aria-label={ariaLabel} aria-expanded={menuOpen} type="button" onClick={toggle}><MoreHorizontal size={16} /></button>}><div role="menu"><button role="menuitem" className="is-danger" type="button" onClick={() => { setMenuOpen(false); onDeleteDraft(row); }}>Delete Draft</button></div></ActionMenu></> : null}
   </div>;
 }
 
@@ -398,7 +391,7 @@ function VersionPicker({ versions, activeId, currentVersionNumber, fallbackUpdat
   const active = versions.find((version) => version.id === activeId) || versions[0];
   if (!active) return "—";
   return <div className="crew-sop-version-picker">
-    <button ref={anchorRef} type="button" aria-label="SOP version" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Badge tone={active.status === "published" ? "success" : "warning"}>{active.status === "published" ? "Published" : "Draft"} v{active.version}</Badge><ChevronDown size={14} /></button>
+    <button ref={anchorRef} type="button" aria-label="SOP version" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Badge tone={semanticStatusTone(active.status)}>{active.status === "published" ? "Published" : "Draft"} v{active.version}</Badge><ChevronDown size={14} /></button>
     <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" width={390} minWidth={280} estimatedHeight={Math.min(330, 54 + versions.length * 58)} maxHeight={420} placement="auto" className="crew-sop-version-popover p-0" contentClassName="crew-sop-version-popover-content">
       <div role="menu" aria-label="Version History"><header><strong>Version History</strong><button className="icon-btn" type="button" aria-label="Close version history" onClick={() => setOpen(false)}><X size={14} /></button></header>{versions.map((version) => <article key={version.id} className={version.id === active.id ? "is-active" : ""}><div><strong>v{version.version} · {version.status === "published" ? "Published" : "Draft"}</strong><span>{version.status === "draft" ? "Updated just now" : Number(currentVersionNumber) === Number(version.version) ? `Current Live · ${formatDate(version.published_at)}` : formatDate(version.published_at || fallbackUpdatedAt)}</span></div>{version.status === "draft" && canManage ? <button className="btn-secondary crew-sop-compact-action" onClick={() => { setOpen(false); onEdit(version.id); }}>Continue Editing</button> : <button className="btn-secondary crew-sop-compact-action" onClick={() => { onSelect(version.id); setOpen(false); }}>View</button>}</article>)}</div>
     </FloatingLayer>
@@ -411,7 +404,7 @@ function PublishedDocument({ version, showOutline = true }) {
   if (!version) return <div className="crew-sop-compact-empty"><EmptyState title="No SOP version" description="Create a draft version to start writing this SOP." /></div>;
   return <div className={`crew-sop-document-shell ${showOutline ? "" : "is-reader"}`}>
     {showOutline ? <aside><div><strong>Section navigation</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} onClick={() => refs.current[section.id]?.scrollIntoView({ behavior: "smooth", block: "start" })}><span>{String(index + 1).padStart(2, "0")}</span>{section.title}</button>)}</aside> : null}
-    <main className={showOutline ? "" : "crew-sop-document-scroll"}><div className="crew-sop-document-meta"><div><Badge tone={version.status === "published" ? "success" : "warning"}>{version.status === "published" ? "Published" : "Draft preview"}</Badge><span>v{version.version}</span></div></div><CrewSopDocument sections={sections} admin sectionRefs={refs} /></main>
+    <main className={showOutline ? "" : "crew-sop-document-scroll"}><div className="crew-sop-document-meta"><div><Badge tone={semanticStatusTone(version.status)}>{version.status === "published" ? "Published" : "Draft preview"}</Badge><span>v{version.version}</span></div></div><CrewSopDocument sections={sections} admin sectionRefs={refs} /></main>
   </div>;
 }
 
@@ -604,7 +597,7 @@ function UsageView({ sopId, onNavigate }) {
   const [error, setError] = useState("");
   useEffect(() => { let active = true; crewService.sopUsageAdmin(sopId).then((data) => active && setUsage(data)).catch((cause) => active && setError(cause.message)); return () => { active = false; }; }, [sopId]);
   if (error) return <div className="crew-sop-usage-message">Unable to load usage: {error}</div>;
-  if (!usage) return <LibrarySkeleton />;
+  if (!usage) return <LoadingSkeleton rows={3} />;
   const assigned = (usage.historical || []).reduce((sum, item) => sum + Number(item.assignment_count || 0), 0);
   return <section className="crew-sop-usage"><div className="crew-sop-usage-summary"><span><strong>{usage.current?.length || 0}</strong><small>Active references</small></span><span><strong>{assigned}</strong><small>Pinned assignments</small></span></div><div><h3>Current Onboarding References</h3>{usage.current?.length ? usage.current.map((item, index) => <article key={`${item.journey_id}-${item.lesson_title}-${index}`}><BookOpenCheck size={17} /><div><strong>{item.lesson_title}</strong><p>{item.journey_name} · {item.module_title}</p><small>Current onboarding v{item.journey_version}</small></div><button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onNavigate?.(item)}>View</button></article>) : <p className="crew-sop-usage-message">Not currently used in onboarding.</p>}</div><div><h3>Historical References</h3>{usage.historical?.length ? usage.historical.map((item, index) => <article key={`${item.journey_name}-${item.journey_version}-${index}`}><FileText size={17} /><div><strong>{item.journey_name} v{item.journey_version}</strong><p>{item.assignment_count} pinned assignment{Number(item.assignment_count) === 1 ? "" : "s"}</p><small>Frozen snapshot · future SOP changes do not affect it</small></div><button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onNavigate?.(item)}>View</button></article>) : <p className="crew-sop-usage-message">No historical assignment snapshot references this SOP.</p>}</div></section>;
 }
@@ -664,8 +657,6 @@ function CategoryManager({ outlet, categories, saving, onClose, onChanged, ui })
   async function remove(category) { if (Number(category.sop_count || 0) > 0) { setError(`Category is used by ${category.sop_count} SOP${Number(category.sop_count) === 1 ? "" : "s"}. Reassign them before deleting it.`); return; } const confirmed = await ui.confirm({ title: `Delete ${category.name}?`, message: "Unused categories can be safely removed.", confirmLabel: "Delete Category", tone: "danger" }); if (confirmed) await run({ action: "delete", categoryId: category.id }); }
   return <Modal title="Manage Categories" description={`${outlet?.name || "Outlet"} · Categories keep the SOP Library consistent`} size="lg" panelClassName="crew-sop-category-popout" onClose={onClose} footer={<button className="btn-secondary" onClick={onClose}>Done</button>}><section className="crew-sop-category-create"><label>New Category<input className="control" value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. Food Safety" /></label><button className="btn-primary" disabled={busy || !name.trim()} onClick={create}><Plus size={15} /> Add Category</button></section><section className="crew-sop-category-list">{categories.map((category, index) => <article key={category.id}>{editingId === category.id ? <input aria-label={`Rename ${category.name}`} className="control" value={editingName} onChange={(event) => setEditingName(event.target.value)} /> : <div><strong>{category.name}</strong><small>{Number(category.sop_count || 0)} SOP{Number(category.sop_count) === 1 ? "" : "s"}</small></div>}<div>{editingId === category.id ? <><button className="btn-primary crew-sop-compact-action" disabled={busy || !editingName.trim()} onClick={() => rename(category)}>Save</button><button className="btn-ghost" onClick={() => setEditingId("")}>Cancel</button></> : <><button className="icon-btn" disabled={busy || index === 0} aria-label={`Move ${category.name} up`} onClick={() => reorder(category, -1)}><ArrowUp size={15} /></button><button className="icon-btn" disabled={busy || index === categories.length - 1} aria-label={`Move ${category.name} down`} onClick={() => reorder(category, 1)}><ArrowDown size={15} /></button><button className="btn-secondary crew-sop-compact-action" onClick={() => { setEditingId(category.id); setEditingName(category.name); }}>Rename</button><button className="icon-btn is-danger" aria-label={`Delete ${category.name}`} onClick={() => remove(category)}><Trash2 size={15} /></button></>}</div></article>)}</section>{error ? <p role="alert" className="crew-sop-editor-error">{error}</p> : null}{saving ? <span className="sr-only">Saving</span> : null}</Modal>;
 }
-
-function LibrarySkeleton() { return <div className="crew-sop-library-skeleton" aria-live="polite"><span /><span /><span /><p>Loading SOP Library…</p></div>; }
 
 function SopDetailLoading({ sop, onClose }) {
   return <Modal title={sop.title} description="Loading SOP content…" size="2xl" onClose={onClose}><div className="crew-sop-library-skeleton" aria-live="polite"><span /><span /><span /><p>Loading the selected SOP version and sections…</p></div></Modal>;

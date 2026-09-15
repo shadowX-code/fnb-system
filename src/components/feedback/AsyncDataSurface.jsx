@@ -7,8 +7,11 @@ export default function AsyncDataSurface({
   error = "",
   hasData = false,
   isEmpty = false,
+  errorTitle,
   emptyTitle,
   emptyDescription,
+  emptyIcon,
+  emptyActions,
   onRetry,
   permissionLimited = false,
   warning = "",
@@ -21,9 +24,9 @@ export default function AsyncDataSurface({
     <section className={`overflow-hidden ${className}`.trim()} aria-busy={loading || undefined}>
       {permissionLimited ? <Notice icon={ShieldAlert} tone="warning">Some data is hidden by your current role.</Notice> : null}
       {warning ? <Notice icon={AlertTriangle} tone="warning">{warning}</Notice> : null}
-      {error ? <Notice icon={AlertTriangle} tone="danger" action={onRetry ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={loading} onClick={onRetry}><RefreshCw size={13} /> Retry</button> : null}>{hasData ? "Unable to load the latest results. Showing the last successfully loaded data." : error}</Notice> : null}
+      {error ? <Notice icon={AlertTriangle} tone="danger" action={onRetry ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={loading} onClick={onRetry}><RefreshCw size={13} /> Retry</button> : null}>{hasData ? "Unable to load the latest results. Showing the last successfully loaded data." : errorTitle ? <><span>{errorTitle}</span><span className="block text-xs font-medium">{error}</span></> : error}</Notice> : null}
       {loading && !hasData ? <div role="status" aria-label="Loading data"><LoadingSkeleton rows={loadingRows} /></div> : null}
-      {!loading && !error && isEmpty ? <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div> : null}
+      {!loading && !error && isEmpty ? <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} icon={emptyIcon} actions={emptyActions} /></div> : null}
       {showContent ? children : null}
     </section>
   );

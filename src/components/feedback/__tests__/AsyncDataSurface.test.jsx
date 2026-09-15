@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import AsyncDataSurface from "../AsyncDataSurface.jsx";
 
@@ -22,5 +22,15 @@ describe("AsyncDataSurface", () => {
     rerender(<AsyncDataSurface error="Unavailable" hasData onRetry={retry}><div>Rows</div></AsyncDataSurface>);
     expect(container.textContent).toContain("Rows");
     expect(screen.getByRole("alert").textContent).toContain("last successfully loaded data");
+  });
+
+  it("supports a human-readable error title and empty-state actions", () => {
+    const create = vi.fn();
+    const { rerender, container } = render(<AsyncDataSurface error="statement timeout" errorTitle="Unable to load SOP Library" />);
+    expect(within(container).getByRole("alert").textContent).toContain("Unable to load SOP Library");
+    expect(within(container).getByRole("alert").textContent).toContain("statement timeout");
+    rerender(<AsyncDataSurface isEmpty emptyTitle="No SOPs yet" emptyActions={<button type="button" onClick={create}>Create SOP</button>} />);
+    fireEvent.click(within(container).getByRole("button", { name: "Create SOP" }));
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });
