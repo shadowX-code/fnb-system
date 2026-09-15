@@ -25,6 +25,7 @@ function standardFieldOrder(field) {
 export default function AdminFilterToolbar({
   outlet,
   period,
+  periodWidth = "w-full sm:w-[180px]",
   search,
   filters,
   children,
@@ -40,7 +41,7 @@ export default function AdminFilterToolbar({
   const [moreOpen, setMoreOpen] = useState(false);
   const fields = [
     outlet && { field: outlet, width: "w-full sm:w-[230px]" },
-    period && { field: period, width: "w-full sm:w-[180px]" },
+    period && { field: period, width: periodWidth },
     search && { field: search, width: "w-full sm:w-[min(360px,100%)]" },
     ...slotItems(filters).map((field) => ({ field, width: widthForField(field) })),
     ...(sortChildren ? slotItems(children).sort((left, right) => standardFieldOrder(left) - standardFieldOrder(right)) : slotItems(children)).map((field) => ({ field, width: widthForField(field) })),

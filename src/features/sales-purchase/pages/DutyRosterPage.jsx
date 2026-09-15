@@ -2,12 +2,15 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { CalendarDays, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Clock, Copy, Download, Layers3, LockKeyhole, MoreHorizontal, PanelRightOpen, Plane, Plus, Repeat2, Send, Share2, ShieldCheck, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import PublicationState from "../../../components/ui/PublicationState.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { shiftTemplateService } from "../../../services/shiftTemplateService.js";
 import { dutyRosterService } from "../../../services/dutyRosterService.js";
@@ -16,7 +19,6 @@ import { jobPositionService } from "../../../services/jobPositionService.js";
 import { rosterPositionGroupService } from "../../../services/rosterPositionGroupService.js";
 import { notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { SHIFT_TIME_INPUT_ERROR, buildShiftTimeOptions, formatShiftTimeInput, formatShiftTimeRange, normalizeShiftTimeInput } from "../utils/shiftTime.js";
-import CrewAdminToolbar from "../../crew/components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../../crew/context/CrewAdminOutletContext.jsx";
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -1504,6 +1506,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
   const [error, setError] = useState("");
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const crewOwned = ownership === "crew";
   const canAddShift = rosterPermission(auth, "manage");
@@ -1626,7 +1629,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     return () => {
       ignore = true;
     };
-  }, [activePublicationWeekEnd, activePublicationWeekStart, canPublishRoster, canWriteShift, outletId, visibleEnd, visibleStart]);
+  }, [activePublicationWeekEnd, activePublicationWeekStart, canPublishRoster, canWriteShift, outletId, refreshKey, visibleEnd, visibleStart]);
 
   const rosterByEmployeeDate = useMemo(() => new Map(rosters.map((roster) => [rosterKey(roster.employee_id, roster.roster_date), roster])), [rosters]);
   const displayEmployees = useMemo(() => {
@@ -2304,16 +2307,19 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         description={crewOwned ? "Plan, publish, and share the official outlet schedule." : "Shared Crew roster workspace. All changes use the same roster authority."}
       />
 
-      <CrewAdminToolbar
+      <AdminFilterToolbar
+        ariaLabel="Duty Roster filters"
         outlet={<FieldLabel label="Outlet"><SelectField ariaLabel="Outlet" value={outletId} options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} /></FieldLabel>}
-        time={<FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}><RosterDateSelector mode={viewMode} weekStart={weekStart} weekDates={weekDates} visibleDates={visibleDates} onSelectDate={selectRosterDate} onPrevious={() => navigateRoster(-1)} onNext={() => navigateRoster(1)} /></FieldLabel>}
+        periodWidth="w-full sm:w-[280px]"
+        period={<FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}><RosterDateSelector mode={viewMode} weekStart={weekStart} weekDates={weekDates} visibleDates={visibleDates} onSelectDate={selectRosterDate} onPrevious={() => navigateRoster(-1)} onNext={() => navigateRoster(1)} /></FieldLabel>}
         search={<FieldLabel label="Employee"><input className="control h-10 w-full" value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="Search name..." /></FieldLabel>}
-        filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel>{viewMode === "month" ? <FieldLabel label="Publish week"><SelectField ariaLabel="Publish week" value={activePublicationWeekStart} options={publicationWeeks.map((date) => ({ value: date, label: formatWeekRange(datesBetween(new Date(`${date}T00:00:00`), new Date(`${toDateInputValue(addDays(`${date}T00:00:00`, 6))}T00:00:00`))) }))} onChange={setPublicationWeekStart} /></FieldLabel> : null}<div className="flex rounded-2xl border border-border bg-background p-1">{["week", "month"].map((mode) => <button key={mode} className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${viewMode === mode ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary"}`} type="button" onClick={() => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }}>{mode}</button>)}</div></>}
-        secondary={canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}
-        primary={canPublishRoster ? <button className="btn-primary" type="button" disabled={!period || period.status === "locked" || (period.status === "published" && !period.has_unpublished_changes)} onClick={() => setStatus("published")}><Send size={16} /> {hasUnpublishedChanges ? "Republish Roster" : "Publish Roster"}</button> : null}
+        filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel>{viewMode === "month" ? <FieldLabel label="Publish week"><SelectField ariaLabel="Publish week" value={activePublicationWeekStart} options={publicationWeeks.map((date) => ({ value: date, label: formatWeekRange(datesBetween(new Date(`${date}T00:00:00`), new Date(`${toDateInputValue(addDays(`${date}T00:00:00`, 6))}T00:00:00`))) }))} onChange={setPublicationWeekStart} /></FieldLabel> : null}<AdminSegmentedControl value={viewMode} onChange={(mode) => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }} label="Duty Roster view" options={[{ value: "week", label: "week" }, { value: "month", label: "month" }]} /></>}
+        activeFilters={[employeeSearch && { key: "employee", label: "Employee", value: employeeSearch, onRemove: () => setEmployeeSearch("") }, groupFilter !== "all" && { key: "group", label: "Group", value: groupFilter, onRemove: () => setGroupFilter("all") }, positionFilter !== "all" && { key: "position", label: "Position", value: positionFilter, onRemove: () => setPositionFilter("all") }].filter(Boolean)}
+        onClear={() => { setEmployeeSearch(""); setGroupFilter("all"); setPositionFilter("all"); }}
+        secondaryActions={canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}
+        primaryActions={canPublishRoster ? <button className="btn-primary" type="button" disabled={!period || period.status === "locked" || (period.status === "published" && !period.has_unpublished_changes)} onClick={() => setStatus("published")}><Send size={16} /> {hasUnpublishedChanges ? "Republish Roster" : "Publish Roster"}</button> : null}
       />
 
-      {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -2327,7 +2333,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         ))}
       </div>
 
-      <div>
+      <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Duty Roster" hasData={employees.length > 0 || rosters.length > 0} isEmpty={!employees.length && !rosters.length} emptyTitle="No Crew scheduled" emptyDescription="No eligible Crew or roster rows are available for this period." emptyIcon={CalendarDays} onRetry={() => setRefreshKey((value) => value + 1)}><div>
         <Card
           title={viewMode === "month" ? `Full Month View · ${formatMonthYear(visibleDates[0])}` : `Weekly Roster · ${formatWeekRange(weekDates)}`}
           description={viewMode === "month" ? "Overview and bulk planning. Scroll horizontally to review every day." : "Detailed scheduling. Click a cell to edit, or use Bulk Assign to select a range."}
@@ -2366,9 +2372,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
               </div>
             </div>
           </div>
-          {loading ? (
-            <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading duty roster...</div>
-          ) : (
+          {(
             <>
               <div className="hidden max-h-[68vh] overflow-auto lg:block">
                 <table className={`w-full border-separate border-spacing-0 text-sm ${viewMode === "month" ? "min-w-[3820px]" : "min-w-[1160px]"}`}>
@@ -2542,7 +2546,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
             </>
           )}
         </Card>
-      </div>
+      </div></AsyncDataSurface>
 
       {selectionMode ? <div className="sticky bottom-4 z-40 mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/20 bg-surface/95 px-4 py-2.5 shadow-lg backdrop-blur">
         <div>

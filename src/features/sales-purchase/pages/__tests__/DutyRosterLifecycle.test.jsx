@@ -242,7 +242,7 @@ describe("Duty Roster trusted week snapshot integration", () => {
     const auth = { isProtectedRole: true, hasPermission: () => true };
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
 
-    fireEvent.click(await screen.findByRole("button", { name: "month" }));
+    fireEvent.click(await screen.findByRole("tab", { name: /month/i }));
     expect(await screen.findByText("Publish week")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Publish Roster" }));
     await waitFor(() => expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1", weekStartDate: "2026-08-10" })));

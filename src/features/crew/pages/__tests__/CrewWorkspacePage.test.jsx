@@ -18,8 +18,8 @@ const deferred = () => {
   return { promise, resolve };
 };
 
-function mount(currentOutlets = outlets) {
-  return render(<CrewAdminOutletProvider outlets={currentOutlets}><CrewWorkspacePage auth={auth} ui={ui} store={{ outlets: currentOutlets }} initialTab="employees" /></CrewAdminOutletProvider>);
+function mount(currentOutlets = outlets, initialTab = "employees") {
+  return render(<CrewAdminOutletProvider outlets={currentOutlets}><CrewWorkspacePage auth={auth} ui={ui} store={{ outlets: currentOutlets }} initialTab={initialTab} /></CrewAdminOutletProvider>);
 }
 
 beforeEach(() => {
@@ -59,5 +59,28 @@ describe("Crew Access outlet read lifecycle", () => {
 
     expect(await screen.findByText("Intern")).not.toBeNull();
     expect(screen.queryByText("intern")).toBeNull();
+  });
+
+  it("shows the compact access readiness summary from the existing Crew access read model", async () => {
+    employeeService.listCrewAccessEmployees.mockResolvedValue([
+      { id: "active", full_name: "Active Crew", crew_access: { access_state: "active" } },
+      { id: "locked", full_name: "Locked Crew", crew_access: { access_state: "locked" } },
+      { id: "pending", full_name: "Pending Crew", crew_access: null },
+    ]);
+    mount(outlets, "dashboard");
+
+    expect(await screen.findByRole("region", { name: "Crew access readiness" })).not.toBeNull();
+    expect(screen.getByText("Active Crew access")).not.toBeNull();
+    expect(screen.getByText("Not enabled")).not.toBeNull();
+    expect(screen.getByText("Locked")).not.toBeNull();
+  });
+
+  it("shows an explicit failed-read state and retries instead of rendering an empty employee table", async () => {
+    employeeService.listCrewAccessEmployees.mockRejectedValueOnce(new Error("Crew access unavailable")).mockResolvedValueOnce([]);
+    mount();
+
+    expect(await screen.findByText("Crew access unavailable")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(employeeService.listCrewAccessEmployees).toHaveBeenCalledTimes(2));
   });
 });

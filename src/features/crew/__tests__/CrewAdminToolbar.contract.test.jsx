@@ -18,8 +18,8 @@ const pageFiles = [
 const source = (file) => readFileSync(resolve(process.cwd(), file), "utf8");
 
 describe("Crew Admin toolbar contract", () => {
-  it.each(pageFiles)("uses the shared toolbar on %s", (file) => {
-    expect(source(file)).toContain("CrewAdminToolbar");
+  it.each(pageFiles)("uses the canonical Admin filter toolbar on %s", (file) => {
+    expect(source(file)).toContain("AdminFilterToolbar");
   });
 
   it.each(pageFiles)("keeps controls out of PageHeader actions on %s", (file) => {

@@ -9,6 +9,9 @@ describe("semanticStatusTone", () => {
     expect(semanticStatusTone("included")).toBe("info");
     expect(semanticStatusTone("excluded")).toBe("neutral");
     expect(semanticStatusTone("requested")).toBe("warning");
+    expect(semanticStatusTone("pending_receipt")).toBe("warning");
+    expect(semanticStatusTone("short")).toBe("warning");
+    expect(semanticStatusTone("over")).toBe("warning");
     expect(semanticStatusTone("in progress")).toBe("info");
   });
 });

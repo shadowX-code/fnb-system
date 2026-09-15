@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { Banknote, CheckCircle2, Clipboard, Eye, HandCoins, History, Settings2, WalletCards } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import MultiSelectField from "../../../components/forms/MultiSelectField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
-import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { formatCrewEmployee, formatCrewMoney, formatCrewOperationalDateTime } from "../utils/crewI18n.js";
+import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
+import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 
 const localDate = (value = new Date()) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 const money = (value) => formatCrewMoney(value);
@@ -18,7 +22,6 @@ const date = (value) => value ? new Intl.DateTimeFormat("en-GB", { day: "2-digit
 const ledgerActivity = (entry) => ({ checkout_due: "Cash Checkout", collection: "Cash Collection", checkout_adjustment: "Cash Adjustment", checkout_reversal: "Cash Reversal" }[entry.entry_type] || entry.activity || "Cash Activity");
 const ledgerActor = (entry) => formatCrewEmployee(entry.receiver_name || entry.recorded_by);
 const statusLabel = (value) => ({ draft: "Draft", reconciled: "Reconciled", submitted: "Submitted", completed: "Completed", pending_receipt: "Pending Confirmation", review_required: "Review Required", cancelled: "Cancelled", balanced: "Balanced", over: "Over", short: "Short" }[value] || value || "—");
-const statusTone = (value) => ["completed", "balanced"].includes(value) ? "success" : ["review_required", "over", "short", "submitted", "pending_receipt"].includes(value) ? "warning" : value === "cancelled" ? "danger" : "neutral";
 const emptyData = () => ({ settings: null, summary: {}, checkouts: [], ledger: [], collections: [], float_history: [], employees: [], eligible_receivers: [], receiver_configuration: {} });
 const normalizeData = (payload) => {
   const source = payload && typeof payload === "object" ? payload : {};
@@ -79,40 +82,40 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   const reviewCount = useMemo(() => data.checkouts.filter((item) => item.review_required && item.review_status === "pending").length + data.collections.filter((item) => item.status === "review_required").length, [data]);
   return <div className="space-y-4">
     <PageHeader section="Crew · Operations" title="Cash Checkout" description="Reconcile daily outlet cash separately from the auditable Cash Deposit ledger." />
-    <CrewAdminToolbar
+    <AdminFilterToolbar
+      ariaLabel="Cash Checkout filters"
       outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
-      time={<div className="grid grid-cols-2 gap-2"><DatePickerField label="From" value={from} onChange={setFrom} /><DatePickerField label="To" value={to} onChange={setTo} /></div>}
-      primary={<div className="flex gap-2">{canManage && <button className="btn-secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</button>}{tab === "deposit" && canCollect && <><button className="btn-secondary" onClick={() => setReceiverConfigOpen(true)}>Cash Handover Receivers</button><button className="btn-primary" onClick={() => setCollectionOpen(true)}><HandCoins size={16} /> Hand Over Cash</button></>}</div>}
+      periodWidth="w-full sm:w-[360px]"
+      period={<div className="grid grid-cols-2 gap-2"><DatePickerField label="From" value={from} onChange={setFrom} /><DatePickerField label="To" value={to} onChange={setTo} /></div>}
+      secondaryActions={canManage ? <button className="btn-secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</button> : null}
+      primaryActions={tab === "deposit" && canCollect ? <><button className="btn-secondary" onClick={() => setReceiverConfigOpen(true)}>Cash Handover Receivers</button><button className="btn-primary" onClick={() => setCollectionOpen(true)}><HandCoins size={16} /> Hand Over Cash</button></> : null}
     />
-    <div className="inline-flex items-center gap-1 rounded-xl border border-border bg-white p-1" role="tablist" aria-label="Cash Checkout sections">
-      <button className={`h-9 rounded-lg px-3 text-sm font-semibold transition ${tab === "checkout" ? "bg-primary/10 text-primary shadow-sm" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} role="tab" aria-selected={tab === "checkout"} onClick={() => setTab("checkout")}>Daily Checkout</button>
-      <button className={`h-9 rounded-lg px-3 text-sm font-semibold transition ${tab === "deposit" ? "bg-primary/10 text-primary shadow-sm" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} role="tab" aria-selected={tab === "deposit"} onClick={() => setTab("deposit")}>Cash Deposit</button>
-    </div>
-    {loadError ? <section className="card flex min-h-72 flex-col items-center justify-center gap-3 p-8 text-center"><Banknote size={28} className="text-text-muted" /><div><h2 className="text-base font-semibold">Unable to load Cash Checkout</h2><p className="mt-1 text-sm text-text-secondary">{loadError}</p></div><button className="btn-primary" onClick={refresh}>Retry</button></section> : tab === "checkout" ? <>
+    <AdminSegmentedControl value={tab} onChange={setTab} label="Cash Checkout sections" options={[{ value: "checkout", label: "Daily Checkout" }, { value: "deposit", label: "Cash Deposit" }]} />
+    <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Cash Checkout" hasData={tab === "checkout" ? data.checkouts.length > 0 : data.ledger.length > 0 || data.collections.length > 0} isEmpty={tab === "checkout" ? !data.checkouts.length : !data.ledger.length && !data.collections.length} emptyTitle={tab === "checkout" ? "No Cash Checkouts" : "No Cash Deposit activity"} emptyDescription={tab === "checkout" ? "No checkout records match this outlet and date range." : "No deposit ledger or handover records match this outlet and date range."} emptyIcon={Banknote} onRetry={refresh}>{tab === "checkout" ? <>
       <section className="grid gap-3 md:grid-cols-4"><Metric icon={WalletCards} label="Floating Cash" value={data.settings ? money(data.settings.floating_cash) : "Not configured"} helper={data.settings ? "Current outlet setting" : "Set this before Crew can reconcile opening cash"} action={canManage ? <button className="mt-2 text-xs font-semibold text-primary hover:underline" onClick={() => setSettingsOpen(true)}>View Settings</button> : null} /><Metric icon={CheckCircle2} label="Completed" value={data.checkouts.filter((item) => item.status === "completed").length} helper="Selected period" /><Metric icon={History} label="In Progress" value={data.checkouts.filter((item) => item.status !== "completed").length} helper="Draft through submitted" /><Metric icon={Banknote} label="Needs Review" value={reviewCount} helper="Variance, shortfall or receipt difference" tone={reviewCount ? "warning" : "success"} /></section>
-      <section className="card crew-cash-table overflow-hidden">{loading ? <div className="p-8 text-sm text-text-muted">Loading Cash Checkout…</div> : <DataTable density="compact" tableClassName="min-w-[1080px]" rows={data.checkouts} getRowKey={(row) => row.id} columns={[
+      <section className="card crew-cash-table overflow-hidden"><DataTable density="compact" tableClassName="min-w-[1080px]" rows={data.checkouts} getRowKey={(row) => row.id} columns={[
         { key: "date", header: "Date", render: (row) => date(row.business_date) },
         { key: "crew", header: "Checked Out By", render: (row) => <span className="font-semibold text-text-primary">{formatCrewEmployee(row.checked_out_by)}</span> },
         { key: "opening", header: "Opening", align: "right", render: (row) => money(row.expected_opening_cash) },
         { key: "counted", header: "Counted", align: "right", render: (row) => money(row.counted_cash) },
         { key: "pos", header: "POS Expected", align: "right", render: (row) => row.pos_expected_cash == null ? "—" : money(row.pos_expected_cash) },
-        { key: "variance", header: "Variance", align: "right", render: (row) => <Badge tone={statusTone(row.reconciliation_status)}>{row.variance == null ? "—" : `${row.variance > 0 ? "+" : ""}${money(row.variance)}`}</Badge> },
+        { key: "variance", header: "Variance", align: "right", render: (row) => <Badge tone={semanticStatusTone(row.reconciliation_status)}>{row.variance == null ? "—" : `${row.variance > 0 ? "+" : ""}${money(row.variance)}`}</Badge> },
         { key: "carry", header: "Carry Forward", align: "right", render: (row) => money(row.carry_forward) },
         { key: "deposit", header: "For Deposit", align: "right", render: (row) => <strong>{money(row.amount_for_deposit)}</strong> },
-        { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.review_required && row.review_status === "pending" ? "review_required" : row.status)}>{row.review_required && row.review_status === "pending" ? "Review Required" : statusLabel(row.status)}</Badge> },
+        { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.review_required && row.review_status === "pending" ? "review_required" : row.status)}>{row.review_required && row.review_status === "pending" ? "Review Required" : statusLabel(row.status)}</Badge> },
         { key: "actions", header: "Actions", align: "right", render: (row) => <button className="icon-btn h-9 w-9" aria-label={`View checkout ${date(row.business_date)}`} onClick={() => setSelected(row)}><Eye size={16} /></button> },
-      ]} />}</section>
+      ]} /></section>
     </> : <>
       <section className="grid gap-3 md:grid-cols-3"><Metric icon={WalletCards} label="Cash Deposit Balance" value={money(data.summary.current_balance)} helper="Canonical append-only ledger balance" emphasis /><Metric icon={HandCoins} label="Pending Confirmation" value={money(data.summary.pending_handover ?? 0)} helper="Already deducted; confirmation is audit-only" tone={Number(data.summary.pending_handover) ? "warning" : "neutral"} /><Metric icon={History} label="Total Collected" value={money(data.summary.total_collected)} helper="Submitted collections" /></section>
-      <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">Deposit Ledger</h2><p className="text-sm text-text-secondary">Append-only checkout, collection and correction activity.</p></div><button className="btn-secondary" onClick={copySummary}><Clipboard size={15} /> Copy Summary</button></div>{loading ? <div className="p-8 text-sm text-text-muted">Loading Cash Deposit…</div> : <DataTable density="compact" tableClassName="min-w-[860px]" rows={data.ledger} getRowKey={(row) => row.id} columns={[
+      <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">Deposit Ledger</h2><p className="text-sm text-text-secondary">Append-only checkout, collection and correction activity.</p></div><button className="btn-secondary" onClick={copySummary}><Clipboard size={15} /> Copy Summary</button></div><DataTable density="compact" tableClassName="min-w-[860px]" rows={data.ledger} getRowKey={(row) => row.id} columns={[
         { key: "date", header: "Date", render: (row) => <span className="grid gap-0.5"><strong className="text-[13px]">{formatCrewOperationalDateTime(row.occurred_at).split(" · ")[0]}</strong><small className="text-xs text-text-muted">{formatCrewOperationalDateTime(row.occurred_at).split(" · ")[1]}</small></span> }, { key: "activity", header: "Activity", render: (row) => <span className="grid gap-0.5"><strong>{ledgerActivity(row)}</strong>{ledgerActor(row) !== "—" && <small className="text-xs text-text-muted">{ledgerActor(row)}</small>}</span> },
         { key: "amount", header: "Amount", align: "right", render: (row) => Number(row.amount_in) ? <span className="font-semibold text-emerald-700">+{money(row.amount_in)}</span> : Number(row.amount_out) ? <span className="font-semibold text-slate-700">−{money(row.amount_out)}</span> : "—" },
         { key: "balance", header: "Balance", align: "right", render: (row) => <strong>{money(row.balance)}</strong> },
         { key: "receiver", header: "Receiver", render: (row) => ledgerActor(row) },
         { key: "recorded", header: "Recorded By", render: (row) => formatCrewEmployee(row.recorded_by) },
-      ]} />}</section>
-      {data.collections.some((item) => ["pending_receipt", "review_required"].includes(item.status)) && <section className="card overflow-hidden"><div className="border-b border-border px-5 py-4"><h2 className="font-semibold">Handover Status</h2></div><DataTable density="compact" rows={data.collections.filter((item) => ["pending_receipt", "review_required"].includes(item.status))} getRowKey={(row) => row.id} columns={[{ key: "receiver", header: "Receiver", render: (row) => row.receiver_name }, { key: "amount", header: "Handed Over", render: (row) => money(row.amount) }, { key: "received", header: "Received", render: (row) => row.received_amount ? money(row.received_amount) : "Awaiting confirmation" }, { key: "status", header: "Status", render: (row) => <Badge tone="warning">{statusLabel(row.status)}</Badge> }, { key: "action", header: "Action", align: "right", render: (row) => row.status === "review_required" && canReview ? <button className="btn-secondary" onClick={() => reviewCollection(row, refresh, ui)}>Review Difference</button> : null }]} /></section>}
-    </>}
+      ]} /></section>
+      {data.collections.some((item) => ["pending_receipt", "review_required"].includes(item.status)) && <section className="card overflow-hidden"><div className="border-b border-border px-5 py-4"><h2 className="font-semibold">Handover Status</h2></div><DataTable density="compact" rows={data.collections.filter((item) => ["pending_receipt", "review_required"].includes(item.status))} getRowKey={(row) => row.id} columns={[{ key: "receiver", header: "Receiver", render: (row) => row.receiver_name }, { key: "amount", header: "Handed Over", render: (row) => money(row.amount) }, { key: "received", header: "Received", render: (row) => row.received_amount ? money(row.received_amount) : "Awaiting confirmation" }, { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{statusLabel(row.status)}</Badge> }, { key: "action", header: "Action", align: "right", render: (row) => row.status === "review_required" && canReview ? <button className="btn-secondary" onClick={() => reviewCollection(row, refresh, ui)}>Review Difference</button> : null }]} /></section>}
+    </>}</AsyncDataSurface>
     {selected && <CheckoutDetail row={selected} canReview={canReview} canManage={canManage} onReview={review} onChanged={refresh} ui={ui} onClose={() => setSelected(null)} />}
     {settingsOpen && <CashSettings initial={data.settings || {}} history={data.float_history} outletId={outletId} onClose={() => setSettingsOpen(false)} onSaved={async () => { setSettingsOpen(false); await refresh(); }} ui={ui} />}
     {collectionOpen && <CollectionForm outletId={outletId} employees={data.eligible_receivers} balance={data.summary.current_balance} onClose={() => setCollectionOpen(false)} onSaved={async () => { setCollectionOpen(false); await refresh(); }} ui={ui} />}

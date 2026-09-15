@@ -24,4 +24,9 @@ describe("AdminFilterToolbar", () => {
     expect(remove).toHaveBeenCalledTimes(1);
     expect(clear).toHaveBeenCalledTimes(1);
   });
+
+  it("lets a canonical date-range control request the width it needs", () => {
+    render(<AdminFilterToolbar periodWidth="w-full sm:w-[360px]" period={<Field label="Date range" />} />);
+    expect(screen.getByLabelText("Date range").closest("div").className).toContain("sm:w-[360px]");
+  });
 });
