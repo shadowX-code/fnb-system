@@ -661,6 +661,7 @@ function mapFinishedGood(row) {
     storage_location: storageLocationName,
     storage_location_type: row.storage_location_ref?.location_type || "",
     storage_location_status: row.storage_location_ref?.status || "",
+    storage_location_is_storage_location: row.storage_location_ref?.is_storage_location === true,
     recommended_storage: row.recommended_storage || "",
     b2b_price: row.b2b_price === null || row.b2b_price === undefined || row.b2b_price === "" ? null : normalizeNumber(row.b2b_price),
     status: row.status || "active",

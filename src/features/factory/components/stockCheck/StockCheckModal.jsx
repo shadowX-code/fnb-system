@@ -185,7 +185,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
           const sku = stockItems.find((item) => item.id === row.finished_good_id);
           return !sku?.storage_location_id
             || String(sku.storage_location_ref?.status || sku.storage_location_status || "").toLowerCase() !== "active"
-            || sku.storage_location_ref?.is_storage_location !== true;
+            || (sku.storage_location_is_storage_location ?? sku.storage_location_ref?.is_storage_location) !== true;
         });
         if (missingAdjustmentDestination) return "Choose a valid existing batch or configure an active storage location for the Reconciliation Batch before submitting.";
         const invalidAllocationLocation = form.items.find((row) => (row.batch_allocations || []).some((allocation) => allocation.location_valid === false));
