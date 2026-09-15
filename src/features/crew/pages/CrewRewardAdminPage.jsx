@@ -2,11 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Calculator, ChevronRight, Gift, Search, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import { crewService } from "../../../services/crewService.js";
-import CrewAdminToolbar, { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 
 const currentPeriod = () => `${new Date().toISOString().slice(0, 7)}-01`;
@@ -15,7 +18,6 @@ const percent = (value) => `${(Number(value || 0) * 100).toFixed(1)}%`;
 const month = (value) => new Date(`${String(value).slice(0, 10)}T00:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" });
 const cycleStatus = (value) => ({ draft: "Upcoming", review: "Ready for Review", finalized: "Finalized", paid: "Paid" }[value] || value);
 const entryStatus = (value) => ({ awaiting_performance: "Awaiting Performance", not_eligible: "Not Eligible", qualified: "Qualified", finalized: "Finalized", paid: "Paid" }[value] || value);
-const statusTone = (value) => ["paid", "finalized", "qualified"].includes(value) ? "success" : ["review", "awaiting_performance"].includes(value) ? "warning" : "neutral";
 const emptyData = { cycles: [], cycle: null, entries: [], adjustments: [], participants: [], eligible_crew: [] };
 
 export default function CrewRewardAdminPage({ auth, ui, store }) {
@@ -76,9 +78,9 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
   const outlet = outlets.find((row) => row.id === outletId);
   return <div className="crew-reward-page">
     <PageHeader section="Crew · Reward" title="Reward Overview" description="Plan monthly Reward Campaigns, monitor projected payouts and finalize transparent Crew rewards." />
-    <CrewAdminToolbar className="crew-reward-toolbar" outlet={<CrewAdminOutletField />} time={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} primary={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
+    <AdminFilterToolbar ariaLabel="Reward filters" outlet={<CrewAdminOutletField />} period={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
 
-    {loading ? <div className="crew-growth-skeleton"><span /><span /><span /><p>Loading Reward Campaign…</p></div> : error ? <section className="crew-reward-empty is-error"><AlertTriangle size={28} /><h2>Unable to load Rewards</h2><p>{error}</p><button className="btn-secondary" type="button" onClick={() => refresh()}>Retry</button></section> : <RewardOverview data={data} canManage={canManage} onOpenCampaign={() => setCampaignOpen(true)} onOpenEmployee={setEmployeeOpen} onOpenCycle={openCycle} />}
+    <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Rewards" hasData={Boolean(data.cycle || data.cycles.length)} onRetry={() => refresh()}><RewardOverview data={data} canManage={canManage} onOpenCampaign={() => setCampaignOpen(true)} onOpenEmployee={setEmployeeOpen} onOpenCycle={openCycle} /></AsyncDataSurface>
 
     {campaignOpen && data.cycle ? <CampaignDetail data={data} canManage={canManage} canFinalize={canFinalize} canPaid={canPaid} onClose={() => setCampaignOpen(false)} onCalculate={calculate} onFinalize={finalize} onPaid={markPaid} onOpenEmployee={setEmployeeOpen} /> : null}
     {employeeOpen ? <EmployeeRewardDetail entry={employeeOpen} cycle={data.cycle} canAdjust={canManage && data.cycle?.status === "review"} onClose={() => setEmployeeOpen(null)} onAdjust={() => { setEmployeeOpen(null); setAdjusting(employeeOpen); }} /> : null}
@@ -107,7 +109,7 @@ function CurrentCampaign({ data, onOpenCampaign, onOpenEmployee }) {
 
   return <>
     <section className="crew-reward-summary">
-      <header className="crew-reward-current-head"><div><span>Current Campaign</span><div className="crew-reward-current-identity"><h2>{month(c.period_start)}</h2><Badge tone={statusTone(c.status)}>{cycleStatus(c.status)}</Badge></div></div><button className="btn-secondary" type="button" onClick={onOpenCampaign}>Review Campaign <ChevronRight size={15} /></button></header>
+      <header className="crew-reward-current-head"><div><span>Current Campaign</span><div className="crew-reward-current-identity"><h2>{month(c.period_start)}</h2><Badge tone={semanticStatusTone(c.status)}>{cycleStatus(c.status)}</Badge></div></div><button className="btn-secondary" type="button" onClick={onOpenCampaign}>Review Campaign <ChevronRight size={15} /></button></header>
       <div className="crew-reward-kpis">
         <CampaignMetric label="Configured Pool" value={money(configured)} />
         <CampaignMetric label={c.status === "finalized" || c.status === "paid" ? "Final Payout" : "Projected Payout"} value={money(payout)} detail={awaiting.length ? "Awaiting Performance" : null} />
@@ -135,7 +137,7 @@ function RewardTable({ rows, cycle, onOpen }) {
     { key: "contribution", header: "Contribution", align: "right", render: (row) => <span className="crew-reward-number">{row.status === "awaiting_performance" ? "—" : percent(row.contribution_share)}</span> },
     { key: "factor", header: "Reward Factor", align: "right", render: (row) => <span className="crew-reward-number">{percent(row.performance_factor)}</span> },
     { key: "reward", header: cycle.status === "finalized" || cycle.status === "paid" ? "Final Reward" : "Projected Reward", align: "right", render: (row) => <strong className="crew-reward-final">{money(row.final_payout)}</strong> },
-    { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{entryStatus(row.status)}</Badge> },
+    { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{entryStatus(row.status)}</Badge> },
     { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> },
   ]} />;
 }
@@ -147,7 +149,7 @@ function CampaignHistory({ rows, currentCycleId, onOpen }) {
     { key: "crew", header: "Crew", align: "right", render: (row) => <span className="crew-reward-number">{Number(row.participant_count || 0)} Crew</span> },
     { key: "payout", header: "Payout", align: "right", render: (row) => <strong className="crew-reward-final">{money(row.actual_payout)}</strong> },
     { key: "utilization", header: "Utilization", align: "right", render: (row) => <span className="crew-reward-number">{percent(Number(row.configured_pool) > 0 ? Number(row.actual_payout || 0) / Number(row.configured_pool) : 0)}</span> },
-    { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{cycleStatus(row.status)}</Badge> },
+    { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{cycleStatus(row.status)}</Badge> },
     { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> },
   ]} /> : <div className="crew-reward-history-empty-admin">No Reward Campaign history for this outlet.</div>}</section>;
 }
@@ -176,7 +178,7 @@ function ParticipantList({ rows }) { return <section className="crew-reward-part
 function EmployeeRewardDetail({ entry, cycle, canAdjust, onClose, onAdjust }) {
   const maximum = Number(entry.base_reward || entry.source_snapshot?.maximum_share || 0);
   return <Modal title={entry.employee_name} description={`${entry.position || "Crew"} · ${month(cycle.period_start)}`} onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Close</button>{canAdjust && entry.status === "qualified" ? <button className="btn-primary" onClick={onAdjust}>Adjust Reward</button> : null}</>}>
-    <div className="crew-reward-employee-detail"><Badge tone={statusTone(entry.status)}>{entryStatus(entry.status)}</Badge><dl><div><dt>Performance</dt><dd>{entry.performance_score == null ? "—" : Math.round(entry.performance_score)}</dd></div><div><dt>Eligible Hours</dt><dd>{Number(entry.eligible_hours).toFixed(1)}h</dd></div><div><dt>Contribution</dt><dd>{percent(entry.contribution_share)}</dd></div><div><dt>Reward Factor</dt><dd>{percent(entry.performance_factor)}</dd></div></dl><section><small>Calculated Reward</small><strong>{money(entry.calculated_reward)}</strong>{Number(entry.adjustment_amount) ? <><span>Adjustment <b>{Number(entry.adjustment_amount) > 0 ? "+" : ""}{money(entry.adjustment_amount)}</b></span><span>Final <b>{money(entry.final_payout)}</b></span></> : null}</section><div className="crew-reward-formula-copy"><strong>How this reward is calculated</strong><p>{money(cycle.configured_pool)} pool × {percent(entry.contribution_share)} contribution = {money(maximum)} maximum share. The server then applies the {percent(entry.performance_factor)} Performance earn rate.</p></div>{entry.eligibility_reason ? <p className="crew-reward-reason">{entry.eligibility_reason}</p> : null}</div>
+    <div className="crew-reward-employee-detail"><Badge tone={semanticStatusTone(entry.status)}>{entryStatus(entry.status)}</Badge><dl><div><dt>Performance</dt><dd>{entry.performance_score == null ? "—" : Math.round(entry.performance_score)}</dd></div><div><dt>Eligible Hours</dt><dd>{Number(entry.eligible_hours).toFixed(1)}h</dd></div><div><dt>Contribution</dt><dd>{percent(entry.contribution_share)}</dd></div><div><dt>Reward Factor</dt><dd>{percent(entry.performance_factor)}</dd></div></dl><section><small>Calculated Reward</small><strong>{money(entry.calculated_reward)}</strong>{Number(entry.adjustment_amount) ? <><span>Adjustment <b>{Number(entry.adjustment_amount) > 0 ? "+" : ""}{money(entry.adjustment_amount)}</b></span><span>Final <b>{money(entry.final_payout)}</b></span></> : null}</section><div className="crew-reward-formula-copy"><strong>How this reward is calculated</strong><p>{money(cycle.configured_pool)} pool × {percent(entry.contribution_share)} contribution = {money(maximum)} maximum share. The server then applies the {percent(entry.performance_factor)} Performance earn rate.</p></div>{entry.eligibility_reason ? <p className="crew-reward-reason">{entry.eligibility_reason}</p> : null}</div>
   </Modal>;
 }
 

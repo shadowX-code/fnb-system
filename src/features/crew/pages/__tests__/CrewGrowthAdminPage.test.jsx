@@ -45,7 +45,7 @@ describe("Crew Growth Admin", () => {
     const search = await screen.findByPlaceholderText("Search by name or employee code");
     fireEvent.change(search, { target: { value: "Nobody" } });
     expect(screen.getByText("No Crew match these filters")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     expect(screen.getAllByText("Alex Tan").length).toBeGreaterThan(0);
   });
 

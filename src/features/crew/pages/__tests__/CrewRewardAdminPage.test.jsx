@@ -20,6 +20,16 @@ beforeEach(() => { for (const mock of Object.values(mocks)) mock.mockReset(); mo
 afterEach(cleanup);
 
 describe("Crew Reward Admin", () => {
+  it("keeps a failed Reward read distinct from an empty campaign month and retries through the shared data surface", async () => {
+    mocks.data.mockRejectedValueOnce(new Error("Reward read timed out"));
+    render(<CrewRewardAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect((await screen.findByRole("alert")).textContent).toContain("Unable to load Rewards");
+    expect(screen.getByText("Reward read timed out")).not.toBeNull();
+    mocks.data.mockResolvedValueOnce(fixture);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByText("Alex Tan")).not.toBeNull();
+  });
+
   it("renders authoritative pool and employee breakdown", async () => {
     render(<CrewRewardAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByRole("heading", { name: "Reward Overview" })).not.toBeNull();

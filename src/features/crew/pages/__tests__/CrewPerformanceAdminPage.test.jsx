@@ -17,6 +17,16 @@ beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.revi
 afterEach(cleanup);
 
 describe("Crew Performance Admin", () => {
+  it("keeps a failed Performance read distinct from an empty period and retries through the shared data surface", async () => {
+    mocks.data.mockRejectedValueOnce(new Error("Performance read timed out"));
+    render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect((await screen.findByRole("alert")).textContent).toContain("Unable to load Performance Overview");
+    expect(screen.getByText("Performance read timed out")).not.toBeNull();
+    mocks.data.mockResolvedValueOnce(fixture);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("heading", { name: "Review Queue" })).not.toBeNull();
+  });
+
   it("renders the server-derived overview and detail evidence", async () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByRole("heading", { name: "Performance Overview" })).not.toBeNull();
@@ -91,6 +101,15 @@ describe("Crew Performance Admin", () => {
     fireEvent.change(screen.getByPlaceholderText("Explain why this feedback should return to scoring"), { target: { value: "Duplicate was rechecked" } });
     fireEvent.click(screen.getByRole("button", { name: "Restore To Scoring" }));
     await waitFor(() => expect(mocks.moderate).toHaveBeenCalledWith("feedback-2", false, "Duplicate was rechecked"));
+  });
+
+  it("keeps Customer Feedback filters in the page-level toolbar and clears them together", async () => {
+    render(<CrewPerformanceAdminPage initialTab="feedback" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    const search = await screen.findByPlaceholderText("Search Crew, comment or tag");
+    fireEvent.change(search, { target: { value: "No matching feedback" } });
+    expect(screen.getByText("No feedback matches these filters")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect(screen.getByText("Great service")).not.toBeNull();
   });
 
   it("opens retained evidence history and corrects attribution through the controlled service", async () => {
