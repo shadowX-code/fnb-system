@@ -53,6 +53,22 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ status: "draft", equipment_ids: [] })));
   });
 
+  it("reviews and applies a newer active Recipe to an unused Draft without changing SOP structure", async () => {
+    const currentRecipe = { id: "recipe-v1", product_family_id: family.id, version: "v1", status: "archived", yield_quantity: 10, uom: "kg", items: [{ raw_material_id: "rm-1", raw_material_name: "Soy Sauce", quantity_used: 2, uom: "kg" }] };
+    const nextRecipe = { id: "recipe-v2", product_family_id: family.id, version: "v2", status: "active", yield_quantity: 10, uom: "kg", items: [...currentRecipe.items, { raw_material_id: "rm-2", raw_material_name: "Chicken Stock", quantity_used: 1, uom: "kg" }] };
+    const initial = { ...draftSop, recipe_id: currentRecipe.id, recipe_version: currentRecipe.version, steps: [{ ...draftSop.steps[0], ingredient_material_ids: ["rm-1"] }] };
+    const onUpdateRecipe = vi.fn().mockResolvedValue({ ...initial, recipe_id: nextRecipe.id, recipe_version: nextRecipe.version, linked_recipe: nextRecipe });
+    render(<ProductionSopBuilderModal initialValue={initial} productFamilies={[family]} recipes={[currentRecipe, nextRecipe]} equipment={[equipment]} sops={[initial]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={vi.fn()} onUpdateRecipe={onUpdateRecipe} />);
+
+    expect(screen.getByText("v2 update available")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Review Update" }));
+    expect(screen.getByText("Chicken Stock · 1 kg")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Update Draft to Recipe v2" }));
+    await waitFor(() => expect(onUpdateRecipe).toHaveBeenCalledWith(expect.objectContaining({ id: initial.id, recipe_id: currentRecipe.id, steps: expect.arrayContaining([expect.objectContaining({ step_name: "Cook", ingredient_material_ids: ["rm-1"] })]) }), nextRecipe));
+    expect(screen.getByText("1 recipe ingredient needs review.")).not.toBeNull();
+    expect(screen.getByText("Chicken Stock")).not.toBeNull();
+  });
+
   it("uses a collapsed builder outline with progressive step, QC, and sub-step editing", () => {
     const multiStepSop = {
       ...draftSop,

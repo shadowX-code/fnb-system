@@ -14,7 +14,7 @@ import { FactoryCellMuted, FactoryCellText } from "../../components/FactoryTable
 import { todayInput, formatFactoryDate } from "../../utils/factoryDates.js";
 import { percent, quantity, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../../utils/factoryFormatters.js";
 import { jobStatusLabel } from "../../utils/factoryStatus.js";
-import { productionSopDisplayName } from "../../utils/productionSop.js";
+import { productionSopDisplayName, productionSopRecipeDiff } from "../../utils/productionSop.js";
 import { finishedGoodFamiliesWithoutRecords } from "../../utils/factoryFamilyEligibility.js";
 
 function emptySopQcCheck(index = 0) {
@@ -55,6 +55,21 @@ function emptySopStep(index = 0) {
   };
 }
 
+function RecipeUpdateReview({ currentRecipe, nextRecipe, saving, onUpdate }) {
+  const diff = productionSopRecipeDiff(currentRecipe, nextRecipe);
+  const hasChanges = diff.standardOutputChanged || diff.added.length || diff.removed.length || diff.quantityChanges.length;
+  return <div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-3 text-sm">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-semibold text-text-primary">Review Recipe update</div><div className="mt-0.5 text-xs text-text-secondary">Recipe {currentRecipe.version || "—"} to Recipe {nextRecipe.version || "—"}. SOP steps, sub-steps, Equipment, and QC remain unchanged.</div></div><button className="btn-primary px-2.5 py-1.5 text-xs" type="button" disabled={saving} onClick={onUpdate}>{saving ? "Updating..." : `Update Draft to Recipe ${nextRecipe.version || ""}`}</button></div>
+    {hasChanges ? <div className="mt-3 grid gap-3 text-xs text-text-secondary sm:grid-cols-2">
+      <div><div className="font-semibold text-text-primary">Standard Output</div><div className="mt-1">{diff.standardOutputChanged ? `${diff.currentOutput} to ${diff.nextOutput}` : diff.nextOutput || "Unchanged"}</div></div>
+      <div><div className="font-semibold text-text-primary">Materials</div><div className="mt-1">{diff.currentMaterialCount} to {diff.nextMaterialCount} ingredients</div></div>
+      {diff.added.length ? <div><div className="font-semibold text-text-primary">Added materials</div><div className="mt-1 space-y-1">{diff.added.map((item) => <div key={item.raw_material_id}>{item.name} · {item.quantity}</div>)}</div></div> : null}
+      {diff.removed.length ? <div><div className="font-semibold text-text-primary">Removed materials</div><div className="mt-1 space-y-1">{diff.removed.map((item) => <div key={item.raw_material_id}>{item.name} · {item.quantity}</div>)}</div></div> : null}
+      {diff.quantityChanges.length ? <div className="sm:col-span-2"><div className="font-semibold text-text-primary">Quantity changes</div><div className="mt-1 space-y-1">{diff.quantityChanges.map((item) => <div key={item.raw_material_id}>{item.name} · {item.previous} to {item.next}</div>)}</div></div> : null}
+    </div> : <div className="mt-3 text-xs text-text-secondary">No material or output changes were detected.</div>}
+  </div>;
+}
+
 function SopIngredientPicker({ ingredients = [], value = [], disabled = false, onChange }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -90,7 +105,7 @@ function SopIngredientPicker({ ingredients = [], value = [], disabled = false, o
   );
 }
 
-export function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], equipment = [], qcChecklistTemplates = [], onClose, onSave }) {
+export function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], equipment = [], qcChecklistTemplates = [], onClose, onSave, onUpdateRecipe }) {
   const isEdit = Boolean(initialValue?.id);
   const activeQcTemplates = qcChecklistTemplates.filter((template) => template.is_active !== false);
   const activeQcTemplateIds = new Set(activeQcTemplates.map((template) => template.id));
@@ -139,6 +154,9 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
   const [error, setError] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(!isEdit);
   const [recipeDetailsOpen, setRecipeDetailsOpen] = useState(false);
+  const [recipeUpdateReviewOpen, setRecipeUpdateReviewOpen] = useState(false);
+  const [updatingRecipe, setUpdatingRecipe] = useState(false);
+  const [recipeUpdateError, setRecipeUpdateError] = useState("");
   const [expandedStepIds, setExpandedStepIds] = useState(() => new Set(isEdit ? [] : initialSteps.slice(0, 1).map((step) => step.id)));
   const [expandedQcIds, setExpandedQcIds] = useState(new Set());
   const headerRef = useRef(null);
@@ -151,6 +169,9 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
   }, [form.recipe_id, recipes, initialValue]);
   const recipeIngredients = recipeReference?.items || [];
   const recipeIngredientIds = new Set(recipeIngredients.map((item) => item.raw_material_id));
+  const recipeUpdateAvailable = isEdit && form.status === "draft" && Boolean(activeRecipe && recipeReference && activeRecipe.id !== recipeReference.id);
+  const referencedIngredientIds = new Set(form.steps.flatMap((step) => step.ingredient_material_ids || []));
+  const ingredientsNeedingReview = form.recipe_id === activeRecipe?.id ? recipeIngredients.filter((item) => !referencedIngredientIds.has(item.raw_material_id)) : [];
   const calculatedMinutes = form.steps.reduce((sum, step) => sum + sopStepEstimatedMinutes(step), 0);
   const totalSubSteps = form.steps.reduce((sum, step) => sum + (step.sub_steps?.length || 0), 0);
   const totalQcChecks = form.steps.reduce((sum, step) => sum + (step.qc_checks?.length || 0), 0);
@@ -302,6 +323,21 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
     setForm((current) => ({ ...current, recipe_id: activeRecipe.id, recipe_version: activeRecipe.version || "", steps: current.steps.map((step) => ({ ...step, ingredient_material_ids: [] })) }));
   }
 
+  async function updateDraftToActiveRecipe() {
+    if (!activeRecipe || !onUpdateRecipe || updatingRecipe) return;
+    setRecipeUpdateError("");
+    setUpdatingRecipe(true);
+    try {
+      const saved = await onUpdateRecipe(form, activeRecipe);
+      setForm((current) => ({ ...current, recipe_id: saved.recipe_id, recipe_version: saved.recipe_version, linked_recipe: saved.linked_recipe || activeRecipe }));
+      setRecipeUpdateReviewOpen(false);
+    } catch (nextError) {
+      setRecipeUpdateError(nextError.message || "Unable to update the Draft SOP Recipe.");
+    } finally {
+      setUpdatingRecipe(false);
+    }
+  }
+
   async function submit(event) {
     event.preventDefault();
     setError("");
@@ -343,8 +379,11 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
             <div className="rounded-lg border border-border bg-surface-muted px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">Estimated Time</div><div className="mt-1 text-sm font-semibold text-text-primary">{sopMinutesLabel(calculatedMinutes)}</div></div>
             <div className="rounded-lg border border-border bg-surface-muted px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">Structure</div><div className="mt-1 text-sm font-semibold text-text-primary">{form.steps.length} steps · {totalSubSteps} sub-steps · {totalQcChecks} QC</div></div>
           </div>
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm"><div className="min-w-0"><span className="font-semibold text-text-primary">Recipe reference: </span>{recipeReference ? <span className="text-text-secondary">Recipe {recipeReference.version || form.recipe_version || "—" } · {quantity(recipeReference.yield_quantity, recipeReference.uom)} · {recipeIngredients.length} ingredients</span> : <span className="text-text-secondary">No active recipe linked</span>}</div><div className="flex items-center gap-2">{recipeReference ? <button className="btn-secondary px-2.5 py-1.5 text-xs" type="button" aria-expanded={recipeDetailsOpen} onClick={() => setRecipeDetailsOpen((current) => !current)}>{recipeDetailsOpen ? "Hide ingredients" : "View ingredients"}</button> : null}{!recipeReference && isEdit && activeRecipe && !isLocked ? <button className="btn-secondary px-2.5 py-1.5 text-xs" type="button" onClick={linkActiveRecipe}>Link Active Recipe</button> : null}</div></div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3 text-sm"><div className="min-w-0"><span className="font-semibold text-text-primary">Recipe reference: </span>{recipeReference ? <span className="text-text-secondary">Recipe {recipeReference.version || form.recipe_version || "—" } · {quantity(recipeReference.yield_quantity, recipeReference.uom)} · {recipeIngredients.length} ingredients</span> : <span className="text-text-secondary">No active recipe linked</span>}{recipeUpdateAvailable ? <span className="ml-2 text-xs font-semibold text-amber-700">{activeRecipe.version} update available</span> : null}</div><div className="flex items-center gap-2">{recipeUpdateAvailable ? <button className="btn-secondary px-2.5 py-1.5 text-xs" type="button" aria-expanded={recipeUpdateReviewOpen} onClick={() => { setRecipeUpdateError(""); setRecipeUpdateReviewOpen((current) => !current); }}>Review Update</button> : null}{recipeReference ? <button className="btn-secondary px-2.5 py-1.5 text-xs" type="button" aria-expanded={recipeDetailsOpen} onClick={() => setRecipeDetailsOpen((current) => !current)}>{recipeDetailsOpen ? "Hide ingredients" : "View ingredients"}</button> : null}{!recipeReference && isEdit && activeRecipe && !isLocked ? <button className="btn-secondary px-2.5 py-1.5 text-xs" type="button" onClick={linkActiveRecipe}>Link Active Recipe</button> : null}</div></div>
+          {recipeUpdateReviewOpen && recipeUpdateAvailable ? <RecipeUpdateReview currentRecipe={recipeReference} nextRecipe={activeRecipe} saving={updatingRecipe} onUpdate={updateDraftToActiveRecipe} /> : null}
+          {recipeUpdateError ? <div role="alert" className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{recipeUpdateError}</div> : null}
           {recipeDetailsOpen && recipeReference ? <div className="mt-3 overflow-hidden rounded-lg border border-border"><table className="w-full text-left text-xs"><thead className="bg-surface-muted text-[10.5px] font-semibold uppercase tracking-[0.06em] text-text-muted"><tr><th className="px-3 py-2">Ingredient</th><th className="px-3 py-2">Recipe Qty</th><th className="px-3 py-2">UOM</th></tr></thead><tbody>{recipeIngredients.map((item) => <tr key={item.id || item.raw_material_id} className="border-t border-border"><td className="px-3 py-2 font-semibold text-text-primary">{item.raw_material_name || "Raw Material"}</td><td className="px-3 py-2 tabular-nums text-text-secondary">{Number(item.quantity_used || 0).toLocaleString("en-MY", { maximumFractionDigits: 4 })}</td><td className="px-3 py-2 text-text-secondary">{item.uom || "—"}</td></tr>)}</tbody></table></div> : null}
+          {ingredientsNeedingReview.length ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900"><span className="font-semibold">{ingredientsNeedingReview.length} recipe ingredient{ingredientsNeedingReview.length === 1 ? "" : "s"} needs review.</span><div className="mt-1">{ingredientsNeedingReview.map((item) => item.raw_material_name || "Raw Material").join(", ")}</div></div> : null}
           <div className="mt-3 border-t border-border pt-3"><button className="inline-flex items-center gap-2 text-sm font-semibold text-text-secondary hover:text-text-primary" type="button" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((current) => !current)}><Settings2 size={15} /> SOP Settings {settingsOpen ? <ChevronDown size={15} /> : <ChevronRight size={15} />}</button>{settingsOpen ? <div className="mt-3 grid gap-3 md:grid-cols-2"><Field label="Effective Date"><FeedXDatePicker value={form.effective_date || ""} disabled={isLocked} onChange={(nextDate) => setForm((current) => ({ ...current, effective_date: nextDate }))} /></Field><Field label="Remarks"><textarea className={inputClass()} rows={2} value={form.remarks || form.notes || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value, notes: event.target.value }))} /></Field><div className="md:col-span-2"><Field label="Equipment"><div className="grid gap-2 sm:grid-cols-2">{equipment.filter((item) => item.status === "active" || form.equipment_ids.includes(item.id)).map((item) => <label key={item.id} className="flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm"><input type="checkbox" disabled={isLocked || item.status !== "active"} checked={form.equipment_ids.includes(item.id)} onChange={(event) => setForm((current) => ({ ...current, equipment_ids: event.target.checked ? [...new Set([...current.equipment_ids, item.id])] : current.equipment_ids.filter((id) => id !== item.id) }))} /><span className="min-w-0"><span className="block truncate font-semibold text-text-primary">{item.equipment_code} · {item.name}</span><span className="block text-xs text-text-secondary">{item.location?.location_name || ""}</span></span></label>)}</div></Field>{form.status === "draft" && !form.equipment_ids.length ? <p className="mt-2 text-xs font-semibold text-amber-700">Equipment configuration is incomplete. Drafts can be saved; assign at least one active Equipment before activation.</p> : null}</div></div> : null}</div>
         </section>
 
@@ -369,10 +408,12 @@ export function ProductionSopBuilderModal({ initialValue, productFamilies = [], 
   );
 }
 
-export function ProductionSopDocumentModal({ sop, onClose }) {
+export function ProductionSopDocumentModal({ sop, recipes = [], onClose }) {
   const steps = [...(sop.steps || [])].sort((a, b) => Number(a.step_no || 0) - Number(b.step_no || 0));
   const qcCount = steps.reduce((count, step) => count + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0);
   const recipe = sop.linked_recipe;
+  const currentActiveRecipe = recipes.find((item) => item.product_family_id === sop.finished_good_id && item.status === "active") || null;
+  const recipeUpdateAvailable = Boolean(recipe && currentActiveRecipe && currentActiveRecipe.id !== recipe.id);
   const referencedIngredientCount = new Set(steps.flatMap((step) => step.ingredient_material_ids || [])).size;
   const totalEstimatedMinutes = sopTotalEstimatedMinutes({ ...sop, steps });
   return (
@@ -386,7 +427,7 @@ export function ProductionSopDocumentModal({ sop, onClose }) {
 
         <section className="bg-slate-50 px-4 py-4 sm:px-5">
           <div className="text-sm font-black text-text-primary">Recipe Reference</div>
-          {recipe ? <div className="mt-3 grid gap-3 sm:grid-cols-3"><div><div className="text-[10.5px] font-semibold text-text-muted">Linked Recipe</div><div className="mt-1 text-sm font-bold text-text-primary">{recipe.recipe_name && recipe.recipe_name !== recipe.version ? `${recipe.recipe_name} ${sop.recipe_version || recipe.version}` : sop.recipe_version || recipe.version}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Standard Output</div><div className="mt-1 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Referenced Ingredients</div><div className="mt-1 text-sm font-bold text-text-primary">{referencedIngredientCount} of {recipe.items?.length || 0}</div></div></div> : <div className="mt-3"><div className="text-sm font-bold text-text-primary">No Recipe Linked</div><div className="mt-1 text-xs font-semibold text-text-secondary">This SOP predates recipe snapshot linking or was saved without an active recipe.</div></div>}
+          {recipe ? <><div className="mt-3 grid gap-3 sm:grid-cols-3"><div><div className="text-[10.5px] font-semibold text-text-muted">Linked Recipe</div><div className="mt-1 text-sm font-bold text-text-primary">{recipe.recipe_name && recipe.recipe_name !== recipe.version ? `${recipe.recipe_name} ${sop.recipe_version || recipe.version}` : sop.recipe_version || recipe.version}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Standard Output</div><div className="mt-1 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Referenced Ingredients</div><div className="mt-1 text-sm font-bold text-text-primary">{referencedIngredientCount} of {recipe.items?.length || 0}</div></div></div>{recipeUpdateAvailable ? <div className="mt-3 text-xs text-amber-700"><span className="font-semibold">{currentActiveRecipe.version} update available.</span> This SOP is protected; create a new SOP version to use the newer Recipe.</div> : null}</> : <div className="mt-3"><div className="text-sm font-bold text-text-primary">No Recipe Linked</div><div className="mt-1 text-xs font-semibold text-text-secondary">This SOP predates recipe snapshot linking or was saved without an active recipe.</div></div>}
         </section>
 
         <section>

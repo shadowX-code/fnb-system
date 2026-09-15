@@ -2024,6 +2024,19 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
     await refreshFactoryAfterMutation();
   }
 
+  async function updateDraftProductionSopRecipe(sop, recipe) {
+    let saved;
+    try {
+      saved = await factoryService.updateDraftProductionSopRecipe(sop, recipe);
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to update Draft Recipe", message: error.message, tone: "error" });
+      throw error;
+    }
+    ui?.notify?.({ title: "Draft SOP Recipe updated", message: `Now referencing Recipe ${saved.recipe_version || recipe.version}.`, tone: "success" });
+    await refreshFactoryAfterMutation();
+    return saved;
+  }
+
   async function activateProductionSop(sop) {
     try {
       await factoryService.activateProductionSop(sop);
@@ -3514,6 +3527,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
           createProductRecipeNewVersion={openNewRecipeVersion}
           deleteProductRecipe={deleteProductRecipe}
           saveProductionSop={saveProductionSop}
+          updateDraftProductionSopRecipe={updateDraftProductionSopRecipe}
           activateProductionSop={activateProductionSop}
           archiveProductionSop={archiveProductionSop}
           restoreProductionSop={restoreProductionSop}

@@ -101,8 +101,8 @@ export default function FactoryProductionSopPage() {
       {visibleRows.length ? <FactoryTable columns={columns} rows={visibleRows} rowHover="mint" onRowClick={setDetail} renderAfterRow={(row) => expandedProducts[row.id] ? <div className="border-t border-border bg-[var(--theme-subtle)] px-4 py-3 md:px-8"><div className="mb-2 text-xs font-semibold uppercase tracking-[0.06em] text-text-muted">Version history</div><FactoryTable columns={versionHistoryColumns} rows={row.versions} rowHover="mint" onRowClick={setDetail} /></div> : null} /> : <EmptyState title="No Production SOPs" description="No SOPs match the selected filters." />}
       <FactoryPagination page={pager.page} pageSize={pager.pageSize} total={filteredRows.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} />
     </FactoryDataSurface>
-    {builder ? <ProductionSopBuilderModal initialValue={builder} productFamilies={productFamilies} recipes={recipes} sops={sops} equipment={equipment} qcChecklistTemplates={qcChecklistTemplates} onClose={() => setBuilder(null)} onSave={async (form) => { await actions.saveProductionSop(form); setBuilder(null); }} /> : null}
-    {detail ? <ProductionSopDocumentModal sop={detail} onClose={() => setDetail(null)} /> : null}
+    {builder ? <ProductionSopBuilderModal initialValue={builder} productFamilies={productFamilies} recipes={recipes} sops={sops} equipment={equipment} qcChecklistTemplates={qcChecklistTemplates} onClose={() => setBuilder(null)} onSave={async (form) => { await actions.saveProductionSop(form); setBuilder(null); }} onUpdateRecipe={actions.updateDraftProductionSopRecipe} /> : null}
+    {detail ? <ProductionSopDocumentModal sop={detail} recipes={recipes} onClose={() => setDetail(null)} /> : null}
     {presetsOpen ? <QcChecklistPresetManagerModal templates={qcChecklistTemplates} sops={sops} onClose={() => setPresetsOpen(false)} onCreate={actions.createQcChecklistTemplate} onUpdate={actions.updateQcChecklistTemplate} onArchive={actions.archiveQcChecklistTemplate} onRestore={actions.restoreQcChecklistTemplate} onDelete={actions.deleteQcChecklistTemplate} /> : null}
   </div>;
 }
