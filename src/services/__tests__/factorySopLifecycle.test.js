@@ -105,6 +105,22 @@ describe("Factory Production SOP and QC preset trusted lifecycle contracts", () 
     await expect(factoryService.archiveProductionSop({ ...sop, status: "draft" })).rejects.toThrow("Only active Production SOPs can be archived.");
   });
 
+  it("updates only an eligible Draft SOP through the dedicated Recipe pinning authority", async () => {
+    const draft = { ...sop, status: "draft", recipe_id: "recipe-1", recipe_version: "v1" };
+    const activeRecipe = { id: "recipe-2", version: "v2" };
+    const updated = { ...draft, recipe_id: activeRecipe.id, recipe_version: activeRecipe.version, linked_recipe: { ...sop.linked_recipe, ...activeRecipe } };
+    mocks.rpc.mockResolvedValue({ data: { sop_id: draft.id }, error: null });
+    mocks.from.mockImplementation(() => sopFetch(updated));
+
+    await expect(factoryService.updateDraftProductionSopRecipe(draft, activeRecipe)).resolves.toEqual(expect.objectContaining({ id: draft.id, recipe_id: activeRecipe.id, recipe_version: activeRecipe.version }));
+    expect(mocks.rpc).toHaveBeenCalledWith("factory_update_draft_production_sop_recipe", { p_sop_id: draft.id, p_recipe_id: activeRecipe.id });
+  });
+
+  it("keeps lifecycle and Production-history protection as a user-safe error", async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: "FACTORY_SOP_RECIPE_UPDATE_PROTECTED", code: "55000" } });
+    await expect(factoryService.updateDraftProductionSopRecipe({ ...sop, status: "active" }, { id: "recipe-2" })).rejects.toThrow("Create a new SOP version");
+  });
+
   it("keeps Draft delete separate from Active archive", async () => {
     const lookup = { select: vi.fn(() => ({ eq: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { ...sop, status: "draft" }, error: null }) })) })) };
     const deletion = { delete: vi.fn(() => ({ eq: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })) })) };

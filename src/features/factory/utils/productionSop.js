@@ -60,3 +60,46 @@ export function productionSopDisplayName(sop) {
   const productName = sop?.product_name_en || sop?.product_name || "Finished Good";
   return `${productName} Production SOP · ${sop?.version || "v1"}`;
 }
+
+function recipeMaterialLabel(item) {
+  return item?.raw_material_name || item?.raw_material?.name_en || item?.raw_material?.name || "Raw Material";
+}
+
+function recipeMaterialQuantity(item) {
+  const quantity = Number(item?.quantity_used || 0);
+  return `${quantity.toLocaleString("en-MY", { maximumFractionDigits: 4 })} ${item?.recipe_usage_uom || item?.uom || ""}`.trim();
+}
+
+// This is a presentation-only comparison of two persisted Recipe versions.
+// The trusted SOP mutation validates the target Recipe and Draft eligibility.
+export function productionSopRecipeDiff(currentRecipe, nextRecipe) {
+  const currentItems = currentRecipe?.items || [];
+  const nextItems = nextRecipe?.items || [];
+  const currentByMaterial = new Map(currentItems.map((item) => [item.raw_material_id, item]));
+  const nextByMaterial = new Map(nextItems.map((item) => [item.raw_material_id, item]));
+  const added = nextItems.filter((item) => !currentByMaterial.has(item.raw_material_id));
+  const removed = currentItems.filter((item) => !nextByMaterial.has(item.raw_material_id));
+  const quantityChanges = nextItems
+    .filter((item) => currentByMaterial.has(item.raw_material_id))
+    .map((item) => ({ previous: currentByMaterial.get(item.raw_material_id), next: item }))
+    .filter(({ previous, next }) => Number(previous.quantity_used || 0) !== Number(next.quantity_used || 0)
+      || String(previous.recipe_usage_uom || previous.uom || "") !== String(next.recipe_usage_uom || next.uom || ""))
+    .map(({ previous, next }) => ({
+      raw_material_id: next.raw_material_id,
+      name: recipeMaterialLabel(next),
+      previous: recipeMaterialQuantity(previous),
+      next: recipeMaterialQuantity(next),
+    }));
+
+  return {
+    standardOutputChanged: Number(currentRecipe?.yield_quantity || 0) !== Number(nextRecipe?.yield_quantity || 0)
+      || String(currentRecipe?.uom || "") !== String(nextRecipe?.uom || ""),
+    currentOutput: recipeMaterialQuantity({ quantity_used: currentRecipe?.yield_quantity, uom: currentRecipe?.uom }),
+    nextOutput: recipeMaterialQuantity({ quantity_used: nextRecipe?.yield_quantity, uom: nextRecipe?.uom }),
+    currentMaterialCount: currentItems.length,
+    nextMaterialCount: nextItems.length,
+    added: added.map((item) => ({ raw_material_id: item.raw_material_id, name: recipeMaterialLabel(item), quantity: recipeMaterialQuantity(item) })),
+    removed: removed.map((item) => ({ raw_material_id: item.raw_material_id, name: recipeMaterialLabel(item), quantity: recipeMaterialQuantity(item) })),
+    quantityChanges,
+  };
+}

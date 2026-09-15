@@ -23,9 +23,9 @@ describe("FactoryProductionIntelligenceRanking", () => {
     expect(screen.getByText("Total Output")).not.toBeNull();
     expect(screen.getByLabelText("Target 28 kg")).not.toBeNull();
     expect(screen.getAllByText("No due Job Orders").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Completion" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Completion" }));
     expect(onMetricChange).toHaveBeenCalledWith("completion");
-    fireEvent.click(screen.getByRole("button", { name: "Batch Count" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Batch Count" }));
     expect(onMetricChange).toHaveBeenCalledWith("batches");
   });
 });

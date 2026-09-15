@@ -4392,6 +4392,33 @@ const factoryServiceDefinition = {
     return mapProductionSop(data);
   },
 
+  async updateDraftProductionSopRecipe(sop, recipe) {
+    const { data: updated, error: updateError } = await supabase.rpc("factory_update_draft_production_sop_recipe", {
+      p_sop_id: sop.id,
+      p_recipe_id: recipe.id,
+    });
+    if (updateError?.message === "FACTORY_SOP_RECIPE_UPDATE_PROTECTED") {
+      throw new Error("This SOP is protected by its lifecycle or Production history. Create a new SOP version to use the newer Recipe.");
+    }
+    throwSupabaseError("factory.sop.update_recipe", updateError);
+    const sopId = Array.isArray(updated) ? updated[0]?.sop_id : updated?.sop_id;
+    if (!sopId) throw new Error("Production SOP Recipe update did not return an SOP id.");
+    const { data, error } = await supabase
+      .from("factory_production_sops")
+      .select(sopSelect)
+      .eq("id", sopId)
+      .single();
+    throwSupabaseError("factory.sop.update_recipe_fetch", error);
+    await logFactoryAction({
+      action: "factory_production_sop_recipe_updated",
+      target: factoryRevisionReference(data),
+      description: "Draft Production SOP Recipe reference updated.",
+      before: { recipe_id: sop.recipe_id, recipe_version: sop.recipe_version },
+      after: { recipe_id: data.recipe_id, recipe_version: data.recipe_version },
+    });
+    return mapProductionSop(data);
+  },
+
   async deleteProductionSop(sop) {
     const { data: existing, error: lookupError } = await supabase
       .from("factory_production_sops")
