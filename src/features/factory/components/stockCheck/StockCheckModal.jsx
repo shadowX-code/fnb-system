@@ -180,11 +180,14 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
         const missingAdjustmentDestination = form.items.find((row) => {
           if (row.count_status === "skip" || row.physical_qty === "" || row.physical_qty == null) return false;
           if (stockCheckVariance(row.system_qty, row.physical_qty).variance <= 0) return false;
+          if (!row.positive_adjustment_confirmed) return true;
+          if (row.positive_adjustment_batch_balance_id) return false;
           const sku = stockItems.find((item) => item.id === row.finished_good_id);
-          return !row.positive_adjustment_confirmed || !sku?.storage_location_id || String(sku.storage_location_ref?.status || sku.storage_location_status || "").toLowerCase() !== "active"
-            || String(sku.storage_location_ref?.location_type || sku.storage_location_type || "").toLowerCase() !== "finished goods area";
+          return !sku?.storage_location_id
+            || String(sku.storage_location_ref?.status || sku.storage_location_status || "").toLowerCase() !== "active"
+            || sku.storage_location_ref?.is_storage_location !== true;
         });
-        if (missingAdjustmentDestination) return "Assign an Adjustment Batch before submitting the extra packs.";
+        if (missingAdjustmentDestination) return "Choose a valid existing batch or configure an active storage location for the Reconciliation Batch before submitting.";
         const invalidAllocationLocation = form.items.find((row) => (row.batch_allocations || []).some((allocation) => allocation.location_valid === false));
         if (invalidAllocationLocation) return "Storage location unavailable. Replace invalid batch allocations before submitting.";
         const missingBatchAllocation = form.items.find((row) => {
