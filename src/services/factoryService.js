@@ -4561,6 +4561,7 @@ const factoryServiceDefinition = {
           physical_qty: item.physical_qty_input === "" ? null : item.physical_qty,
           variance_reason: item.variance_reason,
           positive_adjustment_confirmed: item.positive_adjustment_confirmed,
+          positive_adjustment_batch_balance_id: item.positive_adjustment_batch_balance_id,
           allocations: item.batch_allocations,
         })),
       });
