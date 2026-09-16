@@ -3,7 +3,7 @@ import { traceBatchNo } from "../batchTraceability.js";
 
 describe("traceBatchNo", () => {
   it("shows a canonical reconciliation batch reference without relabeling it as Production", () => {
-    expect(traceBatchNo({ source_type: "adjustment", batch_no: "ADJ-FGSC260915-01-S7" })).toBe("ADJ-FGSC260915-01-S7");
+    expect(traceBatchNo({ source_type: "adjustment", batch_no: "ADJ-FGSC260916-01" })).toBe("ADJ-FGSC260916-01");
   });
 
   it("continues to hide legacy batch identifiers that are not canonical traceability evidence", () => {
