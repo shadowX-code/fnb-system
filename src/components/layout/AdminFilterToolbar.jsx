@@ -57,12 +57,12 @@ export default function AdminFilterToolbar({
   ].filter(Boolean);
 
   return (
-    <section className={`admin-filter-toolbar rounded-lg border border-border bg-surface/80 px-3 py-3 shadow-sm ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar>
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex min-w-0 flex-[1_1_640px] flex-wrap items-end gap-3" data-admin-filter-fields>
+    <section className={`admin-filter-toolbar rounded-lg border border-border bg-surface/80 shadow-sm ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar>
+      <div className="admin-filter-toolbar-row flex flex-wrap items-end">
+        <div className="flex min-w-0 flex-[1_1_640px] flex-wrap items-end" data-admin-filter-fields>
           {fields.map(({ field, slot, role, width }, index) => <div className={`${width} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{field}</div>)}
         </div>
-        {moreFilters || activeFilters.length || secondaryActions || primaryActions ? <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto sm:justify-end" data-admin-filter-actions>
+        {moreFilters || activeFilters.length || secondaryActions || primaryActions ? <div className="flex w-full flex-wrap items-end sm:w-auto sm:justify-end" data-admin-filter-actions>
           {moreFilters ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} align="right" width={340} ariaLabel="More filters" trigger={({ toggle, ariaLabel: menuLabel }) => <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={menuLabel} aria-expanded={moreOpen} onClick={toggle}><SlidersHorizontal size={15} /> Filters</button>}><div className="grid gap-3 p-1">{moreFilters}</div></ActionMenu> : null}
           {activeFilters.length ? <button className="btn-secondary h-10 shrink-0 px-3 text-sm" type="button" onClick={onClear}>Clear all</button> : null}
           {secondaryActions ? <div className="flex flex-wrap gap-2">{secondaryActions}</div> : null}

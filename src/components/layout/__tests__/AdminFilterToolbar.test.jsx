@@ -13,6 +13,8 @@ describe("AdminFilterToolbar", () => {
   it("keeps outlet, period, search, filters and actions in one responsive toolbar", () => {
     render(<AdminFilterToolbar outlet={<Field label="Outlet" />} period={<Field label="Period" />} search={<Field label="Search" />} filters={<Field label="Status" />} secondaryActions={<button type="button">Export</button>} primaryActions={<button type="button">Create</button>} />);
     expect(screen.getByRole("region", { name: "Filters" })).toBeTruthy();
+    expect(document.querySelector(".admin-filter-toolbar-row")).toBeTruthy();
+    expect(document.querySelector("[data-admin-filter-fields]").className).not.toContain("gap-");
     expect(screen.getByLabelText("Outlet").closest("div").className).toContain("sm:w-[230px]");
     expect(screen.getByLabelText("Period").closest("div").className).toContain("sm:w-[180px]");
     expect(screen.getByLabelText("Outlet").closest("[data-admin-filter-slot]").dataset.adminFilterRole).toBe("outlet");
