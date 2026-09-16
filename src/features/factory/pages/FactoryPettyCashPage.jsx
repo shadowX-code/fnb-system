@@ -17,6 +17,7 @@ import { FactoryCellDateTime, FactoryCellMuted, FactoryCellSemanticText, Factory
 import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
 import { formatDateDisplay, formatFactoryListTime, malaysiaBusinessDateInput } from "../utils/factoryDates.js";
 import { money } from "../utils/factoryFormatters.js";
+import { PRIVATE_DOCUMENT_ACCEPT } from "../../../utils/privateDocumentUpload.js";
 
 const emptyFilters = { dateFrom: "", dateTo: "", type: "", category: "", search: "" };
 const typeOptions = [
@@ -76,17 +77,29 @@ export function PettyCashTransactionModal({ initialValue, categories, canAdjust,
     if (form.transaction_type === "expense" && !form.category_id) return setError("Category is required for an Expense.");
     if (form.transaction_type === "adjustment" && !form.adjustment_reason.trim()) return setError("Adjustment reason is required.");
     setSaving(true);
+    let uploadedReceiptPath = "";
+    let saved = false;
     try {
       let receipt = {};
       if (receiptFile) {
         setUploading(true);
         receipt = await factoryService.uploadPettyCashReceipt(receiptFile);
+        uploadedReceiptPath = receipt.receipt_path;
         setUploading(false);
       }
       await onSave({ ...form, ...receipt, amount: Number(form.amount) });
+      saved = true;
+      const nextReceiptPath = receipt.receipt_path ?? form.receipt_path;
+      if (initialValue?.receipt_path && initialValue.receipt_path !== nextReceiptPath) {
+        await factoryService.removePettyCashReceipt(initialValue.receipt_path);
+      }
       onClose();
     } catch (cause) {
       setUploading(false);
+      if (!saved && uploadedReceiptPath) {
+        try { await factoryService.removePettyCashReceipt(uploadedReceiptPath); }
+        catch { /* Preserve the original save error; cleanup remains protected by Storage RLS. */ }
+      }
       setError(cause.message || "Unable to save Petty Cash draft.");
     } finally {
       setSaving(false);
@@ -115,7 +128,7 @@ export function PettyCashTransactionModal({ initialValue, categories, canAdjust,
         <div className="flex min-h-10 items-center gap-3 rounded-xl border border-border bg-surface px-3 py-2">
           <FileText className="shrink-0 text-text-muted" size={16} />
           <span className="min-w-0 flex-1 truncate text-sm font-medium text-text-secondary">{receiptFile?.name || form.receipt_filename || "No receipt attached"}</span>
-          <label className="btn-secondary h-8 cursor-pointer px-3 text-xs">{receiptFile || form.receipt_path ? "Replace" : "Upload"}<input className="sr-only" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" disabled={saving} onChange={(event) => setReceiptFile(event.target.files?.[0] || null)} /></label>
+          <label className="btn-secondary h-8 cursor-pointer px-3 text-xs">{receiptFile || form.receipt_path ? "Replace" : "Upload"}<input className="sr-only" type="file" accept={PRIVATE_DOCUMENT_ACCEPT} disabled={saving} onChange={(event) => setReceiptFile(event.target.files?.[0] || null)} /></label>
           {receiptFile || form.receipt_path ? <button className="text-xs font-semibold text-rose-600" type="button" onClick={() => { setReceiptFile(null); setForm((current) => ({ ...current, receipt_path: "", receipt_filename: "", receipt_mime_type: "", receipt_size_bytes: null })); }}>Remove</button> : null}
         </div>
       </Field>
@@ -171,14 +184,13 @@ export default function FactoryPettyCashPage({ onNotify, onConfirm }) {
   const notify = (title, message, tone = "success") => onNotify?.({ title, message, tone });
   async function saveDraft(form) { await factoryService.savePettyCashDraft(form); notify("Draft saved", "Inventory and cash balance remain unchanged until posting."); await load(); }
   async function post(row) { const confirmed = await (onConfirm?.({ title: `Post ${row.reference_no}?`, message: "Posting makes this transaction immutable and updates the derived cash balance.", confirmLabel: "Post Transaction", tone: "warning" }) ?? Promise.resolve(window.confirm(`Post ${row.reference_no}?`))); if (!confirmed) return; try { await factoryService.postPettyCashTransaction(row.id); notify("Transaction posted", `${row.reference_no} is now part of the cash ledger.`); await load(); } catch (cause) { notify("Unable to post", cause.message, "error"); } }
-  async function remove(row) { const confirmed = await (onConfirm?.({ title: `Delete ${row.reference_no}?`, message: "This Draft will be permanently deleted.", confirmLabel: "Delete Draft", tone: "danger" }) ?? Promise.resolve(window.confirm(`Delete ${row.reference_no}?`))); if (!confirmed) return; try { await factoryService.deletePettyCashDraft(row.id); notify("Draft deleted", row.reference_no); await load(); } catch (cause) { notify("Unable to delete", cause.message, "error"); } }
+  async function remove(row) { const confirmed = await (onConfirm?.({ title: `Delete ${row.reference_no}?`, message: "This Draft will be permanently deleted.", confirmLabel: "Delete Draft", tone: "danger" }) ?? Promise.resolve(window.confirm(`Delete ${row.reference_no}?`))); if (!confirmed) return; try { await factoryService.deletePettyCashDraft(row.id); if (row.receipt_path) await factoryService.removePettyCashReceipt(row.receipt_path); notify("Draft deleted", row.reference_no); await load(); } catch (cause) { notify("Unable to delete", cause.message, "error"); } }
   async function reverse(id, reason) { await factoryService.reversePettyCashTransaction(id, reason); notify("Reversal posted", "A linked Reversal now offsets the original transaction."); await load(); }
   async function saveCategory(category) { await factoryService.savePettyCashCategory(category); await load(); }
   async function openReceipt(row) { try { const url = await factoryService.getPettyCashReceiptUrl(row.receipt_path); window.open(url, "_blank", "noopener,noreferrer"); } catch (cause) { notify("Receipt unavailable", cause.message, "error"); } }
   const activeFilters = useMemo(() => [filters.dateFrom || filters.dateTo ? { key: "date", label: "Date", value: `${filters.dateFrom ? formatDateDisplay(filters.dateFrom) : "Any"} – ${filters.dateTo ? formatDateDisplay(filters.dateTo) : "Any"}`, onRemove: () => setFilters((current) => ({ ...current, dateFrom: "", dateTo: "" })) } : null, filters.type ? { key: "type", label: "Type", value: typeLabels[filters.type], onRemove: () => setFilters((current) => ({ ...current, type: "" })) } : null, filters.category ? { key: "category", label: "Category", value: data.categories.find((item) => item.id === filters.category)?.name || "Selected", onRemove: () => setFilters((current) => ({ ...current, category: "" })) } : null, filters.search ? { key: "search", label: "Search", value: filters.search, onRemove: () => setFilters((current) => ({ ...current, search: "" })) } : null].filter(Boolean), [data.categories, filters]);
   const columns = [
     { key: "date", label: "Date", render: (row) => <FactoryCellDateTime date={formatDateDisplay(row.transaction_date)} time={row.status === "posted" ? formatFactoryListTime(row.posted_at) : "Draft"} /> },
-    { key: "reference", label: "Reference", render: (row) => <FactoryCellText primary={row.reference_no} secondary={row.reversal_of_reference ? `Reversal of ${row.reversal_of_reference}` : row.reversed_by_reference ? `Reversed by ${row.reversed_by_reference}` : ""} /> },
     { key: "type", label: "Type", render: (row) => <FactoryCellSemanticText tone={displayTypeTone(row)}>{displayType(row)}</FactoryCellSemanticText> },
     { key: "category", label: "Category", render: (row) => row.category_name || <FactoryCellMuted /> },
     { key: "description", label: "Description", render: (row) => <FactoryCellText primary={row.description} secondary={row.party_name} /> },
@@ -187,6 +199,7 @@ export default function FactoryPettyCashPage({ onNotify, onConfirm }) {
     { key: "balance", label: "Balance", align: "right", render: (row) => row.status === "posted" ? <span className="font-semibold text-text-primary">{money(row.balance_after)}</span> : <FactoryCellMuted>Pending</FactoryCellMuted> },
     { key: "by", label: "By", render: (row) => <FactoryCellText primary={row.posted_by_name || row.created_by_name} secondary={row.reversed_by_id ? "Reversed" : row.status === "posted" ? "Posted" : "Draft"} /> },
     { key: "receipt", label: "Receipt", render: (row) => row.receipt_path ? <button className="text-xs font-semibold text-primary hover:underline" onClick={() => openReceipt(row)}>Receipt</button> : <FactoryCellMuted>Missing</FactoryCellMuted> },
+    { key: "reference", label: "Reference", render: (row) => <FactoryCellText primary={row.reference_no} secondary={row.reversal_of_reference ? `Reversal of ${row.reversal_of_reference}` : row.reversed_by_reference ? `Reversed by ${row.reversed_by_reference}` : ""} /> },
     { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions onView={() => setModal({ type: "view", value: row })} primaryAction={row.status === "draft" && can("factory_petty_cash.post") ? { label: "Post", onClick: () => post(row) } : null} directActions={row.status === "draft" && can("factory_petty_cash.create") ? [{ label: "Edit", onClick: () => setModal({ type: "transaction", value: row }) }] : []} secondaryActions={[row.status === "draft" && can("factory_petty_cash.create") ? { label: "Delete Draft", destructive: true, onClick: () => remove(row) } : null, row.status === "posted" && !row.reversal_of_id && !row.reversed_by_id && can("factory_petty_cash.reverse") ? { label: "Reverse", destructive: true, onClick: () => setModal({ type: "reverse", value: row }) } : null]} /> },
   ];
   return <div className="space-y-5"><PageHeader section="Factory" title="Petty Cash" description="Physical cash ledger for Factory operational receipts and expenses." actions={<>{can("factory_petty_cash.manage") ? <button className="btn-secondary" onClick={() => setModal({ type: "categories" })}><Settings2 size={15} /> Categories</button> : null}{can("factory_petty_cash.create") ? <button className="btn-primary" onClick={() => setModal({ type: "transaction" })}><Plus size={15} /> New Transaction</button> : null}</>} /><div className="grid gap-3 md:grid-cols-4"><FactorySummaryCard icon={Landmark} label="Current Balance" value={money(data.summary?.current_balance)} helper="Posted ledger only" /><FactorySummaryCard icon={ArrowDownToLine} tone="success" label="Cash In — This Month" value={money(data.summary?.cash_in_month)} /><FactorySummaryCard icon={ArrowUpFromLine} tone="warning" label="Expenses — This Month" value={money(data.summary?.expenses_month)} /><FactorySummaryCard icon={FileText} label="Transactions — This Month" value={Number(data.summary?.transactions_month || 0)} /></div><FactoryFilterBar activeFilters={activeFilters} onClear={() => setFilters(emptyFilters)}><Field label="Search"><input className={inputClass()} value={filters.search} placeholder="Reference, description or party" onChange={(event) => setFilters((current) => ({ ...current, search: event.target.value }))} /></Field><Field label="Date"><FeedXDatePicker value={filters.dateFrom} onChange={(dateFrom) => setFilters((current) => ({ ...current, dateFrom }))} /></Field><Field label="To"><FeedXDatePicker value={filters.dateTo} onChange={(dateTo) => setFilters((current) => ({ ...current, dateTo }))} /></Field><Field label="Type"><SearchableSelect value={filters.type} options={typeOptions} onChange={(type) => setFilters((current) => ({ ...current, type }))} /></Field><Field label="Category"><SearchableSelect value={filters.category} options={[{ value: "", label: "All" }, ...data.categories.map((category) => ({ value: category.id, label: category.name }))]} onChange={(category) => setFilters((current) => ({ ...current, category }))} /></Field></FactoryFilterBar>{error ? <div role="alert" className="flex items-center justify-between rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"><span>{error}</span><button className="btn-secondary" onClick={load}><RefreshCw size={14} /> Retry</button></div> : null}<FactoryDataSurface><FactoryTable columns={columns} rows={data.rows || []} loading={loading} emptyTitle="No Petty Cash transactions" emptyDescription="Create a Cash In, Expense or Adjustment draft to begin." /><FactoryPagination page={page} pageSize={pageSize} total={Number(data.total_count || 0)} loading={loading} noun="transactions" onPageChange={setPage} onPageSizeChange={(value) => { setPage(1); setPageSize(value); }} /></FactoryDataSurface>{modal?.type === "transaction" ? <PettyCashTransactionModal initialValue={modal.value} categories={data.categories || []} canAdjust={can("factory_petty_cash.adjust")} onClose={() => setModal(null)} onSave={saveDraft} /> : null}{modal?.type === "categories" ? <PettyCashCategoryModal categories={data.categories || []} onClose={() => setModal(null)} onSave={saveCategory} /> : null}{modal?.type === "view" ? <PettyCashDetailModal transaction={modal.value} canReverse={can("factory_petty_cash.reverse")} onReceipt={openReceipt} onReverse={(value) => setModal({ type: "reverse", value })} onClose={() => setModal(null)} /> : null}{modal?.type === "reverse" ? <ReverseModal transaction={modal.value} onClose={() => setModal(null)} onSave={reverse} /> : null}</div>;

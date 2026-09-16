@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { uploadOptimizedImage } from "../utils/imageUpload.js";
+import { preparePrivateDocument } from "../utils/privateDocumentUpload.js";
 import { instrumentFactoryService, traceFactoryRequest } from "../features/factory/utils/factoryRuntimePerformance.js";
 
 function normalizeNumber(value, fallback = 0) {
@@ -1802,22 +1803,32 @@ const factoryServiceDefinition = {
   },
 
   async uploadPettyCashReceipt(file) {
-    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
-    if (!file || !allowedTypes.has(file.type)) throw new Error("Upload a JPG, PNG, WebP or PDF receipt.");
-    if (!file.size || file.size > 10 * 1024 * 1024) throw new Error("Receipt must be 10MB or smaller.");
+    const prepared = await preparePrivateDocument(file);
     const { data: userData, error: userError } = await supabase.auth.getUser();
     throwFactorySupabaseError("factory.uploadPettyCashReceipt.user", userError);
     if (!userData?.user?.id) throw new Error("Sign in again before uploading a receipt.");
-    const extension = String(file.name || "receipt").split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || (file.type === "application/pdf" ? "pdf" : "jpg");
     const objectId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const path = `${userData.user.id}/${objectId}.${extension}`;
-    const { data, error } = await supabase.storage.from("factory-petty-cash-receipts").upload(path, file, {
-      contentType: file.type,
+    const path = `${userData.user.id}/${objectId}.${prepared.extension}`;
+    const { data, error } = await supabase.storage.from("factory-petty-cash-receipts").upload(path, prepared.blob, {
+      contentType: prepared.contentType,
       upsert: false,
-      metadata: { module: "factory", entity: "petty_cash_receipt" },
+      metadata: {
+        module: "factory",
+        entity: "petty_cash_receipt",
+        source_mime_type: file.type || prepared.contentType,
+        source_size_bytes: file.size,
+        optimized: prepared.optimized,
+      },
     });
     throwFactorySupabaseError("factory.uploadPettyCashReceipt", error);
-    return { receipt_path: data.path, receipt_filename: file.name, receipt_mime_type: file.type, receipt_size_bytes: file.size };
+    return { receipt_path: data.path, receipt_filename: file.name, receipt_mime_type: prepared.contentType, receipt_size_bytes: prepared.size };
+  },
+
+  async removePettyCashReceipt(path) {
+    if (!path) return { removed: false };
+    const { data, error } = await supabase.storage.from("factory-petty-cash-receipts").remove([path]);
+    throwFactorySupabaseError("factory.removePettyCashReceipt", error);
+    return { removed: true, data };
   },
 
   async getPettyCashReceiptUrl(path) {

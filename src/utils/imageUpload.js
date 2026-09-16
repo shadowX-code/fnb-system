@@ -45,6 +45,49 @@ function loadImageFromObjectUrl(url) {
   });
 }
 
+async function decodeImage(blob) {
+  if (typeof globalThis.createImageBitmap === "function") {
+    try {
+      const bitmap = await globalThis.createImageBitmap(blob, { imageOrientation: "from-image" });
+      return { image: bitmap, width: bitmap.width, height: bitmap.height, close: () => bitmap.close?.() };
+    } catch {
+      // Fall through to the broadly supported object URL decoder.
+    }
+  }
+  const url = URL.createObjectURL(blob);
+  try {
+    const image = await loadImageFromObjectUrl(url);
+    return {
+      image,
+      width: image.naturalWidth || image.width || 0,
+      height: image.naturalHeight || image.height || 0,
+      close: () => URL.revokeObjectURL(url),
+    };
+  } catch (error) {
+    URL.revokeObjectURL(url);
+    throw error;
+  }
+}
+
+export async function inspectImageBlob(blob) {
+  const decoded = await decodeImage(blob);
+  try {
+    if (!decoded.width || !decoded.height) throw new Error("Unable to read image dimensions.");
+    return { width: decoded.width, height: decoded.height };
+  } finally {
+    decoded.close();
+  }
+}
+
+function canvasToBlob(canvas, contentType, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob((result) => {
+      if (result) resolve(result);
+      else reject(new Error("Unable to optimize image. Please try another file."));
+    }, contentType, quality);
+  });
+}
+
 async function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -54,14 +97,17 @@ async function blobToDataUrl(blob) {
   });
 }
 
-export async function optimizeImageBlob(fileOrBlob) {
-  const url = URL.createObjectURL(fileOrBlob);
+export async function optimizeImageBlob(fileOrBlob, options = {}) {
+  const maxLongSide = Number(options.maxLongSide || MAX_LONG_SIDE);
+  const contentType = options.contentType || OPTIMIZED_MIME_TYPE;
+  const extension = options.extension || OPTIMIZED_EXTENSION;
+  const initialQuality = Number(options.quality ?? QUALITY);
+  const decoded = await decodeImage(fileOrBlob);
   try {
-    const image = await loadImageFromObjectUrl(url);
-    const sourceWidth = image.naturalWidth || image.width || 0;
-    const sourceHeight = image.naturalHeight || image.height || 0;
+    const sourceWidth = decoded.width;
+    const sourceHeight = decoded.height;
     if (!sourceWidth || !sourceHeight) throw new Error("Unable to read image dimensions.");
-    const scale = Math.min(1, MAX_LONG_SIDE / Math.max(sourceWidth, sourceHeight));
+    const scale = Math.min(1, maxLongSide / Math.max(sourceWidth, sourceHeight));
     const width = Math.max(1, Math.round(sourceWidth * scale));
     const height = Math.max(1, Math.round(sourceHeight * scale));
     const canvas = document.createElement("canvas");
@@ -69,22 +115,25 @@ export async function optimizeImageBlob(fileOrBlob) {
     canvas.height = height;
     const context = canvas.getContext("2d");
     if (!context) throw new Error("Unable to optimize image in this browser.");
-    context.drawImage(image, 0, 0, width, height);
-    const blob = await new Promise((resolve, reject) => {
-      canvas.toBlob((result) => {
-        if (result) resolve(result);
-        else reject(new Error("Unable to optimize image. Please try another file."));
-      }, OPTIMIZED_MIME_TYPE, QUALITY);
-    });
+    context.drawImage(decoded.image, 0, 0, width, height);
+    const blob = await canvasToBlob(canvas, contentType, initialQuality);
+    const verification = await decodeImage(blob);
+    try {
+      if (verification.width !== width || verification.height !== height) {
+        throw new Error("The optimized image could not be verified. Please try another file.");
+      }
+    } finally {
+      verification.close();
+    }
     return {
       blob,
       width,
       height,
-      extension: OPTIMIZED_EXTENSION,
-      contentType: OPTIMIZED_MIME_TYPE,
+      extension,
+      contentType,
     };
   } finally {
-    URL.revokeObjectURL(url);
+    decoded.close();
   }
 }
 
