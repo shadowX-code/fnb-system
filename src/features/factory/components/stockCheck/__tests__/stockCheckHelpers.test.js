@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStockCheckRows, finishedGoodStockCheckIdentity } from "../stockCheckHelpers.js";
+import { buildStockCheckRows, finishedGoodStockCheckIdentity, positiveAdjustmentBatchLabel } from "../stockCheckHelpers.js";
 
 describe("Finished Goods Stock Check identity", () => {
   it("uses the product-family name with the selected SKU pack size", () => {
@@ -20,5 +20,10 @@ describe("Finished Goods Stock Check identity", () => {
 
   it("does not create a dangling secondary label when optional SKU metadata is absent", () => {
     expect(finishedGoodStockCheckIdentity({ item_name: "Legacy Sauce" }, {})).toEqual({ primary: "Legacy Sauce", secondary: "" });
+  });
+
+  it("renders a linked reconciliation batch distinctly from an existing Production batch", () => {
+    expect(positiveAdjustmentBatchLabel({ positive_adjustment_batch_balance_id: "batch-1", positive_adjustment_batch_no: "ADJ-FGSC260916-01", positive_adjustment_batch_source_type: "adjustment" })).toBe("Reconciliation Batch ADJ-FGSC260916-01");
+    expect(positiveAdjustmentBatchLabel({ positive_adjustment_batch_balance_id: "batch-2", positive_adjustment_batch_no: "PB260916-01", positive_adjustment_batch_source_type: "production" })).toBe("Existing batch PB260916-01");
   });
 });

@@ -50,6 +50,14 @@ export function finishedGoodStockCheckIdentity(row, sku) {
   return { primary, secondary };
 }
 
+export function positiveAdjustmentBatchLabel(row) {
+  if (!row?.positive_adjustment_batch_balance_id) return "Reconciliation Batch to be created on approval";
+  const batchNo = row.positive_adjustment_batch_no || "selected";
+  return String(row.positive_adjustment_batch_source_type || "").toLowerCase() === "adjustment"
+    ? `Reconciliation Batch ${batchNo}`
+    : `Existing batch ${batchNo}`;
+}
+
 export function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "") {
   if (initialValue?.items?.length) {
     return initialValue.items.map((item) => {
@@ -69,6 +77,7 @@ export function buildStockCheckRows(stockType, stockItems, initialValue, categor
       positive_adjustment_confirmed: Boolean(item.positive_adjustment_confirmed),
       positive_adjustment_batch_balance_id: item.positive_adjustment_batch_balance_id || "",
       positive_adjustment_batch_no: item.positive_adjustment_batch_no || "",
+      positive_adjustment_batch_source_type: item.positive_adjustment_batch_source_type || "",
       product_family_name: item.product_family_name || stockItem.product_family_name || "",
       product_code: item.product_code || stockItem.product_code || "",
       packaging_type: item.packaging_type || stockItem.packaging_type || "",
@@ -93,6 +102,7 @@ export function buildStockCheckRows(stockType, stockItems, initialValue, categor
     positive_adjustment_confirmed: false,
     positive_adjustment_batch_balance_id: "",
     positive_adjustment_batch_no: "",
+    positive_adjustment_batch_source_type: "",
     product_family_name: item.product_family_name || "",
     product_code: item.product_code || "",
     packaging_type: item.packaging_type || "",
