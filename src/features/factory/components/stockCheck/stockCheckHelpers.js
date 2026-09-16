@@ -1,4 +1,4 @@
-import { quantity, rawMaterialLabel } from "../../utils/factoryFormatters.js";
+import { finishedGoodLabel, packSizeText, quantity, rawMaterialLabel } from "../../utils/factoryFormatters.js";
 
 const stockCheckCriticalPercent = 5;
 
@@ -35,6 +35,21 @@ export function stockVarianceTone(status) {
   return "success";
 }
 
+export function finishedGoodStockCheckIdentity(row, sku) {
+  const primary = finishedGoodLabel(sku)
+    || row?.product_family_name
+    || row?.item_name
+    || "Finished Good";
+  const secondary = [
+    row?.product_code || sku?.product_code,
+    packSizeText({
+      pack_size_qty: row?.pack_size_qty ?? sku?.pack_size_qty,
+      pack_size_uom: row?.pack_size_uom || sku?.pack_size_uom,
+    }),
+  ].filter(Boolean).join(" · ");
+  return { primary, secondary };
+}
+
 export function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "") {
   if (initialValue?.items?.length) {
     return initialValue.items.map((item) => {
@@ -54,6 +69,7 @@ export function buildStockCheckRows(stockType, stockItems, initialValue, categor
       positive_adjustment_confirmed: Boolean(item.positive_adjustment_confirmed),
       positive_adjustment_batch_balance_id: item.positive_adjustment_batch_balance_id || "",
       positive_adjustment_batch_no: item.positive_adjustment_batch_no || "",
+      product_family_name: item.product_family_name || stockItem.product_family_name || "",
       product_code: item.product_code || stockItem.product_code || "",
       packaging_type: item.packaging_type || stockItem.packaging_type || "",
       pack_size_qty: item.pack_size_qty ?? stockItem.pack_size_qty ?? null,
@@ -77,6 +93,7 @@ export function buildStockCheckRows(stockType, stockItems, initialValue, categor
     positive_adjustment_confirmed: false,
     positive_adjustment_batch_balance_id: "",
     positive_adjustment_batch_no: "",
+    product_family_name: item.product_family_name || "",
     product_code: item.product_code || "",
     packaging_type: item.packaging_type || "",
     pack_size_qty: item.pack_size_qty ?? null,
