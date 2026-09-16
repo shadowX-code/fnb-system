@@ -517,8 +517,8 @@
     text-transform: uppercase;
   }
 
-  .data-table-scroll td .text-xs,
-  .card td .text-xs {
+  .data-table-scroll td .text-xs:not(button),
+  .card td .text-xs:not(button) {
     font-size: 0.75rem;
   }
 

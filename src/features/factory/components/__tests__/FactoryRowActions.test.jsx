@@ -1,4 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import FactoryRowActions from "../FactoryRowActions.jsx";
 
@@ -61,5 +63,14 @@ describe("FactoryRowActions", () => {
 
     expect(screen.getByRole("button", { name: "Archive Packaging SKU" }).className).toContain("md:inline-flex");
     expect(screen.getByRole("button", { name: "More row actions" }).className).toContain("md:hidden");
+  });
+
+  it("keeps compact primary row actions outside secondary table text styling", () => {
+    const styles = readFileSync(resolve(process.cwd(), "src/styles/index.css"), "utf8");
+    render(<FactoryRowActions primaryAction={{ label: "Verify", onClick: vi.fn() }} />);
+
+    expect(screen.getByRole("button", { name: "Verify" }).className).toContain("btn-primary");
+    expect(styles).toContain(".data-table-scroll td .text-xs:not(button)");
+    expect(styles).toContain("text-white");
   });
 });
