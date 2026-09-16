@@ -15,6 +15,7 @@ describe("AdminFilterToolbar", () => {
     expect(screen.getByRole("region", { name: "Filters" })).toBeTruthy();
     expect(screen.getByLabelText("Outlet").closest("div").className).toContain("sm:w-[230px]");
     expect(screen.getByLabelText("Period").closest("div").className).toContain("sm:w-[180px]");
+    expect(screen.getByLabelText("Outlet").closest("[data-admin-filter-slot]").dataset.adminFilterRole).toBe("outlet");
     expect(screen.getByText("Export")).toBeTruthy();
     expect(screen.getByText("Create")).toBeTruthy();
   });
@@ -49,5 +50,14 @@ describe("AdminFilterToolbar", () => {
   it("keeps Factory's compatibility wrapper in the same flattened flow", () => {
     const { container } = render(<FactoryFilterBar><><Field label="Supplier" /><Field label="Status" /></></FactoryFilterBar>);
     expect(container.querySelectorAll('[data-admin-filter-slot="filter"]')).toHaveLength(2);
+  });
+
+  it("uses shared field roles instead of consumer-specific widths", () => {
+    const { container } = render(<AdminFilterToolbar filters={<><Field label="Date Range" /><Field label="Status" /></>} />);
+    const [range, filter] = container.querySelectorAll('[data-admin-filter-slot="filter"]');
+    expect(range.dataset.adminFilterRole).toBe("date-range");
+    expect(range.className).toContain("sm:w-[260px]");
+    expect(filter.dataset.adminFilterRole).toBe("filter");
+    expect(filter.className).toContain("sm:w-[180px]");
   });
 });

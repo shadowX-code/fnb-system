@@ -2,12 +2,21 @@ import { Children, Fragment, isValidElement, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import ActionMenu from "../ui/ActionMenu.jsx";
 
+function labelForField(field) {
+  return String(isValidElement(field) ? field.props.label || field.props["aria-label"] || "" : "").toLowerCase();
+}
+
+function roleForField(field) {
+  const label = labelForField(field);
+  if (label.includes("date range")) return "date-range";
+  if (/(date|period|month|from|to)/.test(label)) return "period";
+  return "filter";
+}
+
 function widthForField(field) {
-  const label = String(isValidElement(field) ? field.props.label || field.props["aria-label"] || "" : "").toLowerCase();
-  if (label.includes("search")) return "w-full sm:w-[min(360px,100%)]";
-  if (/(outlet|supplier|customer|employee|product|material|position)/.test(label)) return "w-full sm:w-[230px]";
-  if (/(date|period|month|from|to)/.test(label)) return "w-full sm:w-[180px]";
-  return "w-full sm:w-[200px]";
+  const role = roleForField(field);
+  if (role === "date-range") return "w-full sm:w-[260px]";
+  return "w-full sm:w-[180px]";
 }
 
 function slotItems(value) {
@@ -40,18 +49,18 @@ export default function AdminFilterToolbar({
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
   const fields = [
-    outlet && { field: outlet, slot: "outlet", width: "w-full sm:w-[230px]" },
-    period && { field: period, slot: "period", width: periodWidth },
-    search && { field: search, slot: "search", width: "w-full min-w-0 sm:flex-[1_1_280px]" },
-    ...slotItems(filters).map((field) => ({ field, slot: "filter", width: widthForField(field) })),
-    ...(sortChildren ? slotItems(children).sort((left, right) => standardFieldOrder(left) - standardFieldOrder(right)) : slotItems(children)).map((field) => ({ field, slot: "filter", width: widthForField(field) })),
+    outlet && { field: outlet, slot: "outlet", role: "outlet", width: "w-full sm:w-[230px]" },
+    period && { field: period, slot: "period", role: "period", width: periodWidth },
+    search && { field: search, slot: "search", role: "search", width: "w-full min-w-0 sm:flex-[1_1_280px]" },
+    ...slotItems(filters).map((field) => ({ field, slot: "filter", role: roleForField(field), width: widthForField(field) })),
+    ...(sortChildren ? slotItems(children).sort((left, right) => standardFieldOrder(left) - standardFieldOrder(right)) : slotItems(children)).map((field) => ({ field, slot: "filter", role: roleForField(field), width: widthForField(field) })),
   ].filter(Boolean);
 
   return (
-    <section className={`rounded-lg border border-border bg-surface/80 px-3 py-3 shadow-sm ${className}`.trim()} aria-label={ariaLabel}>
+    <section className={`admin-filter-toolbar rounded-lg border border-border bg-surface/80 px-3 py-3 shadow-sm ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar>
       <div className="flex flex-wrap items-end gap-3">
         <div className="flex min-w-0 flex-[1_1_640px] flex-wrap items-end gap-3" data-admin-filter-fields>
-          {fields.map(({ field, slot, width }, index) => <div className={width} data-admin-filter-slot={slot} key={field?.key || index}>{field}</div>)}
+          {fields.map(({ field, slot, role, width }, index) => <div className={`${width} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{field}</div>)}
         </div>
         {moreFilters || activeFilters.length || secondaryActions || primaryActions ? <div className="flex w-full flex-wrap items-end gap-2 sm:w-auto sm:justify-end" data-admin-filter-actions>
           {moreFilters ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} align="right" width={340} ariaLabel="More filters" trigger={({ toggle, ariaLabel: menuLabel }) => <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={menuLabel} aria-expanded={moreOpen} onClick={toggle}><SlidersHorizontal size={15} /> Filters</button>}><div className="grid gap-3 p-1">{moreFilters}</div></ActionMenu> : null}
