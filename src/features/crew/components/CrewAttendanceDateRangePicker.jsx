@@ -174,5 +174,3 @@ export default function CrewAttendanceDateRangePicker({ from, to, today, onApply
     </FloatingLayer>
   </div>;
 }
-
-CrewAttendanceDateRangePicker.adminFilterRole = "date-range";
