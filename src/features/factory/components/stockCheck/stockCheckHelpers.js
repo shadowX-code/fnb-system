@@ -53,7 +53,9 @@ export function finishedGoodStockCheckIdentity(row, sku) {
 export function positiveAdjustmentBatchLabel(row) {
   if (!row?.positive_adjustment_batch_balance_id) return "Reconciliation Batch to be created on approval";
   const batchNo = row.positive_adjustment_batch_no || "selected";
-  return String(row.positive_adjustment_batch_source_type || "").toLowerCase() === "adjustment"
+  const isReconciliationBatch = String(row.positive_adjustment_batch_source_type || "").toLowerCase() === "adjustment"
+    || /^ADJ-FGSC\d{6}-\d+$/.test(batchNo);
+  return isReconciliationBatch
     ? `Reconciliation Batch ${batchNo}`
     : `Existing batch ${batchNo}`;
 }
