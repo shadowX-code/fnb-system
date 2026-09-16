@@ -937,7 +937,7 @@
     vertical-align: middle;
   }
 
-  .admin-data-table .admin-table-cell .text-xs,
+  .admin-data-table .admin-table-cell .text-xs:not(button),
   .admin-data-table .admin-table-cell small {
     color: var(--theme-muted);
     font-size: var(--type-body-sm);
