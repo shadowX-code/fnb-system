@@ -1,66 +1,28 @@
-import { Children, isValidElement, useState } from "react";
-import { Plus, SlidersHorizontal, X } from "lucide-react";
-import ActionMenu from "../../../components/ui/ActionMenu.jsx";
+import { Children, isValidElement } from "react";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import FactoryDateRangeFilter from "./FactoryDateRangeFilter.jsx";
 
-const fieldWidth = (label) => {
-  const value = String(label || "").toLowerCase();
-  if (value.includes("search")) return "w-full sm:w-[360px]";
-  if (["date", "from", "to"].includes(value)) return "w-full sm:w-[170px]";
-  if (/(supplier|customer|product|material|packaging sku|finished good)/.test(value)) return "w-full sm:w-[250px]";
-  return "w-full sm:w-[200px]";
-};
+function labelOf(field) {
+  return String(isValidElement(field) ? field.props.label || "" : "").toLowerCase();
+}
 
-const fieldOrder = (child) => {
-  const label = String(isValidElement(child) ? child.props.label : "").toLowerCase();
-  if (label.includes("search")) return 0;
-  if (label === "date") return 1;
-  if (label === "to") return 2;
-  return 3;
-};
+function canonicalizeDateRange(children) {
+  const fields = Children.toArray(children);
+  return fields.reduce((result, field, index) => {
+    const next = fields[index + 1];
+    if (labelOf(field) === "date" && labelOf(next) === "to") {
+      const fromControl = field.props.children;
+      const toControl = next.props.children;
+      if (isValidElement(fromControl) && isValidElement(toControl) && typeof fromControl.props.onChange === "function" && typeof toControl.props.onChange === "function") {
+        result.push(<FactoryDateRangeFilter key="date-range" from={fromControl.props.value} to={toControl.props.value} onApply={({ from, to }) => { fromControl.props.onChange(from); toControl.props.onChange(to); }} />);
+        return result;
+      }
+    }
+    if (labelOf(field) !== "to" || labelOf(fields[index - 1]) !== "date") result.push(field);
+    return result;
+  }, []);
+}
 
 export default function FactoryFilterBar({ children, moreFilters, activeFilters = [], onClear, className = "" }) {
-  const [moreOpen, setMoreOpen] = useState(false);
-  const hasActiveFilters = activeFilters.length > 0;
-  const visibleFields = Children.toArray(children).sort((left, right) => fieldOrder(left) - fieldOrder(right));
-
-  return (
-    <section className={`border-b border-border py-4 ${className}`} aria-label="Filters">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="flex min-w-0 flex-wrap items-end gap-3">
-          {visibleFields.map((child, index) => (
-            <div key={child?.key || index} className={fieldWidth(isValidElement(child) ? child.props.label : "")}>{child}</div>
-          ))}
-        </div>
-        {moreFilters ? (
-          <ActionMenu
-            open={moreOpen}
-            onOpenChange={setMoreOpen}
-            align="right"
-            width={340}
-            ariaLabel="More filters"
-            trigger={({ toggle, ariaLabel }) => (
-              <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={ariaLabel} aria-expanded={moreOpen} onClick={toggle}>
-                {moreOpen ? <SlidersHorizontal size={15} /> : <Plus size={15} />}
-                Filters
-              </button>
-            )}
-          >
-            <div className="grid gap-3 p-1">{moreFilters}</div>
-          </ActionMenu>
-        ) : null}
-        {hasActiveFilters ? <button className="btn-secondary h-10 shrink-0 px-3 text-sm" type="button" onClick={onClear}>Clear all</button> : null}
-      </div>
-      {hasActiveFilters ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2" aria-label="Active filters">
-          <span className="text-xs font-semibold text-text-muted">Filtered by</span>
-          {activeFilters.map((filter) => (
-            <span key={filter.key} className="inline-flex h-7 items-center gap-1 rounded-full border border-primary/15 bg-primary/5 py-0.5 pl-2.5 pr-1 text-xs font-semibold text-primary">
-              <span>{filter.label}: {filter.value}</span>
-              <button className="inline-flex h-5 w-5 items-center justify-center rounded-full text-primary/70 transition hover:bg-primary/10 hover:text-primary" type="button" aria-label={`Remove ${filter.label} filter`} onClick={filter.onRemove}><X size={13} /></button>
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </section>
-  );
+  return <AdminFilterToolbar className={className} moreFilters={moreFilters} activeFilters={activeFilters} onClear={onClear} sortChildren>{canonicalizeDateRange(children)}</AdminFilterToolbar>;
 }
