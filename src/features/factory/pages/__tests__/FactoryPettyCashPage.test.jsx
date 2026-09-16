@@ -9,7 +9,7 @@ const can = (key) => permissions.includes(key);
 const category = { id: "00000000-0000-4000-8000-000000000001", code: "transport", name: "Transport", status: "active" };
 const posted = { id: "posted-1", reference_no: "PC260916-01", transaction_type: "cash_in", amount: 100, transaction_date: "2026-09-16", description: "Opening float", status: "posted", balance_after: 100, created_by_name: "Amin", posted_by_name: "Amin", posted_at: "2026-09-16T02:00:00Z" };
 const draft = { id: "draft-1", reference_no: "PC260916-02", transaction_type: "expense", amount: 20, category_id: category.id, category_name: "Transport", transaction_date: "2026-09-16", description: "Delivery toll", status: "draft", created_by_name: "Amin" };
-const reversal = { id: "reversal-1", reference_no: "PC260916-04", transaction_type: "adjustment", adjustment_direction: "decrease", amount: 10, transaction_date: "2026-09-16", description: "Reversal of PC260916-03", status: "posted", balance_after: 100, reversal_of_id: "adjustment-1", reversal_of_reference: "PC260916-03", created_by_name: "Amin", posted_by_name: "Amin", posted_at: "2026-09-16T03:00:00Z" };
+const reversal = { id: "reversal-1", reference_no: "PC260916-04", transaction_type: "adjustment", adjustment_direction: "decrease", amount: 10, transaction_date: "2026-09-16", description: "Reversal of PC260916-03", status: "posted", balance_after: 100, reversal_of_reference: "PC260916-03", created_by_name: "Amin", posted_by_name: "Amin", posted_at: "2026-09-16T03:00:00Z" };
 
 function mount() {
   return render(<FactoryPermissionsProvider permissionSet={permissions} can={can}><FactoryPettyCashPage onNotify={vi.fn()} onConfirm={vi.fn().mockResolvedValue(true)} /></FactoryPermissionsProvider>);

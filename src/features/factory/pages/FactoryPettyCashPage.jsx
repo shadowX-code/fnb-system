@@ -54,11 +54,11 @@ function typeTone(type) {
 }
 
 function displayType(transaction) {
-  return transaction.reversal_of_id ? "Reversal" : typeLabels[transaction.transaction_type];
+  return transaction.reversal_of_id || transaction.reversal_of_reference ? "Reversal" : typeLabels[transaction.transaction_type];
 }
 
 function displayTypeTone(transaction) {
-  return transaction.reversal_of_id ? "gray" : typeTone(transaction.transaction_type);
+  return transaction.reversal_of_id || transaction.reversal_of_reference ? "gray" : typeTone(transaction.transaction_type);
 }
 
 export function PettyCashTransactionModal({ initialValue, categories, canAdjust, onClose, onSave }) {
