@@ -525,3 +525,7 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added Operator Hygiene Inspection under Factory MeSTI with canonical Employee selection, daily draft/submitted/verified session evidence, required Issue and Action evidence for non-compliance, and Employee-centric monthly drill-down.
 - Added trusted RPCs, RLS read policies, canonical permissions, server-derived Overall result, immutable submitted sessions, and server-side self-verification denial.
+# 2026-09-16 - Factory Petty Cash
+
+- Added a Factory physical-cash ledger with server-derived running/current balance, immutable Posted transactions, linked reversal Adjustments, Malaysia-date daily references, auditable trusted RPC mutations, and private receipt evidence.
+- Added active/inactive Expense Category management, canonical Factory permissions/RLS, shared FilterBar/table/modal UI, and explicit isolation from Receiving, inventory, supplier payable, Recipe costing, and accounting data.

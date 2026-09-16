@@ -378,6 +378,12 @@ export const routeDetails = {
   factory_mesti_raw_material_control: { component: FactoryWorkspacePage, permission: "factory_raw_receiving.view", props: { initialTab: "mesti-raw-material-control" } },
   factory_mesti_food_processing_control: { component: FactoryWorkspacePage, permission: "factory_production.view", props: { initialTab: "mesti-food-processing-control" } },
   factory_product_feedback: { component: FactoryWorkspacePage, permission: "factory_product_feedback.view", props: { initialTab: "product-feedback" } },
+  factory_petty_cash: {
+    description: "Manage the Factory physical-cash ledger, draft transactions and posted corrections.",
+    component: FactoryWorkspacePage,
+    permission: "factory_petty_cash.view",
+    props: { initialTab: "petty-cash" },
+  },
   factory_product_recipes: {
     description: "Manage standard raw material BOMs for Finished Goods production defaults.",
     component: FactoryWorkspacePage,

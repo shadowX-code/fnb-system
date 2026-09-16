@@ -61,6 +61,7 @@ const iconMap = {
   "factory-finished-goods-dispatch": PackagePlus,
   "factory-product-movements": RefreshCw,
   "factory-product-stock-check": ClipboardCheck,
+  "factory-petty-cash": Wallet,
   "factory-raw-receiving": Truck,
   "factory-raw-inventory": Warehouse,
   "factory-raw-movements": RefreshCw,
