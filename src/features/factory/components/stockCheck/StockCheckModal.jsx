@@ -6,17 +6,18 @@ import Badge from "../../../../components/ui/Badge.jsx";
 import Card from "../../../../components/ui/Card.jsx";
 import MetricCard from "../../../../components/ui/MetricCard.jsx";
 import { CompactSelect, Field, inputClass } from "../FactoryBulkSelectionModal.jsx";
+import { FactoryCellEntity } from "../FactoryTableCell.jsx";
 import FeedXDatePicker from "../FeedXDatePicker.jsx";
 import SearchableSelect from "../SearchableSelect.jsx";
 import { factoryService } from "../../../../services/factoryService.js";
 import useFactoryNumberPreview from "../../hooks/useFactoryNumberPreview.js";
 import { malaysiaBusinessDateInput } from "../../utils/factoryDates.js";
-import { packSizeText, percent, quantity, signedQuantity } from "../../utils/factoryFormatters.js";
+import { percent, quantity, signedQuantity } from "../../utils/factoryFormatters.js";
 import { isFactoryPermissionError } from "../../utils/factoryPermissions.js";
 import { jobStatusLabel } from "../../utils/factoryStatus.js";
 import DispatchBatchAllocationModal from "../allocation/DispatchBatchAllocationModal.jsx";
 import { dispatchAllocationTotal } from "../allocation/finishedGoodBatchAllocationHelpers.js";
-import { buildStockCheckRows, stockCheckDifferenceLabel, stockCheckVariance, stockVarianceTone } from "./stockCheckHelpers.js";
+import { buildStockCheckRows, finishedGoodStockCheckIdentity, stockCheckDifferenceLabel, stockCheckVariance, stockVarianceTone } from "./stockCheckHelpers.js";
 
 export default function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], finishedGoodCategories = [], readOnly = false, onConfirmSubmit, onClose, onSave }) {
   const inferredCategoryId = initialValue?.category_id || stockItems.find((item) => item.id === initialValue?.items?.[0]?.raw_material_id || item.id === initialValue?.items?.[0]?.finished_good_id)?.category_id || "";
@@ -46,6 +47,12 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
     enabled: !form.check_no && !readOnly,
     scope: `${stockType}_stock_check_no`,
   });
+
+  function renderItemIdentity(row, sku) {
+    if (isRaw) return <><div className="font-bold text-text-primary">{row.item_name || "Item"}</div><div className="text-xs text-text-secondary">{row.uom || "uom"}</div></>;
+    const identity = finishedGoodStockCheckIdentity(row, sku);
+    return <FactoryCellEntity name={identity.primary} code={identity.secondary} />;
+  }
 
   useEffect(() => {
     if (isRaw) return undefined;
@@ -378,8 +385,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
                 <div key={row.id} className={`space-y-3 rounded-2xl border border-border bg-white p-3 ${showReasonError ? "ring-1 ring-amber-200" : ""}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-bold text-text-primary">{row.item_name || "Item"}</div>
-                      <div className="text-xs text-text-secondary">{isRaw ? row.uom || "uom" : [row.product_code, packSizeText(row)].filter(Boolean).join(" · ") || "Packaging SKU"}</div>
+                      {renderItemIdentity(row, rowSku)}
                     </div>
                     <Badge tone={variance.status === "Skipped" ? "neutral" : stockVarianceTone(variance.status)}>{variance.status}</Badge>
                   </div>
@@ -460,8 +466,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
                   return (
                     <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
                       <td className="px-4 py-3">
-                        <div className="font-bold text-text-primary">{row.item_name || "Item"}</div>
-                        <div className="text-xs text-text-secondary">{isRaw ? row.uom || "uom" : [row.product_code, packSizeText(row)].filter(Boolean).join(" · ") || "Packaging SKU"}</div>
+                        {renderItemIdentity(row, rowSku)}
                         {!isRaw && variance.variance !== 0 ? <div className="mt-2 space-y-1 text-[11px] text-text-secondary"><Badge tone={reconciliationState.tone}>{reconciliationState.label}</Badge>{reconciliationState.snapshot ? <div>Aggregate {quantity(reconciliationState.snapshot.aggregate_balance, row.uom)} · Batch {quantity(reconciliationState.snapshot.batch_balance, row.uom)}</div> : null}{reconciliationState.snapshot && (reconciliationState.snapshot.ambiguous_reference_count || reconciliationState.snapshot.unmatched_reference_count) ? <div className="font-semibold text-amber-800">{reconciliationState.snapshot.ambiguous_reference_count} ambiguous · {reconciliationState.snapshot.unmatched_reference_count} unmatched</div> : null}</div> : null}
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.system_qty, isRaw ? row.uom : "Packs")}</td>
