@@ -14,6 +14,7 @@ describe("FactoryDataSurface", () => {
     );
 
     expect(container.querySelector(".factory-data-surface .factory-table")).not.toBeNull();
+    expect(container.querySelector(".factory-data-surface .admin-data-table")).not.toBeNull();
     expect(screen.getByText("Name")).toBeTruthy();
     expect(screen.getByText("Black Pepper")).toBeTruthy();
   });

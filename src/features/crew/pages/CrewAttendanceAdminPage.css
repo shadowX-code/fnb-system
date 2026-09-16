@@ -9,11 +9,6 @@
   z-index: 5;
 }
 
-.crew-attendance-table .table-head th {
-  background: rgb(248 250 252 / 0.98);
-  box-shadow: inset 0 -1px 0 rgb(226 232 240);
-}
-
 .crew-attendance-table .crew-attendance-row-warning {
   background: rgb(255 251 235 / 0.48);
 }
