@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import AdminFilterToolbar from "../AdminFilterToolbar.jsx";
 import FactoryFilterBar from "../../../features/factory/components/FactoryFilterBar.jsx";
+import FeedXDateRangePicker from "../../ui/FeedXDateRangePicker.jsx";
 
 function Field({ label }) {
   return <label>{label}<input aria-label={label} /></label>;
@@ -42,6 +43,13 @@ describe("AdminFilterToolbar", () => {
     expect(range.dataset.adminFilterRole).toBe("date-range");
     expect(range.className).toContain("sm:w-[260px]");
     expect(range.className).toContain("shrink-0");
+  });
+
+  it("uses a shared component-declared role when the period has no label prop", () => {
+    render(<AdminFilterToolbar period={<FeedXDateRangePicker from="2026-09-16" to="2026-09-16" today="2026-09-16" onApply={vi.fn()} />} />);
+    const range = screen.getByLabelText("Date Range").closest('[data-admin-filter-slot]');
+    expect(range.dataset.adminFilterRole).toBe("date-range");
+    expect(range.className).toContain("sm:w-[260px]");
   });
 
   it("flattens fragment filters into the main control flow", () => {

@@ -7,6 +7,8 @@ function labelForField(field) {
 }
 
 function roleForField(field) {
+  const declaredRole = isValidElement(field) ? field.type?.adminFilterRole : null;
+  if (declaredRole) return declaredRole;
   const label = labelForField(field);
   if (label.includes("date range")) return "date-range";
   if (/(date|period|month|from|to)/.test(label)) return "period";
