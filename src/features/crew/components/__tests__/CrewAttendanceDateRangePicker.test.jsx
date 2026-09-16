@@ -62,26 +62,57 @@ describe("Crew Attendance Date Range Picker", () => {
     fireEvent.click(screen.getByRole("button", { name: "Dec" }));
 
     expect(screen.getByRole("region", { name: "December 2027" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "January 2028" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "September 2026" })).toBeTruthy();
     expect(onApply).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
   });
 
-  it("keeps consecutive months when the right calendar is changed directly", () => {
+  it("keeps the left calendar unchanged when the right calendar is navigated", () => {
     render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
-    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, September 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next month for September 2026" }));
+    expect(screen.getByRole("region", { name: "August 2026" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "October 2026" })).toBeTruthy();
+  });
+
+  it("keeps the right calendar unchanged when the left calendar is navigated", () => {
+    render(<CrewAttendanceDateRangePicker from="2026-09-16" to="2026-09-16" today={today} onApply={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous month for September 2026" }));
+    expect(screen.getByRole("region", { name: "August 2026" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "October 2026" })).toBeTruthy();
+  });
+
+  it("selects across independently browsed months and years", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from="2026-09-16" to="2026-09-16" today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, October 2026" }));
     fireEvent.click(screen.getByRole("button", { name: "Dec" }));
-    expect(screen.getByRole("region", { name: "November 2026" })).toBeTruthy();
-    expect(screen.getByRole("region", { name: "December 2026" })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "16 Sept 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "20 Dec 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({ from: "2026-09-16", to: "2026-12-20" });
+  });
+
+  it("supports a cross-year range after navigating the right calendar", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from="2026-12-20" to="2026-12-20" today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, January 2027" }));
+    fireEvent.click(screen.getByRole("button", { name: "Feb" }));
+    fireEvent.click(screen.getByRole("button", { name: "20 Dec 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "15 Feb 2027" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({ from: "2026-12-20", to: "2027-02-15" });
   });
 
   it("preserves the selected range while navigating months", () => {
     const onApply = vi.fn();
     render(<CrewAttendanceDateRangePicker from="2026-08-10" to="2026-08-14" today={today} onApply={onApply} />);
     fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "Next month" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Next month for August 2026" }));
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     expect(onApply).toHaveBeenCalledWith({ from: "2026-08-10", to: "2026-08-14" });
   });

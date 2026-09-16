@@ -36,6 +36,14 @@ describe("AdminFilterToolbar", () => {
     expect(screen.getByLabelText("Date range").closest("div").className).toContain("sm:w-[360px]");
   });
 
+  it("uses the date-range width role when a range picker occupies the period slot", () => {
+    render(<AdminFilterToolbar period={<Field label="Date Range" />} />);
+    const range = screen.getByLabelText("Date Range").closest('[data-admin-filter-slot]');
+    expect(range.dataset.adminFilterRole).toBe("date-range");
+    expect(range.className).toContain("sm:w-[260px]");
+    expect(range.className).toContain("shrink-0");
+  });
+
   it("flattens fragment filters into the main control flow", () => {
     const { container } = render(<AdminFilterToolbar outlet={<Field label="Outlet" />} filters={<><Field label="Employee" /><Field label="Position" /><Field label="Status" /></>} />);
     const slots = container.querySelectorAll('[data-admin-filter-slot="filter"]');
