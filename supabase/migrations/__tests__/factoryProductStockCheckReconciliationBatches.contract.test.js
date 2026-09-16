@@ -6,6 +6,7 @@ const reconciliationMigration = readFileSync(resolve(process.cwd(), "supabase/mi
 const submitMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260915111000_factory_product_stock_check_reconciliation_submit.sql"), "utf8");
 const submitCorrectionMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260915112000_factory_product_stock_check_reconciliation_submit_fix.sql"), "utf8");
 const numberingMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260916130000_factory_product_stock_check_adjustment_batch_number.sql"), "utf8");
+const batchLinkMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260916131000_factory_product_stock_check_adjustment_batch_link.sql"), "utf8");
 
 describe("Finished Goods Stock Check reconciliation batch authority", () => {
   it("keeps positive Stock Check evidence separate from Production and creates one traceable adjustment batch", () => {
@@ -26,6 +27,13 @@ describe("Finished Goods Stock Check reconciliation batch authority", () => {
     expect(numberingMigration).toContain("balance.source_type = 'adjustment'");
     expect(numberingMigration).toContain("source_reference_id, source_reference_no");
     expect(numberingMigration).not.toContain("insert into public.factory_productions");
+  });
+
+  it("links only newly inserted reconciliation batches back to their Stock Check item", () => {
+    expect(batchLinkMigration).toContain("after insert on public.factory_finished_good_batch_balances");
+    expect(batchLinkMigration).toContain("new.source_type = 'adjustment'");
+    expect(batchLinkMigration).toContain("item.stock_check_id = new.source_reference_id");
+    expect(batchLinkMigration).toContain("item.positive_adjustment_batch_balance_id is null");
   });
 
   it("allows Draft reconciliation intent while requiring an active storage-enabled destination on Submit and Approval", () => {
