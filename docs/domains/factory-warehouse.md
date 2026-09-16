@@ -2,7 +2,7 @@
 
 ## Purpose And Scope
 
-This domain owns Factory Finished Goods, Dispatch, product movements and stock checks, Raw Material Receiving, raw inventory, raw movements, and raw stock checks.
+This domain owns Factory Finished Goods, Dispatch, product movements and stock checks, Raw Material Receiving, raw inventory, raw movements, raw stock checks, and the Factory physical-cash Petty Cash ledger.
 
 ## Canonical Ownership
 
@@ -32,6 +32,14 @@ Production consumption and output are coordinated with Factory Production withou
 Raw Material balances, batches, allocations, and deductions remain in each material's storage UOM. Recipe usage UOM and package-content metadata are consumed through the Factory Production conversion contract; Warehouse does not infer or backfill package factors from receipt or historical BOM quantities.
 Dispatch reserves and moves eligible finished goods through the defined allocation and confirmation states. Dispatch allocation availability is the authoritative batch-balance projection filtered to active, storage-enabled Factory Locations; display taxonomy such as Room Temperature, Chiller, or Freezer does not alter eligibility. Batches without a canonical storage location remain unavailable for Dispatch until reconciled.
 Completed warehouse movements and dispatch evidence are not silently rewritten; corrections use explicit adjustment, reversal, or superseding evidence.
+
+## Petty Cash Ledger
+
+Factory Petty Cash records physical operational cash only. Its current and running balances are projections of Posted immutable `Cash In`, `Expense`, and signed `Adjustment` rows; no independently editable balance is stored. Drafts remain editable/deletable, while a correction to a Posted transaction creates one linked, Posted reversal Adjustment and preserves the original row.
+
+References use the Malaysia business date and a transaction-locked daily `PC<YYMMDD>-<NN>` sequence. Expense Categories are active/inactive master records with retained historical references. Receipts are optional private image/PDF objects exposed through short-lived signed URLs to users with Petty Cash view access. All mutations use permission-checked trusted RPCs and write audit evidence.
+
+Petty Cash does not create or modify Receiving, inventory, supplier payable, Recipe costing, Production, General Ledger, Accounts Payable, Profit and Loss, or bank-reconciliation records. Future physical cash counts may create explicit Adjustment evidence; they must not rewrite ledger history.
 
 ## Permissions, Snapshots, And Audit
 

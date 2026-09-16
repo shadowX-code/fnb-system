@@ -12,6 +12,8 @@ export type ModuleAction =
   | "review"
   | "audit"
   | "submit"
+  | "post"
+  | "reverse"
   | "receive"
   | "complete"
   | "cancel"
@@ -43,6 +45,8 @@ export const permissionActionOrder: ModuleAction[] = [
   "review",
   "audit",
   "submit",
+  "post",
+  "reverse",
   "receive",
   "complete",
   "cancel",
@@ -64,6 +68,8 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   review: "Review",
   audit: "Audit",
   submit: "Submit",
+  post: "Post",
+  reverse: "Reverse",
   receive: "Receive",
   complete: "Complete",
   cancel: "Cancel",
@@ -591,6 +597,16 @@ export const moduleRegistry: AppModule[] = [
   { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },
   { id: "factory_mesti_food_processing_control", section: "MeSTI", label: "Food Processing Control", route: "/factory/mesti/food-processing-control", icon: "factory-mesti-food-processing-control", sidebar: true, workspace: "factory", permissions: {} },
   { id: "factory_product_feedback", section: "Factory", label: "Product Feedback", route: "/factory/product-feedback", icon: "factory-product-feedback", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, manage: true } },
+  {
+    id: "factory_petty_cash",
+    section: "Factory",
+    label: "Petty Cash",
+    route: "/factory/petty-cash",
+    icon: "factory-petty-cash",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, post: true, adjust: true, reverse: true, manage: true, export: true },
+  },
   {
     id: "factory_product_recipes",
     section: "Master Data",

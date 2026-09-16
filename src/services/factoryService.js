@@ -1768,6 +1768,72 @@ export function factoryDataPlan(scope, hasPermission) {
 }
 
 const factoryServiceDefinition = {
+  async getPettyCashData({ page = 1, pageSize = 20, filters = {} } = {}) {
+    const { data, error } = await supabase.rpc("factory_petty_cash_admin_data", {
+      p_filters: filters,
+      p_page: page,
+      p_page_size: pageSize,
+    });
+    throwFactorySupabaseError("factory.getPettyCashData", error);
+    return data || { rows: [], categories: [], summary: {}, total_count: 0, page, page_size: pageSize };
+  },
+
+  async savePettyCashDraft(transaction) {
+    const { data, error } = await supabase.rpc("factory_save_petty_cash_draft", { p_transaction: transaction });
+    throwFactorySupabaseError("factory.savePettyCashDraft", error);
+    return data;
+  },
+
+  async postPettyCashTransaction(transactionId) {
+    const { data, error } = await supabase.rpc("factory_post_petty_cash_transaction", { p_transaction_id: transactionId });
+    throwFactorySupabaseError("factory.postPettyCashTransaction", error);
+    return data;
+  },
+
+  async deletePettyCashDraft(transactionId) {
+    const { data, error } = await supabase.rpc("factory_delete_petty_cash_draft", { p_transaction_id: transactionId });
+    throwFactorySupabaseError("factory.deletePettyCashDraft", error);
+    return data;
+  },
+
+  async reversePettyCashTransaction(transactionId, reason) {
+    const { data, error } = await supabase.rpc("factory_reverse_petty_cash_transaction", { p_transaction_id: transactionId, p_reason: reason });
+    throwFactorySupabaseError("factory.reversePettyCashTransaction", error);
+    return data;
+  },
+
+  async savePettyCashCategory(category) {
+    const { data, error } = await supabase.rpc("factory_save_petty_cash_category", { p_category: category });
+    throwFactorySupabaseError("factory.savePettyCashCategory", error);
+    return data;
+  },
+
+  async uploadPettyCashReceipt(file) {
+    const allowedTypes = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
+    if (!file || !allowedTypes.has(file.type)) throw new Error("Upload a JPG, PNG, WebP or PDF receipt.");
+    if (!file.size || file.size > 10 * 1024 * 1024) throw new Error("Receipt must be 10MB or smaller.");
+    const { data: userData, error: userError } = await supabase.auth.getUser();
+    throwFactorySupabaseError("factory.uploadPettyCashReceipt.user", userError);
+    if (!userData?.user?.id) throw new Error("Sign in again before uploading a receipt.");
+    const extension = String(file.name || "receipt").split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || (file.type === "application/pdf" ? "pdf" : "jpg");
+    const objectId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const path = `${userData.user.id}/${objectId}.${extension}`;
+    const { data, error } = await supabase.storage.from("factory-petty-cash-receipts").upload(path, file, {
+      contentType: file.type,
+      upsert: false,
+      metadata: { module: "factory", entity: "petty_cash_receipt" },
+    });
+    throwFactorySupabaseError("factory.uploadPettyCashReceipt", error);
+    return { receipt_path: data.path, receipt_filename: file.name, receipt_mime_type: file.type, receipt_size_bytes: file.size };
+  },
+
+  async getPettyCashReceiptUrl(path) {
+    if (!path) throw new Error("Receipt is unavailable.");
+    const { data, error } = await supabase.storage.from("factory-petty-cash-receipts").createSignedUrl(path, 300);
+    throwFactorySupabaseError("factory.getPettyCashReceiptUrl", error);
+    return data?.signedUrl || data?.signedURL || "";
+  },
+
   async listProductFeedbackAdmin() {
     const { data, error } = await supabase.rpc("factory_product_feedback_admin_data", { p_campaign_id: null });
     throwFactorySupabaseError("factory.listProductFeedbackAdmin", error);
