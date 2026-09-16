@@ -41,7 +41,7 @@ describe("AdminFilterToolbar", () => {
     render(<AdminFilterToolbar period={<Field label="Date Range" />} />);
     const range = screen.getByLabelText("Date Range").closest('[data-admin-filter-slot]');
     expect(range.dataset.adminFilterRole).toBe("date-range");
-    expect(range.className).toContain("sm:w-[260px]");
+    expect(range.className).toContain("sm:w-[220px]");
     expect(range.className).toContain("shrink-0");
   });
 
@@ -49,7 +49,7 @@ describe("AdminFilterToolbar", () => {
     render(<AdminFilterToolbar period={<FeedXDateRangePicker from="2026-09-16" to="2026-09-16" today="2026-09-16" onApply={vi.fn()} />} />);
     const range = screen.getByLabelText("Date Range").closest('[data-admin-filter-slot]');
     expect(range.dataset.adminFilterRole).toBe("date-range");
-    expect(range.className).toContain("sm:w-[260px]");
+    expect(range.className).toContain("sm:w-[220px]");
   });
 
   it("flattens fragment filters into the main control flow", () => {
@@ -74,7 +74,7 @@ describe("AdminFilterToolbar", () => {
     const { container } = render(<AdminFilterToolbar filters={<><Field label="Date Range" /><Field label="Status" /></>} />);
     const [range, filter] = container.querySelectorAll('[data-admin-filter-slot="filter"]');
     expect(range.dataset.adminFilterRole).toBe("date-range");
-    expect(range.className).toContain("sm:w-[260px]");
+    expect(range.className).toContain("sm:w-[220px]");
     expect(filter.dataset.adminFilterRole).toBe("filter");
     expect(filter.className).toContain("sm:w-[180px]");
   });

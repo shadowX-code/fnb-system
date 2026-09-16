@@ -17,7 +17,7 @@ function roleForField(field) {
 
 function widthForField(field) {
   const role = roleForField(field);
-  if (role === "date-range") return "w-full sm:w-[260px]";
+  if (role === "date-range") return "w-full sm:w-[220px]";
   return "w-full sm:w-[180px]";
 }
 
