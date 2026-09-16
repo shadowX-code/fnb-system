@@ -7,6 +7,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
+import FeedXDateRangePicker from "../../../components/ui/FeedXDateRangePicker.jsx";
 import MultiSelectField from "../../../components/forms/MultiSelectField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
@@ -85,8 +86,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
     <AdminFilterToolbar
       ariaLabel="Cash Checkout filters"
       outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
-      periodWidth="w-full sm:w-[360px]"
-      period={<div className="grid grid-cols-2 gap-2"><DatePickerField label="From" value={from} onChange={setFrom} /><DatePickerField label="To" value={to} onChange={setTo} /></div>}
+      period={<FeedXDateRangePicker from={from} to={to} today={localDate()} onApply={({ from: nextFrom, to: nextTo }) => { setFrom(nextFrom); setTo(nextTo); }} />}
       secondaryActions={canManage ? <button className="btn-secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</button> : null}
       primaryActions={tab === "deposit" && canCollect ? <><button className="btn-secondary" onClick={() => setReceiverConfigOpen(true)}>Cash Handover Receivers</button><button className="btn-primary" onClick={() => setCollectionOpen(true)}><HandCoins size={16} /> Hand Over Cash</button></> : null}
     />

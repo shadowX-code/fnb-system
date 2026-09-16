@@ -67,8 +67,8 @@ describe("Crew Cash Checkout Admin", () => {
 
   it("uses the shared date controls and only exposes Admin-approved handover receivers", async () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    expect(await screen.findByText("From")).not.toBeNull();
-    expect(screen.getByText("To")).not.toBeNull();
+    expect(await screen.findByText("Date Range")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Date Range" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("dialog", { name: "Cash Checkout Settings" })).not.toBeNull();
     expect(screen.getByText("Require internal receiver confirmation")).not.toBeNull();

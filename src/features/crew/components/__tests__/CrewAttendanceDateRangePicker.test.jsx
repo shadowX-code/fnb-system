@@ -68,6 +68,14 @@ describe("Crew Attendance Date Range Picker", () => {
     expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
   });
 
+  it("uses the selected surface without decorative year or month markers", () => {
+    render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, August 2026" }));
+    expect(screen.getByRole("button", { name: "2026" }).querySelector("span")).toBeNull();
+    expect(screen.getByRole("button", { name: "Aug" }).querySelector("svg")).toBeNull();
+  });
+
   it("keeps the left calendar unchanged when the right calendar is navigated", () => {
     render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
