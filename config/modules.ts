@@ -548,6 +548,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, submit: true, approve: true, export: true },
   },
   {
+    id: "factory_internal_transfer",
+    section: "Warehouse",
+    label: "Internal Transfer",
+    route: "/factory/internal-transfer",
+    icon: "factory-internal-transfer",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, export: true },
+  },
+  {
     id: "factory_raw_receiving",
     section: "Raw Material",
     label: "Raw Material Receiving",

@@ -304,6 +304,12 @@ export const routeDetails = {
     permission: "factory_product_stock_check.view",
     props: { initialTab: "product-stock-check" },
   },
+  factory_internal_transfer: {
+    description: "Move exact Factory Raw Material or Finished Good batches between storage Locations.",
+    component: FactoryWorkspacePage,
+    permission: "factory_internal_transfer.view",
+    props: { initialTab: "internal-transfer" },
+  },
   factory_mesti_cleaning: { description: "Complete and verify MeSTI Cleaning of Area requirements with monthly compliance history.", component: FactoryWorkspacePage, permission: "factory_mesti_cleaning.view", props: { initialTab: "mesti-cleaning" } },
   factory_mesti_equipment_cleaning: { description: "Complete and verify scheduled and after-operation MeSTI equipment cleaning.", component: FactoryWorkspacePage, permission: "factory_mesti_equipment_cleaning.view", props: { initialTab: "mesti-equipment-cleaning" } },
   factory_mesti_calibration: { description: "Schedule, record and verify Factory equipment calibration.", component: FactoryWorkspacePage, permission: "factory_mesti_calibration.view", props: { initialTab: "mesti-calibration" } },

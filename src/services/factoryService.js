@@ -1723,6 +1723,7 @@ export function factoryDataPlan(scope, hasPermission) {
   const isBatchTraceability = scope === "batch-traceability";
   const isProductRecipes = scope === "product-recipes";
   const isStorageLocations = scope === "storage-locations";
+  const isInternalTransfer = scope === "internal-transfer";
   const isSuppliers = scope === "suppliers";
   const isCustomers = scope === "customers";
   const isFinishedGoods = scope === "finished-goods";
@@ -1746,7 +1747,7 @@ export function factoryDataPlan(scope, hasPermission) {
     factorySuppliers: (isSuppliers && can("factory_suppliers.view")) || (isRawReceiving && can("factory_raw_receiving.view")),
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: false,
-    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isEquipment && can("factory_equipment.view")) || (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
+    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isInternalTransfer && (can("factory_internal_transfer.view") || can("factory_internal_transfer.create"))) || (isEquipment && can("factory_equipment.view")) || (isMestiCleaning && can("factory_mesti_cleaning.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
     equipment: (isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage"))) || isProductionSop || (isMestiCalibration && can("factory_mesti_calibration.view")) || (isMestiEquipmentCleaning && can("factory_mesti_equipment_cleaning.view")) || (isProduction && (can("factory_production.complete") || can("factory_production.view"))),
     equipmentCategories: isEquipment && (can("factory_equipment.view") || can("factory_equipment.manage")),
     rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
@@ -1796,6 +1797,34 @@ const factoryServiceDefinition = {
       rawMaterialBatches: rawMaterialResult?.data || [],
       finishedGoodBatches: finishedGoodResult?.data || [],
     };
+  },
+
+  async getInternalTransferData({ page = 1, pageSize = 20, filters = {} } = {}) {
+    const { data, error } = await supabase.rpc("factory_internal_transfer_admin_data", {
+      p_filters: filters,
+      p_page: page,
+      p_page_size: pageSize,
+    });
+    throwFactorySupabaseError("factory.internal_transfer.data", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize };
+  },
+
+  async getInternalTransferInventory(inventoryType, locationId) {
+    const { data, error } = await supabase.rpc("factory_internal_transfer_inventory", {
+      p_inventory_type: inventoryType,
+      p_location_id: locationId,
+    });
+    throwFactorySupabaseError("factory.internal_transfer.inventory", error);
+    return Array.isArray(data) ? data : [];
+  },
+
+  async completeInternalTransfer(transfer, requestId = crypto.randomUUID()) {
+    const { data, error } = await supabase.rpc("factory_complete_internal_transfer", {
+      p_request_id: requestId,
+      p_transfer: transfer,
+    });
+    throwFactorySupabaseError("factory.internal_transfer.complete", error);
+    return data;
   },
 
   async getPettyCashData({ page = 1, pageSize = 20, filters = {} } = {}) {

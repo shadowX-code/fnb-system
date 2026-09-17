@@ -27,6 +27,7 @@ const FactoryProductFeedbackPage = lazy(() => import("./FactoryProductFeedbackPa
 const FactoryPettyCashPage = lazy(() => import("./FactoryPettyCashPage.jsx"));
 const FactoryProductMovementsPage = lazy(() => import("./FactoryProductMovementsPage.jsx"));
 const FactoryRawMaterialMovementsPage = lazy(() => import("./FactoryRawMaterialMovementsPage.jsx"));
+const FactoryInternalTransferPage = lazy(() => import("./FactoryInternalTransferPage.jsx"));
 
 function FactoryRouteReady({ route, onReady, children }) {
   useEffect(() => { onReady?.(route); }, [onReady, route]);
@@ -53,6 +54,7 @@ export default function FactoryWorkspaceRoutes({
   }, [initialTab, onReady, usesWorkspaceLegacyRoute]);
   if (initialTab === "product-feedback") return <LazyFactoryRoute route={initialTab} Page={FactoryProductFeedbackPage} onReady={onReady}><FactoryProductFeedbackPage auth={auth} onNotify={notify} /></LazyFactoryRoute>;
   if (initialTab === "petty-cash") return <LazyFactoryRoute route={initialTab} Page={FactoryPettyCashPage} onReady={onReady}><FactoryPettyCashPage auth={auth} onNotify={notify} onConfirm={ui?.confirm} /></LazyFactoryRoute>;
+  if (initialTab === "internal-transfer") return <LazyFactoryRoute route={initialTab} Page={FactoryInternalTransferPage} onReady={onReady}><FactoryInternalTransferPage onNotify={notify} /></LazyFactoryRoute>;
   if (initialTab === "mesti-equipment-cleaning") return <LazyFactoryRoute route={initialTab} Page={FactoryMestiEquipmentCleaningPage} onReady={onReady}><FactoryMestiEquipmentCleaningPage auth={auth} onNotify={notify} /></LazyFactoryRoute>;
   if (initialTab === "mesti-food-processing-control") return <LazyFactoryRoute route={initialTab} Page={FactoryMestiFoodProcessingControlPage} onReady={onReady} />;
   if (initialTab === "mesti-calibration") return <LazyFactoryRoute route={initialTab} Page={FactoryMestiCalibrationPage} onReady={onReady}><FactoryMestiCalibrationPage onNotify={notify} onRefreshFactoryData={legacy.loadData} /></LazyFactoryRoute>;
