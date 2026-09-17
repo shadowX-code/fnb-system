@@ -17,7 +17,7 @@ import { isFactoryPermissionError } from "../../utils/factoryPermissions.js";
 import { jobStatusLabel } from "../../utils/factoryStatus.js";
 import DispatchBatchAllocationModal from "../allocation/DispatchBatchAllocationModal.jsx";
 import { dispatchAllocationTotal } from "../allocation/finishedGoodBatchAllocationHelpers.js";
-import { buildStockCheckRows, finishedGoodStockCheckIdentity, positiveAdjustmentBatchLabel, stockCheckDifferenceLabel, stockCheckVariance, stockVarianceTone } from "./stockCheckHelpers.js";
+import { buildStockCheckRows, finishedGoodStockCheckIdentity, positiveAdjustmentBatchLabel, setStockCheckCountStatus, stockCheckDifferenceLabel, stockCheckVariance, stockVarianceTone } from "./stockCheckHelpers.js";
 
 export default function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], finishedGoodCategories = [], readOnly = false, onConfirmSubmit, onClose, onSave }) {
   const inferredCategoryId = initialValue?.category_id || stockItems.find((item) => item.id === initialValue?.items?.[0]?.raw_material_id || item.id === initialValue?.items?.[0]?.finished_good_id)?.category_id || "";
@@ -163,8 +163,6 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
     if (nextStatus === "submitted") {
       const missingCount = form.items.find((row) => row.count_status !== "skip" && (row.physical_qty === "" || row.physical_qty == null || Number(row.physical_qty) < 0));
       if (missingCount) return "Submit requires every row to be counted or skipped.";
-      const missingSkipReason = isRaw && form.items.find((row) => row.count_status === "skip" && !String(row.variance_reason || "").trim());
-      if (missingSkipReason) return "Skip reason is required for skipped rows.";
     } else {
       const invalidCount = form.items.find((row) => row.count_status !== "skip" && row.physical_qty !== "" && row.physical_qty != null && Number(row.physical_qty) < 0);
       if (invalidCount) return "Physical count cannot be negative.";
@@ -253,7 +251,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
     const isSkipped = row.count_status === "skip";
     const hasCount = row.physical_qty !== "" && row.physical_qty != null;
     const variance = isSkipped || !hasCount ? { variance: 0, variancePercent: null, status: isSkipped ? "Skipped" : "Normal" } : stockCheckVariance(row.system_qty, row.physical_qty);
-    const showReasonError = submitAttempted && lastSubmitAction === "submitted" && ((variance.status !== "Normal" && !isSkipped) || (isRaw && isSkipped)) && !String(row.variance_reason || "").trim();
+    const showReasonError = submitAttempted && lastSubmitAction === "submitted" && variance.status !== "Normal" && !isSkipped && !String(row.variance_reason || "").trim();
     const showCountError = submitAttempted && lastSubmitAction === "submitted" && !isSkipped && !hasCount;
     const showWholeError = !isRaw && hasCount && (!Number.isFinite(Number(row.physical_qty)) || !Number.isInteger(Number(row.physical_qty)));
     return { isSkipped, hasCount, variance, showReasonError, showCountError, showWholeError };
@@ -272,7 +270,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
     return (
       <div className="inline-flex rounded-lg border border-border bg-white p-1">
         <button className={`rounded-md px-2 py-1 text-xs font-semibold ${!isSkipped ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "counted" })}>Counted</button>
-        <button className={`rounded-md px-2 py-1 text-xs font-semibold ${isSkipped ? "bg-amber-500 text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "skip", physical_qty: "", batch_allocations: [], positive_adjustment_confirmed: false, positive_adjustment_batch_balance_id: "", positive_adjustment_batch_no: "" })}>Skip</button>
+        <button className={`rounded-md px-2 py-1 text-xs font-semibold ${isSkipped ? "bg-amber-500 text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, setStockCheckCountStatus([row], "skip")[0])}>Skip</button>
       </div>
     );
   }
@@ -365,7 +363,8 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
             <div><div className="text-[10.5px] font-semibold text-text-muted">Approved By</div><div className="font-bold text-text-primary">{form.approved_by_name || "—"}</div></div>
           </div>
         ) : null}
-        <Card title={`${itemLabel} Count`} description={isLocked ? "Submitted and approved checks are locked snapshots." : "Draft system quantity refreshes from current stock before submission. Submit locks the snapshot for approval."}>
+        <Card title={`${itemLabel} Count`} description={isLocked ? "Submitted and approved checks are locked snapshots." : "Skip items not counted, then enter physical counts for the items you verified. Submit locks the snapshot for approval."}>
+          {!isLocked && form.items.length ? <div className="mb-3 flex flex-wrap items-center gap-2 border-b border-border pb-3"><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setForm((current) => ({ ...current, items: setStockCheckCountStatus(current.items, "counted") }))}>Count All</button><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setForm((current) => ({ ...current, items: setStockCheckCountStatus(current.items, "skip") }))}>Skip All</button></div> : null}
           {isRaw && !form.category_id ? <EmptyState title="Select a category to start stock check." description="Choose a raw material category before loading items to count." /> : null}
           {!isRaw && form.category_id ? (
             <div className="mb-3 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-sm font-semibold text-text-primary">
@@ -434,7 +433,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
                         value={row.variance_reason || ""}
                         onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
                       />
-                      {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for variance rows."}</div> : null}
+                      {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">Required for variance rows.</div> : null}
                     </Field>
                     {!isRaw && variance.variance < 0 ? <button className="btn-secondary w-full" type="button" disabled={isLocked} onClick={() => openStockCheckBatchAllocation(row)}>{dispatchAllocationTotal(row.batch_allocations) === Math.abs(variance.variance) ? "Review Batch Resolution" : "Resolve Batch Difference"}</button> : null}
                     {!isRaw && variance.variance > 0 ? <div className="rounded-lg border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-text-secondary"><div className="font-semibold text-text-primary">{row.positive_adjustment_batch_balance_id ? positiveAdjustmentBatchLabel(row) : "Reconciliation Batch"}</div><div className="mt-0.5">{row.positive_adjustment_batch_balance_id ? "The approved variance is posted to this batch." : "Created only on approval; inventory is unchanged while Draft or Submitted."}</div></div> : null}
@@ -502,7 +501,7 @@ export default function StockCheckModal({ stockType, title, initialValue, stockI
                           value={row.variance_reason || ""}
                           onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
                         />
-                        {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for variance rows."}</div> : null}
+                        {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">Required for variance rows.</div> : null}
                         {!isRaw && variance.variance > 0 ? <div className="mt-2 text-xs text-text-secondary">{positiveAdjustmentBatchLabel(row)}: <span className="font-bold text-text-primary">{rowSku?.storage_location || "Missing"}</span> · +{quantity(variance.variance, "Packs")}</div> : null}
                         {!isRaw && variance.variance < 0 ? <div className="mt-2 text-xs text-text-secondary">Resolved: <span className="font-bold text-text-primary">{quantity(dispatchAllocationTotal(row.batch_allocations), "Packs")}</span>{expiredAllocationCount ? <span className="ml-2 font-bold text-rose-700">{expiredAllocationCount} expired</span> : null}</div> : null}
                         {invalidLocationAllocation ? <div className="mt-1 text-xs font-bold text-rose-700">Storage location unavailable · {invalidLocationAllocation.location_issue}</div> : null}

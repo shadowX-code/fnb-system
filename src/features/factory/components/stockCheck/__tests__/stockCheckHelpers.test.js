@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildStockCheckRows, finishedGoodStockCheckIdentity, positiveAdjustmentBatchLabel } from "../stockCheckHelpers.js";
+import { buildStockCheckRows, finishedGoodStockCheckIdentity, positiveAdjustmentBatchLabel, setStockCheckCountStatus } from "../stockCheckHelpers.js";
 
 describe("Finished Goods Stock Check identity", () => {
   it("uses the product-family name with the selected SKU pack size", () => {
@@ -26,5 +26,12 @@ describe("Finished Goods Stock Check identity", () => {
     expect(positiveAdjustmentBatchLabel({ positive_adjustment_batch_balance_id: "batch-1", positive_adjustment_batch_no: "ADJ-FGSC260916-01", positive_adjustment_batch_source_type: "adjustment" })).toBe("Reconciliation Batch ADJ-FGSC260916-01");
     expect(positiveAdjustmentBatchLabel({ positive_adjustment_batch_balance_id: "batch-1", positive_adjustment_batch_no: "ADJ-FGSC260916-01", positive_adjustment_batch_source_type: "" })).toBe("Reconciliation Batch ADJ-FGSC260916-01");
     expect(positiveAdjustmentBatchLabel({ positive_adjustment_batch_balance_id: "batch-2", positive_adjustment_batch_no: "PB260916-01", positive_adjustment_batch_source_type: "production" })).toBe("Existing batch PB260916-01");
+  });
+
+  it("keeps a draft physical count distinct from Skip and restores it when counted again", () => {
+    const [skipped] = setStockCheckCountStatus([{ id: "row-1", physical_qty: "0", batch_allocations: [{ id: "allocation" }] }], "skip");
+    expect(skipped).toMatchObject({ count_status: "skip", physical_qty: "0", batch_allocations: [] });
+    const [counted] = setStockCheckCountStatus([skipped], "counted");
+    expect(counted).toMatchObject({ count_status: "counted", physical_qty: "0" });
   });
 });
