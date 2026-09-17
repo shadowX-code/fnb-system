@@ -8,7 +8,9 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const payload = {
   outlet: { id: "outlet-1", name: "Friends Corner" }, can_adjust_assets: true, can_perform_asset_inspections: true,
-  categories: [{ id: "cat-1", name: "Kitchen" }], condition_templates: [], inspection_drafts: [], inspection_history: [],
+  categories: [{ id: "cat-1", name: "Kitchen" }], condition_templates: [], inspection_drafts: [],
+  movement_history: [{ id: "movement-1", asset_id: "asset-1", asset_name: "Staging QA Blender", movement_type: "correction", quantity_before: 2, quantity_after: 3, quantity_change: 1, reason: "stock_count", created_at: "2026-09-17T10:00:00Z", actor_name: "You" }],
+  inspection_history: [{ id: "inspection-1", inspection_date: "2026-09-16", created_at: "2026-09-16T10:00:00Z", checked_by: "Jordan", status: "completed", summary: { checked_assets: 1 }, asset_ids: ["asset-1"] }],
   assets: [{ id: "asset-1", asset_code: "QA-1", name: "Staging QA Blender", category_id: "cat-1", category_name: "Kitchen", location: "Bar", unit: "unit", current_quantity: 2, minimum_quantity: 1, condition: "healthy", maintenance: [] }],
 };
 
@@ -30,6 +32,48 @@ describe("Crew Assets Mobile", () => {
     expect(screen.getByRole("heading", { name: "Adjust Asset" })).not.toBeNull();
     expect(screen.getByLabelText("Quantity").value).toBe("2");
     expect(screen.getByRole("button", { name: "Save adjustment" })).not.toBeNull();
+    expect(screen.getByText("Current quantity")).not.toBeNull();
+    expect(screen.getByText("New quantity")).not.toBeNull();
+  });
+
+  it("uses the shared picker and presents unified asset activity", async () => {
+    crewService.assetsMobile.mockResolvedValue(payload);
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    await screen.findByText("Staging QA Blender");
+    expect(screen.queryByRole("combobox", { name: /asset category/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Category" }));
+    expect(screen.getByRole("listbox", { name: "Category" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: /Activity/i }));
+    expect(screen.getByText("Quantity adjusted · Staging QA Blender")).not.toBeNull();
+    expect(screen.getByText("Inspection completed")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Adjustments" }));
+    expect(screen.queryByText("Inspection completed")).toBeNull();
+  });
+
+  it("requires a confirmation for a large adjustment before the canonical mutation", async () => {
+    crewService.assetsMobile.mockResolvedValue(payload);
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByText("Staging QA Blender"));
+    fireEvent.click(screen.getByRole("button", { name: /Adjust Asset/i }));
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "20" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    expect(screen.getByRole("heading", { name: "Confirm large adjustment" })).not.toBeNull();
+    expect(crewService.adjustAsset).not.toHaveBeenCalled();
+  });
+
+  it("refreshes Asset Detail and the Activity projection after an adjustment", async () => {
+    const refreshed = { ...payload, assets: [{ ...payload.assets[0], current_quantity: 3 }], movement_history: [{ ...payload.movement_history[0], quantity_after: 3, quantity_change: 1 }] };
+    crewService.assetsMobile.mockResolvedValueOnce(payload).mockResolvedValueOnce(refreshed);
+    crewService.adjustAsset.mockResolvedValue({ asset: { id: "asset-1", current_quantity: 3 } });
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByText("Staging QA Blender"));
+    fireEvent.click(screen.getByRole("button", { name: /Adjust Asset/i }));
+    fireEvent.change(screen.getByLabelText("Quantity"), { target: { value: "3" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
+    await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("3 units")).not.toBeNull();
+    expect(screen.getByText("Quantity adjusted · Staging QA Blender")).not.toBeNull();
   });
 
   it("refreshes the read model after saving an inspection draft", async () => {

@@ -40,7 +40,7 @@ export function CrewInfoRow({ label, value, supporting }) {
 export function CrewSearchBar({ value, onChange, onSubmit, placeholder }) {
   const { t } = useTranslation();
   const copy = placeholder || t("learn.search");
-  return <form className="crew-ui-search" onSubmit={(event) => { event.preventDefault(); onSubmit?.(value); }}><Search size={18} /><input aria-label={copy} value={value} onChange={(event) => onChange(event.target.value)} placeholder={copy} /><button type="submit" aria-label={t("common.submit")}><Search size={17} /></button></form>;
+  return <form className="crew-ui-search" onSubmit={(event) => { event.preventDefault(); onSubmit?.(value); }}><Search size={18} /><input aria-label={copy} value={value} onChange={(event) => onChange(event.target.value)} placeholder={copy} />{onSubmit ? <button type="submit" aria-label={t("common.submit")}><Search size={17} /></button> : null}</form>;
 }
 
 export function CrewMetric({ value, label, tone = "neutral", onClick }) {
