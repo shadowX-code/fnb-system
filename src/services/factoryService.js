@@ -1122,6 +1122,7 @@ function mapProductionSop(row) {
     equipment: row.equipment || "",
     equipment_ids: (row.equipment_links || []).map((link) => link.equipment_id).filter(Boolean),
     equipment_names: (row.equipment_links || []).map((link) => [link.equipment?.equipment_code, link.equipment?.name].filter(Boolean).join(" · ")).filter(Boolean),
+    equipment_links: (row.equipment_links || []).filter((link) => link.equipment?.id || link.equipment_id),
     estimated_minutes: normalizeNumber(row.estimated_minutes),
     status: row.status === "inactive" ? "archived" : row.status || "draft",
     notes: row.notes || row.remarks || "",

@@ -18,6 +18,7 @@ const draftSop = {
 };
 const recipe = { id: "recipe-1", product_family_id: family.id, version: "v2", status: "active", yield_quantity: 10, uom: "kg", items: [] };
 const equipment = { id: "equipment-1", equipment_code: "MX-01", name: "Mixer 01", status: "active", location: { location_name: "Cooking Room" } };
+const secondEquipment = { id: "equipment-2", equipment_code: "ST-02", name: "Steam Kettle", status: "active", location: { location_name: "Cooking Room" } };
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
@@ -26,7 +27,7 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(<ProductionSopBuilderModal initialValue={draftSop} productFamilies={[family]} recipes={[recipe]} equipment={[equipment]} sops={[draftSop]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={onSave} />);
     fireEvent.click(screen.getByRole("button", { name: "SOP Settings" }));
-    fireEvent.click(screen.getByRole("checkbox", { name: /MX-01.*Mixer 01/i }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Mixer 01.*Cooking Room.*MX-01/i }));
     fireEvent.click(screen.getByRole("button", { name: "Save SOP" }));
     await waitFor(() => expect(onSave).toHaveBeenCalledWith(expect.objectContaining({
       id: draftSop.id,
@@ -98,16 +99,28 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
   });
 
   it("renders active, draft, and legacy QC document paths without inventing missing history", () => {
-    const activeView = render(<ProductionSopDocumentModal sop={{ ...draftSop, status: "active", linked_recipe: recipe, product_name_cn: family.name_cn }} onClose={vi.fn()} />);
+    const activeView = render(<ProductionSopDocumentModal sop={{ ...draftSop, status: "active", linked_recipe: recipe, product_name_cn: family.name_cn, equipment_links: [{ equipment_id: equipment.id, equipment }, { equipment_id: secondEquipment.id, equipment: secondEquipment }] }} onClose={vi.fn()} />);
     expect(screen.getAllByText("Sambal Production SOP · v2").length).toBeGreaterThan(0);
     expect(screen.getByText("Active")).not.toBeNull();
     expect(screen.getByText("Temperature")).not.toBeNull();
+    expect(screen.getByText("Linked Equipment")).not.toBeNull();
+    expect(screen.getByText("Mixer 01")).not.toBeNull();
+    expect(screen.getByText("Steam Kettle")).not.toBeNull();
+    expect(screen.getAllByText("Cooking Room · MX-01")).toHaveLength(1);
     activeView.unmount();
 
     render(<ProductionSopDocumentModal sop={{ ...draftSop, status: "draft", linked_recipe: null, steps: [{ id: "legacy-step", step_no: 1, process_name: "Cook", estimated_time_minutes: 8, qc_required: true, qc_label: "Legacy temperature", qc_target_value: "80C", ingredient_material_ids: [] }] }} onClose={vi.fn()} />);
     expect(screen.getByText("Draft")).not.toBeNull();
     expect(screen.getByText("No Recipe Linked")).not.toBeNull();
     expect(screen.getByText("Legacy temperature")).not.toBeNull();
+    expect(screen.getByText("No equipment linked")).not.toBeNull();
+  });
+
+  it("keeps Equipment identity readable when optional Location or code is absent", () => {
+    render(<ProductionSopBuilderModal initialValue={draftSop} productFamilies={[family]} recipes={[recipe]} equipment={[{ id: "equipment-3", name: "Bench Scale", status: "active" }]} sops={[draftSop]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "SOP Settings" }));
+    expect(screen.getByRole("checkbox", { name: "Bench Scale" })).not.toBeNull();
+    expect(screen.getByText("Bench Scale")).not.toBeNull();
   });
 
   it("keeps QC preset create, archive, restore, and unused delete presentation contracts intact", async () => {
