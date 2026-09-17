@@ -190,7 +190,7 @@ export function buildAssetActivityProjection({ assets = [], movements = [], insp
       title: archived ? "Asset Archived" : "Asset Added",
       detail: archived ? `${asset.name} was archived from Asset Tracking.` : `${asset.name} was added to Asset Tracking.`,
       type: archived ? "archived" : "created",
-      actorId: archived ? asset.updated_by : asset.created_by,
+      actorId: archived ? asset.updated_by : asset.created_by_employee_id || asset.created_by,
       actorPrefix: archived ? "Archived" : "Created",
     };
   });

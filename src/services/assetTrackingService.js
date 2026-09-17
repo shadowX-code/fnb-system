@@ -8,7 +8,7 @@ const categoryBaseFields = "id,name,description,sort_order,is_active,created_at,
 const categoryFields = "id,name,description,sort_order,is_active,maintenance_enabled,created_at,updated_at";
 const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const assetBaseConditionFields = "id,outlet_id,category_id,name,description,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
-const assetFields = "id,outlet_id,category_id,name,description,asset_code,location,purchase_date,warranty_expiry,notes,image_url,thumbnail_url,health_status,last_inspection_at,maintenance_override,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
+const assetFields = "id,outlet_id,category_id,name,description,asset_code,location,purchase_date,warranty_expiry,notes,image_url,thumbnail_url,health_status,last_inspection_at,maintenance_override,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,created_by_employee_id,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_by_employee_id,created_at";
 const maintenanceFields = "id,asset_id,outlet_id,date,maintenance_type,priority,issue,action_taken,vendor,cost,status,scheduled_date,completed_date,next_service_date,remark,photo_url,created_by,created_at,updated_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,checked_by_employee_id,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
@@ -124,11 +124,11 @@ function isMissingOptionalAssetField(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42703" ||
     error?.code === "PGRST204" ||
-    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes)|asset_categories\.maintenance_enabled|'(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
+    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes|created_by_employee_id)|asset_categories\.maintenance_enabled|'(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes|created_by_employee_id)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
 }
 
 function withoutOptionalAssetFields(payload) {
-  const { image_url, thumbnail_url, health_status, last_inspection_at, condition, maintenance_override, asset_code, location, purchase_date, warranty_expiry, notes, ...rest } = payload;
+  const { image_url, thumbnail_url, health_status, last_inspection_at, condition, maintenance_override, asset_code, location, purchase_date, warranty_expiry, notes, created_by_employee_id, ...rest } = payload;
   return rest;
 }
 
