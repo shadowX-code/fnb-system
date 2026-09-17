@@ -32,6 +32,20 @@ describe("Crew Assets Mobile", () => {
     expect(screen.getByRole("button", { name: "Save adjustment" })).not.toBeNull();
   });
 
+  it("refreshes the read model after saving an inspection draft", async () => {
+    crewService.assetsMobile
+      .mockResolvedValueOnce(payload)
+      .mockResolvedValueOnce({ ...payload, inspection_drafts: [{ id: "draft-1", current_step: 1, completion_percentage: 0, updated_at: "2026-09-17T10:00:00Z", category_scope: { type: "specific" }, draft_data: { rows: [{ asset_id: "asset-1", counted_quantity: 2, condition_status: "healthy", remark: "QA", evidence: [] }] } }] });
+    crewService.submitAssetInspection.mockResolvedValue({});
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByText("Staging QA Blender"));
+    fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(await screen.findByText("Resume inspection")).not.toBeNull();
+  });
+
   it("does not render mutation actions without their separate capabilities", async () => {
     crewService.assetsMobile.mockResolvedValue({ ...payload, can_adjust_assets: false, can_perform_asset_inspections: false });
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
