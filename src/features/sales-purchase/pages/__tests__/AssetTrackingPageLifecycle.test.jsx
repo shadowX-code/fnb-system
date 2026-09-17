@@ -73,6 +73,29 @@ describe("Asset Tracking page lifecycle guards", () => {
     expect(mocks.service.adjustQuantity).not.toHaveBeenCalled();
   });
 
+  it("keeps the category manager focused on selection and editing without duplicate category summaries", async () => {
+    const category = {
+      id: "category-1", name: "Kitchen Equipment", description: "Kitchen equipment and production tools.", is_active: true,
+      maintenance_enabled: true, created_at: "2026-05-24T00:00:00.000Z", updated_at: "2026-09-17T00:00:00.000Z",
+    };
+    mocks.service.loadOutletTrackingData.mockResolvedValue({ categories: [category], assets: [{ ...asset, category_id: category.id }], movements: [], inspections: [], maintenanceRecords: [] });
+    mount(["asset_tracking.view", "asset_tracking.create", "asset_tracking.edit", "asset_tracking.delete"]);
+    await screen.findByText("Mixer");
+
+    fireEvent.click(screen.getByRole("button", { name: "Categories" }));
+
+    expect(await screen.findByRole("heading", { name: "Asset Categories" })).toBeTruthy();
+    expect(screen.getByText("Manage categories used to classify assets.")).toBeTruthy();
+    expect(screen.getByText("1 asset")).toBeTruthy();
+    expect(screen.getAllByText("Maintenance").length).toBe(2);
+    expect(screen.queryByText("Asset Category Configuration")).toBeNull();
+    expect(screen.queryByText("Category History")).toBeNull();
+    expect(screen.queryByText("linked assets")).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Enable maintenance workflow" }).checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Archive" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeTruthy();
+  });
+
   it("uses asset_tracking.manage for the mounted adjustment action and prevents a second click while saving", async () => {
     let resolveAdjustment;
     mocks.service.adjustQuantity.mockImplementationOnce(() => new Promise((resolve) => { resolveAdjustment = resolve; }));

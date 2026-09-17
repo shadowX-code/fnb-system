@@ -540,12 +540,6 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, on
     map.set(asset.category_id, (map.get(asset.category_id) || 0) + 1);
     return map;
   }, new Map()), [assets]);
-  const presets = [
-    { name: "Kitchen Equipment", description: "Maintainable kitchen equipment such as machines and electrical tools.", sort_order: categories.length + 1, maintenance_enabled: true },
-    { name: "Electronics", description: "POS, electrical, and connected equipment.", sort_order: categories.length + 1, maintenance_enabled: true },
-    { name: "Furniture", description: "Dining area furniture and fixtures.", sort_order: categories.length + 1, maintenance_enabled: false },
-    { name: "Generic", description: "General outlet assets.", sort_order: categories.length + 1, maintenance_enabled: false },
-  ];
 
   useEffect(() => {
     setOrderedCategories(categories);
@@ -589,26 +583,14 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, on
     await onReorder?.(next);
   }
 
-  async function keyboardReorder(categoryId, direction) {
-    const index = orderedCategories.findIndex((category) => category.id === categoryId);
-    const nextIndex = index + direction;
-    if (!canWrite || index < 0 || nextIndex < 0 || nextIndex >= orderedCategories.length) return;
-    const next = [...orderedCategories];
-    const [moved] = next.splice(index, 1);
-    next.splice(nextIndex, 0, moved);
-    setOrderedCategories(next);
-    setSelectedCategoryId(categoryId);
-    await onReorder?.(next);
-  }
-
   return (
-    <Modal title="Asset Category Configuration" description="Manage asset categories used to classify outlet assets." onClose={onClose} size="xl" bodyClassName="p-0">
-      <div className="grid h-[min(760px,82vh)] overflow-hidden lg:grid-cols-[340px_1fr]">
-        <aside className="sticky top-0 flex min-h-0 flex-col border-b border-border bg-slate-50/80 p-4 lg:border-b-0 lg:border-r">
-          <div className="mb-4 flex items-center justify-between gap-3">
+    <Modal title="Asset Categories" description="Manage categories used to classify assets." onClose={onClose} size="xl" bodyClassName="p-0">
+      <div className="grid h-[min(700px,80vh)] overflow-hidden lg:grid-cols-[300px_1fr]">
+        <aside className="flex min-h-0 flex-col border-b border-border bg-slate-50/70 p-3 lg:border-b-0 lg:border-r">
+          <div className="mb-3 flex items-center justify-between gap-3">
             <div>
-              <div className="text-xs font-black uppercase tracking-wide text-text-muted">Category List</div>
-              <div className="text-sm font-black text-text-primary">{categories.length} categories</div>
+              <div className="text-sm font-black text-text-primary">Categories</div>
+              <div className="text-xs font-semibold text-text-secondary">{categories.length} {categories.length === 1 ? "category" : "categories"}</div>
             </div>
             {canWrite ? (
               <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => selectCategory("new")}>
@@ -616,33 +598,28 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, on
               </button>
             ) : null}
           </div>
-          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+          <div className="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
             {orderedCategories.map((category) => {
               const isSelected = selectedCategoryId === category.id;
               const assetCount = assetCountByCategory.get(category.id) || 0;
               return (
                 <div
                   key={category.id}
-                  className={`flex w-full items-center gap-2 rounded-2xl border px-2.5 py-2.5 text-left transition ${draggedCategoryId === category.id ? "scale-[1.01] border-primary/40 bg-white shadow-lg" : isSelected ? "border-primary/25 bg-primary/10 shadow-sm" : "border-transparent hover:border-border hover:bg-white"}`}
+                  className={`flex w-full items-center gap-2 rounded-xl border px-2 py-2 text-left transition ${draggedCategoryId === category.id ? "border-primary/40 bg-white shadow-sm" : isSelected ? "border-primary/25 bg-primary/10" : "border-transparent hover:border-border hover:bg-white"}`}
                   draggable={canWrite}
                   onDragStart={() => setDraggedCategoryId(category.id)}
                   onDragOver={(event) => event.preventDefault()}
                   onDrop={() => reorderCategory(category.id)}
                   onDragEnd={() => setDraggedCategoryId("")}
                 >
-                  <button className="cursor-grab rounded-lg px-1.5 py-2 text-text-muted hover:bg-slate-100" type="button" aria-label={`Reorder ${category.name}`} disabled={!canWrite}>⋮⋮</button>
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[11px] font-black text-primary shadow-sm">{categoryIcon(category.name)}</span>
+                  <button className="cursor-grab rounded-md px-1 py-1.5 text-sm leading-none text-text-muted hover:bg-slate-100" type="button" aria-label={`Drag to reorder ${category.name}`} disabled={!canWrite}>⋮⋮</button>
                   <button className="min-w-0 flex-1 text-left" type="button" onClick={() => selectCategory(category.id)}>
                     <span className="block whitespace-normal text-sm font-black leading-snug text-text-primary">{category.name}</span>
-                    <span className="block text-xs font-semibold text-text-secondary">{assetCount} linked assets</span>
+                    <span className="block text-xs font-semibold text-text-secondary">{assetCount} {assetCount === 1 ? "asset" : "assets"}</span>
                   </button>
-                  <span className="flex shrink-0 flex-col items-end gap-1">
-                    <Badge tone={category.is_active ? "success" : "neutral"}>{category.is_active ? "Active" : "Archived"}</Badge>
-                    {category.maintenance_enabled ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">Maintenance</span> : null}
-                    <span className="flex gap-0.5">
-                      <button className="rounded-md px-1 text-[10px] font-black text-text-muted hover:bg-white hover:text-primary" type="button" disabled={!canWrite} onClick={() => keyboardReorder(category.id, -1)}>↑</button>
-                      <button className="rounded-md px-1 text-[10px] font-black text-text-muted hover:bg-white hover:text-primary" type="button" disabled={!canWrite} onClick={() => keyboardReorder(category.id, 1)}>↓</button>
-                    </span>
+                  <span className="flex shrink-0 items-center gap-1">
+                    {!category.is_active ? <Badge tone="neutral">Archived</Badge> : null}
+                    {category.maintenance_enabled ? <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700"><Wrench size={11} /> Maintenance</span> : null}
                   </span>
                 </div>
               );
@@ -652,117 +629,53 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, on
         </aside>
 
         <section className="flex min-h-0 flex-col bg-white">
-          <div className="sticky top-0 z-10 border-b border-border bg-white/95 p-5 backdrop-blur">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-3">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-xs font-black text-primary">{categoryIcon(categoryDraft.name || selectedCategory?.name)}</span>
-                  <div>
-                    <h3 className="text-lg font-black text-text-primary">{selectedCategory ? selectedCategory.name : "New Category"}</h3>
-                    <p className="text-sm text-text-secondary">{selectedCategory?.description || "Configure category details and maintenance scope."}</p>
-                  </div>
-                </div>
-              </div>
-              {selectedCategory ? (
-                <div className="flex items-center gap-2">
-                  <Badge tone={selectedCategory.is_active ? "success" : "neutral"}>{selectedCategory.is_active ? "Active" : "Archived"}</Badge>
-                  <Badge tone="info">{assetCountByCategory.get(selectedCategory.id) || 0} assets</Badge>
-                </div>
-              ) : null}
-            </div>
-            <div className="mt-4 rounded-2xl border border-border bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">
-              Categories classify assets. Maintenance is optional and only appears for assets under maintenance-enabled categories.
-            </div>
-          </div>
-
-          <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-24">
-            <div className="space-y-4">
-              <div className="rounded-3xl border border-border bg-slate-50/70 p-4">
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-black text-text-primary">Category Details</div>
-                      <div className="text-xs text-text-secondary">Keep this short and easy for outlet teams to scan.</div>
-                    </div>
-                    {selectedCategory ? <Badge tone="info">{assetCountByCategory.get(selectedCategory.id) || 0} linked assets</Badge> : null}
-                  </div>
-                  {!selectedCategory ? (
-                    <div className="mb-4 rounded-2xl border border-border bg-white p-3">
-                      <div className="text-xs font-black uppercase tracking-wide text-text-muted">Quick Preset</div>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                        {presets.map((preset) => (
-                          <button key={preset.name} className="rounded-2xl border border-border bg-white p-3 text-left transition hover:border-primary/30 hover:bg-primary/5" type="button" onClick={() => setCategoryDraft((current) => ({ ...current, ...preset, is_active: true }))}>
-                            <span className="block text-sm font-black text-text-primary">{preset.name}</span>
-                            <span className="mt-1 block text-xs text-text-secondary">{preset.description}</span>
-                            <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[10px] font-black ${preset.maintenance_enabled ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
-                              {preset.maintenance_enabled ? "Maintenance enabled" : "No maintenance workflow"}
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
-                  <div className="grid gap-3 md:grid-cols-2">
-                    <FieldLabel label="Category Name">
-                      <input className="control" value={categoryDraft.name} onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Kitchen Equipment" disabled={!canWrite} />
-                    </FieldLabel>
-                    <FieldLabel label="Status">
-                      <label className="flex h-10 items-center gap-2 rounded-xl border border-border bg-white px-3 text-sm font-bold text-text-secondary">
-                        <input type="checkbox" checked={categoryDraft.is_active} onChange={(event) => setCategoryDraft((current) => ({ ...current, is_active: event.target.checked }))} disabled={!canWrite} />
-                        Active category
-                      </label>
-                    </FieldLabel>
+          <div className="min-h-0 flex-1 overflow-y-auto p-5">
+            <div className="mx-auto max-w-2xl space-y-6">
+              <div>
+                <h3 className="text-base font-black text-text-primary">Category Details</h3>
+                <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
+                  <FieldLabel label="Category Name">
+                    <input className="control" value={categoryDraft.name} onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Kitchen Equipment" disabled={!canWrite} />
+                  </FieldLabel>
+                  <FieldLabel label="Status">
+                    <label className="flex h-10 items-center justify-between gap-3 rounded-xl border border-border px-3 text-sm font-bold text-text-primary">
+                      <span>Active</span>
+                      <input aria-label="Active category" type="checkbox" checked={categoryDraft.is_active} onChange={(event) => setCategoryDraft((current) => ({ ...current, is_active: event.target.checked }))} disabled={!canWrite} />
+                    </label>
+                  </FieldLabel>
+                  <div className="md:col-span-2">
                     <FieldLabel label="Description">
-                      <textarea className="control min-h-24 md:col-span-2" value={categoryDraft.description} onChange={(event) => setCategoryDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Optional category description" disabled={!canWrite} />
+                      <textarea className="control min-h-24" value={categoryDraft.description} onChange={(event) => setCategoryDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Optional category description" disabled={!canWrite} />
                     </FieldLabel>
                   </div>
+                </div>
               </div>
 
-              <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
-                <div className="text-sm font-black text-text-primary">Maintenance Setting</div>
-                <label className="mt-3 flex items-start gap-3 rounded-2xl border border-border bg-slate-50 px-4 py-3 text-sm text-text-secondary">
-                  <input className="mt-1" type="checkbox" checked={categoryDraft.maintenance_enabled === true} onChange={(event) => setCategoryDraft((current) => ({ ...current, maintenance_enabled: event.target.checked }))} disabled={!canWrite} />
+              <div className="border-t border-border pt-5">
+                <h3 className="text-base font-black text-text-primary">Maintenance</h3>
+                <label className="mt-3 flex items-start justify-between gap-4 text-sm text-text-secondary">
                   <span>
-                    <span className="block font-black text-text-primary">Enable maintenance workflow for this category</span>
-                    <span className="mt-1 block text-xs font-semibold">Use for machines, electrical equipment, POS hardware, aircond, refrigerators, or assets that need repair/service history.</span>
+                    <span className="block font-bold text-text-primary">Enable maintenance workflow</span>
+                    <span className="mt-1 block text-xs font-semibold">Enables maintenance scheduling and service history for assets in this category.</span>
                   </span>
+                  <input aria-label="Enable maintenance workflow" className="mt-0.5 shrink-0" type="checkbox" checked={categoryDraft.maintenance_enabled === true} onChange={(event) => setCategoryDraft((current) => ({ ...current, maintenance_enabled: event.target.checked }))} disabled={!canWrite} />
                 </label>
               </div>
 
-              {selectedCategory ? <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
-                <div className="text-sm font-black text-text-primary">Category History</div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Created</div>
-                    <div className="mt-1 text-sm font-bold text-text-primary">{formatFullDate(selectedCategory.created_at)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Last Updated</div>
-                    <div className="mt-1 text-sm font-bold text-text-primary">{formatFullDate(selectedCategory.updated_at)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Linked Assets</div>
-                    <div className="mt-1 text-sm font-bold text-text-primary">{assetCountByCategory.get(selectedCategory.id) || 0}</div>
-                  </div>
-                  <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Status</div>
-                    <div className="mt-1 text-sm font-bold text-text-primary">{selectedCategory.is_active ? "Active" : "Archived"}</div>
-                  </div>
-                </div>
-              </div> : null}
+              {selectedCategory ? <p className="border-t border-border pt-4 text-xs font-semibold text-text-secondary">Created {formatFullDate(selectedCategory.created_at)} · Updated {formatFullDate(selectedCategory.updated_at)}</p> : null}
             </div>
           </div>
-          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-white/95 p-4 backdrop-blur">
-            <div className="text-xs font-semibold text-text-secondary">
-              {selectedCategory ? `Linked to ${assetCountByCategory.get(selectedCategory.id) || 0} assets. Archiving hides it from new assets; existing assets remain linked.` : "New categories become available after saving."}
-            </div>
-            <div className="flex flex-wrap gap-2">
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-white p-4">
+            <div>
               {selectedCategory?.is_active && canArchive ? <button className="btn-secondary text-amber-700" type="button" disabled={saving} onClick={() => {
                 const linked = assetCountByCategory.get(selectedCategory.id) || 0;
-                if (linked && !window.confirm(`This category has ${linked} linked assets. Archiving will hide it from new assets but existing assets remain linked.`)) return;
+                if (!window.confirm(`Archive ${selectedCategory.name}? This category has ${linked} ${linked === 1 ? "linked asset" : "linked assets"}. It will be unavailable for new assets; existing linked assets remain linked.`)) return;
                 onArchive(selectedCategory);
-              }}>Archive Category</button> : null}
+              }}>Archive</button> : null}
+            </div>
+            <div>
               <button className="btn-primary" type="button" disabled={!canWrite || saving || !categoryDraft.name.trim()} onClick={saveCategoryDraft}>
-                {categoryDraft.id ? "Save Category" : "Create Category"}
+                {categoryDraft.id ? "Save Changes" : "Create Category"}
               </button>
             </div>
           </div>
