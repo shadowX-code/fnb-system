@@ -16,7 +16,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
 import { canCreate, canDelete, canEdit, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
-import { IMAGE_UPLOAD_ACCEPT, optimizeImageFileForPreview } from "../../../utils/imageUpload.js";
+import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
 import { assetConditions, assetMatchesOperationalFilter, buildAssetActivityProjection, buildAssetOperationalKpis, getAssetAvailability, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue, latestMovementSummary, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
 import { useMaintenanceRecordForm } from "../hooks/useMaintenanceRecordForm.js";
 import AssetImportModal from "../components/AssetImportModal.jsx";
@@ -395,14 +395,16 @@ function categoryIcon(categoryName) {
 }
 
 function AssetThumbnail({ asset, size = "md", interactive = false }) {
-  const [failed, setFailed] = useState(false);
-  const sizeClass = size === "lg" ? "h-28 w-28 rounded-3xl" : "h-14 w-14 rounded-xl";
+  const sources = [...new Set([asset.thumbnail_url, asset.image_url, asset.original_image_url].filter(Boolean))];
+  const [sourceIndex, setSourceIndex] = useState(0);
+  useEffect(() => setSourceIndex(0), [asset.id, sources.join("|")]);
+  const sizeClass = size === "lg" ? "h-28 w-[149px] rounded-3xl" : "h-14 w-[75px] rounded-xl";
   const iconSize = size === "lg" ? 30 : 18;
-  const imageUrl = asset.thumbnail_url || asset.image_url;
-  if (imageUrl && !failed) {
+  const imageUrl = sources[sourceIndex];
+  if (imageUrl) {
     return (
       <span className={`group relative block shrink-0 overflow-hidden ${sizeClass}`}>
-        <img className="h-full w-full bg-slate-100 object-cover shadow-sm" src={imageUrl} alt={asset.name} onError={() => setFailed(true)} />
+        <img className="h-full w-full bg-slate-100 object-contain shadow-sm" src={imageUrl} alt={asset.name} onError={() => setSourceIndex((current) => current + 1)} />
         {interactive ? <span className="absolute inset-0 flex items-center justify-center bg-slate-950/45 text-[11px] font-black text-white opacity-0 transition group-hover:opacity-100">View Image</span> : null}
       </span>
     );
@@ -439,9 +441,13 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
     setImageError("");
     if (!file) return;
     try {
-      const optimized = await optimizeImageFileForPreview(file);
-      update("image_url", optimized.dataUrl);
-      update("previous_image_url", asset?.image_url || asset?.thumbnail_url || "");
+      validateImageFile(file);
+      update("master_photo_file", file);
+      update("image_url", URL.createObjectURL(file));
+      update("previous_original_image_url", asset?.original_image_url || asset?.image_url || "");
+      update("previous_image_url", asset?.image_url || "");
+      update("previous_thumbnail_url", asset?.thumbnail_url || "");
+      update("remove_master_photo", false);
     } catch (error) {
       setImageError(error.message || "Unable to read image. Please try another file.");
     }
@@ -474,8 +480,8 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
               <UploadCloud size={14} /> Upload Photo
               <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handleImageFile(event.target.files?.[0])} />
             </label>
-            {values.image_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => { update("previous_image_url", asset?.image_url || asset?.thumbnail_url || ""); update("image_url", ""); update("thumbnail_url", ""); }}>Remove image</button> : null}
-            {imageError ? <div className="mt-2 text-xs font-semibold text-rose-600">{imageError}</div> : <div className="mt-2 text-xs text-text-muted">JPG/PNG/WebP · max 5MB. Optimized on upload.</div>}
+            {values.image_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => { update("previous_original_image_url", asset?.original_image_url || asset?.image_url || ""); update("previous_image_url", asset?.image_url || ""); update("previous_thumbnail_url", asset?.thumbnail_url || ""); update("master_photo_file", null); update("remove_master_photo", true); update("image_url", ""); update("thumbnail_url", ""); }}>Remove image</button> : null}
+            {imageError ? <div className="mt-2 text-xs font-semibold text-rose-600">{imageError}</div> : <div className="mt-2 text-xs text-text-muted">JPG/PNG/WebP · max 5MB. Original retained; 4:3 display variants are created on save.</div>}
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">

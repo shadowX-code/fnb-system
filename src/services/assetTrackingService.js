@@ -1,14 +1,14 @@
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
-import { isImageDataUrl, removeStorageObjectFromPublicUrl, uploadOptimizedDataUrl } from "../utils/imageUpload.js";
+import { isImageDataUrl, removeStorageObjectFromPublicUrl, uploadAssetMasterPhotoBundle, uploadOptimizedDataUrl } from "../utils/imageUpload.js";
 import { isAssetMaintenanceEligible, normalizeAssetCondition, sortInspectionsNewestFirst } from "../features/sales-purchase/utils/assetReadModel.js";
 
 const categoryBaseFields = "id,name,description,sort_order,is_active,created_at,updated_at";
 const categoryFields = "id,name,description,sort_order,is_active,maintenance_enabled,created_at,updated_at";
 const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const assetBaseConditionFields = "id,outlet_id,category_id,name,description,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
-const assetFields = "id,outlet_id,category_id,name,description,asset_code,location,purchase_date,warranty_expiry,notes,image_url,thumbnail_url,health_status,last_inspection_at,maintenance_override,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,created_by_employee_id,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
+const assetFields = "id,outlet_id,category_id,name,description,asset_code,location,purchase_date,warranty_expiry,notes,original_image_url,image_url,thumbnail_url,health_status,last_inspection_at,maintenance_override,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,created_by_employee_id,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_by_employee_id,created_at";
 const maintenanceFields = "id,asset_id,outlet_id,date,maintenance_type,priority,issue,action_taken,vendor,cost,status,scheduled_date,completed_date,next_service_date,remark,photo_url,created_by,created_at,updated_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,checked_by_employee_id,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
@@ -18,24 +18,32 @@ function isDataUrl(value) {
   return isImageDataUrl(value);
 }
 
-async function uploadAssetImageIfNeeded(asset, userId, previousPublicUrl = "") {
-  if (!isDataUrl(asset.image_url)) return asset.image_url ?? "";
-  const path = `${asset.outlet_id || "outlet"}/${asset.id || crypto.randomUUID()}-${Date.now()}.webp`;
-  console.info("[AssetTracking] Uploading asset photo", { path, assetName: asset.name });
+async function uploadAssetMasterPhotoIfNeeded(asset, userId) {
+  if (!asset.master_photo_file) return null;
+  const assetKey = asset.id || crypto.randomUUID();
+  const version = crypto.randomUUID();
+  const pathPrefix = `asset_master/${asset.outlet_id || "outlet"}/${assetKey}/${version}`;
   try {
-    const upload = await uploadOptimizedDataUrl(asset.image_url, {
+    return await uploadAssetMasterPhotoBundle(asset.master_photo_file, {
       bucket: "asset-photos",
-      path,
-      previousPublicUrl,
-      metadata: { uploaded_by: userId || "" },
-      cleanupPrevious: false,
+      pathPrefix,
+      metadata: { uploaded_by: userId || "", asset_id: asset.id || "" },
     });
-    console.info("[AssetTracking] Asset photo uploaded", { path: upload.path, publicUrl: upload.publicUrl });
-    return upload.publicUrl;
   } catch (error) {
     console.error("[AssetTracking] Asset photo upload failed", error);
     throw new Error(error.message || "Unable to upload asset photo. Please try again.");
   }
+}
+
+function masterPhotoUrls(asset = {}) {
+  return [...new Set([
+    asset.original_image_url,
+    asset.image_url,
+    asset.thumbnail_url,
+    asset.previous_original_image_url,
+    asset.previous_image_url,
+    asset.previous_thumbnail_url,
+  ].filter(Boolean))];
 }
 
 async function uploadMaintenancePhotoIfNeeded(record, userId, previousPublicUrl = "") {
@@ -102,6 +110,7 @@ function mapAsset(row) {
     purchase_date: row.purchase_date ?? null,
     warranty_expiry: row.warranty_expiry ?? null,
     notes: row.notes ?? "",
+    original_image_url: row.original_image_url ?? row.image_url ?? "",
     image_url: row.image_url ?? "",
     thumbnail_url: row.thumbnail_url ?? row.image_url ?? "",
     health_status: row.health_status ?? "healthy",
@@ -124,11 +133,11 @@ function isMissingOptionalAssetField(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42703" ||
     error?.code === "PGRST204" ||
-    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes|created_by_employee_id)|asset_categories\.maintenance_enabled|'(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes|created_by_employee_id)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
+    /asset_items\.(original_image_url|image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes|created_by_employee_id)|asset_categories\.maintenance_enabled|'(original_image_url|image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes|created_by_employee_id)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
 }
 
 function withoutOptionalAssetFields(payload) {
-  const { image_url, thumbnail_url, health_status, last_inspection_at, condition, maintenance_override, asset_code, location, purchase_date, warranty_expiry, notes, created_by_employee_id, ...rest } = payload;
+  const { original_image_url, image_url, thumbnail_url, health_status, last_inspection_at, condition, maintenance_override, asset_code, location, purchase_date, warranty_expiry, notes, created_by_employee_id, ...rest } = payload;
   return rest;
 }
 
@@ -410,13 +419,23 @@ export const assetTrackingService = {
 
   async saveAsset(asset) {
     const userId = await currentUserId();
-    const previousImageUrl = asset.previous_image_url || asset.existing_image_url || "";
-    // Stage a replacement first; do not remove the currently referenced object
-    // until the new reference has been durably saved on the asset record.
-    const imageWasStaged = isDataUrl(asset.image_url);
-    const imageUrl = await uploadAssetImageIfNeeded(asset, userId, previousImageUrl);
+    const previousMasterPhotoUrls = masterPhotoUrls(asset);
+    // Stage master-photo variants first; the original remains untouched and the
+    // current bundle remains referenced until the record update succeeds.
+    const generatedAssetId = !asset.id && asset.master_photo_file ? crypto.randomUUID() : null;
+    const uploadedBundle = await uploadAssetMasterPhotoIfNeeded({ ...asset, id: asset.id || generatedAssetId }, userId);
+    const photoWasRemoved = asset.remove_master_photo === true;
+    const photo = uploadedBundle || (photoWasRemoved ? {
+      original_image_url: "",
+      image_url: "",
+      thumbnail_url: "",
+    } : {
+      original_image_url: asset.original_image_url ?? asset.image_url ?? "",
+      image_url: asset.image_url ?? "",
+      thumbnail_url: asset.thumbnail_url ?? asset.image_url ?? "",
+    });
     const condition = normalizeAssetCondition(asset.condition);
-    console.info("[AssetTracking] Saving asset", { assetId: asset.id || "new", name: asset.name, condition, hasImage: Boolean(imageUrl) });
+    console.info("[AssetTracking] Saving asset", { assetId: asset.id || "new", name: asset.name, condition, hasImage: Boolean(photo.image_url) });
     const payload = {
       outlet_id: asset.outlet_id,
       category_id: asset.category_id,
@@ -427,8 +446,9 @@ export const assetTrackingService = {
       purchase_date: asset.purchase_date || null,
       warranty_expiry: asset.warranty_expiry || null,
       notes: asset.notes ?? "",
-      image_url: imageUrl,
-      thumbnail_url: imageWasStaged || isDataUrl(asset.thumbnail_url) ? imageUrl : (asset.thumbnail_url ?? imageUrl),
+      original_image_url: photo.original_image_url,
+      image_url: photo.image_url,
+      thumbnail_url: photo.thumbnail_url,
       health_status: asset.health_status ?? "healthy",
       maintenance_override: ["inherit", "enabled", "disabled"].includes(asset.maintenance_override) ? asset.maintenance_override : "inherit",
       condition,
@@ -440,7 +460,10 @@ export const assetTrackingService = {
       updated_by: userId,
       updated_at: new Date().toISOString(),
     };
-    if (!asset.id) payload.created_by = userId;
+    if (!asset.id) {
+      if (generatedAssetId) payload.id = generatedAssetId;
+      payload.created_by = userId;
+    }
     const query = asset.id
       ? supabase.from("asset_items").update(payload).eq("id", asset.id)
       : supabase.from("asset_items").insert(payload);
@@ -454,14 +477,14 @@ export const assetTrackingService = {
       data = fallbackResult.data;
       error = fallbackResult.error;
     }
-    throwSupabaseError("asset_items.save", error);
-    if (previousImageUrl && previousImageUrl !== imageUrl) {
-      try {
-        await removeStorageObjectFromPublicUrl("asset-photos", previousImageUrl);
-      } catch (removeError) {
-        console.warn("[AssetTracking] Unable to remove replaced asset photo", removeError);
-      }
+    if (error && uploadedBundle) {
+      await Promise.allSettled(Object.values(uploadedBundle.paths).map((path) => supabase.storage.from("asset-photos").remove([path])));
     }
+    throwSupabaseError("asset_items.save", error);
+    const retainedUrls = new Set([photo.original_image_url, photo.image_url, photo.thumbnail_url].filter(Boolean));
+    await Promise.allSettled(previousMasterPhotoUrls
+      .filter((url) => !retainedUrls.has(url))
+      .map((url) => removeStorageObjectFromPublicUrl("asset-photos", url)));
     await logAssetAudit(asset.id ? "asset_edited" : "asset_created", data.outlet_id, data.name, data);
     return mapAsset(data);
   },

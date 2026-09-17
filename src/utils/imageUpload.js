@@ -9,6 +9,11 @@ const OPTIMIZED_MIME_TYPE = "image/webp";
 const OPTIMIZED_EXTENSION = "webp";
 const MAX_LONG_SIDE = 1920;
 const QUALITY = 0.8;
+export const ASSET_MASTER_PHOTO_VARIANTS = {
+  display: { width: 1200, height: 900, quality: 0.82 },
+  thumbnail: { width: 400, height: 300, quality: 0.78 },
+};
+const ASSET_MASTER_PHOTO_BACKGROUND = "#f4f5f4";
 
 export function imageExtensionFromName(name = "", fallback = "") {
   const extension = String(name || "").split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || fallback;
@@ -86,6 +91,61 @@ function canvasToBlob(canvas, contentType, quality) {
       else reject(new Error("Unable to optimize image. Please try another file."));
     }, contentType, quality);
   });
+}
+
+export function containedImageDimensions(sourceWidth, sourceHeight, canvasWidth, canvasHeight) {
+  if (!sourceWidth || !sourceHeight || !canvasWidth || !canvasHeight) {
+    throw new Error("Unable to read image dimensions.");
+  }
+  const scale = Math.min(canvasWidth / sourceWidth, canvasHeight / sourceHeight);
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  return {
+    width,
+    height,
+    x: Math.round((canvasWidth - width) / 2),
+    y: Math.round((canvasHeight - height) / 2),
+  };
+}
+
+async function containedVariant(decoded, { width, height, quality }) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Unable to normalize image. Please try another file.");
+  const bounds = containedImageDimensions(decoded.width, decoded.height, width, height);
+  context.fillStyle = ASSET_MASTER_PHOTO_BACKGROUND;
+  context.fillRect(0, 0, width, height);
+  context.drawImage(decoded.image, bounds.x, bounds.y, bounds.width, bounds.height);
+  const blob = await canvasToBlob(canvas, OPTIMIZED_MIME_TYPE, quality);
+  return { blob, width, height, contentType: OPTIMIZED_MIME_TYPE, extension: OPTIMIZED_EXTENSION };
+}
+
+// Asset master media keeps the supplied file intact and derives fixed 4:3
+// presentation variants. Inspection evidence continues through optimizeImageBlob.
+export async function normalizeAssetMasterPhoto(file) {
+  validateImageFile(file);
+  const decoded = await decodeImage(file);
+  try {
+    if (!decoded.width || !decoded.height) throw new Error("Unable to read image dimensions.");
+    const [display, thumbnail] = await Promise.all([
+      containedVariant(decoded, ASSET_MASTER_PHOTO_VARIANTS.display),
+      containedVariant(decoded, ASSET_MASTER_PHOTO_VARIANTS.thumbnail),
+    ]);
+    const extension = imageExtensionFromName(file.name, String(file.type || "").split("/").pop() || "jpeg");
+    return {
+      original: {
+        blob: file,
+        contentType: file.type || `image/${extension === "jpg" ? "jpeg" : extension}`,
+        extension: extension === "jpeg" ? "jpg" : extension,
+      },
+      display,
+      thumbnail,
+    };
+  } finally {
+    decoded.close();
+  }
 }
 
 async function blobToDataUrl(blob) {
@@ -210,4 +270,42 @@ export async function uploadOptimizedImage(fileOrBlob, { bucket, path, previousP
 export async function uploadOptimizedDataUrl(dataUrl, options) {
   const optimized = await dataUrlToOptimizedBlob(dataUrl);
   return uploadOptimizedImage(optimized.blob, options);
+}
+
+export async function uploadAssetMasterPhotoBundle(file, { bucket, pathPrefix, metadata = {} }) {
+  if (!bucket || !pathPrefix) throw new Error("Missing asset photo destination.");
+  const normalized = await normalizeAssetMasterPhoto(file);
+  const paths = {
+    original: `${pathPrefix}/original.${normalized.original.extension}`,
+    display: `${pathPrefix}/display.webp`,
+    thumbnail: `${pathPrefix}/thumbnail.webp`,
+  };
+  const uploads = [
+    ["original", normalized.original],
+    ["display", normalized.display],
+    ["thumbnail", normalized.thumbnail],
+  ];
+  const completedPaths = [];
+  try {
+    for (const [kind, variant] of uploads) {
+      const { data, error } = await supabase.storage.from(bucket).upload(paths[kind], variant.blob, {
+        contentType: variant.contentType,
+        cacheControl: "31536000",
+        upsert: false,
+        metadata: { ...metadata, asset_photo_role: kind },
+      });
+      if (error) throw error;
+      completedPaths.push(data.path);
+    }
+  } catch (error) {
+    if (completedPaths.length) await supabase.storage.from(bucket).remove(completedPaths);
+    throw error;
+  }
+  const storage = supabase.storage.from(bucket);
+  return {
+    paths,
+    original_image_url: storage.getPublicUrl(paths.original).data.publicUrl,
+    image_url: storage.getPublicUrl(paths.display).data.publicUrl,
+    thumbnail_url: storage.getPublicUrl(paths.thumbnail).data.publicUrl,
+  };
 }

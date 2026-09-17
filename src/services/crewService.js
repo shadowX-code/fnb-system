@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { throwSupabaseError } from "./supabaseError";
 import {
   IMAGE_UPLOAD_MAX_BYTES,
+  normalizeAssetMasterPhoto,
   optimizeImageBlob,
   validateImageFile,
   validateLearningImageFile,
@@ -1352,13 +1353,15 @@ export const crewService = {
     return data;
   },
 
-  async uploadInitialAssetPhoto(token, assetId, file) {
-    validateImageFile(file);
-    const optimized = await optimizeImageBlob(file);
+  async uploadInitialAssetPhoto(token, assetId, file, requestId = crypto.randomUUID()) {
+    const bundle = await normalizeAssetMasterPhoto(file);
     const body = new FormData();
     body.append("token", token);
     body.append("asset_id", assetId);
-    body.append("file", optimized.blob, "asset.webp");
+    body.append("request_id", requestId);
+    body.append("original", bundle.original.blob, file.name || `asset.${bundle.original.extension}`);
+    body.append("display", bundle.display.blob, "display.webp");
+    body.append("thumbnail", bundle.thumbnail.blob, "thumbnail.webp");
     const { data, error } = await supabase.functions.invoke("crew-asset-photo", { body });
     throwSupabaseError("crew.uploadInitialAssetPhoto", error);
     return data;
