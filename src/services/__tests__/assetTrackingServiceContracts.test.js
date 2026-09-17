@@ -69,6 +69,7 @@ describe("Asset Tracking trusted lifecycle RPC contracts", () => {
       p_request_id: "maintenance-request-1",
       p_payload: expect.objectContaining({ asset_id: "asset-1", outlet_id: "outlet-1", status: "in_progress", condition_intent: "under_maintenance", issue: "Motor" }),
     }));
+    expect(mocks.audit).not.toHaveBeenCalled();
   });
 
   it("maps maintenance edit through the same request-idempotent authority and surfaces rejection", async () => {
@@ -82,6 +83,7 @@ describe("Asset Tracking trusted lifecycle RPC contracts", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("asset_import_row", expect.objectContaining({
       p_request_id: "import-row-1", p_action: "create", p_asset: expect.objectContaining({ outlet_id: "outlet-1", asset_code: "AST-2", current_quantity: 4 }),
     }));
+    expect(mocks.audit).not.toHaveBeenCalled();
   });
 
   it("reuses an import row request ID so an uncertain retry has no second service path", async () => {
@@ -101,6 +103,7 @@ describe("Asset Tracking trusted lifecycle RPC contracts", () => {
       p_request_id: "adjustment-request-1", p_asset_id: "asset-1", p_adjustment_type: "reduce", p_quantity: 3,
       p_reason: "broken", p_remark: "Cracked bowl", p_movement_date: "2026-08-10",
     });
+    expect(mocks.audit).not.toHaveBeenCalled();
   });
 
   it("reuses a supplied adjustment request ID for a safe ambiguous-network retry", async () => {
@@ -142,6 +145,15 @@ describe("Asset Tracking trusted lifecycle RPC contracts", () => {
       p_request_id: "draft-request-1",
       p_payload: expect.objectContaining({ status: "draft", apply_corrections: false }),
     }));
+  });
+
+  it("archives drafts through the trusted authority and rejects non-archive direct status changes", async () => {
+    await assetTrackingService.updateInspectionStatus("inspection-1", "archived", { requestId: "archive-request-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("asset_archive_inspection_draft", {
+      p_request_id: "archive-request-1",
+      p_inspection_id: "inspection-1",
+    });
+    await expect(assetTrackingService.updateInspectionStatus("inspection-1", "completed")).rejects.toThrow("Only resumable inspection drafts can be archived.");
   });
 
   it("uploads data-url evidence before the atomic database RPC and passes only its durable reference", async () => {

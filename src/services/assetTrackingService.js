@@ -561,7 +561,6 @@ export const assetTrackingService = {
       p_request_id: request_id,
       p_payload: { id: record.id || null, asset_id: asset.id, outlet_id: asset.outlet_id, ...payload, condition_intent: updatedCondition },
     });
-    await logAssetAudit("asset_maintenance_record_created", asset.outlet_id, asset.name, { request_id, ...payload, condition: updatedCondition });
     return result;
   },
 
@@ -593,7 +592,6 @@ export const assetTrackingService = {
       },
       p_action: action,
     });
-    await logAssetAudit(action === "update" ? "asset_edited" : "asset_created", asset.outlet_id, asset.name, { request_id, action, quantity: asset.current_quantity });
     return result;
   },
 
@@ -612,14 +610,6 @@ export const assetTrackingService = {
       p_reason: adjustment.reason || adjustment.type,
       p_remark: adjustment.remark ?? "",
       p_movement_date: adjustment.date || new Date().toISOString().slice(0, 10),
-    });
-    await logAssetAudit("asset_quantity_adjusted", asset.outlet_id, asset.name, {
-      request_id,
-      adjustment_type: adjustment.type,
-      quantity,
-      reason: adjustment.reason || adjustment.type,
-      remark: adjustment.remark ?? "",
-      movement_date: adjustment.date || new Date().toISOString().slice(0, 10),
     });
     return result;
   },
@@ -780,40 +770,15 @@ export const assetTrackingService = {
         rows: itemPayload.map((item, index) => ({ ...item, evidence: uploadedRows[index]?.evidence || [] })),
       },
     });
-    await logAssetAudit(status === "draft" || status === "in_progress" || status === "pending_review"
-      ? (autoSaved ? "asset_inspection_auto_saved" : "asset_inspection_draft_saved")
-      : "asset_inspection_submitted", outletId, `${inspectionDate} inspection`, {
-      request_id,
-      items_checked: rows.length,
-      variance_count: itemPayload.filter((item) => item.difference !== 0).length,
-      categories: categoryScope,
-    });
     return result;
   },
 
-  async updateInspectionStatus(inspectionId, status) {
-    const userId = await currentUserId();
-    const { data, error } = await supabase
-      .from("asset_inspections")
-      .update({
-        status,
-        last_edited_at: new Date().toISOString(),
-        last_edited_by: userId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", inspectionId)
-      .select(inspectionFields)
-      .single();
-    throwSupabaseError("asset_inspections.status", error);
-    await logAssetAudit(`asset_inspection_${status}`, data.outlet_id, `${data.inspection_date} inspection`, data);
-    return mapInspection(data, []);
+  async updateInspectionStatus(inspectionId, status, { requestId } = {}) {
+    if (status !== "archived") throw new Error("Only resumable inspection drafts can be archived.");
+    return callAssetLifecycleRpc("asset.inspection.archive", "asset_archive_inspection_draft", {
+      p_request_id: lifecycleRequestId(requestId),
+      p_inspection_id: inspectionId,
+    });
   },
 
-  async deleteInspection(inspectionId) {
-    const { error } = await supabase
-      .from("asset_inspections")
-      .delete()
-      .eq("id", inspectionId);
-    throwSupabaseError("asset_inspections.delete", error);
-  },
 };
