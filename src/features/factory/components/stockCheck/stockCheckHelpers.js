@@ -35,6 +35,19 @@ export function stockVarianceTone(status) {
   return "success";
 }
 
+export function setStockCheckCountStatus(rows, countStatus) {
+  return rows.map((row) => ({
+    ...row,
+    count_status: countStatus,
+    // A skip excludes a row from the snapshot; it never means a zero count.
+    // Keep an entered draft quantity so returning to Counted is lossless.
+    batch_allocations: countStatus === "skip" ? [] : row.batch_allocations || [],
+    positive_adjustment_confirmed: countStatus === "skip" ? false : Boolean(row.positive_adjustment_confirmed),
+    positive_adjustment_batch_balance_id: countStatus === "skip" ? "" : row.positive_adjustment_batch_balance_id || "",
+    positive_adjustment_batch_no: countStatus === "skip" ? "" : row.positive_adjustment_batch_no || "",
+  }));
+}
+
 export function finishedGoodStockCheckIdentity(row, sku) {
   const primary = finishedGoodLabel(sku)
     || row?.product_family_name

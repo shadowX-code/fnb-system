@@ -1250,15 +1250,13 @@ function stockCheckVariance(systemQty, physicalQty) {
   return { varianceQty, variancePercent, varianceStatus };
 }
 
-function validateStockCheckItems(items, status, { skippedReasonRequired = true } = {}) {
+function validateStockCheckItems(items, status) {
   if (!items.length) throw new Error("Stock check requires at least one counted item.");
   const invalid = items.find((item) => !item.itemId);
   if (invalid) throw new Error("Every stock check row needs an item.");
   if (status === "submitted") {
     const missingCount = items.find((item) => !item.is_skipped && item.physical_qty_input === "");
     if (missingCount) throw new Error("Submit requires every stock check row to be counted or skipped.");
-    const missingSkipReason = skippedReasonRequired && items.find((item) => item.is_skipped && !String(item.variance_reason || "").trim());
-    if (missingSkipReason) throw new Error("Skip reason is required for skipped rows.");
   }
   const invalidCount = items.find((item) => !item.is_skipped && item.physical_qty_input !== "" && normalizeNumber(item.physical_qty, -1) < 0);
   if (invalidCount) throw new Error("Physical count cannot be negative.");
@@ -4673,7 +4671,7 @@ const factoryServiceDefinition = {
         uom: isRaw ? item.uom || "" : "Packs",
       };
     });
-    validateStockCheckItems(items, status, { skippedReasonRequired: isRaw });
+    validateStockCheckItems(items, status);
 
     if (!isRaw) {
       const invalidWholeQty = items.find((item) => (
