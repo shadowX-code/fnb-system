@@ -394,8 +394,11 @@ function categoryIcon(categoryName) {
   return "AS";
 }
 
-function AssetThumbnail({ asset, size = "md", interactive = false }) {
-  const sources = [...new Set([asset.thumbnail_url, asset.image_url, asset.original_image_url].filter(Boolean))];
+function AssetThumbnail({ asset, size = "md", interactive = false, variant = size === "lg" ? "display" : "thumbnail" }) {
+  const sources = [...new Set((variant === "display"
+    ? [asset.image_url, asset.original_image_url]
+    : [asset.thumbnail_url, asset.image_url, asset.original_image_url]
+  ).filter(Boolean))];
   const [sourceIndex, setSourceIndex] = useState(0);
   useEffect(() => setSourceIndex(0), [asset.id, sources.join("|")]);
   const sizeClass = size === "lg" ? "h-28 w-[149px] rounded-3xl" : "h-14 w-[75px] rounded-xl";
