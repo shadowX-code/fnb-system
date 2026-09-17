@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260917050353_asset_tracking_phase_1_integrity_hardening.sql"), "utf8");
+const grantLockdown = readFileSync(resolve(process.cwd(), "supabase/migrations/20260917051215_asset_tracking_history_grant_lockdown.sql"), "utf8");
 
 describe("Asset Tracking Phase 1 integrity migration", () => {
   it("removes ordinary destructive history access while preserving asset archive-by-update", () => {
@@ -37,5 +38,11 @@ describe("Asset Tracking Phase 1 integrity migration", () => {
     expect(migration).toContain("'Trusted asset lifecycle: '");
     expect(migration).toContain("'request_id', new.request_id");
     expect(migration).toContain("'actor_id', new.actor_id");
+  });
+
+  it("removes inherited truncate and trigger authority from ordinary history readers", () => {
+    expect(grantLockdown).toContain("revoke all on table public.asset_movement_logs from authenticated");
+    expect(grantLockdown).toContain("grant select on table public.asset_movement_logs to authenticated");
+    expect(grantLockdown).toContain("revoke delete, truncate, trigger on table public.asset_items from authenticated");
   });
 });
