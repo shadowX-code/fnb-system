@@ -22,6 +22,16 @@ describe("Crew Assets Mobile", () => {
     expect(screen.getByRole("button", { name: /Inspect Asset/i })).not.toBeNull();
   });
 
+  it("opens the adjustment sheet from asset detail", async () => {
+    crewService.assetsMobile.mockResolvedValue(payload);
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByText("Staging QA Blender"));
+    fireEvent.click(screen.getByRole("button", { name: /Adjust Asset/i }));
+    expect(screen.getByRole("heading", { name: "Adjust Asset" })).not.toBeNull();
+    expect(screen.getByLabelText("Quantity").value).toBe("2");
+    expect(screen.getByRole("button", { name: "Save adjustment" })).not.toBeNull();
+  });
+
   it("does not render mutation actions without their separate capabilities", async () => {
     crewService.assetsMobile.mockResolvedValue({ ...payload, can_adjust_assets: false, can_perform_asset_inspections: false });
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
