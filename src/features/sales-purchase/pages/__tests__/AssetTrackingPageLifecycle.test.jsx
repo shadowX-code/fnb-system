@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   service: {
+    loadOutletTrackingData: vi.fn(),
     listCategories: vi.fn(), listAssets: vi.fn(), listMovementLogs: vi.fn(), listInspections: vi.fn(), listMaintenanceRecords: vi.fn(),
     adjustQuantity: vi.fn(), submitInspection: vi.fn(), saveMaintenanceRecord: vi.fn(), saveAsset: vi.fn(), importAssetRow: vi.fn(), logImportMovement: vi.fn(),
     saveCategory: vi.fn(), archiveCategory: vi.fn(), reorderCategories: vi.fn(), updateInspectionStatus: vi.fn(), deleteInspection: vi.fn(), archiveAsset: vi.fn(), updateAssetCondition: vi.fn(),
@@ -36,6 +37,7 @@ beforeEach(() => {
   mocks.service.listMovementLogs.mockResolvedValue([]);
   mocks.service.listInspections.mockResolvedValue([]);
   mocks.service.listMaintenanceRecords.mockResolvedValue([]);
+  mocks.service.loadOutletTrackingData.mockResolvedValue({ categories: [{ id: "category-1", name: "Kitchen", is_active: true }], assets: [asset], movements: [], inspections: [], maintenanceRecords: [] });
   mocks.service.adjustQuantity.mockResolvedValue(undefined);
 });
 
@@ -111,7 +113,7 @@ describe("Asset Tracking page lifecycle guards", () => {
     await waitFor(() => expect(confirm.disabled).toBe(false));
     expect(screen.getByRole("heading", { name: "Adjust Quantity" })).toBeTruthy();
     expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Unable to adjust quantity", tone: "error" }));
-    expect(mocks.service.listAssets).toHaveBeenCalledTimes(1);
+    expect(mocks.service.loadOutletTrackingData).toHaveBeenCalledTimes(1);
 
     fireEvent.click(confirm);
     await waitFor(() => expect(mocks.service.adjustQuantity).toHaveBeenCalledTimes(2));
@@ -134,7 +136,7 @@ describe("Asset Tracking page lifecycle guards", () => {
     expect(mocks.service.submitInspection).toHaveBeenCalledWith(expect.objectContaining({ requestId: expect.any(String), status: "completed", outletId: "outlet-1" }));
     resolveInspection({ inspection_id: "inspection-1" });
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Asset Inspection Audit" })).toBeNull());
-    expect(mocks.service.listAssets).toHaveBeenCalledTimes(2);
+    expect(mocks.service.loadOutletTrackingData).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the inspection modal retryable after trusted RPC rejection without a false refresh", async () => {
@@ -148,7 +150,7 @@ describe("Asset Tracking page lifecycle guards", () => {
     fireEvent.click(submit);
     await waitFor(() => expect(submit.disabled).toBe(false));
     expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Unable to submit inspection", tone: "error" }));
-    expect(mocks.service.listAssets).toHaveBeenCalledTimes(1);
+    expect(mocks.service.loadOutletTrackingData).toHaveBeenCalledTimes(1);
     const requestId = mocks.service.submitInspection.mock.calls[0][0].requestId;
     fireEvent.click(submit);
     await waitFor(() => expect(mocks.service.submitInspection).toHaveBeenCalledTimes(2));

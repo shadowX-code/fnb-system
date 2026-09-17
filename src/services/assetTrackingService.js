@@ -261,6 +261,20 @@ async function logAssetAudit(action, outletId, target, after = {}) {
 }
 
 export const assetTrackingService = {
+  // The page's list, summary and activity projections share this exact read set.
+  // Keep the concurrent collection reads behind one public boundary instead of
+  // allowing route-level callers to rebuild a subtly different dashboard load.
+  async loadOutletTrackingData(outletId) {
+    const [categories, assets, movements, inspections, maintenanceRecords] = await Promise.all([
+      this.listCategories(),
+      this.listAssets(outletId),
+      this.listMovementLogs("", outletId),
+      this.listInspections("", outletId),
+      this.listMaintenanceRecords("", outletId),
+    ]);
+    return { categories, assets, movements, inspections, maintenanceRecords };
+  },
+
   async listCategories({ includeInactive = true } = {}) {
     let query = supabase
       .from("asset_categories")

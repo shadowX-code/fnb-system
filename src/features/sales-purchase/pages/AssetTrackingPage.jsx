@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { AlertTriangle, CalendarDays, ClipboardCheck, Download, Eye, MoreHorizontal, PackageCheck, Plus, Search, Settings2, SlidersHorizontal, UploadCloud, Wrench, X } from "lucide-react";
+import { AlertTriangle, CalendarDays, ClipboardCheck, Eye, MoreHorizontal, PackageCheck, Plus, Search, Settings2, SlidersHorizontal, UploadCloud, Wrench, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -17,13 +17,14 @@ import { assetTrackingService } from "../../../services/assetTrackingService.js"
 import { canCreate, canDelete, canEdit, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
 import { IMAGE_UPLOAD_ACCEPT, optimizeImageFileForPreview } from "../../../utils/imageUpload.js";
-import { assetConditions, assetMatchesOperationalFilter, buildAssetActivityProjection, buildAssetOperationalKpis, getAssetAvailability, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
+import { assetConditions, assetMatchesOperationalFilter, buildAssetActivityProjection, buildAssetOperationalKpis, getAssetAvailability, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue, latestMovementSummary, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
 import { useMaintenanceRecordForm } from "../hooks/useMaintenanceRecordForm.js";
+import AssetImportModal from "../components/AssetImportModal.jsx";
+import MaintenanceRecordFormBody, { maintenanceCtaLabel } from "../components/MaintenanceRecordFormBody.jsx";
+import { emptyAsset } from "../utils/assetImport.js";
 
 const inspectionConditionOptions = ["healthy", "needs_attention", "damaged", "missing"];
 const reduceReasons = ["broken", "missing", "disposed", "stolen", "transferred", "correction", "other"];
-const maintenancePriorities = ["low", "medium", "high", "critical"];
-const maintenanceTypes = ["preventive", "repair", "inspection", "cleaning", "calibration", "replacement", "emergency"];
 const maintenanceStatuses = ["scheduled", "in_progress", "completed"];
 const inspectionTypeOptions = [
   { value: "routine_check", label: "Routine Check", helper: "Standard operational checklist for the selected scope." },
@@ -269,19 +270,7 @@ function getQuantityHealth(asset) {
   return { label: "Available", tone: "success", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" };
 }
 
-export function latestMovementSummary(movement) {
-  if (!movement) return "—";
-  const amount = Math.abs(Number(movement.quantity_change || 0));
-  if (movement.reason === "import") return `Asset Imported · ${amount ? `${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change}` : "Recorded"}`;
-  if (movement.movement_type === "add") return `Quantity Adjusted · +${amount}`;
-  if (movement.movement_type === "reduce") return `Quantity Adjusted · -${amount}`;
-  if (movement.movement_type === "correction") return movement.reason === "inspection"
-    ? "Inspection Quantity Correction"
-    : `Quantity Adjusted${amount ? ` · ${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change}` : ""}`;
-  if (movement.movement_type === "transfer_in") return "Transfer · Received";
-  if (movement.movement_type === "transfer_out") return "Transfer · Sent";
-  return "Quantity adjusted";
-}
+export { latestMovementSummary } from "../utils/assetReadModel.js";
 
 function maintenanceCompletedDate(record) {
   return record?.completed_date || (record?.status === "completed" ? record?.date : null) || record?.updated_at || record?.created_at || null;
@@ -436,332 +425,7 @@ function draftStatusLabel(status) {
   return titleCase(status || "draft");
 }
 
-function canonical(value = "") {
-  return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function csvEscape(value) {
-  const text = String(value ?? "");
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
-
-function downloadTextFile(filename, text, type = "text/csv;charset=utf-8") {
-  const blob = new Blob([text], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-}
-
-function normalizeOutletRecord(outlet = {}) {
-  const source = Array.isArray(outlet.outlets) ? outlet.outlets[0] : (outlet.outlets || outlet.outlet || outlet);
-  const id = source?.id ?? outlet.outlet_id ?? outlet.id ?? "";
-  const code = source?.code ?? source?.outlet_code ?? source?.shortCode ?? source?.short_code ?? source?.abbreviation ?? outlet.code ?? outlet.outlet_code ?? outlet.short_code ?? "";
-  const name = source?.name ?? source?.outlet_name ?? source?.outletName ?? outlet.name ?? outlet.outlet_name ?? "";
-  return { ...outlet, ...source, id, code: String(code || "").trim(), name: String(name || "").trim() };
-}
-
-function outletDisplayCode(outlet = {}) {
-  const normalized = normalizeOutletRecord(outlet);
-  return normalized.code || normalized.name || normalized.id || "Outlet";
-}
-
-function parseCsvLine(line = "") {
-  const cells = [];
-  let current = "";
-  let quoted = false;
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
-    if (char === '"' && quoted && next === '"') {
-      current += '"';
-      index += 1;
-    } else if (char === '"') {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      cells.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  cells.push(current.trim());
-  return cells;
-}
-
-function parseCsv(text) {
-  const lines = text.split(/\r?\n/).filter((line) => line.trim());
-  const headers = parseCsvLine(lines[0] || "");
-  const rows = lines.slice(1).map((line, index) => {
-    const cells = parseCsvLine(line);
-    return headers.reduce((record, header, cellIndex) => ({ ...record, [header]: cells[cellIndex] ?? "" }), { __row: index + 2 });
-  });
-  return { headers, rows };
-}
-
-function readUInt16(view, offset) {
-  return view.getUint16(offset, true);
-}
-
-function readUInt32(view, offset) {
-  return view.getUint32(offset, true);
-}
-
-function columnIndex(cellRef = "") {
-  const letters = String(cellRef).match(/[A-Z]+/i)?.[0] ?? "A";
-  return [...letters.toUpperCase()].reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0) - 1;
-}
-
-async function inflateRaw(bytes) {
-  if (!("DecompressionStream" in window)) {
-    throw new Error("XLSX parsing requires browser ZIP support. Please use CSV in this browser.");
-  }
-  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
-  return new Uint8Array(await new Response(stream).arrayBuffer());
-}
-
-async function unzipXlsx(buffer) {
-  const view = new DataView(buffer);
-  let eocdOffset = -1;
-  for (let offset = view.byteLength - 22; offset >= Math.max(0, view.byteLength - 66000); offset -= 1) {
-    if (readUInt32(view, offset) === 0x06054b50) {
-      eocdOffset = offset;
-      break;
-    }
-  }
-  if (eocdOffset === -1) throw new Error("Unable to read XLSX workbook.");
-  const entryCount = readUInt16(view, eocdOffset + 10);
-  let centralOffset = readUInt32(view, eocdOffset + 16);
-  const files = {};
-  const decoder = new TextDecoder();
-
-  for (let index = 0; index < entryCount; index += 1) {
-    if (readUInt32(view, centralOffset) !== 0x02014b50) break;
-    const method = readUInt16(view, centralOffset + 10);
-    const compressedSize = readUInt32(view, centralOffset + 20);
-    const fileNameLength = readUInt16(view, centralOffset + 28);
-    const extraLength = readUInt16(view, centralOffset + 30);
-    const commentLength = readUInt16(view, centralOffset + 32);
-    const localOffset = readUInt32(view, centralOffset + 42);
-    const name = decoder.decode(new Uint8Array(buffer, centralOffset + 46, fileNameLength));
-    const localNameLength = readUInt16(view, localOffset + 26);
-    const localExtraLength = readUInt16(view, localOffset + 28);
-    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
-    const compressed = new Uint8Array(buffer, dataOffset, compressedSize);
-    const bytes = method === 0 ? compressed : method === 8 ? await inflateRaw(compressed) : null;
-    if (bytes) files[name] = decoder.decode(bytes);
-    centralOffset += 46 + fileNameLength + extraLength + commentLength;
-  }
-  return files;
-}
-
-function textFromXlsxCell(cell, sharedStrings) {
-  const type = cell.getAttribute("t");
-  if (type === "s") {
-    const index = Number(cell.querySelector("v")?.textContent ?? -1);
-    return sharedStrings[index] ?? "";
-  }
-  if (type === "inlineStr") return [...cell.querySelectorAll("t")].map((item) => item.textContent ?? "").join("");
-  return cell.querySelector("v")?.textContent ?? "";
-}
-
-async function parseXlsx(file) {
-  const files = await unzipXlsx(await file.arrayBuffer());
-  const parser = new DOMParser();
-  const sharedStringsXml = files["xl/sharedStrings.xml"];
-  const sharedStrings = sharedStringsXml
-    ? [...parser.parseFromString(sharedStringsXml, "application/xml").querySelectorAll("si")].map((node) => [...node.querySelectorAll("t")].map((item) => item.textContent ?? "").join(""))
-    : [];
-  const sheetName = Object.keys(files).find((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name));
-  if (!sheetName) throw new Error("No worksheet found in XLSX file.");
-  const sheet = parser.parseFromString(files[sheetName], "application/xml");
-  const rawRows = [...sheet.querySelectorAll("sheetData row")].map((rowNode) => {
-    const values = [];
-    [...rowNode.querySelectorAll("c")].forEach((cell) => {
-      values[columnIndex(cell.getAttribute("r"))] = textFromXlsxCell(cell, sharedStrings);
-    });
-    return values;
-  }).filter((row) => row.some((cell) => String(cell ?? "").trim()));
-  const headers = rawRows[0]?.map((cell) => String(cell ?? "").trim()) ?? [];
-  const rows = rawRows.slice(1).map((row, index) => headers.reduce((record, header, cellIndex) => ({ ...record, [header]: row[cellIndex] ?? "" }), { __row: index + 2 }));
-  return { headers, rows };
-}
-
-function readImportValue(row, aliases) {
-  const entries = Object.entries(row);
-  for (const alias of aliases) {
-    const found = entries.find(([key]) => canonical(key) === canonical(alias));
-    if (found) return String(found[1] ?? "").trim();
-  }
-  return "";
-}
-
-function parseImportDate(value) {
-  const text = String(value || "").trim();
-  if (!text) return "";
-  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (iso) return text;
-  const slash = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (slash) {
-    const [, day, month, year] = slash;
-    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  }
-  const date = new Date(text);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function isValidDateInput(value) {
-  if (!value) return true;
-  const normalized = parseImportDate(value);
-  if (!normalized) return false;
-  const date = new Date(`${normalized}T00:00:00`);
-  return !Number.isNaN(date.getTime()) && normalized === `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-const assetImportColumns = ["Asset Name", "Asset Code", "Outlet Code", "Category", "Quantity", "Minimum Quantity", "Condition", "Location", "Purchase Date", "Warranty Expiry", "Status", "Description", "Notes"];
-const assetImportConditionMap = new Map([
-  ["good", "healthy"],
-  ["fair", "needs_attention"],
-  ["needsattention", "needs_attention"],
-  ["damaged", "damaged"],
-  ["disposed", "disposed"],
-]);
-const assetImportStatusMap = new Map([
-  ["active", "active"],
-  ["inactive", "archived"],
-  ["disposed", "archived"],
-]);
-
-export function buildAssetImportPreview(rows, { assets, outlets, categories }) {
-  const outletByCode = new Map(outlets.map((outlet) => {
-    const normalized = normalizeOutletRecord(outlet);
-    return [canonical(normalized.code || ""), normalized];
-  }).filter(([key]) => key));
-  const categoryByName = new Map(categories.filter((category) => category.is_active !== false).map((category) => [canonical(category.name), category]));
-  const existingByCodeOutlet = new Map();
-  const existingByNameOutlet = new Map();
-  assets.forEach((asset) => {
-    const outletKey = canonical(asset.outlet_id);
-    const addMatch = (map, key) => map.set(key, [...(map.get(key) || []), asset]);
-    if (asset.asset_code) addMatch(existingByCodeOutlet, `${canonical(asset.asset_code)}:${outletKey}`);
-    addMatch(existingByNameOutlet, `${canonical(asset.name)}:${outletKey}`);
-  });
-
-  return rows.map((row) => {
-    const assetName = readImportValue(row, ["Asset Name", "Name", "Asset"]);
-    const assetCode = readImportValue(row, ["Asset Code", "Code"]);
-    const outletCode = readImportValue(row, ["Outlet Code", "Outlet"]);
-    const categoryName = readImportValue(row, ["Category"]);
-    const quantityText = readImportValue(row, ["Quantity", "Current Quantity"]);
-    const minimumText = readImportValue(row, ["Minimum Quantity", "Minimum Qty", "Min Quantity"]);
-    const conditionText = readImportValue(row, ["Condition"]) || "Good";
-    const location = readImportValue(row, ["Location"]);
-    const purchaseDateText = readImportValue(row, ["Purchase Date"]);
-    const warrantyExpiryText = readImportValue(row, ["Warranty Expiry", "Warranty Expiry Date"]);
-    const statusText = readImportValue(row, ["Status"]) || "Active";
-    const description = readImportValue(row, ["Description"]);
-    const photoUrl = readImportValue(row, ["Photo URL", "Image URL"]);
-    const notes = readImportValue(row, ["Notes", "Remark"]);
-    const errors = [];
-
-    if (!assetName) errors.push("Missing Asset Name");
-    const outlet = outletByCode.get(canonical(outletCode));
-    if (!outletCode) errors.push("Missing Outlet Code");
-    if (outletCode && !outlet) errors.push(`Unknown Outlet Code: ${outletCode}`);
-    const category = categoryByName.get(canonical(categoryName));
-    if (!categoryName) errors.push("Missing Category");
-    if (categoryName && !category) errors.push("Unknown Category");
-
-    const quantity = quantityText === "" ? NaN : Number(quantityText);
-    if (!Number.isFinite(quantity) || quantity < 0) errors.push("Invalid Quantity");
-    const minimumQuantity = minimumText === "" ? 0 : Number(minimumText);
-    if (!Number.isFinite(minimumQuantity) || minimumQuantity < 0) errors.push("Invalid Minimum Quantity");
-
-    const condition = assetImportConditionMap.get(canonical(conditionText));
-    if (!condition) errors.push("Invalid Condition");
-    const status = assetImportStatusMap.get(canonical(statusText));
-    if (!status) errors.push("Invalid Status");
-    if (purchaseDateText && !isValidDateInput(purchaseDateText)) errors.push("Invalid Purchase Date");
-    if (warrantyExpiryText && !isValidDateInput(warrantyExpiryText)) errors.push("Invalid Warranty Expiry");
-    if (photoUrl && !/^https?:\/\//i.test(photoUrl)) errors.push("Invalid Photo URL");
-
-    const outletKey = canonical(outlet?.id);
-    const matches = assetCode
-      ? (existingByCodeOutlet.get(`${canonical(assetCode)}:${outletKey}`) || [])
-      : (existingByNameOutlet.get(`${canonical(assetName)}:${outletKey}`) || []);
-    if (matches.length > 1) errors.push(assetCode ? "Ambiguous Asset Code for this outlet" : "Ambiguous asset name for this outlet; provide Asset Code");
-    const existing = matches.length === 1 ? matches[0] : null;
-
-    const merged = {
-      ...emptyAsset(),
-      ...(existing || {}),
-      id: existing?.id || "",
-      asset_code: assetCode || existing?.asset_code || "",
-      outlet_id: outlet?.id || "",
-      category_id: category?.id || existing?.category_id || "",
-      name: assetName,
-      description: description || existing?.description || "",
-      image_url: photoUrl || existing?.image_url || "",
-      thumbnail_url: photoUrl || existing?.thumbnail_url || "",
-      condition: canonical(statusText) === "disposed" ? "disposed" : (condition || existing?.condition || "healthy"),
-      current_quantity: Number.isFinite(quantity) ? quantity : 0,
-      minimum_quantity: Number.isFinite(minimumQuantity) ? minimumQuantity : 0,
-      status: status || "active",
-      unit: existing?.unit || "unit",
-      location: location || existing?.location || "",
-      purchase_date: purchaseDateText ? parseImportDate(purchaseDateText) : existing?.purchase_date || null,
-      warranty_expiry: warrantyExpiryText ? parseImportDate(warrantyExpiryText) : existing?.warranty_expiry || null,
-      notes: notes || existing?.notes || "",
-      remark: notes || existing?.remark || "",
-    };
-
-    return {
-      rowNumber: row.__row,
-      source: row,
-      action: errors.length ? "error" : existing ? "update" : "create",
-      errors,
-      existing,
-      outlet,
-      category,
-      asset: merged,
-      display: {
-        assetName,
-        outlet: outlet ? `${outlet.name} (${outletDisplayCode(outlet)})` : outletCode,
-        category: category?.name || categoryName,
-        quantity: quantityText,
-        condition: conditionText,
-        status: statusText,
-      },
-    };
-  });
-}
-
-function emptyAsset() {
-  return {
-    outlet_id: "",
-    category_id: "",
-    asset_code: "",
-    name: "",
-    description: "",
-    location: "",
-    purchase_date: null,
-    warranty_expiry: null,
-    notes: "",
-    unit: "unit",
-    current_quantity: 0,
-    minimum_quantity: 0,
-    status: "active",
-    condition: "healthy",
-    maintenance_override: "inherit",
-    image_url: "",
-    remark: "",
-  };
-}
+export { buildAssetImportPreview } from "../utils/assetImport.js";
 
 function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving }) {
   const [values, setValues] = useState(() => ({ ...emptyAsset(), ...asset }));
@@ -861,131 +525,6 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
         </div>
       </div>
       {isEdit ? <p className="mt-3 text-xs font-semibold text-text-secondary">Use Adjust Quantity for stock changes so a movement log is created.</p> : null}
-    </Modal>
-  );
-}
-
-function AssetImportModal({ assets, outlets, categories, onClose, onImport }) {
-  const [fileName, setFileName] = useState("");
-  const [preview, setPreview] = useState([]);
-  const [error, setError] = useState("");
-  const [complete, setComplete] = useState(null);
-  const [isImporting, setIsImporting] = useState(false);
-  const validRows = preview.filter((row) => !row.errors.length);
-  const failedRows = preview.filter((row) => row.errors.length);
-
-  async function handleFile(file) {
-    setError("");
-    setComplete(null);
-    setPreview([]);
-    if (!file) return;
-    const extension = file.name.split(".").pop()?.toLowerCase();
-    if (!["csv", "xlsx"].includes(extension)) {
-      setError("Please upload CSV or XLSX only.");
-      return;
-    }
-    try {
-      setFileName(file.name);
-      const parsed = extension === "xlsx" ? await parseXlsx(file) : parseCsv(await file.text());
-      setPreview(buildAssetImportPreview(parsed.rows, { assets, outlets, categories }));
-    } catch (parseError) {
-      setError(parseError.message || "Unable to parse import file.");
-    }
-  }
-
-  function downloadTemplate() {
-    const text = [
-      assetImportColumns.join(","),
-      ["Noodle Plate", "AST-PLATE-001", "FC", "Kitchenware", "20", "5", "Good", "Dry rack", "2026-05-30", "", "Active", "Standard noodle plate", ""].map(csvEscape).join(","),
-    ].join("\n");
-    downloadTextFile("feedx-asset-tracking-template.csv", text);
-  }
-
-  async function confirmImport() {
-    setError("");
-    setIsImporting(true);
-    try {
-      const result = await onImport(preview);
-      setComplete(result);
-    } catch (importError) {
-      setError(importError.message || "Unable to import asset records.");
-    } finally {
-      setIsImporting(false);
-    }
-  }
-
-  return (
-    <Modal
-      title="Import Assets"
-      description="Upload CSV or XLSX, validate rows, preview changes, then import valid asset records."
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-          <button className="btn-primary" type="button" disabled={!validRows.length || Boolean(complete) || isImporting} onClick={confirmImport}>{isImporting ? "Importing..." : "Confirm Import"}</button>
-        </>
-      )}
-    >
-      <div className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
-          <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-6 text-center transition hover:bg-primary/10">
-            <UploadCloud size={22} className="text-primary" />
-            <span className="mt-2 type-body-sm font-bold text-text-primary">{fileName || "Upload CSV or XLSX"}</span>
-            <span className="type-caption text-text-secondary">Required: Asset Name, Outlet Code, Category, Quantity</span>
-            <input className="sr-only" type="file" accept=".csv,.xlsx" onChange={(event) => handleFile(event.target.files?.[0])} />
-          </label>
-          <button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={15} /> Download Template</button>
-        </div>
-        {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 type-body-sm font-semibold text-rose-700">{error}</div> : null}
-        {preview.length ? (
-          <>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MetricCard label="Rows" value={preview.length} helper="Parsed from file" />
-              <MetricCard label="Valid" value={validRows.length} helper="Ready to import" tone="success" />
-              <MetricCard label="Failed" value={failedRows.length} helper="Can be skipped" tone={failedRows.length ? "danger" : "success"} />
-            </div>
-            <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[980px] text-left">
-                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr>
-                    <th className="px-3 py-2">Row</th>
-                    <th>Asset Name</th>
-                    <th>Outlet</th>
-                    <th>Category</th>
-                    <th>Quantity</th>
-                    <th>Condition</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                    <th>Validation</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {preview.slice(0, 120).map((row) => (
-                    <tr key={row.rowNumber} className={row.errors.length ? "bg-rose-50/60" : "bg-white"}>
-                      <td className="px-3 py-2 font-mono text-xs">{row.rowNumber}</td>
-                      <td className="font-bold text-text-primary">{row.display.assetName || "-"}</td>
-                      <td>{row.display.outlet || "-"}</td>
-                      <td>{row.display.category || "-"}</td>
-                      <td>{row.display.quantity || "-"}</td>
-                      <td>{row.display.condition || "-"}</td>
-                      <td>{row.display.status || "-"}</td>
-                      <td><Badge tone={row.action === "error" ? "danger" : row.action === "create" ? "success" : "info"}>{row.action === "error" ? "Error" : titleCase(row.action)}</Badge></td>
-                      <td className={row.errors.length ? "text-rose-700" : "text-emerald-700"}>{row.errors.length ? row.errors.join("; ") : "Ready"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {complete ? (
-              <div className={`rounded-2xl border p-3 type-body-sm font-semibold ${complete.failed ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                Import complete: {complete.created} created · {complete.updated} updated · {complete.skipped} skipped · {complete.failed} failed.
-                {complete.failures?.length ? <div className="mt-1 font-medium">{complete.failures.slice(0, 4).map((failure) => `Row ${failure.rowNumber}: ${failure.message}`).join(" · ")}</div> : null}
-              </div>
-            ) : null}
-          </>
-        ) : null}
-      </div>
     </Modal>
   );
 }
@@ -1275,13 +814,7 @@ function AdjustQuantityModal({ asset, onClose, onSubmit, saving }) {
 function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
   const { values, update, handlePhoto, photoError, invalid } = useMaintenanceRecordForm(record);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const showPriority = values.status !== "completed";
-  const showScheduledDate = values.status !== "completed";
-  const showCompletedDate = values.status === "completed";
-  const showNextServiceDate = values.status === "completed";
-  const showActionTaken = values.status !== "scheduled";
-  const costLabel = values.status === "completed" ? "Final Cost" : values.status === "in_progress" ? "Current Cost" : "Estimated Cost";
-  const ctaLabel = values.status === "completed" ? "Complete Maintenance" : values.status === "in_progress" ? "Update Progress" : "Save Scheduled Record";
+  const ctaLabel = maintenanceCtaLabel(values.status);
   return (
     <Modal
       title={record ? "Edit Maintenance Record" : "Add Maintenance Record"}
@@ -1295,86 +828,7 @@ function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
         </>
       )}
     >
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-border bg-slate-50 p-3">
-          <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-text-muted">Maintenance Status</div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {maintenanceStatuses.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className={`rounded-2xl border px-3 py-2 text-left transition ${values.status === status ? "border-primary bg-primary/10 text-primary shadow-sm" : "border-border bg-white text-text-secondary hover:border-primary/20"}`}
-                onClick={() => update("status", status)}
-              >
-                <div className="text-sm font-black">{maintenanceStatusLabel(status)}</div>
-                <div className="mt-0.5 text-[11px] font-semibold opacity-75">
-                  {status === "scheduled" ? "Plan service work" : status === "in_progress" ? "Track active repair" : "Record completed work"}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
-          <FieldLabel label="Maintenance Type">
-            <SelectField value={values.maintenance_type} options={maintenanceTypes.map((type) => ({ value: type, label: maintenanceTypeLabel(type) }))} onChange={(value) => update("maintenance_type", value)} />
-          </FieldLabel>
-          {showPriority ? (
-            <FieldLabel label="Priority">
-              <SelectField value={values.priority} options={maintenancePriorities.map((priority) => ({ value: priority, label: titleCase(priority) }))} onChange={(value) => update("priority", value)} />
-            </FieldLabel>
-          ) : null}
-          <FieldLabel label="Issue / Problem">
-            <input className="control" value={values.issue} onChange={(event) => update("issue", event.target.value)} placeholder="Compressor noise, leaking pipe..." />
-          </FieldLabel>
-          <FieldLabel label="Vendor / Technician">
-            <input className="control" value={values.vendor} onChange={(event) => update("vendor", event.target.value)} placeholder="Optional" />
-          </FieldLabel>
-          {showActionTaken ? (
-            <FieldLabel label="Action Taken">
-              <textarea className="control min-h-24 md:col-span-2" value={values.action_taken} onChange={(event) => update("action_taken", event.target.value)} placeholder={values.status === "completed" ? "Repair or service work performed" : "Current progress or temporary fix"} />
-            </FieldLabel>
-          ) : null}
-          <FieldLabel label={costLabel}>
-            <input className="control" type="number" min="0" step="0.01" value={values.cost} onChange={(event) => update("cost", event.target.value)} placeholder="0.00" />
-          </FieldLabel>
-          {showScheduledDate ? (
-            <DatePickerField label="Scheduled Date" value={values.scheduled_date} onChange={(value) => update("scheduled_date", value)} />
-          ) : null}
-          {showCompletedDate ? (
-            <DatePickerField label="Completed Date" value={values.completed_date} onChange={(value) => update("completed_date", value)} />
-          ) : null}
-          {showNextServiceDate ? (
-            <DatePickerField label="Next Service Date" value={values.next_service_date} onChange={(value) => update("next_service_date", value)} />
-          ) : null}
-        <FieldLabel label="Photo Evidence">
-          <div className="flex items-center gap-3">
-            <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
-              <UploadCloud size={14} /> Upload Photo
-              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handlePhoto(event.target.files?.[0])} />
-            </label>
-            {values.photo_url ? (
-              <button className="relative h-12 w-12 overflow-hidden rounded-xl border border-border" type="button" onClick={() => setPreviewOpen(true)}>
-                <img className="h-full w-full object-cover" src={values.photo_url} alt="Maintenance evidence preview" />
-              </button>
-            ) : null}
-          </div>
-          {values.photo_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => { update("previous_photo_url", record?.photo_url || ""); update("photo_url", ""); }}>Remove photo</button> : null}
-          {photoError ? <div className="mt-1 text-xs font-semibold text-rose-600">{photoError}</div> : null}
-        </FieldLabel>
-          {values.status === "in_progress" ? (
-            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 md:col-span-2">Saving as In Progress will set this asset condition to Under Maintenance.</div>
-          ) : null}
-          {values.status === "completed" ? (
-            <label className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 md:col-span-2">
-              <input type="checkbox" checked={values.set_condition_good} onChange={(event) => update("set_condition_good", event.target.checked)} />
-              Set asset condition back to Good after completion
-            </label>
-          ) : null}
-          <FieldLabel label="Remark">
-            <textarea className="control min-h-20 md:col-span-2" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder="Optional follow-up notes" />
-          </FieldLabel>
-        </div>
-      </div>
+      <MaintenanceRecordFormBody values={values} update={update} handlePhoto={handlePhoto} photoError={photoError} record={record} onPreview={() => setPreviewOpen(true)} />
       {previewOpen && values.photo_url ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
           <button className="absolute inset-0" type="button" aria-label="Close preview" onClick={() => setPreviewOpen(false)} />
@@ -1389,13 +843,7 @@ function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
 function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving }) {
   const { values, update, handlePhoto, photoError, invalid } = useMaintenanceRecordForm(record);
   const [previewOpen, setPreviewOpen] = useState(false);
-  const showPriority = values.status !== "completed";
-  const showScheduledDate = values.status !== "completed";
-  const showCompletedDate = values.status === "completed";
-  const showNextServiceDate = values.status === "completed";
-  const showActionTaken = values.status !== "scheduled";
-  const costLabel = values.status === "completed" ? "Final Cost" : values.status === "in_progress" ? "Current Cost" : "Estimated Cost";
-  const ctaLabel = values.status === "completed" ? "Complete Maintenance" : values.status === "in_progress" ? "Update Progress" : "Save Scheduled Record";
+  const ctaLabel = maintenanceCtaLabel(values.status);
   return (
     <div className="flex min-h-full flex-col">
       <div className="sticky top-0 z-20 border-b border-border bg-white/95 p-5 backdrop-blur">
@@ -1405,87 +853,7 @@ function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving 
         <p className="mt-1 text-sm font-semibold text-text-secondary">{asset.name} · {asset.category_name}</p>
       </div>
 
-      <div className="flex-1 space-y-4 p-5">
-        <div className="rounded-2xl border border-border bg-slate-50 p-3">
-          <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-text-muted">Maintenance Status</div>
-          <div className="grid gap-2 sm:grid-cols-3">
-            {maintenanceStatuses.map((status) => (
-              <button
-                key={status}
-                type="button"
-                className={`rounded-2xl border px-3 py-2 text-left transition ${values.status === status ? "border-primary bg-primary/10 text-primary shadow-sm" : "border-border bg-white text-text-secondary hover:border-primary/20"}`}
-                onClick={() => update("status", status)}
-              >
-                <div className="text-sm font-black">{maintenanceStatusLabel(status)}</div>
-                <div className="mt-0.5 text-[11px] font-semibold opacity-75">
-                  {status === "scheduled" ? "Plan service work" : status === "in_progress" ? "Track active repair" : "Record completed work"}
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <FieldLabel label="Maintenance Type">
-            <SelectField value={values.maintenance_type} options={maintenanceTypes.map((type) => ({ value: type, label: maintenanceTypeLabel(type) }))} onChange={(value) => update("maintenance_type", value)} />
-          </FieldLabel>
-          {showPriority ? (
-            <FieldLabel label="Priority">
-              <SelectField value={values.priority} options={maintenancePriorities.map((priority) => ({ value: priority, label: titleCase(priority) }))} onChange={(value) => update("priority", value)} />
-            </FieldLabel>
-          ) : null}
-          <FieldLabel label="Issue / Problem">
-            <input className="control" value={values.issue} onChange={(event) => update("issue", event.target.value)} placeholder="Compressor noise, leaking pipe..." />
-          </FieldLabel>
-          <FieldLabel label="Vendor / Technician">
-            <input className="control" value={values.vendor} onChange={(event) => update("vendor", event.target.value)} placeholder="Optional" />
-          </FieldLabel>
-          {showActionTaken ? (
-            <FieldLabel label="Action Taken">
-              <textarea className="control min-h-24 md:col-span-2" value={values.action_taken} onChange={(event) => update("action_taken", event.target.value)} placeholder={values.status === "completed" ? "Repair or service work performed" : "Current progress or temporary fix"} />
-            </FieldLabel>
-          ) : null}
-          <FieldLabel label={costLabel}>
-            <input className="control" type="number" min="0" step="0.01" value={values.cost} onChange={(event) => update("cost", event.target.value)} placeholder="0.00" />
-          </FieldLabel>
-          {showScheduledDate ? (
-            <DatePickerField label="Scheduled Date" value={values.scheduled_date} onChange={(value) => update("scheduled_date", value)} />
-          ) : null}
-          {showCompletedDate ? (
-            <DatePickerField label="Completed Date" value={values.completed_date} onChange={(value) => update("completed_date", value)} />
-          ) : null}
-          {showNextServiceDate ? (
-            <DatePickerField label="Next Service Date" value={values.next_service_date} onChange={(value) => update("next_service_date", value)} />
-          ) : null}
-          <FieldLabel label="Photo Evidence">
-            <div className="flex items-center gap-3">
-              <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
-                <UploadCloud size={14} /> Upload Photo
-                <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handlePhoto(event.target.files?.[0])} />
-              </label>
-              {values.photo_url ? (
-                <button className="relative h-12 w-12 overflow-hidden rounded-xl border border-border" type="button" onClick={() => setPreviewOpen(true)}>
-                  <img className="h-full w-full object-cover" src={values.photo_url} alt="Maintenance evidence preview" />
-                </button>
-              ) : null}
-            </div>
-            {values.photo_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => { update("previous_photo_url", record?.photo_url || ""); update("photo_url", ""); }}>Remove photo</button> : null}
-            {photoError ? <div className="mt-1 text-xs font-semibold text-rose-600">{photoError}</div> : null}
-          </FieldLabel>
-          {values.status === "in_progress" ? (
-            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 md:col-span-2">Saving as In Progress will set this asset condition to Under Maintenance.</div>
-          ) : null}
-          {values.status === "completed" ? (
-            <label className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 md:col-span-2">
-              <input type="checkbox" checked={values.set_condition_good} onChange={(event) => update("set_condition_good", event.target.checked)} />
-              Set asset condition back to Good after completion
-            </label>
-          ) : null}
-          <FieldLabel label="Remark">
-            <textarea className="control min-h-20 md:col-span-2" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder="Optional follow-up notes" />
-          </FieldLabel>
-        </div>
-      </div>
+      <div className="flex-1 p-5"><MaintenanceRecordFormBody values={values} update={update} handlePhoto={handlePhoto} photoError={photoError} record={record} onPreview={() => setPreviewOpen(true)} /></div>
 
       <div className="sticky bottom-0 z-20 flex justify-end gap-2 border-t border-border bg-slate-50 p-4">
         <button className="btn-secondary" type="button" onClick={onBack}>Cancel</button>
@@ -2755,18 +2123,12 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     setLoading(true);
     setError("");
     try {
-      const [categoryRows, assetRows, movementRows, inspectionRows, maintenanceRows] = await Promise.all([
-        assetTrackingService.listCategories(),
-        assetTrackingService.listAssets(outletId),
-        assetTrackingService.listMovementLogs("", outletId),
-        assetTrackingService.listInspections("", outletId),
-        assetTrackingService.listMaintenanceRecords("", outletId),
-      ]);
-      setCategories(categoryRows);
-      setAssets(assetRows);
-      setMovements(movementRows);
-      setInspections(inspectionRows);
-      setMaintenanceRecords(maintenanceRows);
+      const data = await assetTrackingService.loadOutletTrackingData(outletId);
+      setCategories(data.categories);
+      setAssets(data.assets);
+      setMovements(data.movements);
+      setInspections(data.inspections);
+      setMaintenanceRecords(data.maintenanceRecords);
     } catch (loadError) {
       console.error("Unable to load asset tracking", loadError);
       setError(loadError.message || "Unable to load asset tracking.");
