@@ -1,7 +1,11 @@
 // Canonical, UI-independent projections for the Asset Tracking domain.
 // These preserve the established Admin semantics and can be reused by future
 // operational surfaces without duplicating page-level rules.
-export const assetConditions = ["healthy", "needs_attention", "under_maintenance", "low_quantity", "damaged", "missing", "disposed"];
+// Physical condition is intentionally separate from quantity-derived availability.
+// `low_quantity` and `missing` remain accepted legacy inputs, but are projections
+// of availability rather than options an operator should persist as a condition.
+export const assetConditions = ["healthy", "needs_attention", "under_maintenance", "damaged", "disposed"];
+export const assetAvailabilityStates = ["available", "low_quantity", "missing"];
 export const inspectionDraftStatuses = ["draft", "in_progress", "pending_review"];
 export const maintenanceStatuses = ["scheduled", "in_progress", "completed"];
 
@@ -10,22 +14,38 @@ export function normalizeAssetCondition(value) {
   if (normalized === "good" || normalized === "active") return "healthy";
   if (["needs_review", "review", "need_repair", "need_repairs"].includes(normalized)) return "needs_attention";
   if (normalized === "inactive") return "disposed";
+  if (["low_quantity", "missing"].includes(normalized)) return "healthy";
   return assetConditions.includes(normalized) ? normalized : "healthy";
 }
 
+function rawAssetCondition(asset = {}) {
+  return String(asset.condition || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+}
+
+export function getAssetAvailability(asset = {}) {
+  const rawCondition = rawAssetCondition(asset);
+  const quantity = Number(asset.current_quantity || 0);
+  const minimum = Number(asset.minimum_quantity || 0);
+  if (rawCondition === "missing" || quantity <= 0) return "missing";
+  if (rawCondition === "low_quantity" || (minimum > 0 && quantity <= minimum)) return "low_quantity";
+  return "available";
+}
+
 export function isAssetMissing(asset = {}) {
-  return normalizeAssetCondition(asset.condition) === "missing" || Number(asset.current_quantity || 0) <= 0;
+  return getAssetAvailability(asset) === "missing";
 }
 
 export function isAssetLowQuantity(asset = {}) {
-  const quantity = Number(asset.current_quantity || 0);
-  const minimum = Number(asset.minimum_quantity || 0);
-  return normalizeAssetCondition(asset.condition) === "low_quantity" || (minimum > 0 && quantity <= minimum);
+  return getAssetAvailability(asset) === "low_quantity";
+}
+
+export function isAssetOperational(asset = {}) {
+  return asset.status !== "archived" && normalizeAssetCondition(asset.condition) !== "disposed";
 }
 
 export function needsAssetAttention(asset = {}) {
   const condition = normalizeAssetCondition(asset.condition);
-  if (condition === "disposed" || asset.status === "archived") return false;
+  if (!isAssetOperational(asset)) return false;
   return condition !== "healthy" || isAssetMissing(asset) || isAssetLowQuantity(asset);
 }
 
@@ -100,32 +120,81 @@ export function sortInspectionsNewestFirst(first = {}, second = {}) {
     time(second, "updated_at") - time(first, "updated_at");
 }
 
+export function assetMatchesOperationalFilter(asset = {}, filter = "all", { maintenanceRecords = [], inspections = [], now = new Date() } = {}) {
+  const records = maintenanceRecords.filter((record) => record.asset_id === asset.id);
+  const condition = normalizeAssetCondition(asset.condition);
+  if (filter === "all") return true;
+  if (filter === "scheduled_maintenance") return records.some((record) => record.status === "scheduled");
+  if (filter === "maintenance_due") return records.some((record) => isMaintenanceDueWithin(record, 1, now));
+  if (filter === "under_maintenance") return condition === "under_maintenance" || records.some((record) => record.status === "in_progress");
+  if (filter === "needs_attention") return ["needs_attention", "damaged"].includes(condition);
+  if (filter === "low_quantity") return isAssetLowQuantity(asset);
+  if (filter === "missing") return isAssetMissing(asset);
+  if (filter === "disposed") return condition === "disposed";
+  if (filter === "high_variance") return inspections.some((inspection) => (inspection.items || []).some((item) => item.asset_id === asset.id && Math.abs(Number(item.difference || 0)) > 0));
+  if (filter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
+  if (filter === "inspected_today") {
+    const todayKey = startOfDay(now).toDateString();
+    return Boolean(asset.last_inspection_at && startOfDay(asset.last_inspection_at).toDateString() === todayKey) || inspections.some((inspection) => (
+      startOfDay(inspection.inspection_date).toDateString() === todayKey && (inspection.items || []).some((item) => item.asset_id === asset.id)
+    ));
+  }
+  return false;
+}
+
 export function buildAssetOperationalKpis({ assets = [], inspections = [], maintenanceRecords = [], now = new Date() } = {}) {
-  const operationalAssets = assets.filter((asset) => normalizeAssetCondition(asset.condition) !== "disposed");
+  const operationalAssets = assets.filter(isAssetOperational);
   const operationalAssetIds = new Set(operationalAssets.map((asset) => asset.id));
   const activeMaintenanceAssetIds = new Set(maintenanceRecords.filter((record) => record.status === "in_progress").map((record) => record.asset_id));
   const todayKey = startOfDay(now).toDateString();
   const inspectedTodayAssetIds = new Set();
   inspections.filter((inspection) => startOfDay(inspection.inspection_date).toDateString() === todayKey).forEach((inspection) => (inspection.items || []).forEach((item) => inspectedTodayAssetIds.add(item.asset_id)));
+  const selectorContext = { maintenanceRecords, inspections, now };
   return {
-    scheduledMaintenance: maintenanceRecords.filter((record) => record.status === "scheduled" && operationalAssetIds.has(record.asset_id)).length,
+    scheduledMaintenance: operationalAssets.filter((asset) => assetMatchesOperationalFilter(asset, "scheduled_maintenance", selectorContext)).length,
     overdueMaintenance: maintenanceRecords.filter((record) => isMaintenanceOverdue(record, now) && operationalAssetIds.has(record.asset_id)).length,
-    underMaintenance: operationalAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "under_maintenance" || activeMaintenanceAssetIds.has(asset.id)).length,
+    underMaintenance: operationalAssets.filter((asset) => assetMatchesOperationalFilter(asset, "under_maintenance", selectorContext) || activeMaintenanceAssetIds.has(asset.id)).length,
     missingLowQuantity: operationalAssets.filter((asset) => isAssetMissing(asset) || isAssetLowQuantity(asset)).length,
-    needsAttention: operationalAssets.filter(needsAssetAttention).length,
-    missingAssets: operationalAssets.filter(isAssetMissing).length,
-    lowQuantity: operationalAssets.filter(isAssetLowQuantity).length,
-    disposed: assets.filter((asset) => normalizeAssetCondition(asset.condition) === "disposed").length,
-    recentlyInspected: operationalAssets.filter((asset) => inspectedTodayAssetIds.has(asset.id) || (asset.last_inspection_at && startOfDay(asset.last_inspection_at).toDateString() === todayKey)).length,
+    needsAttention: operationalAssets.filter((asset) => assetMatchesOperationalFilter(asset, "needs_attention", selectorContext)).length,
+    missingAssets: operationalAssets.filter((asset) => assetMatchesOperationalFilter(asset, "missing", selectorContext)).length,
+    lowQuantity: operationalAssets.filter((asset) => assetMatchesOperationalFilter(asset, "low_quantity", selectorContext)).length,
+    disposed: assets.filter((asset) => assetMatchesOperationalFilter(asset, "disposed", selectorContext)).length,
+    recentlyInspected: operationalAssets.filter((asset) => inspectedTodayAssetIds.has(asset.id) || assetMatchesOperationalFilter(asset, "inspected_today", selectorContext) || (asset.last_inspection_at && startOfDay(asset.last_inspection_at).toDateString() === todayKey)).length,
   };
 }
 
 export function buildAssetActivityProjection({ assets = [], movements = [], inspections = [], maintenanceRecords = [] } = {}) {
   const assetNameById = new Map(assets.map((asset) => [asset.id, asset.name || "Asset"]));
   const importedAssetIds = new Set(movements.filter((movement) => movement.reason === "import").map((movement) => movement.asset_id));
-  const assetRows = assets.filter((asset) => asset.created_at && !importedAssetIds.has(asset.id)).slice(0, 6).map((asset) => ({ id: `asset-created-${asset.id}`, date: asset.created_at, title: "Asset Added", detail: `${asset.name} was added to Asset Tracking.`, type: "created", actorId: asset.created_by, actorPrefix: "Created" }));
-  const movementRows = movements.slice(0, 8).map((movement) => ({ id: `movement-${movement.id}`, date: movement.updated_at || movement.created_at || movement.movement_date, title: movement.movement_type === "correction" ? "Inspection update" : "Quantity Adjusted", detail: `${assetNameById.get(movement.asset_id) || "Asset"} · ${movement.reason || movement.movement_type || "quantity adjusted"}`, type: "movement", actorId: movement.created_by, actorPrefix: "Recorded" }));
-  const maintenanceRows = maintenanceRecords.slice(0, 6).map((record) => ({ id: `maintenance-${record.id}`, date: record.updated_at || record.created_at || record.completed_date || record.scheduled_date || record.date, title: record.status === "completed" ? "Maintenance Completed" : "Maintenance Scheduled", detail: record.issue || record.maintenance_type || "Maintenance", type: "maintenance", actorId: record.created_by, actorPrefix: record.status === "completed" ? "Completed" : "Scheduled", metadata: assetNameById.get(record.asset_id) }));
+  const assetRows = assets.filter((asset) => asset.created_at && !importedAssetIds.has(asset.id)).slice(0, 6).map((asset) => {
+    const archived = asset.status === "archived";
+    return {
+      id: `asset-${archived ? "archived" : "created"}-${asset.id}`,
+      date: archived ? asset.updated_at || asset.created_at : asset.created_at,
+      title: archived ? "Asset Archived" : "Asset Added",
+      detail: archived ? `${asset.name} was archived from Asset Tracking.` : `${asset.name} was added to Asset Tracking.`,
+      type: archived ? "archived" : "created",
+      actorId: archived ? asset.updated_by : asset.created_by,
+      actorPrefix: archived ? "Archived" : "Created",
+    };
+  });
+  const movementRows = movements.slice(0, 8).map((movement) => {
+    const imported = movement.reason === "import";
+    const inspectionCorrection = movement.reason === "inspection";
+    return {
+      id: `movement-${movement.id}`,
+      date: movement.updated_at || movement.created_at || movement.movement_date,
+      title: imported ? "Asset Imported" : inspectionCorrection ? "Inspection Quantity Correction" : "Quantity Adjusted",
+      detail: `${assetNameById.get(movement.asset_id) || "Asset"} · ${movement.reason || movement.movement_type || "quantity adjusted"}`,
+      type: imported ? "created" : inspectionCorrection ? "inspection" : "movement",
+      actorId: movement.created_by,
+      actorPrefix: imported ? "Imported" : inspectionCorrection ? "Inspected" : "Adjusted",
+    };
+  });
+  const maintenanceRows = maintenanceRecords.slice(0, 6).map((record) => {
+    const title = record.status === "completed" ? "Maintenance Completed" : record.status === "in_progress" ? "Maintenance Updated" : "Maintenance Scheduled";
+    return { id: `maintenance-${record.id}`, date: record.updated_at || record.created_at || record.completed_date || record.scheduled_date || record.date, title, detail: record.issue || record.maintenance_type || "Maintenance", type: "maintenance", actorId: record.created_by, actorPrefix: record.status === "completed" ? "Completed" : record.status === "in_progress" ? "Updated" : "Scheduled", metadata: assetNameById.get(record.asset_id) };
+  });
   const inspectionRows = inspections.slice(0, 6).map((inspection) => {
     const isDraft = ["draft", "in_progress", "pending_review"].includes(inspection.status);
     return {

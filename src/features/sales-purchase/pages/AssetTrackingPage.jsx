@@ -14,10 +14,10 @@ import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
-import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canDelete, canEdit, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
 import { IMAGE_UPLOAD_ACCEPT, optimizeImageFileForPreview } from "../../../utils/imageUpload.js";
-import { assetConditions, buildAssetActivityProjection, buildAssetOperationalKpis, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
+import { assetConditions, assetMatchesOperationalFilter, buildAssetActivityProjection, buildAssetOperationalKpis, getAssetAvailability, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceOverdue, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
 import { useMaintenanceRecordForm } from "../hooks/useMaintenanceRecordForm.js";
 
 const inspectionConditionOptions = ["healthy", "needs_attention", "damaged", "missing"];
@@ -99,6 +99,14 @@ function assetConditionTone(condition) {
   if (condition === "needs_attention" || condition === "low_quantity") return "warning";
   if (condition === "damaged" || condition === "missing") return "danger";
   return "neutral";
+}
+
+function assetConditionDot(condition) {
+  if (condition === "healthy") return "bg-emerald-500";
+  if (condition === "under_maintenance") return "bg-blue-500";
+  if (condition === "needs_attention") return "bg-amber-500";
+  if (condition === "damaged") return "bg-red-500";
+  return "bg-slate-400";
 }
 
 function assetConditionLabel(condition) {
@@ -253,16 +261,12 @@ function assetDisplayId(asset) {
 }
 
 function getQuantityHealth(asset) {
-  const quantity = Number(asset.current_quantity || 0);
-  const minimum = Number(asset.minimum_quantity || 0);
-  const condition = asset.condition || "healthy";
+  const availability = getAssetAvailability(asset);
+  const condition = normalizeAssetCondition(asset.condition);
   if (condition === "disposed") return { label: "Disposed", tone: "neutral", dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200" };
-  if (condition === "missing" || quantity <= 0) return { label: "Missing", tone: "danger", dot: "bg-rose-800", text: "text-rose-800", bg: "bg-rose-50", border: "border-rose-100" };
-  if (condition === "damaged") return { label: "Damaged", tone: "danger", dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50", border: "border-red-100" };
-  if (condition === "under_maintenance") return { label: "Maintenance", tone: "info", dot: "bg-blue-500", text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-100" };
-  if (condition === "needs_attention") return { label: "Attention", tone: "warning", dot: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" };
-  if (condition === "low_quantity" || (minimum > 0 && quantity <= minimum)) return { label: "Low", tone: "warning", dot: "bg-orange-500", text: "text-orange-700", bg: "bg-orange-50", border: "border-orange-100" };
-  return { label: "Good", tone: "success", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" };
+  if (availability === "missing") return { label: "Missing", tone: "danger", dot: "bg-rose-800", text: "text-rose-800", bg: "bg-rose-50", border: "border-rose-100" };
+  if (availability === "low_quantity") return { label: "Low Quantity", tone: "warning", dot: "bg-orange-500", text: "text-orange-700", bg: "bg-orange-50", border: "border-orange-100" };
+  return { label: "Available", tone: "success", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" };
 }
 
 function latestMovementSummary(movement) {
@@ -631,7 +635,7 @@ const assetImportStatusMap = new Map([
   ["disposed", "archived"],
 ]);
 
-function buildAssetImportPreview(rows, { assets, outlets, categories }) {
+export function buildAssetImportPreview(rows, { assets, outlets, categories }) {
   const outletByCode = new Map(outlets.map((outlet) => {
     const normalized = normalizeOutletRecord(outlet);
     return [canonical(normalized.code || ""), normalized];
@@ -641,8 +645,9 @@ function buildAssetImportPreview(rows, { assets, outlets, categories }) {
   const existingByNameOutlet = new Map();
   assets.forEach((asset) => {
     const outletKey = canonical(asset.outlet_id);
-    if (asset.asset_code) existingByCodeOutlet.set(`${canonical(asset.asset_code)}:${outletKey}`, asset);
-    existingByNameOutlet.set(`${canonical(asset.name)}:${outletKey}`, asset);
+    const addMatch = (map, key) => map.set(key, [...(map.get(key) || []), asset]);
+    if (asset.asset_code) addMatch(existingByCodeOutlet, `${canonical(asset.asset_code)}:${outletKey}`);
+    addMatch(existingByNameOutlet, `${canonical(asset.name)}:${outletKey}`);
   });
 
   return rows.map((row) => {
@@ -684,9 +689,11 @@ function buildAssetImportPreview(rows, { assets, outlets, categories }) {
     if (photoUrl && !/^https?:\/\//i.test(photoUrl)) errors.push("Invalid Photo URL");
 
     const outletKey = canonical(outlet?.id);
-    const existing = assetCode
-      ? existingByCodeOutlet.get(`${canonical(assetCode)}:${outletKey}`)
-      : existingByNameOutlet.get(`${canonical(assetName)}:${outletKey}`);
+    const matches = assetCode
+      ? (existingByCodeOutlet.get(`${canonical(assetCode)}:${outletKey}`) || [])
+      : (existingByNameOutlet.get(`${canonical(assetName)}:${outletKey}`) || []);
+    if (matches.length > 1) errors.push(assetCode ? "Ambiguous Asset Code for this outlet" : "Ambiguous asset name for this outlet; provide Asset Code");
+    const existing = matches.length === 1 ? matches[0] : null;
 
     const merged = {
       ...emptyAsset(),
@@ -1671,6 +1678,8 @@ function presetAssetsForInspectionType(scopedAssets, type) {
 
 function InspectionModal({ outletId, categories, assets, draftInspection, defaultCheckedBy = "", defaultCheckedById = "", onClose, onSubmit, saving }) {
   const draftData = draftInspection?.draft_data || {};
+  const preselectedAssetIds = Array.isArray(draftData.preselectedAssetIds) ? draftData.preselectedAssetIds : [];
+  const preselectedAssetKey = preselectedAssetIds.join(",");
   const initialStep = Math.min(3, Math.max(1, Number(draftInspection?.current_step || draftData.currentStep || 1)));
   const [step, setStep] = useState(initialStep);
   const [inspectionType, setInspectionType] = useState(normalizeInspectionType(draftData.inspectionType || draftInspection?.summary?.inspection_type || "routine_check"));
@@ -1693,7 +1702,9 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
     const draftRows = new Map((draftData.rows || []).map((row) => [row.asset_id, row]));
     const sourceAssets = draftRows.size
       ? outletAssets.filter((asset) => draftRows.has(asset.id))
-      : presetAssetsForInspectionType(scopedAssets, inspectionType);
+      : preselectedAssetIds.length
+        ? outletAssets.filter((asset) => preselectedAssetIds.includes(asset.id))
+        : presetAssetsForInspectionType(scopedAssets, inspectionType);
     const restoredRows = sourceAssets.map((asset) => {
       const draftRow = draftRows.get(asset.id);
       return createInspectionChecklistRow(asset, draftRow);
@@ -1702,7 +1713,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
       .filter((row) => row.asset_id && !sourceAssets.some((asset) => asset.id === row.asset_id))
       .map((row) => createInspectionChecklistRow(null, row));
     setRows([...restoredRows, ...missingAssetRows]);
-  }, [scopedAssets, outletAssets, inspectionType, draftInspection?.id]);
+  }, [scopedAssets, outletAssets, inspectionType, draftInspection?.id, preselectedAssetKey]);
 
   const enrichedRows = rows.map((row) => {
     const asset = safeInspectionAsset(row);
@@ -2710,7 +2721,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const canEditAsset = canEdit(auth, "asset_tracking");
   const canDeleteAsset = canDelete(auth, "asset_tracking");
   const canManageAsset = canManage(auth, "asset_tracking");
-  const canExportAsset = canExport(auth, "asset_tracking");
 
   useEffect(() => {
     adjustmentRequestIdRef.current = "";
@@ -2860,22 +2870,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
 
   const filteredAssets = useMemo(() => scopedAssets
     .filter((asset) => {
-      if (quickFilter === "all") return true;
-      if (quickFilter === "scheduled_maintenance") return (maintenanceByAsset.get(asset.id) || []).some((record) => record.status === "scheduled");
-      if (quickFilter === "maintenance_due") return assetSignalsById.get(asset.id)?.maintenanceDue === true;
-      if (quickFilter === "under_maintenance") return normalizeAssetCondition(asset.condition) === "under_maintenance";
-      if (quickFilter === "needs_attention") return normalizeAssetCondition(asset.condition) === "needs_attention";
-      if (quickFilter === "low_quantity") return normalizeAssetCondition(asset.condition) === "low_quantity";
-      if (quickFilter === "missing") return normalizeAssetCondition(asset.condition) === "missing";
-      if (quickFilter === "disposed") return normalizeAssetCondition(asset.condition) === "disposed";
-      if (quickFilter === "high_variance") return assetSignalsById.get(asset.id)?.highVariance === true;
-      if (quickFilter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
-      if (quickFilter === "inspected_today") {
-        const latest = asset.last_inspection_at || inspections.find((inspection) => (inspection.items || []).some((item) => item.asset_id === asset.id))?.inspection_date;
-        return formatRelativeDate(latest) === "Today";
-      }
-      return true;
-    }), [assetSignalsById, inspections, maintenanceByAsset, quickFilter, scopedAssets]);
+      return assetMatchesOperationalFilter(asset, quickFilter, { maintenanceRecords, inspections });
+    }), [inspections, maintenanceRecords, quickFilter, scopedAssets]);
 
   const groupedAssets = useMemo(() => {
     const groups = new Map();
@@ -3203,10 +3199,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     setQuickFilter((current) => current === filterValue ? "all" : filterValue);
   }
 
-  function applyConditionFilter(condition) {
-    setQuickFilter((current) => current === condition ? "all" : condition);
-  }
-
   return (
     <div className="space-y-4">
       <PageHeader
@@ -3215,7 +3207,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         description="Track outlet assets, quantities, inspections, and movement logs."
         actions={(
           <div className="flex flex-wrap gap-2">
-            <button className="btn-secondary" type="button" disabled={!canExportAsset} onClick={() => ui.notify({ title: "Export prepared", message: "Asset export will be connected to the export service." })}><Download size={16} /> Export</button>
             <button className="btn-secondary" type="button" onClick={() => setCategoryModalOpen(true)}><Settings2 size={16} /> Categories</button>
             {(canAdd || canEditAsset) ? <button className="btn-secondary" type="button" onClick={openAssetImport}><UploadCloud size={16} /> Import</button> : null}
             {canManageAsset ? <button className="btn-secondary" type="button" onClick={() => setInspectionOpen(true)}><SlidersHorizontal size={16} /> Start Inspection</button> : null}
@@ -3317,31 +3308,16 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </div> : null}
 
       {activeOutlets.length ? (
-        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
-          <DashboardSection title="Recent Activity" subtitle="Latest operational event stream." density="compact">
-            <ActivityTimeline
-              events={recentActivityRows.map((row) => ({
-                id: row.id,
-                date: row.date,
-                type: row.type || (row.title?.toLowerCase().includes("maintenance") ? "maintenance" : row.title?.toLowerCase().includes("inspection") ? "inspection" : "movement"),
-                title: row.title,
-                description: row.detail,
-                actor: row.actor,
-                metadata: row.metadata,
-              }))}
-              empty="Operational activity will appear after inspections, movements and maintenance updates."
-            />
-          </DashboardSection>
-
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
           <DashboardSection title="Asset Operations Summary" subtitle="Current asset workflow signals." density="compact">
             <div className="grid gap-2">
               {[
                 { label: "Scheduled Maintenance", value: operationalKpis.scheduledMaintenance, helper: "Upcoming service tasks", filter: { type: "quick", value: "scheduled_maintenance" }, tone: "info", icon: CalendarDays },
-                { label: "Under Maintenance", value: operationalKpis.underMaintenance, helper: "Active repair work", filter: { type: "condition", value: "under_maintenance" }, tone: "info", icon: Wrench },
-                { label: "Needs Attention", value: operationalKpis.needsAttention, helper: "Minor issue needs follow-up", filter: { type: "condition", value: "needs_attention" }, tone: "warning", icon: AlertTriangle },
-                { label: "Low Quantity", value: operationalKpis.lowQuantity, helper: "At or below minimum level", filter: { type: "condition", value: "low_quantity" }, tone: "warning", icon: SlidersHorizontal },
-                { label: "Missing Asset", value: operationalKpis.missingAssets, helper: "Unavailable or zero quantity", filter: { type: "condition", value: "missing" }, tone: "danger", icon: AlertTriangle },
-                { label: "Disposed", value: operationalKpis.disposed, helper: "Written off / no longer operational", filter: { type: "condition", value: "disposed" }, tone: "neutral", icon: X },
+                { label: "Under Maintenance", value: operationalKpis.underMaintenance, helper: "Active repair work", filter: { value: "under_maintenance" }, tone: "info", icon: Wrench },
+                { label: "Needs Attention", value: operationalKpis.needsAttention, helper: "Minor issue needs follow-up", filter: { value: "needs_attention" }, tone: "warning", icon: AlertTriangle },
+                { label: "Low Quantity", value: operationalKpis.lowQuantity, helper: "At or below minimum level", filter: { value: "low_quantity" }, tone: "warning", icon: SlidersHorizontal },
+                { label: "Missing Asset", value: operationalKpis.missingAssets, helper: "Unavailable or zero quantity", filter: { value: "missing" }, tone: "danger", icon: AlertTriangle },
+                { label: "Disposed", value: operationalKpis.disposed, helper: "Written off / no longer operational", filter: { value: "disposed" }, tone: "neutral", icon: X },
                 { label: "Recently Inspected", value: operationalKpis.recentlyInspected, helper: "Checked today", filter: { type: "quick", value: "inspected_today" }, tone: "success", icon: ClipboardCheck },
               ].map(({ label, value, helper, filter, tone, icon }) => {
                 const active = quickFilter === filter.value;
@@ -3355,10 +3331,24 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                   tone={tone}
                   size="compact"
                   active={active}
-                  onClick={() => filter.type === "condition" ? applyConditionFilter(filter.value) : applyOperationalFilter(filter.value)}
+                  onClick={() => applyOperationalFilter(filter.value)}
                 />
               );})}
             </div>
+          </DashboardSection>
+          <DashboardSection title="Recent Activity" subtitle="Latest operational event stream." density="compact">
+            <ActivityTimeline
+              events={recentActivityRows.map((row) => ({
+                id: row.id,
+                date: row.date,
+                type: row.type || (row.title?.toLowerCase().includes("maintenance") ? "maintenance" : row.title?.toLowerCase().includes("inspection") ? "inspection" : "movement"),
+                title: row.title,
+                description: row.detail,
+                actor: row.actor,
+                metadata: row.metadata,
+              }))}
+              empty="Operational activity will appear after inspections, movements and maintenance updates."
+            />
           </DashboardSection>
         </div>
       ) : null}
@@ -3421,7 +3411,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                             <td className="px-4 py-3 text-text-secondary">{outlet?.name || "—"}</td>
                             <td className="px-4 py-3">
                               <div className={`inline-flex min-w-[124px] items-center justify-between gap-3 rounded-2xl border px-3 py-2 ${quantityHealth.border} ${quantityHealth.bg}`}>
-                                <span className="text-lg font-black text-text-primary">{asset.current_quantity}</span>
+                                <span>
+                                  <span className="block text-lg font-black text-text-primary">{asset.current_quantity}</span>
+                                  <span className={`block text-[10px] font-black uppercase tracking-wide ${quantityHealth.text}`}>{quantityHealth.label}</span>
+                                </span>
                                 <span className={`inline-flex items-center gap-1.5 text-[11px] font-black ${quantityHealth.text}`}>{asset.unit}</span>
                               </div>
                             </td>
@@ -3515,16 +3508,15 @@ export default function AssetTrackingPage({ store, ui, auth }) {
               onClick={() => conditionMenu?.asset ? quickUpdateCondition(conditionMenu.asset, condition) : setConditionMenu(null)}
             >
               <span>{assetConditionLabel(condition)}</span>
-              <span className={`h-2.5 w-2.5 rounded-full ${getQuantityHealth({ condition, current_quantity: condition === "missing" ? 0 : 1 }).dot}`} />
+              <span className={`h-2.5 w-2.5 rounded-full ${assetConditionDot(condition)}`} />
             </button>
           ))}
         </div>
       </FloatingLayer>
       <FloatingLayer open={Boolean(actionMenu)} onOpenChange={(open) => { if (!open) setActionMenu(null); }} anchorRect={actionMenu?.anchor} width={220} minWidth={220} estimatedHeight={286} align="end" className="p-0">
         <div className="rounded-2xl border border-border bg-white p-1.5 shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
-          <FloatingActionItem icon={<Eye size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setDetailAsset(asset); }}>View</FloatingActionItem>
           {canManageAsset ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setAdjustAsset(asset); }}>Adjust Quantity</FloatingActionItem> : null}
-          {canManageAsset ? <FloatingActionItem icon={<ClipboardCheck size={13} />} onClick={() => { setActionMenu(null); setInspectionOpen(true); }}>Start Inspection</FloatingActionItem> : null}
+          {canManageAsset ? <FloatingActionItem icon={<ClipboardCheck size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setInspectionOpen({ outlet_id: asset.outlet_id, draft_data: { inspectionType: "spot_check", preselectedAssetIds: [asset.id] } }); }}>Start Inspection</FloatingActionItem> : null}
           {(canEditAsset || (canManageAsset && isAssetMaintenanceEligible(actionMenu?.asset))) ? <div className="my-1 border-t border-border" /> : null}
           {canEditAsset ? <FloatingActionItem icon={<PackageCheck size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setAssetModal(asset); }}>Edit Asset</FloatingActionItem> : null}
           {canManageAsset && isAssetMaintenanceEligible(actionMenu?.asset) ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setMaintenanceContext({ asset, record: null }); }}>Add Maintenance Record</FloatingActionItem> : null}
