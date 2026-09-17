@@ -1770,6 +1770,34 @@ export function factoryDataPlan(scope, hasPermission) {
 }
 
 const factoryServiceDefinition = {
+  async getLocationInventory({ includeRawMaterials = false, includeFinishedGoods = false } = {}) {
+    const requests = [];
+    if (includeRawMaterials) {
+      requests.push(supabase
+        .from("factory_raw_material_batch_balances")
+        .select("id,raw_material_id,internal_batch_no,supplier_lot_no,uom,current_balance,status,storage_location_id,raw_material:factory_raw_materials(id,material_code,name,name_en,uom)")
+        .gt("current_balance", 0)
+        .not("storage_location_id", "is", null));
+    }
+    if (includeFinishedGoods) {
+      requests.push(supabase
+        .from("factory_finished_good_batch_balances")
+        .select("id,finished_good_id,batch_no,current_balance,storage_location_id,finished_good:factory_finished_goods(id,product_code,product_name,product_name_en,uom,product_family:factory_product_families(name_en))")
+        .gt("current_balance", 0)
+        .not("storage_location_id", "is", null));
+    }
+    const results = await Promise.all(requests);
+    let cursor = 0;
+    const rawMaterialResult = includeRawMaterials ? results[cursor++] : null;
+    const finishedGoodResult = includeFinishedGoods ? results[cursor++] : null;
+    throwSupabaseError("factory.locations.raw_inventory", rawMaterialResult?.error);
+    throwSupabaseError("factory.locations.finished_goods", finishedGoodResult?.error);
+    return {
+      rawMaterialBatches: rawMaterialResult?.data || [],
+      finishedGoodBatches: finishedGoodResult?.data || [],
+    };
+  },
+
   async getPettyCashData({ page = 1, pageSize = 20, filters = {} } = {}) {
     const { data, error } = await supabase.rpc("factory_petty_cash_admin_data", {
       p_filters: filters,
