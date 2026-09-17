@@ -17,7 +17,7 @@ import { assetTrackingService } from "../../../services/assetTrackingService.js"
 import { canCreate, canDelete, canEdit, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
 import { IMAGE_UPLOAD_ACCEPT, optimizeImageFileForPreview } from "../../../utils/imageUpload.js";
-import { assetConditions, assetMatchesOperationalFilter, buildAssetActivityProjection, buildAssetOperationalKpis, getAssetAvailability, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceOverdue, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
+import { assetConditions, assetMatchesOperationalFilter, buildAssetActivityProjection, buildAssetOperationalKpis, getAssetAvailability, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
 import { useMaintenanceRecordForm } from "../hooks/useMaintenanceRecordForm.js";
 
 const inspectionConditionOptions = ["healthy", "needs_attention", "damaged", "missing"];
