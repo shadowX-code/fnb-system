@@ -3,6 +3,7 @@ import { optimizeImageFileForPreview } from "../../../utils/imageUpload.js";
 import { maintenanceStatuses } from "../utils/assetReadModel.js";
 
 export function createMaintenanceRecordDraft(record = {}, today = new Date().toISOString().slice(0, 10)) {
+  record = record ?? {};
   const status = maintenanceStatuses.includes(record.status) ? record.status : "scheduled";
   return {
     id: record.id || "", date: record.date || today,
