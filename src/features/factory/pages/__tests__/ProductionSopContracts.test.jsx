@@ -165,6 +165,39 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
     expect(screen.queryByText("Effective Date")).toBeNull();
   });
 
+  it("renders vertical Equipment identities, suppresses repeated descriptions, and keeps QC compact", () => {
+    const documentSop = {
+      ...draftSop,
+      linked_recipe: recipe,
+      equipment_links: [
+        { equipment_id: equipment.id, equipment },
+        { equipment_id: "equipment-3", equipment: { id: "equipment-3", name: "Bench Scale" } },
+      ],
+      steps: [
+        {
+          ...draftSop.steps[0],
+          step_name: "Sautéing Dried Shrimp",
+          description: "Sautéing Dried Shrimp.",
+          qc_checks: [
+            { ...draftSop.steps[0].qc_checks[0], qc_name: "Temperature", instructions: "90–100°C", is_required: true },
+            { id: "qc-optional", qc_name: "Visual check", instructions: "No residue", is_required: false },
+          ],
+        },
+        { id: "meaningful-step", step_no: 2, step_name: "Cool product", description: "Allow the product to cool before packaging.", estimated_time_minutes: 5, ingredient_material_ids: [], sub_steps: [], qc_checks: [] },
+      ],
+    };
+    render(<ProductionSopDocumentModal sop={documentSop} onClose={vi.fn()} />);
+
+    expect(screen.getByText("Mixer 01")).not.toBeNull();
+    expect(screen.getByText("Cooking Room · MX-01")).not.toBeNull();
+    expect(screen.getByText("Bench Scale")).not.toBeNull();
+    expect(screen.getAllByText("Sautéing Dried Shrimp")).toHaveLength(1);
+    expect(screen.getByText("Allow the product to cool before packaging.")).not.toBeNull();
+    expect(screen.getByText("Required")).not.toBeNull();
+    expect(screen.getByText("Optional")).not.toBeNull();
+    expect(screen.getByText("90–100°C")).not.toBeNull();
+  });
+
   it("keeps Equipment identity readable when optional Location or code is absent", () => {
     render(<ProductionSopBuilderModal initialValue={draftSop} productFamilies={[family]} recipes={[recipe]} equipment={[{ id: "equipment-3", name: "Bench Scale", status: "active" }]} sops={[draftSop]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: "SOP Settings" }));
