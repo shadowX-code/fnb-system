@@ -7,7 +7,7 @@ const job = { id: "job-production", job_order_no: "JO-PRODUCTION", status: "in_p
 const rawMaterial = { id: "rm-1", name: "Chili", name_en: "Chili", material_code: "CHI", uom: "kg", status: "active" };
 const finishedGood = { id: "sku-1", product_name: "Sambal", product_family_name: "Sambal", product_code: "SKU-1", status: "active", pack_size_qty: 500, pack_size_uom: "g", shelf_life_days: 30, storage_location_id: "fg-1" };
 const execution = { snapshotCreatedAt: "2026-08-09T08:00:00+08:00", sopId: "sop-snapshot", sopVersion: "v7", steps: [{ id: "step-1", sop_step_id: "old-step", step_no: 1, step_name: "Cook", description: "Cook the batch", sub_steps: [{ sequence_no: 1, instruction: "Heat gently" }], qc_results: [{ id: "qc-check", qc_name: "Seal check", qc_type: "checklist", is_required: true, checklist_result: "", remarks: "", instructions: "Check seal" }, { id: "qc-note", qc_name: "Operator note", qc_type: "remarks", is_required: false, remarks: "" }] }] };
-const data = { jobOrders: [job], rawMaterials: [rawMaterial], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], storageLocations: [{ id: "fg-1", location_name: "FG Store", location_type: "Finished Goods Area", status: "active" }], productions: [], finishedGoods: [finishedGood], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [{ id: "recipe-1", product_name: "Sambal", status: "active", version: "v1", yield_quantity: 10, uom: "kg", items: [{ raw_material_id: "rm-1", quantity_used: 5, uom: "kg" }] }], sops: [{ id: "new-active-sop", product_name: "Sambal", status: "active", version: "v99", title: "New SOP" }], qcChecklistTemplates: [], auditLogs: [], accessIssues: [] };
+const data = { jobOrders: [job], rawMaterials: [rawMaterial], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], storageLocations: [{ id: "fg-1", location_name: "FG Store", location_type: "Finished Goods Area", is_storage_location: true, status: "active" }], productions: [], finishedGoods: [finishedGood], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [{ id: "recipe-1", product_name: "Sambal", status: "active", version: "v1", yield_quantity: 10, uom: "kg", items: [{ raw_material_id: "rm-1", quantity_used: 5, uom: "kg" }] }], sops: [{ id: "new-active-sop", product_name: "Sambal", status: "active", version: "v99", title: "New SOP" }], qcChecklistTemplates: [], auditLogs: [], accessIssues: [] };
 const permissions = ["factory_production.view", "factory_production.complete"];
 const auth = { permissions, hasPermission: (key) => permissions.includes(key), profile: { id: "employee-1", nickname: "Isaac" } };
 function deferred() { let resolve; let reject; const promise = new Promise((nextResolve, nextReject) => { resolve = nextResolve; reject = nextReject; }); return { promise, resolve, reject }; }
@@ -26,6 +26,24 @@ async function openComplete() { await screen.findByText(job.job_order_no); fireE
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("Factory Production Execution lifecycle", () => {
+  it("resolves the Packaging SKU's active storage-enabled location without relying on a legacy location-type label", async () => {
+    setup();
+    factoryService.getProductionExecution.mockResolvedValue({ steps: [], snapshotCreatedAt: "", sopId: "", sopVersion: "" });
+    factoryService.listFactoryData.mockResolvedValue({ ...data, storageLocations: [{ id: "fg-1", location_name: "Finish Good-Cold", location_type: "Freezer", is_storage_location: true, status: "active" }] });
+    mount(); await openComplete();
+    expect(screen.getByText("Finish Good-Cold")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Complete Production" }).disabled).toBe(false);
+  });
+
+  it("blocks completion when the Packaging SKU storage location is not storage-enabled", async () => {
+    setup();
+    factoryService.getProductionExecution.mockResolvedValue({ steps: [], snapshotCreatedAt: "", sopId: "", sopVersion: "" });
+    factoryService.listFactoryData.mockResolvedValue({ ...data, storageLocations: [{ id: "fg-1", location_name: "FG Shelf", location_type: "Freezer", is_storage_location: false, status: "active" }] });
+    mount(); await openComplete();
+    expect(screen.getAllByText(/not storage-enabled/).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: "Complete Production" }).disabled).toBe(true);
+  });
+
   it("renders the stored execution snapshot and QC instead of substituting the newer active SOP", async () => {
     setup(); mount(); await openProcess();
     expect(screen.getByText(/Production SOP · v7/)).not.toBeNull();
