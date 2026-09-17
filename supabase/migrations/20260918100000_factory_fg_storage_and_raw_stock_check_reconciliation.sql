@@ -193,48 +193,122 @@ begin
 end;
 $migration$;
 
--- Historical repair is deliberately narrow: only an approved positive Stock
--- Check with one exact linked movement, its own adjustment batch, an active
--- storage location, and already-reconciled aggregate balance is activated.
--- It changes neither aggregate inventory nor the immutable movement ledger.
-with eligible as (
-  select batch.id
-  from public.factory_raw_material_batch_balances batch
-  join public.factory_raw_material_stock_check_items item
-    on item.id = batch.raw_material_stock_check_item_id
-   and item.variance_qty > 0
-  join public.factory_raw_material_stock_checks stock_check
-    on stock_check.id = item.stock_check_id
-   and lower(coalesce(stock_check.status, '')) = 'approved'
-  join public.factory_raw_materials material on material.id = item.raw_material_id
-  join public.factory_storage_locations location
-    on location.id = batch.storage_location_id
-   and lower(coalesce(location.status, '')) = 'active'
-   and location.is_storage_location is true
-  where batch.source_type = 'stock_check_adjustment'
-    and batch.status = 'reconciliation_required'
-    and batch.current_balance > 0
-    and batch.internal_batch_no is null
-    and abs(material.current_balance - coalesce((
-      select sum(all_batch.current_balance)
-      from public.factory_raw_material_batch_balances all_batch
-      where all_batch.raw_material_id = material.id
-    ), 0)) <= 0.000001
-    and 1 = (
-      select count(*)
-      from public.factory_raw_material_movements movement
-      where movement.reference_type = 'raw_material_stock_check'
-        and movement.reference_id = stock_check.id
-        and movement.raw_material_id = material.id
-        and movement.raw_material_batch_balance_id = batch.id
-        and movement.quantity = item.variance_qty
-    )
-)
-update public.factory_raw_material_batch_balances batch
-set status = 'active',
-    diagnostic = 'Legacy approved Raw Material Stock Check reconciliation batch; activated without inventory or movement changes.',
-    updated_at = now()
-where batch.id in (select id from eligible);
+-- Historical repair is deliberately restricted to the three Production
+-- records proven before this release. It changes neither aggregate inventory
+-- nor the immutable movement ledger, and fails closed if any expected record
+-- no longer has the exact approved Stock Check provenance.
+do $legacy_repair$
+declare
+  v_expected_count integer := 3;
+  v_eligible_count integer;
+  v_updated_count integer;
+begin
+  with expected(batch_id, expected_qty) as (
+    values
+      ('1095488e-eac5-4592-bb88-ca5819a46451'::uuid, 5::numeric),
+      ('cf832e87-2ec9-495e-ade9-fe81a7213e62'::uuid, 15::numeric),
+      ('23111ec4-2de8-49b6-adb4-0c69e9667a18'::uuid, 10::numeric)
+  ), eligible as (
+    select batch.id
+    from expected
+    join public.factory_raw_material_batch_balances batch
+      on batch.id = expected.batch_id
+    join public.factory_raw_material_stock_check_items item
+      on item.id = batch.raw_material_stock_check_item_id
+     and item.variance_qty = expected.expected_qty
+     and item.variance_qty > 0
+    join public.factory_raw_material_stock_checks stock_check
+      on stock_check.id = item.stock_check_id
+     and stock_check.check_no = 'RMSC-260915-01'
+     and lower(coalesce(stock_check.status, '')) = 'approved'
+    join public.factory_raw_materials material
+      on material.id = item.raw_material_id
+     and material.current_balance = expected.expected_qty
+    join public.factory_storage_locations location
+      on location.id = batch.storage_location_id
+     and lower(coalesce(location.status, '')) = 'active'
+     and location.is_storage_location is true
+    where batch.source_type = 'stock_check_adjustment'
+      and batch.status = 'reconciliation_required'
+      and batch.current_balance = expected.expected_qty
+      and batch.internal_batch_no is null
+      and abs(material.current_balance - coalesce((
+        select sum(all_batch.current_balance)
+        from public.factory_raw_material_batch_balances all_batch
+        where all_batch.raw_material_id = material.id
+      ), 0)) <= 0.000001
+      and 1 = (
+        select count(*)
+        from public.factory_raw_material_movements movement
+        where movement.reference_type = 'raw_material_stock_check'
+          and movement.reference_id = stock_check.id
+          and movement.raw_material_id = material.id
+          and movement.raw_material_batch_balance_id = batch.id
+          and movement.quantity = item.variance_qty
+      )
+  )
+  select count(*) into v_eligible_count from eligible;
+
+  if v_eligible_count <> v_expected_count then
+    raise exception 'Expected exactly % whitelisted legacy Raw Material Stock Check reconciliation batches; found %.', v_expected_count, v_eligible_count;
+  end if;
+
+  with expected(batch_id, expected_qty) as (
+    values
+      ('1095488e-eac5-4592-bb88-ca5819a46451'::uuid, 5::numeric),
+      ('cf832e87-2ec9-495e-ade9-fe81a7213e62'::uuid, 15::numeric),
+      ('23111ec4-2de8-49b6-adb4-0c69e9667a18'::uuid, 10::numeric)
+  ), eligible as (
+    select batch.id
+    from expected
+    join public.factory_raw_material_batch_balances batch
+      on batch.id = expected.batch_id
+    join public.factory_raw_material_stock_check_items item
+      on item.id = batch.raw_material_stock_check_item_id
+     and item.variance_qty = expected.expected_qty
+     and item.variance_qty > 0
+    join public.factory_raw_material_stock_checks stock_check
+      on stock_check.id = item.stock_check_id
+     and stock_check.check_no = 'RMSC-260915-01'
+     and lower(coalesce(stock_check.status, '')) = 'approved'
+    join public.factory_raw_materials material
+      on material.id = item.raw_material_id
+     and material.current_balance = expected.expected_qty
+    join public.factory_storage_locations location
+      on location.id = batch.storage_location_id
+     and lower(coalesce(location.status, '')) = 'active'
+     and location.is_storage_location is true
+    where batch.source_type = 'stock_check_adjustment'
+      and batch.status = 'reconciliation_required'
+      and batch.current_balance = expected.expected_qty
+      and batch.internal_batch_no is null
+      and abs(material.current_balance - coalesce((
+        select sum(all_batch.current_balance)
+        from public.factory_raw_material_batch_balances all_batch
+        where all_batch.raw_material_id = material.id
+      ), 0)) <= 0.000001
+      and 1 = (
+        select count(*)
+        from public.factory_raw_material_movements movement
+        where movement.reference_type = 'raw_material_stock_check'
+          and movement.reference_id = stock_check.id
+          and movement.raw_material_id = material.id
+          and movement.raw_material_batch_balance_id = batch.id
+          and movement.quantity = item.variance_qty
+      )
+  )
+  update public.factory_raw_material_batch_balances batch
+  set status = 'active',
+      diagnostic = 'Whitelisted legacy approved Raw Material Stock Check reconciliation batch; activated without inventory or movement changes.',
+      updated_at = now()
+  where batch.id in (select id from eligible);
+
+  get diagnostics v_updated_count = row_count;
+  if v_updated_count <> v_expected_count then
+    raise exception 'Expected to activate exactly % whitelisted legacy reconciliation batches; updated %.', v_expected_count, v_updated_count;
+  end if;
+end;
+$legacy_repair$;
 
 revoke execute on function public.factory_guard_production_completion_details() from public, anon, authenticated;
 revoke execute on function public.factory_approve_raw_material_stock_check(uuid, uuid) from public, anon;

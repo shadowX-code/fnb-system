@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260918100000_factory_fg_storage_and_raw_stock_check_reconciliation.sql"), "utf8");
+const verification = readFileSync(resolve(process.cwd(), "supabase/migrations/20260918101000_factory_raw_stock_check_reconciliation_repair_verification.sql"), "utf8");
 
 describe("Factory Raw Material Stock Check reconciliation batches migration", () => {
   it("pins Production completion to the Packaging SKU's active storage-enabled location", () => {
@@ -25,11 +26,25 @@ describe("Factory Raw Material Stock Check reconciliation batches migration", ()
     expect(migration).toContain("v_batch.source_type not in ('receiving', 'stock_check_adjustment')");
   });
 
-  it("backfills only exact source-linked approved inventory without creating a movement or changing aggregate quantity", () => {
+  it("repairs only the three whitelisted source-linked Production batches without a movement or aggregate change", () => {
+    expect(migration).toContain("1095488e-eac5-4592-bb88-ca5819a46451");
+    expect(migration).toContain("cf832e87-2ec9-495e-ade9-fe81a7213e62");
+    expect(migration).toContain("23111ec4-2de8-49b6-adb4-0c69e9667a18");
+    expect(migration).toContain("Expected exactly % whitelisted legacy Raw Material Stock Check reconciliation batches");
+    expect(migration).toContain("RMSC-260915-01");
+    expect(migration).toContain("5::numeric");
+    expect(migration).toContain("15::numeric");
+    expect(migration).toContain("10::numeric");
     expect(migration).toContain("batch.raw_material_stock_check_item_id");
     expect(migration).toContain("movement.raw_material_batch_balance_id = batch.id");
     expect(migration).toContain("abs(material.current_balance - coalesce((");
     expect(migration).toContain("set status = 'active'");
     expect(migration).not.toContain("insert into public.factory_raw_material_movements");
+  });
+
+  it("verifies the complete whitelist set without replaying the repair on Staging", () => {
+    expect(verification).toContain("v_present_count not in (0, 3)");
+    expect(verification).toContain("v_valid_count <> 3");
+    expect(verification).toContain("status = 'active'");
   });
 });
