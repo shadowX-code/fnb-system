@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../../services/assetTrackingService.js", () => ({ assetTrackingService: mocks.service }));
 vi.mock("../../../../lib/supabase.ts", () => ({ supabase: { from: vi.fn(() => ({ select: vi.fn(() => ({ or: vi.fn(async () => ({ data: [], error: null })) })) })) } }));
 
-import AssetTrackingPage, { buildAssetImportPreview } from "../AssetTrackingPage.jsx";
+import AssetTrackingPage, { buildAssetImportPreview, latestMovementSummary } from "../AssetTrackingPage.jsx";
 
 const asset = {
   id: "asset-1", outlet_id: "outlet-1", category_id: "category-1", category_name: "Kitchen", name: "Mixer", current_quantity: 10,
@@ -42,6 +42,12 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Asset Tracking page lifecycle guards", () => {
+  it("uses the same unambiguous movement labels in the asset list as recent activity", () => {
+    expect(latestMovementSummary({ movement_type: "correction", reason: "inspection", quantity_change: -2 })).toBe("Inspection Quantity Correction");
+    expect(latestMovementSummary({ movement_type: "correction", reason: "correction", quantity_change: 2 })).toBe("Quantity Adjusted · +2");
+    expect(latestMovementSummary({ movement_type: "correction", reason: "import", quantity_change: 3 })).toBe("Asset Imported · +3");
+  });
+
   it("rejects an ambiguous name-only import instead of silently selecting an arbitrary asset", () => {
     const preview = buildAssetImportPreview([{ __row: 2, "Asset Name": "Mixer", "Outlet Code": "KLC", Category: "Kitchen", Quantity: "4", Condition: "Good", Status: "Active" }], {
       assets: [{ ...asset, id: "asset-a" }, { ...asset, id: "asset-b" }],
