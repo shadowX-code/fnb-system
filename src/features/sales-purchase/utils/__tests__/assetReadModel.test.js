@@ -25,6 +25,10 @@ describe("Asset read-model selectors", () => {
     expect(inspectionProgress({ completion_percentage: 50 })).toBe(50);
     expect(buildAssetActivityProjection({ assets: [{ id: "a", name: "Mixer", created_at: "2026-08-28", created_by: "u" }] })[0]).toMatchObject({ title: "Asset Added", actorId: "u" });
   });
+  it("does not represent a resumable inspection draft as a completed inspection", () => {
+    const rows = buildAssetActivityProjection({ inspections: [{ id: "draft-1", status: "draft", updated_at: "2026-08-30T01:00:00Z", summary: { total_assets: 3 } }] });
+    expect(rows[0]).toMatchObject({ title: "Inspection Draft Saved", actorPrefix: "Saved by", detail: "3 assets checked" });
+  });
 });
 
 describe("shared maintenance editor model", () => {

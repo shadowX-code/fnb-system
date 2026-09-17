@@ -126,6 +126,17 @@ export function buildAssetActivityProjection({ assets = [], movements = [], insp
   const assetRows = assets.filter((asset) => asset.created_at && !importedAssetIds.has(asset.id)).slice(0, 6).map((asset) => ({ id: `asset-created-${asset.id}`, date: asset.created_at, title: "Asset Added", detail: `${asset.name} was added to Asset Tracking.`, type: "created", actorId: asset.created_by, actorPrefix: "Created" }));
   const movementRows = movements.slice(0, 8).map((movement) => ({ id: `movement-${movement.id}`, date: movement.updated_at || movement.created_at || movement.movement_date, title: movement.movement_type === "correction" ? "Inspection update" : "Quantity Adjusted", detail: `${assetNameById.get(movement.asset_id) || "Asset"} · ${movement.reason || movement.movement_type || "quantity adjusted"}`, type: "movement", actorId: movement.created_by, actorPrefix: "Recorded" }));
   const maintenanceRows = maintenanceRecords.slice(0, 6).map((record) => ({ id: `maintenance-${record.id}`, date: record.updated_at || record.created_at || record.completed_date || record.scheduled_date || record.date, title: record.status === "completed" ? "Maintenance Completed" : "Maintenance Scheduled", detail: record.issue || record.maintenance_type || "Maintenance", type: "maintenance", actorId: record.created_by, actorPrefix: record.status === "completed" ? "Completed" : "Scheduled", metadata: assetNameById.get(record.asset_id) }));
-  const inspectionRows = inspections.slice(0, 6).map((inspection) => ({ id: `inspection-${inspection.id}`, date: inspection.updated_at || inspection.created_at || inspection.inspection_date, title: "Inspection Completed", detail: `${inspection.summary?.total_assets || (inspection.items || []).length || 0} assets checked`, type: "inspection", actorId: inspection.checked_by_employee_id || inspection.checked_by || inspection.created_by, actorPrefix: "Inspected" }));
+  const inspectionRows = inspections.slice(0, 6).map((inspection) => {
+    const isDraft = ["draft", "in_progress", "pending_review"].includes(inspection.status);
+    return {
+      id: `inspection-${inspection.id}`,
+      date: inspection.updated_at || inspection.created_at || inspection.inspection_date,
+      title: isDraft ? "Inspection Draft Saved" : "Inspection Completed",
+      detail: `${inspection.summary?.total_assets || (inspection.items || []).length || 0} assets checked`,
+      type: "inspection",
+      actorId: inspection.checked_by_employee_id || inspection.checked_by || inspection.created_by,
+      actorPrefix: isDraft ? "Saved by" : "Inspected",
+    };
+  });
   return [...movementRows, ...maintenanceRows, ...inspectionRows, ...assetRows].filter((row) => row.date).sort((first, second) => new Date(second.date) - new Date(first.date)).slice(0, 8);
 }
