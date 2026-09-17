@@ -57,10 +57,17 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
   const defaultEndDate = authoritativeProductionDate && authoritativeProductionDate > todayInput() ? authoritativeProductionDate : todayInput();
   const shelfLifeConfigured = matchingFinishedGood?.shelf_life_days !== "" && matchingFinishedGood?.shelf_life_days !== null && matchingFinishedGood?.shelf_life_days !== undefined;
   const initialCalculatedExpiryDate = shelfLifeConfigured ? addDaysToFactoryDate(defaultEndDate, Number(matchingFinishedGood.shelf_life_days)) : "";
-  const finishedGoodsLocations = storageLocations.filter((location) => location.status === "active" && String(location.location_type || "").toLowerCase() === "finished goods area");
   const defaultStorageLocation = storageLocations.find((location) => location.id === matchingFinishedGood?.storage_location_id);
-  const defaultStorageLocationId = defaultStorageLocation?.status === "active" && String(defaultStorageLocation.location_type || "").toLowerCase() === "finished goods area" ? defaultStorageLocation.id : "";
-  const defaultStorageLocationArchived = defaultStorageLocation && defaultStorageLocation.status !== "active";
+  const defaultStorageLocationId = defaultStorageLocation?.status === "active" && defaultStorageLocation?.is_storage_location === true ? defaultStorageLocation.id : "";
+  const defaultStorageLocationIssue = !matchingFinishedGood?.storage_location_id
+    ? "The Packaging SKU has no Storage Location configured."
+    : !defaultStorageLocation
+      ? "The Packaging SKU Storage Location is unavailable."
+      : defaultStorageLocation.status !== "active"
+        ? `The Packaging SKU Storage Location, ${defaultStorageLocation.location_name}, is archived.`
+        : defaultStorageLocation.is_storage_location !== true
+          ? `The Packaging SKU Storage Location, ${defaultStorageLocation.location_name}, is not storage-enabled.`
+          : "";
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
     finished_good_id: matchingFinishedGood?.id || job.finished_good_id || "",
@@ -406,15 +413,18 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
   const requiredDetailsRemaining = Number(!endDateValueValid) + Number(!endTimeValueValid || (endDateValueValid && endTimeValueValid && !endDateTimeValid)) + Number(!actualPackQtyValid) + Number(!expiryDateValid) + Number(!expiryOverrideValid);
   const requiredQcIncomplete = executionQcState.requiredCompleted < executionQcState.requiredTotal;
   const requiredQcFailed = executionQcResults.some((qc) => qc.is_required && qc.qc_type === "checklist" && qc.checklist_result === "fail");
+  const storageLocationBlocked = !defaultStorageLocationId;
   const qcCompletionBlocked = Boolean(execution.snapshotCreatedAt) && (requiredQcIncomplete || requiredQcFailed);
   const batchCompletionBlocked = productionBatchAvailability.loading || productionBatchAvailability.stale || !productionBatchAvailability.hasLoaded || Boolean(productionBatchAvailability.error)
     || form.material_usage.some((row) => Math.abs((row.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0) - Number(row.actual_usage || 0)) > varianceReasonTolerance);
-  const completionDisabled = saving || savingQc || executionLoading || !authoritativeStartValid || requiredDetailsRemaining > 0 || qcCompletionBlocked || batchCompletionBlocked;
+  const completionDisabled = saving || savingQc || executionLoading || !authoritativeStartValid || storageLocationBlocked || requiredDetailsRemaining > 0 || qcCompletionBlocked || batchCompletionBlocked;
   const completionDisabledReason = executionLoading
     ? "Loading Production QC."
     : !authoritativeStartValid
       ? "Job Order Production Date and Start Time are required before completing production."
-    : requiredDetailsRemaining > 0
+      : storageLocationBlocked
+        ? defaultStorageLocationIssue
+      : requiredDetailsRemaining > 0
     ? endDateTimeValidationMessage || `Complete ${[!endDateValueValid ? "End Date" : "", !endTimeValueValid || !endDateTimeValid ? "End Time" : "", !actualPackQtyValid ? "Actual Pack Qty" : "", !expiryDateValid ? "Expiry Date" : "", !expiryOverrideValid ? "Expiry Override Reason" : ""].filter(Boolean).join(", ")}.`
     : requiredQcFailed
       ? "Resolve failed required QC checks."
@@ -585,9 +595,7 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
                 {!shelfLifeConfigured ? <div className="mt-1 text-xs font-semibold text-text-secondary">No Expiry / Not Applicable is allowed.</div> : null}
               </Field>
               <Field label="Storage Location">
-                {finishedGoodsLocations.length ? <SearchableSelect value={form.storage_location_id || ""} options={finishedGoodsLocations.map((location) => ({ value: location.id, label: location.location_name }))} placeholder="Select Finished Goods Area" searchPlaceholder="Search finished goods locations" emptyText="No active Finished Goods Area" onChange={(storageLocationId) => setForm((current) => ({ ...current, storage_location_id: storageLocationId }))} /> : null}
-                {defaultStorageLocationArchived ? <div className="mt-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">The Packaging SKU default Storage Location, {defaultStorageLocation.location_name}, is archived. Select an active Finished Goods Area.</div> : null}
-                {!finishedGoodsLocations.length && !defaultStorageLocationArchived ? <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">No active Finished Goods storage location found.</div> : null}
+                {defaultStorageLocationId ? <div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className="text-sm font-bold text-text-primary">{defaultStorageLocation.location_name}</div><div className="mt-0.5 text-xs font-semibold text-text-secondary">{[defaultStorageLocation.location_type, defaultStorageLocation.location_code].filter(Boolean).join(" · ") || "Packaging SKU Storage Location"}</div></div> : <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{defaultStorageLocationIssue}</div>}
               </Field>
               <Field label="Shelf Life Applied">
                 <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{shelfLifeConfigured ? `${matchingFinishedGood.shelf_life_days} days` : "Not configured"}</div>

@@ -74,8 +74,8 @@ const productStockCheck = { id: "fg-check-1", check_no: "FGSC260809-01", status:
 const data = {
   jobOrders: [plannedJob, job, inProgressJob, completedJob], rawMaterials: [{ id: "rm-1", name: "Chili", name_en: "Chili", material_code: "CHI", uom: "kg", current_balance: 8, status: "active" }],
   rawMaterialCategories: [], rawMaterialMovements: [], receivings: [receiving], receivingBatches: [receiving],
-  factorySuppliers: [{ id: "supplier-1", name: "Spice Supply" }], factoryCustomers: [{ id: "customer-1", name: "Outlet A" }], storageLocations: [{ id: "storage-1", name: "Dry Store A" }],
-  productions: [completedProduction], finishedGoods: [{ id: "sku-1", product_name: "Sambal", product_family_name: "Sambal", product_code: "SKU-1", pack_size_qty: 500, pack_size_uom: "g", current_balance: 10, status: "active" }],
+  factorySuppliers: [{ id: "supplier-1", name: "Spice Supply" }], factoryCustomers: [{ id: "customer-1", name: "Outlet A" }], storageLocations: [{ id: "storage-1", name: "Finish Good-Cold", status: "active", is_storage_location: true, location_type: "Freezer" }],
+  productions: [completedProduction], finishedGoods: [{ id: "sku-1", product_name: "Sambal", product_family_name: "Sambal", product_code: "SKU-1", pack_size_qty: 500, pack_size_uom: "g", storage_location_id: "storage-1", current_balance: 10, status: "active" }],
   finishedGoodCategories: [], productFamilies: [], productMovements: [{ id: "product-movement-1", reference_no: "PB260809-01", product_name: "Sambal", movement_type: "Production In", quantity: 9, uom: "packs", movement_date: "2026-08-09" }], finishedGoodDispatches: [dispatch],
   rawStockChecks: [rawStockCheck], productStockChecks: [productStockCheck],
   recipes: [{ id: "recipe-1", product_name: "Sambal", status: "active", version: "v1", yield_quantity: 10, uom: "kg", items: [{ raw_material_id: "rm-1", quantity_used: 5, uom: "kg" }] }], sops: [{ id: "sop-1", product_name: "Sambal", status: "active", version: "v1" }], qcChecklistTemplates: [], auditLogs: [], accessIssues: [],
