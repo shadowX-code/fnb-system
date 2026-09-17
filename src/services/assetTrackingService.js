@@ -152,6 +152,7 @@ function mapMovement(row) {
     remark: row.remark ?? "",
     movement_date: row.movement_date,
     created_by: row.created_by ?? null,
+    created_by_employee_id: row.created_by_employee_id ?? null,
     created_at: row.created_at,
   };
 }

@@ -107,6 +107,16 @@ describe("Asset Tracking trusted lifecycle RPC contracts", () => {
     expect(mocks.audit).not.toHaveBeenCalled();
   });
 
+  it("preserves Crew employee attribution in the movement read model", async () => {
+    const row = { id: "movement-1", asset_id: "asset-1", outlet_id: "outlet-1", movement_type: "correction", quantity_change: 0, quantity_before: 2, quantity_after: 2, reason: "stock_count", movement_date: "2026-09-17", created_by: null, created_by_employee_id: "employee-1", created_at: "2026-09-17T11:00:00Z" };
+    const query = { select: () => query, order: () => query, eq: () => query, then: (resolve) => Promise.resolve({ data: [row], error: null }).then(resolve) };
+    mocks.from.mockReturnValue(query);
+
+    await expect(assetTrackingService.listMovementLogs("", "outlet-1")).resolves.toEqual([
+      expect.objectContaining({ id: "movement-1", created_by: null, created_by_employee_id: "employee-1" }),
+    ]);
+  });
+
   it("reuses a supplied adjustment request ID for a safe ambiguous-network retry", async () => {
     await assetTrackingService.adjustQuantity(asset, { requestId: "stable-adjustment", type: "add", quantity: 2, reason: "add" });
     await assetTrackingService.adjustQuantity(asset, { requestId: "stable-adjustment", type: "add", quantity: 2, reason: "add" });
