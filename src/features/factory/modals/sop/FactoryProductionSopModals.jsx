@@ -14,7 +14,7 @@ import { FactoryCellMuted, FactoryCellText } from "../../components/FactoryTable
 import { todayInput, formatFactoryDate } from "../../utils/factoryDates.js";
 import { percent, quantity, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../../utils/factoryFormatters.js";
 import { jobStatusLabel } from "../../utils/factoryStatus.js";
-import { productionSopDisplayName, productionSopRecipeDiff } from "../../utils/productionSop.js";
+import { productionSopRecipeDiff } from "../../utils/productionSop.js";
 import { finishedGoodFamiliesWithoutRecords } from "../../utils/factoryFamilyEligibility.js";
 
 function emptySopQcCheck(index = 0) {
@@ -50,6 +50,10 @@ function emptySopStep(index = 0) {
 
 function equipmentSecondaryLabel(equipment) {
   return [equipment?.location?.location_name || equipment?.location_name, equipment?.equipment_code || equipment?.code].filter(Boolean).join(" · ");
+}
+
+function meaningfulSopMinutesLabel(minutes) {
+  return Number(minutes || 0) > 0 ? sopMinutesLabel(minutes) : null;
 }
 
 function RecipeUpdateReview({ currentRecipe, nextRecipe, saving, onUpdate }) {
@@ -414,40 +418,51 @@ export function ProductionSopDocumentModal({ sop, recipes = [], onClose }) {
   const referencedIngredientCount = new Set(steps.flatMap((step) => step.ingredient_material_ids || [])).size;
   const totalEstimatedMinutes = sopTotalEstimatedMinutes({ ...sop, steps });
   const linkedEquipment = (sop.equipment_links || []).map((link) => link.equipment || link).filter((equipment) => equipment?.id || equipment?.name || equipment?.equipment_code);
+  const productName = sop.product_name_en || sop.product_name || "Finished Good";
+  const recipeVersion = sop.recipe_version || recipe?.version || "v1";
+  const totalRecipeIngredients = recipe?.items?.length || 0;
+  const summaryMetrics = [
+    ["Estimated Time", meaningfulSopMinutesLabel(totalEstimatedMinutes) || "—"],
+    ["Steps", steps.length],
+    ["QC", qcCount],
+    ["Updated", formatFactoryDate(sop.updated_at)],
+  ];
+  if (sop.effective_date) summaryMetrics.push(["Effective Date", formatFactoryDate(sop.effective_date)]);
   return (
-    <Modal title={productionSopDisplayName(sop)} description="Read-only standard process reference" size="2xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
-      <div className="space-y-6">
-        <section className="border-b border-border pb-5">
-          <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="text-xl font-black text-text-primary">{productionSopDisplayName(sop)}</div>{sop.product_name_cn ? <div className="mt-1 text-sm font-semibold text-text-secondary">{sop.product_name_cn}</div> : null}</div><Badge tone={sop.status === "active" ? "success" : sop.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(sop.status)}</Badge></div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[["Version", sop.version || "v1"], ["Estimated Time", sopMinutesLabel(totalEstimatedMinutes)], ["Effective Date", formatFactoryDate(sop.effective_date)], ["Steps", steps.length], ["QC Points", qcCount], ["Updated", formatFactoryDate(sop.updated_at)]].map(([label, value]) => <div key={label}><div className="text-[10.5px] font-semibold text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>)}</div>
-          {sop.remarks || sop.notes ? <div className="mt-4 max-w-[70ch] text-sm font-semibold text-text-secondary">{sop.remarks || sop.notes}</div> : null}
+    <Modal title={`${productName} SOP · ${sop.version || "v1"}`} description={sop.product_name_cn || undefined} size="2xl" headerActions={<Badge tone={sop.status === "active" ? "success" : sop.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(sop.status)}</Badge>} onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+      <div className="space-y-4">
+        <section className="border-b border-border pb-4">
+          <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs">
+            {summaryMetrics.map(([label, value]) => <div key={label} className="flex items-baseline gap-1.5"><span className="font-medium text-text-muted">{label}</span><span className="font-semibold text-text-primary">{value}</span></div>)}
+          </div>
+          {sop.remarks || sop.notes ? <div className="mt-3 max-w-[70ch] text-sm text-text-secondary">{sop.remarks || sop.notes}</div> : null}
         </section>
 
-        <section className="bg-slate-50 px-4 py-4 sm:px-5">
-          <div className="text-sm font-black text-text-primary">Recipe Reference</div>
-          {recipe ? <><div className="mt-3 grid gap-3 sm:grid-cols-3"><div><div className="text-[10.5px] font-semibold text-text-muted">Linked Recipe</div><div className="mt-1 text-sm font-bold text-text-primary">{recipe.recipe_name && recipe.recipe_name !== recipe.version ? `${recipe.recipe_name} ${sop.recipe_version || recipe.version}` : sop.recipe_version || recipe.version}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Standard Output</div><div className="mt-1 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Referenced Ingredients</div><div className="mt-1 text-sm font-bold text-text-primary">{referencedIngredientCount} of {recipe.items?.length || 0}</div></div></div>{recipeUpdateAvailable ? <div className="mt-3 text-xs text-amber-700"><span className="font-semibold">{currentActiveRecipe.version} update available.</span> This SOP is protected; create a new SOP version to use the newer Recipe.</div> : null}</> : <div className="mt-3"><div className="text-sm font-bold text-text-primary">No Recipe Linked</div><div className="mt-1 text-xs font-semibold text-text-secondary">This SOP predates recipe snapshot linking or was saved without an active recipe.</div></div>}
-        </section>
-
-        <section className="border-b border-border pb-5">
-          <div className="text-sm font-black text-text-primary">Linked Equipment</div>
-          {linkedEquipment.length ? <div className="mt-3 grid gap-x-5 gap-y-2 sm:grid-cols-2">{linkedEquipment.map((equipment, index) => <FactoryCellText key={equipment.id || `${equipment.equipment_code}-${index}`} primary={equipment.name || "Equipment"} secondary={equipmentSecondaryLabel(equipment)} />)}</div> : <div className="mt-3"><FactoryCellMuted>No equipment linked</FactoryCellMuted></div>}
+        <section className="border-b border-border pb-4">
+          <div className="text-sm font-semibold text-text-primary">Production Setup</div>
+          <div className="mt-2.5 space-y-3 text-sm">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1"><span className="w-20 shrink-0 text-xs font-medium text-text-muted">Recipe</span>{recipe ? <span className="font-medium text-text-primary">{productName} {recipeVersion} · {quantity(recipe.yield_quantity, recipe.uom)} output · {referencedIngredientCount}/{totalRecipeIngredients} ingredients</span> : <span className="font-medium text-text-primary">No Recipe Linked</span>}</div>
+            {recipeUpdateAvailable ? <div className="pl-0 text-xs text-amber-700 sm:pl-[92px]"><span className="font-semibold">{currentActiveRecipe.version} update available.</span> Create a new SOP version to use the newer Recipe.</div> : null}
+            <div className="flex items-start gap-3"><span className="w-20 shrink-0 pt-0.5 text-xs font-medium text-text-muted">Equipment</span>{linkedEquipment.length ? <div className="grid min-w-0 flex-1 gap-x-5 gap-y-2 sm:grid-cols-2">{linkedEquipment.map((equipment, index) => <FactoryCellText key={equipment.id || `${equipment.equipment_code}-${index}`} primary={equipment.name || "Equipment"} secondary={equipmentSecondaryLabel(equipment)} />)}</div> : <FactoryCellMuted>No equipment linked</FactoryCellMuted>}</div>
+          </div>
         </section>
 
         <section>
-          <div className="mb-3 text-sm font-black text-text-primary">SOP Timeline</div>
-          <div className="relative space-y-4 before:absolute before:bottom-4 before:left-4 before:top-4 before:w-px before:bg-border sm:before:left-5">
+          <div className="mb-2 text-sm font-semibold text-text-primary">SOP Timeline</div>
+          <div className="relative space-y-3 before:absolute before:bottom-3 before:left-3 before:top-3 before:w-px before:bg-border sm:before:left-4">
             {steps.length ? steps.map((step) => {
               const qcChecks = step.qc_checks?.length ? step.qc_checks : (step.qc_required || step.is_qc_checkpoint) ? [{ id: `legacy-${step.id}`, qc_type: "checklist", qc_name: step.qc_label || step.control_point || "QC Check", instructions: step.qc_target_value || "", is_required: true, legacy: true }] : [];
               const stepMinutes = sopStepEstimatedMinutes(step);
+              const stepDuration = meaningfulSopMinutesLabel(stepMinutes);
               return (
-                <article key={step.id} className="relative ml-10 rounded-xl border border-border bg-white p-4 sm:ml-12 sm:p-5">
-                  <span className="absolute -left-[34px] top-4 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-black text-white sm:-left-[40px]">{step.step_no}</span>
-                  <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-base font-black text-text-primary">{step.step_name || step.process_name || "Unnamed Step"}</div><div className="mt-1 text-xs font-bold text-text-secondary">Step Time: {sopMinutesLabel(stepMinutes)}</div>{step.sub_steps?.length ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Calculated from {step.sub_steps.length} sub-step{step.sub_steps.length === 1 ? "" : "s"}</div> : null}</div>{qcChecks.length ? <Badge tone="warning">{qcChecks.length} QC {qcChecks.length === 1 ? "Check" : "Checks"}</Badge> : <Badge tone="neutral">Process Step</Badge>}</div>
-                  {step.description ? <div className="mt-3 max-w-[75ch] text-sm font-semibold text-text-secondary">{step.description}</div> : null}
-                  {step.ingredient_references?.length ? <div className="mt-3"><div className="text-[10.5px] font-semibold text-text-muted">Recipe Ingredients</div><div className="mt-1.5 flex flex-wrap gap-1.5">{step.ingredient_references.map((item) => <span key={item.raw_material_id} className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">{item.raw_material_name}</span>)}</div></div> : null}
-                  {step.sub_steps?.length ? <div className="mt-4 space-y-2">{step.sub_steps.map((subStep, index) => <div key={subStep.id} className="flex gap-3 rounded-lg bg-slate-50 px-3 py-2"><span className="shrink-0 text-xs font-black text-primary">{step.step_no}.{index + 1}</span><div className="min-w-0"><div className="text-sm font-semibold text-text-primary">{subStep.instruction}</div><div className="mt-0.5 flex flex-wrap gap-3 text-xs font-semibold text-text-secondary"><span>{sopMinutesLabel(subStep.estimated_minutes)}</span>{subStep.remarks ? <span>{subStep.remarks}</span> : null}</div></div></div>)}</div> : null}
-                  {qcChecks.length ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Checks</div><div className="mt-2 grid gap-2 sm:grid-cols-2">{qcChecks.map((qc) => <div key={qc.id} className="rounded-lg bg-slate-50 px-3 py-2"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-sm font-bold text-text-primary">{qc.qc_name}</div>{qc.instructions ? <div className="mt-1 text-xs font-semibold text-text-secondary">{qc.instructions}</div> : null}</div>{qc.is_required ? <Badge tone="warning">Required</Badge> : <Badge tone="neutral">Optional</Badge>}</div></div>)}</div></div> : null}
-                  {step.remarks || step.safety_note ? <div className="mt-3 text-xs font-semibold text-text-secondary">Remarks: {step.remarks || step.safety_note}</div> : null}
+                <article key={step.id} className="relative ml-8 rounded-lg border border-border bg-surface px-3 py-3 sm:ml-10 sm:px-4">
+                  <span className="absolute -left-[27px] top-3 flex h-6 w-6 items-center justify-center rounded-full bg-primary text-[11px] font-bold text-white sm:-left-[33px]">{step.step_no}</span>
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-base font-semibold text-text-primary">{step.step_name || step.process_name || "Unnamed Step"}</div><div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-xs text-text-secondary">{stepDuration ? <span>{stepDuration}</span> : null}{step.sub_steps?.length && stepDuration ? <span>Calculated from {step.sub_steps.length} sub-step{step.sub_steps.length === 1 ? "" : "s"}</span> : null}</div></div>{qcChecks.length ? <Badge tone="warning">{qcChecks.length} QC</Badge> : null}</div>
+                  {step.description ? <div className="mt-2 max-w-[75ch] text-sm text-text-secondary">{step.description}</div> : null}
+                  {step.ingredient_references?.length ? <div className="mt-2.5"><div className="text-[10.5px] font-medium text-text-muted">Recipe Ingredients</div><div className="mt-1 flex flex-wrap gap-1.5">{step.ingredient_references.map((item) => <span key={item.raw_material_id} className="rounded-md border border-border bg-surface-muted px-2 py-0.5 text-xs font-medium text-text-secondary">{item.raw_material_name}</span>)}</div></div> : null}
+                  {step.sub_steps?.length ? <div className="mt-3 border-t border-border pt-1">{step.sub_steps.map((subStep, index) => { const subStepDuration = meaningfulSopMinutesLabel(subStep.estimated_minutes); return <div key={subStep.id} className="flex gap-2 py-1.5"><span className="shrink-0 text-xs font-semibold text-text-muted">{step.step_no}.{index + 1}</span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5"><span className="text-sm font-medium text-text-primary">{subStep.instruction}</span>{subStepDuration ? <span className="text-xs text-text-secondary">{subStepDuration}</span> : null}</div>{subStep.remarks ? <div className="mt-0.5 text-xs text-text-secondary">{subStep.remarks}</div> : null}</div></div>; })}</div> : null}
+                  {qcChecks.length ? <div className="mt-3 border-t border-border pt-2"><div className="text-xs font-semibold text-text-primary">QC Checks</div><div className="mt-1.5 grid gap-2 sm:grid-cols-2">{qcChecks.map((qc) => <div key={qc.id} className="rounded-md bg-surface-muted px-2.5 py-2"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-sm font-medium text-text-primary">{qc.qc_name}</div>{qc.instructions ? <div className="mt-0.5 text-xs text-text-secondary">{qc.instructions}</div> : null}</div>{qc.is_required ? <Badge tone="warning">Required</Badge> : <Badge tone="neutral">Optional</Badge>}</div></div>)}</div></div> : null}
+                  {step.remarks || step.safety_note ? <div className="mt-2 text-xs text-text-secondary">Remarks: {step.remarks || step.safety_note}</div> : null}
                 </article>
               );
             }) : <EmptyState title="No SOP steps" description="This SOP has no saved process steps." />}

@@ -100,10 +100,10 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
 
   it("renders active, draft, and legacy QC document paths without inventing missing history", () => {
     const activeView = render(<ProductionSopDocumentModal sop={{ ...draftSop, status: "active", linked_recipe: recipe, product_name_cn: family.name_cn, equipment_links: [{ equipment_id: equipment.id, equipment }, { equipment_id: secondEquipment.id, equipment: secondEquipment }] }} onClose={vi.fn()} />);
-    expect(screen.getAllByText("Sambal Production SOP · v2").length).toBeGreaterThan(0);
+    expect(screen.getByRole("dialog", { name: "Sambal SOP · v2" })).not.toBeNull();
     expect(screen.getByText("Active")).not.toBeNull();
     expect(screen.getByText("Temperature")).not.toBeNull();
-    expect(screen.getByText("Linked Equipment")).not.toBeNull();
+    expect(screen.getByText("Production Setup")).not.toBeNull();
     expect(screen.getByText("Mixer 01")).not.toBeNull();
     expect(screen.getByText("Steam Kettle")).not.toBeNull();
     expect(screen.getAllByText("Cooking Room · MX-01")).toHaveLength(1);
@@ -114,6 +114,35 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
     expect(screen.getByText("No Recipe Linked")).not.toBeNull();
     expect(screen.getByText("Legacy temperature")).not.toBeNull();
     expect(screen.getByText("No equipment linked")).not.toBeNull();
+  });
+
+  it("keeps the SOP reader compact and omits unset duration semantics", () => {
+    const processSop = {
+      ...draftSop,
+      effective_date: "",
+      linked_recipe: { ...recipe, items: [{ raw_material_id: "rm-1", raw_material_name: "Pepper", quantity_used: 1, uom: "kg" }] },
+      equipment_links: [{ equipment_id: equipment.id, equipment }],
+      steps: [{
+        ...draftSop.steps[0],
+        ingredient_material_ids: ["rm-1"],
+        ingredient_references: [{ raw_material_id: "rm-1", raw_material_name: "Pepper" }],
+        estimated_time_minutes: 0,
+        sub_steps: [
+          { id: "sub-1", instruction: "Grind pepper", estimated_minutes: 5, remarks: "" },
+          { id: "sub-2", instruction: "Check texture", estimated_minutes: 0, remarks: "" },
+        ],
+      }],
+    };
+    render(<ProductionSopDocumentModal sop={processSop} onClose={vi.fn()} />);
+
+    expect(screen.getByText("Production Setup")).not.toBeNull();
+    expect(screen.getByText("Sambal v2 · 10 kg output · 1/1 ingredients")).not.toBeNull();
+    expect(screen.getByText("1.1")).not.toBeNull();
+    expect(screen.getByText("Grind pepper")).not.toBeNull();
+    expect(screen.getAllByText("5 mins").length).toBeGreaterThan(0);
+    expect(screen.queryByText("0 mins")).toBeNull();
+    expect(screen.queryByText("Process Step")).toBeNull();
+    expect(screen.queryByText("Effective Date")).toBeNull();
   });
 
   it("keeps Equipment identity readable when optional Location or code is absent", () => {
