@@ -534,3 +534,9 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Hardened Asset Tracking lifecycle history at the database boundary: ordinary clients can no longer delete assets or mutate/delete movement, maintenance, inspection, item, or evidence history; asset archival remains the supported lifecycle action.
 - Added same-outlet child-record triggers, one-asset-per-inspection uniqueness, finalized-inspection immutability, a trusted draft-archive RPC, and atomic server-derived audit events for quantity, inspection, maintenance, and import lifecycle requests.
+
+# 2026-09-17 - Asset Tracking Phase 2 Operational Semantics
+
+- Separated quantity-derived Availability (Available, Low Quantity, Missing) from physical Condition, and made the shared read-model selector the source for asset list badges, Operations Summary counts, and quick filters. Zero quantity now belongs only to Missing, avoiding the prior summary/filter disagreement.
+- Simplified the operational surface by prioritizing Operations Summary over the historical activity stream, removing the placeholder page export control and duplicate overflow View action, and making row-level Start Inspection preselect the intended asset.
+- Normalized recent-activity labels for imports, adjustments, inspection draft/completion, maintenance states, and archived assets. Hardened name-only import matching against ambiguity and made photo replacement retain the old object until a new reference saves successfully.

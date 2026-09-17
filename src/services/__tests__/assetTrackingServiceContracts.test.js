@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), audit: vi.fn(), upload: vi.fn(), isImageDataUrl: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), audit: vi.fn(), upload: vi.fn(), removeStorage: vi.fn(), isImageDataUrl: vi.fn() }));
 
 vi.mock("../../lib/supabase.ts", () => ({
   supabase: {
@@ -13,7 +13,7 @@ vi.mock("../../lib/supabase.ts", () => ({
 vi.mock("../auditLogService.js", () => ({ auditLogService: { createAuditLog: mocks.audit } }));
 vi.mock("../../utils/imageUpload.js", () => ({
   isImageDataUrl: mocks.isImageDataUrl,
-  removeStorageObjectFromPublicUrl: vi.fn(),
+  removeStorageObjectFromPublicUrl: mocks.removeStorage,
   uploadOptimizedDataUrl: mocks.upload,
 }));
 
@@ -31,6 +31,7 @@ beforeEach(() => {
   mocks.from.mockReset();
   mocks.audit.mockReset().mockResolvedValue(undefined);
   mocks.upload.mockReset();
+  mocks.removeStorage.mockReset().mockResolvedValue({ removed: true });
   mocks.isImageDataUrl.mockReset().mockReturnValue(false);
   mocks.rpc.mockResolvedValue({ data: { inspection_id: "inspection-1", status: "completed" }, error: null });
 });
@@ -168,5 +169,29 @@ describe("Asset Tracking trusted lifecycle RPC contracts", () => {
     await expect(assetTrackingService.submitInspection({ ...inspection, requestId: "failed-inspection" })).rejects.toThrow("inspection transaction rejected");
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
+  it("does not remove the current asset image when a staged replacement cannot be saved", async () => {
+    mocks.isImageDataUrl.mockImplementation((value) => String(value || "").startsWith("data:"));
+    mocks.upload.mockResolvedValueOnce({ publicUrl: "https://storage.test/new-image.webp" });
+    const failedQuery = { eq: () => failedQuery, select: () => ({ single: async () => ({ data: null, error: new Error("asset write rejected") }) }) };
+    mocks.from.mockReturnValue({ update: () => failedQuery });
+
+    await expect(assetTrackingService.saveAsset({ ...asset, image_url: "data:image/webp;base64,new", thumbnail_url: "data:image/webp;base64,new", previous_image_url: "https://storage.test/old-image.webp" }))
+      .rejects.toThrow("asset write rejected");
+
+    expect(mocks.removeStorage).not.toHaveBeenCalled();
+  });
+
+  it("cleans up a replaced asset image only after its new reference is saved", async () => {
+    mocks.isImageDataUrl.mockImplementation((value) => String(value || "").startsWith("data:"));
+    mocks.upload.mockResolvedValueOnce({ publicUrl: "https://storage.test/new-image.webp" });
+    const saved = { ...asset, image_url: "https://storage.test/new-image.webp", thumbnail_url: "https://storage.test/new-image.webp", category: { id: "category-1", name: "Kitchen", maintenance_enabled: false } };
+    const successfulQuery = { eq: () => successfulQuery, select: () => ({ single: async () => ({ data: saved, error: null }) }) };
+    mocks.from.mockReturnValue({ update: () => successfulQuery });
+
+    await assetTrackingService.saveAsset({ ...asset, image_url: "data:image/webp;base64,new", thumbnail_url: "data:image/webp;base64,new", previous_image_url: "https://storage.test/old-image.webp" });
+
+    expect(mocks.removeStorage).toHaveBeenCalledWith("asset-photos", "https://storage.test/old-image.webp");
   });
 });

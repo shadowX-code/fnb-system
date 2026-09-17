@@ -28,6 +28,7 @@ async function uploadAssetImageIfNeeded(asset, userId, previousPublicUrl = "") {
       path,
       previousPublicUrl,
       metadata: { uploaded_by: userId || "" },
+      cleanupPrevious: false,
     });
     console.info("[AssetTracking] Asset photo uploaded", { path: upload.path, publicUrl: upload.publicUrl });
     return upload.publicUrl;
@@ -393,14 +394,11 @@ export const assetTrackingService = {
 
   async saveAsset(asset) {
     const userId = await currentUserId();
-    const imageUrl = await uploadAssetImageIfNeeded(asset, userId, asset.previous_image_url || asset.existing_image_url || "");
-    if (!imageUrl && (asset.previous_image_url || asset.existing_image_url)) {
-      try {
-        await removeStorageObjectFromPublicUrl("asset-photos", asset.previous_image_url || asset.existing_image_url);
-      } catch (removeError) {
-        console.warn("[AssetTracking] Unable to remove asset photo", removeError);
-      }
-    }
+    const previousImageUrl = asset.previous_image_url || asset.existing_image_url || "";
+    // Stage a replacement first; do not remove the currently referenced object
+    // until the new reference has been durably saved on the asset record.
+    const imageWasStaged = isDataUrl(asset.image_url);
+    const imageUrl = await uploadAssetImageIfNeeded(asset, userId, previousImageUrl);
     const condition = normalizeAssetCondition(asset.condition);
     console.info("[AssetTracking] Saving asset", { assetId: asset.id || "new", name: asset.name, condition, hasImage: Boolean(imageUrl) });
     const payload = {
@@ -414,7 +412,7 @@ export const assetTrackingService = {
       warranty_expiry: asset.warranty_expiry || null,
       notes: asset.notes ?? "",
       image_url: imageUrl,
-      thumbnail_url: isDataUrl(asset.thumbnail_url) ? imageUrl : (asset.thumbnail_url ?? imageUrl),
+      thumbnail_url: imageWasStaged || isDataUrl(asset.thumbnail_url) ? imageUrl : (asset.thumbnail_url ?? imageUrl),
       health_status: asset.health_status ?? "healthy",
       maintenance_override: ["inherit", "enabled", "disabled"].includes(asset.maintenance_override) ? asset.maintenance_override : "inherit",
       condition,
@@ -441,6 +439,13 @@ export const assetTrackingService = {
       error = fallbackResult.error;
     }
     throwSupabaseError("asset_items.save", error);
+    if (previousImageUrl && previousImageUrl !== imageUrl) {
+      try {
+        await removeStorageObjectFromPublicUrl("asset-photos", previousImageUrl);
+      } catch (removeError) {
+        console.warn("[AssetTracking] Unable to remove replaced asset photo", removeError);
+      }
+    }
     await logAssetAudit(asset.id ? "asset_edited" : "asset_created", data.outlet_id, data.name, data);
     return mapAsset(data);
   },

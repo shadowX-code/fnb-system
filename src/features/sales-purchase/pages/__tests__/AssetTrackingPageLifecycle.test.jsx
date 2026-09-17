@@ -12,7 +12,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock("../../../../services/assetTrackingService.js", () => ({ assetTrackingService: mocks.service }));
 vi.mock("../../../../lib/supabase.ts", () => ({ supabase: { from: vi.fn(() => ({ select: vi.fn(() => ({ or: vi.fn(async () => ({ data: [], error: null })) })) })) } }));
 
-import AssetTrackingPage from "../AssetTrackingPage.jsx";
+import AssetTrackingPage, { buildAssetImportPreview } from "../AssetTrackingPage.jsx";
 
 const asset = {
   id: "asset-1", outlet_id: "outlet-1", category_id: "category-1", category_name: "Kitchen", name: "Mixer", current_quantity: 10,
@@ -42,6 +42,17 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Asset Tracking page lifecycle guards", () => {
+  it("rejects an ambiguous name-only import instead of silently selecting an arbitrary asset", () => {
+    const preview = buildAssetImportPreview([{ __row: 2, "Asset Name": "Mixer", "Outlet Code": "KLC", Category: "Kitchen", Quantity: "4", Condition: "Good", Status: "Active" }], {
+      assets: [{ ...asset, id: "asset-a" }, { ...asset, id: "asset-b" }],
+      outlets: [{ id: "outlet-1", code: "KLC", name: "KL Central", status: "active" }],
+      categories: [{ id: "category-1", name: "Kitchen", is_active: true }],
+    });
+
+    expect(preview[0]).toMatchObject({ action: "error", existing: null });
+    expect(preview[0].errors).toContain("Ambiguous asset name for this outlet; provide Asset Code");
+  });
+
   it("keeps view-only Asset Tracking read-only and does not expose lifecycle actions", async () => {
     mount(["asset_tracking.view"]);
     await screen.findByText("Mixer");
@@ -70,6 +81,16 @@ describe("Asset Tracking page lifecycle guards", () => {
     expect(mocks.service.adjustQuantity).toHaveBeenCalledTimes(1);
     expect(mocks.service.adjustQuantity).toHaveBeenCalledWith(asset, expect.objectContaining({ type: "add", quantity: 1 }));
     resolveAdjustment();
+  });
+
+  it("preselects the row asset when Start Inspection is launched from its overflow menu", async () => {
+    mount(["asset_tracking.view", "asset_tracking.manage"]);
+    await screen.findByText("Mixer");
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Mixer" }));
+    fireEvent.click(screen.getAllByText("Start Inspection").at(-1));
+    fireEvent.click(screen.getByRole("button", { name: "Continue Checklist" }));
+
+    expect(await screen.findByText("1 total")).toBeTruthy();
   });
 
   it("keeps the mounted adjustment modal usable after a rejected service call and does not refresh as success", async () => {

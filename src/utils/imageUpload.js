@@ -176,7 +176,7 @@ export async function removeStorageObjectFromPublicUrl(bucket, publicUrl) {
   return { removed: true, path };
 }
 
-export async function uploadOptimizedImage(fileOrBlob, { bucket, path, previousPublicUrl = "", metadata = {} }) {
+export async function uploadOptimizedImage(fileOrBlob, { bucket, path, previousPublicUrl = "", metadata = {}, cleanupPrevious = true }) {
   if (!bucket || !path) throw new Error("Missing image upload destination.");
   if (fileOrBlob instanceof File) validateImageFile(fileOrBlob);
   const optimized = await optimizeImageBlob(fileOrBlob);
@@ -190,7 +190,7 @@ export async function uploadOptimizedImage(fileOrBlob, { bucket, path, previousP
     });
   if (error) throw error;
   const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-  if (previousPublicUrl && previousPublicUrl !== publicUrlData.publicUrl) {
+  if (cleanupPrevious && previousPublicUrl && previousPublicUrl !== publicUrlData.publicUrl) {
     try {
       await removeStorageObjectFromPublicUrl(bucket, previousPublicUrl);
     } catch (removeError) {
