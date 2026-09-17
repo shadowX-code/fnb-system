@@ -163,6 +163,22 @@ export function buildAssetOperationalKpis({ assets = [], inspections = [], maint
   };
 }
 
+// This is the sole human-readable mapping for a movement in both the list and
+// activity surfaces. Lifecycle values remain technical in storage/RPCs.
+export function latestMovementSummary(movement) {
+  if (!movement) return "—";
+  const amount = Math.abs(Number(movement.quantity_change || 0));
+  if (movement.reason === "import") return `Asset Imported · ${amount ? `${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change}` : "Recorded"}`;
+  if (movement.movement_type === "add") return `Quantity Adjusted · +${amount}`;
+  if (movement.movement_type === "reduce") return `Quantity Adjusted · -${amount}`;
+  if (movement.movement_type === "correction") return movement.reason === "inspection"
+    ? "Inspection Quantity Correction"
+    : `Quantity Adjusted${amount ? ` · ${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change}` : ""}`;
+  if (movement.movement_type === "transfer_in") return "Transfer · Received";
+  if (movement.movement_type === "transfer_out") return "Transfer · Sent";
+  return "Quantity adjusted";
+}
+
 export function buildAssetActivityProjection({ assets = [], movements = [], inspections = [], maintenanceRecords = [] } = {}) {
   const assetNameById = new Map(assets.map((asset) => [asset.id, asset.name || "Asset"]));
   const importedAssetIds = new Set(movements.filter((movement) => movement.reason === "import").map((movement) => movement.asset_id));

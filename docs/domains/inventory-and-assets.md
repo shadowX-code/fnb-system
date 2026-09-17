@@ -30,7 +30,7 @@ Inventory and asset records are related operational concerns but retain their ow
 
 ### Asset Tracking Application Read Boundary
 
-`assetTrackingService` remains the approved Asset Tracking application boundary for Supabase reads and lifecycle RPC intent. Imports use `asset_import_row`; the browser must not create an independent movement-log import path.
+`assetTrackingService` remains the approved Asset Tracking application boundary for Supabase reads and lifecycle RPC intent. `loadOutletTrackingData` owns the concurrent five-collection list/summary/activity read set; its consumers must not recreate a divergent route-level query bundle. Imports use `asset_import_row`; the browser must not create an independent movement-log import path.
 
 Asset availability and physical condition are separate canonical projections. Availability is derived from quantity and the configured minimum as **Available**, **Low Quantity**, or **Missing**; zero quantity is **Missing**, never also Low Quantity. Physical condition remains **Good**, **Needs Attention**, **Under Maintenance**, **Damaged** (legacy-compatible), or **Disposed**. The shared Asset read-model selector is the sole source for availability, condition, summary counts, quick filters, and list presentation, preventing filter/count drift. It also supplies the semantic activity labels for imported, adjusted, inspected, maintained, and archived assets. Maintenance eligibility is derived from the category setting plus the per-asset `maintenance_override`; Admin editor entry points share the same form state and validation rules.
 
@@ -39,6 +39,8 @@ Inspection item and evidence reads are constrained to inspection headers already
 Asset lifecycle history is append-only for ordinary clients: assets are archived rather than deleted, and movement, maintenance, inspection, item, and evidence rows are written only by trusted lifecycle authorities. Draft inspections may be resumed or archived through their canonical RPC; finalized inspection headers, items, and evidence are immutable. Database triggers enforce asset/outlet consistency for lifecycle children, and each successful lifecycle request records server-derived audit evidence in the same transaction.
 
 Asset imports may update only an unambiguous same-outlet match: asset code is the preferred identity, while duplicate name-only matches are rejected for explicit resolution. Asset photo replacement stages the new object, persists the new database reference, then best-effort removes the prior object; a failed record save cannot delete the currently referenced photo.
+
+The optional-field query fallbacks in the Asset service remain intentional compatibility debt until every supported environment is proven to have the corresponding deployed schema. They must stay contained in the service; no page-level fallback or legacy-field branching is permitted.
 
 ## Permissions, Snapshots, And Audit
 
