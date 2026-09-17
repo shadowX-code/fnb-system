@@ -529,3 +529,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added a Factory physical-cash ledger with server-derived running/current balance, immutable Posted transactions, linked reversal Adjustments, Malaysia-date daily references, auditable trusted RPC mutations, and private receipt evidence.
 - Added active/inactive Expense Category management, canonical Factory permissions/RLS, shared FilterBar/table/modal UI, and explicit isolation from Receiving, inventory, supplier payable, Recipe costing, and accounting data.
+
+# 2026-09-17 - Asset Tracking Phase 1 Integrity Hardening
+
+- Hardened Asset Tracking lifecycle history at the database boundary: ordinary clients can no longer delete assets or mutate/delete movement, maintenance, inspection, item, or evidence history; asset archival remains the supported lifecycle action.
+- Added same-outlet child-record triggers, one-asset-per-inspection uniqueness, finalized-inspection immutability, a trusted draft-archive RPC, and atomic server-derived audit events for quantity, inspection, maintenance, and import lifecycle requests.

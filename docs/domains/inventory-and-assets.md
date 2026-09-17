@@ -34,7 +34,9 @@ Inventory and asset records are related operational concerns but retain their ow
 
 Asset condition normalization, missing/low-quantity semantics, attention, maintenance due state, inspection ordering/progress, operational KPIs, and activity projection use the shared Asset read-model selectors. A zero quantity with no positive minimum is **Missing**, not also Low Quantity. Maintenance eligibility is derived from the category setting plus the per-asset `maintenance_override`; Admin editor entry points share the same form state and validation rules.
 
-Inspection item and evidence reads are constrained to inspection headers already returned under the current outlet/RLS scope. Actor display lookup is a limited Asset service projection; it is not a page-level employee-directory query. The existing direct Admin condition and inspection-draft mutations remain deployed compatibility boundaries and should be replaced only by an explicitly scoped server-authoritative lifecycle change.
+Inspection item and evidence reads are constrained to inspection headers already returned under the current outlet/RLS scope. Actor display lookup is a limited Asset service projection; it is not a page-level employee-directory query. Direct Admin condition edits remain a deployed compatibility boundary; inspection draft persistence and archival use their scoped server-authoritative lifecycle paths.
+
+Asset lifecycle history is append-only for ordinary clients: assets are archived rather than deleted, and movement, maintenance, inspection, item, and evidence rows are written only by trusted lifecycle authorities. Draft inspections may be resumed or archived through their canonical RPC; finalized inspection headers, items, and evidence are immutable. Database triggers enforce asset/outlet consistency for lifecycle children, and each successful lifecycle request records server-derived audit evidence in the same transaction.
 
 ## Permissions, Snapshots, And Audit
 

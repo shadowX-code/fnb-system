@@ -2098,7 +2098,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
   );
 }
 
-function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], currentProfile, actorNameResolver, onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onSaveMaintenance, saving }) {
+function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], currentProfile, actorNameResolver, onClose, onResumeDraft, onArchiveDraft, onSaveMaintenance, saving }) {
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(false);
@@ -2317,7 +2317,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
             </div>
           ) : null}
           {tab === "movement" ? <Timeline rows={movements} empty="No movement logs yet." /> : null}
-          {tab === "inspection" ? <InspectionHistory inspections={inspections} outlet={outlet} currentProfile={currentProfile} actorNameResolver={actorNameResolver} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
+          {tab === "inspection" ? <InspectionHistory inspections={inspections} outlet={outlet} currentProfile={currentProfile} actorNameResolver={actorNameResolver} onResumeDraft={onResumeDraft} onArchiveDraft={onArchiveDraft} /> : null}
           {tab === "maintenance" ? (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
@@ -2556,7 +2556,7 @@ function InspectionDetailModal({ inspection, outlet, currentProfile, actorNameRe
   );
 }
 
-function InspectionHistory({ inspections = [], outlet, currentProfile, actorNameResolver, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
+function InspectionHistory({ inspections = [], outlet, currentProfile, actorNameResolver, onResumeDraft, onArchiveDraft }) {
   const [detailInspection, setDetailInspection] = useState(null);
   const sortedInspections = useMemo(() => [...inspections].sort(sortInspectionsNewestFirst), [inspections]);
   const dateCounts = useMemo(() => {
@@ -2604,7 +2604,6 @@ function InspectionHistory({ inspections = [], outlet, currentProfile, actorName
                 {!isDraftInspection(inspection) ? <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => setDetailInspection(inspection)}>View Details</button> : null}
                 {isDraftInspection(inspection) ? <button className="btn-primary h-8 px-2 text-xs" type="button" onClick={() => onResumeDraft?.(inspection)}>Resume</button> : null}
                 {isDraftInspection(inspection) ? <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => onArchiveDraft?.(inspection)}>Archive</button> : null}
-                {isDraftInspection(inspection) ? <button className="btn-secondary h-8 px-2 text-xs text-rose-700" type="button" onClick={() => onDeleteDraft?.(inspection)}>Delete</button> : null}
               </div>
             </div>
             {!isDraftInspection(inspection) ? (
@@ -3119,21 +3118,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }
   }
 
-  async function deleteInspection(inspection) {
-    if (!canManageAsset) {
-      notifyPermissionDenied(ui, "delete inspection drafts");
-      return;
-    }
-    try {
-      await assetTrackingService.deleteInspection(inspection.id);
-      await loadData();
-      ui.notify({ title: "Draft deleted" });
-    } catch (deleteError) {
-      console.error("Unable to delete inspection", deleteError);
-      ui.notify({ title: "Unable to delete draft", message: deleteError.message || "Please try again.", tone: "error" });
-    }
-  }
-
   async function archiveAsset(asset) {
     if (!canDeleteAsset) {
       notifyPermissionDenied(ui, "archive assets");
@@ -3309,7 +3293,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                         <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => setInspectionOpen(inspection)}>Resume Inspection</button>
                         <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setInspectionOpen({ ...inspection, id: "", status: "draft" })}>Duplicate</button>
                         <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => updateInspectionStatus(inspection, "archived")}>Archive</button>
-                        <button className="btn-secondary h-9 px-3 text-xs text-rose-700" type="button" onClick={() => deleteInspection(inspection)}>Delete</button>
                       </div>
                     </div>
                   </div>
@@ -3500,7 +3483,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
       {maintenanceContext ? <MaintenanceRecordModal asset={maintenanceContext.asset} record={maintenanceContext.record} onClose={() => setMaintenanceContext(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}
       {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} defaultCheckedBy={currentInspectorName} defaultCheckedById={currentInspectorId} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
-      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} currentProfile={auth?.profile} actorNameResolver={actorDisplayName} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onSaveMaintenance={(asset, values) => saveMaintenanceRecord(values, asset)} saving={saving} /> : null}
+      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} currentProfile={auth?.profile} actorNameResolver={actorDisplayName} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onSaveMaintenance={(asset, values) => saveMaintenanceRecord(values, asset)} saving={saving} /> : null}
       {assetPreview ? <FloatingPreviewLayer anchor={assetPreview.anchor} width={300}>
         <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
           <div className="p-3">
