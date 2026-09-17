@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260918100000_factory_fg_storage_and_raw_stock_check_reconciliation.sql"), "utf8");
 const verification = readFileSync(resolve(process.cwd(), "supabase/migrations/20260918101000_factory_raw_stock_check_reconciliation_repair_verification.sql"), "utf8");
+const movementProjection = readFileSync(resolve(process.cwd(), "supabase/migrations/20260918133000_factory_raw_movement_batch_projection.sql"), "utf8");
 
 describe("Factory Raw Material Stock Check reconciliation batches migration", () => {
   it("pins Production completion to the Packaging SKU's active storage-enabled location", () => {
@@ -46,5 +47,14 @@ describe("Factory Raw Material Stock Check reconciliation batches migration", ()
     expect(verification).toContain("v_present_count not in (0, 3)");
     expect(verification).toContain("v_valid_count <> 3");
     expect(verification).toContain("status = 'active'");
+  });
+
+  it("projects every direct canonical batch relationship into Raw Material Movement display", () => {
+    expect(movementProjection).toContain("source.raw_material_batch_balance_id");
+    expect(movementProjection).toContain("exact_batch.internal_batch_no as exact_batch_no");
+    expect(movementProjection).toContain("exact_location.location_name as exact_storage_location");
+    expect(movementProjection).toContain("'{batch_id}', to_jsonb(base.raw_material_batch_balance_id)");
+    expect(movementProjection).toContain("movement.raw_material_batch_balance_id = p_batch_id");
+    expect(movementProjection).toContain("Stock Check Adjustment, and Transfer evidence");
   });
 });

@@ -28,6 +28,7 @@ describe("Movement ledger read-only presentation", () => {
     expect(screen.getAllByText("RM-CHI-260809-01").length).toBeGreaterThan(0);
     expect(screen.getAllByText("PB260809-01").length).toBeGreaterThan(0);
     expect(screen.getByText("RMSC-260809-01")).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "RM-CHI-260809-01" })).toHaveLength(3);
     fireEvent.click(screen.getAllByRole("button", { name: "View details" })[0]);
     expect(onOpenDetail).toHaveBeenCalledWith(expect.objectContaining({ id: "rm-receive" }));
     expect(screen.queryByRole("button", { name: /create|edit|delete/i })).toBeNull();
