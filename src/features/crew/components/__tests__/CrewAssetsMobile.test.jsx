@@ -93,14 +93,14 @@ describe("Crew Assets Mobile", () => {
   it("refreshes the open Asset Detail after a variance inspection", async () => {
     const refreshed = {
       ...payload,
-      assets: [{ ...payload.assets[0], current_quantity: 1 }],
+      assets: [{ ...payload.assets[0], current_quantity: 2 }],
       inspection_history: [{
         ...payload.inspection_history[0],
         items: [{ asset_id: "asset-1", asset_name: "Staging QA Blender", expected_quantity: 2, counted_quantity: 1, difference: -1, condition: "healthy" }],
       }],
     };
     crewService.assetsMobile.mockResolvedValueOnce(payload).mockResolvedValueOnce(refreshed);
-    crewService.submitAssetInspection.mockResolvedValue({ status: "completed" });
+    crewService.submitAssetInspection.mockResolvedValue({ status: "completed", asset_updates: [{ id: "asset-1", current_quantity: 1, condition: "healthy" }] });
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     fireEvent.click(await screen.findByText("Staging QA Blender"));
     fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
