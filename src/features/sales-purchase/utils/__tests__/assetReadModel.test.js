@@ -32,6 +32,14 @@ describe("Asset read-model selectors", () => {
 });
 
 describe("shared maintenance editor model", () => {
+  it("accepts the null record used when opening a new maintenance entry", () => {
+    expect(createMaintenanceRecordDraft(null, "2026-08-30")).toMatchObject({
+      id: "",
+      status: "scheduled",
+      scheduled_date: "2026-08-30",
+    });
+  });
+
   it("uses the same transition and validation rules for both entry points", () => {
     const scheduled = createMaintenanceRecordDraft({ issue: "Motor", scheduled_date: "2026-09-01" }, "2026-08-30");
     const completed = updateMaintenanceRecordDraft(scheduled, "status", "completed", "2026-08-30");
