@@ -344,6 +344,12 @@ export const routeDetails = {
     permission: "factory_product_stock_check.view",
     props: { initialTab: "product-stock-check" },
   },
+  factory_internal_transfer: {
+    description: "Move exact Factory Raw Material or Finished Good batches between storage Locations.",
+    component: FactoryWorkspacePage,
+    permission: "factory_internal_transfer.view",
+    props: { initialTab: "internal-transfer" },
+  },
   factory_mesti_cleaning: {
     description: "Complete and verify MeSTI Cleaning of Area requirements with monthly compliance history.",
     component: FactoryWorkspacePage,
