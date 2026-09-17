@@ -90,6 +90,27 @@ describe("Crew Assets Mobile", () => {
     expect(await screen.findByText("Resume inspection")).not.toBeNull();
   });
 
+  it("refreshes the open Asset Detail after a variance inspection", async () => {
+    const refreshed = {
+      ...payload,
+      assets: [{ ...payload.assets[0], current_quantity: 1 }],
+      inspection_history: [{
+        ...payload.inspection_history[0],
+        items: [{ asset_id: "asset-1", asset_name: "Staging QA Blender", expected_quantity: 2, counted_quantity: 1, difference: -1, condition: "healthy" }],
+      }],
+    };
+    crewService.assetsMobile.mockResolvedValueOnce(payload).mockResolvedValueOnce(refreshed);
+    crewService.submitAssetInspection.mockResolvedValue({ status: "completed" });
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByText("Staging QA Blender"));
+    fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
+    fireEvent.change(screen.getByLabelText("Counted quantity"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Complete inspection" }));
+    await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("1 unit")).not.toBeNull();
+    expect(screen.getByText(/Expected 2 .* Counted 1/i)).not.toBeNull();
+  });
+
   it("does not render mutation actions without their separate capabilities", async () => {
     crewService.assetsMobile.mockResolvedValue({ ...payload, can_add_assets: false, can_adjust_assets: false, can_perform_asset_inspections: false });
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);

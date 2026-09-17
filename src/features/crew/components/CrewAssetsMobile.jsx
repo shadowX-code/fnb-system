@@ -39,7 +39,7 @@ export default function CrewAssetsMobile({ token, onBack }) {
   useEffect(() => { void load(); }, [token]);
   const visible = useMemo(() => (data?.assets || []).filter((item) => (category === "all" || item.category_id === category) && `${item.name} ${item.asset_code || ""} ${item.location || ""}`.toLowerCase().includes(query.toLowerCase())), [data, query, category]);
   const categories = useMemo(() => [{ value: "all", label: "All categories" }, ...(data?.categories || []).map((item) => ({ value: item.id, label: item.name }))], [data]);
-  if (inspection) return <InspectionFlow token={token} data={data} initial={inspection} onBack={() => setInspection(null)} onSaved={async () => { await load(); setInspection(null); }} />;
+  if (inspection) return <InspectionFlow token={token} data={data} initial={inspection} onBack={() => setInspection(null)} onSaved={async () => { const refreshed = await load(); if (asset) setAsset(refreshed?.assets?.find((item) => item.id === asset.id) || null); setInspection(null); }} />;
   if (asset) return <><AssetDetail asset={asset} data={data} onBack={() => setAsset(null)} onAdjust={() => setAdjusting(true)} onInspect={() => setInspection({ scope: "specific", assets: [asset] })} onActivity={() => setActivity({ assetId: asset.id, title: asset.name })} />
     {adjusting ? <AdjustSheet token={token} asset={asset} onClose={() => setAdjusting(false)} onSaved={async () => { const refreshed = await load(); setAsset(refreshed?.assets?.find((item) => item.id === asset.id) || null); setAdjusting(false); }} /> : null}
     {activity ? <ActivitySheet data={data} assetId={activity.assetId} title={activity.title} onClose={() => setActivity(false)} /> : null}
