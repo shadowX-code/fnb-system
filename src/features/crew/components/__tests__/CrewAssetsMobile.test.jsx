@@ -24,6 +24,16 @@ describe("Crew Assets Mobile", () => {
     expect(screen.getByRole("button", { name: /Inspect Asset/i })).not.toBeNull();
   });
 
+  it("groups capability-gated operational actions beneath search with shared button hierarchy", async () => {
+    crewService.assetsMobile.mockResolvedValue(payload);
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    const add = await screen.findByRole("button", { name: "Add Asset" });
+    const inspect = screen.getByRole("button", { name: "Start inspection" });
+    expect(add.className).toContain("crew-mobile-secondary");
+    expect(inspect.className).toContain("crew-mobile-primary");
+    expect(screen.getByRole("button", { name: /Activity/i }).className).not.toContain("crew-mobile-primary");
+  });
+
   it("opens the adjustment sheet from asset detail", async () => {
     crewService.assetsMobile.mockResolvedValue(payload);
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
@@ -31,6 +41,7 @@ describe("Crew Assets Mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: /Adjust Quantity/i }));
     expect(screen.getByRole("heading", { name: "Adjust Quantity" })).not.toBeNull();
     expect(screen.getByLabelText("Quantity").value).toBe("2");
+    expect(screen.getByLabelText("Quantity").getAttribute("inputmode")).toBe("decimal");
     expect(screen.getByRole("button", { name: "Save adjustment" })).not.toBeNull();
     expect(screen.getByText("Current quantity")).not.toBeNull();
     expect(screen.getByText("New quantity")).not.toBeNull();
@@ -84,6 +95,8 @@ describe("Crew Assets Mobile", () => {
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     fireEvent.click(await screen.findByText("Staging QA Blender"));
     fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
+    expect(screen.getByRole("button", { name: "Save draft" }).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Counted quantity"), { target: { value: "1" } });
     fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
     await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
@@ -108,7 +121,7 @@ describe("Crew Assets Mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: "Complete inspection" }));
     await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("1 unit")).not.toBeNull();
-    expect(screen.getByText(/Expected 2 .* Counted 1/i)).not.toBeNull();
+    expect(screen.getByText((_, node) => node?.tagName === "SMALL" && /Expected 2 .* Counted 1/i.test(node.textContent || ""))).not.toBeNull();
   });
 
   it("does not render mutation actions without their separate capabilities", async () => {
@@ -136,6 +149,8 @@ describe("Crew Assets Mobile", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Category" }).at(-1));
     fireEvent.click(screen.getByRole("option", { name: "Kitchen" }));
     fireEvent.change(screen.getByLabelText("Initial quantity"), { target: { value: "4" } });
+    expect(screen.getByLabelText("Initial quantity").getAttribute("inputmode")).toBe("decimal");
+    expect(screen.getByLabelText("Initial quantity").getAttribute("enterkeyhint")).toBe("next");
     fireEvent.click(screen.getAllByRole("button", { name: "Add Asset" }).at(-1));
     await waitFor(() => expect(crewService.createAsset).toHaveBeenCalledWith("token", expect.objectContaining({ asset: expect.objectContaining({ name: "Crew QA Tongs", initial_quantity: 4, category_id: "cat-1" }) })));
     expect(await screen.findByText("Crew QA Tongs")).not.toBeNull();

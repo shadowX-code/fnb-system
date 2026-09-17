@@ -5,6 +5,7 @@ import useCrewSession from "./hooks/useCrewSession.js";
 import useCrewRoute from "./hooks/useCrewRoute.js";
 import useCrewAttendance from "./hooks/useCrewAttendance.js";
 import useCrewTheme from "./hooks/useCrewTheme.js";
+import useCrewVisualViewport from "./hooks/useCrewVisualViewport.js";
 import CrewLogin from "./components/CrewLogin.jsx";
 import CrewHomeMobile from "./components/CrewHomeMobile.jsx";
 import CrewMeMobile from "./components/CrewMeMobile.jsx";
@@ -49,6 +50,7 @@ export default function CrewMobileApp({ onNotify }) {
 
 function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, route, onNotify }) {
   const { t } = useTranslation();
+  useCrewVisualViewport();
   const { theme, toggleTheme } = useCrewTheme();
   const { screen, growthInitialView, entry, navigate } = route;
   const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave, assets } = data;
