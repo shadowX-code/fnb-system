@@ -42,6 +42,14 @@ Asset imports may update only an unambiguous same-outlet match: asset code is th
 
 The optional-field query fallbacks in the Asset service remain intentional compatibility debt until every supported environment is proven to have the corresponding deployed schema. They must stay contained in the service; no page-level fallback or legacy-field branching is permitted.
 
+### Crew Mobile Asset Execution
+
+Restaurant Asset Tracking remains the only asset source of truth. Crew Mobile receives a minimum-safe, token-bound outlet projection through `crew_asset_mobile`; it never receives direct table access or Admin cost, supplier, purchase, or unrestricted audit metadata. `Adjust Assets` and `Perform Asset Inspections` are independent per-account Crew Access capabilities. Either capability permits the Assets read surface, while each mutation authority verifies its own capability again on the server.
+
+Crew adjustments and inspections reuse the canonical asset rows, movement history, inspection headers/items/evidence, lifecycle request ledger, locking, finalized-evidence immutability, and audit trigger. Crew identity is retained as `actor_employee_id` / `created_by_employee_id` alongside the existing Admin auth actor fields. Crew may record only operational conditions; maintenance, disposal, archival, master data, categories, imports, exports, and asset creation/editing remain Admin-owned.
+
+Inspection drafts are owned by the current Crew employee and outlet. Completion atomically writes canonical item/evidence rows, quantity corrections, condition, last-inspection state, activity, and audit. Required evidence uploads are mediated by the token-bound `crew-asset-evidence` Edge Function; the Crew browser receives no Storage write authority. Task-to-Asset deep linking is deliberately deferred until Tasks defines a canonical Asset evidence reference contract.
+
 ## Permissions, Snapshots, And Audit
 
 Admin access requires inventory or asset permissions and outlet/record scope.
@@ -50,7 +58,7 @@ Posted movements, stock-check outcomes, lifecycle requests, and asset transition
 
 ## Workflows And Integrations
 
-Admins configure items and locations, record operational movement intent, perform stock checks, reconcile differences, and manage assets.
+Admins configure items and locations, record operational movement intent, perform stock checks, reconcile differences, and manage assets. Specially authorized Crew may view its current outlet assets, record operational quantity/condition adjustments, and execute canonical inspections from Crew Mobile; these actions remain visible to Admin with Crew actor attribution.
 Purchasing can supply receipt context but does not own stock posting.
 Restaurant finance may consume valuation or usage projections without taking inventory write ownership.
 People/RBAC supplies identity and scope.

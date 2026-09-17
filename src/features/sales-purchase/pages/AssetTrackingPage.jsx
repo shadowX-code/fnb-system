@@ -1932,6 +1932,7 @@ function collectAssetActorIds({ assets = [], movements = [], inspections = [], m
   });
   movements.forEach((movement) => {
     add(movement.created_by);
+    add(movement.created_by_employee_id);
     add(movement.updated_by);
     add(movement.recorded_by);
     add(movement.user_id);

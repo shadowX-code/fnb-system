@@ -25,7 +25,7 @@ Crew Access is a one-to-one extension of an eligible employee and remains separa
 Employee Master workplace scope is the current canonical outlet authority: Crew Access mirrors its resolved outlet, and a workplace transfer updates that mirror, revokes active Crew sessions, and appends audit evidence. A request with a stale or mismatched Crew Access outlet fails closed; it is never silently re-scoped from a client or an old session.
 Passcodes are protected, sessions are opaque and revocable, and sensitive requests revalidate token validity, access state, employment state, and the current canonical outlet scope.
 The Crew browser keeps only the opaque session envelope locally. Its employee-scoped read projections are cleared and pending reads invalidated on logout or session replacement; a response is accepted only for the current token and refresh generation, preventing a prior employee's data from appearing in a newer session.
-Crew-scoped operational capabilities, including Cash Handover initiation, are owned by the employee's active Crew Access record and outlet rather than by Admin roles or Admin Access. Their changes use the controlled Crew Access administration path and retain audit evidence.
+Crew-scoped operational capabilities, including Cash Handover initiation, Asset adjustment, and Asset inspection, are owned by the employee's active Crew Access record and outlet rather than by Admin roles or Admin Access. Their changes use the controlled Crew Access administration path and retain audit evidence. Asset adjustment and inspection are independent grants; either exposes the minimum-safe Assets read surface, and neither permits asset administration.
 
 Draft Duty Roster weeks are editable by authorized Admins and are not Crew-visible.
 Publishing atomically creates an immutable Crew-facing revision for one outlet week. Later Admin edits keep the period Published with unpublished changes; Crew continues consuming the prior revision until Republish atomically promotes the latest working snapshot, including removals.
@@ -48,7 +48,7 @@ Roster publication revisions, original attendance evidence, leave decisions, and
 ## Admin And Crew Workflows
 
 Admins enable/reset/disable Crew Access and configure per-account Crew capabilities through the separate Special Access workflow; those capabilities are not Admin roles. They also prepare and publish rosters, review attendance evidence, configure leave policy/entitlement, and decide leave requests.
-Crew sign in separately, view their own published schedule, clock in/out, review their attendance, change passcode, and manage their own leave requests and balances.
+Crew sign in separately, view their own published schedule, clock in/out, review their attendance, change passcode, and manage their own leave requests and balances. Crew with Asset Special Access can open Me > Work > Assets for its current canonical outlet; the Asset domain retains all lifecycle, inspection, evidence, and audit authority.
 Crew may also replace its own profile photo through the token-bound profile-photo authority. Employee Master retains the canonical photo reference, while private Storage delivery remains server-scoped and short-lived; Crew does not receive a cross-employee profile mutation path.
 
 ## Integrations

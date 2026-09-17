@@ -37,6 +37,7 @@ const CrewRewardMobile = lazy(() => import("./components/CrewRewardMobile.jsx"))
 const CrewLearningMobile = lazy(() => import("./components/CrewLearningMobile.jsx"));
 const CrewCashCheckoutMobile = lazy(() => import("./components/CrewCashCheckoutMobile.jsx"));
 const CrewLeaveMobile = lazy(() => import("./components/CrewLeaveMobile.jsx"));
+const CrewAssetsMobile = lazy(() => import("./components/CrewAssetsMobile.jsx"));
 
 
 export default function CrewMobileApp({ onNotify }) {
@@ -50,7 +51,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   const { t } = useTranslation();
   const { theme, toggleTheme } = useCrewTheme();
   const { screen, growthInitialView, entry, navigate } = route;
-  const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave } = data;
+  const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave, assets } = data;
   const clock = useCrewAttendance({ session, attendance, context, roster, refresh, screen });
   const [cashCheckoutFlow, setCashCheckoutFlow] = useState(false);
   const [operationTarget, setOperationTarget] = useState(null);
@@ -67,11 +68,12 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={refresh} onBack={(returnContext) => { setOperationTarget(null); navigate("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => navigate("me")} onChanged={refresh} />}
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
+    {screen === "assets" && <CrewAssetsMobile token={session.token} onBack={() => navigate("me")} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
     {screen === "attendance" && <CrewAttendanceMobile rows={clock.attendanceMonth} loading={clock.attendanceMonthLoading} selectedMonth={clock.selectedAttendanceMonth} onMonthChange={clock.setSelectedAttendanceMonth} onBack={() => navigate("home")} t={t} />}
-    {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
+    {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
-    {!cashCheckoutFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout"].includes(screen) ? "me" : screen} onChange={navigate} />}
+    {!cashCheckoutFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;
 }

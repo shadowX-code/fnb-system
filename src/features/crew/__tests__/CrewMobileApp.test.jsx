@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   updateMyProfilePhoto: vi.fn(),
   localizedContentForCrew: vi.fn(),
   myProfile: vi.fn(),
+  assetsMobile: vi.fn(),
 }));
 
 vi.mock("../../../services/crewService.js", () => ({ crewService: mocks }));
@@ -81,6 +82,7 @@ beforeEach(() => {
   mocks.learningAssignment.mockReset().mockResolvedValue({ id: "assignment-1", journey: { name: "New Crew Onboarding" }, modules: [] });
   mocks.localizedContentForCrew.mockReset().mockResolvedValue({});
   mocks.myProfile.mockReset().mockResolvedValue({ employment_type: "full_time" });
+  mocks.assetsMobile.mockReset().mockRejectedValue(new Error("Crew Asset access is unavailable."));
   mocks.clock.mockReset().mockResolvedValue({});
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
   mocks.updateMyProfilePhoto.mockReset().mockResolvedValue({ profile_photo_path: "employee-a/profile.webp", profile_photo_url: "https://example.test/profile.webp" });

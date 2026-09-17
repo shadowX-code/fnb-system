@@ -10,6 +10,7 @@ describe("Crew hash routes", () => {
     expect(parseCrewRoute("#crew/learn")).toMatchObject({ screen: "learn" });
     expect(parseCrewRoute("#crew/growth/performance")).toMatchObject({ screen: "growth", growthInitialView: "performance" });
     expect(parseCrewRoute("#crew/me/attendance")).toMatchObject({ screen: "attendance" });
+    expect(parseCrewRoute("#crew/me/assets")).toMatchObject({ screen: "assets" });
     expect(parseCrewRoute("#crew/tasks")).toMatchObject({ screen: "operations" });
     expect(parseCrewRoute("#crew/schedule")).toMatchObject({ screen: "schedule" });
   });
@@ -25,5 +26,6 @@ describe("Crew hash routes", () => {
     expect(crewRouteForState({ screen: "home" }).canonicalHash).toBe("#crew/home");
     expect(crewRouteForState({ screen: "growth", growthInitialView: "performance" }).canonicalHash).toBe("#crew/growth/performance");
     expect(crewRouteForState({ screen: "cash-checkout" }).canonicalHash).toBe("#crew/me/cash-checkout");
+    expect(crewRouteForState({ screen: "assets" }).canonicalHash).toBe("#crew/me/assets");
   });
 });

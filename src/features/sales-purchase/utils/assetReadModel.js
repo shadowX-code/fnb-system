@@ -203,7 +203,7 @@ export function buildAssetActivityProjection({ assets = [], movements = [], insp
       title: imported ? "Asset Imported" : inspectionCorrection ? "Inspection Quantity Correction" : "Quantity Adjusted",
       detail: `${assetNameById.get(movement.asset_id) || "Asset"} · ${movement.reason || movement.movement_type || "quantity adjusted"}`,
       type: imported ? "created" : inspectionCorrection ? "inspection" : "movement",
-      actorId: movement.created_by,
+      actorId: movement.created_by_employee_id || movement.created_by,
       actorPrefix: imported ? "Imported" : inspectionCorrection ? "Inspected" : "Adjusted",
     };
   });

@@ -1299,6 +1299,68 @@ export const crewService = {
     throwSupabaseError("crew.updateCashOperationsAccess", error);
     return data;
   },
+  async updateAssetAccess(employeeId, { adjustAssets = false, inspectAssets = false } = {}) {
+    const { data, error } = await supabase.rpc("crew_update_asset_access", {
+      p_employee_id: employeeId,
+      p_can_adjust_assets: Boolean(adjustAssets),
+      p_can_perform_asset_inspections: Boolean(inspectAssets),
+    });
+    throwSupabaseError("crew.updateAssetAccess", error);
+    return data;
+  },
+  async updateSpecialAccess(employeeId, { handover = false, adjustAssets = false, inspectAssets = false } = {}) {
+    const { data, error } = await supabase.rpc("crew_update_special_access", {
+      p_employee_id: employeeId,
+      p_can_initiate_handover: Boolean(handover),
+      p_can_adjust_assets: Boolean(adjustAssets),
+      p_can_perform_asset_inspections: Boolean(inspectAssets),
+    });
+    throwSupabaseError("crew.updateSpecialAccess", error);
+    return data;
+  },
+
+  async assetsMobile(token, assetId = null) {
+    const { data, error } = await supabase.rpc("crew_asset_mobile", { p_token: token, p_asset_id: assetId });
+    throwSupabaseError("crew.assetsMobile", error);
+    return data;
+  },
+
+  async adjustAsset(token, payload) {
+    const { data, error } = await supabase.rpc("crew_asset_adjust", {
+      p_token: token,
+      p_request_id: payload.requestId || crypto.randomUUID(),
+      p_asset_id: payload.assetId,
+      p_adjustment_type: payload.adjustmentType,
+      p_quantity: Number(payload.quantity),
+      p_condition: payload.condition,
+      p_reason: payload.reason,
+      p_note: payload.note || "",
+    });
+    throwSupabaseError("crew.adjustAsset", error);
+    return data;
+  },
+
+  async submitAssetInspection(token, payload) {
+    const { data, error } = await supabase.rpc("crew_asset_submit_inspection", {
+      p_token: token,
+      p_request_id: payload.requestId || crypto.randomUUID(),
+      p_payload: payload,
+    });
+    throwSupabaseError("crew.submitAssetInspection", error);
+    return data;
+  },
+
+  async uploadAssetInspectionEvidence(token, assetId, file) {
+    validateImageFile(file);
+    const optimized = await optimizeImageBlob(file);
+    const body = new FormData();
+    body.append("token", token);
+    body.append("asset_id", assetId);
+    body.append("file", optimized.blob, "evidence.webp");
+    const { data, error } = await supabase.functions.invoke("crew-asset-evidence", { body });
+    throwSupabaseError("crew.uploadAssetInspectionEvidence", error);
+    return data;
+  },
 
   async signIn(mobile, passcode) {
     const { data, error } = await supabase.rpc("crew_authenticate", {

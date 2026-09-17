@@ -540,3 +540,9 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Separated quantity-derived Availability (Available, Low Quantity, Missing) from physical Condition, and made the shared read-model selector the source for asset list badges, Operations Summary counts, and quick filters. Zero quantity now belongs only to Missing, avoiding the prior summary/filter disagreement.
 - Simplified the operational surface by prioritizing Operations Summary over the historical activity stream, removing the placeholder page export control and duplicate overflow View action, and making row-level Start Inspection preselect the intended asset.
 - Normalized recent-activity labels for imports, adjustments, inspection draft/completion, maintenance states, and archived assets. Hardened name-only import matching against ambiguity and made photo replacement retain the old object until a new reference saves successfully.
+
+# 2026-09-17 - Crew Mobile Assets MVP
+
+- Added independent `Adjust Assets` and `Perform Asset Inspections` Special Access capabilities on active Crew Access records. Crew Mobile now exposes Me > Work > Assets only when at least one capability is active and resolves all access through the current employee/outlet session boundary.
+- Added a minimum-safe outlet asset read model plus server-authoritative Crew quantity/condition adjustments and resumable inspections. Mutations reuse canonical Asset Tracking rows, lifecycle request idempotency/locking, finalized evidence, movement history, and audit while retaining Crew employee actor attribution.
+- Added token-mediated inspection evidence upload, mobile list/detail/adjust/inspection/history flows, and explicit separation from Admin asset/category/import/export/maintenance/disposal authority. Task integration remains deferred pending a canonical Task-to-Asset evidence contract.
