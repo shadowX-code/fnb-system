@@ -92,7 +92,6 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const runLatestRequest = useFactoryLatestRequest();
-  const currentEmployeeId = auth?.profile?.id || "";
   const entries = daily.entries || [];
   const session = daily.session || null;
   const isDraft = !session || session.status === "draft";
@@ -102,7 +101,9 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
     return { inspected: entries.length, compliant, nonCompliant: entries.length - compliant };
   }, [entries]);
   const employeeOptions = useMemo(() => (daily.employees || []).filter((employee) => !selected.has(employee.id)).map((employee) => ({ value: employee.id, label: [employee.name, employee.position].filter(Boolean).join(" - ") })), [daily.employees, selected]);
-  const visibleMatrix = useMemo(() => matrix.filter((row) => `${row.employee_name || ""} ${row.position || ""}`.toLowerCase().includes(employeeQuery.toLowerCase())), [employeeQuery, matrix]);
+  const visibleMatrix = useMemo(() => matrix
+    .filter((row) => Number(row.summary?.inspected_count || 0) > 0)
+    .filter((row) => `${row.employee_name || ""} ${row.position || ""}`.toLowerCase().includes(employeeQuery.toLowerCase())), [employeeQuery, matrix]);
 
   const loadDaily = useCallback(() => runLatestRequest(
     () => factoryService.getMestiOperatorHygieneDaily(date),
@@ -165,7 +166,7 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
     {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</div> : null}
 
     {tab === "daily" ? <>
-      <FactoryOperationalSummary items={[{ label: "Inspected", value: stats.inspected }, { label: "Compliant", value: stats.compliant, tone: "success" }, { label: "Non-Compliant", value: stats.nonCompliant, tone: stats.nonCompliant ? "danger" : "neutral" }]} status={<SessionStatusBadge value={session?.status || "draft"} />} actions={<><button className="btn-secondary" type="button" onClick={() => setSessionDetailOpen(true)}><ClipboardList size={15} />Session Details</button>{isDraft ? <><button type="button" className="btn-secondary" onClick={markAllPass} disabled={!entries.length || !can("factory_mesti_operator_hygiene.manage")}>Mark All Pass</button><button type="button" className="btn-primary" disabled={!entries.length || !can("factory_mesti_operator_hygiene.submit")} onClick={submit}>Submit Inspection</button></> : null}{session?.status === "submitted" ? <button type="button" className="btn-primary" disabled={!can("factory_mesti_operator_hygiene.verify")} onClick={verify} title={session.submitted_by === currentEmployeeId ? "Self-verification is blocked by the server." : undefined}><Check size={15} />Verify</button> : null}</>} />
+      <FactoryOperationalSummary items={[{ label: "Inspected", value: stats.inspected }, { label: "Compliant", value: stats.compliant, tone: "success" }, { label: "Non-Compliant", value: stats.nonCompliant, tone: stats.nonCompliant ? "danger" : "neutral" }]} status={<SessionStatusBadge value={session?.status || "draft"} />} actions={<><button className="btn-secondary" type="button" onClick={() => setSessionDetailOpen(true)}><ClipboardList size={15} />Session Details</button>{isDraft ? <><button type="button" className="btn-secondary" onClick={markAllPass} disabled={!entries.length || !can("factory_mesti_operator_hygiene.manage")}>Mark All Pass</button><button type="button" className="btn-primary" disabled={!entries.length || !can("factory_mesti_operator_hygiene.submit")} onClick={submit}>Submit Inspection</button></> : null}{session?.status === "submitted" ? <button type="button" className="btn-primary" disabled={!can("factory_mesti_operator_hygiene.verify")} onClick={verify}><Check size={15} />Verify</button> : null}</>} />
       <FactoryDailyToolbar><FactoryDailyDateField><FeedXDatePicker value={date} onChange={setDate} /></FactoryDailyDateField></FactoryDailyToolbar>
       <FactoryDataSurface><FactoryTable rows={entries} columns={columns} emptyTitle="No Operators Selected" emptyDescription="Add active employees below." /></FactoryDataSurface>
       {isDraft ? <div className="rounded-xl border border-border bg-white p-3"><Field label="Add Operator"><SearchableSelect value="" options={employeeOptions} placeholder="Select canonical Employee" onChange={addEmployee} /></Field></div> : null}

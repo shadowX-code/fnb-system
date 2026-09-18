@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { FactoryPermissionsProvider } from "../../context/FactoryPermissionsContext.jsx";
 import FactoryMestiOperatorHygienePage from "../FactoryMestiOperatorHygienePage.jsx";
 import { factoryService } from "../../../../services/factoryService.js";
+import { malaysiaBusinessDateInput } from "../../utils/factoryDates.js";
 
 vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
   getMestiOperatorHygieneDaily: vi.fn(),
@@ -45,9 +46,9 @@ const monthlyRows = [{
   },
 }];
 
-function renderPage({ daily = draftDaily } = {}) {
+function renderPage({ daily = draftDaily, permissionSet = permissions } = {}) {
   factoryService.getMestiOperatorHygieneDaily.mockResolvedValue(daily);
-  return render(<FactoryPermissionsProvider permissionSet={permissions} can={(permission) => permissions.includes(permission)}><FactoryMestiOperatorHygienePage auth={{ profile: { id: "employee-1" } }} onNotify={vi.fn()} /></FactoryPermissionsProvider>);
+  return render(<FactoryPermissionsProvider permissionSet={permissionSet} can={(permission) => permissionSet.includes(permission)}><FactoryMestiOperatorHygienePage auth={{ profile: { id: "employee-1" } }} onNotify={vi.fn()} /></FactoryPermissionsProvider>);
 }
 
 beforeEach(() => {
@@ -56,7 +57,7 @@ beforeEach(() => {
   factoryService.listMestiOperatorHygieneMonthly.mockResolvedValue(monthlyRows);
   factoryService.saveMestiOperatorHygiene.mockResolvedValue({});
   factoryService.submitMestiOperatorHygiene.mockResolvedValue({});
-  factoryService.verifyMestiOperatorHygiene.mockRejectedValue(new Error("Self-verification is not allowed."));
+  factoryService.verifyMestiOperatorHygiene.mockResolvedValue({});
 });
 
 afterEach(cleanup);
@@ -81,7 +82,7 @@ describe("Factory MeSTI Operator Hygiene", () => {
     expect(screen.getByText("Aisha")).toBeTruthy();
   });
 
-  it("shows session evidence and blocks self-verification errors", async () => {
+  it("uses the canonical verify permission for a submitted session regardless of submitter", async () => {
     renderPage({ daily: submittedDaily });
     expect(await screen.findByText("Submitted")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Mark All Pass" })).toBeNull();
@@ -91,13 +92,27 @@ describe("Factory MeSTI Operator Hygiene", () => {
     expect(within(dialog).getByText("Compliant Count")).not.toBeNull();
     fireEvent.click(screen.getByLabelText("Close modal"));
     fireEvent.click(screen.getByRole("button", { name: "Verify" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("Self-verification is not allowed.");
+    await waitFor(() => expect(factoryService.verifyMestiOperatorHygiene).toHaveBeenCalledWith(malaysiaBusinessDateInput()));
   });
 
-  it("renders the Monthly employee-centric matrix and opens employee-date details", async () => {
+  it("does not expose Verify without the canonical verification permission", async () => {
+    renderPage({ daily: submittedDaily, permissionSet: ["factory_mesti_operator_hygiene.view"] });
+    await screen.findByText("Submitted");
+    expect(screen.getByRole("button", { name: "Verify" }).disabled).toBe(true);
+  });
+
+  it("renders only inspected employees in the Monthly matrix and opens employee-date details", async () => {
+    factoryService.listMestiOperatorHygieneMonthly.mockResolvedValue([...monthlyRows, {
+      employee_id: "emp-2",
+      employee_name: "Ben",
+      position: "Packer",
+      summary: { inspected_count: 0, compliant_count: 0, non_compliant_count: 0 },
+      days: {},
+    }]);
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     expect(await screen.findByText("Aisha")).not.toBeNull();
+    expect(screen.queryByText("Ben")).toBeNull();
     expect(screen.getByText("1 inspected · 0 compliant · 1 non-compliant")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Aisha on/ }));
     const dialog = await screen.findByRole("dialog", { name: "Aisha" });
