@@ -65,19 +65,35 @@ export function dispatchLineBaseEquivalentLabel(item) {
   return quantity(qty * base.amount, base.uom);
 }
 
+export const FACTORY_QUANTITY_DECIMAL_PLACES = 4;
+export const FACTORY_QUANTITY_STEP = 1 / (10 ** FACTORY_QUANTITY_DECIMAL_PLACES);
+
+export function roundFactoryQuantity(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return 0;
+  const factor = 10 ** FACTORY_QUANTITY_DECIMAL_PLACES;
+  return Math.round((numeric + Math.sign(numeric || 1) * Number.EPSILON) * factor) / factor;
+}
+
+export function hasFactoryQuantityPrecision(value) {
+  if (value === null || value === undefined || value === "") return false;
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && Math.abs(numeric - roundFactoryQuantity(numeric)) < 0.000000001;
+}
+
 export function quantity(value, uom) {
-  return `${Number(value || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
+  return `${Number(value || 0).toLocaleString("en-MY", { maximumFractionDigits: FACTORY_QUANTITY_DECIMAL_PLACES })}${uom ? ` ${uom}` : ""}`;
 }
 
 export function signedQuantity(value, uom) {
   const numeric = Number(value || 0);
   const sign = numeric > 0 ? "+" : "";
-  return `${sign}${numeric.toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
+  return `${sign}${numeric.toLocaleString("en-MY", { maximumFractionDigits: FACTORY_QUANTITY_DECIMAL_PLACES })}${uom ? ` ${uom}` : ""}`;
 }
 
 export function ledgerQuantity(value, uom, { signed = false } = {}) {
   const numeric = Number(value || 0);
-  const formatted = Math.abs(numeric).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const formatted = Math.abs(numeric).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: FACTORY_QUANTITY_DECIMAL_PLACES });
   const sign = signed ? numeric > 0 ? "+" : numeric < 0 ? "-" : "" : numeric < 0 ? "-" : "";
   return `${sign}${formatted}${uom ? ` ${uom}` : ""}`;
 }

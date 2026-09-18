@@ -11,7 +11,7 @@ import SearchableSelect from "../SearchableSelect.jsx";
 import { factoryService, productionQcStatus, strictDateTimeValue, strictDateValue, strictTimeValueMinutes } from "../../../../services/factoryService.js";
 import useFactoryNumberPreview from "../../hooks/useFactoryNumberPreview.js";
 import { addDaysToFactoryDate, formatFactoryDate, productionDurationLabel, timeInput, todayInput } from "../../utils/factoryDates.js";
-import { finishedGoodLabel, packSizeText, quantity, rawMaterialLabel } from "../../utils/factoryFormatters.js";
+import { FACTORY_QUANTITY_STEP, finishedGoodLabel, hasFactoryQuantityPrecision, packSizeText, quantity, rawMaterialLabel, roundFactoryQuantity } from "../../utils/factoryFormatters.js";
 import { isFactoryPermissionError } from "../../utils/factoryPermissions.js";
 import { activeRecipeForSku, packagingProductionPlan } from "../../utils/productionPlanning.js";
 import { convertRawMaterialQuantity } from "../../utils/factoryUomConversions.js";
@@ -36,9 +36,9 @@ function employeeDisplayName(auth) {
 }
 
 function varianceFor(standardUsage, actualUsage) {
-  const standard = Number(standardUsage || 0);
-  const actual = Number(actualUsage || 0);
-  const variance = actual - standard;
+  const standard = roundFactoryQuantity(standardUsage || 0);
+  const actual = roundFactoryQuantity(actualUsage || 0);
+  const variance = roundFactoryQuantity(actual - standard);
   const variancePercent = standard === 0 ? (actual === 0 ? 0 : 100) : (variance / standard) * 100;
   return { variance, variancePercent };
 }
@@ -174,14 +174,14 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
               const eligible = safeRows.filter((batch) => batch.batch_balance_id && batch.raw_material_id === usage.raw_material_id
                 && String(batch.uom || "").trim().toLowerCase() === String(usage.uom || rawMaterials.find((material) => material.id === usage.raw_material_id)?.uom || "").trim().toLowerCase());
               const eligibleById = new Map(eligible.map((batch) => [batch.batch_balance_id, batch]));
-              const existingTotal = (usage.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0);
+              const existingTotal = roundFactoryQuantity((usage.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0));
               const existingValid = Math.abs(existingTotal - Number(usage.actual_usage || 0)) <= varianceReasonTolerance
                 && (usage.allocations || []).every((allocation) => {
                   const batch = eligibleById.get(allocation.batch_balance_id);
                   return batch && Number(allocation.allocated_qty || 0) <= Math.max(Number(batch.available_qty || 0) - Number(reserved[allocation.batch_balance_id] || 0), 0);
                 });
               if (existingValid) {
-                (usage.allocations || []).forEach((allocation) => { reserved[allocation.batch_balance_id] = Number(reserved[allocation.batch_balance_id] || 0) + Number(allocation.allocated_qty || 0); });
+                (usage.allocations || []).forEach((allocation) => { reserved[allocation.batch_balance_id] = roundFactoryQuantity(Number(reserved[allocation.batch_balance_id] || 0) + Number(allocation.allocated_qty || 0)); });
                 return { ...usage, allocation_shortage: 0 };
               }
               const allocation = allocateRawMaterialFefo(Number(usage.actual_usage || 0), eligible, reserved);
@@ -274,7 +274,7 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
       const nextRows = current.material_usage.map((row) => row.id === rowId ? { ...row, ...patch } : row);
       if (!Object.prototype.hasOwnProperty.call(patch, "actual_usage") && !Object.prototype.hasOwnProperty.call(patch, "raw_material_id")) return { ...current, material_usage: nextRows };
       const reserved = {};
-      nextRows.filter((row) => row.id !== rowId).flatMap((row) => row.allocations || []).forEach((allocation) => { reserved[allocation.batch_balance_id] = Number(reserved[allocation.batch_balance_id] || 0) + Number(allocation.allocated_qty || 0); });
+      nextRows.filter((row) => row.id !== rowId).flatMap((row) => row.allocations || []).forEach((allocation) => { reserved[allocation.batch_balance_id] = roundFactoryQuantity(Number(reserved[allocation.batch_balance_id] || 0) + Number(allocation.allocated_qty || 0)); });
       return {
         ...current,
         material_usage: nextRows.map((row) => {
@@ -284,7 +284,7 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
             && String(batch.uom || "").trim().toLowerCase() === String(row.uom || material?.uom || "").trim().toLowerCase());
           const allocation = productionBatchAvailability.hasLoaded && !productionBatchAvailability.stale && !productionBatchAvailability.error
             ? allocateRawMaterialFefo(Number(row.actual_usage || 0), eligible, reserved)
-            : { allocations: [], remaining: Number(row.actual_usage || 0) };
+            : { allocations: [], remaining: roundFactoryQuantity(row.actual_usage || 0) };
           return { ...row, allocations: allocation.allocations, allocation_shortage: allocation.remaining };
         }),
       };
@@ -319,6 +319,8 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
     if (conversionError) return `${rawMaterials.find((item) => item.id === conversionError.raw_material_id)?.name_en || "Raw Material"}: ${conversionError.conversion_error}.`;
     const invalidRow = form.material_usage.find((row) => !row.raw_material_id || row.actual_usage === "" || row.actual_usage === null || row.actual_usage === undefined || Number(row.actual_usage) < 0);
     if (invalidRow) return "Every material usage row needs a raw material and actual usage.";
+    if (form.material_usage.some((row) => !hasFactoryQuantityPrecision(row.actual_usage))) return "Material usage supports up to 4 decimal places.";
+    if (form.material_usage.some((row) => (row.allocations || []).some((allocation) => !hasFactoryQuantityPrecision(allocation.allocated_qty)))) return "Raw Material batch allocations support up to 4 decimal places.";
     const missingReason = form.material_usage.find((row) => {
       const { variance } = varianceFor(row.standard_usage, row.actual_usage);
       return Math.abs(variance) > varianceReasonTolerance && !String(row.variance_reason || "").trim();
@@ -328,8 +330,8 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
     if (!productionBatchAvailability.hasLoaded || productionBatchAvailability.stale || productionBatchAvailability.error) return "Refresh Raw Material batch availability before completing Production.";
     const allocatedByBatch = {};
     for (const row of form.material_usage) {
-      const actual = Number(row.actual_usage || 0);
-      const allocated = (row.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0);
+      const actual = roundFactoryQuantity(row.actual_usage || 0);
+      const allocated = roundFactoryQuantity((row.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0));
       if (Math.abs(allocated - actual) > varianceReasonTolerance) {
         const material = rawMaterials.find((item) => item.id === row.raw_material_id);
         const available = productionBatchAvailability.rows.filter((batch) => batch.batch_balance_id && batch.raw_material_id === row.raw_material_id).reduce((sum, batch) => sum + Number(batch.available_qty || 0), 0);
@@ -363,6 +365,12 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
       await saveQcProgress({ showFeedback: false });
       await onSave({
         ...form,
+        material_usage: form.material_usage.map((row) => ({
+          ...row,
+          standard_usage: roundFactoryQuantity(row.standard_usage),
+          actual_usage: roundFactoryQuantity(row.actual_usage),
+          allocations: (row.allocations || []).map((allocation) => ({ ...allocation, allocated_qty: roundFactoryQuantity(allocation.allocated_qty) })),
+        })),
         actual_produced_qty: form.actual_output_qty || form.good_output_qty,
         good_output_qty: form.actual_output_qty || form.good_output_qty,
       });
@@ -416,7 +424,7 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
   const storageLocationBlocked = !defaultStorageLocationId;
   const qcCompletionBlocked = Boolean(execution.snapshotCreatedAt) && (requiredQcIncomplete || requiredQcFailed);
   const batchCompletionBlocked = productionBatchAvailability.loading || productionBatchAvailability.stale || !productionBatchAvailability.hasLoaded || Boolean(productionBatchAvailability.error)
-    || form.material_usage.some((row) => Math.abs((row.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0) - Number(row.actual_usage || 0)) > varianceReasonTolerance);
+    || form.material_usage.some((row) => Math.abs(roundFactoryQuantity((row.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0)) - roundFactoryQuantity(row.actual_usage || 0)) > varianceReasonTolerance);
   const completionDisabled = saving || savingQc || executionLoading || !authoritativeStartValid || storageLocationBlocked || requiredDetailsRemaining > 0 || qcCompletionBlocked || batchCompletionBlocked;
   const completionDisabledReason = executionLoading
     ? "Loading Production QC."
@@ -458,8 +466,8 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
           const recipeUsageQuantity = (Number(recipeItem.quantity_used || 0) * Number(outputQty || 0)) / recipeYield;
           const recipeUsageUom = recipeItem.recipe_usage_uom || recipeItem.uom || material?.uom || "";
           const conversion = convertRawMaterialQuantity(recipeUsageQuantity, recipeUsageUom, material?.uom || "", material);
-          const standardUsage = conversion.quantity;
-          const previousWasStandard = Number(row.actual_usage) === Number(row.standard_usage);
+          const standardUsage = conversion.quantity === null || conversion.quantity === undefined ? null : roundFactoryQuantity(conversion.quantity);
+          const previousWasStandard = roundFactoryQuantity(row.actual_usage) === roundFactoryQuantity(row.standard_usage);
           return { ...row, recipe_usage_quantity: recipeUsageQuantity, recipe_usage_uom: recipeUsageUom, standard_usage: standardUsage ?? 0, actual_usage: previousWasStandard ? (standardUsage ?? "") : row.actual_usage, conversion_error: conversion.reason || "", uom: material?.uom || row.uom };
         })
         : current.material_usage;
@@ -740,7 +748,7 @@ export default function ProductionExecutionModal({ job, rawMaterials = [], recei
                       </td>
                       <td className="px-4 py-3">
                         <div className="relative">
-                          <input className={`${inputClass()} pr-14 font-bold`} type="number" min="0" step="0.0001" value={row.actual_usage} onChange={(event) => updateUsageRow(row.id, { actual_usage: event.target.value })} />
+                          <input className={`${inputClass()} pr-14 font-bold`} type="number" min="0" step={FACTORY_QUANTITY_STEP} value={row.actual_usage} onChange={(event) => updateUsageRow(row.id, { actual_usage: event.target.value })} onBlur={(event) => { if (event.target.value !== "" && hasFactoryQuantityPrecision(event.target.value)) updateUsageRow(row.id, { actual_usage: roundFactoryQuantity(event.target.value) }); }} />
                           {rowUom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-secondary">{rowUom}</span> : null}
                         </div>
                       </td>
