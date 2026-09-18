@@ -123,7 +123,6 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
   const runLatestRequest = useFactoryLatestRequest();
   const activeLocations = (masterData.storageLocations || []).filter((location) => location.status === "active");
-  const currentEmployeeId = auth?.profile?.id || "";
   const canManage = can("factory_mesti_cleaning.manage");
   const canSaveSetup = canManage || can("factory_mesti_cleaning.create") || can("factory_mesti_cleaning.edit");
 
@@ -177,7 +176,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       {loading ? <div className="border-b border-border py-8 text-sm font-semibold text-text-secondary">Loading Cleaning occurrences...</div> : !grouped.length ? <EmptyState title="No Cleaning occurrences" description="No active Cleaning Requirements are due for this date." /> : <div className="border border-border bg-surface">{grouped.map((group) => <FactoryOperationalGroup key={group.id} title={group.location_name} count={`${group.rows.length} task${group.rows.length === 1 ? "" : "s"}`}>
         {group.rows.map((row) => {
           const canComplete = (can("factory_mesti_cleaning.complete") || canManage) && ["pending", "missed", "unsatisfactory"].includes(row.status);
-          const canVerify = (can("factory_mesti_cleaning.review") || canManage) && row.status === "completed" && row.completed_by !== currentEmployeeId;
+          const canVerify = (can("factory_mesti_cleaning.review") || canManage) && row.status === "completed";
           const note = row.verification_note || row.completion_note;
           const evidence = <FactoryOperationalEvidence items={[
             row.completed_at ? { key: "completed", label: `Completed ${row.completed_by_name || "—"} · ${formatFactoryDateTime(row.completed_at)}` } : null,

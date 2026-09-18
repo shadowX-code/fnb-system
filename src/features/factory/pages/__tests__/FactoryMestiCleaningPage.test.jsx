@@ -71,7 +71,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     await waitFor(() => expect(factoryService.completeMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep"));
   });
 
-  it("lets the canonical review permission review work and hides self-verification", async () => {
+  it("lets the canonical review permission review work regardless of completing actor", async () => {
     factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-2", completed_by_name: "Aisha", completed_at: "2026-09-02T02:00:00Z" }]);
     renderPage();
     expect(await screen.findByRole("button", { name: "Verify" })).not.toBeNull();
@@ -83,6 +83,14 @@ describe("Factory MeSTI Cleaning of Area", () => {
     factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-1", completed_by_name: "Current User" }]);
     renderPage();
     await waitFor(() => expect(factoryService.listMestiCleaningDay.mock.calls.length).toBeGreaterThanOrEqual(3));
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+    await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "verified"));
+  });
+
+  it("does not expose verification without the canonical review permission", async () => {
+    factoryService.listMestiCleaningDay.mockResolvedValue([{ ...floorOccurrence, status: "completed", completed_by: "employee-1" }]);
+    renderPage({ permissions: ["factory_mesti_cleaning.view"] });
+    await screen.findByText("Preparation");
     expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
   });
 
