@@ -55,3 +55,6 @@ Factory List UI Foundation V1 begins with Batch Traceability. Its shared filter 
 Completed Production records move to `awaiting_verification` and can be verified only through `factory_verify_production_record`. The completing actor cannot verify their own record, verification is idempotent, and it does not alter saved production or QC evidence. Food Processing Control is read-only: it projects completed Production, existing QC evidence, canonical output and expiry fields, and the completion and verification audit actors without creating a second processing or QC ledger.
 Legacy plans may explain migration history but do not override active routes or contracts.
 Machine telemetry, advanced finite-capacity scheduling, and external MES integration are deferred unless explicitly introduced.
+# Operational completion attribution
+
+Completed Production is attributed to its recorded `end_date` and `end_time` in `Asia/Kuala_Lumpur`. `completed_at` remains audit metadata for when the completion was recorded, and is not used for operational daily or monthly reporting.

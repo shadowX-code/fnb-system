@@ -61,7 +61,8 @@ function FoodProcessingEvidence({ detail }) {
       { label: "Job Order", value: detail.job_order_no },
       { label: "Production / Batch", value: [detail.production_no, detail.batch_no].filter(Boolean).join(" · ") },
       { label: "Started", value: factoryTimeAmPmLabel(detail.start_time) },
-      { label: "Completed", value: formatFactoryDateTime(detail.completed_at) },
+      { label: "Production End", value: detail.completion_date ? `${formatFactoryDate(detail.completion_date)} ${factoryTimeAmPmLabel(detail.completion_time)}` : "—" },
+      { label: "Recorded At", value: formatFactoryDateTime(detail.completed_at) },
       { label: "Quantity", value: quantity(detail.good_output_qty || detail.actual_output_qty, detail.uom) },
       { label: "Expiry", value: formatFactoryDate(detail.expiry_date) },
     ]} /></FactoryEvidenceSection>
@@ -123,11 +124,11 @@ export default function FactoryMestiFoodProcessingControlPage() {
       render: (row) => <FactoryCellEntity name={productName(row)} code={productReference(row)} />,
     },
     { key: "qc", label: "QC", render: (row) => { const detailRow = detailFor(row); return <FactoryEvidencePreview label={row.qc_summary || row.qc_status || "Evidence unavailable"} tone={qcTone(row)} items={detailRow.qc_checks} onPreview={() => loadEvidence(row)} onOpen={() => loadEvidence(row, true)} />; } },
-    { key: "start", label: "Start", render: (row) => <FactoryCellDateTime date={formatFactoryDate(row.production_date)} time={factoryTimeAmPmLabel(row.start_time)} /> },
+    { key: "start", label: "Start", render: (row) => <FactoryCellDateTime date={formatFactoryDate(row.start_date)} time={factoryTimeAmPmLabel(row.start_time)} /> },
     {
       key: "complete",
       label: "Complete",
-      render: (row) => { const { date, time } = formatFactoryListDateTime(row.completed_at); return <FactoryCellDateTime date={date} time={time} />; },
+      render: (row) => <FactoryCellDateTime date={formatFactoryDate(row.completion_date)} time={factoryTimeAmPmLabel(row.completion_time)} />,
     },
     { key: "qty", label: "Quantity", render: (row) => quantity(row.good_output_qty || row.actual_output_qty, row.uom) },
     { key: "expiry", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },

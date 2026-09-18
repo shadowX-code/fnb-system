@@ -1319,7 +1319,10 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
     const today = todayInput();
     const overdueJobs = data.jobOrders.filter((job) => job.due_date && job.due_date < today && !["completed", "cancelled"].includes(job.status));
     const completedJobs = data.jobOrders.filter((job) => job.status === "completed");
-    const completedTodayJobs = data.jobOrders.filter((job) => job.status === "completed" && (job.completed_at || job.updated_at || "").slice(0, 10) === today);
+    const completedProductionJobIds = new Set(data.productions
+      .filter((production) => production.status === "completed" && production.end_date === today)
+      .map((production) => production.job_order_id));
+    const completedTodayJobs = data.jobOrders.filter((job) => job.status === "completed" && completedProductionJobIds.has(job.id));
     const lowStock = data.rawMaterials.filter((item) => item.status === "active" && Number(item.current_balance || 0) > 0 && Number(item.current_balance || 0) <= Number(item.min_stock_level || 0));
     const receivingValue = data.receivings.reduce((sum, row) => sum + Number(row.total_cost || 0), 0);
     const completedProductions = data.productions.filter((production) => production.status === "completed");
@@ -2703,7 +2706,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
 
   const productionColumns = [
     { key: "production", label: "Production Batch", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{row.product_name} · {productionJobOrderReference(row)}</div></div> },
-    { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
+    { key: "production_date", label: "Production End", render: (row) => formatFactoryDate(row.end_date) },
     { key: "operator", label: "Operator", render: (row) => row.operator_name || "—" },
     { key: "output", label: "Output", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.good_output_qty, row.uom)}</div><div className="text-xs text-text-secondary">Waste {quantity(row.wastage_qty, row.uom)}</div></div> },
     { key: "qc_status", label: "QC", render: (row) => <Badge tone={row.qc_status === "Pass" ? "success" : row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge> },
@@ -3278,7 +3281,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
         <Card title="Production Summary Report" description="Completed production totals with actual usage costing. Missing receiving cost is shown instead of RM0 where the cost source is unavailable.">
           <FactoryTable
             columns={[
-              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{productionJobOrderReference(row)} · {formatFactoryDate(row.production_date)}</div></div> },
+              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{productionJobOrderReference(row)} · {formatFactoryDate(row.end_date)}</div></div> },
               { key: "product_name", label: "Product", render: (row) => row.product_name },
               { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty, row.uom) },
               { key: "yield_percent", label: "Yield", render: (row) => percent(row.yield_percent) },

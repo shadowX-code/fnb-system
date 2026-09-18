@@ -10,7 +10,7 @@ vi.mock("../../../../services/factoryService.js", () => ({ factoryService: {
 
 const qaBatch = {
   id: "balance-qa-1", production_id: "production-qa-1", job_order_id: "job-qa-1", job_order_no: "JO260903-01", production_no: "PRD-20260903-VQX5",
-  completed_at: "2026-09-03T09:52:00Z", completion_date: "2026-09-03", finished_good_id: "family-qa", finished_good_name: "QA After Operation Sauce",
+  completed_at: "2026-09-04T09:52:00Z", completion_date: "2026-09-03", completion_time: "17:00:00", finished_good_id: "family-qa", finished_good_name: "QA After Operation Sauce",
   packaging_sku_id: "sku-qa", packaging_sku_code: "QA-AO-01", packaging_sku_name: "QA After Operation Sauce - 1kg Pack",
   completed_qty: 1, completed_uom: "Pack", storage_location_id: "storage-a", storage_location_name: "Dry Store-A", batch_no: "PB260903-02",
   manufacturing_date: "2026-09-03", expiry_date: "2027-03-03", completed_by: "employee-isaac", completed_by_name: "Isaac",
@@ -38,6 +38,7 @@ describe("FactoryMestiFinishedProductStorageControlPage", () => {
     expect(screen.getAllByText("1 Pack")).toHaveLength(1);
     expect(screen.getAllByText("PB260903-03")).toHaveLength(1);
     expect(screen.getAllByText("Finished Goods-A")).toHaveLength(1);
+    expect(screen.getAllByText("05:00 PM")).toHaveLength(2);
     expect(screen.queryByRole("button", { name: /create|edit|delete/i })).toBeNull();
   });
 
@@ -59,5 +60,6 @@ describe("FactoryMestiFinishedProductStorageControlPage", () => {
     expect(screen.getByText("PRD-20260903-VQX5")).not.toBeNull();
     expect(screen.getAllByText("03/03/2027")).toHaveLength(3);
     expect(screen.getAllByText("Isaac")).toHaveLength(3);
+    expect(screen.getByText("Recorded At")).not.toBeNull();
   });
 });
