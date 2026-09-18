@@ -44,6 +44,28 @@ describe("Factory Production Execution lifecycle", () => {
     expect(screen.getByRole("button", { name: "Complete Production" }).disabled).toBe(true);
   });
 
+  it("uses the same four-decimal quantity for recipe preview, browser input, and FEFO allocation", async () => {
+    const fractionalJob = { ...job, target_pack_qty: 164, target_production_qty: 82, target_quantity: 82 };
+    const fractionalMaterial = { ...rawMaterial, uom: "pack", conversion_package_quantity: 1000, conversion_base_uom: "g" };
+    const fractionalRecipe = { ...data.recipes[0], yield_quantity: 26, items: [{ raw_material_id: "rm-1", quantity_used: 12000, recipe_usage_uom: "g" }] };
+    setup();
+    factoryService.getProductionExecution.mockResolvedValue({ steps: [], snapshotCreatedAt: "", sopId: "", sopVersion: "" });
+    factoryService.listFactoryData.mockResolvedValue({ ...data, jobOrders: [fractionalJob], rawMaterials: [fractionalMaterial], recipes: [fractionalRecipe] });
+    factoryService.listOperationalJobOrders.mockResolvedValue({ jobs: [fractionalJob], productions: [], summary: { inProgress: 1 } });
+    factoryService.getRawMaterialBatchAvailability.mockResolvedValue([
+      { batch_balance_id: "batch-1", raw_material_id: "rm-1", internal_batch_no: "RM-1", available_qty: 20, uom: "pack" },
+      { batch_balance_id: "batch-2", raw_material_id: "rm-1", internal_batch_no: "RM-2", available_qty: 17.8462, uom: "pack" },
+    ]);
+
+    mount();
+    await openComplete();
+
+    const actualUsage = screen.getByDisplayValue("37.8462");
+    expect(actualUsage.getAttribute("step")).toBe("0.0001");
+    expect(screen.getByText("37.8462 pack")).not.toBeNull();
+    expect(screen.getByText("Allocated 37.8462 pack of 37.8462 pack")).not.toBeNull();
+  });
+
   it("renders the stored execution snapshot and QC instead of substituting the newer active SOP", async () => {
     setup(); mount(); await openProcess();
     expect(screen.getByText(/Production SOP · v7/)).not.toBeNull();
