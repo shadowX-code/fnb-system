@@ -15,6 +15,9 @@ const awaitingRow = {
   qc_summary: "Passed · 3/3",
   qc_checks: [{ id: "qc-1", qc_name: "Temperature", result: "pass", notes: "72 C", recorded_at: "2026-09-04T01:30:00.000Z" }],
   start_time: "09:53:00",
+  start_date: "2026-09-03",
+  completion_date: "2026-09-02",
+  completion_time: "17:00:00",
   completed_at: "2026-09-03T10:42:00+08:00",
   good_output_qty: 10,
   uom: "pack",
@@ -35,15 +38,17 @@ describe("Factory MeSTI Food Processing Control", () => {
     expect(await screen.findByText("Black Pepper Sauce")).toBeTruthy();
     expect(screen.getByText("S01 · 1kg Pack")).toBeTruthy();
     expect(screen.queryByText("Black Pepper Sauce - 1kg Pack")).toBeNull();
-    expect(screen.getAllByText("03/09/2026")).toHaveLength(3);
+    expect(screen.getAllByText("03/09/2026")).toHaveLength(2);
+    expect(screen.getByText("02/09/2026")).toBeTruthy();
     expect(screen.getByText("09:53 AM")).toBeTruthy();
-    expect(screen.getByText("10:42 AM")).toBeTruthy();
+    expect(screen.getByText("05:00 PM")).toBeTruthy();
     expect(screen.getByText("Passed · 3/3")).toBeTruthy();
     expect(screen.getByText("Awaiting Verification")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "View Black Pepper Sauce - 1kg Pack" }));
     expect(await screen.findByText("Food Processing Evidence")).toBeTruthy();
     expect(screen.getByText("QC Evidence")).toBeTruthy();
+    expect(screen.getByText("Recorded At")).toBeTruthy();
     expect(screen.getByText("Temperature")).toBeTruthy();
     expect(screen.getByText("72 C")).toBeTruthy();
     expect(screen.getAllByText("Awaiting Verification").length).toBeGreaterThan(0);

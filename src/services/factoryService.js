@@ -604,6 +604,7 @@ function mapProduction(row) {
     production_date: row.production_date || "",
     manufacturing_date: row.manufacturing_date || "",
     end_date: row.end_date || "",
+    operational_completion_at: row.operational_completion_at || "",
     expiry_date: row.expiry_date || "",
     storage_location_id: row.storage_location_id || "",
     storage_location: row.storage_location_ref?.location_name || "",
@@ -930,6 +931,7 @@ function mapMestiFinishedProductStorageControl(row) {
     production_no: row.production_no || "",
     completed_at: row.completed_at || "",
     completion_date: row.completion_date || "",
+    completion_time: row.completion_time || "",
     finished_good_id: row.finished_good_id || "",
     finished_good_name: row.finished_good_name || "",
     packaging_sku_id: row.packaging_sku_id || "",
@@ -2211,7 +2213,7 @@ const factoryServiceDefinition = {
     if (!/^\d{4}-\d{2}$/.test(monthValue) || strictDateValue(`${monthValue}-01`) === null) {
       throw new Error("Select a valid dashboard month.");
     }
-    const { data, error } = await supabase.rpc("factory_get_dashboard_monthly_analytics", {
+    const { data, error } = await supabase.rpc("factory_get_dashboard_operational_monthly_analytics", {
       p_month: `${monthValue}-01`,
       p_finished_good_id: databaseUuid(finishedGoodId),
       p_include_operational_comparisons: true,
@@ -2263,7 +2265,7 @@ const factoryServiceDefinition = {
     const dueReleaseResult = await supabase.rpc("factory_release_due_job_orders");
     throwSupabaseError("factory.operational_job_orders.release_due", dueReleaseResult.error);
 
-    const { data, error } = await supabase.rpc("factory_get_production_pipeline_snapshot", {
+    const { data, error } = await supabase.rpc("factory_get_production_operational_snapshot", {
       p_operational_date: String(date),
       p_include_productions: Boolean(includeProductions),
     });
@@ -2332,7 +2334,7 @@ const factoryServiceDefinition = {
       p_storage_location_id: databaseUuid(filters.storageLocation),
       p_search: String(filters.search || "").trim() || null,
     }, { count: "exact" })
-      .order("completed_at", { ascending: false, nullsFirst: false })
+      .order("completion_date", { ascending: false, nullsFirst: false })
       .order("id", { ascending: false })
       .range(from, to);
     throwSupabaseError("factory.mesti_finished_product_storage_control.page", error);
@@ -2451,7 +2453,7 @@ const factoryServiceDefinition = {
       };
     } else if (listing === "production-history") {
       query = supabase.from("factory_productions").select(productionSelectDetailed, { count: "exact" })
-        .order("production_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+        .order("end_date", { ascending: false, nullsFirst: false }).order("end_time", { ascending: false, nullsFirst: false }).order("id", { ascending: false });
       mapper = (rows) => rows.map(mapProduction);
     } else if (listing === "dispatch-history") {
       query = supabase.from("factory_finished_good_dispatches").select(finishedGoodDispatchSelect, { count: "exact" });

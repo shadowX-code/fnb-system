@@ -12,6 +12,7 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import { formatFactoryDate, formatFactoryDateTime } from "../utils/factoryDates.js";
 import { pluralizePackagingType, quantity } from "../utils/factoryFormatters.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
+import { factoryTimeAmPmLabel } from "../components/productionExecution/productionExecutionHelpers.js";
 
 const initialFilters = {
   dateFrom: "",
@@ -64,7 +65,7 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
   const storageOptions = [{ value: "", label: "All" }, ...(options.storage_locations || []).map((item) => ({ value: item.id, label: item.name || "Unnamed Storage" }))];
   const rows = listing.hasLoaded ? listing.rows : [];
   const columns = [
-    { key: "completion_date", label: "Date", render: (row) => <div className="whitespace-nowrap"><div className="font-semibold text-text-primary">{formatFactoryDate(row.completion_date)}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.completed_at).slice(11)}</div></div> },
+    { key: "completion_date", label: "Date", render: (row) => <div className="whitespace-nowrap"><div className="font-semibold text-text-primary">{formatFactoryDate(row.completion_date)}</div><div className="text-xs text-text-secondary">{factoryTimeAmPmLabel(row.completion_time)}</div></div> },
     { key: "finished_good_name", label: "Finished Good", render: (row) => <span className="font-semibold text-text-primary">{row.finished_good_name || "—"}</span> },
     { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.packaging_sku_code || "—"}</div><div className="text-xs text-text-secondary">{row.packaging_sku_name || "—"}</div></div> },
     { key: "completed_qty", label: "Qty", align: "right", render: (row) => <span className="font-semibold text-text-primary">{completedQuantity(row)}</span> },
@@ -100,7 +101,8 @@ export default function FactoryMestiFinishedProductStorageControlPage({ onNotify
         {detailRow("Manufacturing Date", formatFactoryDate(detail.manufacturing_date))}
         {detailRow("Expiry", formatFactoryDate(detail.expiry_date))}
         {detailRow("Completed By", detail.completed_by_name)}
-        {detailRow("Completion Timestamp", formatFactoryDateTime(detail.completed_at))}
+        {detailRow("Production End", detail.completion_date ? `${formatFactoryDate(detail.completion_date)} ${factoryTimeAmPmLabel(detail.completion_time)}` : "—")}
+        {detailRow("Recorded At", formatFactoryDateTime(detail.completed_at))}
       </div>
     </Modal> : null}
   </div>;
