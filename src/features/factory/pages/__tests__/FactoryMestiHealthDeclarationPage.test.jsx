@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import FactoryMestiHealthDeclarationPage from "../FactoryMestiHealthDeclarationPage.jsx";
 import { factoryService } from "../../../../services/factoryService.js";
 
-vi.mock("../../../../services/factoryService.js", () => ({ factoryService: { listMestiHealthDeclarations: vi.fn(), listMestiHealthDeclarationOptions: vi.fn(), submitMestiHealthDeclaration: vi.fn(), actionMestiHealthDeclaration: vi.fn() } }));
+vi.mock("../../../../services/factoryService.js", () => ({ factoryService: { listMestiHealthDeclarations: vi.fn(), listMestiHealthDeclarationOptions: vi.fn(), submitMestiHealthDeclaration: vi.fn(), actionMestiHealthDeclaration: vi.fn(), updateMestiHealthDeclaration: vi.fn(), voidMestiHealthDeclaration: vi.fn() } }));
 vi.mock("../../hooks/useFactoryPermissions.js", () => ({ default: () => ({ can: () => true }) }));
 
 beforeEach(() => {
@@ -11,6 +11,8 @@ beforeEach(() => {
   factoryService.listMestiHealthDeclarations.mockResolvedValue([]);
   factoryService.listMestiHealthDeclarationOptions.mockResolvedValue({ employees: [{ id: "employee-qa", name: "Crew QA", position: "Service Crew" }] });
   factoryService.submitMestiHealthDeclaration.mockResolvedValue({ id: "declaration-1" });
+  factoryService.updateMestiHealthDeclaration.mockResolvedValue({ id: "declaration-1" });
+  factoryService.voidMestiHealthDeclaration.mockResolvedValue({ id: "declaration-1" });
 });
 afterEach(cleanup);
 
@@ -77,5 +79,18 @@ describe("FactoryMestiHealthDeclarationPage", () => {
     expect(await screen.findByRole("button", { name: /Factory Operator/ })).toBeTruthy();
     expect(screen.getByRole("button", { name: /Management Reviewer/ })).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Outlet Historic Actor/ })).toBeNull();
+  });
+
+  it("updates and voids the existing declaration identity for authorized correction", async () => {
+    factoryService.listMestiHealthDeclarations.mockResolvedValue([{ id: "visitor-1", declaration_type: "visitor", declared_at: "2026-09-08T08:00:00Z", visitor_name: "QA Visitor", visitor_company: "FeedX", health_status: "cleared", symptoms: [], entry_decision: "allowed", recorded_by_name: "QA" }]);
+    render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
+    await screen.findByText("QA Visitor");
+    fireEvent.click(screen.getByRole("button", { name: "Edit declaration" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Visitor Name" }), { target: { value: "Corrected Visitor" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+    await waitFor(() => expect(factoryService.updateMestiHealthDeclaration).toHaveBeenCalledWith("visitor-1", expect.objectContaining({ visitor_name: "Corrected Visitor" })));
+    fireEvent.click(screen.getByRole("button", { name: "Delete declaration" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Declaration" }));
+    await waitFor(() => expect(factoryService.voidMestiHealthDeclaration).toHaveBeenCalledWith("visitor-1", ""));
   });
 });
