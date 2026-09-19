@@ -13,11 +13,12 @@ export default function FactoryMestiOccurrenceActions({
   onMarkUnsatisfactory,
   onView,
   viewLabel = "View details",
+  working = false,
 }) {
   const primaryAction = canComplete && completeStatuses.has(status)
-    ? { label: "Complete", icon: Check, onClick: onComplete }
+    ? { label: working ? "Saving..." : "Complete", icon: Check, onClick: onComplete, disabled: working }
     : canVerify && verifyStatuses.has(status)
-      ? { label: "Verify", icon: Check, onClick: onVerify }
+      ? { label: working ? "Verifying..." : "Verify", icon: Check, onClick: onVerify, disabled: working }
       : null;
   const secondaryActions = canVerify && verifyStatuses.has(status) && onMarkUnsatisfactory
     ? [{ label: "Mark unsatisfactory", icon: XCircle, destructive: true, onClick: onMarkUnsatisfactory }]
