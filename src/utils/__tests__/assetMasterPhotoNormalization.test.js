@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ASSET_MASTER_PHOTO_VARIANTS, containedImageDimensions } from "../imageUpload.js";
+import { ASSET_MASTER_PHOTO_VARIANTS, containedImageDimensions, coveredImageDimensions } from "../imageUpload.js";
 
 describe("Asset master photo normalization geometry", () => {
   it("contains a portrait source within the canonical 4:3 display canvas", () => {
@@ -14,5 +14,10 @@ describe("Asset master photo normalization geometry", () => {
 
   it("rejects invalid source dimensions before a canvas can be rendered", () => {
     expect(() => containedImageDimensions(0, 900, 1200, 900)).toThrow(/dimensions/i);
+  });
+
+  it("uses the 4:3 crop framing for the presentation variants without stretching", () => {
+    expect(coveredImageDimensions(900, 1200, 1200, 900)).toEqual({ width: 1200, height: 1600, x: 0, y: -350 });
+    expect(coveredImageDimensions(1600, 900, 1200, 900, { zoom: 1.5, x: 1 })).toEqual({ width: 2400, height: 1350, x: 0, y: -225 });
   });
 });

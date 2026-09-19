@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import CrewAssetsMobile from "../CrewAssetsMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), prepareAssetMasterPhoto: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), createAssetWithPhoto: vi.fn(), prepareAssetMasterPhoto: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const payload = {
@@ -151,18 +151,17 @@ describe("Crew Assets Mobile", () => {
     fireEvent.change(screen.getByLabelText("Initial quantity"), { target: { value: "4" } });
     expect(screen.getByLabelText("Initial quantity").getAttribute("inputmode")).toBe("decimal");
     expect(screen.getByLabelText("Initial quantity").getAttribute("enterkeyhint")).toBe("next");
-    fireEvent.click(screen.getAllByRole("button", { name: "Add Asset" }).at(-1));
+    fireEvent.click(screen.getByRole("button", { name: "Create Asset" }));
     await waitFor(() => expect(crewService.createAsset).toHaveBeenCalledWith("token", expect.objectContaining({ asset: expect.objectContaining({ name: "Crew QA Tongs", initial_quantity: 4, category_id: "cat-1" }) })));
     expect(await screen.findByText("Crew QA Tongs")).not.toBeNull();
   });
 
-  it("keeps one create operation and one photo operation across a photo retry", async () => {
+  it("creates a photo-inclusive Asset through one idempotent atomic operation", async () => {
     const refreshed = { ...payload, assets: [...payload.assets, { ...payload.assets[0], id: "asset-new", name: "Crew QA Camera", current_quantity: 1 }] };
     const prepared = { file: new File(["photo"], "asset.jpg", { type: "image/jpeg" }), bundle: {}, previewUrl: "blob:preview" };
     crewService.assetsMobile.mockResolvedValueOnce(payload).mockResolvedValueOnce(refreshed);
     crewService.prepareAssetMasterPhoto.mockResolvedValue(prepared);
-    crewService.createAsset.mockResolvedValue({ asset: { id: "asset-new" } });
-    crewService.uploadInitialAssetPhoto.mockRejectedValueOnce(new Error("Edge Function returned a non-2xx status code")).mockResolvedValueOnce({ asset_id: "asset-new" });
+    crewService.createAssetWithPhoto.mockResolvedValue({ asset: { id: "asset-new" } });
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: /Add Asset/i }));
     fireEvent.change(screen.getByLabelText("Asset name"), { target: { value: "Crew QA Camera" } });
@@ -170,14 +169,12 @@ describe("Crew Assets Mobile", () => {
     fireEvent.click(screen.getByRole("option", { name: "Kitchen" }));
     fireEvent.change(screen.getByLabelText("Initial quantity"), { target: { value: "1" } });
     fireEvent.change(screen.getByLabelText("Take Photo"), { target: { files: [prepared.file] } });
-    expect(await screen.findByAltText("Normalized Asset preview")).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "Add Asset" }).at(-1));
-    expect(await screen.findByText(/photo could not be attached/i)).not.toBeNull();
-    expect(screen.queryByText(/non-2xx/i)).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Retry photo" }));
-    await waitFor(() => expect(crewService.uploadInitialAssetPhoto).toHaveBeenCalledTimes(2));
-    expect(crewService.createAsset).toHaveBeenCalledTimes(1);
-    expect(crewService.uploadInitialAssetPhoto.mock.calls[0][3]).toBe(crewService.uploadInitialAssetPhoto.mock.calls[1][3]);
+    expect(await screen.findByAltText("Asset photo crop preview")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Create Asset" }));
+    await waitFor(() => expect(crewService.createAssetWithPhoto).toHaveBeenCalledWith("token", expect.objectContaining({ asset: expect.objectContaining({ name: "Crew QA Camera" }), preparedPhoto: expect.any(Object) })));
+    expect(crewService.createAsset).not.toHaveBeenCalled();
+    expect(crewService.uploadInitialAssetPhoto).not.toHaveBeenCalled();
+    expect(screen.queryByRole("button", { name: /Retry photo/i })).toBeNull();
   });
 
   it("does not expose Minimum Quantity or duplicate Remark concepts during creation", async () => {

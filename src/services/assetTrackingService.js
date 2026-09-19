@@ -28,6 +28,7 @@ async function uploadAssetMasterPhotoIfNeeded(asset, userId) {
     return await uploadAssetMasterPhotoBundle(asset.master_photo_file, {
       bucket: "asset-photos",
       pathPrefix,
+      crop: asset.master_photo_crop || {},
       metadata: { uploaded_by: userId || "", asset_id: asset.id || "" },
     });
   } catch (error) {

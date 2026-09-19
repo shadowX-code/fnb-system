@@ -16,7 +16,9 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
 import { canCreate, canDelete, canEdit, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
-import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
+import { ASSET_MASTER_PHOTO_ACCEPT, validateAssetMasterPhotoFile, validateImageFile } from "../../../utils/imageUpload.js";
+import AssetPhotoCropper from "../../../components/media/AssetPhotoCropper.jsx";
+import "../../../components/media/AssetPhotoCropper.css";
 import { assetConditions, assetMatchesOperationalFilter, buildAssetActivityProjection, buildAssetOperationalKpis, getAssetAvailability, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue, latestMovementSummary, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
 import { ASSET_CREATE_UNIT_OPTIONS, applyAdminAssetCreateContract, validateAssetCreateValues } from "../utils/assetCreationContract.js";
 import { useMaintenanceRecordForm } from "../hooks/useMaintenanceRecordForm.js";
@@ -448,9 +450,10 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
     setImageError("");
     if (!file) return;
     try {
-      validateImageFile(file);
+      validateAssetMasterPhotoFile(file);
       update("master_photo_file", file);
       update("image_url", URL.createObjectURL(file));
+      update("master_photo_crop", { zoom: 1, x: 0, y: 0 });
       update("previous_original_image_url", asset?.original_image_url || asset?.image_url || "");
       update("previous_image_url", asset?.image_url || "");
       update("previous_thumbnail_url", asset?.thumbnail_url || "");
@@ -487,13 +490,13 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
       <div className="grid gap-4 md:grid-cols-[180px_1fr]">
         <div className="rounded-3xl border border-border bg-slate-50 p-4">
           <div className="flex flex-col items-center text-center">
-            <AssetThumbnail asset={{ ...values, category_name: categories.find((category) => category.id === values.category_id)?.name }} size="lg" />
+            {values.master_photo_file ? <AssetPhotoCropper src={values.image_url} crop={values.master_photo_crop} onChange={(crop) => update("master_photo_crop", crop)} className="w-full" /> : <AssetThumbnail asset={{ ...values, category_name: categories.find((category) => category.id === values.category_id)?.name }} size="lg" />}
             <label className="btn-secondary mt-4 h-9 cursor-pointer px-3 text-xs">
               <UploadCloud size={14} /> Upload Photo
-              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handleImageFile(event.target.files?.[0])} />
+              <input className="sr-only" type="file" accept={ASSET_MASTER_PHOTO_ACCEPT} onChange={(event) => handleImageFile(event.target.files?.[0])} />
             </label>
             {values.image_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => { update("previous_original_image_url", asset?.original_image_url || asset?.image_url || ""); update("previous_image_url", asset?.image_url || ""); update("previous_thumbnail_url", asset?.thumbnail_url || ""); update("master_photo_file", null); update("remove_master_photo", true); update("image_url", ""); update("thumbnail_url", ""); }}>Remove image</button> : null}
-            {imageError ? <div className="mt-2 text-xs font-semibold text-rose-600">{imageError}</div> : <div className="mt-2 text-xs text-text-muted">JPG/PNG/WebP · max 5MB. Original retained; 4:3 display variants are created on save.</div>}
+            {imageError ? <div className="mt-2 text-xs font-semibold text-rose-600">{imageError}</div> : <div className="mt-2 text-xs text-text-muted">JPG, PNG, WebP, HEIC or HEIF. The 4:3 preview is the saved presentation framing.</div>}
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">

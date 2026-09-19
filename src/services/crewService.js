@@ -1353,9 +1353,24 @@ export const crewService = {
     return data;
   },
 
-  async prepareAssetMasterPhoto(file) {
-    const bundle = await normalizeAssetMasterPhoto(file);
-    return { file, bundle, previewUrl: URL.createObjectURL(bundle.display.blob) };
+  async prepareAssetMasterPhoto(file, crop = {}) {
+    const bundle = await normalizeAssetMasterPhoto(file, crop);
+    return { file, crop, bundle, previewUrl: URL.createObjectURL(bundle.display.blob) };
+  },
+
+  async createAssetWithPhoto(token, payload) {
+    const preparedPhoto = payload.preparedPhoto;
+    if (!preparedPhoto?.bundle) throw new Error("Choose a photo before creating this Asset.");
+    const body = new FormData();
+    body.append("token", token);
+    body.append("request_id", payload.requestId || crypto.randomUUID());
+    body.append("asset", JSON.stringify(payload.asset));
+    body.append("original", preparedPhoto.bundle.original.blob, "original.webp");
+    body.append("display", preparedPhoto.bundle.display.blob, "display.webp");
+    body.append("thumbnail", preparedPhoto.bundle.thumbnail.blob, "thumbnail.webp");
+    const { data, error } = await supabase.functions.invoke("crew-asset-create", { body });
+    throwSupabaseError("crew.createAssetWithPhoto", error);
+    return data;
   },
 
   async uploadInitialAssetPhoto(token, assetId, preparedPhoto, requestId = crypto.randomUUID()) {
