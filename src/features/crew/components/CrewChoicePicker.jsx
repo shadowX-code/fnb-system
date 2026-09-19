@@ -4,13 +4,13 @@ import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import "./CrewChoicePicker.css";
 
 /** Shared Crew single-choice field: a compact trigger backed by the canonical sheet/list vocabulary. */
-export default function CrewChoicePicker({ label, value, options, onChange, placeholder = "Choose an option", description }) {
+export default function CrewChoicePicker({ label, value, options, onChange, placeholder = "Choose an option", description, disabled = false }) {
   const [open, setOpen] = useState(false);
   const labelId = useId();
   const selected = options.find((option) => option.value === value);
   return <div className="crew-choice-picker">
     {label ? <span id={labelId}>{label}</span> : null}
-    <button type="button" className="crew-choice-picker-trigger" aria-labelledby={label ? labelId : undefined} aria-label={label || placeholder} aria-haspopup="dialog" aria-expanded={open} onClick={() => setOpen(true)}>
+    <button type="button" className="crew-choice-picker-trigger" aria-labelledby={label ? labelId : undefined} aria-label={label || placeholder} aria-haspopup="dialog" aria-expanded={open} disabled={disabled} onClick={() => setOpen(true)}>
       <strong>{selected?.label || placeholder}</strong><ChevronDown size={18} aria-hidden="true" />
     </button>
     {open ? <CrewBottomSheet title={label || placeholder} description={description} onClose={() => setOpen(false)}>

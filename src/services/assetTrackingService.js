@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { applyAdminAssetCreateContract, validateAssetCreateValues } from "../features/sales-purchase/utils/assetCreationContract.js";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { isImageDataUrl, removeStorageObjectFromPublicUrl, uploadAssetMasterPhotoBundle, uploadOptimizedDataUrl } from "../utils/imageUpload.js";
@@ -418,6 +419,11 @@ export const assetTrackingService = {
   },
 
   async saveAsset(asset) {
+    if (!asset.id) {
+      const validationError = validateAssetCreateValues({ ...asset, initial_quantity: asset.current_quantity });
+      if (validationError) throw new Error(validationError);
+      asset = applyAdminAssetCreateContract({ ...asset, initial_quantity: asset.current_quantity });
+    }
     const userId = await currentUserId();
     const previousMasterPhotoUrls = masterPhotoUrls(asset);
     // Stage master-photo variants first; the original remains untouched and the

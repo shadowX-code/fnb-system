@@ -1353,8 +1353,14 @@ export const crewService = {
     return data;
   },
 
-  async uploadInitialAssetPhoto(token, assetId, file, requestId = crypto.randomUUID()) {
+  async prepareAssetMasterPhoto(file) {
     const bundle = await normalizeAssetMasterPhoto(file);
+    return { file, bundle, previewUrl: URL.createObjectURL(bundle.display.blob) };
+  },
+
+  async uploadInitialAssetPhoto(token, assetId, preparedPhoto, requestId = crypto.randomUUID()) {
+    const file = preparedPhoto?.file || preparedPhoto;
+    const bundle = preparedPhoto?.bundle || await normalizeAssetMasterPhoto(file);
     const body = new FormData();
     body.append("token", token);
     body.append("asset_id", assetId);

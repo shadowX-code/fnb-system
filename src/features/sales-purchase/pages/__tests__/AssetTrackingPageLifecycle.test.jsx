@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -94,6 +94,24 @@ describe("Asset Tracking page lifecycle guards", () => {
     expect(screen.getByRole("checkbox", { name: "Enable maintenance workflow" }).checked).toBe(true);
     expect(screen.getByRole("button", { name: "Archive" })).toBeTruthy();
     expect(screen.getByRole("button", { name: "Save Changes" })).toBeTruthy();
+  });
+
+  it("uses the canonical create fields without create-time minimum quantity or remark", async () => {
+    mount(["asset_tracking.view", "asset_tracking.create"]);
+    await screen.findByText("Mixer");
+    fireEvent.click(screen.getByRole("button", { name: "Add Asset" }));
+
+    expect(await screen.findByRole("heading", { name: "Add Asset" })).toBeTruthy();
+    const modal = within(screen.getByRole("dialog"));
+    expect(modal.getByLabelText("Asset Name")).toBeTruthy();
+    expect(modal.getByLabelText("Initial Quantity")).toBeTruthy();
+    expect(modal.getByLabelText("Unit")).toBeTruthy();
+    expect(modal.getByLabelText("Asset Code (Optional)")).toBeTruthy();
+    expect(modal.getByLabelText("Location (Optional)")).toBeTruthy();
+    expect(modal.getByLabelText("Description")).toBeTruthy();
+    expect(modal.queryByLabelText("Minimum Quantity")).toBeNull();
+    expect(modal.queryByLabelText("Remark")).toBeNull();
+    expect(modal.queryByLabelText("Condition")).toBeNull();
   });
 
   it("uses asset_tracking.manage for the mounted adjustment action and prevents a second click while saving", async () => {

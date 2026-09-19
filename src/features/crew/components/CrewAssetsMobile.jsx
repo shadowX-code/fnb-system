@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ChevronRight, ClipboardCheck, History, MapPin, PackagePlus, PackageSearch, SlidersHorizontal } from "lucide-react";
+import { Camera, ChevronRight, ClipboardCheck, History, ImagePlus, MapPin, PackagePlus, PackageSearch, SlidersHorizontal, Trash2 } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
+import { ASSET_CREATE_UNIT_OPTIONS, assetCreateErrorMessage, buildCrewAssetCreatePayload, validateAssetCreateValues } from "../../sales-purchase/utils/assetCreationContract.js";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewChoicePicker from "./CrewChoicePicker.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
@@ -87,12 +88,34 @@ function AdjustSheet({ token, asset, onClose, onSaved }) {
 }
 
 function AddAssetSheet({ token, categories, onClose, onSaved }) {
-  const [name, setName] = useState(""); const [category, setCategory] = useState(""); const [quantity, setQuantity] = useState(""); const [unit, setUnit] = useState("unit"); const [code, setCode] = useState(""); const [location, setLocation] = useState(""); const [minimum, setMinimum] = useState(""); const [description, setDescription] = useState(""); const [photo, setPhoto] = useState(null); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  const [name, setName] = useState(""); const [category, setCategory] = useState(""); const [quantity, setQuantity] = useState(""); const [unit, setUnit] = useState("unit"); const [code, setCode] = useState(""); const [location, setLocation] = useState(""); const [description, setDescription] = useState(""); const [photo, setPhoto] = useState(null); const [preparingPhoto, setPreparingPhoto] = useState(false); const [createdAssetId, setCreatedAssetId] = useState(""); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  const createRequestId = useRef(requestId()); const photoRequestId = useRef(requestId());
   const categoryOptions = [{ value: "", label: "Choose category" }, ...categories.map((item) => ({ value: item.id, label: item.name }))];
-  const unitOptions = ["unit", "piece", "set", "box", "bottle", "pair"].map((value) => ({ value, label: value === "piece" ? "pieces" : value === "box" ? "boxes" : `${value}s` }));
-  async function save() { setSaving(true); setError(""); try { const result = await crewService.createAsset(token, { requestId: requestId(), asset: { name, category_id: category, initial_quantity: Number(quantity), unit, asset_code: code, location, minimum_quantity: minimum === "" ? 0 : Number(minimum), description } }); const assetId = result?.asset?.id; if (photo && assetId) await crewService.uploadInitialAssetPhoto(token, assetId, photo, requestId()); await onSaved(assetId); } catch (cause) { setError(cause.message || "Unable to add asset."); } finally { setSaving(false); } }
-  const valid = Boolean(name.trim() && category && quantity !== "" && Number(quantity) >= 0 && unit);
-  return <CrewBottomSheet title="Add Asset" description="Creates a new active asset for this outlet." onClose={onClose} closeDisabled={saving} footer={<><button className="crew-mobile-ghost" type="button" onClick={onClose} disabled={saving}>Cancel</button><button className="crew-mobile-primary" type="button" disabled={!valid || saving} onClick={() => void save()}>{saving ? "Adding…" : "Add Asset"}</button></>}><div className="crew-assets-form"><label>Asset name<input enterKeyHint="next" value={name} onChange={(event) => setName(event.target.value)} autoComplete="off" /></label><CrewChoicePicker label="Category" value={category} options={categoryOptions} onChange={setCategory} /><div className="crew-assets-inline-fields"><label>Initial quantity<input type="number" inputMode="decimal" enterKeyHint="next" min="0" step="any" value={quantity} onChange={(event) => setQuantity(event.target.value)} /></label><CrewChoicePicker label="Unit" value={unit} options={unitOptions} onChange={setUnit} /></div><label>Asset code <small>Optional</small><input enterKeyHint="next" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="off" /></label><label>Location <small>Optional</small><input enterKeyHint="next" value={location} onChange={(event) => setLocation(event.target.value)} /></label><label className="crew-assets-photo"><Camera size={18} />{photo ? "Photo ready" : "Add photo"}<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => setPhoto(event.target.files?.[0] || null)} /></label><label>Minimum quantity <small>Optional</small><input type="number" inputMode="decimal" enterKeyHint="next" min="0" step="any" value={minimum} onChange={(event) => setMinimum(event.target.value)} /></label><label>Description <small>Optional</small><textarea enterKeyHint="done" value={description} onChange={(event) => setDescription(event.target.value)} /></label>{error ? <p className="crew-v2-error" role="alert">{error}</p> : null}</div></CrewBottomSheet>;
+  const draft = { name, category_id: category, initial_quantity: quantity, unit, asset_code: code, location, description };
+  const validationError = validateAssetCreateValues(draft, categories.map((item) => item.id));
+  useEffect(() => () => { if (photo?.previewUrl) URL.revokeObjectURL?.(photo.previewUrl); }, [photo?.previewUrl]);
+  async function choosePhoto(file) {
+    if (!file) return;
+    setPreparingPhoto(true); setError("");
+    try { setPhoto(await crewService.prepareAssetMasterPhoto(file)); } catch (cause) { setError(cause.message || "That photo could not be prepared. Try another image."); } finally { setPreparingPhoto(false); }
+  }
+  function removePhoto() { setPhoto(null); photoRequestId.current = requestId(); }
+  async function save() {
+    setSaving(true); setError(""); let stage = "create";
+    try {
+      let assetId = createdAssetId;
+      if (!assetId) {
+        const result = await crewService.createAsset(token, { requestId: createRequestId.current, asset: buildCrewAssetCreatePayload(draft) });
+        assetId = result?.asset?.id || "";
+        if (!assetId) throw new Error("Asset creation returned no identifier.");
+        setCreatedAssetId(assetId);
+      }
+      if (photo) { stage = "photo"; await crewService.uploadInitialAssetPhoto(token, assetId, photo, photoRequestId.current); }
+      await onSaved(assetId);
+    } catch (cause) { setError(assetCreateErrorMessage(stage, cause)); } finally { setSaving(false); }
+  }
+  const locked = Boolean(createdAssetId);
+  return <CrewBottomSheet title="Add Asset" description={locked ? "Asset created. Retry the photo attachment to finish." : "Creates a new active asset for this outlet."} onClose={onClose} closeDisabled={saving} footer={<><button className="crew-mobile-ghost" type="button" onClick={onClose} disabled={saving}>Cancel</button><button className="crew-mobile-primary" type="button" disabled={Boolean(validationError) || saving || preparingPhoto} onClick={() => void save()}>{saving ? "Adding…" : locked ? "Retry photo" : "Add Asset"}</button></>}><div className="crew-assets-form"><label>Asset name<input enterKeyHint="next" value={name} onChange={(event) => setName(event.target.value)} autoComplete="off" disabled={locked} /></label><CrewChoicePicker label="Category" value={category} options={categoryOptions} onChange={setCategory} disabled={locked} /><div className="crew-assets-inline-fields"><label>Initial quantity<input type="number" inputMode="decimal" enterKeyHint="next" min="0" step="any" value={quantity} onChange={(event) => setQuantity(event.target.value)} disabled={locked} /></label><CrewChoicePicker label="Unit" value={unit} options={ASSET_CREATE_UNIT_OPTIONS} onChange={setUnit} disabled={locked} /></div><label>Asset code <small>Optional</small><input enterKeyHint="next" value={code} onChange={(event) => setCode(event.target.value)} autoComplete="off" disabled={locked} /></label><label>Location <small>Optional</small><input enterKeyHint="next" value={location} onChange={(event) => setLocation(event.target.value)} disabled={locked} /></label><fieldset className="crew-assets-photo-field"><legend>Photo <small>Optional</small></legend>{photo ? <div className="crew-assets-photo-preview"><img src={photo.previewUrl} alt="Normalized Asset preview" /><div><label><Camera size={17} />Replace<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => void choosePhoto(event.target.files?.[0])} /></label><button type="button" onClick={removePhoto}><Trash2 size={17} />Remove</button></div></div> : <div className="crew-assets-photo-actions"><label><Camera size={18} />Take Photo<input type="file" accept="image/jpeg,image/png,image/webp" capture="environment" onChange={(event) => void choosePhoto(event.target.files?.[0])} /></label><label><ImagePlus size={18} />Choose from Library<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => void choosePhoto(event.target.files?.[0])} /></label></div>}{preparingPhoto ? <small role="status">Preparing 4:3 preview…</small> : null}</fieldset><label>Description <small>Optional</small><textarea enterKeyHint="done" value={description} onChange={(event) => setDescription(event.target.value)} disabled={locked} /></label>{error ? <p className="crew-v2-error" role="alert">{error}</p> : null}</div></CrewBottomSheet>;
 }
 
 function ActivitySheet({ data, assetId, title, onClose }) {

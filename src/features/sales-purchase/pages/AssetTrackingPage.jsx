@@ -18,6 +18,7 @@ import { canCreate, canDelete, canEdit, canManage, notifyPermissionDenied } from
 import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
 import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
 import { assetConditions, assetMatchesOperationalFilter, buildAssetActivityProjection, buildAssetOperationalKpis, getAssetAvailability, inspectionProgress, isAssetMaintenanceEligible, isDraftInspection, isMaintenanceDueWithin, isMaintenanceOverdue, latestMovementSummary, needsAssetAttention as assetNeedsAttention, nextMaintenanceInfo, normalizeAssetCondition, sortInspectionsNewestFirst } from "../utils/assetReadModel.js";
+import { ASSET_CREATE_UNIT_OPTIONS, applyAdminAssetCreateContract, validateAssetCreateValues } from "../utils/assetCreationContract.js";
 import { useMaintenanceRecordForm } from "../hooks/useMaintenanceRecordForm.js";
 import AssetImportModal from "../components/AssetImportModal.jsx";
 import MaintenanceRecordFormBody, { maintenanceCtaLabel } from "../components/MaintenanceRecordFormBody.jsx";
@@ -435,8 +436,11 @@ export { buildAssetImportPreview } from "../utils/assetImport.js";
 function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving }) {
   const [values, setValues] = useState(() => ({ ...emptyAsset(), ...asset }));
   const [imageError, setImageError] = useState("");
+  const [formError, setFormError] = useState("");
   const isEdit = Boolean(asset?.id);
   const selectedCategory = categories.find((category) => category.id === values.category_id);
+  const categoryOptions = categories.filter((category) => category.is_active || (isEdit && category.id === values.category_id)).map((category) => ({ value: category.id, label: category.is_active ? category.name : `${category.name} (Archived)` }));
+  const unitOptions = ASSET_CREATE_UNIT_OPTIONS.some((option) => option.value === values.unit) ? ASSET_CREATE_UNIT_OPTIONS : [{ value: values.unit, label: `${values.unit} (Historical)` }, ...ASSET_CREATE_UNIT_OPTIONS];
   function update(key, value) {
     setValues((current) => ({ ...current, [key]: value }));
   }
@@ -468,7 +472,12 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
             className="btn-primary"
             type="button"
             disabled={saving || !values.name.trim() || !values.outlet_id || !values.category_id}
-            onClick={() => onSubmit(values)}
+            onClick={() => {
+              if (isEdit) { onSubmit(values); return; }
+              const validationError = validateAssetCreateValues({ ...values, initial_quantity: values.current_quantity }, categories.filter((category) => category.is_active).map((category) => category.id));
+              if (validationError) { setFormError(validationError); return; }
+              onSubmit(applyAdminAssetCreateContract({ ...values, initial_quantity: values.current_quantity }));
+            }}
           >
             {isEdit ? "Save Asset" : "Create Asset"}
           </button>
@@ -495,26 +504,33 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
           <SelectField value={values.outlet_id} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outlet_id", value)} />
         </FieldLabel>
         <FieldLabel label="Category">
-          <SelectField value={values.category_id} options={categories.filter((category) => category.is_active).map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => update("category_id", value)} searchable />
+          <SelectField value={values.category_id} options={categoryOptions} onChange={(value) => update("category_id", value)} searchable />
         </FieldLabel>
-        <FieldLabel label="Condition">
+        {isEdit ? <FieldLabel label="Condition">
           <SelectField value={values.condition || "healthy"} options={assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))} onChange={(value) => update("condition", value)} />
-        </FieldLabel>
-        <FieldLabel label="Current Quantity">
+        </FieldLabel> : null}
+        <FieldLabel label={isEdit ? "Current Quantity" : "Initial Quantity"}>
           <input className="control" type="number" min="0" value={values.current_quantity} onChange={(event) => update("current_quantity", event.target.value)} disabled={isEdit} />
         </FieldLabel>
-        <FieldLabel label="Minimum Quantity">
+        {isEdit ? <FieldLabel label="Minimum Quantity">
           <input className="control" type="number" min="0" value={values.minimum_quantity} onChange={(event) => update("minimum_quantity", event.target.value)} />
-        </FieldLabel>
+        </FieldLabel> : null}
         <FieldLabel label="Unit">
-          <input className="control" value={values.unit} onChange={(event) => update("unit", event.target.value)} placeholder="unit / set / pcs" />
+          {isEdit ? <input className="control" value={values.unit} onChange={(event) => update("unit", event.target.value)} placeholder="Unit" /> : <SelectField value={values.unit} options={unitOptions} onChange={(value) => update("unit", value)} />}
         </FieldLabel>
-        <FieldLabel label="Remark">
+        <FieldLabel label="Asset Code (Optional)">
+          <input className="control" value={values.asset_code} onChange={(event) => update("asset_code", event.target.value)} placeholder="Outlet asset code" />
+        </FieldLabel>
+        <FieldLabel label="Location (Optional)">
+          <input className="control" value={values.location} onChange={(event) => update("location", event.target.value)} placeholder="e.g. Bar counter" />
+        </FieldLabel>
+        {isEdit ? <FieldLabel label="Remark">
           <input className="control" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder="Optional" />
-        </FieldLabel>
+        </FieldLabel> : null}
         <FieldLabel label="Description">
           <textarea className="control min-h-24 md:col-span-2" value={values.description} onChange={(event) => update("description", event.target.value)} placeholder="Optional asset details" />
         </FieldLabel>
+        {formError ? <div className="text-sm font-bold text-rose-600 md:col-span-2" role="alert">{formError}</div> : null}
         <div className="rounded-2xl border border-border bg-slate-50 p-3 md:col-span-2">
           <div className="text-xs font-black uppercase tracking-wide text-text-muted">Maintenance Workflow</div>
           <div className="mt-3 grid gap-2 sm:grid-cols-3">

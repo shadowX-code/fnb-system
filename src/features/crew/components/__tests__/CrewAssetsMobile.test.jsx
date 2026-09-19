@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import CrewAssetsMobile from "../CrewAssetsMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), prepareAssetMasterPhoto: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const payload = {
@@ -154,5 +154,40 @@ describe("Crew Assets Mobile", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Add Asset" }).at(-1));
     await waitFor(() => expect(crewService.createAsset).toHaveBeenCalledWith("token", expect.objectContaining({ asset: expect.objectContaining({ name: "Crew QA Tongs", initial_quantity: 4, category_id: "cat-1" }) })));
     expect(await screen.findByText("Crew QA Tongs")).not.toBeNull();
+  });
+
+  it("keeps one create operation and one photo operation across a photo retry", async () => {
+    const refreshed = { ...payload, assets: [...payload.assets, { ...payload.assets[0], id: "asset-new", name: "Crew QA Camera", current_quantity: 1 }] };
+    const prepared = { file: new File(["photo"], "asset.jpg", { type: "image/jpeg" }), bundle: {}, previewUrl: "blob:preview" };
+    crewService.assetsMobile.mockResolvedValueOnce(payload).mockResolvedValueOnce(refreshed);
+    crewService.prepareAssetMasterPhoto.mockResolvedValue(prepared);
+    crewService.createAsset.mockResolvedValue({ asset: { id: "asset-new" } });
+    crewService.uploadInitialAssetPhoto.mockRejectedValueOnce(new Error("Edge Function returned a non-2xx status code")).mockResolvedValueOnce({ asset_id: "asset-new" });
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Add Asset/i }));
+    fireEvent.change(screen.getByLabelText("Asset name"), { target: { value: "Crew QA Camera" } });
+    fireEvent.click(screen.getAllByRole("button", { name: "Category" }).at(-1));
+    fireEvent.click(screen.getByRole("option", { name: "Kitchen" }));
+    fireEvent.change(screen.getByLabelText("Initial quantity"), { target: { value: "1" } });
+    fireEvent.change(screen.getByLabelText("Take Photo"), { target: { files: [prepared.file] } });
+    expect(await screen.findByAltText("Normalized Asset preview")).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Add Asset" }).at(-1));
+    expect(await screen.findByText(/photo could not be attached/i)).not.toBeNull();
+    expect(screen.queryByText(/non-2xx/i)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry photo" }));
+    await waitFor(() => expect(crewService.uploadInitialAssetPhoto).toHaveBeenCalledTimes(2));
+    expect(crewService.createAsset).toHaveBeenCalledTimes(1);
+    expect(crewService.uploadInitialAssetPhoto.mock.calls[0][3]).toBe(crewService.uploadInitialAssetPhoto.mock.calls[1][3]);
+  });
+
+  it("does not expose Minimum Quantity or duplicate Remark concepts during creation", async () => {
+    crewService.assetsMobile.mockResolvedValue(payload);
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Add Asset/i }));
+    expect(screen.queryByLabelText(/Minimum quantity/i)).toBeNull();
+    expect(screen.queryByLabelText(/Remark/i)).toBeNull();
+    expect(screen.getByLabelText(/Description/i)).not.toBeNull();
+    expect(screen.getByLabelText("Take Photo")).not.toBeNull();
+    expect(screen.getByLabelText("Choose from Library")).not.toBeNull();
   });
 });
