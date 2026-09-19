@@ -48,13 +48,14 @@ describe("Crew Assets Mobile", () => {
   });
 
   it("uses horizontal category chips and presents unified asset activity", async () => {
-    crewService.assetsMobile.mockResolvedValue(payload);
+    crewService.assetsMobile.mockResolvedValue({ ...payload, categories: [...payload.categories, { id: "cat-empty", name: "Empty category" }] });
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     await screen.findByText("Staging QA Blender");
     expect(screen.queryByRole("combobox", { name: /asset category/i })).toBeNull();
     expect(screen.getByRole("group", { name: "Asset categories" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("true");
     expect(screen.getByRole("button", { name: "Kitchen" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.queryByRole("button", { name: "Empty category" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Kitchen" }));
     expect(screen.getByRole("button", { name: "Kitchen" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: /Activity/i }));
@@ -97,8 +98,10 @@ describe("Crew Assets Mobile", () => {
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     fireEvent.click(await screen.findByText("Staging QA Blender"));
     fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
-    expect(screen.getByRole("button", { name: "Save Draft" }).disabled).toBe(true);
+    expect(screen.getByText("No unsaved changes")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();
     fireEvent.change(screen.getByLabelText("Counted"), { target: { value: "1" } });
+    expect(screen.getByRole("button", { name: "Save Draft" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
@@ -116,6 +119,7 @@ describe("Crew Assets Mobile", () => {
     expect(screen.getByText("50%")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Previous" }).disabled).toBe(true);
     expect(screen.getByRole("button", { name: "Next" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Next" }).closest(".crew-inspection-workflow-dock")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("2 of 2")).not.toBeNull();
     expect(screen.getByText("100%")).not.toBeNull();
