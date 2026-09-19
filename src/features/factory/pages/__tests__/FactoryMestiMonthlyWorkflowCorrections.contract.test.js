@@ -10,6 +10,10 @@ const recurrenceFix = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20260919213000_factory_mesti_waste_monthly_empty_recurrence_fix.sql"),
   "utf8",
 );
+const cleaningMaterializer = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260902132726_factory_mesti_cleaning_location_direct.sql"),
+  "utf8",
+);
 
 describe("MeSTI monthly workflow correction SQL contract", () => {
   it("projects only scheduled Waste dates and retains the canonical session lifecycle", () => {
@@ -34,5 +38,10 @@ describe("MeSTI monthly workflow correction SQL contract", () => {
   it("projects empty daily recurrence arrays without PostgreSQL array accumulation", () => {
     expect(recurrenceFix).toContain("jsonb_agg(to_jsonb(recurrence_weekdays) order by run_date desc)->0");
     expect(recurrenceFix).not.toContain("array_agg(recurrence_weekdays");
+  });
+
+  it("materializes Cleaning of Area occurrences only on scheduled recurrence dates", () => {
+    expect(cleaningMaterializer).toContain("factory_mesti_recurrence_due(requirement.recurrence_type, requirement.recurrence_weekdays, due_date.day::date)");
+    expect(cleaningMaterializer).toContain("perform public.factory_mesti_materialize_cleaning_occurrences(v_from, v_to)");
   });
 });

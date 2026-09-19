@@ -124,6 +124,21 @@ describe("Factory MeSTI Cleaning of Area", () => {
     })));
   });
 
+  it("shows Effective From in Setup and sends a corrected date through the canonical version authority", async () => {
+    factoryService.saveMestiCleaningRequirement.mockResolvedValue({ ...data.mestiCleaningRequirements[0], effective_from: "2026-09-20" });
+    renderPage({ permissions: ["factory_mesti_cleaning.view", "factory_mesti_cleaning.edit"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Setup" }));
+    expect(await screen.findByText("Effective From")).not.toBeNull();
+    expect(screen.getAllByText("01/09/2026")).toHaveLength(2);
+    fireEvent.click((await screen.findAllByRole("button", { name: "Edit" }))[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Select date" }));
+    fireEvent.click(await screen.findByRole("button", { name: "20" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Requirement" }));
+    await waitFor(() => expect(factoryService.saveMestiCleaningRequirement).toHaveBeenCalledWith(expect.objectContaining({
+      id: "req-floor-v5", effective_from: "2026-09-20",
+    })));
+  });
+
   it("renders one Monthly row per logical requirement, preserves distinct same-name requirements, and drills into Location evidence", async () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
@@ -140,7 +155,24 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(screen.getByText("Preparation")).not.toBeNull();
     expect(screen.getByText("Cooking")).not.toBeNull();
     expect(screen.getByText("Isaac")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    fireEvent.click(screen.getByRole("button", { name: "View Cooking cleaning details" }));
     expect(await screen.findByRole("dialog", { name: "Floor · Cooking" })).not.toBeNull();
+  });
+
+  it("uses the canonical complete and verify lifecycle from Monthly", async () => {
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByTitle(/1 of 2 verified/));
+    fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+    await waitFor(() => expect(factoryService.completeMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep"));
+
+    cleanup();
+    const completed = { ...floorOccurrence, status: "completed" };
+    factoryService.listMestiCleaningMonth.mockResolvedValue([{ ...monthlyRows[0], days: [{ ...monthlyRows[0].days[0], status: "completed", completed_count: 1, pending_count: 0, occurrences: [completed] }] }]);
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByTitle(/Awaiting Verification/));
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+    await waitFor(() => expect(factoryService.verifyMestiCleaningOccurrence).toHaveBeenCalledWith("occ-floor-prep", "verified"));
   });
 });

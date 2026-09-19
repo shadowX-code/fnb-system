@@ -8,6 +8,7 @@ import { factoryService } from "../../../services/factoryService.js";
 import FactoryComplianceMatrix from "../components/FactoryComplianceMatrix.jsx";
 import FactoryDailyToolbar, { FactoryDailyDateField } from "../components/FactoryDailyToolbar.jsx";
 import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
+import FactoryMestiOccurrenceActions from "../components/FactoryMestiOccurrenceActions.jsx";
 import FactoryOperationalGroup, { FactoryOperationalEvidence, FactoryOperationalRow } from "../components/FactoryOperationalGroup.jsx";
 import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
@@ -86,7 +87,7 @@ function MonthlyEvidenceRows({ detail, canComplete, canVerify, onAct }) {
       { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
       { key: "completed", label: "Completed", render: (row) => row.completed_at ? <div><div className="font-semibold">{row.completed_by_name || "Completed"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.completed_at)}</div></div> : "—" },
       { key: "verified", label: "Verified", render: (row) => row.verified_at ? <div><div className="font-semibold">{row.verified_by_name || "Verified"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.verified_at)}</div></div> : "—" },
-      { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions primaryAction={canComplete(row) ? { label: "Complete", icon: Check, onClick: () => onAct("complete", row) } : canVerify(row) ? { label: "Verify", icon: Check, onClick: () => onAct("verify", row, "verified") } : { label: "View", onClick: () => onAct("view", row) }} /> },
+      { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryMestiOccurrenceActions status={row.status} canComplete={canComplete(row)} canVerify={canVerify(row)} onComplete={() => onAct("complete", row)} onVerify={() => onAct("verify", row, "verified")} onMarkUnsatisfactory={() => onAct("verify", row, "unsatisfactory")} onView={() => onAct("view", row)} viewLabel={`View ${row.location_name} cleaning details`} /> },
     ]} /></div>;
 }
 
@@ -211,6 +212,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
         { key: "task", label: "Task", render: (row) => <div><div className="font-semibold text-text-primary">{row.task_name}</div><div className="text-xs text-text-secondary">Version {row.version_no || 1}</div></div> },
         { key: "locations", label: "Locations", render: (row) => <div className="text-sm text-text-secondary">{(row.location_names || []).join(", ") || "—"}</div> },
         { key: "frequency", label: "Frequency", render: recurrenceLabel },
+        { key: "effective", label: "Effective From", render: (row) => formatFactoryDate(row.effective_from) },
         { key: "status", label: "Status", render: (row) => <FactoryStatusBadge tone={row.status === "active" ? "success" : "neutral"}>{row.status === "active" ? "Active" : "Inactive"}</FactoryStatusBadge> },
         { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions directSingleSecondary secondaryActions={canSaveSetup ? [{ label: "Edit", onClick: () => { setRequirementDraft({ ...row, location_ids: row.location_ids || [], recurrence_weekdays: row.recurrence_weekdays || [] }); setShowRequirementForm(true); } }] : []} /> },
       ]} /></FactoryDataSurface>
