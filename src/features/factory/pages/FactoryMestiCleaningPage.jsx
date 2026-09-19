@@ -86,8 +86,20 @@ function MonthlyEvidenceRows({ detail, canComplete, canVerify, onAct }) {
       { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
       { key: "completed", label: "Completed", render: (row) => row.completed_at ? <div><div className="font-semibold">{row.completed_by_name || "Completed"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.completed_at)}</div></div> : "—" },
       { key: "verified", label: "Verified", render: (row) => row.verified_at ? <div><div className="font-semibold">{row.verified_by_name || "Verified"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.verified_at)}</div></div> : "—" },
-      { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions primaryAction={canComplete(row) ? { label: "Complete", icon: Check, onClick: () => onAct("complete", row) } : canVerify(row) ? { label: "Verify", icon: Check, onClick: () => onAct("verify", row, "verified") } : { label: "View", onClick: () => {} }} /> },
+      { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions primaryAction={canComplete(row) ? { label: "Complete", icon: Check, onClick: () => onAct("complete", row) } : canVerify(row) ? { label: "Verify", icon: Check, onClick: () => onAct("verify", row, "verified") } : { label: "View", onClick: () => onAct("view", row) }} /> },
     ]} /></div>;
+}
+
+function OccurrenceDetail({ occurrence, onClose }) {
+  if (!occurrence) return null;
+  return <Modal title={`${occurrence.task_name} · ${occurrence.location_name}`} description={formatFactoryDate(occurrence.due_date)} onClose={onClose}>
+    <div className="grid gap-x-6 md:grid-cols-2">
+      <div className="border-b border-border py-2.5"><div className="text-xs font-semibold text-text-muted">Status</div><div className="mt-1"><StatusBadge status={occurrence.status} /></div></div>
+      <div className="border-b border-border py-2.5"><div className="text-xs font-semibold text-text-muted">Schedule</div><div className="mt-1 text-sm font-semibold text-text-primary">{recurrenceLabel(occurrence)}</div></div>
+      <div className="border-b border-border py-2.5"><div className="text-xs font-semibold text-text-muted">Completed</div><div className="mt-1 text-sm font-semibold text-text-primary">{occurrence.completed_by_name || "—"}</div>{occurrence.completed_at ? <div className="text-xs text-text-secondary">{formatFactoryDateTime(occurrence.completed_at)}</div> : null}</div>
+      <div className="border-b border-border py-2.5"><div className="text-xs font-semibold text-text-muted">Verified</div><div className="mt-1 text-sm font-semibold text-text-primary">{occurrence.verified_by_name || "—"}</div>{occurrence.verified_at ? <div className="text-xs text-text-secondary">{formatFactoryDateTime(occurrence.verified_at)}</div> : null}</div>
+    </div>
+  </Modal>;
 }
 
 function RequirementModal({ open, draft, locations, onClose, onSave, onChange, onToggleLocation }) {
@@ -117,6 +129,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [monthLoading, setMonthLoading] = useState(false);
   const [error, setError] = useState("");
   const [monthlyDetailKey, setMonthlyDetailKey] = useState("");
+  const [occurrenceDetail, setOccurrenceDetail] = useState(null);
   const [showRequirementForm, setShowRequirementForm] = useState(false);
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
   const runLatestRequest = useFactoryLatestRequest();
@@ -137,6 +150,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   useEffect(() => { if (activeTab === "monthly") loadMonthly(); }, [activeTab, loadMonthly]);
 
   async function act(action, occurrence, result) {
+    if (action === "view") { setOccurrenceDetail(occurrence); return; }
     try {
       if (action === "complete") await factoryService.completeMestiCleaningOccurrence(occurrence.id);
       else await factoryService.verifyMestiCleaningOccurrence(occurrence.id, result);
@@ -202,5 +216,6 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
       ]} /></FactoryDataSurface>
       <RequirementModal open={showRequirementForm} draft={requirementDraft} locations={activeLocations} onClose={closeRequirementForm} onSave={saveRequirement} onChange={changeDraft} onToggleLocation={toggleLocation} />
     </div> : null}
+    <OccurrenceDetail occurrence={occurrenceDetail} onClose={() => setOccurrenceDetail(null)} />
   </div>;
 }
