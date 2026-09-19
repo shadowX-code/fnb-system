@@ -1416,6 +1416,16 @@ export const crewService = {
     return data;
   },
 
+  async archiveAssetInspectionDraft(token, inspectionId, requestId = crypto.randomUUID()) {
+    const { data, error } = await supabase.rpc("crew_asset_archive_inspection_draft", {
+      p_token: token,
+      p_request_id: requestId,
+      p_inspection_id: inspectionId,
+    });
+    throwSupabaseError("crew.archiveAssetInspectionDraft", error);
+    return data;
+  },
+
   async uploadAssetInspectionEvidence(token, assetId, file) {
     validateImageFile(file);
     const optimized = await optimizeImageBlob(file);

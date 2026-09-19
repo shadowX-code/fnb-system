@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import CrewAssetsMobile from "../CrewAssetsMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), createAssetWithPhoto: vi.fn(), prepareAssetMasterPhoto: vi.fn(), updateAssetDetails: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), createAssetWithPhoto: vi.fn(), prepareAssetMasterPhoto: vi.fn(), updateAssetDetails: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), archiveAssetInspectionDraft: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const payload = {
@@ -98,12 +98,14 @@ describe("Crew Assets Mobile", () => {
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     fireEvent.click(await screen.findByText("Staging QA Blender"));
     fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
-    expect(screen.getByText("No unsaved changes")).not.toBeNull();
+    expect(screen.queryByText("No unsaved changes")).toBeNull();
     expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();
     fireEvent.change(screen.getByLabelText("Counted"), { target: { value: "1" } });
     expect(screen.getByRole("button", { name: "Save Draft" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
+    expect(screen.getByRole("status").textContent).toContain("Draft saved");
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByText("Resume inspection")).not.toBeNull();
   });
@@ -117,13 +119,38 @@ describe("Crew Assets Mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Inspection" }));
     expect(screen.getByText("1 of 2")).not.toBeNull();
     expect(screen.getByText("50%")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Previous" }).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: "Previous" })).toBeNull();
     expect(screen.getByRole("button", { name: "Next" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Next" }).closest(".crew-inspection-workflow-dock")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("2 of 2")).not.toBeNull();
     expect(screen.getByText("100%")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Previous" }).disabled).toBe(false);
     expect(screen.getByRole("button", { name: "Complete Inspection" })).not.toBeNull();
+  });
+
+  it("uses the full workflow dock for a one-asset inspection without a disabled Previous action", async () => {
+    crewService.assetsMobile.mockResolvedValue(payload);
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByText("Staging QA Blender"));
+    fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
+    const complete = screen.getByRole("button", { name: "Complete Inspection" });
+    expect(screen.queryByRole("button", { name: "Previous" })).toBeNull();
+    expect(complete.closest(".crew-inspection-workflow-dock")?.className).toContain("is-single-action");
+  });
+
+  it("archives a Crew-owned saved draft through the canonical lifecycle and removes Resume inspection", async () => {
+    const draft = { id: "draft-1", status: "in_progress", current_step: 1, completion_percentage: 0, updated_at: "2026-09-17T10:00:00Z", category_scope: { type: "specific" }, draft_data: { rows: [{ asset_id: "asset-1", counted_quantity: 2, condition_status: "healthy", remark: "QA", evidence: [] }] } };
+    crewService.assetsMobile.mockResolvedValueOnce({ ...payload, inspection_drafts: [draft] }).mockResolvedValueOnce(payload);
+    crewService.archiveAssetInspectionDraft.mockResolvedValue({ inspection_id: "draft-1", status: "archived" });
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByText("Resume inspection"));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Inspection" }));
+    expect(screen.getByRole("heading", { name: "Cancel inspection?" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel inspection" }));
+    await waitFor(() => expect(crewService.archiveAssetInspectionDraft).toHaveBeenCalledWith("token", "draft-1"));
+    expect(await screen.findByText("Inspection draft cancelled")).not.toBeNull();
+    expect(screen.queryByText("Resume inspection")).toBeNull();
   });
 
   it("supports horizontal swipe navigation without discarding local inspection work", async () => {

@@ -185,7 +185,7 @@ describe("Crew Mobile design system contract", () => {
     expect(cashCheckout).not.toMatch(/\.crew-cash-actions\s*\{[^}]*position:/);
     expect(leaveStyles).not.toMatch(/\.crew-leave-footer\s*\{[^}]*position:/);
     expect(operationsStyles).not.toMatch(/\.crew-ops-sticky\s*\{[^}]*position:/);
-    expect(mobileApp).toContain("!cashCheckoutFlow && <CrewBottomNav");
+    expect(mobileApp).toContain("!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav");
     expect(leave).toContain("crew-ui-sticky-actions--with-nav crew-leave-footer");
     expect(taskBlock).toContain("<CrewBottomSheet");
     expect(bottomSheet).toContain("crew-ui-bottom-sheet-footer");

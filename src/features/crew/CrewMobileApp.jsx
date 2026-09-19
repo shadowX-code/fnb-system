@@ -56,6 +56,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave, assets } = data;
   const clock = useCrewAttendance({ session, attendance, context, roster, refresh, screen });
   const [cashCheckoutFlow, setCashCheckoutFlow] = useState(false);
+  const [assetInspectionFlow, setAssetInspectionFlow] = useState(false);
   const [operationTarget, setOperationTarget] = useState(null);
   const homeScrollY = useRef(0);
   const logout = () => { navigate("home"); replaceSession(null); };
@@ -70,12 +71,12 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={refresh} onBack={(returnContext) => { setOperationTarget(null); navigate("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => navigate("me")} onChanged={refresh} />}
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
-    {screen === "assets" && <CrewAssetsMobile token={session.token} onBack={() => navigate("me")} />}
+    {screen === "assets" && <CrewAssetsMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setAssetInspectionFlow} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
     {screen === "attendance" && <CrewAttendanceMobile rows={clock.attendanceMonth} loading={clock.attendanceMonthLoading} selectedMonth={clock.selectedAttendanceMonth} onMonthChange={clock.setSelectedAttendanceMonth} onBack={() => navigate("home")} t={t} />}
     {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
-    {!cashCheckoutFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets"].includes(screen) ? "me" : screen} onChange={navigate} />}
+    {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;
 }
