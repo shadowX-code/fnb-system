@@ -4401,13 +4401,13 @@ const factoryServiceDefinition = {
     const normalizedReason = String(reason || "").trim();
     if (!normalizedReason) throw new Error("Reversal reason is required.");
     if (!requestId) throw new Error("Reversal request identity is required.");
-    const { data: dispatchId, error } = await supabase.rpc("factory_reverse_finished_good_dispatch", {
+    const { data, error } = await supabase.rpc("factory_reverse_finished_good_dispatch_result", {
       p_dispatch_id: dispatch.id,
       p_reason: normalizedReason,
       p_request_id: requestId,
     });
     throwSupabaseError("factory.finished_good_dispatch.reverse", error);
-    const reversed = await this.getFinishedGoodDispatchById(dispatchId || dispatch.id);
+    const reversed = mapFinishedGoodDispatch(data || {});
     await logFactoryAction({
       action: "factory_finished_good_dispatch_reversed",
       target: reversed.dispatch_no || reversed.id,
