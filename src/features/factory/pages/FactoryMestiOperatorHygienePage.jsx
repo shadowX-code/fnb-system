@@ -10,6 +10,7 @@ import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import FactoryViewTabs from "../components/FactoryViewTabs.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
+import { FactoryMestiMonthlyActionRow, FactoryMestiMonthlyExpansion } from "../components/FactoryMestiMonthlyExpansion.jsx";
 import FactoryMestiOccurrenceActions from "../components/FactoryMestiOccurrenceActions.jsx";
 import { FactoryOperationalSummary } from "../components/FactoryEvidencePresentation.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
@@ -89,15 +90,14 @@ function MonthlyInspectionActions({ cell, employee, canVerify, onVerify, onView 
     position: employee.position,
     employee_snapshot: { employee_name: employee.employee_name, position: employee.position },
   };
-  return <div className="border border-border bg-surface" aria-label="Operator hygiene monthly actions">
-    <div className="border-b border-border px-3 py-2 text-xs font-semibold text-text-secondary">{employee.employee_name} · {formatFactoryDate(cell.inspection_date)}</div>
-    <FactoryTable rows={[entry]} columns={[
-      { key: "status", label: "Status", render: () => cell.session_status === "submitted" ? <FactoryStatusBadge tone="warning">Awaiting Verification</FactoryStatusBadge> : <SessionStatusBadge value={cell.session_status} /> },
-      { key: "result", label: "Result", render: () => <ResultBadge value={cell.overall_result} /> },
-      { key: "evidence", label: "Evidence", render: () => cell.issue || cell.action_taken ? <div><div className="font-semibold text-text-primary">{cell.issue || "No issue noted"}</div><div className="text-xs text-text-secondary">{cell.action_taken || "No action noted"}</div></div> : "No issue recorded" },
-      { key: "actions", label: "Actions", align: "right", render: () => <FactoryMestiOccurrenceActions status={cell.session_status} canVerify={canVerify} onVerify={() => onVerify(cell.inspection_date)} onView={() => onView(entry)} viewLabel={`View ${employee.employee_name} inspection details`} /> },
-    ]} />
-  </div>;
+  return <FactoryMestiMonthlyExpansion ariaLabel="Operator hygiene monthly actions" title={`${employee.employee_name} · ${formatFactoryDate(cell.inspection_date)}`}>
+    <FactoryMestiMonthlyActionRow
+      primary={<ResultBadge value={cell.overall_result} />}
+      evidence={cell.issue || cell.action_taken ? <><span className="font-semibold text-text-primary">{cell.issue || "No issue noted"}</span><span className="text-text-secondary"> · {cell.action_taken || "No action noted"}</span></> : "No issue recorded"}
+      status={cell.session_status === "submitted" ? <FactoryStatusBadge tone="warning">Awaiting Verification</FactoryStatusBadge> : <SessionStatusBadge value={cell.session_status} />}
+      actions={<FactoryMestiOccurrenceActions status={cell.session_status} canVerify={canVerify} onVerify={() => onVerify(cell.inspection_date)} onView={() => onView(entry)} viewLabel={`View ${employee.employee_name} inspection details`} />}
+    />
+  </FactoryMestiMonthlyExpansion>;
 }
 
 export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
