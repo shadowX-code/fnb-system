@@ -121,7 +121,9 @@ describe("Crew Assets Mobile", () => {
     expect(screen.getByText("50%")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Previous" })).toBeNull();
     expect(screen.getByRole("button", { name: "Next" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Next" }).closest(".crew-inspection-workflow-dock")).not.toBeNull();
+    const dock = screen.getByRole("button", { name: "Next" }).closest(".crew-inspection-workflow-dock");
+    expect(dock).not.toBeNull();
+    expect(dock?.className).toContain("crew-ui-sticky-actions--fixed");
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     expect(screen.getByText("2 of 2")).not.toBeNull();
     expect(screen.getByText("100%")).not.toBeNull();
