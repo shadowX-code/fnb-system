@@ -1,8 +1,11 @@
-export default function FactoryOperationalGroup({ title, count, children }) {
+export default function FactoryOperationalGroup({ title, description, count, children }) {
   return (
     <section className="border-b border-border last:border-b-0">
       <header className="flex items-center justify-between gap-3 border-l-2 border-primary/40 bg-surface-muted/50 px-4 py-2.5">
-        <h2 className="text-xs font-semibold uppercase tracking-[0.06em] text-text-primary">{title}</h2>
+        <div className="min-w-0">
+          <h2 className={description ? "truncate text-sm font-semibold text-text-primary" : "text-xs font-semibold uppercase tracking-[0.06em] text-text-primary"}>{title}</h2>
+          {description ? <span className="mt-0.5 block truncate text-xs text-text-secondary">{description}</span> : null}
+        </div>
         <span className="text-xs font-semibold text-text-muted">{count}</span>
       </header>
       <div className="divide-y divide-border/80">{children}</div>

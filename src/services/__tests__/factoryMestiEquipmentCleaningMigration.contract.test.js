@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903220000_factory_mesti_equipment_cleaning_sop_after_production.sql"), "utf8");
 const lifecycleMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260903200000_factory_mesti_cleaning_of_equipment.sql"), "utf8");
 const roleControlledVerificationMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260908065636_factory_mesti_equipment_cleaning_role_controlled_verification.sql"), "utf8");
+const operationalDateMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260919100000_factory_mesti_equipment_cleaning_operational_date.sql"), "utf8");
 
 describe("Factory MeSTI Equipment Cleaning migration contract", () => {
   it("uses versioned scheduled requirements and production-plus-equipment identities", () => {
@@ -50,5 +51,13 @@ describe("Factory MeSTI Equipment Cleaning migration contract", () => {
     expect(roleControlledVerificationMigration).toContain("current_user_has_permission('factory_mesti_equipment_cleaning.review')");
     expect(roleControlledVerificationMigration).not.toContain("v_occurrence.completed_by = v_employee.id");
     expect(roleControlledVerificationMigration).not.toContain("Self-verification is not allowed.");
+  });
+
+  it("attributes future After Production cleaning to the production operational end date", () => {
+    expect(operationalDateMigration).toContain("production.end_date, 'after_production'");
+    expect(operationalDateMigration).toContain("'production_end_date', production.end_date");
+    expect(operationalDateMigration).toContain("'operational_completion_at', public.factory_production_operational_completion_at(production.end_date, production.end_time)");
+    expect(operationalDateMigration).toContain("and production.end_date is not null");
+    expect(operationalDateMigration).not.toContain("production.completed_at at time zone");
   });
 });
