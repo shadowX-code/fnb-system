@@ -35,7 +35,8 @@ afterEach(cleanup);
 describe("FactoryMestiEquipmentCleaningPage", () => {
   it("keeps Daily Equipment-centric with a compact status summary and After Production provenance", async () => {
     renderPage();
-    expect(await screen.findByText("MX-01 · Mixer 01")).not.toBeNull();
+    expect(await screen.findByText("Mixer 01")).not.toBeNull();
+    expect(screen.getByText("Cooking Room · MX-01")).not.toBeNull();
     expect(screen.getByLabelText("Operational summary").textContent).toContain("Due");
     expect(screen.getByText(/After Production · Chicken Curry Paste · B260903-018/)).not.toBeNull();
     expect(screen.queryByText("Details")).toBeNull();
@@ -63,10 +64,11 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
   it("renders one Monthly row per Equipment and retains every same-day obligation in the drill-down", async () => {
     renderPage();
     fireEvent.click(await screen.findByRole("tab", { name: "Monthly" }));
-    expect(await screen.findByText("MX-01 · Mixer 01")).not.toBeNull();
-    expect(screen.getByText("FL-02 · Filler 02")).not.toBeNull();
+    expect(await screen.findByText("Mixer 01")).not.toBeNull();
+    expect(screen.getByText("Filler 02")).not.toBeNull();
+    expect(screen.getByText("Cooking Room · MX-01")).not.toBeNull();
     expect(screen.getAllByText("2 cleanings · 0 verified · 1 pending")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: /MX-01 on .*2 obligations/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Mixer 01 on .*2 obligations/i }));
     expect((await screen.findAllByText("Daily Cleaning")).length).toBeGreaterThan(0);
     expect(screen.getByText("After Production Cleaning")).not.toBeNull();
     expect(screen.getByText(/Chicken Curry Paste · B260903-018/)).not.toBeNull();
@@ -77,8 +79,25 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     factoryService.listMestiEquipmentCleaningMonth.mockResolvedValue([{ ...monthlyRows[0], days: [{ ...monthlyRows[0].days[0], status: "unsatisfactory", unsatisfactory_count: 1, occurrences: [{ ...occurrence, status: "unsatisfactory" }, afterProduction] }] }, monthlyRows[1]]);
     renderPage();
     fireEvent.click(await screen.findByRole("tab", { name: "Monthly" }));
-    expect((await screen.findByRole("button", { name: /MX-01 on .*2 obligations/i })).className).toContain("text-rose-700");
-    expect(screen.getByRole("button", { name: /FL-02 on .*1 obligations/i }).className).toContain("text-emerald-700");
+    expect((await screen.findByRole("button", { name: /Mixer 01 on .*2 obligations/i })).className).toContain("text-rose-700");
+    expect(screen.getByRole("button", { name: /Filler 02 on .*1 obligations/i }).className).toContain("text-emerald-700");
+  });
+
+  it("offers the same complete and verify lifecycle actions from the Monthly occurrence drill-down", async () => {
+    const completedOccurrence = { ...occurrence, status: "completed" };
+    const refreshedMonthlyRows = [{ ...monthlyRows[0], summary: { ...monthlyRows[0].summary, completed_count: 2, pending_count: 0 }, days: [{ ...monthlyRows[0].days[0], status: "completed", completed_count: 2, pending_count: 0, occurrences: [completedOccurrence, afterProduction] }] }, monthlyRows[1]];
+    factoryService.listMestiEquipmentCleaningDay.mockResolvedValueOnce([occurrence, afterProduction]).mockResolvedValue([completedOccurrence, afterProduction]);
+    factoryService.listMestiEquipmentCleaningMonth.mockResolvedValueOnce(monthlyRows).mockResolvedValue(refreshedMonthlyRows);
+    renderPage();
+    fireEvent.click(await screen.findByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Mixer 01 on .*2 obligations/i }));
+    expect(await screen.findByRole("button", { name: "Complete" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Verify" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Complete" }));
+    await waitFor(() => expect(factoryService.completeMestiEquipmentCleaningOccurrence).toHaveBeenCalledWith("occ-1"));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Verify" })).toHaveLength(2));
+    fireEvent.click(screen.getAllByRole("button", { name: "Verify" }).at(1));
+    await waitFor(() => expect(factoryService.verifyMestiEquipmentCleaningOccurrence).toHaveBeenCalledWith("occ-production", "verified"));
   });
 
   it("keeps Setup scoped to scheduled requirements and supports searchable Equipment selection", async () => {
@@ -88,8 +107,9 @@ describe("FactoryMestiEquipmentCleaningPage", () => {
     fireEvent.click(screen.getByRole("button", { name: /create requirement/i }));
     fireEvent.change(screen.getByLabelText("Task Name"), { target: { value: "Deep Cleaning" } });
     fireEvent.change(screen.getByPlaceholderText("Search equipment, category, or location"), { target: { value: "Filler" } });
-    expect(screen.getByText("FL-02 · Filler 02")).not.toBeNull();
-    fireEvent.click(screen.getByLabelText("FL-02 Filler 02"));
+    expect(screen.getByText("Filler 02")).not.toBeNull();
+    expect(screen.getByText("Preparation Room · FL-02")).not.toBeNull();
+    fireEvent.click(screen.getByLabelText("Filler 02 FL-02"));
     expect(screen.getByText("1 equipment selected")).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Create Requirement" }).at(-1));
     await waitFor(() => expect(factoryService.saveMestiEquipmentCleaningRequirement).toHaveBeenCalledWith(expect.objectContaining({ task_name: "Deep Cleaning", equipment_ids: ["equipment-2"] })));
