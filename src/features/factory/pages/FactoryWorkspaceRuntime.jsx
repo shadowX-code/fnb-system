@@ -2499,6 +2499,32 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
     }
   }
 
+  async function reverseFinishedGoodDispatch(dispatch, reason, requestId) {
+    const actionKey = `dispatch:${dispatch.id}`;
+    if (dispatchMutationRef.current.has(actionKey)) throw new Error("This Dispatch action is already in progress.");
+    dispatchMutationRef.current.add(actionKey);
+    try {
+      const reversed = await factoryService.reverseFinishedGoodDispatch(dispatch, reason, requestId);
+      let refreshPage = factoryListingPage.loadedPage;
+      try {
+        refreshPage = applyFinishedGoodsDispatchMutation({ previous: dispatch, next: reversed });
+      } catch (snapshotError) {
+        console.error("[Factory] Dispatch reversed, but its local listing snapshot could not be updated.", snapshotError);
+      }
+      setModal((current) => current?.type === "finished-good-dispatch" && current.value?.id === dispatch.id ? { ...current, value: reversed } : current);
+      ui?.notify?.({ title: "Dispatch reversed", message: "Finished goods were restored to the original batches and Locations.", tone: "success" });
+      void refreshFinishedGoodsDispatches({ page: refreshPage, reason: "reversal" });
+      void loadData({ silent: true });
+      return reversed;
+    } catch (error) {
+      const message = finishedGoodDispatchOperatorError(error, "Unable to reverse this Dispatch. Please retry.");
+      ui?.notify?.({ title: "Failed to reverse dispatch", message, tone: "error" });
+      throw new Error(message);
+    } finally {
+      dispatchMutationRef.current.delete(actionKey);
+    }
+  }
+
   async function saveProductGroup(form) {
     try {
       await factoryService.saveProductFamily(form, auth?.profile?.id);
@@ -2892,7 +2918,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
           dispatchHistoryFilters.status && { key: "status", label: "Status", value: dispatchHistoryFilters.status, onRemove: () => setDispatchHistoryFilters((current) => ({ ...current, status: "" })) },
         ].filter(Boolean)}
         onClear={() => setDispatchHistoryFilters({ dateFrom: "", dateTo: "", customer: "", status: "" })}
-        moreFilters={<Field label="Status"><SearchableSelect value={dispatchHistoryFilters.status} options={[{ value: "", label: "All" }, { value: "draft", label: "Draft" }, { value: "completed", label: "Completed" }, { value: "cancelled", label: "Cancelled" }]} placeholder="All" searchPlaceholder="Search status" emptyText="No matching status" onChange={(status) => setDispatchHistoryFilters((current) => ({ ...current, status }))} /></Field>}
+        moreFilters={<Field label="Status"><SearchableSelect value={dispatchHistoryFilters.status} options={[{ value: "", label: "All" }, { value: "draft", label: "Draft" }, { value: "completed", label: "Completed" }, { value: "reversed", label: "Reversed" }, { value: "cancelled", label: "Cancelled" }]} placeholder="All" searchPlaceholder="Search status" emptyText="No matching status" onChange={(status) => setDispatchHistoryFilters((current) => ({ ...current, status }))} /></Field>}
       >
         <Field label="Date">
           <FeedXDatePicker
@@ -3400,6 +3426,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
                   onClose={() => setDispatchTab("history")}
                   onSave={saveFinishedGoodDispatch}
                   onComplete={can("factory_finished_goods_dispatch.complete") ? saveAndCompleteFinishedGoodDispatch : undefined}
+                  onReverse={can("factory_finished_goods_dispatch.reverse") ? reverseFinishedGoodDispatch : undefined}
                   closeRequestNonce={dispatchCloseRequestNonce}
                   embedded
                 />
@@ -3617,6 +3644,7 @@ export default function FactoryWorkspaceRuntime({ initialTab = "dashboard", ui, 
           onClose={() => setModal(null)}
           onSave={saveFinishedGoodDispatch}
           onComplete={can("factory_finished_goods_dispatch.complete") ? saveAndCompleteFinishedGoodDispatch : undefined}
+          onReverse={can("factory_finished_goods_dispatch.reverse") ? reverseFinishedGoodDispatch : undefined}
           mode={modal.mode}
         />
       ) : null}

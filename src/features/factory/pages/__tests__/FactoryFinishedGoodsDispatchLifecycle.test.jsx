@@ -6,12 +6,12 @@ import FactoryWorkspacePage from "../FactoryWorkspacePage.jsx";
 const dispatch = {
   id: "dispatch-1", dispatch_no: "D-1", status: "draft", dispatch_date: "2026-08-09",
   customer_id: "customer-1", customer_name: "Outlet", items_count: 1, total_qty: 2,
-  items: [{ finished_good_id: "sku-1", quantity: 2, allocations: [{ batch_balance_id: "batch-1", quantity: 2 }] }],
+  items: [{ id: "dispatch-item-1", finished_good_id: "sku-1", quantity: 2, allocations: [{ id: "allocation-1", batch_balance_id: "batch-1", quantity: 2 }] }],
 };
 const allDispatchPermissions = [
   "factory_finished_goods_dispatch.view", "factory_finished_goods_dispatch.create",
   "factory_finished_goods_dispatch.edit", "factory_finished_goods_dispatch.complete",
-  "factory_finished_goods_dispatch.delete",
+  "factory_finished_goods_dispatch.delete", "factory_finished_goods_dispatch.reverse",
 ];
 function makeAuth(permissions = allDispatchPermissions) {
   return { permissions, hasPermission: (key) => permissions.includes(key), profile: { id: "employee-1", nickname: "Isaac" } };
@@ -246,5 +246,37 @@ describe("Factory Finished Goods Dispatch mounted lifecycle", () => {
     expect(screen.queryByRole("button", { name: "Edit" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+  });
+
+  it("requires a reason and reverses a completed dispatch once from its immutable detail", async () => {
+    const completed = { ...dispatch, status: "completed", completed_at: "2026-08-09T10:00:00+08:00" };
+    mount({ record: completed });
+    const reverse = vi.spyOn(factoryService, "reverseFinishedGoodDispatch").mockResolvedValue({
+      ...completed,
+      status: "reversed",
+      reversal_reason: "Test dispatch cleanup",
+      reversed_by_name: "Isaac",
+      reversed_at: "2026-08-10T10:00:00+08:00",
+    });
+    await screen.findAllByText("D-1");
+    fireEvent.click(within(historyRow()).getByRole("button", { name: "View details" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Reverse Dispatch" }));
+    const confirm = screen.getAllByRole("button", { name: "Reverse Dispatch" }).at(-1);
+    expect(confirm.disabled).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: "Reason *" }), { target: { value: "Test dispatch cleanup" } });
+    fireEvent.click(confirm);
+    await waitFor(() => expect(reverse).toHaveBeenCalledTimes(1));
+    expect(reverse).toHaveBeenCalledWith(expect.objectContaining({ id: completed.id, status: "completed" }), "Test dispatch cleanup", expect.any(String));
+    await screen.findByText("Dispatch Reversal");
+    expect(screen.getByText("Test dispatch cleanup")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Reverse Dispatch" })).toBeNull();
+  });
+
+  it("does not expose completed Dispatch reversal without canonical permission", async () => {
+    mount({ auth: makeAuth(["factory_finished_goods_dispatch.view"]), record: { ...dispatch, status: "completed" } });
+    await screen.findAllByText("D-1");
+    fireEvent.click(within(historyRow()).getByRole("button", { name: "View details" }));
+    expect(await screen.findByText("Completed finished goods dispatch record.")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Reverse Dispatch" })).toBeNull();
   });
 });

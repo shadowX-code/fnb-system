@@ -847,6 +847,12 @@ function mapFinishedGoodDispatch(row) {
     updated_at: row.updated_at,
     completed_at: row.completed_at || "",
     cancelled_at: row.cancelled_at || "",
+    reversal_id: row.reversal_id || "",
+    reversal_request_id: row.reversal_request_id || "",
+    reversal_reason: row.reversal_reason || "",
+    reversed_by: row.reversed_by || "",
+    reversed_by_name: row.reverser?.nickname || row.reverser?.full_name || row.reversed_by_name || "",
+    reversed_at: row.reversed_at || "",
     items,
     items_count: items.length,
     total_qty: items.reduce((sum, item) => sum + normalizeNumber(item.quantity), 0),
@@ -1342,7 +1348,7 @@ const productStockCheckSelect = `id,check_no,check_date,status,notes,created_by,
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,manufacturing_date,end_date,expiry_date,storage_location_id,shelf_life_days_snapshot,expiry_override_reason,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,verification_status,verified_by,verified_at,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,shelf_life_days))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost,receiving_batch:factory_raw_material_receiving_batches(batch_no)),allocations:factory_production_material_usage_batch_allocations(id,raw_material_batch_balance_id,allocated_qty,batch:factory_raw_material_batch_balances(internal_batch_no,supplier_lot_no,expiry_date,storage_location:factory_storage_locations(location_name)))),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
-const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,completed_by,completion_request_id,created_at,updated_at,completed_at,cancelled_at,creator:employees!factory_finished_good_dispatches_created_by_fkey(nickname,full_name),completer:employees!factory_finished_good_dispatches_completed_by_fkey(id,nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}),allocations:factory_finished_good_dispatch_batch_allocations(id,batch_balance_id,production_id,quantity,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,batch:factory_finished_good_batch_balances(id,source_type,current_balance,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,is_storage_location,status))))`;
+const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,completed_by,completion_request_id,created_at,updated_at,completed_at,cancelled_at,reversal_id,reversal_request_id,reversal_reason,reversed_by,reversed_at,creator:employees!factory_finished_good_dispatches_created_by_fkey(nickname,full_name),completer:employees!factory_finished_good_dispatches_completed_by_fkey(id,nickname,full_name),reverser:employees!factory_finished_good_dispatches_reversed_by_fkey(id,nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}),allocations:factory_finished_good_dispatch_batch_allocations(id,batch_balance_id,production_id,quantity,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,batch:factory_finished_good_batch_balances(id,source_type,current_balance,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,is_storage_location,status))))`;
 
 const FACTORY_MASTER_ID_BATCH_SIZE = 300;
 
@@ -4395,6 +4401,28 @@ const factoryServiceDefinition = {
       after: cancelled,
     });
     return cancelled;
+  },
+
+  async reverseFinishedGoodDispatch(dispatch, reason, requestId) {
+    if (dispatch.status !== "completed") throw new Error("Only a completed dispatch can be reversed.");
+    const normalizedReason = String(reason || "").trim();
+    if (!normalizedReason) throw new Error("Reversal reason is required.");
+    if (!requestId) throw new Error("Reversal request identity is required.");
+    const { data: dispatchId, error } = await supabase.rpc("factory_reverse_finished_good_dispatch", {
+      p_dispatch_id: dispatch.id,
+      p_reason: normalizedReason,
+      p_request_id: requestId,
+    });
+    throwSupabaseError("factory.finished_good_dispatch.reverse", error);
+    const reversed = await this.getFinishedGoodDispatchById(dispatchId || dispatch.id);
+    await logFactoryAction({
+      action: "factory_finished_good_dispatch_reversed",
+      target: reversed.dispatch_no || reversed.id,
+      description: "Factory finished goods dispatch reversed into its original batches and locations.",
+      before: dispatch,
+      after: reversed,
+    });
+    return reversed;
   },
 
   async createQcChecklistTemplate(template, employeeId) {

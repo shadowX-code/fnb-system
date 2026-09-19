@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ClipboardList, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { ClipboardList, Plus, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../../components/feedback/Modal.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
@@ -17,7 +17,7 @@ import { createFinishedGoodDispatchRequestId, factoryActivityDateTime, finishedG
 import { dispatchAllocationTotal } from "../allocation/finishedGoodBatchAllocationHelpers.js";
 import { focusVisibleFactoryRowField } from "../../utils/factoryDom.js";
 
-export default function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, embedded = false, mode = "edit", closeRequestNonce = 0 }) {
+export default function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, onReverse, embedded = false, mode = "edit", closeRequestNonce = 0 }) {
   const makeItem = (overrides = {}) => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false, ...overrides });
   const [form, setForm] = useState(() => ({
     dispatch_date: malaysiaBusinessDateInput(),
@@ -40,6 +40,8 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
   const [batchAvailabilityBySku, setBatchAvailabilityBySku] = useState({});
   const [formDirty, setFormDirty] = useState(false);
   const [discardPrompt, setDiscardPrompt] = useState(false);
+  const [reversePrompt, setReversePrompt] = useState(false);
+  const [reverseReason, setReverseReason] = useState("");
   const batchAvailabilityRequestRef = useRef({});
   const dispatchNoPreviewRequestRef = useRef(0);
   const submissionRef = useRef(false);
@@ -188,17 +190,21 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
 
   if (isViewMode) {
     const isCompleted = form.status === "completed";
-    const statusToneValue = form.status === "completed" ? "success" : form.status === "cancelled" ? "neutral" : "warning";
+    const isReversed = form.status === "reversed";
+    const statusToneValue = form.status === "completed" ? "success" : form.status === "cancelled" || isReversed ? "neutral" : "warning";
     const completionTiming = factoryActivityDateTime("", "", form.completed_at);
     const completedAtLabel = form.completed_at ? `${completionTiming.dateLabel} · ${completionTiming.timeLabel}` : "Metadata unavailable";
     return (
       <>
       <Modal
         title="Finished Goods Dispatch"
-        description={form.status === "completed" ? "Completed finished goods dispatch record." : "Read-only finished goods dispatch record."}
+        description={isCompleted ? "Completed finished goods dispatch record." : isReversed ? "Reversed dispatch with immutable original and reversal history." : "Read-only finished goods dispatch record."}
         size="xl"
         onClose={onClose}
-        footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+        footer={<div className="flex w-full items-center justify-end gap-2">
+          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+          {isCompleted && onReverse ? <button className="btn-danger" type="button" onClick={() => setReversePrompt(true)}><RotateCcw size={15} /> Reverse Dispatch</button> : null}
+        </div>}
       >
         <div className="space-y-5">
           <div className="grid gap-4 rounded-xl border border-border bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1.6fr)_minmax(110px,0.7fr)_minmax(150px,1fr)_auto] lg:items-center">
@@ -296,8 +302,54 @@ export default function FinishedGoodDispatchModal({ initialValue, finishedGoods 
               <div className="mt-2 text-sm text-text-secondary">{form.remarks}</div>
             </div>
           ) : null}
+          {isReversed ? (
+            <div className="rounded-xl border border-border bg-slate-50 px-4 py-3">
+              <div className="font-bold text-text-primary">Dispatch Reversal</div>
+              <div className="mt-2 grid gap-3 text-sm sm:grid-cols-2">
+                <div><div className="text-xs font-semibold text-text-muted">Reason</div><div className="mt-1 text-text-primary">{form.reversal_reason || "—"}</div></div>
+                <div><div className="text-xs font-semibold text-text-muted">Reversed By</div><div className="mt-1 text-text-primary">{form.reversed_by_name || "—"}</div></div>
+                <div><div className="text-xs font-semibold text-text-muted">Reversed At</div><div className="mt-1 text-text-primary">{form.reversed_at ? `${factoryActivityDateTime("", "", form.reversed_at).dateLabel} · ${factoryActivityDateTime("", "", form.reversed_at).timeLabel}` : "—"}</div></div>
+              </div>
+            </div>
+          ) : null}
         </div>
       </Modal>
+      {reversePrompt ? (
+        <Modal
+          title="Reverse Finished Goods Dispatch?"
+          description="The exact dispatched quantities will return to their original batches and Locations. Original stock-out history remains unchanged."
+          size="md"
+          onClose={() => { if (!submittingAction) setReversePrompt(false); }}
+          footer={<div className="flex w-full justify-end gap-2">
+            <button className="btn-secondary" type="button" disabled={Boolean(submittingAction)} onClick={() => setReversePrompt(false)}>Cancel</button>
+            <button className="btn-danger" type="button" disabled={Boolean(submittingAction) || !reverseReason.trim()} onClick={async () => {
+              if (submissionRef.current || !reverseReason.trim()) return;
+              submissionRef.current = true;
+              setSubmittingAction("reverse");
+              setError("");
+              try {
+                const reversed = await onReverse(form, reverseReason.trim(), crypto.randomUUID());
+                setForm((current) => ({ ...current, ...reversed, items: reversed.items || current.items }));
+                setReversePrompt(false);
+                setReverseReason("");
+              } catch (reverseError) {
+                setError(reverseError.message || "Unable to reverse this Dispatch.");
+              } finally {
+                submissionRef.current = false;
+                setSubmittingAction("");
+              }
+            }}>{submittingAction === "reverse" ? "Reversing…" : "Reverse Dispatch"}</button>
+          </div>}
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm text-text-secondary">
+              <span className="font-bold text-text-primary">{form.dispatch_no}</span> · {form.items_count || form.items.length} items · {dispatchTotalLabel(form)}
+            </div>
+            <Field label="Reason *"><textarea className={`${inputClass} min-h-24 resize-y`} value={reverseReason} disabled={Boolean(submittingAction)} onChange={(event) => setReverseReason(event.target.value)} placeholder="Explain why this completed Dispatch is being reversed" /></Field>
+            {error ? <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{error}</div> : null}
+          </div>
+        </Modal>
+      ) : null}
       {viewAllocation ? <ReadOnlyBatchAllocationModal title="Dispatch Batch Allocation" subtitle={[form.dispatch_no, viewAllocation.product_code, viewAllocation.product_name].filter(Boolean).join(" · ")} allocations={viewAllocation.allocations || []} onClose={() => setViewAllocation(null)} /> : null}
       </>
     );

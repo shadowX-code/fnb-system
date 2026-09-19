@@ -34,6 +34,8 @@ Internal Transfers move only positive, exact Raw Material or Finished Good batch
 Production consumption and output are coordinated with Factory Production without duplicating stock ownership.
 Raw Material balances, batches, allocations, and deductions remain in each material's storage UOM. Recipe usage UOM and package-content metadata are consumed through the Factory Production conversion contract; Warehouse does not infer or backfill package factors from receipt or historical BOM quantities.
 Dispatch reserves and moves eligible finished goods through the defined allocation and confirmation states. Dispatch allocation availability is the authoritative batch-balance projection filtered to active, storage-enabled Factory Locations; display taxonomy such as Room Temperature, Chiller, or Freezer does not alter eligibility. Batches without a canonical storage location remain unavailable for Dispatch until reconciled.
+
+A completed Dispatch may only be corrected through the trusted Dispatch Reversal authority. Reversal preserves the original document, allocations, and negative movements; it records immutable reversal header/detail evidence and positive movements against each exact original batch and Location. It never creates a replacement batch or follows stock that was subsequently transferred. A reversed Dispatch remains historical but is excluded from active completed-dispatch totals.
 Completed warehouse movements and dispatch evidence are not silently rewritten; corrections use explicit adjustment, reversal, or superseding evidence.
 
 ## Petty Cash Ledger

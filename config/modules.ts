@@ -525,7 +525,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-finished-goods-dispatch",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, delete: true, complete: true, export: true },
+    permissions: { view: true, create: true, edit: true, delete: true, complete: true, reverse: true, export: true },
   },
   {
     id: "factory_product_movements",
