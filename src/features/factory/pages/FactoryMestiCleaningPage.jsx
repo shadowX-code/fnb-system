@@ -87,7 +87,7 @@ function MonthlyEvidenceRows({ detail, canComplete, canVerify, onAct }) {
     {(detail.occurrences || []).map((row) => <FactoryMestiMonthlyActionRow
       key={row.id}
       primary={row.location_name}
-      evidence={<>{row.completed_at ? `${row.completed_by_name || "Completed"} · ${formatFactoryDateTime(row.completed_at)}` : "Not completed"}{row.verified_at ? ` · ${row.verified_by_name || "Verified"} · ${formatFactoryDateTime(row.verified_at)}` : ""}</>}
+      evidence={<>{row.completed_at ? `${row.completed_by_name || "Completed"} · ${formatFactoryDateTime(row.completed_at)}` : "Not completed"}{row.verified_at ? <><span> · </span><span>{row.verified_by_name || "Verified"}</span><span> · {formatFactoryDateTime(row.verified_at)}</span></> : null}</>}
       status={<StatusBadge status={row.status} />}
       actions={<FactoryMestiOccurrenceActions status={row.status} canComplete={canComplete(row)} canVerify={canVerify(row)} onComplete={() => onAct("complete", row)} onVerify={() => onAct("verify", row, "verified")} onMarkUnsatisfactory={() => onAct("verify", row, "unsatisfactory")} onView={() => onAct("view", row)} viewLabel={`View ${row.location_name} cleaning details`} />}
     />)}
