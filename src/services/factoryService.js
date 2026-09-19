@@ -1451,10 +1451,12 @@ function mapMestiCleaningOccurrence(row) {
 
 function mapMestiCleaningMonthlyRequirement(row) {
   return {
+    requirement_id: row.requirement_id || "",
     logical_requirement_id: row.logical_requirement_id || "",
     task_name: row.task_name || "",
     recurrence_type: row.recurrence_type || "daily",
     recurrence_weekdays: Array.isArray(row.recurrence_weekdays) ? row.recurrence_weekdays : [],
+    version_no: Number(row.version_no || 1),
     days: (Array.isArray(row.days) ? row.days : []).map((day) => ({
       due_date: day.due_date || "",
       status: day.status || "pending",

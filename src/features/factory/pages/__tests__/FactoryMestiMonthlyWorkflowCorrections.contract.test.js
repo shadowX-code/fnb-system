@@ -14,6 +14,10 @@ const cleaningMaterializer = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20260902132726_factory_mesti_cleaning_location_direct.sql"),
   "utf8",
 );
+const cleaningVersionSchedule = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260920020000_factory_mesti_cleaning_month_version_schedule.sql"),
+  "utf8",
+);
 
 describe("MeSTI monthly workflow correction SQL contract", () => {
   it("projects only scheduled Waste dates and retains the canonical session lifecycle", () => {
@@ -43,5 +47,12 @@ describe("MeSTI monthly workflow correction SQL contract", () => {
   it("materializes Cleaning of Area occurrences only on scheduled recurrence dates", () => {
     expect(cleaningMaterializer).toContain("factory_mesti_recurrence_due(requirement.recurrence_type, requirement.recurrence_weekdays, due_date.day::date)");
     expect(cleaningMaterializer).toContain("perform public.factory_mesti_materialize_cleaning_occurrences(v_from, v_to)");
+  });
+
+  it("keeps Monthly Cleaning evidence grouped by the immutable requirement version schedule", () => {
+    expect(cleaningVersionSchedule).toContain("group by requirement_id, logical_requirement_id, due_date");
+    expect(cleaningVersionSchedule).toContain("group by requirement_id, logical_requirement_id");
+    expect(cleaningVersionSchedule).toContain("'requirement_id', requirement_id");
+    expect(cleaningVersionSchedule).toContain("'version_no', version_no");
   });
 });
