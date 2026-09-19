@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import FactoryMestiFoodProcessingControlPage from "../FactoryMestiFoodProcessingControlPage.jsx";
+import { FactoryPermissionsProvider } from "../../context/FactoryPermissionsContext.jsx";
 import { factoryService } from "../../../../services/factoryService.js";
 
 const awaitingRow = {
@@ -29,11 +30,15 @@ const awaitingRow = {
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
+function renderPage(permissionSet = []) {
+  return render(<FactoryPermissionsProvider permissionSet={permissionSet} can={(permission) => permissionSet.includes(permission)}><FactoryMestiFoodProcessingControlPage /></FactoryPermissionsProvider>);
+}
+
 describe("Factory MeSTI Food Processing Control", () => {
   it("projects completed Production evidence and keeps verification state in the detail drawer", async () => {
     vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([awaitingRow]);
     vi.spyOn(factoryService, "getProductionEvidence").mockResolvedValue(null);
-    render(<FactoryMestiFoodProcessingControlPage />);
+    renderPage();
 
     expect(await screen.findByText("Black Pepper Sauce")).toBeTruthy();
     expect(screen.getByText("S01 · 1kg Pack")).toBeTruthy();
@@ -56,7 +61,7 @@ describe("Factory MeSTI Food Processing Control", () => {
 
   it("presents a verified actor and timestamp without a redundant status badge", async () => {
     vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([{ ...awaitingRow, verification_status: "verified", verified_by_name: "Mei Ling", verified_at: "2026-09-03T11:15:00+08:00" }]);
-    render(<FactoryMestiFoodProcessingControlPage />);
+    renderPage();
 
     expect(await screen.findByText("Mei Ling")).toBeTruthy();
     expect(screen.getByText("03/09/2026 11:15 AM")).toBeTruthy();
@@ -66,15 +71,43 @@ describe("Factory MeSTI Food Processing Control", () => {
   it("keeps unavailable QC evidence non-actionable", async () => {
     vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([{ ...awaitingRow, qc_summary: "Evidence unavailable", qc_checks: [] }]);
     vi.spyOn(factoryService, "getProductionEvidence").mockResolvedValue(null);
-    render(<FactoryMestiFoodProcessingControlPage />);
+    renderPage();
 
     expect(await screen.findByText("Evidence unavailable")).toBeTruthy();
     expect(screen.queryByRole("button", { name: /View QC evidence/i })).toBeNull();
   });
 
+  it("shows No QC Required only when the pinned SOP has no QC points", async () => {
+    vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([{ ...awaitingRow, qc_summary: "No QC Required", qc_requirement_status: "no_qc_required", qc_required_count: 0, qc_evidence_count: 0 }]);
+    renderPage();
+
+    expect(await screen.findByText("No QC Required")).toBeTruthy();
+    expect(screen.queryByText("Evidence unavailable")).toBeNull();
+    expect(screen.queryByRole("button", { name: /View QC evidence/i })).toBeNull();
+  });
+
+  it("uses the canonical Production verification authority when Role Settings permits Verify", async () => {
+    const list = vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([awaitingRow]);
+    const verify = vi.spyOn(factoryService, "verifyProductionRecord").mockResolvedValue({ verification_status: "verified" });
+    renderPage(["factory_production.verify"]);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Verify" }));
+
+    await waitFor(() => expect(verify).toHaveBeenCalledWith(awaitingRow));
+    await waitFor(() => expect(list.mock.calls.length).toBeGreaterThan(1));
+  });
+
+  it("does not expose Verify without the canonical permission", async () => {
+    vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([awaitingRow]);
+    renderPage();
+
+    expect(await screen.findByText("Awaiting Verification")).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
+  });
+
   it("sends canonical report filters to the projection service", async () => {
     const list = vi.spyOn(factoryService, "listMestiFoodProcessingControl").mockResolvedValue([]);
-    render(<FactoryMestiFoodProcessingControlPage />);
+    renderPage();
 
     await waitFor(() => expect(list).toHaveBeenCalled());
     expect(list).toHaveBeenLastCalledWith(expect.objectContaining({ verificationStatus: "", product: "" }));

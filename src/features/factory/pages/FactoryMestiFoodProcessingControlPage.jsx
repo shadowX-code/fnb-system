@@ -2,14 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { FactoryDataSurface, FactoryTable } from "../components/FactoryDataDisplay.jsx";
-import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import { FactoryCellDateTime, FactoryCellEntity, FactoryCellMuted, FactoryCellText } from "../components/FactoryTableCell.jsx";
 import { FactoryEvidenceGrid, FactoryEvidenceHeader, FactoryEvidencePreview, FactoryEvidenceSection } from "../components/FactoryEvidencePresentation.jsx";
 import FactoryFilterBar from "../components/FactoryFilterBar.jsx";
+import FactoryMestiOccurrenceActions from "../components/FactoryMestiOccurrenceActions.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import SearchableSelect from "../components/SearchableSelect.jsx";
+import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
 import { factoryService } from "../../../services/factoryService.js";
 import { formatFactoryDate, formatFactoryDateTime, formatFactoryListDateTime } from "../utils/factoryDates.js";
 import { quantity } from "../utils/factoryFormatters.js";
@@ -33,7 +34,17 @@ function verificationEvidence(row) {
 }
 
 function qcTone(row) {
-  return row.qc_summary?.startsWith("Passed") ? "success" : row.qc_summary?.startsWith("Complete") ? "warning" : "neutral";
+  if (row.qc_summary?.startsWith("Passed")) return "success";
+  if (row.qc_summary?.startsWith("Failed")) return "danger";
+  if (row.qc_summary?.startsWith("Complete") || row.qc_summary === "Evidence unavailable") return "warning";
+  return "neutral";
+}
+
+function qcRequirementStatus(row) {
+  if (row.qc_requirement_status) return row.qc_requirement_status;
+  if (row.qc_summary === "No QC Required") return "no_qc_required";
+  if (row.qc_summary === "Evidence unavailable") return "evidence_unavailable";
+  return "evidence_available";
 }
 
 function qcResultLabel(check) {
@@ -67,7 +78,7 @@ function FoodProcessingEvidence({ detail }) {
       { label: "Expiry", value: formatFactoryDate(detail.expiry_date) },
     ]} /></FactoryEvidenceSection>
     <FactoryEvidenceSection title="QC Evidence">
-      {qcChecks.length ? <div className="divide-y divide-border rounded-lg border border-border">{qcChecks.map((check, index) => <div key={check.id || `${check.qc_name}-${index}`} className="grid gap-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4"><div><div className="text-sm font-semibold text-text-primary">{check.qc_name || "QC check"}</div>{check.notes ? <div className="mt-0.5 text-xs text-text-secondary">{check.notes}</div> : null}{check.recorded_at ? <div className="mt-0.5 text-xs text-text-muted">{formatFactoryDateTime(check.recorded_at)}</div> : null}</div><FactoryStatusBadge tone={check.result === "fail" ? "danger" : check.result === "pass" || check.result === "na" ? "success" : "warning"}>{qcResultLabel(check)}</FactoryStatusBadge></div>)}</div> : <div className="text-sm text-text-secondary">Evidence unavailable</div>}
+      {qcRequirementStatus(detail) === "no_qc_required" ? <div className="text-sm font-semibold text-text-secondary">No QC Required</div> : qcChecks.length ? <div className="divide-y divide-border rounded-lg border border-border">{qcChecks.map((check, index) => <div key={check.id || `${check.qc_name}-${index}`} className="grid gap-1 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-x-4"><div><div className="text-sm font-semibold text-text-primary">{check.qc_name || "QC check"}</div>{check.notes ? <div className="mt-0.5 text-xs text-text-secondary">{check.notes}</div> : null}{check.recorded_at ? <div className="mt-0.5 text-xs text-text-muted">{formatFactoryDateTime(check.recorded_at)}</div> : null}</div><FactoryStatusBadge tone={check.result === "fail" ? "danger" : check.result === "pass" || check.result === "na" ? "success" : "warning"}>{qcResultLabel(check)}</FactoryStatusBadge></div>)}</div> : <div className="text-sm text-text-secondary">Evidence unavailable</div>}
     </FactoryEvidenceSection>
     <FactoryEvidenceSection title="Verification"><FactoryEvidenceGrid items={[
       { label: "Completed By", value: detail.completed_by_name },
@@ -79,10 +90,12 @@ function FoodProcessingEvidence({ detail }) {
 }
 
 export default function FactoryMestiFoodProcessingControlPage() {
+  const { can } = useFactoryPermissions();
   const [rows, setRows] = useState([]);
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState("");
   const [evidenceByProduction, setEvidenceByProduction] = useState({});
+  const [verifyingId, setVerifyingId] = useState("");
   const [filters, setFilters] = useState({
     dateFrom: "", dateTo: "", product: "", qcStatus: "", verificationStatus: "", search: "",
   });
@@ -116,6 +129,19 @@ export default function FactoryMestiFoodProcessingControlPage() {
       if (open) setError(loadError.message || "Unable to load Production evidence.");
     }
   }
+  async function verify(row) {
+    if (verifyingId) return;
+    setVerifyingId(row.id);
+    setError("");
+    try {
+      await factoryService.verifyProductionRecord(row);
+      await load();
+    } catch (verifyError) {
+      setError(verifyError.message || "Unable to verify Production Record.");
+    } finally {
+      setVerifyingId("");
+    }
+  }
   const columns = [
     { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
     {
@@ -123,7 +149,7 @@ export default function FactoryMestiFoodProcessingControlPage() {
       label: "Product",
       render: (row) => <FactoryCellEntity name={productName(row)} code={productReference(row)} />,
     },
-    { key: "qc", label: "QC", render: (row) => { const detailRow = detailFor(row); return <FactoryEvidencePreview label={row.qc_summary || row.qc_status || "Evidence unavailable"} tone={qcTone(row)} items={detailRow.qc_checks} onPreview={() => loadEvidence(row)} onOpen={() => loadEvidence(row, true)} />; } },
+    { key: "qc", label: "QC", render: (row) => { const detailRow = detailFor(row); const requirementStatus = qcRequirementStatus(row); if (requirementStatus === "no_qc_required") return <FactoryStatusBadge tone="neutral">No QC Required</FactoryStatusBadge>; return <FactoryEvidencePreview label={row.qc_summary || row.qc_status || "Evidence unavailable"} tone={qcTone(row)} items={detailRow.qc_checks} onPreview={() => loadEvidence(row)} onOpen={() => loadEvidence(row, true)} />; } },
     { key: "start", label: "Start", render: (row) => <FactoryCellDateTime date={formatFactoryDate(row.start_date)} time={factoryTimeAmPmLabel(row.start_time)} /> },
     {
       key: "complete",
@@ -139,7 +165,7 @@ export default function FactoryMestiFoodProcessingControlPage() {
       key: "actions",
       label: "Actions",
       align: "right",
-      render: (row) => <FactoryRowAction label={`View ${row.product_name || "record"}`} onClick={() => loadEvidence(row, true)} />,
+      render: (row) => <FactoryMestiOccurrenceActions status={row.verification_status === "awaiting_verification" ? "submitted" : "verified"} canVerify={can("factory_production.verify")} onVerify={() => verify(row)} onView={() => loadEvidence(row, true)} viewLabel={`View ${row.product_name || "record"}`} working={verifyingId === row.id} />,
     },
   ];
 
