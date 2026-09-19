@@ -82,13 +82,13 @@ describe("FactoryMestiHealthDeclarationPage", () => {
   });
 
   it("updates and voids the existing declaration identity for authorized correction", async () => {
-    factoryService.listMestiHealthDeclarations.mockResolvedValue([{ id: "visitor-1", declaration_type: "visitor", declared_at: "2026-09-08T08:00:00Z", visitor_name: "QA Visitor", visitor_company: "FeedX", health_status: "cleared", symptoms: [], entry_decision: "allowed", recorded_by_name: "QA" }]);
+    factoryService.listMestiHealthDeclarations.mockResolvedValue([{ id: "visitor-1", declaration_type: "visitor", declared_at: "2026-09-08T08:00:00Z", visitor_name: "QA Visitor", visitor_company: "FeedX", health_status: "health_issue_declared", symptoms: ["other"], other_symptom_detail: "Existing detail", entry_decision: "entry_restricted", recorded_by_name: "QA" }]);
     render(<FactoryMestiHealthDeclarationPage onNotify={vi.fn()} />);
     await screen.findByText("QA Visitor");
     fireEvent.click(screen.getByRole("button", { name: "Edit declaration" }));
     fireEvent.change(screen.getByRole("textbox", { name: "Visitor Name" }), { target: { value: "Corrected Visitor" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
-    await waitFor(() => expect(factoryService.updateMestiHealthDeclaration).toHaveBeenCalledWith("visitor-1", expect.objectContaining({ visitor_name: "Corrected Visitor" })));
+    await waitFor(() => expect(factoryService.updateMestiHealthDeclaration).toHaveBeenCalledWith("visitor-1", expect.objectContaining({ visitor_name: "Corrected Visitor", other_symptom_detail: "Existing detail" })));
     fireEvent.click(screen.getByRole("button", { name: "Delete declaration" }));
     fireEvent.click(screen.getByRole("button", { name: "Delete Declaration" }));
     await waitFor(() => expect(factoryService.voidMestiHealthDeclaration).toHaveBeenCalledWith("visitor-1", ""));

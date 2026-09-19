@@ -140,5 +140,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(screen.getByText("Preparation")).not.toBeNull();
     expect(screen.getByText("Cooking")).not.toBeNull();
     expect(screen.getByText("Isaac")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(await screen.findByRole("dialog", { name: "Floor · Cooking" })).not.toBeNull();
   });
 });
