@@ -6,6 +6,10 @@ const migration = readFileSync(
   resolve(process.cwd(), "supabase/migrations/20260919153000_factory_mesti_monthly_workflow_corrections.sql"),
   "utf8",
 );
+const recurrenceFix = readFileSync(
+  resolve(process.cwd(), "supabase/migrations/20260919213000_factory_mesti_waste_monthly_empty_recurrence_fix.sql"),
+  "utf8",
+);
 
 describe("MeSTI monthly workflow correction SQL contract", () => {
   it("projects only scheduled Waste dates and retains the canonical session lifecycle", () => {
@@ -25,5 +29,10 @@ describe("MeSTI monthly workflow correction SQL contract", () => {
     expect(migration).toContain("employee_snapshot=case when v_row.declaration_type='employee'");
     expect(migration).toContain("where id=v_row.id returning * into v_row");
     expect(migration).toContain("factory_mesti_health_declaration_updated");
+  });
+
+  it("projects empty daily recurrence arrays without PostgreSQL array accumulation", () => {
+    expect(recurrenceFix).toContain("jsonb_agg(to_jsonb(recurrence_weekdays) order by run_date desc)->0");
+    expect(recurrenceFix).not.toContain("array_agg(recurrence_weekdays");
   });
 });
