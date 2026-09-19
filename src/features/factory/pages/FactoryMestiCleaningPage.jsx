@@ -9,6 +9,7 @@ import FactoryComplianceMatrix from "../components/FactoryComplianceMatrix.jsx";
 import FactoryDailyToolbar, { FactoryDailyDateField } from "../components/FactoryDailyToolbar.jsx";
 import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
 import FactoryMestiOccurrenceActions from "../components/FactoryMestiOccurrenceActions.jsx";
+import { FactoryMestiMonthlyActionRow, FactoryMestiMonthlyExpansion } from "../components/FactoryMestiMonthlyExpansion.jsx";
 import FactoryOperationalGroup, { FactoryOperationalEvidence, FactoryOperationalRow } from "../components/FactoryOperationalGroup.jsx";
 import FactoryRowActions from "../components/FactoryRowActions.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
@@ -82,13 +83,15 @@ function monthlyCellTitle(cell, row) {
 
 function MonthlyEvidenceRows({ detail, canComplete, canVerify, onAct }) {
   if (!detail) return null;
-  return <div className="border border-border bg-surface" aria-label="Location occurrence evidence"><div className="border-b border-border px-3 py-2 text-xs font-semibold text-text-secondary">Location occurrence evidence · {detail.task_name} · {formatFactoryDate(detail.due_date)}</div><FactoryTable rows={detail.occurrences || []} columns={[
-      { key: "location", label: "Location", render: (row) => <div className="font-semibold text-text-primary">{row.location_name}</div> },
-      { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
-      { key: "completed", label: "Completed", render: (row) => row.completed_at ? <div><div className="font-semibold">{row.completed_by_name || "Completed"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.completed_at)}</div></div> : "—" },
-      { key: "verified", label: "Verified", render: (row) => row.verified_at ? <div><div className="font-semibold">{row.verified_by_name || "Verified"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.verified_at)}</div></div> : "—" },
-      { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryMestiOccurrenceActions status={row.status} canComplete={canComplete(row)} canVerify={canVerify(row)} onComplete={() => onAct("complete", row)} onVerify={() => onAct("verify", row, "verified")} onMarkUnsatisfactory={() => onAct("verify", row, "unsatisfactory")} onView={() => onAct("view", row)} viewLabel={`View ${row.location_name} cleaning details`} /> },
-    ]} /></div>;
+  return <FactoryMestiMonthlyExpansion ariaLabel="Location occurrence evidence" title={`Location occurrence evidence · ${detail.task_name} · ${formatFactoryDate(detail.due_date)}`}>
+    {(detail.occurrences || []).map((row) => <FactoryMestiMonthlyActionRow
+      key={row.id}
+      primary={row.location_name}
+      evidence={<>{row.completed_at ? `${row.completed_by_name || "Completed"} · ${formatFactoryDateTime(row.completed_at)}` : "Not completed"}{row.verified_at ? ` · ${row.verified_by_name || "Verified"} · ${formatFactoryDateTime(row.verified_at)}` : ""}</>}
+      status={<StatusBadge status={row.status} />}
+      actions={<FactoryMestiOccurrenceActions status={row.status} canComplete={canComplete(row)} canVerify={canVerify(row)} onComplete={() => onAct("complete", row)} onVerify={() => onAct("verify", row, "verified")} onMarkUnsatisfactory={() => onAct("verify", row, "unsatisfactory")} onView={() => onAct("view", row)} viewLabel={`View ${row.location_name} cleaning details`} />}
+    />)}
+  </FactoryMestiMonthlyExpansion>;
 }
 
 function OccurrenceDetail({ occurrence, onClose }) {

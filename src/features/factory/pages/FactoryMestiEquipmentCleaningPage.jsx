@@ -13,6 +13,7 @@ import FactoryViewTabs from "../components/FactoryViewTabs.jsx";
 import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
 import FactoryMestiOccurrenceActions from "../components/FactoryMestiOccurrenceActions.jsx";
+import { FactoryMestiMonthlyActionRow, FactoryMestiMonthlyExpansion } from "../components/FactoryMestiMonthlyExpansion.jsx";
 import { FactoryOperationalSummary } from "../components/FactoryEvidencePresentation.jsx";
 import { Field, inputClass as factoryInputClass } from "../components/FactoryBulkSelectionModal.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
@@ -91,17 +92,16 @@ function OccurrenceDetail({ occurrence, onClose }) {
 
 function MonthlyCellDetail({ cell, equipment, onOpenOccurrence, occurrenceActions }) {
   if (!cell || !equipment) return null;
-  return <div className="border border-border bg-surface" aria-label="Equipment cleaning monthly actions">
-    <div className="border-b border-border px-3 py-2"><div className="text-sm font-semibold text-text-primary">{equipmentPrimary(equipment)} · {formatFactoryDate(cell.due_date)}</div><div className="text-xs text-text-secondary">{equipmentSecondary(equipment)}</div></div>
-    <div className="divide-y divide-border px-3">
-      {(cell.occurrences || []).map((occurrence) => <div key={occurrence.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0">
-        <button className="min-w-0 flex-1 text-left" type="button" onClick={() => onOpenOccurrence(occurrence)}>
-          <span className="block font-bold text-text-primary">{occurrence.task_name}</span><span className="mt-0.5 block truncate text-xs text-text-secondary">{recurrenceLabel(occurrence)}{occurrence.source_type === "after_production" ? ` · ${productionLabel(occurrence)}` : ""}</span>{occurrence.source_type === "after_production" && occurrence.production_snapshot?.sop_version ? <span className="mt-0.5 block text-xs text-text-muted">{occurrence.production_snapshot.production_no || ""} · SOP {occurrence.production_snapshot.sop_version}</span> : null}
-        </button>
-        <div className="flex shrink-0 items-center gap-2"><StatusBadge status={occurrence.status} /><FactoryMestiOccurrenceActions status={occurrence.status} onView={() => onOpenOccurrence(occurrence)} viewLabel={`View ${occurrence.task_name} details`} {...occurrenceActions(occurrence)} /></div>
-      </div>)}
-    </div>
-  </div>;
+  return <FactoryMestiMonthlyExpansion ariaLabel="Equipment cleaning monthly actions" title={<><span>{equipmentPrimary(equipment)} · {formatFactoryDate(cell.due_date)}</span><span className="block font-normal text-text-secondary">{equipmentSecondary(equipment)}</span></>}>
+    {(cell.occurrences || []).map((occurrence) => <FactoryMestiMonthlyActionRow
+      key={occurrence.id}
+      primary={<button className="block min-w-0 text-left" type="button" onClick={() => onOpenOccurrence(occurrence)}>{occurrence.task_name}</button>}
+      secondary={`${recurrenceLabel(occurrence)}${occurrence.source_type === "after_production" ? ` · ${productionLabel(occurrence)}` : ""}`}
+      evidence={occurrence.source_type === "after_production" && occurrence.production_snapshot?.sop_version ? `${occurrence.production_snapshot.production_no || ""} · SOP ${occurrence.production_snapshot.sop_version}` : null}
+      status={<StatusBadge status={occurrence.status} />}
+      actions={<FactoryMestiOccurrenceActions status={occurrence.status} onView={() => onOpenOccurrence(occurrence)} viewLabel={`View ${occurrence.task_name} details`} {...occurrenceActions(occurrence)} />}
+    />)}
+  </FactoryMestiMonthlyExpansion>;
 }
 
 export default function FactoryMestiEquipmentCleaningPage({ onNotify }) {
