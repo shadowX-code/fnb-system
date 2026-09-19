@@ -11,7 +11,7 @@ export const formatCrewOperationalDate = (value) => value
   ? new Intl.DateTimeFormat("en-GB", { timeZone: MALAYSIA_TIME_ZONE, day: "2-digit", month: "2-digit", year: "numeric" }).format(new Date(value))
   : "—";
 export const formatCrewOperationalDateTime = (value) => value
-  ? `${formatCrewOperationalDate(value)} · ${formatCrewTime(value, { hour12: true }).replace(/\b(am|pm)\b/gi, (meridiem) => meridiem.toUpperCase())}`
+  ? `${formatCrewOperationalDate(value)} ${formatCrewTime(value, { hour12: true }).toLowerCase()}`
   : "—";
 export const formatCrewEmployee = (employee, fallback = "—") => {
   if (!employee) return fallback;

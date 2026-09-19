@@ -546,3 +546,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Added independent `Adjust Assets` and `Perform Asset Inspections` Special Access capabilities on active Crew Access records. Crew Mobile now exposes Me > Work > Assets only when at least one capability is active and resolves all access through the current employee/outlet session boundary.
 - Added a minimum-safe outlet asset read model plus server-authoritative Crew quantity/condition adjustments and resumable inspections. Mutations reuse canonical Asset Tracking rows, lifecycle request idempotency/locking, finalized evidence, movement history, and audit while retaining Crew employee actor attribution.
 - Added token-mediated inspection evidence upload, mobile list/detail/adjust/inspection/history flows, and explicit separation from Admin asset/category/import/export/maintenance/disposal authority. Task integration remains deferred pending a canonical Task-to-Asset evidence contract.
+
+# 2026-09-19 - Crew Asset Inspection and Detail Refinement
+
+- Added the independent `Manage Asset Details` Special Access capability. Its token-bound, request-id-audited authority permits only Asset name, description, location, and master-photo changes; quantity, condition, category, maintenance, and archival remain on their existing canonical authorities.
+- Standardized Crew inspection count/photo controls and Asset Detail media/activity presentation on shared mobile primitives. Asset master photos continue through the canonical normalized media pipeline; inspection evidence remains unchanged.

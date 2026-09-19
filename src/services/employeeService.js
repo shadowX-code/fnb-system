@@ -48,7 +48,7 @@ export const employeeService = {
   async listEmployees() {
     const { data, error } = await supabase
       .from("employees")
-      .select("*,role:roles(id,name,description),crew_access:crew_access(employee_id,mobile_number,access_state,activated_at,disabled_at,locked_until,last_login_at,primary_outlet_id,can_initiate_handover,can_add_assets,can_adjust_assets,can_perform_asset_inspections)")
+      .select("*,role:roles(id,name,description),crew_access:crew_access(employee_id,mobile_number,access_state,activated_at,disabled_at,locked_until,last_login_at,primary_outlet_id,can_initiate_handover,can_add_assets,can_manage_asset_details,can_adjust_assets,can_perform_asset_inspections)")
       .order("full_name", { ascending: true });
 
     throwSupabaseError("employees.list", error);

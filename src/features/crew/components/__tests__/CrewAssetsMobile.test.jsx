@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import CrewAssetsMobile from "../CrewAssetsMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), createAssetWithPhoto: vi.fn(), prepareAssetMasterPhoto: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), createAssetWithPhoto: vi.fn(), prepareAssetMasterPhoto: vi.fn(), updateAssetDetails: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const payload = {
@@ -84,7 +84,7 @@ describe("Crew Assets Mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save adjustment" }));
     await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("3 units")).not.toBeNull();
-    expect(screen.getByText("Quantity adjusted · Staging QA Blender")).not.toBeNull();
+    expect(screen.getByText("Quantity adjusted")).not.toBeNull();
   });
 
   it("refreshes the read model after saving an inspection draft", async () => {
@@ -95,9 +95,9 @@ describe("Crew Assets Mobile", () => {
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     fireEvent.click(await screen.findByText("Staging QA Blender"));
     fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
-    expect(screen.getByRole("button", { name: "Save draft" }).disabled).toBe(true);
-    fireEvent.change(screen.getByLabelText("Counted quantity"), { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save draft" }));
+    expect(screen.getByRole("button", { name: "Save Draft" }).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Counted"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByText("Resume inspection")).not.toBeNull();
@@ -117,8 +117,8 @@ describe("Crew Assets Mobile", () => {
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     fireEvent.click(await screen.findByText("Staging QA Blender"));
     fireEvent.click(screen.getByRole("button", { name: /Inspect Asset/i }));
-    fireEvent.change(screen.getByLabelText("Counted quantity"), { target: { value: "1" } });
-    fireEvent.click(screen.getByRole("button", { name: "Complete inspection" }));
+    fireEvent.change(screen.getByLabelText("Counted"), { target: { value: "1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Complete Inspection" }));
     await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("1 unit")).not.toBeNull();
     expect(screen.getByText((_, node) => node?.tagName === "SMALL" && /Expected 2 .* Counted 1/i.test(node.textContent || ""))).not.toBeNull();

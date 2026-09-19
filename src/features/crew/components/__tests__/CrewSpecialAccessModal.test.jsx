@@ -20,6 +20,7 @@ describe("Crew Special Access", () => {
     fireEvent.click(screen.getByRole("checkbox", { name: "Adjust Assets" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Perform Asset Inspections" }));
     fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
-    await waitFor(() => expect(crewService.updateSpecialAccess).toHaveBeenCalledWith("employee-1", { handover: true, addAssets: true, adjustAssets: true, inspectAssets: true }));
+    expect(screen.getByRole("checkbox", { name: "Manage Asset Details" }).checked).toBe(false);
+    await waitFor(() => expect(crewService.updateSpecialAccess).toHaveBeenCalledWith("employee-1", { handover: true, addAssets: true, adjustAssets: true, inspectAssets: true, manageAssetDetails: false }));
   });
 });

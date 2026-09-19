@@ -49,6 +49,15 @@ Reset, disable, or security-sensitive changes should revoke prior sessions as de
 
 Do not expose token hashes, passcode hashes, internal security state, or unrelated employee records.
 
+### Crew Asset Presentation Details
+
+`Manage Asset Details` is an independent Crew Special Access capability. Its
+token-bound authority may change only an active outlet Asset's name,
+description, location, and master-photo references. It cannot mutate quantity,
+condition, category, maintenance, archival, or disposal. Photo variants are
+written by the trusted `crew-asset-details` Edge Function and finalized through
+the same request-id lifecycle/audit pattern as other Asset mutations.
+
 ## Admin Permission And Outlet Scope
 
 Admin mutations require both the relevant permission and access to every affected outlet or record.

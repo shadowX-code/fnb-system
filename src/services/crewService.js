@@ -1300,23 +1300,25 @@ export const crewService = {
     throwSupabaseError("crew.updateCashOperationsAccess", error);
     return data;
   },
-  async updateAssetAccess(employeeId, { addAssets = false, adjustAssets = false, inspectAssets = false } = {}) {
+  async updateAssetAccess(employeeId, { addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
     const { data, error } = await supabase.rpc("crew_update_asset_access", {
       p_employee_id: employeeId,
       p_can_adjust_assets: Boolean(adjustAssets),
       p_can_perform_asset_inspections: Boolean(inspectAssets),
       p_can_add_assets: Boolean(addAssets),
+      p_can_manage_asset_details: Boolean(manageAssetDetails),
     });
     throwSupabaseError("crew.updateAssetAccess", error);
     return data;
   },
-  async updateSpecialAccess(employeeId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false } = {}) {
+  async updateSpecialAccess(employeeId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
     const { data, error } = await supabase.rpc("crew_update_special_access", {
       p_employee_id: employeeId,
       p_can_initiate_handover: Boolean(handover),
       p_can_adjust_assets: Boolean(adjustAssets),
       p_can_perform_asset_inspections: Boolean(inspectAssets),
       p_can_add_assets: Boolean(addAssets),
+      p_can_manage_asset_details: Boolean(manageAssetDetails),
     });
     throwSupabaseError("crew.updateSpecialAccess", error);
     return data;
@@ -1370,6 +1372,22 @@ export const crewService = {
     body.append("thumbnail", preparedPhoto.bundle.thumbnail.blob, "thumbnail.webp");
     const { data, error } = await supabase.functions.invoke("crew-asset-create", { body });
     throwSupabaseError("crew.createAssetWithPhoto", error);
+    return data;
+  },
+
+  async updateAssetDetails(token, payload) {
+    const body = new FormData();
+    body.append("token", token);
+    body.append("request_id", payload.requestId || crypto.randomUUID());
+    body.append("asset_id", payload.assetId);
+    body.append("details", JSON.stringify(payload.details || {}));
+    if (payload.preparedPhoto?.bundle) {
+      body.append("original", payload.preparedPhoto.bundle.original.blob, "original.webp");
+      body.append("display", payload.preparedPhoto.bundle.display.blob, "display.webp");
+      body.append("thumbnail", payload.preparedPhoto.bundle.thumbnail.blob, "thumbnail.webp");
+    }
+    const { data, error } = await supabase.functions.invoke("crew-asset-details", { body });
+    throwSupabaseError("crew.updateAssetDetails", error);
     return data;
   },
 
