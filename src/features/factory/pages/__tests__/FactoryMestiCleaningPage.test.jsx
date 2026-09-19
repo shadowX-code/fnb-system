@@ -16,9 +16,9 @@ const floorOccurrence = { id: "occ-floor-prep", due_date: "2026-09-02", status: 
 const floorCooking = { ...floorOccurrence, id: "occ-floor-cook", location_id: "loc-cook", location_name: "Cooking", status: "verified", verified_by_name: "Isaac", verified_at: "2026-09-02T03:00:00Z" };
 const drainOccurrence = { ...floorOccurrence, id: "occ-drain-cook", requirement_id: "req-drain", logical_requirement_id: "logical-drain", location_id: "loc-cook", location_name: "Cooking", task_name: "Drain", recurrence_type: "daily", recurrence_weekdays: [] };
 const monthlyRows = [
-  { logical_requirement_id: "logical-floor", task_name: "Floor", recurrence_type: "weekly", recurrence_weekdays: [3], days: [{ due_date: "2026-09-02", status: "mixed", total_count: 2, verified_count: 1, completed_count: 0, unsatisfactory_count: 0, missed_count: 0, pending_count: 1, occurrences: [floorCooking, floorOccurrence] }] },
-  { logical_requirement_id: "logical-floor-other", task_name: "Floor", recurrence_type: "daily", recurrence_weekdays: [], days: [{ due_date: "2026-09-02", status: "unsatisfactory", total_count: 1, verified_count: 0, completed_count: 0, unsatisfactory_count: 1, missed_count: 0, pending_count: 0, occurrences: [{ ...drainOccurrence, id: "occ-floor-other", task_name: "Floor", logical_requirement_id: "logical-floor-other", status: "unsatisfactory" }] }] },
-  { logical_requirement_id: "logical-drain", task_name: "Drain", recurrence_type: "daily", recurrence_weekdays: [], days: [{ due_date: "2026-09-02", status: "completed", total_count: 1, verified_count: 0, completed_count: 1, unsatisfactory_count: 0, missed_count: 0, pending_count: 0, occurrences: [drainOccurrence] }] },
+  { requirement_id: "req-floor-v4", logical_requirement_id: "logical-floor", version_no: 4, task_name: "Floor", recurrence_type: "weekly", recurrence_weekdays: [3], days: [{ due_date: "2026-09-02", status: "mixed", total_count: 2, verified_count: 1, completed_count: 0, unsatisfactory_count: 0, missed_count: 0, pending_count: 1, occurrences: [floorCooking, floorOccurrence] }] },
+  { requirement_id: "req-floor-other", logical_requirement_id: "logical-floor-other", version_no: 1, task_name: "Floor", recurrence_type: "daily", recurrence_weekdays: [], days: [{ due_date: "2026-09-02", status: "unsatisfactory", total_count: 1, verified_count: 0, completed_count: 0, unsatisfactory_count: 1, missed_count: 0, pending_count: 0, occurrences: [{ ...drainOccurrence, id: "occ-floor-other", task_name: "Floor", logical_requirement_id: "logical-floor-other", status: "unsatisfactory" }] }] },
+  { requirement_id: "req-drain", logical_requirement_id: "logical-drain", version_no: 1, task_name: "Drain", recurrence_type: "daily", recurrence_weekdays: [], days: [{ due_date: "2026-09-02", status: "completed", total_count: 1, verified_count: 0, completed_count: 1, unsatisfactory_count: 0, missed_count: 0, pending_count: 0, occurrences: [drainOccurrence] }] },
 ];
 const data = {
   storageLocations: [locationPreparation, locationCooking, locationDryStore],
@@ -139,7 +139,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     })));
   });
 
-  it("renders one Monthly row per logical requirement, preserves distinct same-name requirements, and drills into Location evidence", async () => {
+  it("renders Monthly rows by requirement version, preserves distinct same-name requirements, and drills into Location evidence", async () => {
     renderPage();
     fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
     expect(await screen.findByText("Legend")).not.toBeNull();
@@ -147,6 +147,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(screen.getByText("Task")).not.toBeNull();
     expect(screen.queryByText("Task / Location")).toBeNull();
     expect(screen.getAllByText("Floor")).toHaveLength(2);
+    expect(screen.getByText("Version 4 · Location-based requirement")).not.toBeNull();
     expect(screen.getByTitle(/1 of 2 verified/)).not.toBeNull();
     expect(screen.getByTitle(/Unsatisfactory/)).not.toBeNull();
     expect(screen.getByTitle(/Awaiting Verification/)).not.toBeNull();
