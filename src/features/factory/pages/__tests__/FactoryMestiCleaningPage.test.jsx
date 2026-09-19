@@ -136,7 +136,7 @@ describe("Factory MeSTI Cleaning of Area", () => {
     expect(screen.getByTitle(/Unsatisfactory/)).not.toBeNull();
     expect(screen.getByTitle(/Awaiting Verification/)).not.toBeNull();
     fireEvent.click(screen.getByTitle(/1 of 2 verified/));
-    expect(await screen.findByText("Location-level occurrence evidence")).not.toBeNull();
+    expect(await screen.findByLabelText("Location occurrence evidence")).not.toBeNull();
     expect(screen.getByText("Preparation")).not.toBeNull();
     expect(screen.getByText("Cooking")).not.toBeNull();
     expect(screen.getByText("Isaac")).not.toBeNull();

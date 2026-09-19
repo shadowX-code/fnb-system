@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Check, ClipboardCheck, Plus, ShieldCheck, XCircle } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
-import Drawer from "../../../components/ui/Drawer.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { factoryService } from "../../../services/factoryService.js";
@@ -80,16 +79,15 @@ function monthlyCellTitle(cell, row) {
   return `${row.task_name} · ${formatFactoryDate(cell.due_date)} · ${summary}`;
 }
 
-function MonthlyEvidenceDrawer({ detail, onClose }) {
+function MonthlyEvidenceRows({ detail, canComplete, canVerify, onAct }) {
   if (!detail) return null;
-  return <Drawer open={Boolean(detail)} onClose={onClose} eyebrow="Location-level occurrence evidence" title={`${detail.task_name} · ${formatFactoryDate(detail.due_date)}`} description="Cleaning evidence retained for this date.">
-    <div className="border-y border-border"><FactoryTable rows={detail.occurrences || []} columns={[
+  return <div className="border border-border bg-surface" aria-label="Location occurrence evidence"><div className="border-b border-border px-3 py-2 text-xs font-semibold text-text-secondary">Location occurrence evidence · {detail.task_name} · {formatFactoryDate(detail.due_date)}</div><FactoryTable rows={detail.occurrences || []} columns={[
       { key: "location", label: "Location", render: (row) => <div className="font-semibold text-text-primary">{row.location_name}</div> },
       { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
       { key: "completed", label: "Completed", render: (row) => row.completed_at ? <div><div className="font-semibold">{row.completed_by_name || "Completed"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.completed_at)}</div></div> : "—" },
       { key: "verified", label: "Verified", render: (row) => row.verified_at ? <div><div className="font-semibold">{row.verified_by_name || "Verified"}</div><div className="text-xs text-text-secondary">{formatFactoryDateTime(row.verified_at)}</div></div> : "—" },
-    ]} /></div>
-  </Drawer>;
+      { key: "actions", label: "Actions", align: "right", render: (row) => <FactoryRowActions primaryAction={canComplete(row) ? { label: "Complete", icon: Check, onClick: () => onAct("complete", row) } : canVerify(row) ? { label: "Verify", icon: Check, onClick: () => onAct("verify", row, "verified") } : { label: "View", onClick: () => {} }} /> },
+    ]} /></div>;
 }
 
 function RequirementModal({ open, draft, locations, onClose, onSave, onChange, onToggleLocation }) {
@@ -118,7 +116,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
   const [loading, setLoading] = useState(false);
   const [monthLoading, setMonthLoading] = useState(false);
   const [error, setError] = useState("");
-  const [monthlyDetail, setMonthlyDetail] = useState(null);
+  const [monthlyDetailKey, setMonthlyDetailKey] = useState("");
   const [showRequirementForm, setShowRequirementForm] = useState(false);
   const [requirementDraft, setRequirementDraft] = useState(emptyRequirementDraft());
   const runLatestRequest = useFactoryLatestRequest();
@@ -190,8 +188,7 @@ export default function FactoryMestiCleaningPage({ auth, onNotify }) {
     {activeTab === "monthly" ? <div className="space-y-5">
       <div className="flex flex-wrap items-end gap-3 border-b border-border pb-4"><div className="w-full sm:w-60"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div></div>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-text-secondary"><span className="font-semibold text-text-primary">Legend</span><span><i className="mr-1 inline-block size-2 rounded-full bg-emerald-500" />Verified / compliant</span><span><i className="mr-1 inline-block size-2 rounded-full bg-amber-500" />Awaiting / pending</span><span><i className="mr-1 inline-block size-2 rounded-full bg-rose-500" />Missed / incomplete</span><span><i className="mr-1 inline-block size-2 rounded-full bg-slate-400" />Not applicable</span></div>
-      <FactoryDataSurface>{monthLoading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix rows={matrixRows} days={days} getCell={(row, day) => monthlyCells.get(`${row.logical_requirement_id}:${day}`)} renderEntity={(row) => row.task_name} renderSecondary={() => "Location-based requirement"} onCellClick={(cell, row) => setMonthlyDetail({ ...cell, task_name: row.task_name })} cellLabel={monthlyCellLabel} cellTitle={monthlyCellTitle} empty={<EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." />} />}</FactoryDataSurface>
-      <MonthlyEvidenceDrawer detail={monthlyDetail} onClose={() => setMonthlyDetail(null)} />
+      <FactoryDataSurface>{monthLoading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly matrix...</div> : <FactoryComplianceMatrix rows={matrixRows} days={days} getCell={(row, day) => monthlyCells.get(`${row.logical_requirement_id}:${day}`)} renderEntity={(row) => row.task_name} renderSecondary={() => "Location-based requirement"} onCellClick={(cell, row) => { const key = `${row.logical_requirement_id}:${cell.due_date}`; setMonthlyDetailKey((current) => current === key ? "" : key); }} cellLabel={monthlyCellLabel} cellTitle={monthlyCellTitle} expandedCellKey={monthlyDetailKey} renderExpanded={(cell, row) => <MonthlyEvidenceRows detail={{ ...cell, task_name: row.task_name }} canComplete={(occurrence) => (can("factory_mesti_cleaning.complete") || canManage) && ["pending", "missed", "unsatisfactory"].includes(occurrence.status)} canVerify={(occurrence) => (can("factory_mesti_cleaning.review") || canManage) && occurrence.status === "completed"} onAct={act} />} empty={<EmptyState title="No monthly occurrences" description="No Cleaning Requirements are scheduled in this month." />} />}</FactoryDataSurface>
     </div> : null}
 
     {activeTab === "setup" ? <div className="space-y-5">

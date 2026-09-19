@@ -3206,6 +3206,18 @@ const factoryServiceDefinition = {
     await logFactoryAction({ action: "factory_mesti_health_declaration_actioned", target: declarationId, description: "Factory MeSTI Health Declaration employee action recorded.", after: data });
     return data;
   },
+  async updateMestiHealthDeclaration(declarationId, declaration) {
+    const { data, error } = await supabase.rpc("factory_mesti_update_health_declaration", { p_declaration_id: declarationId, p_declaration: declaration });
+    throwSupabaseError("factory.mesti_health_declaration.update", error);
+    await logFactoryAction({ action: "factory_mesti_health_declaration_updated", target: declarationId, description: "Factory MeSTI Health Declaration corrected.", after: data });
+    return data;
+  },
+  async voidMestiHealthDeclaration(declarationId, reason = "") {
+    const { data, error } = await supabase.rpc("factory_mesti_void_health_declaration", { p_declaration_id: declarationId, p_reason: reason || null });
+    throwSupabaseError("factory.mesti_health_declaration.void", error);
+    await logFactoryAction({ action: "factory_mesti_health_declaration_voided", target: declarationId, description: "Factory MeSTI Health Declaration voided.", after: data });
+    return data;
+  },
   async getMestiOperatorHygieneDaily(date) { const { data, error } = await supabase.rpc("factory_mesti_operator_hygiene_daily", { p_date: date }); throwSupabaseError("factory.mesti_operator_hygiene.daily", error); return data || { entries: [], employees: [] }; },
   async listMestiOperatorHygieneMonthly(month) { const { data, error } = await supabase.rpc("factory_mesti_operator_hygiene_monthly", { p_month: `${month}-01` }); throwSupabaseError("factory.mesti_operator_hygiene.monthly", error); return Array.isArray(data) ? data : []; },
   async saveMestiOperatorHygiene(payload) { const { data, error } = await supabase.rpc("factory_mesti_save_operator_hygiene", { p_payload: payload }); throwSupabaseError("factory.mesti_operator_hygiene.save", error); return data; },
