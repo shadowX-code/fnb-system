@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 const sql = fs.readFileSync(path.resolve("supabase/migrations/20260919220000_factory_completed_dispatch_reversal.sql"), "utf8").toLowerCase();
 const uuidFixSql = fs.readFileSync(path.resolve("supabase/migrations/20260919221000_factory_completed_dispatch_reversal_uuid_aggregate_fix.sql"), "utf8").toLowerCase();
 const traceabilitySql = fs.readFileSync(path.resolve("supabase/migrations/20260919222000_factory_dispatch_reversal_batch_traceability.sql"), "utf8").toLowerCase();
+const resultSql = fs.readFileSync(path.resolve("supabase/migrations/20260919223000_factory_completed_dispatch_reversal_result.sql"), "utf8").toLowerCase();
+const factoryService = fs.readFileSync(path.resolve("src/services/factoryService.js"), "utf8");
 
 describe("completed Finished Goods Dispatch reversal migration", () => {
   it("records immutable header/detail evidence and canonical authority", () => {
@@ -42,5 +44,14 @@ describe("completed Finished Goods Dispatch reversal migration", () => {
     expect(sql).not.toContain("internal_transfer_id");
     expect(traceabilitySql).toContain("in ('completed', 'reversed')");
     expect(traceabilitySql).toContain("completed_allocations");
+  });
+
+  it("returns the committed reversal snapshot from the trusted transaction", () => {
+    expect(resultSql).toContain("factory_reverse_finished_good_dispatch_result");
+    expect(resultSql).toContain("factory_reverse_finished_good_dispatch(");
+    expect(resultSql).toContain("factory_get_finished_good_dispatch_result");
+    expect(resultSql).toContain("'reversal_reason', dispatch.reversal_reason");
+    expect(resultSql).toContain("grant execute on function public.factory_reverse_finished_good_dispatch_result");
+    expect(factoryService).toContain('supabase.rpc("factory_reverse_finished_good_dispatch_result"');
   });
 });
