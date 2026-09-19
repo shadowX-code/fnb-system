@@ -322,6 +322,8 @@ describe("Crew Mobile design system contract", () => {
   it("keeps root, detail, and workflow header geometry canonical", () => {
     expect(system).toContain(".crew-mobile-page-header,.crew-v2-page-header");
     expect(system).toContain(".crew-mobile-detail-header.is-workflow");
+    expect(system).toContain(".crew-mobile-header-text-action");
+    expect(system).toContain(".crew-ui-status { display: inline-flex; width: fit-content; min-height: 22px; flex: 0 0 auto;");
     expect(reward).toContain("<CrewMobilePageHeader");
     expect(growth).toContain("<CrewMobilePageHeader title={title} action={action} />");
     expect(meComponent).toContain("<CrewMobilePageHeader title={t(\"me.title\")} />");

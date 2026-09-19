@@ -28,7 +28,7 @@ describe("Crew Assets Mobile", () => {
     crewService.assetsMobile.mockResolvedValue(payload);
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     const add = await screen.findByRole("button", { name: "Add Asset" });
-    const inspect = screen.getByRole("button", { name: "Start inspection" });
+    const inspect = screen.getByRole("button", { name: "Inspection" });
     expect(add.className).toContain("crew-mobile-secondary");
     expect(inspect.className).toContain("crew-mobile-primary");
     expect(screen.getByRole("button", { name: /Activity/i }).className).not.toContain("crew-mobile-primary");
@@ -47,14 +47,16 @@ describe("Crew Assets Mobile", () => {
     expect(screen.getByText("New quantity")).not.toBeNull();
   });
 
-  it("uses the shared picker and presents unified asset activity", async () => {
+  it("uses horizontal category chips and presents unified asset activity", async () => {
     crewService.assetsMobile.mockResolvedValue(payload);
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     await screen.findByText("Staging QA Blender");
     expect(screen.queryByRole("combobox", { name: /asset category/i })).toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "Category" }).at(-1));
-    expect(screen.getByRole("listbox", { name: "Category" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(screen.getByRole("group", { name: "Asset categories" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "All" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "Kitchen" }).getAttribute("aria-pressed")).toBe("false");
+    fireEvent.click(screen.getByRole("button", { name: "Kitchen" }));
+    expect(screen.getByRole("button", { name: "Kitchen" }).getAttribute("aria-pressed")).toBe("true");
     fireEvent.click(screen.getByRole("button", { name: /Activity/i }));
     expect(screen.getByText("Quantity adjusted · Staging QA Blender")).not.toBeNull();
     expect(screen.getByText("Inspection completed")).not.toBeNull();
@@ -101,6 +103,40 @@ describe("Crew Assets Mobile", () => {
     await waitFor(() => expect(crewService.assetsMobile).toHaveBeenCalledTimes(2));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     expect(await screen.findByText("Resume inspection")).not.toBeNull();
+  });
+
+  it("uses prominent inspection progress and keeps draft saving subordinate to navigation", async () => {
+    const multiAssetPayload = { ...payload, assets: [...payload.assets, { ...payload.assets[0], id: "asset-2", name: "Staging QA Chiller" }] };
+    crewService.assetsMobile.mockResolvedValue(multiAssetPayload);
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Inspection" }));
+    expect(screen.getByRole("button", { name: "Start Inspection" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start Inspection" }));
+    expect(screen.getByText("1 of 2")).not.toBeNull();
+    expect(screen.getByText("50%")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Previous" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Next" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByText("2 of 2")).not.toBeNull();
+    expect(screen.getByText("100%")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Complete Inspection" })).not.toBeNull();
+  });
+
+  it("supports horizontal swipe navigation without discarding local inspection work", async () => {
+    const multiAssetPayload = { ...payload, assets: [...payload.assets, { ...payload.assets[0], id: "asset-2", name: "Staging QA Chiller" }] };
+    crewService.assetsMobile.mockResolvedValue(multiAssetPayload);
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Inspection" }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Inspection" }));
+    fireEvent.change(screen.getByLabelText("Counted"), { target: { value: "1" } });
+    const step = screen.getByText("Staging QA Blender").closest("article");
+    fireEvent.touchStart(step, { touches: [{ clientX: 260, clientY: 160 }] });
+    fireEvent.touchEnd(step, { changedTouches: [{ clientX: 120, clientY: 165 }] });
+    expect(screen.getByText("Staging QA Chiller")).not.toBeNull();
+    const nextStep = screen.getByText("Staging QA Chiller").closest("article");
+    fireEvent.touchStart(nextStep, { touches: [{ clientX: 120, clientY: 160 }] });
+    fireEvent.touchEnd(nextStep, { changedTouches: [{ clientX: 260, clientY: 165 }] });
+    expect(screen.getByLabelText("Counted").value).toBe("1");
   });
 
   it("refreshes the open Asset Detail after a variance inspection", async () => {
