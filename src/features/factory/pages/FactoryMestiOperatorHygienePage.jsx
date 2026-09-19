@@ -10,6 +10,7 @@ import FactoryStatusBadge from "../components/FactoryStatusBadge.jsx";
 import FactoryViewTabs from "../components/FactoryViewTabs.jsx";
 import FactoryRowAction from "../components/FactoryRowAction.jsx";
 import FactoryMonthPicker from "../components/FactoryMonthPicker.jsx";
+import FactoryMestiOccurrenceActions from "../components/FactoryMestiOccurrenceActions.jsx";
 import { FactoryOperationalSummary } from "../components/FactoryEvidencePresentation.jsx";
 import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
 import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
@@ -79,6 +80,26 @@ function EntryDetail({ entry, session, date, onClose }) {
   </Modal>;
 }
 
+function MonthlyInspectionActions({ cell, employee, canVerify, onVerify, onView }) {
+  const entry = {
+    ...cell,
+    id: cell.entry_id,
+    employee_id: employee.employee_id,
+    employee_name: employee.employee_name,
+    position: employee.position,
+    employee_snapshot: { employee_name: employee.employee_name, position: employee.position },
+  };
+  return <div className="border border-border bg-surface" aria-label="Operator hygiene monthly actions">
+    <div className="border-b border-border px-3 py-2 text-xs font-semibold text-text-secondary">{employee.employee_name} · {formatFactoryDate(cell.inspection_date)}</div>
+    <FactoryTable rows={[entry]} columns={[
+      { key: "status", label: "Status", render: () => cell.session_status === "submitted" ? <FactoryStatusBadge tone="warning">Awaiting Verification</FactoryStatusBadge> : <SessionStatusBadge value={cell.session_status} /> },
+      { key: "result", label: "Result", render: () => <ResultBadge value={cell.overall_result} /> },
+      { key: "evidence", label: "Evidence", render: () => cell.issue || cell.action_taken ? <div><div className="font-semibold text-text-primary">{cell.issue || "No issue noted"}</div><div className="text-xs text-text-secondary">{cell.action_taken || "No action noted"}</div></div> : "No issue recorded" },
+      { key: "actions", label: "Actions", align: "right", render: () => <FactoryMestiOccurrenceActions status={cell.session_status} canVerify={canVerify} onVerify={() => onVerify(cell.inspection_date)} onView={() => onView(entry)} viewLabel={`View ${employee.employee_name} inspection details`} /> },
+    ]} />
+  </div>;
+}
+
 export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
   const { can } = useFactoryPermissions();
   const [tab, setTab] = useState("daily");
@@ -87,6 +108,7 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
   const [month, setMonth] = useState(currentMonthInput());
   const [matrix, setMatrix] = useState([]);
   const [employeeQuery, setEmployeeQuery] = useState("");
+  const [monthlyDetailKey, setMonthlyDetailKey] = useState("");
   const [detail, setDetail] = useState(null);
   const [sessionDetailOpen, setSessionDetailOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -137,10 +159,11 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
       onNotify?.({ title: "Operator hygiene submitted", tone: "success" });
     } catch (submitError) { setError(submitError.message || "Unable to submit inspection."); }
   }
-  async function verify() {
+  async function verify(targetDate = date) {
     try {
-      await factoryService.verifyMestiOperatorHygiene(date);
-      await loadDaily();
+      await factoryService.verifyMestiOperatorHygiene(targetDate);
+      if (tab === "monthly") await loadMonthly();
+      else await loadDaily();
       onNotify?.({ title: "Operator hygiene verified", tone: "success" });
     } catch (verifyError) { setError(verifyError.message || "Unable to verify inspection."); }
   }
@@ -166,7 +189,7 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
     {error ? <div role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">{error}</div> : null}
 
     {tab === "daily" ? <>
-      <FactoryOperationalSummary items={[{ label: "Inspected", value: stats.inspected }, { label: "Compliant", value: stats.compliant, tone: "success" }, { label: "Non-Compliant", value: stats.nonCompliant, tone: stats.nonCompliant ? "danger" : "neutral" }]} status={<SessionStatusBadge value={session?.status || "draft"} />} actions={<><button className="btn-secondary" type="button" onClick={() => setSessionDetailOpen(true)}><ClipboardList size={15} />Session Details</button>{isDraft ? <><button type="button" className="btn-secondary" onClick={markAllPass} disabled={!entries.length || !can("factory_mesti_operator_hygiene.manage")}>Mark All Pass</button><button type="button" className="btn-primary" disabled={!entries.length || !can("factory_mesti_operator_hygiene.submit")} onClick={submit}>Submit Inspection</button></> : null}{session?.status === "submitted" ? <button type="button" className="btn-primary" disabled={!can("factory_mesti_operator_hygiene.verify")} onClick={verify}><Check size={15} />Verify</button> : null}</>} />
+      <FactoryOperationalSummary items={[{ label: "Inspected", value: stats.inspected }, { label: "Compliant", value: stats.compliant, tone: "success" }, { label: "Non-Compliant", value: stats.nonCompliant, tone: stats.nonCompliant ? "danger" : "neutral" }]} status={<SessionStatusBadge value={session?.status || "draft"} />} actions={<><button className="btn-secondary" type="button" onClick={() => setSessionDetailOpen(true)}><ClipboardList size={15} />Session Details</button>{isDraft ? <><button type="button" className="btn-secondary" onClick={markAllPass} disabled={!entries.length || !can("factory_mesti_operator_hygiene.manage")}>Mark All Pass</button><button type="button" className="btn-primary" disabled={!entries.length || !can("factory_mesti_operator_hygiene.submit")} onClick={submit}>Submit Inspection</button></> : null}{session?.status === "submitted" ? <button type="button" className="btn-primary" disabled={!can("factory_mesti_operator_hygiene.verify")} onClick={() => verify()}><Check size={15} />Verify</button> : null}</>} />
       <FactoryDailyToolbar><FactoryDailyDateField><FeedXDatePicker value={date} onChange={setDate} /></FactoryDailyDateField></FactoryDailyToolbar>
       <FactoryDataSurface><FactoryTable rows={entries} columns={columns} emptyTitle="No Operators Selected" emptyDescription="Add active employees below." /></FactoryDataSurface>
       {isDraft ? <div className="rounded-xl border border-border bg-white p-3"><Field label="Add Operator"><SearchableSelect value="" options={employeeOptions} placeholder="Select canonical Employee" onChange={addEmployee} /></Field></div> : null}
@@ -176,7 +199,7 @@ export default function FactoryMestiOperatorHygienePage({ auth, onNotify }) {
 
     {tab === "monthly" ? <>
       <FactoryDailyToolbar><div className="w-full sm:w-[170px]"><Field label="Month"><FactoryMonthPicker value={month} onChange={setMonth} /></Field></div><div className="w-full sm:w-[260px]"><Field label="Employee"><div className="relative"><Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" /><input className={`${inputClass()} pl-9`} value={employeeQuery} placeholder="Search employee" onChange={(event) => setEmployeeQuery(event.target.value)} /></div></Field></div></FactoryDailyToolbar>
-      <FactoryDataSurface><FactoryComplianceMatrix rows={visibleMatrix} days={monthDays(month)} rowKey={(row) => row.employee_id} entityLabel="Employee" frequencyLabel="Summary" renderEntity={(row) => row.employee_name} renderSecondary={(row) => row.position || "—"} renderFrequency={(row) => `${row.summary?.inspected_count || 0} inspected · ${row.summary?.compliant_count || 0} compliant · ${row.summary?.non_compliant_count || 0} non-compliant`} getCell={(row, day) => { const cell = row.days?.[day]; return cell ? { ...cell, inspection_date: day, status: cell.state === "compliant" ? "verified" : cell.state === "non_compliant" ? "missed" : "completed" } : null; }} cellLabel={(cell) => cell.state === "compliant" ? "Pass" : cell.state === "non_compliant" ? "Fail" : "Pending"} cellTitle={(cell, row) => `${row.employee_name} on ${formatFactoryDate(cell.inspection_date)}: ${label(cell.state)}`} onCellClick={(cell, row) => setDetail({ ...cell, employee_id: row.employee_id, employee_name: row.employee_name, position: row.position })} empty={<div className="py-10 text-center text-sm font-semibold text-text-secondary">No monthly inspection evidence.</div>} /></FactoryDataSurface>
+      <FactoryDataSurface><FactoryComplianceMatrix rows={visibleMatrix} days={monthDays(month)} rowKey={(row) => row.employee_id} entityLabel="Employee" frequencyLabel="Summary" renderEntity={(row) => row.employee_name} renderSecondary={(row) => row.position || "—"} renderFrequency={(row) => `${row.summary?.inspected_count || 0} inspected · ${row.summary?.compliant_count || 0} compliant · ${row.summary?.non_compliant_count || 0} non-compliant`} getCell={(row, day) => { const cell = row.days?.[day]; return cell ? { ...cell, inspection_date: day, status: cell.session_status === "verified" ? "verified" : "completed" } : null; }} cellLabel={(cell) => cell.session_status === "submitted" ? "Await" : cell.state === "compliant" ? "Pass" : "Fail"} cellTitle={(cell, row) => `${row.employee_name} on ${formatFactoryDate(cell.inspection_date)}: ${cell.session_status === "submitted" ? "Awaiting Verification" : label(cell.state)}`} onCellClick={(cell, row) => { const key = `${row.employee_id}:${cell.inspection_date}`; setMonthlyDetailKey((current) => current === key ? "" : key); }} expandedCellKey={monthlyDetailKey} renderExpanded={(cell, row) => <MonthlyInspectionActions cell={cell} employee={row} canVerify={can("factory_mesti_operator_hygiene.verify")} onVerify={verify} onView={setDetail} />} empty={<div className="py-10 text-center text-sm font-semibold text-text-secondary">No monthly inspection evidence.</div>} /></FactoryDataSurface>
       {loading ? <div className="py-8 text-center text-sm font-semibold text-text-secondary">Loading monthly compliance...</div> : null}
     </> : null}
 

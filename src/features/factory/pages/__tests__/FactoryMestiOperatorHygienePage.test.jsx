@@ -115,9 +115,37 @@ describe("Factory MeSTI Operator Hygiene", () => {
     expect(screen.queryByText("Ben")).toBeNull();
     expect(screen.getByText("1 inspected · 0 compliant · 1 non-compliant")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Aisha on/ }));
+    expect(await screen.findByLabelText("Operator hygiene monthly actions")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View Aisha inspection details" }));
     const dialog = await screen.findByRole("dialog", { name: "Aisha" });
     expect(within(dialog).getByText("Apron missing")).not.toBeNull();
     expect(within(dialog).getByText("Replaced apron")).not.toBeNull();
     expect(within(dialog).getByText("Nora")).not.toBeNull();
+  });
+
+  it("verifies a submitted Monthly session through the canonical Daily authority", async () => {
+    factoryService.listMestiOperatorHygieneMonthly.mockResolvedValue([{
+      ...monthlyRows[0],
+      days: { "2026-09-03": { ...monthlyRows[0].days["2026-09-03"], state: "awaiting_verification", session_status: "submitted", verified_by_name: null, verified_at: null } },
+    }]);
+    renderPage();
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Aisha on .*Awaiting Verification/ }));
+    expect(await screen.findByText("Awaiting Verification")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Verify" }));
+    await waitFor(() => expect(factoryService.verifyMestiOperatorHygiene).toHaveBeenCalledWith("2026-09-03"));
+  });
+
+  it("does not expose Monthly Verify without the canonical permission", async () => {
+    factoryService.listMestiOperatorHygieneMonthly.mockResolvedValue([{
+      ...monthlyRows[0],
+      days: { "2026-09-03": { ...monthlyRows[0].days["2026-09-03"], state: "awaiting_verification", session_status: "submitted" } },
+    }]);
+    renderPage({ permissionSet: ["factory_mesti_operator_hygiene.view"] });
+    fireEvent.click(screen.getByRole("tab", { name: "Monthly" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Aisha on .*Awaiting Verification/ }));
+    expect(await screen.findByLabelText("Operator hygiene monthly actions")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Verify" })).toBeNull();
+    expect(screen.getByRole("button", { name: "View Aisha inspection details" })).not.toBeNull();
   });
 });
