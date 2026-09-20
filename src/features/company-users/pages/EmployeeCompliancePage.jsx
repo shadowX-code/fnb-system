@@ -30,6 +30,7 @@ const statusOptions = [
 const labels = Object.fromEntries(statusOptions.map((item) => [item.value, item.label]));
 const tones = { verified: "success", expiring_soon: "warning", pending_verification: "warning", expired: "danger", rejected: "danger", missing: "neutral" };
 const formatDate = (value) => value ? new Date(`${value}T12:00:00+08:00`).toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const submissionIdFor = (row) => row.state?.pending_submission_id || row.state?.rejected_submission_id || row.state?.effective_submission_id;
 
 function SearchField({ value, onChange }) {
   return <label className="block"><span className="mb-1 block type-caption font-semibold text-text-secondary">Search Crew</span><span className="relative block"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} /><input className="control h-10 w-full pl-9" value={value} onChange={(event) => onChange(event.target.value)} placeholder="Name or employee code" /></span></label>;
@@ -41,7 +42,7 @@ function ReviewModal({ row, canReview, onClose, onReviewed }) {
   const [error, setError] = useState("");
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
-  const submissionId = row.state?.pending_submission_id || row.state?.rejected_submission_id || row.state?.effective_submission_id;
+  const submissionId = submissionIdFor(row);
 
   async function loadEvidence() {
     setError("");
@@ -60,7 +61,7 @@ function ReviewModal({ row, canReview, onClose, onReviewed }) {
   return <Modal title={`${row.full_name} · ${row.requirement_name}`} description="Review the submitted evidence before making a decision." size="md" onClose={onClose} footer={row.state?.status === "pending_verification" && canReview ? <><button className="btn-secondary" type="button" disabled={busy} onClick={() => review("rejected")}>Reject</button><button className="btn-primary" type="button" disabled={busy} onClick={() => review("verified")}>Verify</button></> : null}>
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2"><Badge tone={tones[row.state?.status]}>{labels[row.state?.status] || row.state?.status}</Badge>{row.requires_expiry ? <span className="text-sm text-text-secondary">Expiry {formatDate(row.state?.pending_expiry_date || row.state?.effective_expiry_date || row.state?.rejected_expiry_date)}</span> : null}</div>
-      {evidenceUrl ? <img className="max-h-[48vh] w-full rounded-lg border border-border bg-slate-50 object-contain" src={evidenceUrl} alt={`${row.requirement_name} evidence`} /> : <button className="btn-secondary" type="button" onClick={loadEvidence}><Eye size={16} /> View private evidence</button>}
+      {evidenceUrl ? <img className="max-h-[48vh] w-full rounded-lg border border-border bg-slate-50 object-contain" src={evidenceUrl} alt={`${row.requirement_name} evidence`} /> : submissionId ? <button className="btn-secondary" type="button" onClick={loadEvidence}><Eye size={16} /> View private evidence</button> : null}
       {row.state?.status === "pending_verification" && canReview ? <label className="block"><span className="mb-1.5 block text-sm font-semibold text-text-primary">Rejection reason</span><textarea className="control min-h-24 w-full py-2" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required only when rejecting" /></label> : null}
       {row.state?.rejection_reason ? <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800"><strong>Rejected:</strong> {row.state.rejection_reason}</div> : null}
       {row.state?.replacement_pending && row.state?.effective_submission_id ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">The existing verified record remains effective until this replacement is verified.</div> : null}
@@ -90,7 +91,7 @@ export default function EmployeeCompliancePage({ store, auth }) {
     { key: "requirement", header: "Requirement", render: (row) => <div><strong className="block text-text-primary">{row.requirement_name}</strong>{row.requires_expiry ? <span className="text-xs text-text-muted">Expiry required</span> : null}</div> },
     { key: "expiry", header: "Expiry", render: (row) => formatDate(row.state?.effective_expiry_date || row.state?.pending_expiry_date || row.state?.rejected_expiry_date) },
     { key: "status", header: "Status", render: (row) => <Badge tone={tones[row.state?.status]}>{labels[row.state?.status] || "Missing"}</Badge> },
-    { key: "action", header: "", align: "right", render: (row) => <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => setSelected(row)}>Review</button> },
+    { key: "action", header: "", align: "right", render: (row) => submissionIdFor(row) ? <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => setSelected(row)}>{row.state?.status === "pending_verification" ? "Review" : "View"}</button> : <span className="text-text-muted">—</span> },
   ];
   const outletOptions = [{ value: "all", label: "All Accessible Outlets" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))];
 

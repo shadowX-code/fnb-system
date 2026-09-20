@@ -32,4 +32,9 @@ describe("Employee Compliance V1 surfaces", () => {
     expect(admin).toContain("useAdminPagedQuery");
     expect(admin).toContain("AdminPagination");
   });
+
+  it("only exposes review or evidence actions when a submission exists", () => {
+    expect(admin).toContain("submissionIdFor(row) ?");
+    expect(admin).toContain('row.state?.status === "pending_verification" ? "Review" : "View"');
+  });
 });
