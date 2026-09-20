@@ -15,6 +15,7 @@ import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
 import { employeeService } from "../../../services/employeeService.js";
+import { employeeComplianceService } from "../../../services/employeeComplianceService.js";
 import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
 import { normalizeEmployeeLoginEmail } from "../../../services/employeeIdentity.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
@@ -535,6 +536,58 @@ function EmailStatusBadge({ status }) {
   return <Badge tone={config.tone}>{config.label}</Badge>;
 }
 
+const complianceStatusCopy = { missing: "Missing", pending_verification: "Pending Verification", verified: "Verified", expiring_soon: "Expiring Soon", expired: "Expired", rejected: "Rejected" };
+const complianceStatusTone = { missing: "neutral", pending_verification: "warning", verified: "success", expiring_soon: "warning", expired: "danger", rejected: "danger" };
+
+function EmployeeCompliancePanel({ employeeId, canView, canReview, ui }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [reviewing, setReviewing] = useState(null);
+  const [reason, setReason] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function load() {
+    if (!employeeId || !canView) return;
+    setLoading(true); setError("");
+    try { setData(await employeeComplianceService.adminDetail(employeeId)); }
+    catch (cause) { setError(cause.message || "Unable to load compliance records."); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { load(); }, [employeeId, canView]);
+  async function openEvidence(submissionId) {
+    setEvidenceUrl("");
+    try { setEvidenceUrl(await employeeComplianceService.adminEvidenceUrl(submissionId)); }
+    catch (cause) { ui?.notify?.({ title: "Unable to open evidence", message: cause.message, tone: "error" }); }
+  }
+  async function decide(decision) {
+    if (decision === "rejected" && !reason.trim()) { setError("Rejection reason is required."); return; }
+    setBusy(true); setError("");
+    try { await employeeComplianceService.review({ submissionId: reviewing.pending_submission_id, decision, rejectionReason: reason }); setReviewing(null); setReason(""); await load(); }
+    catch (cause) { setError(cause.message || "Unable to review submission."); }
+    finally { setBusy(false); }
+  }
+  if (!canView || !employeeId) return null;
+  return <>
+    <FormSection title="Compliance" icon={ShieldCheck}>
+      {loading ? <p className="text-sm font-semibold text-text-muted">Loading compliance…</p> : error && !data ? <div className="flex items-center justify-between gap-3 text-sm text-rose-700"><span>{error}</span><button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={load}>Retry</button></div> : <div className="space-y-3">
+        {(data?.current ?? []).map((item) => <div className="rounded-xl border border-border bg-surface px-4 py-3" key={item.requirement_code}>
+          <div className="flex flex-wrap items-start justify-between gap-2"><div><strong className="text-sm text-text-primary">{item.requirement_name}</strong>{item.effective_expiry_date ? <p className="mt-0.5 text-xs text-text-muted">Expires {formatDateForView(item.effective_expiry_date)}</p> : null}</div><Badge tone={complianceStatusTone[item.status]}>{complianceStatusCopy[item.status] || item.status}</Badge></div>
+          {item.rejection_reason ? <p className="mt-2 text-xs font-semibold text-rose-700">Rejected: {item.rejection_reason}</p> : null}
+          {item.replacement_pending ? <p className="mt-2 text-xs font-semibold text-emerald-700">Existing verified evidence remains effective while this replacement is pending.</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {item.pending_submission_id ? <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => openEvidence(item.pending_submission_id)}><Eye size={14} /> Evidence</button> : item.effective_submission_id ? <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => openEvidence(item.effective_submission_id)}><Eye size={14} /> Evidence</button> : null}
+            {item.pending_submission_id && canReview ? <button className="btn-primary px-3 py-2 text-xs" type="button" onClick={() => { setReviewing(item); setReason(""); setError(""); }}>Review</button> : null}
+          </div>
+        </div>)}
+        {(data?.history ?? []).length ? <details className="rounded-xl border border-border bg-slate-50 px-4 py-3"><summary className="cursor-pointer text-sm font-bold text-text-primary">Compliance history ({data.history.length})</summary><div className="mt-3 divide-y divide-border">{data.history.map((event) => <div className="py-2 text-xs" key={event.submission_id}><div className="flex justify-between gap-3"><strong>{event.requirement_name}</strong><span className="text-text-muted">{formatDateTime(event.submitted_at)}</span></div><p className="mt-1 text-text-secondary">{event.decision ? titleCase(event.decision) : "Pending Verification"}{event.reviewer_name ? ` · by ${event.reviewer_name}` : ""}</p>{event.rejection_reason ? <p className="mt-1 text-rose-700">{event.rejection_reason}</p> : null}</div>)}</div></details> : null}
+      </div>}
+    </FormSection>
+    {evidenceUrl ? <Modal title="Private compliance evidence" onClose={() => setEvidenceUrl("")} footer={<button className="btn-secondary" type="button" onClick={() => setEvidenceUrl("")}>Close</button>}><img className="max-h-[64vh] w-full rounded-xl bg-slate-50 object-contain" src={evidenceUrl} alt="Employee compliance evidence" /></Modal> : null}
+    {reviewing ? <Modal title={`Review ${reviewing.requirement_name}`} description="Verify valid evidence or reject it with a clear reason." onClose={() => setReviewing(null)} footer={<><button className="btn-secondary text-rose-700" type="button" disabled={busy} onClick={() => decide("rejected")}>Reject</button><button className="btn-primary" type="button" disabled={busy} onClick={() => decide("verified")}>Verify</button></>}><label className="block"><span className="mb-1.5 block text-sm font-semibold">Rejection reason</span><textarea className="control min-h-24 w-full py-2" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required when rejecting" /></label>{error ? <p className="mt-2 text-sm font-semibold text-rose-700">{error}</p> : null}</Modal> : null}
+  </>;
+}
+
 function UserFormModal({
   mode,
   initialUser,
@@ -553,6 +606,8 @@ function UserFormModal({
   canEnableLogin = false,
   canDeactivateEmployee = false,
   canResetPassword = false,
+  canViewCompliance = false,
+  canReviewCompliance = false,
 }) {
   const [values, setValues] = useState(() => {
     const merged = { ...createEmptyUser(), ...initialUser };
@@ -1297,6 +1352,8 @@ function UserFormModal({
             </>
           )}
         </FormSection>
+
+        <EmployeeCompliancePanel employeeId={values.id} canView={canViewCompliance} canReview={canReviewCompliance} ui={ui} />
       </div>
     </Modal>
   );
@@ -1326,6 +1383,8 @@ export default function UsersPage({ ui, store, auth }) {
   const canDeactivateEmployee = hasPermission(auth, "employees.deactivate");
   const canEnableLogin = hasPermission(auth, "employees.enable_login");
   const canResetPassword = hasPermission(auth, "employees.reset_password");
+  const canViewCompliance = hasPermission(auth, "employee_compliance.view");
+  const canReviewCompliance = hasPermission(auth, "employee_compliance.review");
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
   const workplaceOptions = useMemo(
     () => {
@@ -1883,6 +1942,8 @@ export default function UsersPage({ ui, store, auth }) {
           canEnableLogin={canEnableLogin}
           canDeactivateEmployee={canDeactivateEmployee}
           canResetPassword={canResetPassword}
+          canViewCompliance={canViewCompliance}
+          canReviewCompliance={canReviewCompliance}
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
@@ -1908,6 +1969,8 @@ export default function UsersPage({ ui, store, auth }) {
           canEnableLogin={canEnableLogin}
           canDeactivateEmployee={canDeactivateEmployee}
           canResetPassword={canResetPassword}
+          canViewCompliance={canViewCompliance}
+          canReviewCompliance={canReviewCompliance}
           onClose={() => setFormState(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSubmit={saveUser}

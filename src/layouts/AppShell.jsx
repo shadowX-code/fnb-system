@@ -84,6 +84,7 @@ const iconMap = {
   "factory-settings": Settings,
   "crew-dashboard": Users,
   "crew-employees": Users,
+  "employee-compliance": ShieldCheck,
   "crew-attendance": Clock3,
   "crew-roster": CalendarDays,
   "crew-leave": CalendarDays,

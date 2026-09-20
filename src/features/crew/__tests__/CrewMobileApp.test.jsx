@@ -253,7 +253,7 @@ describe("Crew Mobile redesign", () => {
     const profileHero = document.querySelector(".crew-me-profile-hero");
     expect(profileHero?.querySelector("img.crew-me-profile-credential-art[aria-hidden='true']")).not.toBeNull();
     expect(screen.getByText("1 Pending")).not.toBeNull();
-    expect(screen.getAllByText("Employment Documents")).toHaveLength(1);
+    expect(screen.getAllByText("Documents & Compliance")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Work" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Account" })).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Support" })).toBeNull();

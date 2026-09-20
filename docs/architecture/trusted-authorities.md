@@ -74,6 +74,7 @@ Published content and schedules pin the versions consumed by downstream activity
 Historical snapshots preserve meaning when master data or rules later change.
 
 Examples include financial period snapshots, roster publication revisions, SOP and learning versions, localized snapshots, performance evidence, stock and cash ledgers, and production traceability records.
+Employee Compliance follows the same rule: evidence submissions and review decisions are append-only, replacements supersede only after verification, and private historical evidence is never overwritten by resubmission.
 The exact state model remains owned by each domain document and current contracts.
 
 ## Audit Discipline

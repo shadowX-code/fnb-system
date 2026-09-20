@@ -16,6 +16,7 @@ import SharedDutyRosterPage from "../features/roster/pages/SharedDutyRosterPage.
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
+import EmployeeCompliancePage from "../features/company-users/pages/EmployeeCompliancePage.jsx";
 import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.jsx";
 import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
 import RolesPage from "../features/company-users/pages/RolesPage.jsx";
@@ -442,6 +443,11 @@ export const routeDetails = {
     component: CrewWorkspacePage,
     permission: "crew_employees.view",
     props: { initialTab: "employees" },
+  },
+  employee_compliance: {
+    description: "Review employee compliance documents, verification and expiry state.",
+    component: EmployeeCompliancePage,
+    permission: "employee_compliance.view",
   },
   crew_attendance: {
     description: "Review Crew mobile attendance history.",
