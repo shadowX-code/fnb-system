@@ -25,6 +25,7 @@ describe("AdminSummaryGrid", () => {
     ]} />);
 
     const grid = container.querySelector('[data-admin-summary-grid="compact"]');
+    expect(grid.className).toContain("md:grid-cols-3");
     expect(grid.className).toContain("xl:grid-cols-5");
     expect(container.querySelectorAll("[data-admin-summary-card]")).toHaveLength(5);
   });

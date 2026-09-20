@@ -3,13 +3,13 @@ import MetricCard from "./MetricCard.jsx";
 const standardColumns = {
   one: "grid-cols-1",
   two: "grid-cols-1 sm:grid-cols-2",
-  three: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  three: "grid-cols-1 sm:grid-cols-2 md:grid-cols-3",
   four: "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4",
 };
 
 function gridColumns(variant, count) {
   if (variant === "compact") {
-    if (count >= 5) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5";
+    if (count >= 5) return "grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-5";
     if (count === 4) return "grid-cols-1 sm:grid-cols-2 xl:grid-cols-4";
     return standardColumns[["one", "two", "three"][Math.max(count - 1, 0)]];
   }
