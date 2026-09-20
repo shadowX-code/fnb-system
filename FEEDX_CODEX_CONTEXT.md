@@ -69,6 +69,8 @@ Before Staging database mutation or migration QA, verify the workspace is linked
 
 An explicit request to implement, fix, or change a scoped FeedX development task authorizes that repository work through its required QA level. L1 work does not deploy merely because scoped authorization exists. L2/L3 work may commit and push the scoped change to `dev` and complete canonical Staging delivery and verification when the selected level requires it, without a second action-by-action confirmation. This includes normal scoped Staging migrations and Edge Function delivery required by the implementation.
 
+Canonical Staging is also the normal review surface for implemented UI or workflow changes when runtime or visual review is materially useful. An otherwise-L1 UI change may be delivered there for user review when seeing the real result is useful; that review does not by itself raise its QA level or authorize Production.
+
 Action-time approval is still required for exceptional external mutations outside normal scoped Staging delivery: temporary permission changes; destructive or non-reversible business-data mutation; environment or project relinking; secrets or credentials; or materially expanded mutation scope. Stop and obtain approval if the task grows into one of these actions.
 
 Production actions, including linking or pushing the Production database, merging `main`, and deploying Production, always require separate explicit Production authorization.
