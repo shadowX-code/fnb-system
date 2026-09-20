@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowDown,
   ArrowLeft,
-  ArrowUp,
   Bold,
   Check,
   ChevronRight,
@@ -20,8 +18,11 @@ import {
 } from "lucide-react";
 import Modal from "../../../components/feedback/Modal.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import AdminSortableHandle from "../../../components/ui/AdminSortableHandle.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
+import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import ToggleField from "../../../components/forms/ToggleField.jsx";
 import { IMAGE_UPLOAD_ACCEPT, validateLearningImageFile } from "../../../utils/imageUpload.js";
 import { crewService } from "../../../services/crewService.js";
 import { sanitizeSopHtml } from "../utils/sopDocumentContent.js";
@@ -100,9 +101,15 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
       return next;
     });
   }
-  function moveModule(direction) {
+  function moveModule(moduleId, direction) {
     mutate((next) => {
-      moveInArray(next.modules, selectedModule.id, direction);
+      moveInArray(next.modules, moduleId, direction);
+      return normalizeOrders(next);
+    });
+  }
+  function moveModuleTo(moduleId, targetModuleId) {
+    mutate((next) => {
+      moveToTarget(next.modules, moduleId, targetModuleId);
       return normalizeOrders(next);
     });
   }
@@ -110,6 +117,13 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
     mutate((next) => {
       const module = next.modules.find((item) => item.id === selectedModule.id);
       moveInArray(module.lessons, lessonId, direction);
+      return normalizeOrders(next);
+    });
+  }
+  function moveLessonTo(lessonId, targetLessonId) {
+    mutate((next) => {
+      const module = next.modules.find((item) => item.id === selectedModule.id);
+      moveToTarget(module.lessons, lessonId, targetLessonId);
       return normalizeOrders(next);
     });
   }
@@ -184,6 +198,13 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
       return normalizeOrders(next);
     });
   }
+  function moveBlockTo(blockId, targetBlockId) {
+    mutate((next) => {
+      const lesson = findLesson(next, selectedModule.id, selectedLesson.id);
+      moveToTarget(lesson.blocks, blockId, targetBlockId);
+      return normalizeOrders(next);
+    });
+  }
   function deleteBlock(blockId) {
     mutate((next) => {
       const lesson = findLesson(next, selectedModule.id, selectedLesson.id);
@@ -228,18 +249,18 @@ export default function CrewOnboardingEditor({ journey, outlet, sops, saving, co
   }
 
   const localizationUnits = onboardingLocalizationUnits(draft, sourceLanguage);
-  const footer = <div className="crew-onboarding-editor-footer"><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => setPane((value) => value === "preview" ? "edit" : "preview")}>{pane === "preview" ? "Back to Editor" : "Preview"}</button><button className="btn-secondary" type="button" onClick={() => setPane((value) => value === "languages" ? "edit" : "languages")}>{pane === "languages" ? "Back to Editor" : "Languages"}</button></div><div><button className="btn-secondary" type="button" disabled={!dirty || busy || saving || mediaBusy} onClick={saveDraft}>{busy || mediaBusy ? "Saving…" : "Save Draft"}</button><button className="btn-primary" type="button" disabled={busy || saving || mediaBusy} onClick={publish}>Publish v{draft.version}</button></div></div>;
-  return <Modal title="Edit New Crew Onboarding" description={`${outlet?.name || "Outlet"} · Draft v${draft.version}`} size="2xl" panelClassName="crew-onboarding-editor-modal" bodyClassName="crew-onboarding-editor-body" headerActions={<span className={`crew-onboarding-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? `Draft v${draft.version} · Unsaved changes` : <><Check size={13} /> Draft v{draft.version} · All changes saved</>}</span>} footer={footer} footerClassName="block" onClose={requestClose}>
+  const footer = <div className="crew-onboarding-editor-footer"><div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => setPane((value) => value === "preview" ? "edit" : "preview")}>{pane === "preview" ? "Back to Editor" : "Preview"}</button><button className="btn-secondary" type="button" onClick={() => setPane((value) => value === "languages" ? "edit" : "languages")}>{pane === "languages" ? "Back to Editor" : "Languages"}</button></div><div>{dirty ? <button className="btn-secondary" type="button" disabled={busy || saving || mediaBusy} onClick={saveDraft}>{busy || mediaBusy ? "Saving…" : "Save Draft"}</button> : <span className="crew-onboarding-footer-state"><Check size={14} /> Saved</span>}<button className="btn-primary" type="button" disabled={busy || saving || mediaBusy} onClick={publish}>Publish v{draft.version}</button></div></div>;
+  return <Modal title="Edit New Crew Onboarding" description={`${outlet?.name || "Outlet"} · Draft v${draft.version}`} size="xl" panelClassName="crew-onboarding-editor-modal" bodyClassName="crew-onboarding-editor-body" headerActions={<span className={`crew-onboarding-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? `Draft v${draft.version} · Unsaved changes` : <><Check size={13} /> Draft v{draft.version} · All changes saved</>}</span>} footer={footer} footerClassName="block" onClose={requestClose}>
     {pane === "preview" ? <OnboardingPreview draft={draft} sops={sops} /> : pane === "languages" ? <div className="p-5 md:p-6"><LocalizedContentEditor domain="onboarding" versionId={draft.id} sourceLanguage={sourceLanguage} onSourceLanguageChange={(next) => { setSourceLanguage(next); setDirty(true); }} onHydrateSourceLanguage={setSourceLanguage} sourceUnits={localizationUnits} sourceDirty={dirty} confirm={confirm} disabled={busy || saving} /></div> : <div className="crew-onboarding-editor-layout">
-      <aside className="crew-onboarding-module-outline"><header><strong>Modules</strong><span>{draft.modules.length}</span></header>{draft.modules.map((module, index) => <button key={module.id} className={selectedModule?.id === module.id ? "is-active" : ""} onClick={() => setSelection({ type: "module", moduleId: module.id })}><span>{String(index + 1).padStart(2, "0")}</span><strong>{module.title}</strong><ChevronRight size={15} /></button>)}</aside>
-      <main className="crew-onboarding-editor-main">{selection.type === "lesson" && selectedLesson ? <LessonEditor module={selectedModule} lesson={selectedLesson} sops={sops} onBack={() => setSelection({ type: "module", moduleId: selectedModule.id })} onUpdate={updateLesson} onUpdateBlock={updateBlock} onUploadMedia={uploadBlockMedia} onAddBlock={addBlock} onMoveBlock={moveBlock} onDeleteBlock={deleteBlock} onUpdateQuiz={updateQuiz} /> : <ModuleEditor module={selectedModule} moduleIndex={draft.modules.indexOf(selectedModule)} moduleCount={draft.modules.length} onUpdate={updateModule} onMove={moveModule} onSelectLesson={(lessonId) => setSelection({ type: "lesson", moduleId: selectedModule.id, lessonId })} onAddLesson={addLesson} onMoveLesson={moveLesson} onDeleteLesson={deleteLesson} />}</main>
+      <aside className="crew-onboarding-module-outline"><header><strong>Modules</strong><span>{draft.modules.length}</span></header>{draft.modules.map((module, index) => <div key={module.id} className="crew-onboarding-outline-row" onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const drag = readSortableDrag(event); if (drag?.scope === "onboarding-module" && drag.itemId !== module.id) moveModuleTo(drag.itemId, module.id); }}><AdminSortableHandle label={`Reorder module ${index + 1}`} scope="onboarding-module" itemId={module.id} index={index} count={draft.modules.length} onMove={(direction) => moveModule(module.id, direction)} /><button className={selectedModule?.id === module.id ? "is-active" : ""} onClick={() => setSelection({ type: "module", moduleId: module.id })}><span>{String(index + 1).padStart(2, "0")}</span><strong>{module.title}</strong><ChevronRight size={15} /></button></div>)}</aside>
+      <main className="crew-onboarding-editor-main">{selection.type === "lesson" && selectedLesson ? <LessonEditor module={selectedModule} lesson={selectedLesson} sops={sops} onBack={() => setSelection({ type: "module", moduleId: selectedModule.id })} onUpdate={updateLesson} onUpdateBlock={updateBlock} onUploadMedia={uploadBlockMedia} onAddBlock={addBlock} onMoveBlock={moveBlock} onMoveBlockTo={moveBlockTo} onDeleteBlock={deleteBlock} onUpdateQuiz={updateQuiz} /> : <ModuleEditor module={selectedModule} moduleIndex={draft.modules.indexOf(selectedModule)} onUpdate={updateModule} onSelectLesson={(lessonId) => setSelection({ type: "lesson", moduleId: selectedModule.id, lessonId })} onAddLesson={addLesson} onMoveLesson={moveLesson} onMoveLessonTo={moveLessonTo} onDeleteLesson={deleteLesson} />}</main>
     </div>}
   </Modal>;
 }
 
-function ModuleEditor({ module, moduleIndex, moduleCount, onUpdate, onMove, onSelectLesson, onAddLesson, onMoveLesson, onDeleteLesson }) {
+function ModuleEditor({ module, moduleIndex, onUpdate, onSelectLesson, onAddLesson, onMoveLesson, onMoveLessonTo, onDeleteLesson }) {
   if (!module) return null;
-  return <section className="crew-onboarding-module-editor"><header><div><span>Module {String(moduleIndex + 1).padStart(2, "0")} · {module.lessons.length} lessons · {module.required ? "Required" : "Optional"}</span><h2>Module Settings</h2></div><OverflowActions label="Module actions" actions={[{ label: "Move up", disabled: !moduleIndex, onClick: () => onMove(-1) }, { label: "Move down", disabled: moduleIndex === moduleCount - 1, onClick: () => onMove(1) }]} /></header><div className="crew-onboarding-editor-fields"><label>Module Title<input className="control" value={module.title} onChange={(event) => onUpdate({ title: event.target.value })} /></label><label>Description<textarea className="control" value={module.description || ""} onChange={(event) => onUpdate({ description: event.target.value })} /></label><Toggle label="Required" detail="Crew must complete this module before later required modules unlock." checked={Boolean(module.required)} onChange={(required) => onUpdate({ required })} /></div><section className="crew-onboarding-lessons"><header><div><h3>Lessons Builder</h3><span>{module.lessons.length}</span></div><button className="btn-secondary" onClick={onAddLesson}><Plus size={15} /> Add Lesson</button></header>{module.lessons.map((lesson, index) => <article key={lesson.id}><button className="crew-onboarding-lesson-entry" onClick={() => onSelectLesson(lesson.id)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{lesson.title}</strong><small>{lesson.blocks.length} content · {lesson.quizzes.length ? "Knowledge Check" : "No quiz"}</small><ChevronRight size={15} /></button><OverflowActions label={`${lesson.title} actions`} actions={[{ label: "Move up", disabled: !index, onClick: () => onMoveLesson(lesson.id, -1) }, { label: "Move down", disabled: index === module.lessons.length - 1, onClick: () => onMoveLesson(lesson.id, 1) }, { label: "Delete", disabled: module.lessons.length === 1, danger: true, onClick: () => onDeleteLesson(lesson.id) }]} /></article>)}</section></section>;
+  return <section className="crew-onboarding-module-editor"><header><div><span>Module {String(moduleIndex + 1).padStart(2, "0")} · {module.lessons.length} lessons</span><h2>{module.title || "Untitled module"}</h2></div></header><div className="crew-onboarding-editor-fields"><AdminFormField label="Module Title"><input className="control" value={module.title} onChange={(event) => onUpdate({ title: event.target.value })} /></AdminFormField><AdminFormField label="Description"><textarea className="control" value={module.description || ""} onChange={(event) => onUpdate({ description: event.target.value })} /></AdminFormField><Toggle label="Required" detail="Crew must complete this module before later required modules unlock." checked={Boolean(module.required)} onChange={(required) => onUpdate({ required })} /></div><section className="crew-onboarding-lessons"><header><div><h3>Lessons</h3><span>{module.lessons.length}</span></div><button className="btn-secondary" onClick={onAddLesson}><Plus size={15} /> Add Lesson</button></header>{module.lessons.map((lesson, index) => <article key={lesson.id} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const drag = readSortableDrag(event); if (drag?.scope === "onboarding-lesson" && drag.itemId !== lesson.id) onMoveLessonTo(drag.itemId, lesson.id); }}><AdminSortableHandle label={`Reorder lesson ${index + 1}`} scope="onboarding-lesson" itemId={lesson.id} index={index} count={module.lessons.length} onMove={(direction) => onMoveLesson(lesson.id, direction)} /><button className="crew-onboarding-lesson-entry" onClick={() => onSelectLesson(lesson.id)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{lesson.title}</strong><small>{lesson.blocks.length} content · {lesson.quizzes.length ? "Knowledge Check" : "No quiz"}</small><ChevronRight size={15} /></button><OverflowActions label={`${lesson.title} actions`} actions={[{ label: "Delete", disabled: module.lessons.length === 1, danger: true, onClick: () => onDeleteLesson(lesson.id) }]} /></article>)}</section></section>;
 }
 
 function OverflowActions({ label, actions }) {
@@ -248,8 +269,8 @@ function OverflowActions({ label, actions }) {
   return <div className="crew-onboarding-overflow"><button ref={anchorRef} className="icon-btn" type="button" aria-label={label} onClick={() => setOpen((value) => !value)}><MoreHorizontal size={16} /></button><FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="end" width={150} estimatedHeight={actions.length * 38 + 8} className="p-1"><div className="crew-onboarding-add-menu" role="menu">{actions.map((action) => <button key={action.label} type="button" role="menuitem" disabled={action.disabled} className={action.danger ? "is-danger" : ""} onClick={() => { setOpen(false); action.onClick(); }}>{action.label}</button>)}</div></FloatingLayer></div>;
 }
 
-function LessonEditor({ module, lesson, sops, onBack, onUpdate, onUpdateBlock, onUploadMedia, onAddBlock, onMoveBlock, onDeleteBlock, onUpdateQuiz }) {
-  return <section className="crew-onboarding-lesson-editor"><button className="btn-ghost crew-onboarding-editor-back" onClick={onBack}><ArrowLeft size={15} /> {module.title}</button><header><span>Lesson</span><h2>{lesson.title}</h2></header><div className="crew-onboarding-editor-fields is-lesson"><label>Lesson Title<input className="control" value={lesson.title} onChange={(event) => onUpdate({ title: event.target.value })} /></label><label>Estimated Minutes<input className="control" type="number" min="0" value={lesson.estimated_minutes || 0} onChange={(event) => onUpdate({ estimated_minutes: Number(event.target.value) })} /></label><Toggle label="Required" detail="Required lessons gate later required lessons." checked={Boolean(lesson.required)} onChange={(required) => onUpdate({ required })} /></div><section className="crew-onboarding-content"><header><h3>Content</h3><AddContentMenu disabledQuiz={Boolean(lesson.quizzes.length)} onAdd={onAddBlock} /></header>{lesson.blocks.map((block, index) => <ContentBlockEditor key={block.id} block={block} index={index} count={lesson.blocks.length} sops={sops} onChange={(values) => onUpdateBlock(block.id, values)} onUpload={(file) => onUploadMedia(block.id, file)} onMove={(direction) => onMoveBlock(block.id, direction)} onDelete={() => onDeleteBlock(block.id)} />)}{lesson.quizzes.map((quiz) => <QuizEditor key={quiz.id} quiz={quiz} onChange={onUpdateQuiz} />)}{!lesson.blocks.length && !lesson.quizzes.length ? <p className="crew-onboarding-empty-content">Add the first content item for this lesson.</p> : null}</section></section>;
+function LessonEditor({ module, lesson, sops, onBack, onUpdate, onUpdateBlock, onUploadMedia, onAddBlock, onMoveBlock, onMoveBlockTo, onDeleteBlock, onUpdateQuiz }) {
+  return <section className="crew-onboarding-lesson-editor"><button className="btn-ghost crew-onboarding-editor-back" onClick={onBack}><ArrowLeft size={15} /> {module.title}</button><header><span>{module.title} · Lesson</span><h2>{lesson.title || "Untitled lesson"}</h2></header><div className="crew-onboarding-editor-fields is-lesson"><AdminFormField label="Lesson Title"><input className="control" value={lesson.title} onChange={(event) => onUpdate({ title: event.target.value })} /></AdminFormField><AdminFormField label="Estimated Minutes"><input className="control" type="number" min="0" value={lesson.estimated_minutes || 0} onChange={(event) => onUpdate({ estimated_minutes: Number(event.target.value) })} /></AdminFormField><Toggle label="Required" detail="Required lessons gate later required lessons." checked={Boolean(lesson.required)} onChange={(required) => onUpdate({ required })} /></div><section className="crew-onboarding-content"><header><h3>Content</h3><AddContentMenu disabledQuiz={Boolean(lesson.quizzes.length)} onAdd={onAddBlock} /></header>{lesson.blocks.map((block, index) => <ContentBlockEditor key={block.id} block={block} index={index} count={lesson.blocks.length} sops={sops} onChange={(values) => onUpdateBlock(block.id, values)} onUpload={(file) => onUploadMedia(block.id, file)} onMove={(direction) => onMoveBlock(block.id, direction)} onMoveTo={(targetId) => onMoveBlockTo(block.id, targetId)} onDelete={() => onDeleteBlock(block.id)} />)}{lesson.quizzes.map((quiz) => <QuizEditor key={quiz.id} quiz={quiz} onChange={onUpdateQuiz} />)}{!lesson.blocks.length && !lesson.quizzes.length ? <p className="crew-onboarding-empty-content">Add the first content item for this lesson.</p> : null}</section></section>;
 }
 
 function AddContentMenu({ disabledQuiz, onAdd }) {
@@ -258,7 +279,7 @@ function AddContentMenu({ disabledQuiz, onAdd }) {
   return <><button ref={anchorRef} className="btn-secondary" onClick={() => setOpen((value) => !value)}><Plus size={15} /> Add Content</button><FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="end" width={220} estimatedHeight={190} className="p-1"><div className="crew-onboarding-add-menu" role="menu">{[["text", "Text"], ["key_point", "Key Point"], ["sop_reference", "SOP Reference"], ["quiz", "Knowledge Check"]].map(([type, label]) => <button key={type} role="menuitem" disabled={type === "quiz" && disabledQuiz} onClick={() => { setOpen(false); onAdd(type); }}>{label}</button>)}</div></FloatingLayer></>;
 }
 
-function ContentBlockEditor({ block, index, count, sops, onChange, onUpload, onMove, onDelete }) {
+function ContentBlockEditor({ block, index, count, sops, onChange, onUpload, onMove, onMoveTo, onDelete }) {
   const [editing, setEditing] = useState(String(block.id).startsWith("temp:"));
   const [imageError, setImageError] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -276,7 +297,7 @@ function ContentBlockEditor({ block, index, count, sops, onChange, onUpload, onM
   }
   const media = block.payload?.media;
   const imageInputId = `learning-image-${String(block.id).replace(/[^a-zA-Z0-9_-]/g, "-")}`;
-  return <article className={`crew-onboarding-content-card is-${block.block_type}`}><header><div><Badge tone={block.block_type === "key_point" ? "success" : "neutral"}>{label}</Badge><p>{summary}</p></div><div><button className="btn-secondary crew-sop-compact-action" onClick={() => setEditing((value) => !value)}>{editing ? "Done" : "Edit"}</button><button className="icon-btn" aria-label={`Move ${label} up`} disabled={!index} onClick={() => onMove(-1)}><ArrowUp size={14} /></button><button className="icon-btn" aria-label={`Move ${label} down`} disabled={index === count - 1} onClick={() => onMove(1)}><ArrowDown size={14} /></button><button className="icon-btn is-danger" aria-label={`Delete ${label}`} onClick={onDelete}><Trash2 size={14} /></button></div></header>{editing ? <div className="crew-onboarding-content-form">{block.block_type === "sop_reference" ? <><SelectField label="Published SOP" ariaLabel="Published SOP" value={block.payload?.sop_id || ""} onChange={(sopId) => onChange({ payload: { ...block.payload, sop_id: sopId, required_acknowledgement: true } })} placeholder="Choose SOP" options={publishedSops.map((sop) => ({ value: sop.id, label: sop.title }))} /><Toggle label="Acknowledgement Required" checked={block.payload?.required_acknowledgement !== false} onChange={(required_acknowledgement) => onChange({ payload: { ...block.payload, required_acknowledgement } })} /></> : <><RichTextEditor value={blockHtml(block)} onChange={(body_html) => onChange({ payload: { ...block.payload, body_html, body: plainText(body_html) } })} onImage={chooseImage} imageInputId={imageInputId} />{uploading ? <p className="crew-onboarding-media-note" role="status">Uploading image…</p> : null}{media ? <div className="crew-onboarding-media-editor"><AdminLearningImage media={media} previewUrl={block.media_preview_url} /><label>Image Caption<input className="control" value={media.caption || ""} onChange={(event) => onChange({ payload: { ...block.payload, media: { ...media, caption: event.target.value } } })} placeholder="Optional caption" /></label><label>Alternative Text<input className="control" value={media.alt_text || ""} onChange={(event) => onChange({ payload: { ...block.payload, media: { ...media, alt_text: event.target.value } } })} placeholder="Describe the image" /></label><div><button type="button" className="btn-secondary" onClick={() => document.getElementById(imageInputId)?.click()}>Replace Image</button><button type="button" className="btn-ghost is-danger" onClick={() => onChange({ media_preview_url: "", payload: { ...block.payload, media: null } })}>Remove Image</button></div></div> : null}</>}{imageError ? <p className="crew-onboarding-media-note" role="alert">{imageError}</p> : null}</div> : null}</article>;
+  return <article className={`crew-onboarding-content-card is-${block.block_type}`} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const drag = readSortableDrag(event); if (drag?.scope === "onboarding-content" && drag.itemId !== block.id) onMoveTo(drag.itemId); }}><header><div><AdminSortableHandle label={`Reorder ${label} content`} scope="onboarding-content" itemId={block.id} index={index} count={count} onMove={onMove} /><Badge tone={block.block_type === "key_point" ? "success" : "neutral"}>{label}</Badge><p>{summary}</p></div><div><button className="btn-secondary crew-sop-compact-action" onClick={() => setEditing((value) => !value)}>{editing ? "Done" : "Edit"}</button><OverflowActions label={`${label} actions`} actions={[{ label: "Delete", danger: true, onClick: onDelete }]} /></div></header>{editing ? <div className="crew-onboarding-content-form">{block.block_type === "sop_reference" ? <><SelectField label="Published SOP" ariaLabel="Published SOP" value={block.payload?.sop_id || ""} onChange={(sopId) => onChange({ payload: { ...block.payload, sop_id: sopId, required_acknowledgement: true } })} placeholder="Choose SOP" options={publishedSops.map((sop) => ({ value: sop.id, label: sop.title }))} /><Toggle label="Acknowledgement Required" checked={block.payload?.required_acknowledgement !== false} onChange={(required_acknowledgement) => onChange({ payload: { ...block.payload, required_acknowledgement } })} /></> : <><RichTextEditor value={blockHtml(block)} onChange={(body_html) => onChange({ payload: { ...block.payload, body_html, body: plainText(body_html) } })} onImage={chooseImage} imageInputId={imageInputId} />{uploading ? <p className="crew-onboarding-media-note" role="status">Uploading image…</p> : null}{media ? <div className="crew-onboarding-media-editor"><AdminLearningImage media={media} previewUrl={block.media_preview_url} /><AdminFormField label="Image Caption"><input className="control" value={media.caption || ""} onChange={(event) => onChange({ payload: { ...block.payload, media: { ...media, caption: event.target.value } } })} placeholder="Optional caption" /></AdminFormField><AdminFormField label="Alternative Text"><input className="control" value={media.alt_text || ""} onChange={(event) => onChange({ payload: { ...block.payload, media: { ...media, alt_text: event.target.value } } })} placeholder="Describe the image" /></AdminFormField><div><button type="button" className="btn-secondary" onClick={() => document.getElementById(imageInputId)?.click()}>Replace Image</button><button type="button" className="btn-ghost is-danger" onClick={() => onChange({ media_preview_url: "", payload: { ...block.payload, media: null } })}>Remove Image</button></div></div> : null}</>}{imageError ? <p className="crew-onboarding-media-note" role="alert">{imageError}</p> : null}</div> : null}</article>;
 }
 
 function QuizEditor({ quiz, onChange }) {
@@ -318,7 +339,7 @@ function AdminLearningImage({ media, previewUrl = "" }) {
 }
 
 function Toggle({ label, detail, checked, onChange }) {
-  return <label className="crew-onboarding-toggle"><input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} /><span><strong>{label}</strong>{detail ? <small>{detail}</small> : null}</span></label>;
+  return <ToggleField label={label} helper={detail} checked={checked} onChange={onChange} />;
 }
 
 function OnboardingPreview({ draft, sops }) {
@@ -326,6 +347,8 @@ function OnboardingPreview({ draft, sops }) {
 }
 
 function moveInArray(rows, id, direction) { const index = rows.findIndex((item) => item.id === id); const target = index + direction; if (index < 0 || target < 0 || target >= rows.length) return; [rows[index], rows[target]] = [rows[target], rows[index]]; }
+function moveToTarget(rows, id, targetId) { const fromIndex = rows.findIndex((item) => item.id === id); const targetIndex = rows.findIndex((item) => item.id === targetId); if (fromIndex < 0 || targetIndex < 0 || fromIndex === targetIndex) return; const [item] = rows.splice(fromIndex, 1); rows.splice(fromIndex < targetIndex ? targetIndex - 1 : targetIndex, 0, item); }
+function readSortableDrag(event) { try { return JSON.parse(event.dataTransfer.getData("text/plain")); } catch { return null; } }
 function findLesson(journey, moduleId, lessonId) { return journey.modules.find((module) => module.id === moduleId)?.lessons.find((lesson) => lesson.id === lessonId); }
 function normalizeOrders(journey) { journey.modules.forEach((module, moduleIndex) => { module.sort_order = moduleIndex + 1; module.lessons.forEach((lesson, lessonIndex) => { lesson.sort_order = lessonIndex + 1; lesson.blocks.forEach((block, blockIndex) => { block.sort_order = blockIndex + 1; }); lesson.quizzes?.forEach((quiz) => quiz.questions.forEach((question, questionIndex) => { question.sort_order = questionIndex + 1; question.options.forEach((option, optionIndex) => { option.sort_order = optionIndex + 1; }); })); }); }); return journey; }
 function newQuiz(lesson) { return { id: temporaryId("quiz"), title: `${lesson.title} Knowledge Check`, passing_score: 80, required: true, status: "draft", questions: [{ id: temporaryId("question"), prompt: "Untitled question", question_type: "single_choice", explanation: "", sort_order: 1, options: [{ id: temporaryId("option"), label: "Option 1", is_correct: true, sort_order: 1 }, { id: temporaryId("option"), label: "Option 2", is_correct: false, sort_order: 2 }] }] }; }

@@ -220,14 +220,16 @@ describe("Crew Learning architecture reset UI", () => {
     expect(saved.modules[1].title).toBe("Guest Connection");
   });
 
-  it("keeps module and lesson ordering actions out of the permanent builder chrome", async () => {
+  it("uses accessible drag handles for module and lesson ordering while reserving overflow for delete", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
     await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
-    expect(screen.getByText("Module Settings")).not.toBeNull();
-    expect(screen.getByText("Lessons Builder")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Welcome & Workplace" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Lessons" })).not.toBeNull();
+    const reorderModule = screen.getByRole("button", { name: /Reorder module 1/i });
+    fireEvent.keyDown(reorderModule, { key: "ArrowDown" });
+    expect(screen.getByText("Draft v3 · Unsaved changes")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Welcome & Workplace essentials actions" }));
-    expect(await screen.findByRole("menuitem", { name: "Move down" })).not.toBeNull();
     expect(screen.getByRole("menuitem", { name: "Delete" })).not.toBeNull();
   });
 
