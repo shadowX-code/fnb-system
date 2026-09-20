@@ -40,7 +40,7 @@ function DocumentForm({ employeeId, employer, initial, supersedesDocumentId, onC
       <div className={`rounded-xl border px-3 py-3 text-sm ${employer?.is_active ? "border-emerald-200 bg-emerald-50 text-emerald-950" : "border-amber-200 bg-amber-50 text-amber-950"}`}><strong className="block">Legal Employer</strong><span>{employer ? `${employer.display_name || employer.legal_company_name} · ${employer.company_registration_no}` : "Not assigned — assign an active Legal Employer before Send."}</span></div>
       <AdminFormField label="Document Title" required><input className="control" value={title} onChange={(event) => setTitle(event.target.value)} /></AdminFormField>
       <DatePickerField label="Effective Date" required value={effectiveDate} onChange={setEffectiveDate} />
-      <AdminFormField as="div" label="Employment Contract PDF" required={!initial?.has_document} helper="PDF only · Maximum 10 MB"><AdminEvidenceFilePicker file={file} onChange={setFile} disabled={busy} accept="application/pdf" /></AdminFormField>
+      <AdminFormField as="div" label="Employment Contract PDF" required={!initial?.has_document}><AdminEvidenceFilePicker file={file} onChange={setFile} disabled={busy} accept="application/pdf" helper="PDF only · Maximum 10 MB" /></AdminFormField>
       <p className="text-xs leading-5 text-text-muted">This V1 action records document review and acknowledgement. FeedX does not represent it as a legal electronic signature.</p>
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700" role="alert">{error}</div> : null}
     </div>

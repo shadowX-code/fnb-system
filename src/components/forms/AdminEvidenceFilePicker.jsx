@@ -7,7 +7,7 @@ const formatBytes = (bytes) => {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-export default function AdminEvidenceFilePicker({ file, onChange, accept, disabled = false, label = "Choose evidence" }) {
+export default function AdminEvidenceFilePicker({ file, onChange, accept, disabled = false, label = "Choose evidence", helper = "JPG, PNG, WebP or PDF · up to 10 MB" }) {
   const inputRef = useRef(null);
   const input = <input ref={inputRef} className="sr-only" type="file" accept={accept} disabled={disabled} aria-label={label} onChange={(event) => onChange(event.target.files?.[0] || null)} />;
 
@@ -15,7 +15,7 @@ export default function AdminEvidenceFilePicker({ file, onChange, accept, disabl
     return <><button className="flex min-h-24 w-full flex-col items-center justify-center rounded-xl border border-dashed border-border bg-slate-50 px-4 py-3 text-center transition hover:border-primary/40 hover:bg-primary/[0.03] focus:outline-none focus:ring-2 focus:ring-primary/15" type="button" disabled={disabled} onClick={() => inputRef.current?.click()}>
       <UploadCloud className="text-primary" size={20} />
       <span className="mt-2 text-sm font-semibold text-text-primary">{label}</span>
-      <span className="mt-0.5 text-xs text-text-muted">JPG, PNG, WebP or PDF · up to 10 MB</span>
+      <span className="mt-0.5 text-xs text-text-muted">{helper}</span>
     </button>{input}</>;
   }
 
