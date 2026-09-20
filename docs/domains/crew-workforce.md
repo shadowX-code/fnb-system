@@ -35,6 +35,8 @@ Attendance is recorded through token-bound server authority.
 Location verification, when enabled for an outlet, uses canonical outlet configuration and preserves original evidence and exceptions.
 Clock-out safety and exception behavior follow current RPC contracts rather than client inference.
 
+Attendance history is an outlet/date-scoped server-paged Admin projection. Employee, position, and evidence-status filters are evaluated by the read authority before its authoritative count and page are returned.
+
 Leave balances are server-derived from policy, entitlement, approved usage, pending reservations, adjustments, carry-forward, and expiry evidence.
 Request, approval, rejection, cancellation, and adjustment transitions must preserve balance integrity and audit history.
 Roster projections may display approved leave without transferring leave ownership to the roster.

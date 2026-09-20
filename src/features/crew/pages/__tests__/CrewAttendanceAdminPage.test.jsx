@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({ attendance: vi.fn(), outlets: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { listAttendance: mocks.attendance } }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { listAttendancePage: mocks.attendance } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: mocks.outlets } }));
 import CrewAttendanceAdminPage from "../CrewAttendanceAdminPage.jsx";
 
@@ -42,7 +42,7 @@ const fixture = [
 const ui = { notify: vi.fn() };
 
 beforeEach(() => {
-  mocks.attendance.mockReset().mockResolvedValue(fixture);
+  mocks.attendance.mockReset().mockResolvedValue({ rows: fixture, total_count: fixture.length, page: 1, page_size: 20, summary: { present: fixture.length, variance: 2, exceptions: 1, incomplete: 1, non_working: 2, no_roster: 1, large_variance: 1, filter_options: { employees: fixture.map((item) => item.employee), positions: ["Service Crew"] } } });
   mocks.outlets.mockReset().mockResolvedValue([outlet, { id: "outlet-2", name: "Hola Hola", is_active: true }]);
   ui.notify.mockReset();
 });
@@ -71,8 +71,7 @@ describe("Crew Attendance Admin", () => {
     expect(mocks.attendance).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1" }));
     fireEvent.click(screen.getByRole("button", { name: "Attendance Status" }));
     fireEvent.click(screen.getByRole("button", { name: "Location Exception" }));
-    expect(screen.getByText("Exception Crew")).not.toBeNull();
-    expect(screen.queryByText("Verified Crew")).toBeNull();
+    await waitFor(() => expect(mocks.attendance).toHaveBeenLastCalledWith(expect.objectContaining({ filters: expect.objectContaining({ status: "location_exception" }) })));
     fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
     fireEvent.click(screen.getByRole("button", { name: "All" }));
     await waitFor(() => expect(mocks.attendance).toHaveBeenLastCalledWith(expect.objectContaining({ outletId: null })));
@@ -106,14 +105,14 @@ describe("Crew Attendance Admin", () => {
   });
 
   it("shows a clean empty state without manufacturing OFF or leave records", async () => {
-    mocks.attendance.mockResolvedValueOnce([]);
+    mocks.attendance.mockResolvedValueOnce({ rows: [], total_count: 0, page: 1, page_size: 20, summary: { filter_options: { employees: [], positions: [] } } });
     render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("No attendance records")).not.toBeNull();
     expect(screen.queryByText(/attendance record.*occurred on OFF/)).toBeNull();
   });
 
   it("shows a retryable error instead of an empty table", async () => {
-    mocks.attendance.mockRejectedValueOnce(new Error("Attendance read failed")).mockResolvedValueOnce(fixture);
+    mocks.attendance.mockRejectedValueOnce(new Error("Attendance read failed")).mockResolvedValueOnce({ rows: fixture, total_count: fixture.length, page: 1, page_size: 20, summary: { filter_options: { employees: fixture.map((item) => item.employee), positions: ["Service Crew"] } } });
     render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByRole("alert")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
@@ -124,13 +123,13 @@ describe("Crew Attendance Admin", () => {
     let resolveFirst;
     const stale = [row("stale", "Stale Outlet Crew")];
     const fresh = [row("fresh", "All Outlets Crew")];
-    mocks.attendance.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; })).mockResolvedValueOnce(fresh);
+    mocks.attendance.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; })).mockResolvedValueOnce({ rows: fresh, total_count: 1, page: 1, page_size: 20, summary: { filter_options: { employees: fresh.map((item) => item.employee), positions: ["Service Crew"] } } });
     render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
     await waitFor(() => expect(resolveFirst).toBeTypeOf("function"));
     fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
     fireEvent.click(screen.getByRole("button", { name: "All" }));
     expect(await screen.findByText("All Outlets Crew")).not.toBeNull();
-    resolveFirst(stale);
+    resolveFirst({ rows: stale, total_count: 1, page: 1, page_size: 20, summary: { filter_options: { employees: stale.map((item) => item.employee), positions: ["Service Crew"] } } });
     await waitFor(() => expect(screen.queryByText("Stale Outlet Crew")).toBeNull());
     expect(screen.getByText("All Outlets Crew")).not.toBeNull();
   });

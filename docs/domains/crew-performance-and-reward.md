@@ -56,6 +56,8 @@ Evidence snapshots, finalized scoring, review decisions, reward calculations, ap
 
 Customer Feedback Detail is the canonical Admin evidence view for submission content, visit context, current trust and scoring state, optional authorized follow-up contact/status, moderation history, and attribution correction history. The operational table keeps excluded and review-required evidence visible; period KPIs are scoped to the selected outlet and period rather than table search filters.
 
+Customer Feedback table queries are server-paged (20/50/100 rows) after its selected period, scope, experience, scoring, trust, and search predicates. Paging does not change evidence inclusion, moderation, attribution, or Performance impact authority.
+
 ## Admin And Crew Workflows
 
 Admins configure or initiate periods/cycles where supported, review evidence, moderate feedback, finalize outcomes, manage certifications, and control reward approval or payout transitions.

@@ -5,6 +5,7 @@ import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.js
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
 import AdminDateTimeCell from "../../../components/tables/AdminDateTimeCell.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -48,9 +49,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   const [tab, setTab] = useState("checkout");
   const [from, setFrom] = useState(() => { const value = new Date(); value.setDate(value.getDate() - 30); return localDate(value); });
   const [to, setTo] = useState(localDate());
-  const [data, setData] = useState(emptyData);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
+  const [context, setContext] = useState(emptyData);
   const [selected, setSelected] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
@@ -58,14 +57,20 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   const canReview = auth.hasPermission("crew_cash_checkout.review");
   const canCollect = auth.hasPermission("crew_cash_deposit.record_collection");
 
-  async function refresh() {
-    if (!outletId) { setData(emptyData()); setLoadError(""); setLoading(false); return; }
-    setLoading(true); setLoadError("");
-    try { setData(normalizeData(await crewService.cashCheckoutAdminData(outletId, from, to))); }
-    catch (cause) { setData(emptyData()); setLoadError(cause.message || "Unable to load Cash Checkout"); }
-    finally { setLoading(false); }
-  }
-  useEffect(() => { refresh(); }, [outletId, from, to]);
+  const checkoutSignature = useMemo(() => JSON.stringify({ outletId, from, to, listing: "checkouts" }), [from, outletId, to]);
+  const ledgerSignature = useMemo(() => JSON.stringify({ outletId, from, to, listing: "ledger" }), [from, outletId, to]);
+  const [checkoutListing, checkoutActions] = useAdminPagedQuery({ storageKey: "crew-cash-checkouts", enabled: Boolean(outletId && tab === "checkout"), querySignature: checkoutSignature, loadPage: ({ page, pageSize }) => crewService.cashCheckoutAdminPage({ outletId, from, to, listing: "checkouts", page, pageSize }) });
+  const [ledgerListing, ledgerActions] = useAdminPagedQuery({ storageKey: "crew-cash-ledger", enabled: Boolean(outletId && tab === "deposit"), querySignature: ledgerSignature, loadPage: ({ page, pageSize }) => crewService.cashCheckoutAdminPage({ outletId, from, to, listing: "ledger", page, pageSize }) });
+  const listing = tab === "checkout" ? checkoutListing : ledgerListing;
+  const listingActions = tab === "checkout" ? checkoutActions : ledgerActions;
+  const data = useMemo(() => normalizeData({ ...context, settings: listing.summary && Object.hasOwn(listing.summary, "settings") ? listing.summary.settings : context.settings, summary: listing.summary || {}, checkouts: tab === "checkout" ? listing.rows : [], ledger: tab === "deposit" ? listing.rows : [], collections: listing.summary?.collections || [] }), [context, listing.rows, listing.summary, tab]);
+  const loading = listing.loading;
+  const loadError = listing.error;
+  const refresh = async () => listingActions.refreshNow();
+  useEffect(() => {
+    if (!outletId) { setContext(emptyData()); return; }
+    crewService.cashCheckoutAdminContext(outletId).then((payload) => setContext(normalizeData(payload))).catch(() => setContext(emptyData()));
+  }, [outletId]);
 
   async function review(checkout, decision) {
     const note = decision === "reject" ? window.prompt("Reason for returning this checkout") : "Reviewed and approved";
@@ -100,7 +105,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
       outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
       period={<FeedXDateRangePicker from={from} to={to} today={localDate()} onApply={({ from: nextFrom, to: nextTo }) => { setFrom(nextFrom); setTo(nextTo); }} />}
     />
-    <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Cash Checkout" hasData={tab === "checkout" ? data.checkouts.length > 0 : data.ledger.length > 0 || data.collections.length > 0} isEmpty={tab === "checkout" ? !data.checkouts.length : !data.ledger.length && !data.collections.length} emptyTitle={tab === "checkout" ? "No Cash Checkouts" : "No Cash Deposit activity"} emptyDescription={tab === "checkout" ? "No checkout records match this outlet and date range." : "No deposit ledger or handover records match this outlet and date range."} emptyIcon={Banknote} onRetry={refresh}>{tab === "checkout" ? <>
+    <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Cash Checkout" hasData={tab === "checkout" ? data.checkouts.length > 0 : data.ledger.length > 0 || data.collections.length > 0} isEmpty={listing.hasLoaded && listing.loadedTotal === 0 && !data.collections.length} emptyTitle={tab === "checkout" ? "No Cash Checkouts" : "No Cash Deposit activity"} emptyDescription={tab === "checkout" ? "No checkout records match this outlet and date range." : "No deposit ledger or handover records match this outlet and date range."} emptyIcon={Banknote} onRetry={listingActions.retry}>{tab === "checkout" ? <>
       <AdminSummaryGrid ariaLabel="Cash checkout summary" items={[{ label: "Floating Cash", value: data.settings ? money(data.settings.effective_floating_cash ?? data.settings.floating_cash) : "Not configured", helper: data.settings ? "Current effective outlet amount" : "Set this before Crew can reconcile opening cash", icon: WalletCards }, { label: "Completed", value: data.checkouts.filter((item) => item.status === "completed").length, helper: "Selected period", icon: CheckCircle2, tone: "success" }, { label: "In Progress", value: data.checkouts.filter((item) => item.status !== "completed").length, helper: "Draft through submitted", icon: History, tone: "warning" }, { label: "Needs Review", value: reviewCount, helper: "Variance, shortfall or receipt difference", icon: Banknote, tone: reviewCount ? "warning" : "success" }]} />
       <AdminDataSection className="crew-cash-table"><DataTable density="compact" tableClassName="min-w-[1080px]" rows={data.checkouts} getRowKey={(row) => row.id} columns={[
         { key: "date", header: "Date", render: (row) => date(row.business_date) },
@@ -113,7 +118,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
         { key: "deposit", header: "For Deposit", align: "right", render: (row) => <strong>{money(row.amount_for_deposit)}</strong> },
         { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.review_required && row.review_status === "pending" ? "review_required" : row.status)}>{row.review_required && row.review_status === "pending" ? "Review Required" : statusLabel(row.status)}</Badge> },
         { key: "actions", header: "Actions", align: "right", render: (row) => <button className="icon-btn h-9 w-9" aria-label={`View checkout ${date(row.business_date)}`} onClick={() => setSelected(row)}><Eye size={16} /></button> },
-      ]} /></AdminDataSection>
+      ]} /><AdminPagination {...checkoutListing} onPageChange={checkoutActions.requestPage} onPageSizeChange={checkoutActions.requestPageSize} noun="cash checkouts" /></AdminDataSection>
     </> : <>
       <AdminSummaryGrid ariaLabel="Cash deposit summary" items={[{ label: "Cash Deposit Balance", value: money(data.summary.current_balance), helper: "Canonical append-only ledger balance", icon: WalletCards, emphasis: true }, { label: "Pending Confirmation", value: money(data.summary.pending_handover ?? 0), helper: "Already deducted; confirmation is audit-only", icon: HandCoins, tone: Number(data.summary.pending_handover) ? "warning" : "neutral" }, { label: "Total Collected", value: money(data.summary.total_collected), helper: "Submitted collections", icon: History }]} />
       <AdminDataSection title="Deposit Ledger" description="Append-only checkout, handover, and correction activity." actions={<button className="btn-secondary" onClick={copySummary}><Clipboard size={15} /> Copy Summary</button>}><DataTable density="compact" tableClassName="min-w-[860px]" rows={data.ledger} getRowKey={(row) => row.id} columns={[
@@ -122,7 +127,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
         { key: "balance", header: "Balance", align: "right", render: (row) => <strong>{money(row.balance)}</strong> },
         { key: "receiver", header: "Receiver", render: (row) => ledgerActor(row) },
         { key: "recorded", header: "Recorded By", render: (row) => formatCrewEmployee(row.recorded_by) },
-      ]} /></AdminDataSection>
+      ]} /><AdminPagination {...ledgerListing} onPageChange={ledgerActions.requestPage} onPageSizeChange={ledgerActions.requestPageSize} noun="ledger entries" /></AdminDataSection>
       {data.collections.some((item) => ["pending_receipt", "review_required"].includes(item.status)) && <AdminDataSection title="Handover Status"><DataTable density="compact" rows={data.collections.filter((item) => ["pending_receipt", "review_required"].includes(item.status))} getRowKey={(row) => row.id} columns={[{ key: "receiver", header: "Receiver", render: (row) => row.receiver_name }, { key: "amount", header: "Handed Over", render: (row) => money(row.amount) }, { key: "received", header: "Received", render: (row) => row.received_amount ? money(row.received_amount) : "Awaiting confirmation" }, { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{statusLabel(row.status)}</Badge> }, { key: "action", header: "Action", align: "right", render: (row) => row.status === "review_required" && canReview ? <button className="btn-secondary" onClick={() => reviewCollection(row, refresh, ui)}>Review Difference</button> : null }]} /></AdminDataSection>}
     </>}</AsyncDataSurface>
     {selected && <CheckoutDetail row={selected} canReview={canReview} canManage={canManage} onReview={review} onChanged={refresh} ui={ui} onClose={() => setSelected(null)} />}

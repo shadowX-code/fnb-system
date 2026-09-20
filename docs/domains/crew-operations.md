@@ -37,6 +37,8 @@ The Deposit Ledger is append-only financial evidence derived from completed obli
 Internal handover remains pending confirmation until the intended receiver confirms through a valid Crew session. Cash Handover initiation requires the active, outlet-scoped Crew Access capability, independently of Admin roles and receiver eligibility. New handovers use one canonical `Cash handover` purpose because all follow the same collection, confirmation, ledger, and accounting lifecycle; historic purpose text remains preserved as submitted evidence. New handovers may be addressed only to an active, outlet-scoped Crew account explicitly configured by an Admin as a Cash Handover Receiver; receiver configuration is versioned and audited, while removing a receiver never rewrites or strands existing assignments.
 Corrections cannot silently rewrite completed checkout or ledger history.
 
+Crew Admin Tasks, Manager Review, Daily Cash Checkout, and Cash Deposit Ledger use server-paged read projections (20/50/100 rows). Scope, date, search, and lifecycle filters apply before pagination; the Deposit Ledger's page is independent from its canonical append-only balance summary.
+
 ## Permissions, Snapshots, And Audit
 
 Admin task and cash actions require the relevant Crew Operations permission plus outlet scope.

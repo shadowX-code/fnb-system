@@ -287,6 +287,12 @@ export const crewService = {
     return data || { definitions: [], instances: [], published_sops: [], employees: [] };
   },
 
+  async tasksAdminPage({ outletId, from = localBusinessDate(), to = from, listing = "definitions", filters = {}, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_tasks_admin_page", { p_outlet_id: outletId, p_from: from, p_to: to, p_listing: listing, p_filters: filters, p_page: page, p_page_size: pageSize });
+    throwSupabaseError("crew.tasksAdminPage", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize, summary: {} };
+  },
+
   async cashCheckoutMobile(token, date = localBusinessDate()) {
     const { data, error } = await supabase.rpc("crew_cash_mobile", { p_token: token, p_business_date: date });
     throwSupabaseError("crew.cashCheckoutMobile", error);
@@ -330,6 +336,18 @@ export const crewService = {
       settings: settingsResult.data?.settings || adminData.settings,
       checkout_positions: settingsResult.data?.checkout_positions || [],
     };
+  },
+
+  async cashCheckoutAdminPage({ outletId, from = localBusinessDate(), to = from, listing = "checkouts", page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_cash_admin_page", { p_outlet_id: outletId, p_from: from, p_to: to, p_listing: listing, p_page: page, p_page_size: pageSize });
+    throwSupabaseError("crew.cashCheckoutAdminPage", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize, summary: {} };
+  },
+
+  async cashCheckoutAdminContext(outletId) {
+    const { data, error } = await supabase.rpc("crew_cash_admin_context", { p_outlet_id: outletId });
+    throwSupabaseError("crew.cashCheckoutAdminContext", error);
+    return data || {};
   },
 
   async saveCashSettings(outletId, payload) {
@@ -487,6 +505,12 @@ export const crewService = {
     const { data, error } = await supabase.rpc("crew_performance_admin_data", { p_outlet_id: outletId, p_period: period });
     throwSupabaseError("crew.performanceAdminData", error);
     return data || { summary: {}, crew: [], reviews: [], feedback: [] };
+  },
+
+  async feedbackAdminPage({ outletId, period, filters = {}, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_feedback_admin_page", { p_outlet_id: outletId, p_period: period, p_filters: filters, p_page: page, p_page_size: pageSize });
+    throwSupabaseError("crew.feedbackAdminPage", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize, summary: {} };
   },
 
   async submitPerformanceReview({ employeeId, period, component, criteria, note = "" }) {
@@ -1533,6 +1557,12 @@ export const crewService = {
     });
     throwSupabaseError("crew.listAttendance", error);
     return data || [];
+  },
+
+  async listAttendancePage({ from, to, outletId = null, filters = {}, page = 1, pageSize = 20 } = {}) {
+    const { data, error } = await supabase.rpc("crew_attendance_admin_page", { p_from: from, p_to: to, p_outlet_id: outletId || null, p_filters: filters, p_page: page, p_page_size: pageSize });
+    throwSupabaseError("crew.listAttendancePage", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize, summary: {}, filter_options: {} };
   },
 
   async growthAdminData(outletId) {

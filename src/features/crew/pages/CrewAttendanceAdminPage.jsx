@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Clock3, Eye, HelpCircle, MapPin, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
@@ -138,12 +139,8 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
   const [employeeId, setEmployeeId] = useState(ALL);
   const [position, setPosition] = useState(ALL);
   const [status, setStatus] = useState(ALL);
-  const [rows, setRows] = useState([]);
   const [outlets, setOutlets] = useState(() => (store?.outlets || []).filter((row) => row.is_active !== false));
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
   const [detail, setDetail] = useState(null);
-  const requestSequence = useRef(0);
 
   useEffect(() => { if (!outletId && sharedOutlet.outletId) setOutletIdState(sharedOutlet.outletId); }, [outletId, sharedOutlet.outletId]);
   const setOutletId = (value) => { setOutletIdState(value); if (value !== ALL) sharedOutlet.setOutletId(value); };
@@ -155,43 +152,18 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
     return () => { live = false; };
   }, [store?.outlets, ui]);
 
-  const loadAttendance = useCallback(async () => {
-    if (!outletId) {
-      setLoading(false);
-      return;
-    }
-    const requestId = ++requestSequence.current;
-    setLoading(true);
-    setLoadError("");
-    try {
-      const data = await crewService.listAttendance({ from, to, outletId: outletId === ALL ? null : outletId });
-      if (requestId === requestSequence.current) setRows(data || []);
-    } catch (error) {
-      if (requestId === requestSequence.current) setLoadError(error.message || "Unable to load attendance.");
-    } finally {
-      if (requestId === requestSequence.current) setLoading(false);
-    }
-  }, [from, outletId, to]);
+  const attendanceFilters = useMemo(() => ({ employee_id: employeeId, position, status }), [employeeId, position, status]);
+  const attendanceQuerySignature = useMemo(() => JSON.stringify({ from, to, outletId: outletId === ALL ? null : outletId, ...attendanceFilters }), [attendanceFilters, from, outletId, to]);
+  const [listing, listingActions] = useAdminPagedQuery({
+    storageKey: "crew-attendance", enabled: Boolean(outletId), querySignature: attendanceQuerySignature,
+    loadPage: ({ page, pageSize }) => crewService.listAttendancePage({ from, to, outletId: outletId === ALL ? null : outletId, filters: attendanceFilters, page, pageSize }),
+  });
+  const rows = listing.rows;
+  const employees = listing.summary?.filter_options?.employees || [];
+  const positions = listing.summary?.filter_options?.positions || [];
+  const visibleRows = rows;
 
-  useEffect(() => { loadAttendance(); }, [loadAttendance]);
-
-  const employees = useMemo(() => Array.from(new Map(rows.map((row) => [row.employee?.id, row.employee]).filter(([id]) => id)).values()).sort((a, b) => (a.nickname || a.full_name || "").localeCompare(b.nickname || b.full_name || "")), [rows]);
-  const positions = useMemo(() => [...new Set(rows.map((row) => row.employee?.position).filter(Boolean))].sort(), [rows]);
-  const visibleRows = useMemo(() => rows.filter((row) => (
-    (employeeId === ALL || row.employee?.id === employeeId)
-    && (position === ALL || row.employee?.position === position)
-    && rowMatchesStatus(row, status)
-  )), [employeeId, position, rows, status]);
-
-  const summary = useMemo(() => ({
-    present: new Set(rows.filter((row) => row.clock_in_at).map((row) => row.employee?.id).filter(Boolean)).size,
-    variance: rows.filter((row) => Number(row.clock_in_variance_minutes || 0) !== 0).length,
-    exceptions: rows.filter((row) => locationState(row) === "exception").length,
-    incomplete: rows.filter((row) => attendanceState(row) === "incomplete").length,
-    nonWorking: rows.filter((row) => row.schedule && row.schedule.entry_type !== "working").length,
-    noRoster: rows.filter((row) => row.roster_evidence_state === "no_roster" || !row.schedule).length,
-    largeVariance: rows.filter((row) => varianceContext(row)?.attention).length,
-  }), [rows]);
+  const summary = useMemo(() => ({ present: Number(listing.summary?.present || 0), variance: Number(listing.summary?.variance || 0), exceptions: Number(listing.summary?.exceptions || 0), incomplete: Number(listing.summary?.incomplete || 0), nonWorking: Number(listing.summary?.non_working || 0), noRoster: Number(listing.summary?.no_roster || 0), largeVariance: Number(listing.summary?.large_variance || 0) }), [listing.summary]);
   const attentionCount = summary.exceptions + summary.incomplete + summary.noRoster + summary.largeVariance;
 
   const isToday = from === today && to === today;
@@ -227,9 +199,10 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
 
     {attentionCount ? <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3" aria-label="Needs Attention"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2 font-bold text-text-primary"><AlertTriangle className="text-amber-600" size={17} />{attentionCount} attendance record signal{attentionCount === 1 ? "" : "s"} need review</div><p className="mt-1 text-xs text-text-secondary">Signals remain separate: location, session completion, roster matching, and large clock-in variance.</p></div><div className="flex flex-wrap gap-2">{summary.exceptions ? <button className="btn-secondary" type="button" onClick={() => setStatus("location_exception")}>{summary.exceptions} Location Exception{summary.exceptions === 1 ? "" : "s"}</button> : null}{summary.incomplete ? <button className="btn-secondary" type="button" onClick={() => setStatus("incomplete")}>{summary.incomplete} Incomplete</button> : null}{summary.noRoster ? <button className="btn-secondary" type="button" onClick={() => setStatus("no_roster")}>{summary.noRoster} No Roster</button> : null}{summary.largeVariance ? <button className="btn-secondary" type="button" onClick={() => setStatus("variance")}>{summary.largeVariance} Large Variance</button> : null}</div></div></section> : null}
 
-    <Card title={isToday ? "Today’s Attendance" : "Attendance History"} description={`${visibleRows.length} record${visibleRows.length === 1 ? "" : "s"} shown · Execution and location states are reported separately.`}>
-      <AsyncDataSurface loading={loading} error={loadError} hasData={visibleRows.length > 0} isEmpty={!visibleRows.length} emptyTitle="No attendance records" emptyDescription="No records match the selected date, outlet, or filters." onRetry={loadAttendance}>
+    <Card title={isToday ? "Today’s Attendance" : "Attendance History"} description={`${listing.loadedTotal} record${listing.loadedTotal === 1 ? "" : "s"} · Execution and location states are reported separately.`}>
+      <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={visibleRows.length > 0} isEmpty={listing.hasLoaded && listing.loadedTotal === 0} emptyTitle="No attendance records" emptyDescription="No records match the selected date, outlet, or filters." onRetry={listingActions.retry}>
         <div className="crew-attendance-table"><DataTable density="compact" tableClassName="min-w-[1100px]" rows={visibleRows} getRowKey={(row) => row.id} getRowClassName={issueClass} onRowClick={setDetail} columns={columns} /></div>
+        <AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="attendance records" />
       </AsyncDataSurface>
     </Card>
     {detail ? <AttendanceDetail row={detail} onClose={() => setDetail(null)} /> : null}

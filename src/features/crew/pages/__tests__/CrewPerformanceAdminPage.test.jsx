@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), review: vi.fn(), finalize: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { performanceAdminData: mocks.data, submitPerformanceReview: mocks.review, finalizePerformance: mocks.finalize, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), feedbackPage: vi.fn(), review: vi.fn(), finalize: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { performanceAdminData: mocks.data, feedbackAdminPage: mocks.feedbackPage, submitPerformanceReview: mocks.review, finalizePerformance: mocks.finalize, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 import CrewPerformanceAdminPage from "../CrewPerformanceAdminPage.jsx";
 
@@ -13,7 +13,7 @@ const unscoredRow = { employee: { id: "employee-3", full_name: "Pending Score", 
 const feedback = [{ id: "feedback-1", scope: "crew", submitted_at: "2026-08-12", employee_id: "employee-1", employee_name: "Alex Tan", experience: "great", positive_tags: ["Friendly"], improvement_tags: [], comment: "Great service", scoring_status: "included", moderation_history: [], attribution_history: [] }, { id: "feedback-2", scope: "crew", submitted_at: "2026-08-13", employee_id: "employee-2", employee_name: "Mina Lee", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "Too slow", scoring_status: "excluded", exclusion_reason: "Duplicate guest submission", excluded_by_name: "Admin", excluded_at: "2026-08-13T10:30:00Z", moderation_history: [{ id: "moderation-1", previous_status: "included", next_status: "excluded", reason: "Duplicate guest submission", changed_by: "Admin", changed_at: "2026-08-13T10:30:00Z" }], attribution_history: [] }, { id: "feedback-3", scope: "crew", submitted_at: "2026-08-14", visit_at: "2026-08-14T11:30:00Z", employee_id: "employee-1", employee_name: "Alex Tan", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "QA review required feedback", trust_state: "review_required", trust_reason_codes: ["same_device_crew_business_day"], scoring_status: "included", trust_history: [{ id: "trust-1", next_trust_state: "review_required", reason_codes: ["same_device_crew_business_day"], decision_source: "system", changed_at: "2026-08-14T12:00:00Z" }], moderation_history: [], attribution_history: [], follow_up_requested: true, follow_up: { preferred_name: "QA Guest", contact_method: "phone", contact_value: "+60123456789", status: "requested", history: [] } }];
 const fixture = { summary: { average_score: 71, reviewed: 1, awaiting_review: 1 }, scoring_framework: [{ key: "attendance", label: "Attendance", max_score: 30 }, { key: "service", label: "Service", max_score: 30 }, { key: "customer", label: "Customer", max_score: 15 }, { key: "knowledge", label: "Knowledge", max_score: 15 }, { key: "conduct", label: "Conduct", max_score: 10 }], crew: [row, attentionRow], reviews: [], feedback, feedback_summary: { total_feedback: 2, included_feedback: 1, positive_feedback: 1, needs_improvement_feedback: 0, excluded_feedback: 1 }, feedback_crew: [{ id: "employee-1", name: "Alex Tan", position: "Service Crew", availability: "active" }, { id: "employee-2", name: "Mina Lee", position: "Kitchen Crew", availability: "active" }] };
 const auth = { hasPermission: () => true }; const ui = { notify: vi.fn() };
-beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.review.mockReset().mockResolvedValue({}); mocks.finalize.mockReset().mockResolvedValue({}); mocks.moderate.mockReset().mockResolvedValue({}); mocks.correct.mockReset().mockResolvedValue({}); });
+beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.feedbackPage.mockReset().mockImplementation(({ filters = {} }) => { const rows = feedback.filter((item) => (!filters.query || `${item.employee_name} ${item.comment} ${(item.positive_tags || []).join(" ")} ${(item.improvement_tags || []).join(" ")}`.toLowerCase().includes(filters.query.toLowerCase())) && (filters.scope === "all" || item.scope === filters.scope) && (filters.experience === "all" || item.experience === filters.experience) && (filters.status === "all" || item.scoring_status === filters.status) && (filters.trust === "all" || item.trust_state === filters.trust)); return Promise.resolve({ rows, total_count: rows.length, page: 1, page_size: 20, summary: { ...fixture.feedback_summary, feedback_crew: fixture.feedback_crew } }); }); mocks.review.mockReset().mockResolvedValue({}); mocks.finalize.mockReset().mockResolvedValue({}); mocks.moderate.mockReset().mockResolvedValue({}); mocks.correct.mockReset().mockResolvedValue({}); });
 afterEach(cleanup);
 
 describe("Crew Performance Admin", () => {
@@ -90,13 +90,13 @@ describe("Crew Performance Admin", () => {
     expect(await screen.findByText("All guest submissions this period")).not.toBeNull();
     expect(screen.getByText("Total Feedback").closest("[data-admin-summary-card]").textContent).toContain("2");
     fireEvent.change(screen.getByPlaceholderText("Search Crew, comment or tag"), { target: { value: "Alex" } });
-    expect(screen.getByText("Great service")).not.toBeNull();
-    expect(screen.queryByText("Too slow")).toBeNull();
+    expect(await screen.findByText("Great service")).not.toBeNull();
+    await waitFor(() => expect(screen.queryByText("Too slow")).toBeNull());
     expect(screen.getByText("Total Feedback").closest("[data-admin-summary-card]").textContent).toContain("2");
     fireEvent.change(screen.getByPlaceholderText("Search Crew, comment or tag"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Feedback scoring" }));
     fireEvent.click(screen.getByRole("button", { name: "Excluded" }));
-    expect(screen.getByText("Too slow")).not.toBeNull();
+    expect(await screen.findByText("Too slow")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
     fireEvent.change(screen.getByPlaceholderText("Explain why this feedback should return to scoring"), { target: { value: "Duplicate was rechecked" } });
     fireEvent.click(screen.getByRole("button", { name: "Restore To Scoring" }));
@@ -107,9 +107,9 @@ describe("Crew Performance Admin", () => {
     render(<CrewPerformanceAdminPage initialTab="feedback" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     const search = await screen.findByPlaceholderText("Search Crew, comment or tag");
     fireEvent.change(search, { target: { value: "No matching feedback" } });
-    expect(screen.getByText("No feedback matches these filters")).not.toBeNull();
+    await waitFor(() => expect(screen.getByText("No Customer Feedback")).not.toBeNull());
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(screen.getByText("Great service")).not.toBeNull();
+    expect(await screen.findByText("Great service")).not.toBeNull();
   });
 
   it("opens retained evidence history and corrects attribution through the controlled service", async () => {

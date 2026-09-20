@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), settings: vi.fn(), review: vi.fn(), collect: vi.fn(), saveReceivers: vi.fn(), reviewCollection: vi.fn(), adjust: vi.fn() }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), context: vi.fn(), settings: vi.fn(), review: vi.fn(), collect: vi.fn(), saveReceivers: vi.fn(), reviewCollection: vi.fn(), adjust: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
-  cashCheckoutAdminData: mocks.data, saveCashSettings: mocks.settings, reviewCashCheckout: mocks.review,
+  cashCheckoutAdminPage: mocks.data, cashCheckoutAdminContext: mocks.context, saveCashSettings: mocks.settings, reviewCashCheckout: mocks.review,
   recordAdminCashCollection: mocks.collect, saveCashHandoverReceivers: mocks.saveReceivers, reviewCashCollection: mocks.reviewCollection, adjustCashCheckout: mocks.adjust,
 } }));
 import CrewCashCheckoutAdminPage from "../CrewCashCheckoutAdminPage.jsx";
@@ -22,7 +22,7 @@ const fixture = {
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn() };
 
-beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.settings.mockReset().mockResolvedValue({}); mocks.review.mockReset().mockResolvedValue({}); mocks.collect.mockReset().mockResolvedValue({}); mocks.saveReceivers.mockReset().mockResolvedValue({}); mocks.reviewCollection.mockReset().mockResolvedValue({}); mocks.adjust.mockReset().mockResolvedValue({}); ui.notify.mockReset(); });
+beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Promise.resolve({ rows: listing === "ledger" ? fixture.ledger : fixture.checkouts, total_count: listing === "ledger" ? fixture.ledger.length : fixture.checkouts.length, page: 1, page_size: 20, summary: { ...fixture.summary, settings: fixture.settings, collections: fixture.collections } })); mocks.context.mockReset().mockResolvedValue(fixture); mocks.settings.mockReset().mockResolvedValue({}); mocks.review.mockReset().mockResolvedValue({}); mocks.collect.mockReset().mockResolvedValue({}); mocks.saveReceivers.mockReset().mockResolvedValue({}); mocks.reviewCollection.mockReset().mockResolvedValue({}); mocks.adjust.mockReset().mockResolvedValue({}); ui.notify.mockReset(); });
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
@@ -32,7 +32,7 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getByText("QA Crew")).not.toBeNull();
     expect(screen.getByText("Review Required")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Cash Deposit" }));
-    expect(screen.getByText("Deposit Ledger")).not.toBeNull();
+    expect(await screen.findByText("Deposit Ledger")).not.toBeNull();
     expect(screen.getByText("Cash Checkout · QA Crew")).not.toBeNull();
     expect(screen.getByText("20/08/2026")).not.toBeNull();
     expect(screen.getByText(/10:00 pm/i)).not.toBeNull();
@@ -50,7 +50,7 @@ describe("Crew Cash Checkout Admin", () => {
   it("uses one canonical Cash Deposit Balance and keeps confirmation informational", async () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("tab", { name: "Cash Deposit" }));
-    expect(screen.getByText("Cash Deposit Balance")).not.toBeNull();
+    expect(await screen.findByText("Cash Deposit Balance")).not.toBeNull();
     expect(screen.queryByText("Available Balance")).toBeNull();
     expect(screen.getByText("Pending Confirmation")).not.toBeNull();
     expect(screen.getByText("Already deducted; confirmation is audit-only")).not.toBeNull();
@@ -64,7 +64,7 @@ describe("Crew Cash Checkout Admin", () => {
   });
 
   it("renders an unconfigured outlet without dereferencing null settings", async () => {
-    mocks.data.mockResolvedValueOnce({ ...fixture, settings: null });
+    mocks.data.mockResolvedValueOnce({ rows: fixture.checkouts, total_count: fixture.checkouts.length, page: 1, page_size: 20, summary: { ...fixture.summary, settings: null, collections: [] } });
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("Not configured")).not.toBeNull();
     expect(screen.getByText("Set this before Crew can reconcile opening cash")).not.toBeNull();
@@ -137,7 +137,6 @@ describe("Crew Cash Checkout Admin", () => {
     mocks.data.mockRejectedValueOnce(new Error("Request timed out"));
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("Unable to load Cash Checkout")).not.toBeNull();
-    expect(screen.getByText("Request timed out")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     await waitFor(() => expect(mocks.data).toHaveBeenCalledTimes(2));
   });
