@@ -14,7 +14,7 @@ const tone = { issued: "warning", delivered: "warning", viewed: "info", acknowle
 const typeKey = { first_written_warning: "first", written_warning: "written", final_written_warning: "final" };
 const dateOnly = (value) => value ? formatCrewDate(`${value}T12:00:00+08:00`, { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
-export default function CrewDisciplinaryMobile({ token, onBack }) {
+export default function CrewDisciplinaryMobile({ token, onBack, onViewed }) {
   const { t } = useTranslation();
   const [warnings, setWarnings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -44,6 +44,7 @@ export default function CrewDisciplinaryMobile({ token, onBack }) {
       setDetail(next);
       if (next.has_evidence) employeeDisciplinaryService.crewEvidence(token, id).then(setEvidence).catch(() => setActionError(t("disciplinary.evidenceError")));
       await load();
+      await onViewed?.();
     } catch (cause) { setError(cause.message || t("disciplinary.loadError")); }
     finally { setDetailLoading(false); }
   }

@@ -29,6 +29,7 @@ const mocks = vi.hoisted(() => ({
   localizedContentForCrew: vi.fn(),
   myProfile: vi.fn(),
   assetsMobile: vi.fn(),
+  myDisciplinary: vi.fn(),
 }));
 
 vi.mock("../../../services/crewService.js", () => ({ crewService: mocks }));
@@ -83,6 +84,7 @@ beforeEach(() => {
   mocks.localizedContentForCrew.mockReset().mockResolvedValue({});
   mocks.myProfile.mockReset().mockResolvedValue({ employment_type: "full_time" });
   mocks.assetsMobile.mockReset().mockRejectedValue(new Error("Crew Asset access is unavailable."));
+  mocks.myDisciplinary.mockReset().mockResolvedValue({ warnings: [], unread_count: 0 });
   mocks.clock.mockReset().mockResolvedValue({});
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
   mocks.updateMyProfilePhoto.mockReset().mockResolvedValue({ profile_photo_path: "employee-a/profile.webp", profile_photo_url: "https://example.test/profile.webp" });
@@ -257,6 +259,24 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("heading", { name: "Work" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Account" })).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Support" })).toBeNull();
+  });
+
+  it("shows the server-projected unread warning count without deriving it from warning rows", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myDisciplinary.mockResolvedValueOnce({ warnings: [], unread_count: 2 });
+    const first = render(<CrewMobileApp />);
+
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    const warningsRow = await screen.findByRole("button", { name: /Warnings & Notices/ });
+    expect(warningsRow.querySelector(".crew-ui-count")?.textContent).toBe("2");
+    expect(warningsRow.querySelector(".crew-ui-count")?.getAttribute("aria-label")).toBe("2 unread warnings");
+    expect(mocks.myDisciplinary).toHaveBeenCalledWith("crew-token");
+
+    first.unmount();
+    mocks.myDisciplinary.mockResolvedValue({ warnings: [{ id: "already-viewed" }], unread_count: 0 });
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    expect((await screen.findByRole("button", { name: /Warnings & Notices/ })).querySelector(".crew-ui-count")).toBeNull();
   });
 
   it("keeps Me truthful for empty attendance and pending states without restoring the removed summary strip", async () => {

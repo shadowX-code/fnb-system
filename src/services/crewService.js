@@ -123,6 +123,12 @@ async function saveCrewDraftRow(table, row, payload) {
 }
 
 export const crewService = {
+  async myDisciplinary(token) {
+    const { data, error } = await supabase.rpc("crew_employee_disciplinary", { p_token: token });
+    throwSupabaseError("crew.myDisciplinary", error);
+    return data || { warnings: [], unread_count: 0 };
+  },
+
   publicOutletLogoUrl(path, version) {
     if (!path) return "";
     const { data } = supabase.storage.from("outlet-logos").getPublicUrl(path);

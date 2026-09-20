@@ -33,11 +33,13 @@ describe("Crew Warnings & Notices", () => {
   });
 
   it("loads exact issued detail and records the view through the canonical authority", async () => {
+    const onViewed = vi.fn().mockResolvedValue();
     employeeDisciplinaryService.crewOverview.mockResolvedValue({ warnings: [warning] });
     employeeDisciplinaryService.crewDetail.mockResolvedValue({ ...detail, status: "viewed", first_viewed_at: "2026-09-21T02:00:00Z" });
-    render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
+    render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} onViewed={onViewed} />);
     fireEvent.click(await screen.findByRole("button", { name: "Review" }));
     await waitFor(() => expect(employeeDisciplinaryService.crewDetail).toHaveBeenCalledWith("opaque-token", "warning-1"));
+    await waitFor(() => expect(onViewed).toHaveBeenCalledTimes(1));
     expect(await screen.findByText("The issued warning text.")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Acknowledge Receipt" })).not.toBeNull();
   });

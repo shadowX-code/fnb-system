@@ -37,7 +37,7 @@ function ProfileInformation({ profile, employee, context, firstName, t, onBack, 
 }
 
 
-export default function CrewMeMobile({ session, context, profile, attendance, leave, assetAccess, onChangePasscode, onUpdateProfilePhoto, passcodeSuccess, navigate, onLogout }) {
+export default function CrewMeMobile({ session, context, profile, attendance, leave, assetAccess, disciplinary, onChangePasscode, onUpdateProfilePhoto, passcodeSuccess, navigate, onLogout }) {
   const { t, i18n } = useTranslation();
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
@@ -58,6 +58,7 @@ export default function CrewMeMobile({ session, context, profile, attendance, le
   const firstName = employee.nickname || employee.full_name?.split(" ")[0] || t("auth.crew");
   const employmentType = profile?.employment_type || employee.employment_type || "";
   const pendingLeaveCount = (leave?.requests || []).filter((item) => item.status === "pending").length;
+  const unreadWarningCount = Math.max(0, Number(disciplinary?.unread_count) || 0);
   const currentMonthAttendance = attendance.filter((item) => {
     if (!item.clock_in_at) return false;
     const date = new Date(item.clock_in_at);
@@ -116,7 +117,7 @@ export default function CrewMeMobile({ session, context, profile, attendance, le
           <button type="button" onClick={() => navigate("cash-checkout")}><span className="crew-me-row-icon crew-ui-icon-container"><Banknote size={20} /></span><span><strong>{t("cash.title")}</strong><small>{t("cash.meSubtitle")}</small></span><ChevronRight size={19} /></button>
           {assetAccess && <button type="button" onClick={() => navigate("assets")}><span className="crew-me-row-icon crew-ui-icon-container"><Archive size={20} /></span><span><strong>{t("assets.title")}</strong><small>{t("assets.meSubtitle")}</small></span><ChevronRight size={19} /></button>}
           <button type="button" onClick={() => navigate("compliance")}><span className="crew-me-row-icon crew-ui-icon-container"><FileText size={20} /></span><span><strong>{t("me.employmentDocuments")}</strong></span><ChevronRight size={19} /></button>
-          <button type="button" onClick={() => navigate("disciplinary")}><span className="crew-me-row-icon crew-ui-icon-container"><AlertTriangle size={20} /></span><span><strong>{t("disciplinary.title")}</strong></span><ChevronRight size={19} /></button>
+          <button type="button" onClick={() => navigate("disciplinary")}><span className="crew-me-row-icon crew-ui-icon-container"><AlertTriangle size={20} /></span><span><strong>{t("disciplinary.title")}</strong></span>{unreadWarningCount > 0 ? <span className="crew-ui-count" aria-label={t("disciplinary.unreadCount", { count: unreadWarningCount })}>{unreadWarningCount}</span> : null}<ChevronRight size={19} /></button>
         </div></section>
         <section className="crew-me-section"><h2>{t("me.account")}</h2><div className="crew-me-list">
           <button type="button" onClick={() => setMeView("profile")}><span className="crew-me-row-icon crew-ui-icon-container"><UserRound size={20} /></span><span><strong>{t("me.profile")}</strong></span><ChevronRight size={19} /></button>

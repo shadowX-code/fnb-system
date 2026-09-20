@@ -55,7 +55,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   useCrewVisualViewport();
   const { theme, toggleTheme } = useCrewTheme();
   const { screen, growthInitialView, entry, navigate } = route;
-  const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave, assets } = data;
+  const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave, assets, disciplinary } = data;
   const clock = useCrewAttendance({ session, attendance, context, roster, refresh, screen });
   const [cashCheckoutFlow, setCashCheckoutFlow] = useState(false);
   const [assetInspectionFlow, setAssetInspectionFlow] = useState(false);
@@ -75,10 +75,10 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
     {screen === "assets" && <CrewAssetsMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setAssetInspectionFlow} />}
     {screen === "compliance" && <CrewComplianceMobile token={session.token} onBack={() => navigate("me")} />}
-    {screen === "disciplinary" && <CrewDisciplinaryMobile token={session.token} onBack={() => navigate("me")} />}
+    {screen === "disciplinary" && <CrewDisciplinaryMobile token={session.token} onBack={() => navigate("me")} onViewed={refresh} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
     {screen === "attendance" && <CrewAttendanceMobile rows={clock.attendanceMonth} loading={clock.attendanceMonthLoading} selectedMonth={clock.selectedAttendanceMonth} onMonthChange={clock.setSelectedAttendanceMonth} onBack={() => navigate("home")} t={t} />}
-    {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
+    {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} disciplinary={disciplinary} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
     {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}

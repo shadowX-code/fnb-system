@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const component = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewDisciplinaryMobile.jsx"), "utf8");
+const app = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.jsx"), "utf8");
 const route = readFileSync(resolve(process.cwd(), "src/features/crew/crewRoute.js"), "utf8");
 const me = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewMeMobile.jsx"), "utf8");
 
@@ -10,6 +11,9 @@ describe("Crew Warnings & Notices V1", () => {
   it("is routed under Me and keeps the global Me navigation state", () => {
     expect(route).toContain('"me/warnings": { screen: "disciplinary" }');
     expect(me).toContain('navigate("disciplinary")');
+    expect(me).toContain("disciplinary?.unread_count");
+    expect(me).toContain("crew-ui-count");
+    expect(app).toContain("onViewed={refresh}");
   });
 
   it("uses receipt acknowledgement language without admission wording", () => {
