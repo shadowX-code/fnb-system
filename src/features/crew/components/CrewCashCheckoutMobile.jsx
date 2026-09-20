@@ -8,6 +8,7 @@ import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewEmptyState, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import { crewLocale, formatCrewEmployee, formatCrewMoney, formatCrewOperationalDate, formatCrewOperationalDateTime, formatCrewTime, MALAYSIA_TIME_ZONE } from "../utils/crewI18n.js";
+import { CASH_HANDOVER_PURPOSE } from "../cashHandover.js";
 
 const DENOMINATION_GROUPS = [
   { key: "notes", values: [100, 50, 20, 10, 5, 1] },
@@ -273,7 +274,7 @@ function CollectionSheet({ data, token, onClose, onSaved }) {
   const [receiverOpen, setReceiverOpen] = useState(false);
   const [receiverSearch, setReceiverSearch] = useState("");
   // The server still receives its existing canonical purpose constant; it is not a Crew input.
-  const [form, setForm] = useState({ request_id: crypto.randomUUID(), receiver_employee_id: "", amount: "", purpose: "Cash deposit collection", note: "" });
+  const [form, setForm] = useState({ request_id: crypto.randomUUID(), receiver_employee_id: "", amount: "", purpose: CASH_HANDOVER_PURPOSE, note: "" });
   const [review, setReview] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");

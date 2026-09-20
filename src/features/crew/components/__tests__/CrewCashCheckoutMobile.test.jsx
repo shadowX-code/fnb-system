@@ -15,11 +15,13 @@ const payload = {
 };
 
 beforeEach(() => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  vi.setSystemTime(new Date("2026-08-21T12:00:00+08:00"));
   crewService.cashCheckoutMobile.mockResolvedValue(payload);
   crewService.cashCheckoutHistory.mockResolvedValue([]);
   crewService.saveCashCheckout.mockResolvedValue({ checkout: { status: "reconciled" } });
 });
-afterEach(() => { cleanup(); vi.clearAllMocks(); });
+afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("Crew Cash Checkout mobile", () => {
   it("renders the server-scoped checkout and deposit summary", async () => {
@@ -383,12 +385,12 @@ describe("Crew Cash Checkout mobile", () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "View ledger" }));
     expect(await screen.findByText("Cash Checkout")).not.toBeNull();
-    expect(screen.getByText("20/08/2026 · 10:00 AM")).not.toBeNull();
+    expect(screen.getByText("20/08/2026 10:00 am")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Jul 2026" }));
-    expect(screen.getByText("20/07/2026 · 10:00 AM")).not.toBeNull();
-    expect(screen.queryByText("20/08/2026 · 10:00 AM")).toBeNull();
+    expect(screen.getByText("20/07/2026 10:00 am")).not.toBeNull();
+    expect(screen.queryByText("20/08/2026 10:00 am")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Jun 2026" }));
-    expect(screen.getByText("20/06/2026 · 10:00 AM")).not.toBeNull();
+    expect(screen.getByText("20/06/2026 10:00 am")).not.toBeNull();
   });
 
   it("uses the canonical empty state when the selected month has no cash activity", async () => {

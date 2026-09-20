@@ -18,6 +18,7 @@ export default function AsyncDataSurface({
   loadingRows = 4,
   children,
   className = "",
+  contentClassName = "space-y-4",
 }) {
   const showContent = hasData || (!loading && !error && !isEmpty);
   return (
@@ -27,7 +28,7 @@ export default function AsyncDataSurface({
       {error ? <Notice icon={AlertTriangle} tone="danger" action={onRetry ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={loading} onClick={onRetry}><RefreshCw size={13} /> Retry</button> : null}>{hasData ? "Unable to load the latest results. Showing the last successfully loaded data." : errorTitle ? <><span>{errorTitle}</span><span className="block text-xs font-medium">{error}</span></> : error}</Notice> : null}
       {loading && !hasData ? <div role="status" aria-label="Loading data"><LoadingSkeleton rows={loadingRows} /></div> : null}
       {!loading && !error && isEmpty ? <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} icon={emptyIcon} actions={emptyActions} /></div> : null}
-      {showContent ? children : null}
+      {showContent ? <div className={contentClassName}>{children}</div> : null}
     </section>
   );
 }

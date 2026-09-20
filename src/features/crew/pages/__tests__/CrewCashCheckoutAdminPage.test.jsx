@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), settings: vi.fn(), review: vi.fn(), collect: vi.fn(), reviewCollection: vi.fn(), adjust: vi.fn() }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), settings: vi.fn(), review: vi.fn(), collect: vi.fn(), saveReceivers: vi.fn(), reviewCollection: vi.fn(), adjust: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   cashCheckoutAdminData: mocks.data, saveCashSettings: mocks.settings, reviewCashCheckout: mocks.review,
-  recordAdminCashCollection: mocks.collect, reviewCashCollection: mocks.reviewCollection, adjustCashCheckout: mocks.adjust,
+  recordAdminCashCollection: mocks.collect, saveCashHandoverReceivers: mocks.saveReceivers, reviewCashCollection: mocks.reviewCollection, adjustCashCheckout: mocks.adjust,
 } }));
 import CrewCashCheckoutAdminPage from "../CrewCashCheckoutAdminPage.jsx";
 
@@ -22,7 +22,7 @@ const fixture = {
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn() };
 
-beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.settings.mockReset().mockResolvedValue({}); mocks.review.mockReset().mockResolvedValue({}); mocks.collect.mockReset().mockResolvedValue({}); mocks.reviewCollection.mockReset().mockResolvedValue({}); mocks.adjust.mockReset().mockResolvedValue({}); ui.notify.mockReset(); });
+beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.settings.mockReset().mockResolvedValue({}); mocks.review.mockReset().mockResolvedValue({}); mocks.collect.mockReset().mockResolvedValue({}); mocks.saveReceivers.mockReset().mockResolvedValue({}); mocks.reviewCollection.mockReset().mockResolvedValue({}); mocks.adjust.mockReset().mockResolvedValue({}); ui.notify.mockReset(); });
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
@@ -34,6 +34,8 @@ describe("Crew Cash Checkout Admin", () => {
     fireEvent.click(screen.getByRole("tab", { name: "Cash Deposit" }));
     expect(screen.getByText("Deposit Ledger")).not.toBeNull();
     expect(screen.getByText("Cash Checkout · QA Crew")).not.toBeNull();
+    expect(screen.getByText("20/08/2026")).not.toBeNull();
+    expect(screen.getByText(/10:00 pm/i)).not.toBeNull();
   });
 
   it("shows server-calculated checkout evidence for review", async () => {
@@ -58,7 +60,7 @@ describe("Crew Cash Checkout Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: /Receiver QA/ }));
     fireEvent.change(screen.getByLabelText("Amount (RM)"), { target: { value: "300" } });
     fireEvent.click(screen.getByRole("button", { name: "Confirm Handover" }));
-    await waitFor(() => expect(mocks.collect).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ amount: "300", receiver_employee_id: "employee-2" })));
+    await waitFor(() => expect(mocks.collect).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ amount: "300", receiver_employee_id: "employee-2", purpose: "Cash handover" })));
   });
 
   it("renders an unconfigured outlet without dereferencing null settings", async () => {
@@ -80,10 +82,13 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getAllByText("Floating Cash")).toHaveLength(2);
     expect(screen.getByText("Checkout Rules")).not.toBeNull();
     expect(screen.getByText("Eligible Crew")).not.toBeNull();
+    expect(screen.getByText("Handover")).not.toBeNull();
+    expect(screen.getByText("Cash Handover Receivers")).not.toBeNull();
     expect(screen.getByText("Review Rules")).not.toBeNull();
     expect(screen.getByText("Require internal receiver confirmation")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
     fireEvent.click(screen.getByRole("tab", { name: "Cash Deposit" }));
+    expect(screen.queryByRole("button", { name: "Cash Handover Receivers" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Hand Over Cash" }));
     expect(screen.getByRole("button", { name: "Select approved receiver" })).not.toBeNull();
     expect(screen.queryByText("External Receiver")).toBeNull();
