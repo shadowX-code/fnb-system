@@ -58,7 +58,7 @@ import { productAnalyticsService } from "../../../services/productAnalyticsServi
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
 import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
-import FactoryPagination, { useFactoryClientPagination } from "../../factory/components/FactoryPagination.jsx";
+import AdminPagination, { useAdminClientPagination } from "../../../components/tables/AdminPagination.jsx";
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
 const LEGACY_STORAGE_KEYS = ["feedx.inventoryControl.v1"];
@@ -6077,10 +6077,10 @@ function CopyPoTextModal({ text, onClose, onCopy }) {
 }
 
 function RecipeListPagination({ rows, resetKey, children }) {
-  const pagination = useFactoryClientPagination("restaurant.recipes", rows.length, 20, resetKey);
+  const pagination = useAdminClientPagination("restaurant.recipes", rows.length, 20, resetKey);
   return children(
     rows.slice(pagination.from, pagination.to),
-    <FactoryPagination
+    <AdminPagination
       page={pagination.page}
       pageSize={pagination.pageSize}
       total={rows.length}

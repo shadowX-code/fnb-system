@@ -13,7 +13,7 @@ import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
 import { formatSupplierName, supplierService } from "../../../services/supplierService.js";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { canCreate, canDelete, canEdit, getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
-import FactoryPagination, { useFactoryClientPagination } from "../../factory/components/FactoryPagination.jsx";
+import AdminPagination, { useAdminClientPagination } from "../../../components/tables/AdminPagination.jsx";
 
 function purchasePeriodLabel(period) {
   if (!period?.month || !period?.year) return "—";
@@ -77,7 +77,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
       }),
     [accessibleOutletIds, category, outletFilter, query, status, store.suppliers, usageMap],
   );
-  const supplierPagination = useFactoryClientPagination(
+  const supplierPagination = useAdminClientPagination(
     "restaurant.suppliers",
     rows.length,
     20,
@@ -406,7 +406,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
             <p className="mt-1">{outletFilter === "all" ? "Adjust filters or add a supplier." : "Suppliers will appear here after purchase records are added."}</p>
           </div>
         ) : null}
-        <FactoryPagination
+        <AdminPagination
           page={supplierPagination.page}
           pageSize={supplierPagination.pageSize}
           total={rows.length}
