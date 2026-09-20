@@ -8,9 +8,10 @@ const route = readFileSync(resolve(process.cwd(), "src/features/crew/crewRoute.j
 const me = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewMeMobile.jsx"), "utf8");
 
 describe("Crew Warnings & Notices V1", () => {
-  it("is routed under Me and keeps the global Me navigation state", () => {
+  it("is routed under Employment Records and keeps the global Me navigation state", () => {
     expect(route).toContain('"me/warnings": { screen: "disciplinary" }');
-    expect(me).toContain('navigate("disciplinary")');
+    expect(route).toContain('"me/employment-records/warnings": { screen: "disciplinary" }');
+    expect(me).toContain('navigate("employment-records")');
     expect(me).toContain("disciplinary?.unread_count");
     expect(me).toContain("crew-ui-count");
     expect(app).toContain("onViewed={refresh}");

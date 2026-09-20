@@ -64,4 +64,6 @@ resources.disciplinary = {
   type:{ first:"第一次书面警告", written:"书面警告", final:"最终书面警告" }, status:{ issued:"已发出", delivered:"已送达", viewed:"已查看", acknowledged:"已确认收悉", not_acknowledged:"未确认收悉", withdrawn:"已撤回", superseded:"已被取代" },
   incidentDate:"事件日期", issuedDate:"发出日期", details:"警告详情", requiredAction:"预期改善 / 所需行动", evidence:"支持证据", viewEvidence:"查看支持证据", evidenceError:"支持证据暂不可用。", addResponse:"添加回应", responseHelp:"您的陈述会独立保存，不会更改已发出的警告。", responseLabel:"您的回应", submitResponse:"提交回应", responseError:"无法提交您的回应。", yourResponse:"您的回应", acknowledge:"确认收悉", acknowledgeTitle:"确认收悉？", acknowledgeReceipt:"确认收悉", acknowledgeCopy:"确认收悉仅表示您已收到并查看此警告，并不一定表示您同意其中的内容。", ackError:"无法确认收悉此警告。", acknowledgedAt:"确认于 {{date}}",
 };
+resources.employmentRecords = { ...en.employmentRecords, title:"雇佣记录", meSubtitle:"合同、合规文件及工作场所通知", intro:"您的雇佣记录按各自负责的 People 功能分类。", contracts:"合同与信函", compliance:"文件与合规", warnings:"警告与通知" };
+resources.employmentDocuments = { ...en.employmentDocuments, intro:"查看雇主向您发出的当前及历史雇佣合同。", empty:"暂无雇佣合同", loadError:"无法加载雇佣合同。", contract:"雇佣合同", effective:"生效日期 {{date}}", view:"查看文件", download:"下载原始 PDF", legalEmployer:"法定雇主", registration:"公司注册号", sent:"发送时间", acknowledge:"查看并确认", ackTitle:"确认雇佣文件", ackAction:"确认雇佣文件", status:{ sent:"已发送", viewed:"已查看", completed:"已完成", withdrawn:"已撤回", superseded:"已取代" } };
 export default resources;

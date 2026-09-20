@@ -17,6 +17,9 @@ import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAc
 import { employeeService } from "../../../services/employeeService.js";
 import { employeeComplianceService } from "../../../services/employeeComplianceService.js";
 import EmployeeDisciplinaryPanel from "../components/EmployeeDisciplinaryPanel.jsx";
+import EmployeeEmploymentDocumentsPanel from "../components/EmployeeEmploymentDocumentsPanel.jsx";
+import LegalEntitiesModal from "../components/LegalEntitiesModal.jsx";
+import { legalEntityService } from "../../../services/employmentDocumentService.js";
 import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
 import { normalizeEmployeeLoginEmail } from "../../../services/employeeIdentity.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
@@ -61,6 +64,7 @@ function createEmptyUser() {
     outlet_access: [],
     employment_type: "probation",
     employment_status: "active",
+    legal_entity_id: "",
     access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS,
     enable_system_login: false,
     is_active: false,
@@ -611,6 +615,9 @@ function UserFormModal({
   canReviewCompliance = false,
   canViewDisciplinary = false,
   canManageDisciplinary = false,
+  canViewEmploymentDocuments = false,
+  canManageEmploymentDocuments = false,
+  legalEntities = [],
 }) {
   const [values, setValues] = useState(() => {
     const merged = { ...createEmptyUser(), ...initialUser };
@@ -654,6 +661,7 @@ function UserFormModal({
   const isMalaysia = isMalaysiaNationality(values.nationality);
   const activeJobPositions = jobPositions.filter((position) => position.status === "active");
   const selectedPosition = findJobPosition(jobPositions, values.position);
+  const selectedLegalEntity = legalEntities.find((entity) => entity.id === values.legal_entity_id);
   const hasBankInfo = Boolean(values.bank_name || values.bank_account_number || values.bank_account_name);
   const detectedIcBirthday = isMalaysia ? extractMalaysiaIcBirthday(values.ic_no) : null;
   const birthdayHelper = detectedIcBirthday
@@ -1084,6 +1092,7 @@ function UserFormModal({
             <div className="grid gap-3 md:grid-cols-2">
               <ReadOnlyField label="Employment Type">{employmentTypeLabel(values.employment_type)}</ReadOnlyField>
               <ReadOnlyField label="Employment Status">{employmentStatusLabel(values.employment_status)}</ReadOnlyField>
+              <ReadOnlyField label="Legal Employer">{selectedLegalEntity ? (selectedLegalEntity.display_name || selectedLegalEntity.legal_company_name) : "Not assigned"}</ReadOnlyField>
               <ReadOnlyField label="Position">
                 <span>{values.position || "-"}</span>
                 {selectedPosition?.status === "inactive" ? <span className="ml-2"><Badge tone="warning">Disabled</Badge></span> : null}
@@ -1111,6 +1120,9 @@ function UserFormModal({
                   options={employmentStatusOptions}
                   onChange={(nextValue) => updateValue("employment_status", nextValue)}
                 />
+              </FormField>
+              <FormField label="Legal Employer" helper="The employing company is distinct from the employee's workplace.">
+                <SelectField value={values.legal_entity_id || ""} placeholder="Not assigned" searchable options={[{ value: "", label: "Not assigned" }, ...legalEntities.filter((entity) => entity.is_active || entity.id === values.legal_entity_id).map((entity) => ({ value: entity.id, label: `${entity.display_name || entity.legal_company_name} · ${entity.company_registration_no}${entity.is_active ? "" : " (inactive)"}` }))]} onChange={(nextValue) => updateValue("legal_entity_id", nextValue)} />
               </FormField>
             <FormField label="Position" required error={visibleError("position")} helper="Position is the employee HR title. Role controls system permissions.">
               <SelectField
@@ -1357,6 +1369,7 @@ function UserFormModal({
         </FormSection>
 
         <EmployeeCompliancePanel employeeId={values.id} canView={canViewCompliance} canReview={canReviewCompliance} ui={ui} />
+        <EmployeeEmploymentDocumentsPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewEmploymentDocuments} canManage={canManageEmploymentDocuments} ui={ui} />
         <EmployeeDisciplinaryPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewDisciplinary} canManage={canManageDisciplinary} ui={ui} />
       </div>
     </Modal>
@@ -1367,6 +1380,8 @@ export default function UsersPage({ ui, store, auth }) {
   const [users, setUsers] = useState([]);
   const [jobPositions, setJobPositions] = useState([]);
   const [roleRecords, setRoleRecords] = useState([]);
+  const [legalEntities, setLegalEntities] = useState([]);
+  const [legalEntitiesOpen, setLegalEntitiesOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
@@ -1391,6 +1406,10 @@ export default function UsersPage({ ui, store, auth }) {
   const canReviewCompliance = hasPermission(auth, "employee_compliance.review");
   const canViewDisciplinary = hasPermission(auth, "employee_disciplinary.view");
   const canManageDisciplinary = hasPermission(auth, "employee_disciplinary.manage");
+  const canViewLegalEntities = hasPermission(auth, "legal_entities.view");
+  const canManageLegalEntities = hasPermission(auth, "legal_entities.manage");
+  const canViewEmploymentDocuments = hasPermission(auth, "employee_employment_documents.view");
+  const canManageEmploymentDocuments = hasPermission(auth, "employee_employment_documents.manage");
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
   const workplaceOptions = useMemo(
     () => {
@@ -1409,15 +1428,17 @@ export default function UsersPage({ ui, store, auth }) {
       setLoading(true);
       setLoadError("");
       try {
-        const [employeeRows, positionRows, roleRows] = await Promise.all([
+        const [employeeRows, positionRows, roleRows, legalEntityRows] = await Promise.all([
           employeeService.listEmployees(),
           jobPositionService.listJobPositions(),
           roleService.listRoleOptions(),
+          canViewLegalEntities ? legalEntityService.list() : Promise.resolve([]),
         ]);
         if (!ignore) {
           setUsers(employeeRows);
           setJobPositions(positionRows);
           setRoleRecords(roleRows);
+          setLegalEntities(legalEntityRows);
         }
       } catch (error) {
         console.error("Unable to load employees", error);
@@ -1430,7 +1451,7 @@ export default function UsersPage({ ui, store, auth }) {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [canViewLegalEntities]);
 
   const roles = useMemo(() => [...new Set(users.map((user) => user.role).filter(Boolean))].sort(), [users]);
   const workplaces = useMemo(() => [...new Set(users.map((user) => user.workplace).filter(Boolean))].sort(), [users]);
@@ -1839,9 +1860,10 @@ export default function UsersPage({ ui, store, auth }) {
         title={pageCopy.title}
         description={pageCopy.description}
         actions={
-          canCreateEmployee ? <button className="btn-primary" type="button" onClick={() => setFormState({ mode: "add", user: createEmptyUser() })}>
-            <Plus size={16} /> {pageCopy.action}
-          </button> : <Badge tone="neutral">Read-only access</Badge>
+          <div className="flex flex-wrap gap-2">
+            {canManageLegalEntities ? <button className="btn-secondary" type="button" onClick={() => setLegalEntitiesOpen(true)}><BriefcaseBusiness size={16} /> Legal Entities</button> : null}
+            {canCreateEmployee ? <button className="btn-primary" type="button" onClick={() => setFormState({ mode: "add", user: createEmptyUser() })}><Plus size={16} /> {pageCopy.action}</button> : <Badge tone="neutral">Read-only access</Badge>}
+          </div>
         }
       />
 
@@ -1952,6 +1974,9 @@ export default function UsersPage({ ui, store, auth }) {
           canReviewCompliance={canReviewCompliance}
           canViewDisciplinary={canViewDisciplinary}
           canManageDisciplinary={canManageDisciplinary}
+          canViewEmploymentDocuments={canViewEmploymentDocuments}
+          canManageEmploymentDocuments={canManageEmploymentDocuments}
+          legalEntities={legalEntities}
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
@@ -1981,11 +2006,15 @@ export default function UsersPage({ ui, store, auth }) {
           canReviewCompliance={canReviewCompliance}
           canViewDisciplinary={canViewDisciplinary}
           canManageDisciplinary={canManageDisciplinary}
+          canViewEmploymentDocuments={canViewEmploymentDocuments}
+          canManageEmploymentDocuments={canManageEmploymentDocuments}
+          legalEntities={legalEntities}
           onClose={() => setFormState(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSubmit={saveUser}
         />
       ) : null}
+      {legalEntitiesOpen ? <LegalEntitiesModal entities={legalEntities} ui={ui} onClose={() => setLegalEntitiesOpen(false)} onChanged={async (selectedId) => { const rows = await legalEntityService.list(); setLegalEntities(rows); return rows.find((entity) => entity.id === selectedId); }} /> : null}
       {setupLink ? (
         <Modal
           title="Login Setup Link Generated"

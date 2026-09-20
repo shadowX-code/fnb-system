@@ -1,0 +1,20 @@
+.crew-employment-records-intro { margin: 0 20px 16px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); line-height: 1.55; }
+.crew-employment-records-list { display: grid; gap: 10px; }
+.crew-employment-records-list > button { align-items: center; background: var(--crew-color-surface); border: 1px solid var(--crew-color-border); border-radius: 16px; color: var(--crew-color-text); display: grid; gap: 12px; grid-template-columns: auto minmax(0,1fr) auto; padding: 14px; text-align: left; width: 100%; }
+.crew-employment-records-list strong,.crew-employment-records-list small { display: block; }
+.crew-employment-records-list small { color: var(--crew-color-text-secondary); margin-top: 3px; }
+.crew-employment-records-end { align-items: center; display: flex; gap: 7px; }
+.crew-employment-document-list { display: grid; gap: 12px; }
+.crew-employment-document-list article { padding: 14px; }
+.crew-employment-document-list header { align-items: start; display: grid; gap: 10px; grid-template-columns: auto minmax(0,1fr) auto; }
+.crew-employment-document-list h2 { font-size: 16px; margin: 2px 0 4px; }
+.crew-employment-document-list p,.crew-employment-document-list small { color: var(--crew-color-text-secondary); margin: 0; }
+.crew-employment-document-list .crew-mobile-secondary { margin-top: 14px; width: 100%; }
+.crew-employment-document-detail { display: grid; gap: 16px; }
+.crew-employment-document-detail dl { display: grid; gap: 10px; margin: 0; }
+.crew-employment-document-detail dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); }
+.crew-employment-document-detail dd { font-weight: 700; margin: 2px 0 0; }
+.crew-employment-document-pdf { background: var(--crew-color-surface); border: 1px solid var(--crew-color-border); border-radius: 14px; height: min(52vh,520px); width: 100%; }
+.crew-employment-document-download { display: flex; width: 100%; }
+.crew-employment-document-completed { background: var(--crew-color-success-surface); border-radius: 12px; color: var(--crew-color-success); font-weight: 700; padding: 12px; }
+.crew-employment-document-notice { background: var(--crew-color-surface-subtle); border-radius: 12px; padding: 12px; }

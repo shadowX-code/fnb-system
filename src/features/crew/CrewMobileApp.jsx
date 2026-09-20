@@ -41,6 +41,8 @@ const CrewLeaveMobile = lazy(() => import("./components/CrewLeaveMobile.jsx"));
 const CrewAssetsMobile = lazy(() => import("./components/CrewAssetsMobile.jsx"));
 const CrewComplianceMobile = lazy(() => import("./components/CrewComplianceMobile.jsx"));
 const CrewDisciplinaryMobile = lazy(() => import("./components/CrewDisciplinaryMobile.jsx"));
+const CrewEmploymentRecordsMobile = lazy(() => import("./components/CrewEmploymentRecordsMobile.jsx"));
+const CrewEmploymentDocumentsMobile = lazy(() => import("./components/CrewEmploymentDocumentsMobile.jsx"));
 
 
 export default function CrewMobileApp({ onNotify }) {
@@ -74,13 +76,15 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => navigate("me")} onChanged={refresh} />}
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
     {screen === "assets" && <CrewAssetsMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setAssetInspectionFlow} />}
-    {screen === "compliance" && <CrewComplianceMobile token={session.token} onBack={() => navigate("me")} />}
-    {screen === "disciplinary" && <CrewDisciplinaryMobile token={session.token} onBack={() => navigate("me")} onViewed={refresh} />}
+    {screen === "employment-records" && <CrewEmploymentRecordsMobile onBack={() => navigate("me")} navigate={navigate} disciplinary={disciplinary} />}
+    {screen === "employment-documents" && <CrewEmploymentDocumentsMobile token={session.token} onBack={() => navigate("employment-records")} />}
+    {screen === "compliance" && <CrewComplianceMobile token={session.token} onBack={() => navigate("employment-records")} />}
+    {screen === "disciplinary" && <CrewDisciplinaryMobile token={session.token} onBack={() => navigate("employment-records")} onViewed={refresh} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
     {screen === "attendance" && <CrewAttendanceMobile rows={clock.attendanceMonth} loading={clock.attendanceMonthLoading} selectedMonth={clock.selectedAttendanceMonth} onMonthChange={clock.setSelectedAttendanceMonth} onBack={() => navigate("home")} t={t} />}
     {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} disciplinary={disciplinary} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
-    {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
+    {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;
 }

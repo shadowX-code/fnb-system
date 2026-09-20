@@ -1,5 +1,7 @@
 # FeedX Development Log
 
+- Added the minimum People-owned Legal Employer master and employee assignment, plus Employment Documents V1 for uploaded Employment Contract PDFs. Send pins server-hashed PDF evidence and employee/employer/issuer/consent snapshots; Crew Employment Records provides token-bound view and explicit acknowledgement without claiming legal electronic-signature status. Sent/completed evidence and events remain immutable, corrections use withdrawal/supersession, and no payroll, roster, Attendance, Performance, Reward, or Crew Access behavior changes.
+
 - Added People-owned Employee Disciplinary Records V1 with First and Final Written Warning drafts, immutable issuance, private evidence, server-derived delivery/view/acknowledgement events, append-only employee responses, and controlled withdrawal/supersession. Employee Profile owns Admin management and Crew Me exposes token-bound Warnings & Notices without any Performance, Reward, Attendance, roster, payroll, Task, or Crew Access effect.
 
 - Aligned Cash Checkout Settings with canonical Job Position IDs, current effective Floating Cash, and consistent internal receiver-confirmation behavior across Crew and Admin handovers. The Admin modal now has one page-level entry and groups Cash Rules, Eligible Crew, and Review Rules without changing the checkout lifecycle or inventing closing-deadline enforcement.

@@ -21,6 +21,7 @@ Current employee, role, permission, Auth-link, role-configuration, RLS, and audi
 - Admin access state and security-relevant audit events
 - Requirement-driven employee compliance, immutable evidence submissions, reviews, expiry state, and history
 - Employee disciplinary warning drafts, immutable issued records, delivery/view/acknowledgement evidence, employee responses, and correction history
+- Legal employing entities, employee legal-employer assignment, and immutable Employment Contract acknowledgement records
 
 ## Lifecycle And Business Rules
 
@@ -64,6 +65,16 @@ Each issued warning receives a server-derived, employee-scoped chronological dis
 Corrections never rewrite an issued record. Admins withdraw with a reason or issue a new warning linked as a superseding record; the original content, sequence, relationships, evidence, response, and chronological activity remain private history. Dedicated `employee_disciplinary.view` and `employee_disciplinary.manage` permissions are separate from general employee edit authority. Crew identity is derived only from its opaque session token and Crew can access only its own non-draft records.
 
 Supporting evidence uses the private `employee-disciplinary-evidence` bucket with immutable object paths and short-lived authorized reads. Disciplinary records do not affect Performance, Reward, Attendance, Duty Roster, payroll, Tasks, or Crew Access. A future Incident / Show Cause / Response / Review / Outcome model may reference a warning as one possible outcome, but is deliberately outside V1.
+
+## Legal Employers And Employment Documents V1
+
+People owns legal-employer master data and Employment Documents. A Legal Entity records legal company name, registration number, registered address, optional display name, and active state. `employees.legal_entity_id` is the canonical current assignment; it is separate from Workplace/Outlet, which remains operational location. Legacy employees may remain unassigned, but an Employment Contract cannot be sent until an active Legal Entity is assigned.
+
+V1 supports uploaded Employment Contract PDFs only, with a 10 MB limit and no template/builder. Draft metadata and PDF may be edited. Send atomically snapshots employee employment metadata, the exact legal-employer identity/address, issuer identity, consent copy/version/hash, PDF path/size, and server-calculated SHA-256. Sent content is immutable. The lifecycle is Draft, Sent, Viewed, and Completed, with reasoned Withdrawal and version-linked Supersession. Corrections create a new version; they never rewrite sent or completed evidence.
+
+Completion is an employment-document acknowledgement, not a FeedX claim of legal electronic-signature status. Crew identity is derived only from the current opaque Crew session. Opening the exact private PDF records first view once; acknowledgement stores a retry-safe request identity and append-only event containing the pinned PDF and consent evidence. Dedicated `employee_employment_documents.view` and `.manage` permissions enforce People authority and employee outlet scope.
+
+PDFs use the private `employee-employment-documents` bucket. Ordinary clients have no direct object authority; a dedicated server boundary validates Admin or Crew scope and returns five-minute signed view/download URLs. Completed, withdrawn, and superseded history remains immutable. V1 has no outlet-wide overview, former-employee access, payroll, Performance, Reward, Attendance, roster, or Crew Access effects.
 
 ## Workflows And Integrations
 

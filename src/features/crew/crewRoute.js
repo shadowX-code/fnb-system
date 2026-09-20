@@ -11,6 +11,10 @@ const routeByPath = {
   "me/cash-checkout": { screen: "cash-checkout" },
   "me/leave": { screen: "leave" },
   "me/assets": { screen: "assets" },
+  "me/employment-records": { screen: "employment-records" },
+  "me/employment-records/contracts": { screen: "employment-documents" },
+  "me/employment-records/documents-compliance": { screen: "compliance" },
+  "me/employment-records/warnings": { screen: "disciplinary" },
   "me/compliance": { screen: "compliance" },
   "me/warnings": { screen: "disciplinary" },
   tasks: { screen: "operations" },
@@ -45,8 +49,10 @@ export function crewRouteForState({ screen, growthInitialView = "overview" }) {
   if (screen === "cash-checkout") return { screen, canonicalHash: "#crew/me/cash-checkout" };
   if (screen === "leave") return { screen, canonicalHash: "#crew/me/leave" };
   if (screen === "assets") return { screen, canonicalHash: "#crew/me/assets" };
-  if (screen === "compliance") return { screen, canonicalHash: "#crew/me/compliance" };
-  if (screen === "disciplinary") return { screen, canonicalHash: "#crew/me/warnings" };
+  if (screen === "employment-records") return { screen, canonicalHash: "#crew/me/employment-records" };
+  if (screen === "employment-documents") return { screen, canonicalHash: "#crew/me/employment-records/contracts" };
+  if (screen === "compliance") return { screen, canonicalHash: "#crew/me/employment-records/documents-compliance" };
+  if (screen === "disciplinary") return { screen, canonicalHash: "#crew/me/employment-records/warnings" };
   if (screen === "operations") return { screen, canonicalHash: "#crew/tasks" };
   if (screen === "schedule") return { screen, canonicalHash: "#crew/schedule" };
   return crewHomeRoute;

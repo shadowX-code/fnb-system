@@ -4,7 +4,7 @@ import { crewService } from "../../../services/crewService.js";
 
 const storageKey = "feedx.crew.session";
 const methods = { attendance: "myAttendance", context: "attendanceContext", operations: "operationsToday", roster: "myRoster", growth: "growthMobile", performance: "performanceMobile", reward: "rewardMobile", leave: "myLeave", profile: "myProfile", assets: "assetsMobile", disciplinary: "myDisciplinary" };
-const routeReads = { home: ["operations", "roster"], operations: ["operations"], schedule: ["roster"], growth: ["growth", "performance"], reward: ["reward"], me: ["profile", "leave", "assets", "disciplinary"], assets: ["assets"], disciplinary: ["disciplinary"] };
+const routeReads = { home: ["operations", "roster"], operations: ["operations"], schedule: ["roster"], growth: ["growth", "performance"], reward: ["reward"], me: ["profile", "leave", "assets", "disciplinary"], assets: ["assets"], "employment-records": ["disciplinary"], disciplinary: ["disciplinary"] };
 const cacheLifetime = 60_000;
 const fallback = (key) => key === "attendance" ? [] : key === "operations" ? { tasks: [] } : key === "roster" ? { today: null, entries: [] } : null;
 const emptyData = () => ({ attendance: [], context: null, growth: null, performance: null, reward: null, operations: null, roster: null, leave: null, profile: null, assets: null, disciplinary: null, growthError: "" });
