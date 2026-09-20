@@ -65,6 +65,9 @@ function WarningDetail({ item, canManage, onClose, onChanged, ui }) {
   const [evidence, setEvidence] = useState(null);
   const [evidenceError, setEvidenceError] = useState("");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [withdrawOpen, setWithdrawOpen] = useState(false);
+  const [withdrawReason, setWithdrawReason] = useState("");
+  const [transitionBusy, setTransitionBusy] = useState(false);
   const canWithdraw = canManage && !["draft", "withdrawn", "superseded"].includes(item.status);
   const canNotAcknowledge = canManage && ["delivered", "viewed"].includes(item.status);
   const canSupersede = canManage && !["draft", "withdrawn", "superseded"].includes(item.status);
@@ -72,17 +75,14 @@ function WarningDetail({ item, canManage, onClose, onChanged, ui }) {
     if (!item.has_evidence) return;
     employeeDisciplinaryService.adminEvidence(item.id).then(setEvidence).catch(() => setEvidenceError("Supporting evidence is unavailable."));
   }, [item.id, item.has_evidence]);
-  async function transition(action) {
+  async function transition(action, reason = null) {
     setMenuOpen(false);
-    let reason = null;
-    if (action === "withdraw") {
-      reason = window.prompt("Reason for withdrawal");
-      if (!reason?.trim()) return;
-    }
-    try { await employeeDisciplinaryService.transition({ warningId: item.id, action, reason }); await onChanged(); onClose(); }
+    setTransitionBusy(true);
+    try { await employeeDisciplinaryService.transition({ warningId: item.id, action, reason }); await onChanged(); setWithdrawOpen(false); onClose(); }
     catch (cause) { ui?.notify?.({ title: "Unable to update warning", message: cause.message, tone: "error" }); }
+    finally { setTransitionBusy(false); }
   }
-  return <Modal size="md" title={item.subject} description={typeOptions.find((option) => option.value === item.warning_type)?.label} onClose={onClose} headerActions={(canWithdraw || canNotAcknowledge) ? <ActionMenu open={menuOpen} onOpenChange={setMenuOpen} ariaLabel="Warning actions" trigger={({ toggle, ariaLabel }) => <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}><MoreHorizontal size={17} /></button>}><>{canNotAcknowledge ? <button type="button" onClick={() => transition("not_acknowledged")}>Mark Not Acknowledged</button> : null}{canWithdraw ? <button className="text-rose-700" type="button" onClick={() => transition("withdraw")}>Withdraw Warning</button> : null}</></ActionMenu> : null} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+  return <><Modal size="md" title={item.subject} description={typeOptions.find((option) => option.value === item.warning_type)?.label} onClose={onClose} headerActions={(canWithdraw || canNotAcknowledge) ? <ActionMenu open={menuOpen} onOpenChange={setMenuOpen} ariaLabel="Warning actions" trigger={({ toggle, ariaLabel }) => <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}><MoreHorizontal size={17} /></button>}><>{canNotAcknowledge ? <button type="button" onClick={() => transition("not_acknowledged")}>Mark Not Acknowledged</button> : null}{canWithdraw ? <button className="text-rose-700" type="button" onClick={() => { setMenuOpen(false); setWithdrawOpen(true); }}>Withdraw Warning</button> : null}</></ActionMenu> : null} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2"><Badge tone={statusTone[item.status]}>{statusCopy[item.status]}</Badge><span className="text-xs font-semibold text-text-muted">Issued {item.issued_date}</span></div>
       {item.status === "draft" ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">This draft is not visible to the employee.</div> : null}
@@ -96,7 +96,7 @@ function WarningDetail({ item, canManage, onClose, onChanged, ui }) {
       {evidence?.evidence_url ? <section><h3 className="mb-2 text-xs font-bold uppercase text-text-muted">Supporting evidence</h3>{evidence.mime_type === "application/pdf" ? <a className="btn-secondary inline-flex" href={evidence.evidence_url} target="_blank" rel="noreferrer">View PDF</a> : <img className="max-h-[360px] w-full rounded-xl bg-slate-50 object-contain" src={evidence.evidence_url} alt="Supporting evidence" />}</section> : evidenceError ? <p className="text-sm text-rose-700">{evidenceError}</p> : null}
       <section><h3 className="text-xs font-bold uppercase text-text-muted">Activity</h3><div className="mt-2 divide-y divide-border">{item.activity.map((event) => <div className="py-2 text-sm" key={event.id}><div className="flex justify-between gap-3"><strong>{eventCopy[event.type] || event.type}</strong><span className="shrink-0 text-xs text-text-muted">{formatDateTime(event.occurred_at)}</span></div>{event.actor_name ? <p className="mt-0.5 text-xs text-text-muted">by {event.actor_name}</p> : null}{event.details?.reason ? <p className="mt-1 text-xs text-text-secondary">{event.details.reason}</p> : null}</div>)}</div></section>
     </div>
-  </Modal>;
+  </Modal>{withdrawOpen ? <Modal size="sm" title="Withdraw Warning" description="The issued record and its activity remain in history." onClose={() => setWithdrawOpen(false)} footer={<><button className="btn-secondary" type="button" disabled={transitionBusy} onClick={() => setWithdrawOpen(false)}>Cancel</button><button className="btn-danger" type="button" disabled={transitionBusy || !withdrawReason.trim()} onClick={() => transition("withdraw", withdrawReason.trim())}>{transitionBusy ? "Withdrawing..." : "Withdraw Warning"}</button></>}><AdminFormField label="Reason for withdrawal" required helper="Explain why this issued warning is being withdrawn."><textarea className="control min-h-28 py-3" value={withdrawReason} onChange={(event) => setWithdrawReason(event.target.value)} /></AdminFormField></Modal> : null}</>;
 }
 
 export default function EmployeeDisciplinaryPanel({ employeeId, employeeName, canView, canManage, ui }) {

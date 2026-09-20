@@ -42,4 +42,13 @@ describe("Crew Warnings & Notices", () => {
     expect(screen.getByText(/does not necessarily mean that you agree/i)).not.toBeNull();
     expect(screen.queryByText(/admit misconduct/i)).toBeNull();
   });
+
+  it("keeps the optional response available after receipt acknowledgement", async () => {
+    employeeDisciplinaryService.crewOverview.mockResolvedValue({ warnings: [{ ...warning, status: "acknowledged", viewed_at: "2026-09-21T02:00:00Z" }] });
+    employeeDisciplinaryService.crewDetail.mockResolvedValue({ ...detail, status: "acknowledged", acknowledged_at: "2026-09-21T02:05:00Z" });
+    render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View" }));
+    expect(await screen.findByRole("button", { name: "Add Response" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Acknowledge Receipt" })).toBeNull();
+  });
 });

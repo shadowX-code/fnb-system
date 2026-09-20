@@ -61,7 +61,8 @@ export default function CrewDisciplinaryMobile({ token, onBack }) {
     finally { setBusy(false); }
   }
   const closeDetail = () => { setDetail(null); setEvidence(null); setViewerOpen(false); setActionError(""); };
-  const canAct = detail && ["delivered", "viewed"].includes(detail.status);
+  const canAcknowledge = detail && ["delivered", "viewed"].includes(detail.status);
+  const canRespond = detail && !detail.response && ["delivered", "viewed", "acknowledged", "not_acknowledged"].includes(detail.status);
 
   return <CrewMobilePage className="crew-disciplinary-page">
     <CrewMobileDetailHeader title={t("disciplinary.title")} onBack={onBack} />
@@ -76,14 +77,14 @@ export default function CrewDisciplinaryMobile({ token, onBack }) {
       </article>)}</div>
     </CrewPageSection>
 
-    {detail ? <CrewBottomSheet title={detail.subject} description={t(`disciplinary.type.${typeKey[detail.warning_type]}`)} onClose={closeDetail} className="crew-disciplinary-sheet" footer={<><button className="crew-mobile-secondary" type="button" onClick={closeDetail}>{t("common.close")}</button>{canAct ? <button className="crew-mobile-primary" type="button" onClick={() => setAckOpen(true)}>{t("disciplinary.acknowledge")}</button> : null}</>}>
+    {detail ? <CrewBottomSheet title={detail.subject} description={t(`disciplinary.type.${typeKey[detail.warning_type]}`)} onClose={closeDetail} className="crew-disciplinary-sheet" footer={<><button className="crew-mobile-secondary" type="button" onClick={closeDetail}>{t("common.close")}</button>{canAcknowledge ? <button className="crew-mobile-primary" type="button" onClick={() => setAckOpen(true)}>{t("disciplinary.acknowledge")}</button> : null}</>}>
       <div className="crew-disciplinary-detail">
         <CrewStatusBadge tone={tone[detail.status]}>{t(`disciplinary.status.${detail.status}`)}</CrewStatusBadge>
         <dl><div><dt>{t("disciplinary.incidentDate")}</dt><dd>{dateOnly(detail.incident_date)}</dd></div><div><dt>{t("disciplinary.issuedDate")}</dt><dd>{dateOnly(detail.issued_date)}</dd></div>{detail.outlet_name_snapshot ? <div><dt>{t("common.outlet")}</dt><dd>{detail.outlet_name_snapshot}</dd></div> : null}</dl>
         <section><h3>{t("disciplinary.details")}</h3><p>{detail.warning_details}</p></section>
         <section><h3>{t("disciplinary.requiredAction")}</h3><p>{detail.required_action}</p></section>
         {detail.withdrawal_reason ? <div className="crew-disciplinary-notice">{detail.withdrawal_reason}</div> : null}
-        {detail.response ? <section className="crew-disciplinary-response"><h3>{t("disciplinary.yourResponse")}</h3><p>{detail.response.text}</p><small>{formatCrewOperationalDateTime(detail.response.submitted_at)}</small></section> : canAct ? <button className="crew-mobile-secondary" type="button" onClick={() => { setResponseOpen(true); setActionError(""); }}><MessageSquareText size={17} />{t("disciplinary.addResponse")}</button> : null}
+        {detail.response ? <section className="crew-disciplinary-response"><h3>{t("disciplinary.yourResponse")}</h3><p>{detail.response.text}</p><small>{formatCrewOperationalDateTime(detail.response.submitted_at)}</small></section> : canRespond ? <button className="crew-mobile-secondary" type="button" onClick={() => { setResponseOpen(true); setActionError(""); }}><MessageSquareText size={17} />{t("disciplinary.addResponse")}</button> : null}
         {evidence?.evidence_url ? evidence.mime_type === "application/pdf" ? <iframe className="crew-disciplinary-pdf" title={t("disciplinary.evidence")} src={evidence.evidence_url} /> : <button className="crew-disciplinary-evidence" type="button" onClick={() => setViewerOpen(true)}><img src={evidence.evidence_url} alt={t("disciplinary.evidence")} /><span><Eye size={16} />{t("disciplinary.viewEvidence")}</span></button> : null}
         {detail.acknowledged_at ? <p className="crew-disciplinary-confirmed">{t("disciplinary.acknowledgedAt", { date: formatCrewOperationalDateTime(detail.acknowledged_at) })}</p> : null}
         {actionError ? <div className="crew-v2-error" role="alert">{actionError}</div> : null}
