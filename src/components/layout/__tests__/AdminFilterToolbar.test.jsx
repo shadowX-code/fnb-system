@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import AdminFilterToolbar from "../AdminFilterToolbar.jsx";
 import FactoryFilterBar from "../../../features/factory/components/FactoryFilterBar.jsx";
 import FeedXDateRangePicker from "../../ui/FeedXDateRangePicker.jsx";
+import AdminSearchField from "../../forms/AdminSearchField.jsx";
 
 function Field({ label }) {
   return <label>{label}<input aria-label={label} /></label>;
@@ -77,5 +78,13 @@ describe("AdminFilterToolbar", () => {
     expect(range.className).toContain("sm:w-[220px]");
     expect(filter.dataset.adminFilterRole).toBe("filter");
     expect(filter.className).toContain("sm:w-[180px]");
+  });
+
+  it("keeps the canonical search icon separate from placeholder text", () => {
+    const { container } = render(<AdminFilterToolbar search={<AdminSearchField label="Search Crew" value="" onChange={vi.fn()} placeholder="Name or employee code" />} />);
+    const field = screen.getByLabelText("Search Crew");
+    expect(field.className).toContain("admin-search-field-input");
+    expect(field.closest(".admin-search-field-control")?.querySelector("svg")).not.toBeNull();
+    expect(container.querySelector('[data-admin-filter-role="search"]')).not.toBeNull();
   });
 });

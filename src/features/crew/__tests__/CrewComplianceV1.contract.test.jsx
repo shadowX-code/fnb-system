@@ -15,7 +15,7 @@ describe("Employee Compliance V1 surfaces", () => {
 
   it("requires one prepared photo and expiry only for configured requirements", () => {
     expect(mobile).toContain("optional={false}");
-    expect(mobile).toContain("selected.requires_expiry");
+    expect(mobile).toContain("formItem.requires_expiry");
     expect(mobile).toContain("optimizeImageBlob");
   });
 
@@ -27,10 +27,19 @@ describe("Employee Compliance V1 surfaces", () => {
 
   it("uses shared Admin filters, summaries, tables and server pagination", () => {
     expect(admin).toContain("AdminFilterToolbar");
+    expect(admin).toContain("AdminSearchField");
     expect(admin).toContain("AdminSummaryGrid");
     expect(admin).toContain("AdminDataSection");
     expect(admin).toContain("useAdminPagedQuery");
     expect(admin).toContain("AdminPagination");
+    expect(admin).not.toContain('title="Compliance Records"');
+  });
+
+  it("uses shared Crew sheets and private signed evidence viewing", () => {
+    expect(mobile).toContain("CrewBottomSheet");
+    expect(mobile).toContain("CrewEvidencePhotoPicker");
+    expect(mobile).toContain("crewEvidenceUrl");
+    expect(mobile).toContain("CrewImageViewer");
   });
 
   it("only exposes review or evidence actions when a submission exists", () => {
