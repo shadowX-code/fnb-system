@@ -1765,8 +1765,6 @@ export default function UsersPage({ ui, store, auth }) {
     title: "Employees",
     description: "Manage employee HR profiles, employment data, bank information, and optional system login access.",
     action: "Add Employee",
-    cardTitle: "Employee Directory",
-    cardDescription: "One employee profile contains HR data and optional system access. Not every employee needs a login.",
   };
 
   return (
@@ -1855,7 +1853,7 @@ export default function UsersPage({ ui, store, auth }) {
         </div>
       </div>
 
-      <Card title={pageCopy.cardTitle} description={pageCopy.cardDescription}>
+      <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading employees...</div>
         ) : loadError ? (

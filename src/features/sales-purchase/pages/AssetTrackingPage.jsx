@@ -2660,7 +2660,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         </div>
       ) : null}
 
-      {activeOutlets.length ? <Card title="Asset List" description="Grouped by category with quick operational updates.">
+      {activeOutlets.length ? <Card>
         {loading ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading assets...</div> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1080px] text-left text-sm">

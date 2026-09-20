@@ -65,7 +65,7 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   if (initialTab === "employees") return <div className="space-y-4">
     <PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." />
     <AdminFilterToolbar outlet={outletControl} search={<label className="field"><span>Search Crew</span><input className="control w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, position or employee code" /></label>} />
-    <Card title="Employee Crew Access" description="Passcodes are never stored or shown again after generation.">
+    <Card>
       <AsyncDataSurface loading={loading} error={loadError} hasData={scopedEmployees.length > 0} isEmpty={!scopedEmployees.length} emptyTitle={employees.length ? "No Crew match this search" : "No Crew access records"} emptyDescription={employees.length ? "Clear or adjust the search to see more Crew." : "Crew access records for this outlet will appear here."} onRetry={refresh}><DataTable tableClassName="min-w-[1120px]" rows={scopedEmployees} getRowKey={(row) => row.id} columns={employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId)} /></AsyncDataSurface>
     </Card>
     {request ? <CrewAccessManagerModal employee={request.employee} mode={request.mode} onClose={() => setRequest(null)} onSaved={refresh} /> : null}

@@ -122,10 +122,10 @@ export default function OutletManagementPage({ store, setStore, ui }) {
       <PageHeader
         section="Operations"
         title="Outlets"
-        description="Outlet master data used by sales and purchase records through outlet_id."
+        description="Manage outlets used by sales, purchase, reporting, and attendance workflows."
         actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Outlet</button>}
       />
-      <Card title="Outlet Directory" description="All sales and purchase records bind to outlet_id.">
+      <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading outlets...</div>
         ) : loadError ? (
@@ -137,7 +137,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
       {modal ? (
         <EntityModal
           title={modal.mode === "add" ? "Add Outlet" : "Edit Outlet"}
-          description="Outlet code and location are used in reports and imports. Attendance GPS verification remains disabled until coordinates are configured."
+          description="Outlet code and location are used in reports and imports. Historical records remain linked to this outlet. Attendance GPS verification remains disabled until coordinates are configured."
           fields={fields}
           initialValues={{ name: "", code: "", location: "", status: "active", attendance_latitude: "", attendance_longitude: "", attendance_radius_meters: "100", ...(modal.row ?? {}), attendance_location_enabled: String(modal.row?.attendance_location_enabled ?? false) }}
           onClose={() => setModal(null)}

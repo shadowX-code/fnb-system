@@ -23,7 +23,7 @@ describe("Crew Growth Admin", () => {
     expect(await screen.findByRole("heading", { name: "Growth Overview" })).not.toBeNull();
     expect(screen.getAllByText("Customer Greeting").length).toBeGreaterThan(0);
     expect(screen.getByText("Certified Crew")).not.toBeNull();
-    expect(screen.getByText("Crew Growth")).not.toBeNull();
+    expect(screen.getByText("1 of 1 active Crew")).not.toBeNull();
     expect(screen.getAllByText("Alex Tan").length).toBeGreaterThan(0);
     expect(screen.getByText("Needs Review")).not.toBeNull();
     expect(screen.getByText("1 certification review ready")).not.toBeNull();
@@ -37,7 +37,7 @@ describe("Crew Growth Admin", () => {
     expect(screen.getByText("Request timed out")).not.toBeNull();
     mocks.data.mockResolvedValueOnce(fixture);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
-    expect(await screen.findByRole("heading", { name: "Crew Growth" })).not.toBeNull();
+    expect(await screen.findByRole("heading", { name: "Growth Overview" })).not.toBeNull();
   });
 
   it("filters the merged Crew table and clears no-results state", async () => {

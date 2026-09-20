@@ -1307,7 +1307,7 @@ export default function RolesPage({ ui, store, auth }) {
       </div>
 
       <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        <strong>System note:</strong> Roles define access permissions across operational modules, HR tools, reports, and future company systems.
+        <strong>System note:</strong> Roles define access permissions across operational modules, HR tools, reports, and future company systems. Open a role to review its outlet scope, assigned employees, and accessible modules.
       </div>
 
       <FilterBar compact>
@@ -1316,7 +1316,7 @@ export default function RolesPage({ ui, store, auth }) {
         </FieldLabel>
       </FilterBar>
 
-      <Card title="Role Catalog" description="Rows summarize outlet access, assigned employees, and accessible modules.">
+      <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading roles...</div>
         ) : loadError ? (

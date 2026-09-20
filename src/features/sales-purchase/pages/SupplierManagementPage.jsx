@@ -260,7 +260,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
       label: "Used By Outlets",
       type: "multiselect",
       options: activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
-      helper: "Select every outlet that can use this supplier.",
+      helper: "Select every outlet that can use this supplier in purchase entry and imports.",
     },
     { name: "phone", label: "Phone", placeholder: "Supplier phone" },
     { name: "remark", label: "Remark", placeholder: "Optional supplier note" },
@@ -391,7 +391,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
           />
         </FieldLabel>
       </FilterBar>
-      <Card title="Supplier Directory" description="Suppliers used across all outlets and purchase records.">
+      <Card>
         <DataTable
           columns={columns}
           rows={paginatedRows}
