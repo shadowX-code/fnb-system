@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarDays, Clock3, Eye, HelpCircle, MapPin, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
-import MetricCard from "../../../components/ui/MetricCard.jsx";
+import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -221,12 +221,7 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
 
     <AdminFilterToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} allowAll allValue={ALL} />} period={<FeedXDateRangePicker from={from} to={to} today={today} onApply={(range) => { setFrom(range.from); setTo(range.to); }} />} filters={<><SelectField label="Employee" ariaLabel="Employee" value={employeeId} onChange={setEmployeeId} searchable options={[{ value: ALL, label: "All" }, ...employees.map((employee) => ({ value: employee.id, label: employee.nickname || employee.full_name }))]} /><SelectField label="Position" ariaLabel="Position" value={position} onChange={setPosition} options={[{ value: ALL, label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Attendance Status" ariaLabel="Attendance Status" value={status} onChange={setStatus} options={[{ value: ALL, label: "All" }, { value: "verified", label: "Verified" }, { value: "variance", label: "Late / Variance" }, { value: "location_exception", label: "Location Exception" }, { value: "incomplete", label: "Incomplete" }, { value: "no_roster", label: "No Published Roster" }]} /></>} activeFilters={activeFilters} onClear={() => { setEmployeeId(ALL); setPosition(ALL); setStatus(ALL); }} secondaryActions={<button className="icon-btn" type="button" aria-label="About attendance evidence" title="Roster variance is explainable evidence only; it does not directly alter Performance scores."><HelpCircle size={17} /></button>} />
 
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Attendance summary">
-      <MetricCard icon={UsersRound} label={isToday ? "Present Today" : "Present in Range"} value={summary.present} helper="Crew with attendance evidence" size="compact" />
-      <MetricCard icon={Clock3} label="Late / Schedule Variance" value={summary.variance} helper="Server-calculated clock-in variance" tone={summary.variance ? "warning" : "neutral"} size="compact" />
-      <MetricCard icon={MapPin} label="Location Exceptions" value={summary.exceptions} helper="Location evidence needs review" tone={summary.exceptions ? "warning" : "neutral"} size="compact" />
-      <MetricCard icon={AlertTriangle} label="Incomplete Sessions" value={summary.incomplete} helper="Missing a completed session" tone={summary.incomplete ? "danger" : "neutral"} size="compact" />
-    </section>
+    <AdminSummaryGrid ariaLabel="Attendance summary" items={[{ label: isToday ? "Present Today" : "Present in Range", value: summary.present, helper: "Crew with attendance evidence", icon: UsersRound }, { label: "Late / Schedule Variance", value: summary.variance, helper: "Server-calculated clock-in variance", tone: summary.variance ? "warning" : "neutral", icon: Clock3 }, { label: "Location Exceptions", value: summary.exceptions, helper: "Location evidence needs review", tone: summary.exceptions ? "warning" : "neutral", icon: MapPin }, { label: "Incomplete Sessions", value: summary.incomplete, helper: "Missing a completed session", tone: summary.incomplete ? "danger" : "neutral", icon: AlertTriangle }]} />
 
     {summary.nonWorking ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-text-secondary"><CalendarDays size={16} /><strong className="text-text-primary">{summary.nonWorking}</strong> attendance record{summary.nonWorking === 1 ? "" : "s"} occurred on OFF or approved leave days. Attendance was not required.</div> : null}
 

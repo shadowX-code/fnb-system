@@ -88,11 +88,11 @@ describe("Crew Performance Admin", () => {
   it("keeps period KPIs independent from table filters and makes excluded evidence recoverable", async () => {
     render(<CrewPerformanceAdminPage initialTab="feedback" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("All guest submissions this period")).not.toBeNull();
-    expect(screen.getByText("2", { selector: ".crew-growth-metric strong" })).not.toBeNull();
+    expect(screen.getByText("Total Feedback").closest("[data-admin-summary-card]").textContent).toContain("2");
     fireEvent.change(screen.getByPlaceholderText("Search Crew, comment or tag"), { target: { value: "Alex" } });
     expect(screen.getByText("Great service")).not.toBeNull();
     expect(screen.queryByText("Too slow")).toBeNull();
-    expect(screen.getByText("2", { selector: ".crew-growth-metric strong" })).not.toBeNull();
+    expect(screen.getByText("Total Feedback").closest("[data-admin-summary-card]").textContent).toContain("2");
     fireEvent.change(screen.getByPlaceholderText("Search Crew, comment or tag"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "Feedback scoring" }));
     fireEvent.click(screen.getByRole("button", { name: "Excluded" }));

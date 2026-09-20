@@ -6,6 +6,7 @@ import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx"
 import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import FeedXDateRangePicker from "../../../components/ui/FeedXDateRangePicker.jsx";
 import MultiSelectField from "../../../components/forms/MultiSelectField.jsx";
@@ -96,7 +97,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
     />
     <AdminSegmentedControl value={tab} onChange={setTab} label="Cash Checkout sections" options={[{ value: "checkout", label: "Daily Checkout" }, { value: "deposit", label: "Cash Deposit" }]} />
     <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Cash Checkout" hasData={tab === "checkout" ? data.checkouts.length > 0 : data.ledger.length > 0 || data.collections.length > 0} isEmpty={tab === "checkout" ? !data.checkouts.length : !data.ledger.length && !data.collections.length} emptyTitle={tab === "checkout" ? "No Cash Checkouts" : "No Cash Deposit activity"} emptyDescription={tab === "checkout" ? "No checkout records match this outlet and date range." : "No deposit ledger or handover records match this outlet and date range."} emptyIcon={Banknote} onRetry={refresh}>{tab === "checkout" ? <>
-      <section className="grid gap-3 md:grid-cols-4"><Metric icon={WalletCards} label="Floating Cash" value={data.settings ? money(data.settings.floating_cash) : "Not configured"} helper={data.settings ? "Current outlet setting" : "Set this before Crew can reconcile opening cash"} action={canManage ? <button className="mt-2 text-xs font-semibold text-primary hover:underline" onClick={() => setSettingsOpen(true)}>View Settings</button> : null} /><Metric icon={CheckCircle2} label="Completed" value={data.checkouts.filter((item) => item.status === "completed").length} helper="Selected period" /><Metric icon={History} label="In Progress" value={data.checkouts.filter((item) => item.status !== "completed").length} helper="Draft through submitted" /><Metric icon={Banknote} label="Needs Review" value={reviewCount} helper="Variance, shortfall or receipt difference" tone={reviewCount ? "warning" : "success"} /></section>
+      <AdminSummaryGrid ariaLabel="Cash checkout summary" items={[{ label: "Floating Cash", value: data.settings ? money(data.settings.floating_cash) : "Not configured", helper: data.settings ? "Current outlet setting" : "Set this before Crew can reconcile opening cash", icon: WalletCards, action: canManage ? <button className="text-xs font-semibold text-primary hover:underline" onClick={() => setSettingsOpen(true)}>View Settings</button> : null }, { label: "Completed", value: data.checkouts.filter((item) => item.status === "completed").length, helper: "Selected period", icon: CheckCircle2, tone: "success" }, { label: "In Progress", value: data.checkouts.filter((item) => item.status !== "completed").length, helper: "Draft through submitted", icon: History, tone: "warning" }, { label: "Needs Review", value: reviewCount, helper: "Variance, shortfall or receipt difference", icon: Banknote, tone: reviewCount ? "warning" : "success" }]} />
       <section className="card crew-cash-table overflow-hidden"><DataTable density="compact" tableClassName="min-w-[1080px]" rows={data.checkouts} getRowKey={(row) => row.id} columns={[
         { key: "date", header: "Date", render: (row) => date(row.business_date) },
         { key: "crew", header: "Checked Out By", render: (row) => <span className="font-semibold text-text-primary">{formatCrewEmployee(row.checked_out_by)}</span> },
@@ -110,7 +111,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
         { key: "actions", header: "Actions", align: "right", render: (row) => <button className="icon-btn h-9 w-9" aria-label={`View checkout ${date(row.business_date)}`} onClick={() => setSelected(row)}><Eye size={16} /></button> },
       ]} /></section>
     </> : <>
-      <section className="grid gap-3 md:grid-cols-3"><Metric icon={WalletCards} label="Cash Deposit Balance" value={money(data.summary.current_balance)} helper="Canonical append-only ledger balance" emphasis /><Metric icon={HandCoins} label="Pending Confirmation" value={money(data.summary.pending_handover ?? 0)} helper="Already deducted; confirmation is audit-only" tone={Number(data.summary.pending_handover) ? "warning" : "neutral"} /><Metric icon={History} label="Total Collected" value={money(data.summary.total_collected)} helper="Submitted collections" /></section>
+      <AdminSummaryGrid ariaLabel="Cash deposit summary" items={[{ label: "Cash Deposit Balance", value: money(data.summary.current_balance), helper: "Canonical append-only ledger balance", icon: WalletCards, emphasis: true }, { label: "Pending Confirmation", value: money(data.summary.pending_handover ?? 0), helper: "Already deducted; confirmation is audit-only", icon: HandCoins, tone: Number(data.summary.pending_handover) ? "warning" : "neutral" }, { label: "Total Collected", value: money(data.summary.total_collected), helper: "Submitted collections", icon: History }]} />
       <section className="card overflow-hidden"><div className="flex items-center justify-between border-b border-border px-5 py-4"><div><h2 className="font-semibold">Deposit Ledger</h2><p className="text-sm text-text-secondary">Append-only checkout, collection and correction activity.</p></div><button className="btn-secondary" onClick={copySummary}><Clipboard size={15} /> Copy Summary</button></div><DataTable density="compact" tableClassName="min-w-[860px]" rows={data.ledger} getRowKey={(row) => row.id} columns={[
         { key: "date", header: "Date", render: (row) => <span className="grid gap-0.5"><strong className="text-[13px]">{formatCrewOperationalDateTime(row.occurred_at).split(" · ")[0]}</strong><small className="text-xs text-text-muted">{formatCrewOperationalDateTime(row.occurred_at).split(" · ")[1]}</small></span> }, { key: "activity", header: "Activity", render: (row) => <span className="grid gap-0.5"><strong>{ledgerActivity(row)}</strong>{ledgerActor(row) !== "—" && <small className="text-xs text-text-muted">{ledgerActor(row)}</small>}</span> },
         { key: "amount", header: "Amount", align: "right", render: (row) => Number(row.amount_in) ? <span className="font-semibold text-emerald-700">+{money(row.amount_in)}</span> : Number(row.amount_out) ? <span className="font-semibold text-slate-700">−{money(row.amount_out)}</span> : "—" },
@@ -127,15 +128,6 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   </div>;
 }
 
-function Metric({ icon: Icon, label, value, helper, action, tone = "neutral", emphasis = false }) {
-  return <article className={`min-h-[142px] rounded-2xl border p-4 ${tone === "warning" ? "border-amber-200 bg-amber-50" : "border-border bg-white"}`}>
-    <Icon size={18} className={tone === "warning" ? "text-amber-700" : "text-primary"} />
-    <span className="mt-4 block text-sm font-semibold text-text-secondary">{label}</span>
-    <strong className={`mt-1 block ${emphasis ? "text-[28px]" : "text-2xl"} leading-tight text-text-primary`}>{value}</strong>
-    <small className="mt-1 block text-text-muted">{helper}</small>
-    {action}
-  </article>;
-}
 
 function CheckoutDetail({ row, canReview, canManage, onReview, onChanged, ui, onClose }) {
   const counts = Object.entries(row.denomination_counts || {}).filter(([, qty]) => Number(qty) > 0);

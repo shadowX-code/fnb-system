@@ -8,7 +8,7 @@ import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import PublicationState from "../../../components/ui/PublicationState.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
-import MetricCard from "../../../components/ui/MetricCard.jsx";
+import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
@@ -2322,16 +2322,12 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
 
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
+      <AdminSummaryGrid ariaLabel="Duty roster summary" items={[
           { label: "Staff Scheduled", value: summary.staff, icon: Users, helper: "Assigned this period" },
           { label: "Working Hours", value: hoursLabel(summary.hours), icon: Clock, helper: "Scheduled working time" },
           { label: "Leave Projection", value: summary.leave, icon: Plane, helper: "Approved leave cells" },
           { label: "Coverage Gaps", value: summary.coverageGaps, icon: CalendarX, helper: "Days without a work shift" },
-        ].map((item) => (
-          <MetricCard key={item.label} label={item.label} value={item.value} helper={item.helper} icon={item.icon} />
-        ))}
-      </div>
+        ]} />
 
       <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Duty Roster" hasData={employees.length > 0 || rosters.length > 0} isEmpty={!employees.length && !rosters.length} emptyTitle="No Crew scheduled" emptyDescription="No eligible Crew or roster rows are available for this period." emptyIcon={CalendarDays} onRetry={() => setRefreshKey((value) => value + 1)}><div>
         <Card

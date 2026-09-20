@@ -167,7 +167,8 @@ describe("Crew Learning architecture reset UI", () => {
     await screen.findByRole("heading", { name: "New Crew Onboarding", level: 1 });
     expect(screen.getAllByText("New Crew Onboarding")).toHaveLength(1);
     expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
-    expect(screen.getAllByText("8", { selector: ".crew-onboarding-summary strong" })).toHaveLength(2);
+    const onboardingSummary = screen.getByLabelText("Onboarding summary");
+    expect([...onboardingSummary.querySelectorAll("[data-admin-summary-card]")].find((card) => card.textContent.includes("Modules")).textContent).toContain("8");
     expect(screen.getByText("Published · Unpublished changes")).not.toBeNull();
     expect(screen.getByText("v2")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Edit Draft" })).not.toBeNull();
