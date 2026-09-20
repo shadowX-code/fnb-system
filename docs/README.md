@@ -1,27 +1,17 @@
 # FeedX Documentation Map
 
-This directory is the canonical router for FeedX architecture and business-domain documentation.
-It minimizes task context by directing contributors to only the documents relevant to a change.
+This is the canonical router for FeedX architecture and business-domain documentation.
 
-## Default Task Reading Order
+## Task Reading
 
-1. [`AGENTS.md`](../AGENTS.md) for the concise agent entry point.
-2. [`FEEDX_CODEX_CONTEXT.md`](../FEEDX_CODEX_CONTEXT.md) for development workflow, safety, and documentation governance.
-3. [`FEEDX_SYSTEM_MASTER.md`](../FEEDX_SYSTEM_MASTER.md) when system-level orientation, ecosystem status, or ownership context is needed.
-4. This documentation map.
-5. Only the relevant architecture document and canonical domain document or documents below.
-6. Current implementation, tests, migrations, and verified runtime evidence.
+Read [`AGENTS.md`](../AGENTS.md), [`FEEDX_CODEX_CONTEXT.md`](../FEEDX_CODEX_CONTEXT.md), and this map. Then load only the relevant architecture/domain documents and current implementation evidence. Read [`FEEDX_SYSTEM_MASTER.md`](../FEEDX_SYSTEM_MASTER.md) only when ecosystem orientation, capability status, or system ownership context is needed.
 
-Current code and migrations override stale documentation. Do not read the full legacy Master Document by default.
-
-Choose documents by durable ownership: use an architecture document for workspace, route, platform, authority, or security foundations; use a domain document for business rules, lifecycle, data, permission, and integration behavior. A cross-domain page is not automatically a new documentation domain.
+Choose by durable ownership: architecture docs own cross-domain foundations; domain docs own business rules, lifecycle, data, permissions, and integrations. A cross-domain page is not automatically a new domain.
 
 ## Cross-Domain Architecture
 
-- [`architecture/platform.md`](architecture/platform.md): workspace/module ownership, shared shell, canonical routes, compatibility routes, and major system boundaries.
+- [`architecture/platform.md`](architecture/platform.md): workspace/module ownership, shared shell, canonical and compatibility routes, delivery/worktree procedures, and major system boundaries.
 - [`architecture/trusted-authorities.md`](architecture/trusted-authorities.md): server authority, RLS, grants, Admin and Crew security boundaries, immutability, versions, snapshots, and audit.
-
-Read these only when the task changes or depends on the corresponding cross-domain foundation.
 
 ## Canonical Domains
 
@@ -48,34 +38,27 @@ Read these only when the task changes or depends on the corresponding cross-doma
 
 ### Bounded Prototype
 
-- [`domains/guest-ai.md`](domains/guest-ai.md): Guest AI device, protocol, voice, provider, data boundaries, minimal FeedX coupling, and extraction path.
+- [`domains/guest-ai.md`](domains/guest-ai.md): Guest AI device, protocol, voice, provider, data boundaries, worktree/Staging integration, minimal FeedX coupling, and extraction path.
 
-## Supporting And Historical Documentation
+## Supporting Evidence
 
-- [`../README.md`](../README.md): concise repository and development entrypoint.
-- [`../PRODUCT.md`](../PRODUCT.md): high-level product audience, purpose, and design direction.
-- [`../FEEDX_SYSTEM_MASTER.md`](../FEEDX_SYSTEM_MASTER.md): concise system ecosystem, capability, ownership, and status map.
-- [`../FEEDX_PROJECT_MASTER_DOCUMENT.md`](../FEEDX_PROJECT_MASTER_DOCUMENT.md): legacy deep reference and archive; use targeted sections only.
-- [`../FEEDX_DEVELOPMENT_LOG.md`](../FEEDX_DEVELOPMENT_LOG.md): milestone changelog, not architecture authority.
-- [`architecture/FACTORY_REFACTOR_PLAN.md`](architecture/FACTORY_REFACTOR_PLAN.md): historical Factory refactor plan and deep reference.
-- [`testing/FACTORY_RUNTIME_ROUTE_COVERAGE.md`](testing/FACTORY_RUNTIME_ROUTE_COVERAGE.md): focused test/route evidence.
-- [`testing/AUTHENTICATED_STAGING_UI_SMOKE.md`](testing/AUTHENTICATED_STAGING_UI_SMOKE.md): Staging-only real-login browser smoke fallback, credential boundary, and artifact policy.
-- [`testing/CREW_STARTUP_PERFORMANCE.md`](testing/CREW_STARTUP_PERFORMANCE.md): Crew startup bundle, request-boundary, lossless artwork and targeted CSS evidence.
-- [`testing/CREW_FRONTEND_GUARDRAILS.md`](testing/CREW_FRONTEND_GUARDRAILS.md): Crew viewport/localization renderer matrix, shared interaction ownership, route/session tests and device-QA limits.
-- [`testing/APP_BUNDLE_BOUNDARIES.md`](testing/APP_BUNDLE_BOUNDARIES.md): production initial/async bundle evidence and Admin lazy-route regression guard.
-- [`audits/FACTORY_V1_STAGING_SIGNOFF.md`](audits/FACTORY_V1_STAGING_SIGNOFF.md): historical staging certification evidence.
-- [`releases/README.md`](releases/README.md): production release records.
-- [`archive/README.md`](archive/README.md): archived reports and readiness evidence.
-- [`../design-qa.md`](../design-qa.md): design QA evidence, not architecture truth.
+- [`testing/`](testing/) contains focused test contracts and QA procedures; load only those relevant to the task.
+- [`audits/`](audits/), [`releases/`](releases/), and [`archive/`](archive/) contain historical evidence, not current architecture authority.
+- [`../FEEDX_DEVELOPMENT_LOG.md`](../FEEDX_DEVELOPMENT_LOG.md) is the milestone changelog; [`../FEEDX_PROJECT_MASTER_DOCUMENT.md`](../FEEDX_PROJECT_MASTER_DOCUMENT.md) is a legacy deep reference for targeted research only.
+- [`../README.md`](../README.md), [`../PRODUCT.md`](../PRODUCT.md), and [`../design-qa.md`](../design-qa.md) provide repository, product, and design context rather than canonical domain architecture.
 
-The root `infographic/` and `slide-deck/` directories are reporting and design artifacts. They are not canonical product architecture.
-Technical Markdown inside `src/features/guest-ai/` remains a deeper Guest AI implementation reference and does not replace the canonical domain document.
+Historical plans, root reporting/design artifacts, and technical Markdown inside `src/features/guest-ai/` are deeper evidence; they do not replace canonical architecture or domain owners.
 
-## Routing Rules
+## Documentation Ownership Routing
 
-- Route work by business ownership, not the page where a behavior is displayed.
-- A page that combines data from several domains does not become a new domain.
-- Update an existing domain document when lifecycle, business rules, permissions, data ownership, integrations, or public contracts change.
-- Update the System Master for durable ecosystem, major capability, or system-level ownership/status changes; update the global Context only for project-wide development or governance foundations.
-- Create a new domain document only for a genuinely independent bounded domain, then add it to this map.
-- Do not update architecture docs for cosmetic, routine bug, QA-only, or test-only changes.
+`FEEDX_CODEX_CONTEXT.md` defines when Documentation Impact is required or may be `None`. Once classified, update the narrowest owner here:
+
+- Project-wide operating, safety, QA, environment, or documentation governance: `FEEDX_CODEX_CONTEXT.md`; system ecosystem, major capability, ownership, or status: `FEEDX_SYSTEM_MASTER.md`.
+- Cross-domain platform, workspace, route, delivery, or worktree contract: `architecture/platform.md`; RLS, RPC, Edge Function, token, grant, audit, version, snapshot, or trusted-authority contract: `architecture/trusted-authorities.md`.
+- Existing domain lifecycle, business rule, data ownership, permission, integration, or public contract: that canonical `domains/*.md` owner.
+- New genuinely independent bounded domain: create one `domains/<domain>.md` and add it to this map.
+- Meaningful cross-domain, authority/security, or major delivery milestone: `FEEDX_DEVELOPMENT_LOG.md` in addition to the canonical owner; release/audit evidence belongs under `releases/`, `audits/`, or `archive/`.
+
+`FEEDX_PROJECT_MASTER_DOCUMENT.md` is a legacy deep reference, not a daily synchronization target. `FEEDX_DEVELOPMENT_LOG.md` records meaningful milestones, not routine UI polish, minor bug fixes, or test-only work.
+
+Route by business ownership, not presentation location. Prefer an existing owner, do not create one document per page/navigation item, and link to global governance instead of repeating it in domain docs.

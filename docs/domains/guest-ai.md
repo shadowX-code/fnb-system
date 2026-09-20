@@ -8,7 +8,7 @@ It explores guest-facing AI interaction without coupling its lifecycle to Restau
 ## Canonical Ownership
 
 The Guest AI-owned feature/workspace implementation, its technical Markdown, routes, permissions migration, Edge Functions, service contracts, and tests are authoritative.
-This FeedX-side document owns bounded-domain intent and integration limits; Guest AI-owned documentation owns firmware, device-protocol, session, branch, and detailed Staging implementation procedures.
+This document owns Guest AI bounded-domain intent, integration limits, and FeedX worktree/Staging integration procedure. Guest AI technical Markdown owns firmware, device-protocol, session, and implementation detail.
 
 ## Core Boundaries
 
@@ -40,6 +40,22 @@ Do not infer broad guest identity, loyalty, ordering, or employee access authori
 Authorized FeedX users access the Guest AI workspace and developer/validation surfaces defined by current routes.
 Guest devices use Guest AI-owned protocols and safe service endpoints.
 Operational FeedX users do not administer Restaurant, Crew, or Factory state through Guest AI.
+
+### Development And FeedX Integration
+
+Guest AI development is isolated in `/Users/deron/Dev/feedx-guest-ai` on its designated worktree and branch for independent development and commits. That branch must not overwrite, reset, replace, or force-push `dev`; `dev` remains FeedX's only canonical Staging integration branch.
+
+When a scoped Guest AI milestone requires FeedX Staging under the global QA policy:
+
+1. Fetch and inspect the latest `origin/dev`.
+2. Integrate only the valid Guest AI changes into a clean, current `dev` worktree.
+3. Preserve newer Restaurant, Crew, Factory, platform, and unrelated FeedX work.
+4. Apply the risk-based QA policy in `FEEDX_CODEX_CONTEXT.md`, including relevant Guest AI and representative regression checks, the production build when warranted, and `git diff --check`.
+5. Push current `dev` when required by the scoped task and selected QA level.
+6. Use the canonical `fnb-system-staging` Git Integration deployment; never replace canonical Staging directly from the Guest AI branch.
+7. Complete proportional authenticated Staging QA before reporting the milestone integrated.
+
+Production deployment and merging `main` remain separately authorized under the global Context. The canonical `FEEDX_CODEX_CONTEXT.md` comes from `dev`; the Guest AI worktree must synchronize its latest rules rather than maintain divergent long-term governance.
 
 ## Integrations And Extraction Path
 

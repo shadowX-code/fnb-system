@@ -2,8 +2,27 @@
 
 ## Scope
 
-This document owns cross-domain workspace, module, shell, route, and compatibility-routing principles.
+This document owns cross-domain workspace, module, shell, route, compatibility-routing, delivery, and worktree procedures.
 Business behavior belongs in the canonical domain documents listed in `docs/README.md`.
+
+Environment identities, authorization requirements, dirty-worktree safeguards, and risk-based QA levels remain governed by `FEEDX_CODEX_CONTEXT.md`.
+
+## Delivery And Worktree Procedures
+
+`main` is the long-lived Production branch and `dev` is the long-lived Staging/integration branch. Short-lived `codex/*`, `hotfix/*`, or approved feature branches and worktrees isolate task work; they do not become alternate integration authorities.
+
+For canonical Staging delivery required by the selected QA level:
+
+1. Fetch current `origin/dev` and confirm the integration worktree is clean.
+2. Integrate only the intended task changes into current `dev`, preserving newer and unrelated work.
+3. Run the QA level selected under `FEEDX_CODEX_CONTEXT.md`, including its required build and diff checks.
+4. Confirm local `dev` equals the intended current `origin/dev` commit after the scoped push.
+5. Verify Vercel Git Integration produced that exact SHA on the canonical Staging project and that the deployment is READY.
+6. Run the proportional authenticated Staging checks required by the selected QA level before reporting Staging completion.
+
+After integration, inspect temporary branches and worktrees for cleanliness and unique or unreconciled patches. Remove them only when patch-equivalence checks prove the required work is preserved; a non-ancestor branch may still be equivalent, and an ancestor relationship alone does not prove cleanup is safe. Completed temporary workspaces should not accumulate.
+
+Do not force-push `main` or `dev` during routine integration or cleanup. Reconcile an authorized Production hotfix back into `dev` so Staging and Production do not silently drift. Guest AI adds domain-specific isolation and integration steps in [`../domains/guest-ai.md`](../domains/guest-ai.md).
 
 ## Workspace Ownership
 
