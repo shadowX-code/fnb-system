@@ -3,7 +3,9 @@ import { AlertTriangle, Calculator, ChevronRight, Gift, Search, UsersRound } fro
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
+import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -82,7 +84,7 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
   async function openCycle(row) { setPeriod(row.period_start); const next = await crewService.rewardAdminData(outletId, row.period_start, row.id); setData({ ...emptyData, ...next }); setCampaignOpen(true); }
 
   const outlet = outlets.find((row) => row.id === outletId);
-  return <div className="crew-reward-page">
+  return <div className="space-y-5">
     <PageHeader section="Crew · Reward" title="Reward Overview" description="Plan monthly Reward Campaigns, monitor projected payouts and finalize transparent Crew rewards." primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
     <AdminFilterToolbar ariaLabel="Reward filters" outlet={<CrewAdminOutletField />} period={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
 
@@ -99,8 +101,8 @@ function RewardOverview({ data, entries, entriesLoaded, entriesPagination, campa
   const cycle = data.cycle;
   const visibleEntries = entriesLoaded ? entries : data.entries;
   const visibleCampaigns = campaignsLoaded ? campaigns : data.cycles;
-  return <div className="crew-reward-overview">
-    {cycle ? <CurrentCampaign data={{ ...data, summaryEntries: data.entries, entries: visibleEntries }} pagination={entriesPagination} onOpenCampaign={onOpenCampaign} onOpenEmployee={onOpenEmployee} /> : <section className="crew-reward-empty"><Gift size={28} /><h2>No Reward Campaign for this month</h2><p>{canManage ? "Create a Campaign to set the pool and freeze participating Crew." : "No Campaign has been configured for the selected period."}</p></section>}
+  return <div className="min-w-0 space-y-5">
+    {cycle ? <CurrentCampaign data={{ ...data, summaryEntries: data.entries, entries: visibleEntries }} pagination={entriesPagination} onOpenCampaign={onOpenCampaign} onOpenEmployee={onOpenEmployee} /> : <EmptyState icon={Gift} title="No Reward Campaign for this month" description={canManage ? "Create a Campaign to set the pool and freeze participating Crew." : "No Campaign has been configured for the selected period."} />}
     <CampaignHistory rows={visibleCampaigns} pagination={campaignsPagination} currentCycleId={cycle?.id} onOpen={onOpenCycle} />
   </div>;
 }
@@ -117,50 +119,59 @@ function CurrentCampaign({ data, pagination, onOpenCampaign, onOpenEmployee }) {
   const utilization = configured > 0 ? payout / configured : 0;
 
   return <>
-    <section className="crew-reward-summary">
-      <header className="crew-reward-current-head"><div><span>Current Campaign</span><div className="crew-reward-current-identity"><h2>{month(c.period_start)}</h2><Badge tone={semanticStatusTone(c.status)}>{cycleStatus(c.status)}</Badge></div></div><button className="btn-secondary" type="button" onClick={onOpenCampaign}>Review Campaign <ChevronRight size={15} /></button></header>
-      <div className="crew-reward-kpis">
-        <CampaignMetric label="Configured Pool" value={money(configured)} />
-        <CampaignMetric label={c.status === "finalized" || c.status === "paid" ? "Final Payout" : "Projected Payout"} value={money(payout)} detail={awaiting.length ? "Awaiting Performance" : null} />
-        <CampaignMetric label="Qualified Crew" value={`${qualified} / ${participating}`} detail={awaiting.length ? `${awaiting.length} pending` : `${qualified} qualified`} />
-        <CampaignMetric label="Pool Utilization" value={percent(utilization)} detail={`Unused balance ${money(unused)}`} progress={utilization} />
-      </div>
+    <section className="space-y-3" aria-labelledby="current-reward-campaign">
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <div className="min-w-0">
+          <span className="text-xs font-semibold text-text-secondary">Current Campaign</span>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h2 id="current-reward-campaign" className="text-xl font-bold text-text-primary">{month(c.period_start)}</h2>
+            <Badge tone={semanticStatusTone(c.status)}>{cycleStatus(c.status)}</Badge>
+          </div>
+        </div>
+        <button className="btn-secondary inline-flex items-center gap-1.5 whitespace-nowrap" type="button" onClick={onOpenCampaign}>Review Campaign <ChevronRight size={15} /></button>
+      </header>
+      <AdminSummaryGrid variant="standard" ariaLabel="Current Reward Campaign summary" items={[
+        { label: "Configured Pool", value: money(configured), helper: "Campaign budget" },
+        { label: c.status === "finalized" || c.status === "paid" ? "Final Payout" : "Projected Payout", value: money(payout), helper: awaiting.length ? "Awaiting Performance" : "Current campaign result", tone: awaiting.length ? "warning" : "neutral" },
+        { label: "Qualified Crew", value: `${qualified} / ${participating}`, helper: awaiting.length ? `${awaiting.length} pending` : `${qualified} qualified`, tone: awaiting.length ? "warning" : "success" },
+        { label: "Pool Utilization", value: percent(utilization), helper: `Unused balance ${money(unused)}` },
+      ]} />
       <CampaignStatusStrip cycle={c} awaiting={awaiting.length} />
     </section>
-    <AdminDataSection title="Crew Rewards" description="Canonical server results from finalized Performance and eligible attendance." className="crew-reward-section"><RewardTable rows={data.entries} cycle={c} onOpen={onOpenEmployee} />{pagination}</AdminDataSection>
+    <AdminDataSection title="Crew Rewards" description="Canonical server results from finalized Performance and eligible attendance."><RewardTable rows={data.entries} cycle={c} onOpen={onOpenEmployee} />{pagination}</AdminDataSection>
   </>;
 }
 
 function CampaignStatusStrip({ cycle, awaiting }) {
-  if (awaiting) return <aside className="crew-reward-status-strip is-warning"><AlertTriangle size={16} /><div><strong>{awaiting} Crew awaiting finalized Performance</strong><span>Reward calculation will update automatically when their Performance is finalized.</span></div></aside>;
-  if (cycle.status === "review") return <aside className="crew-reward-status-strip"><div><strong>Reward calculation is ready for review</strong><span>Review the canonical Crew breakdown before finalizing this Campaign.</span></div></aside>;
+  if (awaiting) return <aside className="flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900" role="alert"><AlertTriangle className="mt-0.5 shrink-0" size={16} /><div className="grid gap-0.5"><strong className="text-sm">{awaiting} Crew awaiting finalized Performance</strong><span className="text-xs text-amber-800">Reward calculation will update automatically when their Performance is finalized.</span></div></aside>;
+  if (cycle.status === "review") return <aside className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-900" role="status"><strong className="block text-sm">Reward calculation is ready for review</strong><span className="mt-0.5 block text-xs text-emerald-800">Review the canonical Crew breakdown before finalizing this Campaign.</span></aside>;
   return null;
 }
 
 function RewardTable({ rows, cycle, onOpen }) {
-  if (!rows.length) return <div className="crew-reward-table-empty">Calculate this Draft Campaign to create its frozen Reward breakdown.</div>;
-  return <DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[940px]" columns={[
+  if (!rows.length) return <EmptyState title="No Crew rewards yet" description="Calculate this Draft Campaign to create its frozen Reward breakdown." />;
+  return <DataTable density="compact" rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[940px]" columns={[
     { key: "employee", header: "Employee", render: (row) => <span className="crew-growth-name"><span className="crew-growth-avatar">{row.employee_name.split(/\s+/).slice(0, 2).map((part) => part[0]).join("")}</span><span><strong>{row.employee_name}</strong><small>{row.position || "Crew"}</small></span></span> },
-    { key: "hours", header: "Eligible Hours", align: "right", render: (row) => <span className="crew-reward-number">{Number(row.eligible_hours).toFixed(1)}h</span> },
-    { key: "performance", header: "Performance", align: "right", render: (row) => <span className="crew-reward-number">{row.performance_score == null ? "—" : Math.round(row.performance_score)}</span> },
-    { key: "contribution", header: "Contribution", align: "right", render: (row) => <span className="crew-reward-number">{row.status === "awaiting_performance" ? "—" : percent(row.contribution_share)}</span> },
-    { key: "factor", header: "Reward Factor", align: "right", render: (row) => <span className="crew-reward-number">{percent(row.performance_factor)}</span> },
-    { key: "reward", header: cycle.status === "finalized" || cycle.status === "paid" ? "Final Reward" : "Projected Reward", align: "right", render: (row) => <strong className="crew-reward-final">{money(row.final_payout)}</strong> },
+    { key: "hours", header: "Eligible Hours", align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{Number(row.eligible_hours).toFixed(1)}h</span> },
+    { key: "performance", header: "Performance", align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{row.performance_score == null ? "—" : Math.round(row.performance_score)}</span> },
+    { key: "contribution", header: "Contribution", align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{row.status === "awaiting_performance" ? "—" : percent(row.contribution_share)}</span> },
+    { key: "factor", header: "Reward Factor", align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{percent(row.performance_factor)}</span> },
+    { key: "reward", header: cycle.status === "finalized" || cycle.status === "paid" ? "Final Reward" : "Projected Reward", align: "right", render: (row) => <strong className="whitespace-nowrap tabular-nums text-primary">{money(row.final_payout)}</strong> },
     { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{entryStatus(row.status)}</Badge> },
-    { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> },
+    { key: "open", header: "", align: "right", render: () => <ChevronRight className="text-text-muted" size={15} /> },
   ]} />;
 }
 
 function CampaignHistory({ rows, pagination, currentCycleId, onOpen }) {
-  return <AdminDataSection title="Reward Campaigns" description="Current and immutable historical monthly Campaigns." className="crew-reward-section">{rows.length ? <DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[850px]" columns={[
-    { key: "period", header: "Period", render: (row) => <span className="crew-reward-history-period"><strong>{month(row.period_start)}</strong>{row.id === currentCycleId ? <small>Current</small> : null}</span> },
-    { key: "pool", header: "Pool", align: "right", render: (row) => <span className="crew-reward-number">{money(row.configured_pool)}</span> },
-    { key: "crew", header: "Crew", align: "right", render: (row) => <span className="crew-reward-number">{Number(row.participant_count || 0)} Crew</span> },
-    { key: "payout", header: "Payout", align: "right", render: (row) => <strong className="crew-reward-final">{money(row.actual_payout)}</strong> },
-    { key: "utilization", header: "Utilization", align: "right", render: (row) => <span className="crew-reward-number">{percent(Number(row.configured_pool) > 0 ? Number(row.actual_payout || 0) / Number(row.configured_pool) : 0)}</span> },
+  return <AdminDataSection title="Reward Campaigns" description="Current and immutable historical monthly Campaigns.">{rows.length ? <DataTable density="compact" rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[850px]" columns={[
+    { key: "period", header: "Period", render: (row) => <span className="flex items-center gap-2 whitespace-nowrap"><strong>{month(row.period_start)}</strong>{row.id === currentCycleId ? <Badge tone="info">Current</Badge> : null}</span> },
+    { key: "pool", header: "Pool", align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{money(row.configured_pool)}</span> },
+    { key: "crew", header: "Crew", align: "right", render: (row) => <span className="whitespace-nowrap tabular-nums text-text-secondary">{Number(row.participant_count || 0)} Crew</span> },
+    { key: "payout", header: "Payout", align: "right", render: (row) => <strong className="whitespace-nowrap tabular-nums text-primary">{money(row.actual_payout)}</strong> },
+    { key: "utilization", header: "Utilization", align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{percent(Number(row.configured_pool) > 0 ? Number(row.actual_payout || 0) / Number(row.configured_pool) : 0)}</span> },
     { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{cycleStatus(row.status)}</Badge> },
-    { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> },
-  ]} /> : <div className="crew-reward-history-empty-admin">No Reward Campaign history for this outlet.</div>}{pagination}</AdminDataSection>;
+    { key: "open", header: "", align: "right", render: () => <ChevronRight className="text-text-muted" size={15} /> },
+  ]} /> : <EmptyState title="No Reward Campaign history" description="Campaigns for this outlet will appear here after they are created." />}{pagination}</AdminDataSection>;
 }
 
 function CampaignDetail({ data, canManage, canFinalize, canPaid, onClose, onCalculate, onFinalize, onPaid, onOpenEmployee }) {
@@ -209,5 +220,3 @@ function CreateCampaign({ outlet, defaultPeriod, crew, existing, onClose, onSubm
 }
 
 function Adjustment({ entry, onClose, onSubmit }) { const [amount, setAmount] = useState(""); const [reason, setReason] = useState(""); const final = Number(entry.calculated_reward || 0) + Number(amount || 0); return <Modal title="Adjust Reward" description={`${entry.employee_name} · Calculated ${money(entry.calculated_reward)}`} onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={!Number(amount) || reason.trim().length < 5 || final < 0} onClick={() => onSubmit({ entryId: entry.id, amount: Number(amount), reason })}>Save Adjustment</button></>}><div className="crew-reward-form"><label>Adjustment amount<input className="control" type="number" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="Example: 20 or -5" /></label><section className="crew-reward-adjust-preview"><span>Calculated <strong>{money(entry.calculated_reward)}</strong></span><span>Adjustment <strong>{Number(amount) > 0 ? "+" : ""}{money(amount)}</strong></span><span>Final <strong>{money(final)}</strong></span></section><label>Reason *<textarea className="control" value={reason} maxLength={500} onChange={(event) => setReason(event.target.value)} placeholder="Required audit reason" /></label><p><AlertTriangle size={15} /> The calculated amount is retained. This adjustment creates an immutable audit record.</p></div></Modal>; }
-
-function CampaignMetric({ label, value, detail, progress }) { return <article><small>{label}</small><strong>{value}</strong>{detail ? <span>{detail}</span> : null}{progress != null ? <i className="crew-reward-metric-progress" style={{ "--reward-progress": `${Math.min(100, progress * 100)}%` }} /> : null}</article>; }

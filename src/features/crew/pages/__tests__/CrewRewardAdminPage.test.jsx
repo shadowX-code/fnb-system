@@ -31,12 +31,17 @@ describe("Crew Reward Admin", () => {
   });
 
   it("renders authoritative pool and employee breakdown", async () => {
-    render(<CrewRewardAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    const { container } = render(<CrewRewardAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByRole("heading", { name: "Reward Overview" })).not.toBeNull();
     expect(screen.getAllByText("RM 500.00").length).toBeGreaterThan(0);
     expect(screen.getByText("Alex Tan")).not.toBeNull();
     expect(screen.getByText("32.2%")).not.toBeNull();
     expect(screen.getAllByText("Qualified").length).toBeGreaterThan(0);
+    expect(container.querySelector('[data-admin-summary-grid="standard"]')).not.toBeNull();
+    expect(container.querySelectorAll('[data-admin-summary-card="true"]')).toHaveLength(4);
+    expect(container.querySelectorAll('table[data-density="compact"]')).toHaveLength(2);
+    expect(container.querySelectorAll(".admin-data-section-header")).toHaveLength(2);
+    expect(container.querySelectorAll(".admin-data-section-header + .data-table-scroll")).toHaveLength(2);
   });
 
   it("creates a cycle through the controlled authority", async () => {
