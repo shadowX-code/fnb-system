@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260920170000_employee_compliance_v1.sql"), "utf8");
+const scopeFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260920172000_employee_compliance_people_scope.sql"), "utf8");
 const edge = readFileSync(resolve(process.cwd(), "supabase/functions/employee-compliance-evidence/index.ts"), "utf8");
 
 describe("Employee Compliance V1 authority", () => {
@@ -47,5 +48,13 @@ describe("Employee Compliance V1 authority", () => {
     expect(sql).toContain("'total_count',v_total");
     expect(sql).toContain("employee_compliance.review");
     expect(sql).toContain("current_user_can_access_outlet");
+  });
+});
+
+describe("Employee Compliance People scope", () => {
+  it("uses the canonical all-outlet or employee outlet authority everywhere Admin reads or reviews", () => {
+    expect(scopeFix).toContain("current_user_has_all_outlet_access()");
+    expect(scopeFix).toContain("current_user_can_access_outlet(public.crew_resolve_employee_outlet(e.id))");
+    expect(scopeFix.match(/employee_compliance_admin_can_access_employee/g)?.length).toBeGreaterThanOrEqual(7);
   });
 });
