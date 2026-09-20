@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Calculator, ChevronRight, Gift, Search, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -7,6 +7,8 @@ import Badge from "../../../components/ui/Badge.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
+import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import { crewService } from "../../../services/crewService.js";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
@@ -34,6 +36,10 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
   const canManage = auth.hasPermission("crew_reward.manage");
   const canFinalize = auth.hasPermission("crew_reward.finalize");
   const canPaid = auth.hasPermission("crew_reward.mark_paid");
+  const entriesSignature = useMemo(() => JSON.stringify({ outletId, period, cycleId: data.cycle?.id || null, listing: "entries" }), [outletId, period, data.cycle?.id]);
+  const campaignsSignature = useMemo(() => JSON.stringify({ outletId, period, listing: "campaigns" }), [outletId, period]);
+  const [entriesListing, entriesActions] = useAdminPagedQuery({ storageKey: "crew-reward-entries", enabled: Boolean(outletId && data.cycle?.id), querySignature: entriesSignature, loadPage: ({ page, pageSize }) => crewService.rewardAdminPage({ outletId, period, cycleId: data.cycle?.id, listing: "entries", page, pageSize }) });
+  const [campaignsListing, campaignsActions] = useAdminPagedQuery({ storageKey: "crew-reward-campaigns", enabled: Boolean(outletId), querySignature: campaignsSignature, loadPage: ({ page, pageSize }) => crewService.rewardAdminPage({ outletId, period, listing: "campaigns", page, pageSize }) });
 
   async function refresh(cycleId = null, nextPeriod = period) {
     if (!outletId) return;
@@ -80,7 +86,7 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
     <PageHeader section="Crew · Reward" title="Reward Overview" description="Plan monthly Reward Campaigns, monitor projected payouts and finalize transparent Crew rewards." primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
     <AdminFilterToolbar ariaLabel="Reward filters" outlet={<CrewAdminOutletField />} period={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
 
-    <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Rewards" hasData={Boolean(data.cycle || data.cycles.length)} onRetry={() => refresh()}><RewardOverview data={data} canManage={canManage} onOpenCampaign={() => setCampaignOpen(true)} onOpenEmployee={setEmployeeOpen} onOpenCycle={openCycle} /></AsyncDataSurface>
+    <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Rewards" hasData={Boolean(data.cycle || data.cycles.length)} onRetry={() => refresh()}><RewardOverview data={data} entries={entriesListing.rows} entriesLoaded={entriesListing.hasLoaded} entriesPagination={<AdminPagination {...entriesListing} onPageChange={entriesActions.requestPage} onPageSizeChange={entriesActions.requestPageSize} noun="Crew rewards" />} campaigns={campaignsListing.rows} campaignsLoaded={campaignsListing.hasLoaded} campaignsPagination={<AdminPagination {...campaignsListing} onPageChange={campaignsActions.requestPage} onPageSizeChange={campaignsActions.requestPageSize} noun="Reward campaigns" />} canManage={canManage} onOpenCampaign={() => setCampaignOpen(true)} onOpenEmployee={setEmployeeOpen} onOpenCycle={openCycle} /></AsyncDataSurface>
 
     {campaignOpen && data.cycle ? <CampaignDetail data={data} canManage={canManage} canFinalize={canFinalize} canPaid={canPaid} onClose={() => setCampaignOpen(false)} onCalculate={calculate} onFinalize={finalize} onPaid={markPaid} onOpenEmployee={setEmployeeOpen} /> : null}
     {employeeOpen ? <EmployeeRewardDetail entry={employeeOpen} cycle={data.cycle} canAdjust={canManage && data.cycle?.status === "review"} onClose={() => setEmployeeOpen(null)} onAdjust={() => { setEmployeeOpen(null); setAdjusting(employeeOpen); }} /> : null}
@@ -89,19 +95,22 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
   </div>;
 }
 
-function RewardOverview({ data, canManage, onOpenCampaign, onOpenEmployee, onOpenCycle }) {
+function RewardOverview({ data, entries, entriesLoaded, entriesPagination, campaigns, campaignsLoaded, campaignsPagination, canManage, onOpenCampaign, onOpenEmployee, onOpenCycle }) {
   const cycle = data.cycle;
+  const visibleEntries = entriesLoaded ? entries : data.entries;
+  const visibleCampaigns = campaignsLoaded ? campaigns : data.cycles;
   return <div className="crew-reward-overview">
-    {cycle ? <CurrentCampaign data={data} onOpenCampaign={onOpenCampaign} onOpenEmployee={onOpenEmployee} /> : <section className="crew-reward-empty"><Gift size={28} /><h2>No Reward Campaign for this month</h2><p>{canManage ? "Create a Campaign to set the pool and freeze participating Crew." : "No Campaign has been configured for the selected period."}</p></section>}
-    <CampaignHistory rows={data.cycles} currentCycleId={cycle?.id} onOpen={onOpenCycle} />
+    {cycle ? <CurrentCampaign data={{ ...data, summaryEntries: data.entries, entries: visibleEntries }} pagination={entriesPagination} onOpenCampaign={onOpenCampaign} onOpenEmployee={onOpenEmployee} /> : <section className="crew-reward-empty"><Gift size={28} /><h2>No Reward Campaign for this month</h2><p>{canManage ? "Create a Campaign to set the pool and freeze participating Crew." : "No Campaign has been configured for the selected period."}</p></section>}
+    <CampaignHistory rows={visibleCampaigns} pagination={campaignsPagination} currentCycleId={cycle?.id} onOpen={onOpenCycle} />
   </div>;
 }
 
-function CurrentCampaign({ data, onOpenCampaign, onOpenEmployee }) {
+function CurrentCampaign({ data, pagination, onOpenCampaign, onOpenEmployee }) {
   const c = data.cycle;
-  const participating = Number(c.participant_count || data.participants.length || data.entries.length);
-  const qualified = data.entries.filter((row) => ["qualified", "finalized", "paid"].includes(row.status)).length;
-  const awaiting = data.entries.filter((row) => row.status === "awaiting_performance");
+  const summaryEntries = data.summaryEntries || data.entries;
+  const participating = Number(c.participant_count || data.participants.length || summaryEntries.length);
+  const qualified = summaryEntries.filter((row) => ["qualified", "finalized", "paid"].includes(row.status)).length;
+  const awaiting = summaryEntries.filter((row) => row.status === "awaiting_performance");
   const payout = Number(c.actual_payout ?? c.estimated_payout ?? 0);
   const configured = Number(c.configured_pool || 0);
   const unused = Math.max(0, Number(c.unused_amount ?? configured - payout));
@@ -118,7 +127,7 @@ function CurrentCampaign({ data, onOpenCampaign, onOpenEmployee }) {
       </div>
       <CampaignStatusStrip cycle={c} awaiting={awaiting.length} />
     </section>
-    <section className="crew-reward-section"><header><div><h2>Crew Rewards</h2><p>Canonical server results from finalized Performance and eligible attendance.</p></div></header><RewardTable rows={data.entries} cycle={c} onOpen={onOpenEmployee} /></section>
+    <AdminDataSection title="Crew Rewards" description="Canonical server results from finalized Performance and eligible attendance." className="crew-reward-section"><RewardTable rows={data.entries} cycle={c} onOpen={onOpenEmployee} />{pagination}</AdminDataSection>
   </>;
 }
 
@@ -142,8 +151,8 @@ function RewardTable({ rows, cycle, onOpen }) {
   ]} />;
 }
 
-function CampaignHistory({ rows, currentCycleId, onOpen }) {
-  return <section className="crew-reward-section"><header><div><h2>Reward Campaigns</h2><p>Current and immutable historical monthly Campaigns.</p></div></header>{rows.length ? <DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[850px]" columns={[
+function CampaignHistory({ rows, pagination, currentCycleId, onOpen }) {
+  return <AdminDataSection title="Reward Campaigns" description="Current and immutable historical monthly Campaigns." className="crew-reward-section">{rows.length ? <DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onOpen} tableClassName="min-w-[850px]" columns={[
     { key: "period", header: "Period", render: (row) => <span className="crew-reward-history-period"><strong>{month(row.period_start)}</strong>{row.id === currentCycleId ? <small>Current</small> : null}</span> },
     { key: "pool", header: "Pool", align: "right", render: (row) => <span className="crew-reward-number">{money(row.configured_pool)}</span> },
     { key: "crew", header: "Crew", align: "right", render: (row) => <span className="crew-reward-number">{Number(row.participant_count || 0)} Crew</span> },
@@ -151,7 +160,7 @@ function CampaignHistory({ rows, currentCycleId, onOpen }) {
     { key: "utilization", header: "Utilization", align: "right", render: (row) => <span className="crew-reward-number">{percent(Number(row.configured_pool) > 0 ? Number(row.actual_payout || 0) / Number(row.configured_pool) : 0)}</span> },
     { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{cycleStatus(row.status)}</Badge> },
     { key: "open", header: "", align: "right", render: () => <ChevronRight size={16} /> },
-  ]} /> : <div className="crew-reward-history-empty-admin">No Reward Campaign history for this outlet.</div>}</section>;
+  ]} /> : <div className="crew-reward-history-empty-admin">No Reward Campaign history for this outlet.</div>}{pagination}</AdminDataSection>;
 }
 
 function CampaignDetail({ data, canManage, canFinalize, canPaid, onClose, onCalculate, onFinalize, onPaid, onOpenEmployee }) {

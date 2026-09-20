@@ -98,17 +98,18 @@ describe("Crew SOP Library Admin", () => {
   it("uses outlet-scoped table filters and shows draft state", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "SOP Library" });
+    await waitFor(() => expect(document.querySelector("table")).not.toBeNull());
     expect(document.querySelector("table").className).toContain("min-w-[1040px]");
     expect(screen.getByText("Published · Unpublished changes")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Search SOP"), { target: { value: "Kitchen" } });
-    expect(screen.queryByText("Welcome & Goodbye Standard")).toBeNull();
+    await waitFor(() => expect(screen.queryByText("Welcome & Goodbye Standard")).toBeNull());
     expect(screen.getByText("Kitchen Safety")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Clear all" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
+    expect(await screen.findByText("Welcome & Goodbye Standard")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Search SOP"), { target: { value: "Kitchen" } });
     selectOption("Category", "Service");
-    expect(screen.getByText("No SOPs match these filters")).not.toBeNull();
+    expect(await screen.findByText("No SOPs match these filters")).not.toBeNull();
     selectOption("Outlet", "Friends Corner");
     await waitFor(() => expect(mocks.list).toHaveBeenCalledWith("outlet-2"));
   });

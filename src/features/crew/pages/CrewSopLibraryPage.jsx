@@ -31,6 +31,7 @@ import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx"
 import LoadingSkeleton from "../../../components/feedback/LoadingSkeleton.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import PublicationState from "../../../components/ui/PublicationState.jsx";
@@ -306,17 +307,13 @@ function SopLibrary({ outletControl, outlet, sops, categories, loading, error, o
   const [categoryId, setCategoryId] = useState("");
   const [status, setStatus] = useState("");
   const [categorySort, setCategorySort] = useState("asc");
-  const rows = useMemo(() => sops.filter((sop) => {
-    const published = currentVersion(sop);
-    const draft = draftVersion(sop);
-    const lifecycle = draft ? "draft" : published ? "published" : sop.status;
-    return (!query || `${sop.title} ${sop.summary || ""}`.toLowerCase().includes(query.toLowerCase()))
-      && (!categoryId || sop.category_id === categoryId)
-      && (!status || lifecycle === status);
-  }).sort((left, right) => {
-    const result = String(left.category || "").localeCompare(String(right.category || "")) || String(left.title).localeCompare(String(right.title));
-    return categorySort === "asc" ? result : -result;
-  }), [sops, query, categoryId, status, categorySort]);
+  const pageFilters = useMemo(() => ({ query, category_id: categoryId, status, sort: `category_${categorySort}` }), [query, categoryId, status, categorySort]);
+  const [listing, listingActions] = useAdminPagedQuery({ storageKey: "crew-sop-library", enabled: Boolean(outlet?.id), querySignature: JSON.stringify({ outletId: outlet?.id, pageFilters, legacyRows: crewService.sopAdminPage ? null : sops.map((sop) => sop.id) }), loadPage: ({ page, pageSize }) => {
+    if (crewService.sopAdminPage) return crewService.sopAdminPage({ outletId: outlet.id, filters: pageFilters, page, pageSize });
+    const filtered = sops.filter((sop) => (!pageFilters.query || `${sop.title} ${sop.summary || ""}`.toLowerCase().includes(pageFilters.query.toLowerCase())) && (!pageFilters.category_id || sop.category_id === pageFilters.category_id) && (!pageFilters.status || (draftVersion(sop) ? "draft" : currentVersion(sop) ? "published" : sop.status) === pageFilters.status)).sort((a, b) => `${a.category} ${a.title}`.localeCompare(`${b.category} ${b.title}`) * (pageFilters.sort === "category_desc" ? -1 : 1));
+    return Promise.resolve({ rows: filtered.slice((page - 1) * pageSize, page * pageSize), total_count: filtered.length, page, page_size: pageSize });
+  } });
+  const rows = listing.rows;
   const activeFilters = [
     query && { key: "query", label: "Search", value: query, onRemove: () => setQuery("") },
     categoryId && { key: "category", label: "Category", value: categories.find((category) => category.id === categoryId)?.name || "Selected", onRemove: () => setCategoryId("") },
@@ -328,7 +325,7 @@ function SopLibrary({ outletControl, outlet, sops, categories, loading, error, o
   return <div className="crew-sop-library-sections">
     <AdminFilterToolbar ariaLabel="SOP filters" outlet={outletControl} search={<label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>} filters={<><SelectField label="Category" ariaLabel="Category" value={categoryId} onChange={setCategoryId} options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "", label: "All" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" }]} /></>} activeFilters={activeFilters} onClear={() => { setQuery(""); setCategoryId(""); setStatus(""); }} />
     <section className="crew-sop-table-card" aria-label="SOP list">
-    <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load SOP Library" hasData={rows.length > 0} isEmpty={!rows.length} emptyTitle={emptyTitle} emptyDescription={emptyDescription} emptyActions={!sops.length && canManage ? <button className="btn-primary" type="button" onClick={onCreate}>Create SOP</button> : null} onRetry={onRetry}>
+    <AsyncDataSurface loading={loading || listing.loading} error={error || listing.error} errorTitle="Unable to load SOP Library" hasData={rows.length > 0} isEmpty={listing.hasLoaded && !rows.length} emptyTitle={emptyTitle} emptyDescription={emptyDescription} emptyActions={!sops.length && canManage ? <button className="btn-primary" type="button" onClick={onCreate}>Create SOP</button> : null} onRetry={() => { onRetry(); listingActions.retry(); }}>
     {rows.length ? <DataTable
       density="normal"
       tableClassName="min-w-[1040px] table-fixed"
@@ -345,7 +342,7 @@ function SopLibrary({ outletControl, outlet, sops, categories, loading, error, o
         { key: "status", header: "Status", width: "12%", render: (row) => <PublicationState status={currentVersion(row) ? "published" : "draft"} unpublishedChanges={Boolean(currentVersion(row) && draftVersion(row))} /> },
         { key: "actions", header: "", width: "190px", align: "right", render: (row) => <SopRowActions row={row} canManage={canManage} onOpen={onOpen} onEdit={onEdit} onNewVersion={onNewVersion} onDeleteDraft={onDeleteDraft} /> },
       ]}
-    /> : null}
+    /> : null}<AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="SOPs" />
     </AsyncDataSurface>
     </section>
   </div>;

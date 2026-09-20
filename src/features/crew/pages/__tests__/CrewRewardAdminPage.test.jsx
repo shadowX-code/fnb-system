@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), create: vi.fn(), calculate: vi.fn(), adjust: vi.fn(), finalize: vi.fn(), paid: vi.fn() }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), page: vi.fn(), create: vi.fn(), calculate: vi.fn(), adjust: vi.fn(), finalize: vi.fn(), paid: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
-  rewardAdminData: mocks.data, createRewardCampaign: mocks.create, calculateRewardCycle: mocks.calculate,
+  rewardAdminData: mocks.data, rewardAdminPage: mocks.page, createRewardCampaign: mocks.create, calculateRewardCycle: mocks.calculate,
   adjustRewardEntry: mocks.adjust, finalizeRewardCycle: mocks.finalize, markRewardCyclePaid: mocks.paid,
 } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
@@ -16,7 +16,7 @@ const readyReadiness = { ready: true, message: "Ready to finalize.", participant
 const fixture = { cycles: [{ ...cycle, participant_count: 1 }], cycle: { ...cycle, participant_count: 1, finalization_readiness: readyReadiness }, entries: [entry], adjustments: [], participants: [{ employee_id: "employee-1", employee_name: "Alex Tan", position: "Service Crew" }], eligible_crew: [{ id: "employee-1", name: "Alex Tan", position: "Service Crew" }] };
 const auth = { hasPermission: () => true }; const ui = { notify: vi.fn() };
 
-beforeEach(() => { for (const mock of Object.values(mocks)) mock.mockReset(); mocks.data.mockResolvedValue(fixture); mocks.create.mockResolvedValue("cycle-1"); mocks.calculate.mockResolvedValue({}); mocks.adjust.mockResolvedValue({}); mocks.finalize.mockResolvedValue({}); mocks.paid.mockResolvedValue({}); });
+beforeEach(() => { for (const mock of Object.values(mocks)) mock.mockReset(); mocks.data.mockResolvedValue(fixture); mocks.page.mockImplementation(({ listing }) => Promise.resolve({ rows: listing === "entries" ? fixture.entries : fixture.cycles, total_count: listing === "entries" ? fixture.entries.length : fixture.cycles.length, page: 1, page_size: 20 })); mocks.create.mockResolvedValue("cycle-1"); mocks.calculate.mockResolvedValue({}); mocks.adjust.mockResolvedValue({}); mocks.finalize.mockResolvedValue({}); mocks.paid.mockResolvedValue({}); });
 afterEach(cleanup);
 
 describe("Crew Reward Admin", () => {
@@ -85,7 +85,7 @@ describe("Crew Reward Admin", () => {
 
   it("summarizes pending Performance once on the overview without duplicating affected Crew", async () => {
     const awaiting = { ...entry, id: "entry-2", employee_name: "Jamie Lee", performance_score: null, status: "awaiting_performance" };
-    mocks.data.mockResolvedValue({ ...fixture, entries: [awaiting] });
+    mocks.data.mockResolvedValue({ ...fixture, entries: [awaiting] }); mocks.page.mockImplementation(({ listing }) => Promise.resolve({ rows: listing === "entries" ? [awaiting] : fixture.cycles, total_count: 1, page: 1, page_size: 20 }));
     render(<CrewRewardAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("1 Crew awaiting finalized Performance")).not.toBeNull();
     expect(screen.getByText("Reward calculation will update automatically when their Performance is finalized.")).not.toBeNull();

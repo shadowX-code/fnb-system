@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarDays, Clock3, Eye, HelpCircle, MapPin, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
-import Card from "../../../components/ui/Card.jsx";
+import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
 import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -199,12 +199,12 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
 
     {attentionCount ? <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3" aria-label="Needs Attention"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2 font-bold text-text-primary"><AlertTriangle className="text-amber-600" size={17} />{attentionCount} attendance record signal{attentionCount === 1 ? "" : "s"} need review</div><p className="mt-1 text-xs text-text-secondary">Signals remain separate: location, session completion, roster matching, and large clock-in variance.</p></div><div className="flex flex-wrap gap-2">{summary.exceptions ? <button className="btn-secondary" type="button" onClick={() => setStatus("location_exception")}>{summary.exceptions} Location Exception{summary.exceptions === 1 ? "" : "s"}</button> : null}{summary.incomplete ? <button className="btn-secondary" type="button" onClick={() => setStatus("incomplete")}>{summary.incomplete} Incomplete</button> : null}{summary.noRoster ? <button className="btn-secondary" type="button" onClick={() => setStatus("no_roster")}>{summary.noRoster} No Roster</button> : null}{summary.largeVariance ? <button className="btn-secondary" type="button" onClick={() => setStatus("variance")}>{summary.largeVariance} Large Variance</button> : null}</div></div></section> : null}
 
-    <Card title={isToday ? "Today’s Attendance" : "Attendance History"} description={`${listing.loadedTotal} record${listing.loadedTotal === 1 ? "" : "s"} · Execution and location states are reported separately.`}>
+    <AdminDataSection>
       <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={visibleRows.length > 0} isEmpty={listing.hasLoaded && listing.loadedTotal === 0} emptyTitle="No attendance records" emptyDescription="No records match the selected date, outlet, or filters." onRetry={listingActions.retry}>
-        <div className="crew-attendance-table"><DataTable density="compact" tableClassName="min-w-[1100px]" rows={visibleRows} getRowKey={(row) => row.id} getRowClassName={issueClass} onRowClick={setDetail} columns={columns} /></div>
+        <DataTable density="compact" tableClassName="min-w-[1100px]" rows={visibleRows} getRowKey={(row) => row.id} getRowClassName={issueClass} onRowClick={setDetail} columns={columns} />
         <AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="attendance records" />
       </AsyncDataSurface>
-    </Card>
+    </AdminDataSection>
     {detail ? <AttendanceDetail row={detail} onClose={() => setDetail(null)} /> : null}
   </div>;
 }

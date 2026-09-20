@@ -465,6 +465,12 @@ export const crewService = {
     return data || { cycles: [], cycle: null, entries: [], adjustments: [] };
   },
 
+  async rewardAdminPage({ outletId, period, cycleId = null, listing, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_reward_admin_page", { p_outlet_id: outletId, p_period: period, p_cycle_id: cycleId, p_listing: listing, p_page: page, p_page_size: pageSize });
+    throwSupabaseError("crew.rewardAdminPage", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize, summary: {} };
+  },
+
   async createRewardCampaign({ outletId, period, configuredPool, employeeIds = null, minimumPerformance = 60 }) {
     const { data, error } = await supabase.rpc("crew_reward_create_campaign", {
       p_outlet_id: outletId,
@@ -505,6 +511,12 @@ export const crewService = {
     const { data, error } = await supabase.rpc("crew_performance_admin_data", { p_outlet_id: outletId, p_period: period });
     throwSupabaseError("crew.performanceAdminData", error);
     return data || { summary: {}, crew: [], reviews: [], feedback: [] };
+  },
+
+  async performanceAdminPage({ outletId, period, listing, filters = {}, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_performance_admin_page", { p_outlet_id: outletId, p_period: period, p_listing: listing, p_filters: filters, p_page: page, p_page_size: pageSize });
+    throwSupabaseError("crew.performanceAdminPage", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize, summary: {} };
   },
 
   async feedbackAdminPage({ outletId, period, filters = {}, page = 1, pageSize = 20 }) {
@@ -970,6 +982,12 @@ export const crewService = {
     });
     throwSupabaseError("crew.listOutletSopsAdmin", error);
     return data || { sops: [], categories: [] };
+  },
+
+  async sopAdminPage({ outletId, filters = {}, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_sop_admin_page", { p_outlet_id: outletId, p_filters: filters, p_page: page, p_page_size: pageSize });
+    throwSupabaseError("crew.sopAdminPage", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize, summary: {} };
   },
 
   async localizedContentAdmin(domain, versionId) {

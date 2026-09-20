@@ -1,26 +1,17 @@
-.crew-attendance-table .data-table-scroll {
-  max-height: min(62vh, 640px);
-  overflow: auto;
-}
-
-.crew-attendance-table .table-head {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-}
-
-.crew-attendance-table .crew-attendance-row-warning {
+.crew-attendance-row-warning {
   background: rgb(255 251 235 / 0.48);
 }
 
-.crew-attendance-table .crew-attendance-row-danger {
+.crew-attendance-row-danger {
   background: rgb(255 241 242 / 0.5);
 }
 
-.crew-attendance-table .crew-attendance-row-neutral {
+.crew-attendance-row-neutral {
   background: rgb(248 250 252 / 0.68);
 }
 
-.crew-attendance-table .table-row:hover {
+.crew-attendance-row-warning.table-row:hover,
+.crew-attendance-row-danger.table-row:hover,
+.crew-attendance-row-neutral.table-row:hover {
   background: rgb(240 253 250 / 0.72);
 }
