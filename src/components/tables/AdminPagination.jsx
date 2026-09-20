@@ -423,7 +423,14 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
       }
     : state;
 
-  return [stateForCurrentListing, actions];
+  return [{
+    ...stateForCurrentListing,
+    // Paged consumers spread this snapshot into AdminPagination. Keep the
+    // public pagination contract aligned with the internal loaded snapshot.
+    page: stateForCurrentListing.loadedPage,
+    pageSize: stateForCurrentListing.loadedPageSize,
+    total: stateForCurrentListing.loadedTotal,
+  }, actions];
 }
 
 export function useFactoryClientPagination(storageKey, totalRows = 0, defaultPageSize = 20, resetKey = "") {

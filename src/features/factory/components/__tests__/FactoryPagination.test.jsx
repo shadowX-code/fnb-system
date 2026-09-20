@@ -16,7 +16,7 @@ describe("useFactoryPagedQuery", () => {
     const loadPage = vi.fn().mockResolvedValue({ rows: [{ id: "one" }], summary: { total: 21 }, total_count: 21, page: 1, page_size: 20 });
     const { result } = renderHook(() => useFactoryPagedQuery({ storageKey: "test-snake-case", querySignature: "initial", loadPage }));
     await waitFor(() => expect(result.current[0].hasLoaded).toBe(true));
-    expect(result.current[0]).toMatchObject({ loadedTotal: 21, loadedPage: 1, loadedPageSize: 20 });
+    expect(result.current[0]).toMatchObject({ loadedTotal: 21, loadedPage: 1, loadedPageSize: 20, total: 21, page: 1, pageSize: 20 });
   });
   it("never lets an older filter request overwrite the newer result", async () => {
     const first = deferred(); const second = deferred(); const loadPage = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
