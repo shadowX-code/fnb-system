@@ -64,6 +64,23 @@ export const employeeService = {
     return (data ?? []).map(mapEmployee);
   },
 
+  async crewAccessAdminPage({ outletId, filters = {}, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_access_admin_page", {
+      p_outlet_id: outletId,
+      p_filters: filters,
+      p_page: page,
+      p_page_size: pageSize,
+    });
+    throwSupabaseError("crewAccess.page", error);
+    return {
+      rows: (data?.rows ?? []).map(mapEmployee),
+      totalCount: data?.total_count ?? 0,
+      page: data?.page ?? page,
+      pageSize: data?.page_size ?? pageSize,
+      summary: data?.summary ?? {},
+    };
+  },
+
   async saveEmployee(employee) {
     let roleId = employee.role_id || null;
     if (!roleId && employee.role) {

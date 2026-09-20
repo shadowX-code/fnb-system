@@ -215,6 +215,47 @@ export const crewService = {
     return data || { requests: [] };
   },
 
+  async leaveRequestsAdminPage({ outletId, from = null, to = null, filters = {}, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_leave_requests_admin_page", {
+      p_outlet_id: outletId,
+      p_from: from || null,
+      p_to: to || null,
+      p_filters: filters,
+      p_page: page,
+      p_page_size: pageSize,
+    });
+    throwSupabaseError("crew.leaveRequestsPage", error);
+    return {
+      rows: data?.rows ?? [],
+      totalCount: data?.total_count ?? 0,
+      page: data?.page ?? page,
+      pageSize: data?.page_size ?? pageSize,
+      summary: data?.summary ?? {},
+    };
+  },
+
+  async leaveBalancesAdminPage({ outletId, filters = {}, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_leave_balances_admin_page", {
+      p_outlet_id: outletId,
+      p_filters: filters,
+      p_page: page,
+      p_page_size: pageSize,
+    });
+    throwSupabaseError("crew.leaveBalancesPage", error);
+    return {
+      rows: data?.rows ?? [],
+      totalCount: data?.total_count ?? 0,
+      page: data?.page ?? page,
+      pageSize: data?.page_size ?? pageSize,
+    };
+  },
+
+  async leaveAdminPolicies(outletId) {
+    const { data, error } = await supabase.rpc("crew_leave_admin_policies", { p_outlet_id: outletId });
+    throwSupabaseError("crew.leavePolicies", error);
+    return data ?? [];
+  },
+
   async reviewLeave(requestId, decision, rejectionReason = null) {
     const { data, error } = await supabase.rpc("crew_leave_review", { p_request_id: requestId, p_decision: decision, p_rejection_reason: rejectionReason || null });
     throwSupabaseError("crew.reviewLeave", error);

@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CalendarDays, Check, Eye, History, Search, Settings2, SlidersHorizontal, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
@@ -27,26 +28,9 @@ const formatDays = (value) => {
 const statusLabel = (value) => value ? value[0].toUpperCase() + value.slice(1) : "—";
 const rosterLabel = (schedule) => !schedule || schedule === "null" ? "No published roster" : schedule.entry_type === "working" ? `${formatTime(schedule.start_time)} – ${formatTime(schedule.end_time)}` : schedule.template_name || String(schedule.entry_type || "Not scheduled").replaceAll("_", " ");
 
-function groupBalances(rows) {
-  const employees = new Map();
-  rows.forEach((row) => {
-    const employee = row.employee || { id: row.employee_id, name: "Crew employee", position: "Crew" };
-    const key = employee.id || row.employee_id;
-    if (!employees.has(key)) employees.set(key, { employee, balances: {}, period_start: row.period_start, period_end: row.period_end });
-    const group = employees.get(key);
-    group.balances[row.leave_type] = row;
-    if (row.period_start && (!group.period_start || row.period_start < group.period_start)) group.period_start = row.period_start;
-    if (row.period_end && (!group.period_end || row.period_end > group.period_end)) group.period_end = row.period_end;
-  });
-  return [...employees.values()].sort((a, b) => String(a.employee?.name || "").localeCompare(String(b.employee?.name || "")));
-}
-
 export default function CrewLeaveAdminPage({ auth, store, ui }) {
   const outlets = (store?.outlets || []).filter((outlet) => auth.canAccessOutlet?.(outlet.id) ?? true);
   const { outletId, setOutletId } = useCrewAdminOutlet(outlets);
-  const [data, setData] = useState({ requests: [], balances: [], policies: [] });
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
   const [tab, setTab] = useState("requests");
   const [filters, setFilters] = useState({ search: "", type: "all", status: "all" });
   const [review, setReview] = useState(null);
@@ -55,26 +39,25 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
   const [adjustmentHistory, setAdjustmentHistory] = useState({ loading: false, error: "", rows: [] });
   const [policy, setPolicy] = useState(null);
   const [saving, setSaving] = useState(false);
-  const requestSequence = useRef(0);
+  const [policies, setPolicies] = useState({ rows: [], loading: false, error: "" });
   const canReview = auth.hasPermission("crew_leave.review");
   const canAdjust = auth.hasPermission("crew_leave_balance.adjust");
   const canSettings = auth.hasPermission("crew_leave_settings.manage");
 
-  const load = useCallback(async () => {
-    if (!outletId) { setLoading(false); return; }
-    const requestId = ++requestSequence.current;
-    setLoading(true);
-    setError("");
-    try { const next = await crewService.leaveAdminData(outletId); if (requestId === requestSequence.current) setData(next); return next; }
-    catch (cause) { if (requestId === requestSequence.current) setError(cause.message || "Unable to load leave data."); return null; }
-    finally { if (requestId === requestSequence.current) setLoading(false); }
+  const requestFilters = useMemo(() => ({ query: filters.search, type: filters.type, status: filters.status }), [filters]);
+  const balanceFilters = useMemo(() => ({ query: filters.search }), [filters.search]);
+  const requestSignature = useMemo(() => JSON.stringify({ outletId, requestFilters }), [outletId, requestFilters]);
+  const balanceSignature = useMemo(() => JSON.stringify({ outletId, balanceFilters }), [balanceFilters, outletId]);
+  const [requestListing, requestActions] = useAdminPagedQuery({ storageKey: "crew-leave-requests", enabled: Boolean(outletId && tab === "requests"), querySignature: requestSignature, loadPage: ({ page, pageSize }) => crewService.leaveRequestsAdminPage({ outletId, filters: requestFilters, page, pageSize }) });
+  const [balanceListing, balanceActions] = useAdminPagedQuery({ storageKey: "crew-leave-balances", enabled: Boolean(outletId && tab === "balances"), querySignature: balanceSignature, loadPage: ({ page, pageSize }) => crewService.leaveBalancesAdminPage({ outletId, filters: balanceFilters, page, pageSize }) });
+  const loadPolicies = useCallback(async () => {
+    if (!outletId) return;
+    setPolicies((current) => ({ ...current, loading: true, error: "" }));
+    try { const rows = await crewService.leaveAdminPolicies(outletId); setPolicies({ rows, loading: false, error: "" }); }
+    catch (cause) { setPolicies((current) => ({ ...current, loading: false, error: cause.message || "Unable to load leave policies." })); }
   }, [outletId]);
-  useEffect(() => { load(); }, [load]);
-
-  const requestRows = useMemo(() => data.requests.filter((row) => (filters.type === "all" || row.leave_type === filters.type) && (filters.status === "all" || row.status === filters.status) && (!filters.search || `${row.employee?.name} ${row.employee?.position}`.toLowerCase().includes(filters.search.toLowerCase()))), [data.requests, filters]);
-  const groupedBalances = useMemo(() => groupBalances(data.balances), [data.balances]);
-  const balanceRows = useMemo(() => groupedBalances.filter((row) => !filters.search || `${row.employee?.name} ${row.employee?.position}`.toLowerCase().includes(filters.search.toLowerCase())), [groupedBalances, filters.search]);
-  const hasActiveFilters = Boolean(filters.search || filters.type !== "all" || filters.status !== "all");
+  useEffect(() => { if (tab === "settings") loadPolicies(); }, [loadPolicies, tab]);
+  const hasActiveFilters = tab === "requests" ? Boolean(filters.search || filters.type !== "all" || filters.status !== "all") : Boolean(filters.search);
   const clearFilters = () => setFilters({ search: "", type: "all", status: "all" });
 
   const loadAdjustmentHistory = async (employeeId) => {
@@ -90,17 +73,17 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
   };
   const openBalance = (group) => { setBalanceEmployee(group); loadAdjustmentHistory(group.employee?.id); };
 
-  const decide = async (decision, reason = null) => { setSaving(true); try { await crewService.reviewLeave(review.id, decision, reason); ui.notify({ title: decision === "approve" ? "Leave approved" : "Leave rejected", message: decision === "approve" ? "Balance and Duty Roster evidence are updated." : "Reserved balance has been released.", tone: "success" }); setReview(null); await load(); } catch (cause) { ui.notify({ title: "Unable to review leave", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
-  const adjust = async (amount, reason) => { const employeeId = adjustment.employee?.id || adjustment.employee_id; setSaving(true); try { await crewService.adjustLeaveBalance(adjustment.entitlement_id, amount, reason); const fresh = await load(); const group = groupBalances(fresh?.balances || []).find((item) => item.employee?.id === employeeId); await loadAdjustmentHistory(employeeId); ui.notify({ title: "Balance adjusted", message: "The immutable adjustment is now included in the employee balance and history.", tone: "success" }); setAdjustment(null); setBalanceEmployee(group || null); } catch (cause) { ui.notify({ title: "Unable to adjust balance", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
-  const savePolicy = async (values) => { setSaving(true); try { await crewService.saveLeavePolicy(outletId, policy.leave_type, values); ui.notify({ title: "Leave policy saved", message: "Future entitlements use the updated policy. Existing grants remain historical.", tone: "success" }); setPolicy(null); await load(); } catch (cause) { ui.notify({ title: "Unable to save policy", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
+  const decide = async (decision, reason = null) => { setSaving(true); try { await crewService.reviewLeave(review.id, decision, reason); ui.notify({ title: decision === "approve" ? "Leave approved" : "Leave rejected", message: decision === "approve" ? "Balance and Duty Roster evidence are updated." : "Reserved balance has been released.", tone: "success" }); setReview(null); await Promise.all([requestActions.refreshNow(), balanceActions.refreshNow()]); } catch (cause) { ui.notify({ title: "Unable to review leave", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
+  const adjust = async (amount, reason) => { const employeeId = adjustment.employee?.id || adjustment.employee_id; setSaving(true); try { await crewService.adjustLeaveBalance(adjustment.entitlement_id, amount, reason); const fresh = await balanceActions.refreshNow(); const group = fresh?.rows?.find((item) => item.employee?.id === employeeId); await loadAdjustmentHistory(employeeId); ui.notify({ title: "Balance adjusted", message: "The immutable adjustment is now included in the employee balance and history.", tone: "success" }); setAdjustment(null); setBalanceEmployee(group || null); } catch (cause) { ui.notify({ title: "Unable to adjust balance", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
+  const savePolicy = async (values) => { setSaving(true); try { await crewService.saveLeavePolicy(outletId, policy.leave_type, values); ui.notify({ title: "Leave policy saved", message: "Future entitlements use the updated policy. Existing grants remain historical.", tone: "success" }); setPolicy(null); await loadPolicies(); } catch (cause) { ui.notify({ title: "Unable to save policy", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
 
   return <div className="min-w-0 overflow-x-hidden space-y-4">
     <PageHeader section="Crew · Workforce" title="Leave" description="Review requests, understand employee balances and manage auditable outlet leave policy." />
     <AdminSegmentedControl value={tab} onChange={setTab} label="Leave sections" options={[{ value: "requests", label: "Requests" }, { value: "balances", label: "Balances" }, { value: "settings", label: "Settings" }]} />
     <LeaveToolbar tab={tab} outlets={outlets} outletId={outletId} setOutletId={setOutletId} filters={filters} setFilters={setFilters} hasActiveFilters={hasActiveFilters} clearFilters={clearFilters} />
-    {tab === "requests" ? <RequestsPanel allRows={data.requests} rows={requestRows} loading={loading} error={error} onRetry={load} filtered={hasActiveFilters} canReview={canReview} setReview={setReview} /> : null}
-    {tab === "balances" ? <BalancesPanel allRows={groupedBalances} rows={balanceRows} loading={loading} error={error} onRetry={load} filtered={Boolean(filters.search)} onManage={openBalance} /> : null}
-    {tab === "settings" ? <SettingsPanel rows={data.policies} loading={loading} error={error} onRetry={load} canManage={canSettings} onEdit={setPolicy} /> : null}
+    {tab === "requests" ? <RequestsPanel rows={requestListing.rows} listing={requestListing} actions={requestActions} filtered={hasActiveFilters} canReview={canReview} setReview={setReview} /> : null}
+    {tab === "balances" ? <BalancesPanel rows={balanceListing.rows} listing={balanceListing} actions={balanceActions} filtered={Boolean(filters.search)} onManage={openBalance} /> : null}
+    {tab === "settings" ? <SettingsPanel rows={policies.rows} loading={policies.loading} error={policies.error} onRetry={loadPolicies} canManage={canSettings} onEdit={setPolicy} /> : null}
     {review ? <LeaveReview request={review} canReview={canReview} saving={saving} onClose={() => setReview(null)} onDecide={decide} /> : null}
     {balanceEmployee ? <BalanceDetail group={balanceEmployee} history={adjustmentHistory} canAdjust={canAdjust} onRetryHistory={() => loadAdjustmentHistory(balanceEmployee.employee?.id)} onClose={() => setBalanceEmployee(null)} onAdjust={(row) => { setBalanceEmployee(null); setAdjustment(row); }} /> : null}
     {adjustment ? <AdjustmentModal balance={adjustment} saving={saving} onClose={() => setAdjustment(null)} onSave={adjust} /> : null}
@@ -112,14 +95,14 @@ function LeaveToolbar({ tab, outlets, outletId, setOutletId, filters, setFilters
   const searchable = tab !== "settings";
   const activeFilters = [
     filters.search && { key: "search", label: "Search", value: filters.search, onRemove: () => setFilters({ ...filters, search: "" }) },
-    filters.type !== "all" && { key: "type", label: "Leave type", value: typeLabel[filters.type], onRemove: () => setFilters({ ...filters, type: "all" }) },
-    filters.status !== "all" && { key: "status", label: "Status", value: statusLabel(filters.status), onRemove: () => setFilters({ ...filters, status: "all" }) },
+    tab === "requests" && filters.type !== "all" && { key: "type", label: "Leave type", value: typeLabel[filters.type], onRemove: () => setFilters({ ...filters, type: "all" }) },
+    tab === "requests" && filters.status !== "all" && { key: "status", label: "Status", value: statusLabel(filters.status), onRemove: () => setFilters({ ...filters, status: "all" }) },
   ].filter(Boolean);
   return <AdminFilterToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />} search={searchable ? <label className="field"><span>Search Employee</span><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} /><input className="control w-full pl-9" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Search employee name or position" /></div></label> : null} filters={tab === "requests" ? <><SelectField label="Leave Type" value={filters.type} onChange={(type) => setFilters({ ...filters, type })} options={[{ value: "all", label: "All" }, ...Object.entries(typeLabel).map(([value, label]) => ({ value, label }))]} /><SelectField label="Status" value={filters.status} onChange={(status) => setFilters({ ...filters, status })} options={[{ value: "all", label: "All" }, ...["pending", "approved", "rejected", "cancelled"].map((value) => ({ value, label: statusLabel(value) }))]} /></> : !searchable ? <p className="self-center text-sm text-text-secondary">Policies apply to the selected outlet and future entitlement generation.</p> : null} activeFilters={activeFilters} onClear={clearFilters} />;
 }
 
-function RequestsPanel({ allRows, rows, loading, error, onRetry, filtered, canReview, setReview }) {
-  return <Card><AsyncDataSurface loading={loading} error={error} hasData={rows.length > 0} isEmpty={!rows.length} onRetry={onRetry} emptyTitle={filtered && allRows.length ? "No requests match these filters" : "No leave requests"} emptyDescription={filtered && allRows.length ? "Clear or adjust the employee, leave type or status filters." : "Employee leave requests for this outlet will appear here."}><DataTable density="compact" tableClassName="min-w-[980px]" rows={rows} getRowKey={(row) => row.id} columns={requestColumns(canReview, setReview)} /></AsyncDataSurface></Card>;
+function RequestsPanel({ rows, listing, actions, filtered, canReview, setReview }) {
+  return <Card><AsyncDataSurface loading={listing.loading} error={listing.error} hasData={rows.length > 0} isEmpty={listing.hasLoaded && !rows.length} onRetry={actions.retry} emptyTitle={filtered ? "No requests match these filters" : "No leave requests"} emptyDescription={filtered ? "Clear or adjust the employee, leave type or status filters." : "Employee leave requests for this outlet will appear here."}><DataTable density="compact" tableClassName="min-w-[980px]" rows={rows} getRowKey={(row) => row.id} columns={requestColumns(canReview, setReview)} /><AdminPagination {...listing} onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize} noun="leave requests" /></AsyncDataSurface></Card>;
 }
 
 function requestColumns(canReview, setReview) { return [
@@ -133,9 +116,9 @@ function requestColumns(canReview, setReview) { return [
   { key: "action", header: "Action", align: "right", render: (row) => row.status === "pending" && canReview ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => setReview(row)}>Review</button> : <button className="icon-btn h-9 w-9 min-h-9" type="button" aria-label={`View leave request for ${row.employee?.name || "employee"}`} title="View request" onClick={() => setReview(row)}><Eye size={16} /></button> },
 ]; }
 
-function BalancesPanel({ allRows, rows, loading, error, onRetry, filtered, onManage }) {
+function BalancesPanel({ rows, listing, actions, filtered, onManage }) {
   const balanceCell = (row, type) => { const balance = row.balances[type]; return !balance ? <span className="text-text-muted">—</span> : balance.balance_enforced === false ? <div><span className="text-text-primary">Unlimited</span><small className="block text-text-secondary">No balance limit</small></div> : <div><span className={`font-semibold ${Number(balance.available) < 0 ? "text-rose-600" : "text-text-primary"}`}>{formatDays(balance.available)}</span><small className="block text-text-secondary">available</small></div>; };
-  return <Card><AsyncDataSurface loading={loading} error={error} hasData={rows.length > 0} isEmpty={!rows.length} onRetry={onRetry} emptyTitle={filtered && allRows.length ? "No employees match this search" : "No leave balances"} emptyDescription={filtered && allRows.length ? "Clear or adjust the employee search." : "Active Crew entitlement balances for this outlet will appear here."}><DataTable density="compact" tableClassName="min-w-[1040px]" rows={rows} getRowKey={(row) => row.employee?.id} columns={[
+  return <Card><AsyncDataSurface loading={listing.loading} error={listing.error} hasData={rows.length > 0} isEmpty={listing.hasLoaded && !rows.length} onRetry={actions.retry} emptyTitle={filtered ? "No employees match this search" : "No leave balances"} emptyDescription={filtered ? "Clear or adjust the employee search." : "Active Crew entitlement balances for this outlet will appear here."}><DataTable density="compact" tableClassName="min-w-[1040px]" rows={rows} getRowKey={(row) => row.employee?.id} columns={[
     { key: "employee", header: "Employee", render: (row) => <Employee employee={row.employee} /> },
     { key: "annual", header: "Annual Leave", render: (row) => balanceCell(row, "annual") },
     { key: "medical", header: "Medical / MC", render: (row) => balanceCell(row, "medical") },
@@ -143,7 +126,7 @@ function BalancesPanel({ allRows, rows, loading, error, onRetry, filtered, onMan
     { key: "other", header: "Other Leave", render: (row) => balanceCell(row, "other") },
     { key: "period", header: "Period", render: (row) => <span className="whitespace-nowrap text-text-secondary">{formatLeaveDateRange(row.period_start, row.period_end)}</span> },
     { key: "action", header: "Action", align: "right", render: (row) => <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onManage(row)}>Manage</button> },
-  ]} /></AsyncDataSurface></Card>;
+  ]} /><AdminPagination {...listing} onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize} noun="Crew balances" /></AsyncDataSurface></Card>;
 }
 
 function SettingsPanel({ rows, loading, error, onRetry, canManage, onEdit }) {

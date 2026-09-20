@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { MoreHorizontal, ShieldCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
@@ -6,6 +6,7 @@ import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx"
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import CrewAccessManagerModal from "../components/CrewAccessManagerModal.jsx";
@@ -18,55 +19,30 @@ import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crew
 
 export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashboard" }) {
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
-  const [employees, setEmployees] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [loadError, setLoadError] = useState("");
   const [request, setRequest] = useState(null);
   const [specialAccessEmployee, setSpecialAccessEmployee] = useState(null);
   const [disableEmployee, setDisableEmployee] = useState(null);
   const [employeeMenuId, setEmployeeMenuId] = useState(null);
   const [query, setQuery] = useState("");
-  const refreshGeneration = useRef(0);
   const canManage = auth.hasPermission("crew_employees.manage");
-  const refresh = useCallback(async () => {
-    const generation = ++refreshGeneration.current;
-    if (!outletId) {
-      setEmployees([]);
-      setLoading(false);
-      return;
-    }
-    setLoading(true);
-    setLoadError("");
-    try {
-      const nextEmployees = await employeeService.listCrewAccessEmployees(outletId);
-      if (generation === refreshGeneration.current) setEmployees(nextEmployees);
-    } catch (error) {
-      if (generation === refreshGeneration.current) {
-        setLoadError(error.message || "Unable to load Crew access.");
-        ui.notify({ title: "Unable to load Crew access", message: error.message, tone: "error" });
-      }
-    } finally {
-      if (generation === refreshGeneration.current) setLoading(false);
-    }
-  }, [outletId, ui]);
-  useEffect(() => {
-    refresh();
-    return () => { refreshGeneration.current += 1; };
-  }, [refresh]);
-  const scopedEmployees = useMemo(() => employees.filter((employee) => {
-    const searchMatches = !query || `${employee.full_name} ${employee.position || ""} ${employee.employee_code || ""}`.toLowerCase().includes(query.toLowerCase());
-    return searchMatches;
-  }), [employees, query]);
-  const active = useMemo(() => scopedEmployees.filter((employee) => crewAccessState(employee.crew_access) === "active"), [scopedEmployees]);
-  const locked = useMemo(() => scopedEmployees.filter((employee) => crewAccessState(employee.crew_access) === "locked"), [scopedEmployees]);
-  const notEnabled = useMemo(() => scopedEmployees.filter((employee) => crewAccessState(employee.crew_access) === "not_enabled"), [scopedEmployees]);
+  const accessFilters = useMemo(() => ({ query }), [query]);
+  const accessSignature = useMemo(() => JSON.stringify({ outletId, accessFilters }), [accessFilters, outletId]);
+  const [listing, listingActions] = useAdminPagedQuery({
+    storageKey: "crew-access",
+    enabled: Boolean(outletId),
+    querySignature: accessSignature,
+    loadPage: ({ page, pageSize }) => employeeService.crewAccessAdminPage({ outletId, filters: accessFilters, page, pageSize }),
+  });
+  const employees = listing.rows;
+  const accessSummary = listing.summary || {};
+  const refresh = listingActions.refreshNow;
   const outletControl = <CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
 
   if (initialTab === "employees") return <div className="space-y-4">
     <PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." />
     <AdminFilterToolbar outlet={outletControl} search={<label className="field"><span>Search Crew</span><input className="control w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, position or employee code" /></label>} />
     <Card>
-      <AsyncDataSurface loading={loading} error={loadError} hasData={scopedEmployees.length > 0} isEmpty={!scopedEmployees.length} emptyTitle={employees.length ? "No Crew match this search" : "No Crew access records"} emptyDescription={employees.length ? "Clear or adjust the search to see more Crew." : "Crew access records for this outlet will appear here."} onRetry={refresh}><DataTable tableClassName="min-w-[1120px]" rows={scopedEmployees} getRowKey={(row) => row.id} columns={employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId)} /></AsyncDataSurface>
+      <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={employees.length > 0} isEmpty={listing.hasLoaded && !employees.length} emptyTitle={listing.loadedTotal ? "No Crew match this search" : "No Crew access records"} emptyDescription={listing.loadedTotal ? "Clear or adjust the search to see more Crew." : "Crew access records for this outlet will appear here."} onRetry={listingActions.retry}><DataTable tableClassName="min-w-[1120px]" rows={employees} getRowKey={(row) => row.id} columns={employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId)} /><AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="Crew members" /></AsyncDataSurface>
     </Card>
     {request ? <CrewAccessManagerModal employee={request.employee} mode={request.mode} onClose={() => setRequest(null)} onSaved={refresh} /> : null}
     {specialAccessEmployee ? <CrewSpecialAccessModal employee={specialAccessEmployee} onClose={() => setSpecialAccessEmployee(null)} onSaved={refresh} /> : null}
@@ -76,12 +52,12 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   return <div className="space-y-4">
     <PageHeader section="Crew · Overview" title="Crew Dashboard" description="A concise readiness view for the selected outlet's Crew mobile access." />
     <AdminFilterToolbar outlet={outletControl} />
-    <AsyncDataSurface loading={loading} error={loadError} hasData={employees.length > 0} isEmpty={!employees.length} emptyTitle="No Crew access records" emptyDescription="Crew access records for this outlet will appear here." onRetry={refresh}>
+    <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={listing.hasLoaded} isEmpty={listing.hasLoaded && !listing.loadedTotal} emptyTitle="No Crew access records" emptyDescription="Crew access records for this outlet will appear here." onRetry={listingActions.retry}>
       <section className="overflow-hidden rounded-lg border border-border bg-surface" aria-label="Crew access readiness">
         <div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <DashboardMetric icon={UsersRound} label="Active Crew access" value={active.length} helper="Able to use Crew mobile" />
-          <DashboardMetric icon={ShieldCheck} label="Not enabled" value={notEnabled.length} helper="Require Crew access setup" />
-          <DashboardMetric icon={ShieldCheck} label="Locked" value={locked.length} helper="Require access review" tone="warning" />
+          <DashboardMetric icon={UsersRound} label="Active Crew access" value={Number(accessSummary.active || 0)} helper="Able to use Crew mobile" />
+          <DashboardMetric icon={ShieldCheck} label="Not enabled" value={Number(accessSummary.not_enabled || 0)} helper="Require Crew access setup" />
+          <DashboardMetric icon={ShieldCheck} label="Locked" value={Number(accessSummary.locked || 0)} helper="Require access review" tone="warning" />
         </div>
       </section>
       <section className="border-t border-border pt-4">

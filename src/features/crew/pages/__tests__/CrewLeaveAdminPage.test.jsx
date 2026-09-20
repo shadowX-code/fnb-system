@@ -1,8 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({
-  leaveAdminData: vi.fn(),
+  leaveRequestsAdminPage: vi.fn(),
+  leaveBalancesAdminPage: vi.fn(),
+  leaveAdminPolicies: vi.fn(),
   reviewLeave: vi.fn(),
   adjustLeaveBalance: vi.fn(),
   leaveAdjustmentHistory: vi.fn(),
@@ -57,6 +59,18 @@ const data = {
   ],
 };
 
+function groupedBalances(rows = data.balances) {
+  const grouped = new Map();
+  rows.forEach((row) => {
+    const key = row.employee.id;
+    if (!grouped.has(key)) grouped.set(key, { employee: row.employee, balances: {}, period_start: row.period_start, period_end: row.period_end });
+    grouped.get(key).balances[row.leave_type] = row;
+  });
+  return [...grouped.values()];
+}
+
+const page = (rows) => ({ rows, totalCount: rows.length, page: 1, pageSize: 20 });
+
 const adjustmentHistory = [{
   id: "adjustment-1",
   entitlement_id: "employee-a-annual",
@@ -77,7 +91,9 @@ const store = { outlets: [{ id: "outlet-1", name: "Friends Corner" }] };
 const ui = { notify: vi.fn() };
 
 beforeEach(() => {
-  mocks.leaveAdminData.mockReset().mockResolvedValue(data);
+  mocks.leaveRequestsAdminPage.mockReset().mockResolvedValue(page(data.requests));
+  mocks.leaveBalancesAdminPage.mockReset().mockResolvedValue(page(groupedBalances()));
+  mocks.leaveAdminPolicies.mockReset().mockResolvedValue(data.policies);
   mocks.reviewLeave.mockReset().mockResolvedValue({});
   mocks.adjustLeaveBalance.mockReset().mockResolvedValue({});
   mocks.leaveAdjustmentHistory.mockReset().mockResolvedValue(adjustmentHistory);
@@ -108,6 +124,7 @@ describe("Crew Leave Admin UI", () => {
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
     await screen.findByText("Alex Tan");
     fireEvent.click(screen.getByRole("tab", { name: "Balances" }));
+    await screen.findAllByRole("button", { name: "Manage" });
     expect(document.querySelectorAll("tbody tr")).toHaveLength(2);
     expect(screen.getAllByText("Alex Tan")).toHaveLength(1);
     expect(screen.getAllByText("Unlimited").length).toBeGreaterThan(0);
@@ -123,7 +140,7 @@ describe("Crew Leave Admin UI", () => {
   });
 
   it("uses an eye action for finalized requests and keeps pending requests reviewable", async () => {
-    mocks.leaveAdminData.mockResolvedValueOnce({ ...data, requests: [data.requests[0], { ...data.requests[0], id: "request-2", status: "approved" }] });
+    mocks.leaveRequestsAdminPage.mockResolvedValueOnce(page([data.requests[0], { ...data.requests[0], id: "request-2", status: "approved" }]));
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
     expect(await screen.findByRole("button", { name: "Review" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "View leave request for Alex Tan" })).not.toBeNull();
@@ -133,6 +150,7 @@ describe("Crew Leave Admin UI", () => {
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
     await screen.findByText("Alex Tan");
     fireEvent.click(screen.getByRole("tab", { name: "Balances" }));
+    await screen.findAllByRole("button", { name: "Manage" });
     fireEvent.click(screen.getAllByRole("button", { name: "Manage" })[0]);
     const detail = await screen.findByRole("dialog", { name: "Leave Balance" });
     fireEvent.click(within(detail).getAllByRole("button", { name: /Adjust/ })[0]);
@@ -143,7 +161,7 @@ describe("Crew Leave Admin UI", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Save Adjustment" }));
     expect(await screen.findByRole("dialog", { name: "Leave Balance" })).not.toBeNull();
     expect(mocks.adjustLeaveBalance).toHaveBeenCalledWith("employee-a-annual", 2, "Manual entitlement correction");
-    expect(mocks.leaveAdminData).toHaveBeenCalledTimes(2);
+    expect(mocks.leaveBalancesAdminPage).toHaveBeenCalledTimes(2);
     expect(mocks.leaveAdjustmentHistory).toHaveBeenCalledTimes(2);
   });
 
@@ -151,6 +169,7 @@ describe("Crew Leave Admin UI", () => {
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
     await screen.findByText("Alex Tan");
     fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await screen.findAllByRole("button", { name: /Edit/ });
     const rows = document.querySelectorAll("tbody tr");
     fireEvent.click(within(rows[0]).getByRole("button", { name: /Edit/ }));
     let dialog = screen.getByRole("dialog", { name: "Edit Annual Leave" });
@@ -164,13 +183,23 @@ describe("Crew Leave Admin UI", () => {
   });
 
   it("shows retry and filter-no-results states", async () => {
-    mocks.leaveAdminData.mockRejectedValueOnce(new Error("Staging read failed"));
+    mocks.leaveRequestsAdminPage.mockRejectedValueOnce(new Error("Staging read failed"));
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
     expect(await screen.findByRole("alert")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("Alex Tan")).not.toBeNull();
+    mocks.leaveRequestsAdminPage.mockImplementation(({ filters }) => Promise.resolve(page(filters.query ? [] : data.requests)));
     fireEvent.change(screen.getByPlaceholderText("Search employee name or position"), { target: { value: "Nobody" } });
-    expect(screen.getByText("No requests match these filters")).not.toBeNull();
+    expect(await screen.findByText("No requests match these filters")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Clear all" })).not.toBeNull();
+  });
+
+  it("applies request filters and balance search through separate paged authorities", async () => {
+    render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
+    await screen.findByText("Alex Tan");
+    fireEvent.change(screen.getByPlaceholderText("Search employee name or position"), { target: { value: "Alex" } });
+    await waitFor(() => expect(mocks.leaveRequestsAdminPage).toHaveBeenLastCalledWith(expect.objectContaining({ filters: { query: "Alex", type: "all", status: "all" }, page: 1 })));
+    fireEvent.click(screen.getByRole("tab", { name: "Balances" }));
+    await waitFor(() => expect(mocks.leaveBalancesAdminPage).toHaveBeenLastCalledWith(expect.objectContaining({ filters: { query: "Alex" }, page: 1 })));
   });
 });

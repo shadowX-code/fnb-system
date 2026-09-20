@@ -37,6 +37,8 @@ Clock-out safety and exception behavior follow current RPC contracts rather than
 
 Attendance history is an outlet/date-scoped server-paged Admin projection. Employee, position, and evidence-status filters are evaluated by the read authority before its authoritative count and page are returned.
 
+Crew Access, Leave Requests, and grouped Leave Balances use separate outlet-scoped server-paged Admin projections. Their search and applicable lifecycle filters execute before the authoritative count and page are returned; balance paging does not change the canonical entitlement or calculation authority.
+
 Leave balances are server-derived from policy, entitlement, approved usage, pending reservations, adjustments, carry-forward, and expiry evidence.
 Request, approval, rejection, cancellation, and adjustment transitions must preserve balance integrity and audit history.
 Roster projections may display approved leave without transferring leave ownership to the roster.
