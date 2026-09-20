@@ -232,8 +232,8 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
       .then((result) => {
         if (!active || requestRef.current !== requestId) return;
         const payload = result && typeof result === "object" ? result : {};
-        const totalCount = nonNegativeTotal(payload.totalCount);
-        const pageSize = validPageSize(payload.pageSize, requestedPageSize);
+        const totalCount = nonNegativeTotal(payload.totalCount ?? payload.total_count);
+        const pageSize = validPageSize(payload.pageSize ?? payload.page_size, requestedPageSize);
         const page = positivePage(payload.page || requestedPage);
         const lastPage = Math.max(1, Math.ceil(totalCount / pageSize));
         if (page > lastPage) {
@@ -336,18 +336,18 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
         let result = await pageLoader({ page: targetPage, pageSize: targetPageSize });
         if (requestRef.current !== requestId || querySignatureRef.current !== refreshSignature) return null;
         let payload = result && typeof result === "object" ? result : {};
-        let totalCount = nonNegativeTotal(payload.totalCount);
-        const normalizedPageSize = validPageSize(payload.pageSize, targetPageSize);
+        let totalCount = nonNegativeTotal(payload.totalCount ?? payload.total_count);
+        const normalizedPageSize = validPageSize(payload.pageSize ?? payload.page_size, targetPageSize);
         const lastPage = Math.max(1, Math.ceil(totalCount / normalizedPageSize));
         if (targetPage > lastPage) {
           targetPage = lastPage;
           result = await pageLoader({ page: targetPage, pageSize: normalizedPageSize });
           if (requestRef.current !== requestId || querySignatureRef.current !== refreshSignature) return null;
           payload = result && typeof result === "object" ? result : {};
-          totalCount = nonNegativeTotal(payload.totalCount);
+          totalCount = nonNegativeTotal(payload.totalCount ?? payload.total_count);
         }
         const loadedPage = positivePage(payload.page || targetPage);
-        const loadedPageSize = validPageSize(payload.pageSize, normalizedPageSize);
+        const loadedPageSize = validPageSize(payload.pageSize ?? payload.page_size, normalizedPageSize);
         if (snapshot.requestedPage !== loadedPage || snapshot.requestedPageSize !== loadedPageSize) {
           skipNextLoadKeyRef.current = JSON.stringify([refreshSignature, loadedPage, loadedPageSize]);
         }

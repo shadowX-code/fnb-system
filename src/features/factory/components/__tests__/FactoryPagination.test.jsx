@@ -12,6 +12,12 @@ describe("useFactoryPagedQuery", () => {
     await waitFor(() => expect(result.current[0].hasLoaded).toBe(true));
     expect(result.current[0]).toMatchObject({ rows: [{ id: "one" }], summary: { total: 1 }, loadedTotal: 1, loadedPage: 1, loading: false });
   });
+  it("accepts canonical snake-case RPC page metadata", async () => {
+    const loadPage = vi.fn().mockResolvedValue({ rows: [{ id: "one" }], summary: { total: 21 }, total_count: 21, page: 1, page_size: 20 });
+    const { result } = renderHook(() => useFactoryPagedQuery({ storageKey: "test-snake-case", querySignature: "initial", loadPage }));
+    await waitFor(() => expect(result.current[0].hasLoaded).toBe(true));
+    expect(result.current[0]).toMatchObject({ loadedTotal: 21, loadedPage: 1, loadedPageSize: 20 });
+  });
   it("never lets an older filter request overwrite the newer result", async () => {
     const first = deferred(); const second = deferred(); const loadPage = vi.fn().mockReturnValueOnce(first.promise).mockReturnValueOnce(second.promise);
     const { result, rerender } = renderHook(({ signature }) => useFactoryPagedQuery({ storageKey: "test-stale", querySignature: signature, loadPage }), { initialProps: { signature: "old" } });
