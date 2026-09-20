@@ -44,6 +44,22 @@ describe("Crew Warnings & Notices", () => {
     expect(screen.getByRole("button", { name: "Acknowledge Receipt" })).not.toBeNull();
   });
 
+  it("shows receipt evidence independently from acknowledgement and response", async () => {
+    employeeDisciplinaryService.crewOverview.mockResolvedValue({ warnings: [warning] });
+    employeeDisciplinaryService.crewDetail.mockResolvedValue({
+      ...detail,
+      status: "viewed",
+      first_viewed_at: "2026-09-21T02:00:00Z",
+      response: { text: "My response is recorded separately.", submitted_at: "2026-09-21T02:10:00Z" },
+    });
+    render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review" }));
+    expect(await screen.findByText("Receipt status")).not.toBeNull();
+    expect(screen.getByText("21/09/2026 10:00 am")).not.toBeNull();
+    expect(screen.getByText("Not acknowledged")).not.toBeNull();
+    expect(screen.getByText("Submitted 21/09/2026 10:10 am")).not.toBeNull();
+  });
+
   it("presents receipt acknowledgement without agreement or admission wording", async () => {
     employeeDisciplinaryService.crewOverview.mockResolvedValue({ warnings: [warning] });
     employeeDisciplinaryService.crewDetail.mockResolvedValue({ ...detail, status: "viewed" });
@@ -60,6 +76,22 @@ describe("Crew Warnings & Notices", () => {
     render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "View" }));
     expect(await screen.findByRole("button", { name: "Add Response" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Acknowledge Receipt" })).toBeNull();
+  });
+
+  it("replaces acknowledgement with the recorded receipt state", async () => {
+    employeeDisciplinaryService.crewOverview.mockResolvedValue({ warnings: [warning] });
+    employeeDisciplinaryService.crewDetail
+      .mockResolvedValueOnce({ ...detail, status: "viewed", first_viewed_at: "2026-09-21T02:00:00Z" })
+      .mockResolvedValueOnce({ ...detail, status: "acknowledged", first_viewed_at: "2026-09-21T02:00:00Z", acknowledged_at: "2026-09-21T02:05:00Z" });
+    employeeDisciplinaryService.crewAcknowledge.mockResolvedValue({});
+    render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Review" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Acknowledge Receipt" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Acknowledge Receipt" }).at(-1));
+    await waitFor(() => expect(employeeDisciplinaryService.crewAcknowledge).toHaveBeenCalledWith("opaque-token", "warning-1"));
+    expect(await screen.findByText("Receipt acknowledged")).not.toBeNull();
+    expect(screen.getByText("21/09/2026 10:05 am")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Acknowledge Receipt" })).toBeNull();
   });
 });

@@ -28,4 +28,22 @@ describe("Employee disciplinary creation", () => {
     expect(screen.getByLabelText("Choose evidence")).not.toBeNull();
     expect(screen.getByText(/does not escalate automatically/i)).not.toBeNull();
   });
+
+  it("presents receipt evidence separately from the full activity history", async () => {
+    employeeDisciplinaryService.adminDetail.mockResolvedValue({ warnings: [{
+      ...historical,
+      delivered_at: "2026-09-21T01:30:00Z",
+      first_viewed_at: "2026-09-21T02:00:00Z",
+      acknowledged_at: null,
+      response: { text: "My response remains independent.", submitted_at: "2026-09-21T02:10:00Z" },
+    }] });
+    render(<EmployeeDisciplinaryPanel employeeId="employee-1" employeeName="QA Crew" canView canManage ui={{ notify: vi.fn() }} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Legacy issued warning/ }));
+    expect(await screen.findByText("Receipt evidence")).not.toBeNull();
+    expect(screen.getByText("21/09/2026 9:30 am")).not.toBeNull();
+    expect(screen.getByText("21/09/2026 10:00 am")).not.toBeNull();
+    expect(screen.getByText("Not acknowledged")).not.toBeNull();
+    expect(screen.getByText("Submitted 21/09/2026 10:10 am")).not.toBeNull();
+    expect(screen.getByText("Activity")).not.toBeNull();
+  });
 });
