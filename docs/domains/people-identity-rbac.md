@@ -20,6 +20,7 @@ Current employee, role, permission, Auth-link, role-configuration, RLS, and audi
 - Outlet access and other explicit scope relationships
 - Admin access state and security-relevant audit events
 - Requirement-driven employee compliance, immutable evidence submissions, reviews, expiry state, and history
+- Employee disciplinary warning drafts, immutable issued records, delivery/view/acknowledgement evidence, employee responses, and correction history
 
 ## Lifecycle And Business Rules
 
@@ -49,6 +50,16 @@ Submissions are immutable and retain an outlet snapshot. Reviews are append-only
 Current state is a server-derived projection. A verified record is `Expiring Soon` within 30 days of expiry and `Expired` after expiry using the Malaysia business date. A pending replacement does not displace the latest verified record; it becomes effective only when verified. Rejected, superseded, and former-employee history remains private and retained.
 
 Compliance evidence uses the private `employee-compliance-evidence` bucket with immutable versioned paths. Crew and authorized Admins receive only short-lived signed reads through the dedicated evidence authority. Compliance does not affect Performance, Reward, Attendance, Duty Roster, or Crew Special Access.
+
+## Employee Disciplinary Records V1
+
+People owns employee warnings and disciplinary records. V1 supports only First Written Warning and Final Written Warning; it is not a generic investigation, Show Cause, outcome, dismissal, or penalty engine. Draft warning content is editable by an Admin with `employee_disciplinary.manage` within the employee's current outlet scope. Issuance pins the employee, outlet snapshot, warning type, incident and issued dates, subject, details, required action, issuer, and optional private evidence. Issued content cannot be edited.
+
+The canonical lifecycle is Draft, Issued, Delivered, Viewed, and Acknowledged, with controlled Not Acknowledged, Withdrawn, and Superseded outcomes. Crew list delivery records server-derived delivery evidence; opening detail records the first view; acknowledgement records receipt only and is not agreement, admission, or confirmation of misconduct. An optional employee response is append-only and does not alter the warning. If acknowledgement never occurs, Delivery and first View evidence remain authoritative.
+
+Corrections never rewrite an issued record. Admins withdraw with a reason or issue a new warning linked as a superseding record; the original content, evidence, response, and chronological activity remain private history. Dedicated `employee_disciplinary.view` and `employee_disciplinary.manage` permissions are separate from general employee edit authority. Crew identity is derived only from its opaque session token and Crew can access only its own non-draft records.
+
+Supporting evidence uses the private `employee-disciplinary-evidence` bucket with immutable object paths and short-lived authorized reads. Disciplinary records do not affect Performance, Reward, Attendance, Duty Roster, payroll, Tasks, or Crew Access. A future Incident / Show Cause / Response / Review / Outcome model may reference a warning as one possible outcome, but is deliberately outside V1.
 
 ## Workflows And Integrations
 

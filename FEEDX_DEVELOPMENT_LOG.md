@@ -1,5 +1,7 @@
 # FeedX Development Log
 
+- Added People-owned Employee Disciplinary Records V1 with First and Final Written Warning drafts, immutable issuance, private evidence, server-derived delivery/view/acknowledgement events, append-only employee responses, and controlled withdrawal/supersession. Employee Profile owns Admin management and Crew Me exposes token-bound Warnings & Notices without any Performance, Reward, Attendance, roster, payroll, Task, or Crew Access effect.
+
 - Aligned Cash Checkout Settings with canonical Job Position IDs, current effective Floating Cash, and consistent internal receiver-confirmation behavior across Crew and Admin handovers. The Admin modal now has one page-level entry and groups Cash Rules, Eligible Crew, and Review Rules without changing the checkout lifecycle or inventing closing-deadline enforcement.
 
 - Factory Production SOP Equipment lifecycle: Draft SOPs may now be created and edited without Equipment while clearly marked as incomplete configuration; activation remains a trusted, server-enforced boundary requiring at least one active canonical Equipment binding. Existing versioning, permissions, audit, production snapshots, and SOP-bound After Production equipment-cleaning evidence remain unchanged.

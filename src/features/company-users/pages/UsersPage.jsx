@@ -16,6 +16,7 @@ import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
 import { employeeService } from "../../../services/employeeService.js";
 import { employeeComplianceService } from "../../../services/employeeComplianceService.js";
+import EmployeeDisciplinaryPanel from "../components/EmployeeDisciplinaryPanel.jsx";
 import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
 import { normalizeEmployeeLoginEmail } from "../../../services/employeeIdentity.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
@@ -608,6 +609,8 @@ function UserFormModal({
   canResetPassword = false,
   canViewCompliance = false,
   canReviewCompliance = false,
+  canViewDisciplinary = false,
+  canManageDisciplinary = false,
 }) {
   const [values, setValues] = useState(() => {
     const merged = { ...createEmptyUser(), ...initialUser };
@@ -1354,6 +1357,7 @@ function UserFormModal({
         </FormSection>
 
         <EmployeeCompliancePanel employeeId={values.id} canView={canViewCompliance} canReview={canReviewCompliance} ui={ui} />
+        <EmployeeDisciplinaryPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewDisciplinary} canManage={canManageDisciplinary} ui={ui} />
       </div>
     </Modal>
   );
@@ -1385,6 +1389,8 @@ export default function UsersPage({ ui, store, auth }) {
   const canResetPassword = hasPermission(auth, "employees.reset_password");
   const canViewCompliance = hasPermission(auth, "employee_compliance.view");
   const canReviewCompliance = hasPermission(auth, "employee_compliance.review");
+  const canViewDisciplinary = hasPermission(auth, "employee_disciplinary.view");
+  const canManageDisciplinary = hasPermission(auth, "employee_disciplinary.manage");
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
   const workplaceOptions = useMemo(
     () => {
@@ -1944,6 +1950,8 @@ export default function UsersPage({ ui, store, auth }) {
           canResetPassword={canResetPassword}
           canViewCompliance={canViewCompliance}
           canReviewCompliance={canReviewCompliance}
+          canViewDisciplinary={canViewDisciplinary}
+          canManageDisciplinary={canManageDisciplinary}
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
@@ -1971,6 +1979,8 @@ export default function UsersPage({ ui, store, auth }) {
           canResetPassword={canResetPassword}
           canViewCompliance={canViewCompliance}
           canReviewCompliance={canReviewCompliance}
+          canViewDisciplinary={canViewDisciplinary}
+          canManageDisciplinary={canManageDisciplinary}
           onClose={() => setFormState(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSubmit={saveUser}

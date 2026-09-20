@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Archive, Banknote, Bell, BriefcaseBusiness, Camera, Check, ChevronRight, Clock3, Eye, EyeOff, FileText, HelpCircle, Languages, LoaderCircle, LockKeyhole, LogOut, MapPin, Plane, Settings, ShieldCheck, UserRound } from "lucide-react";
+import { AlertTriangle, Archive, Banknote, Bell, BriefcaseBusiness, Camera, Check, ChevronRight, Clock3, Eye, EyeOff, FileText, HelpCircle, Languages, LoaderCircle, LockKeyhole, LogOut, MapPin, Plane, Settings, ShieldCheck, UserRound } from "lucide-react";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
@@ -116,6 +116,7 @@ export default function CrewMeMobile({ session, context, profile, attendance, le
           <button type="button" onClick={() => navigate("cash-checkout")}><span className="crew-me-row-icon crew-ui-icon-container"><Banknote size={20} /></span><span><strong>{t("cash.title")}</strong><small>{t("cash.meSubtitle")}</small></span><ChevronRight size={19} /></button>
           {assetAccess && <button type="button" onClick={() => navigate("assets")}><span className="crew-me-row-icon crew-ui-icon-container"><Archive size={20} /></span><span><strong>{t("assets.title")}</strong><small>{t("assets.meSubtitle")}</small></span><ChevronRight size={19} /></button>}
           <button type="button" onClick={() => navigate("compliance")}><span className="crew-me-row-icon crew-ui-icon-container"><FileText size={20} /></span><span><strong>{t("me.employmentDocuments")}</strong></span><ChevronRight size={19} /></button>
+          <button type="button" onClick={() => navigate("disciplinary")}><span className="crew-me-row-icon crew-ui-icon-container"><AlertTriangle size={20} /></span><span><strong>{t("disciplinary.title")}</strong></span><ChevronRight size={19} /></button>
         </div></section>
         <section className="crew-me-section"><h2>{t("me.account")}</h2><div className="crew-me-list">
           <button type="button" onClick={() => setMeView("profile")}><span className="crew-me-row-icon crew-ui-icon-container"><UserRound size={20} /></span><span><strong>{t("me.profile")}</strong></span><ChevronRight size={19} /></button>

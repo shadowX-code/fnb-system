@@ -12,6 +12,7 @@ const routeByPath = {
   "me/leave": { screen: "leave" },
   "me/assets": { screen: "assets" },
   "me/compliance": { screen: "compliance" },
+  "me/warnings": { screen: "disciplinary" },
   tasks: { screen: "operations" },
   schedule: { screen: "schedule" },
 };
@@ -45,6 +46,7 @@ export function crewRouteForState({ screen, growthInitialView = "overview" }) {
   if (screen === "leave") return { screen, canonicalHash: "#crew/me/leave" };
   if (screen === "assets") return { screen, canonicalHash: "#crew/me/assets" };
   if (screen === "compliance") return { screen, canonicalHash: "#crew/me/compliance" };
+  if (screen === "disciplinary") return { screen, canonicalHash: "#crew/me/warnings" };
   if (screen === "operations") return { screen, canonicalHash: "#crew/tasks" };
   if (screen === "schedule") return { screen, canonicalHash: "#crew/schedule" };
   return crewHomeRoute;
