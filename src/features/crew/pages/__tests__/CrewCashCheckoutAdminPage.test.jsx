@@ -9,12 +9,15 @@ vi.mock("../../../../services/crewService.js", () => ({ crewService: {
 import CrewCashCheckoutAdminPage from "../CrewCashCheckoutAdminPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
+const cashierPositionId = "11111111-1111-4111-8111-111111111111";
+const supervisorPositionId = "22222222-2222-4222-8222-222222222222";
 const fixture = {
-  settings: { floating_cash: 300, variance_tolerance: 5, required_positions: ["Cashier"] },
+  settings: { floating_cash: 300, effective_floating_cash: 300, variance_tolerance: 5, required_position_ids: [cashierPositionId], closing_deadline: "23:00:00", require_receiver_confirmation: true, require_manager_review_over_tolerance: true },
   summary: { current_balance: 500, available_balance: 500, pending_handover: 100, total_added: 1000, total_collected: 500 },
   checkouts: [{ id: "checkout-1", business_date: "2026-08-20", checked_out_by: "QA Crew", expected_opening_cash: 300, counted_cash: 850, pos_expected_cash: 840, variance: 10, reconciliation_status: "over", carry_forward: 50, amount_for_deposit: 500, review_required: true, review_status: "pending", status: "submitted", denomination_counts: { 100: 8, 50: 1 } }],
   ledger: [{ id: "ledger-1", occurred_at: "2026-08-20T22:00:00+08:00", activity: "Cash Checkout · QA Crew", amount_in: 500, amount_out: 0, balance: 500, recorded_by: "QA Crew" }],
   collections: [], float_history: [], employees: [{ id: "employee-2", name: "Receiver QA", position: "Supervisor" }], eligible_receivers: [{ id: "employee-2", name: "Receiver QA", position: "Supervisor" }],
+  checkout_positions: [{ id: cashierPositionId, name: "Cashier", status: "active" }, { id: supervisorPositionId, name: "Supervisor", status: "active" }],
 };
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn() };
@@ -68,9 +71,15 @@ describe("Crew Cash Checkout Admin", () => {
   it("uses the shared date controls and only exposes Admin-approved handover receivers", async () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("Date Range")).not.toBeNull();
+    await screen.findByText("QA Crew");
     expect(screen.getByRole("button", { name: "Date Range" })).not.toBeNull();
+    expect(screen.queryByText("View Settings")).toBeNull();
+    expect(screen.getAllByRole("button", { name: "Settings" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("dialog", { name: "Cash Checkout Settings" })).not.toBeNull();
+    expect(screen.getByText("Cash Rules")).not.toBeNull();
+    expect(screen.getByText("Eligible Crew")).not.toBeNull();
+    expect(screen.getByText("Review Rules")).not.toBeNull();
     expect(screen.getByText("Require internal receiver confirmation")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
     fireEvent.click(screen.getByRole("tab", { name: "Cash Deposit" }));
@@ -78,6 +87,32 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getByRole("button", { name: "Select approved receiver" })).not.toBeNull();
     expect(screen.queryByText("External Receiver")).toBeNull();
     expect(screen.getByText(/Only Admin-configured Cash Deposit Receivers/)).not.toBeNull();
+  });
+
+  it("requires a reason only when the current effective Floating Cash changes", async () => {
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("QA Crew");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.queryByLabelText(/Reason for Floating Cash Change/)).toBeNull();
+
+    fireEvent.input(screen.getByLabelText("Floating Cash (RM)"), { target: { value: "350" } });
+    await waitFor(() => expect(screen.getByLabelText(/Reason for Floating Cash Change/).required).toBe(true));
+    fireEvent.change(screen.getByLabelText(/Reason for Floating Cash Change/), { target: { value: "Weekend operating float" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+
+    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ floating_cash: "350", reason: "Weekend operating float", required_position_ids: [cashierPositionId] })));
+  });
+
+  it("saves Checkout Positions by canonical Job Position ID", async () => {
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("QA Crew");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /Cashier/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Supervisor" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+
+    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ required_position_ids: [cashierPositionId, supervisorPositionId], reason: "" })));
   });
 
   it("shows a recoverable error rather than an empty or crashed page", async () => {

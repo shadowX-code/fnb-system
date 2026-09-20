@@ -318,9 +318,18 @@ export const crewService = {
   },
 
   async cashCheckoutAdminData(outletId, from = localBusinessDate(), to = from) {
-    const { data, error } = await supabase.rpc("crew_cash_admin_data", { p_outlet_id: outletId, p_from: from, p_to: to });
-    throwSupabaseError("crew.cashCheckoutAdminData", error);
-    return data || { settings: {}, summary: {}, checkouts: [], ledger: [], collections: [], float_history: [], employees: [] };
+    const [adminResult, settingsResult] = await Promise.all([
+      supabase.rpc("crew_cash_admin_data", { p_outlet_id: outletId, p_from: from, p_to: to }),
+      supabase.rpc("crew_cash_settings_context", { p_outlet_id: outletId }),
+    ]);
+    throwSupabaseError("crew.cashCheckoutAdminData", adminResult.error);
+    throwSupabaseError("crew.cashCheckoutSettingsContext", settingsResult.error);
+    const adminData = adminResult.data || { settings: {}, summary: {}, checkouts: [], ledger: [], collections: [], float_history: [], employees: [] };
+    return {
+      ...adminData,
+      settings: settingsResult.data?.settings || adminData.settings,
+      checkout_positions: settingsResult.data?.checkout_positions || [],
+    };
   },
 
   async saveCashSettings(outletId, payload) {

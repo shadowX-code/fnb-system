@@ -1,5 +1,7 @@
 # FeedX Development Log
 
+- Aligned Cash Checkout Settings with canonical Job Position IDs, current effective Floating Cash, and consistent internal receiver-confirmation behavior across Crew and Admin handovers. The Admin modal now has one page-level entry and groups Cash Rules, Eligible Crew, and Review Rules without changing the checkout lifecycle or inventing closing-deadline enforcement.
+
 - Factory Production SOP Equipment lifecycle: Draft SOPs may now be created and edited without Equipment while clearly marked as incomplete configuration; activation remains a trusted, server-enforced boundary requiring at least one active canonical Equipment binding. Existing versioning, permissions, audit, production snapshots, and SOP-bound After Production equipment-cleaning evidence remain unchanged.
 
 - Added the Factory Equipment foundation: canonical Equipment Categories and Equipment instances use Factory Locations, while idempotent actual Production Equipment Usage evidence snapshots the selected machine and batch/product/SOP context without coupling to Restaurant assets or SOP planning text.
