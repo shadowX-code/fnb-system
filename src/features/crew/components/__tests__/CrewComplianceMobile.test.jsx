@@ -18,6 +18,15 @@ const requirement = (status, extra = {}) => ({
 });
 
 describe("Crew Documents & Compliance", () => {
+  it("uses the shared Crew page-section rhythm around the requirement list", async () => {
+    employeeComplianceService.crewOverview.mockResolvedValue({ requirements: [requirement("missing"), requirement("verified", { effective_submission_id: "verified" })] });
+    const { container } = render(<CrewComplianceMobile token="opaque-token" onBack={() => {}} />);
+    await screen.findByRole("button", { name: "Add Document" });
+    const section = container.querySelector(".crew-ui-page-section");
+    expect(section).not.toBeNull();
+    expect(section.querySelector(".crew-compliance-list").children).toHaveLength(2);
+  });
+
   it("presents one canonical next action for each lifecycle state", async () => {
     employeeComplianceService.crewOverview.mockResolvedValue({ requirements: [
       requirement("missing"),

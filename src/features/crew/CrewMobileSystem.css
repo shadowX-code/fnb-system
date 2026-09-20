@@ -223,6 +223,7 @@
 :root[data-crew-theme="dark"] .crew-growth-performance-hero { --crew-hero-artwork-opacity: .48; --crew-hero-content-shield: linear-gradient(90deg, rgb(7 29 34 / .96) 0%, rgb(7 29 34 / .88) 42%, rgb(7 29 34 / .44) 70%, rgb(7 29 34 / .14) 100%); }
 :root[data-crew-theme="dark"] .crew-performance-final-hero { --crew-hero-artwork-opacity: .5; --crew-hero-content-shield: linear-gradient(90deg, rgb(7 29 34 / .96) 0%, rgb(7 29 34 / .9) 48%, rgb(7 29 34 / .48) 74%, rgb(7 29 34 / .14) 100%); }
 .crew-ui-page { color: var(--crew-color-text); }
+.crew-ui-page-section { display: grid; gap: var(--crew-space-section-content); margin-top: var(--crew-space-section); }
 .crew-ui-focus-surface { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: var(--crew-shadow-focus); }
 .crew-ui-functional-surface { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }
 .crew-ui-icon-container { display: grid; width: 34px; height: 34px; flex: 0 0 34px; place-items: center; border-radius: var(--crew-radius-icon); background: var(--crew-color-icon-default-bg); color: var(--crew-color-icon-default-fg); }

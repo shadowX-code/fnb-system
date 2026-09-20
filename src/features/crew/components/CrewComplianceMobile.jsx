@@ -8,7 +8,7 @@ import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewDatePicker from "./CrewDatePicker.jsx";
 import CrewEvidencePhotoPicker from "./CrewEvidencePhotoPicker.jsx";
 import CrewImageViewer from "./CrewImageViewer.jsx";
-import { CrewEmptyState, CrewMobilePage, CrewStatusBadge } from "./CrewMobileUI.jsx";
+import { CrewEmptyState, CrewMobilePage, CrewPageSection, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import "./CrewComplianceMobile.css";
 
@@ -100,10 +100,11 @@ export default function CrewComplianceMobile({ token, onBack }) {
   return <CrewMobilePage className="crew-compliance-page">
     <CrewMobileDetailHeader title={t("compliance.title")} onBack={onBack} />
     <p className="crew-compliance-intro">{t("compliance.intro")}</p>
-    {loading ? <div className="crew-v2-state" role="status">{t("common.loading")}</div> : null}
-    {pageError ? <div className="crew-v2-error" role="alert">{pageError}<button type="button" onClick={load}>{t("common.retry")}</button></div> : null}
-    {!loading && !requirements.length ? <CrewEmptyState title={t("compliance.empty")} /> : null}
-    <div className="crew-compliance-list">{requirements.map((item) => {
+    <CrewPageSection>
+      {loading ? <div className="crew-v2-state" role="status">{t("common.loading")}</div> : null}
+      {pageError ? <div className="crew-v2-error" role="alert">{pageError}<button type="button" onClick={load}>{t("common.retry")}</button></div> : null}
+      {!loading && !requirements.length ? <CrewEmptyState title={t("compliance.empty")} /> : null}
+      <div className="crew-compliance-list">{requirements.map((item) => {
       const status = item.status || "missing";
       const submissionId = submissionIdFor(item);
       const viewOnly = status === "pending_verification" || status === "verified";
@@ -125,7 +126,8 @@ export default function CrewComplianceMobile({ token, onBack }) {
         {item.replacement_pending ? <div className="crew-compliance-effective"><CheckCircle2 size={17} /><span>{t("compliance.effectiveWhilePending")}</span></div> : null}
         <button className={viewOnly ? "crew-mobile-secondary" : "crew-mobile-primary"} type="button" onClick={action}>{actionIcon}{actionLabel}</button>
       </article>;
-    })}</div>
+      })}</div>
+    </CrewPageSection>
 
     {formItem ? <CrewBottomSheet title={formItem.requirement_name} description={formItem.effective_submission_id ? t("compliance.replaceHelp") : t("compliance.submitHelp")} onClose={closeForm} closeDisabled={submitting} className="crew-compliance-sheet" footer={<><button className="crew-mobile-secondary" type="button" disabled={submitting} onClick={closeForm}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={submitting || preparing || !file || (formItem.requires_expiry && (!expiryDate || expiryDate < today()))} onClick={submit}>{submitting ? t("common.saving") : t("compliance.submitForReview")}</button></>}>
       <div className="crew-compliance-form">

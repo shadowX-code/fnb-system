@@ -1,6 +1,6 @@
 .crew-compliance-page{padding-bottom:var(--crew-mobile-page-bottom)}
 .crew-compliance-intro{max-width:38ch;margin:0;color:var(--crew-color-text-secondary);font-size:var(--crew-type-secondary);line-height:1.45}
-.crew-compliance-list{display:grid;gap:10px}
+.crew-compliance-list{display:grid;gap:var(--crew-space-section-content)}
 .crew-compliance-card{display:grid;gap:0;padding:14px}
 .crew-compliance-card>header{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:start;gap:10px}
 .crew-compliance-card h2{margin:0;color:var(--crew-color-text);font-size:var(--crew-type-card-title);font-weight:700;line-height:1.28}
