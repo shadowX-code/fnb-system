@@ -26,4 +26,12 @@ describe("Crew Warnings & Notices V1", () => {
     expect(component).toContain("crewEvidence");
     expect(component).toContain("CrewImageViewer");
   });
+
+  it("keeps legacy wording while supporting the future Written Warning classification and sequence", () => {
+    const english = readFileSync(resolve(process.cwd(), "src/locales/en/crew.js"), "utf8");
+    expect(english).toContain('first: "First Written Warning"');
+    expect(english).toContain('written: "Written Warning"');
+    expect(component).toContain("display_sequence");
+    expect(component).toContain("related_warning");
+  });
 });

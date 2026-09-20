@@ -11,7 +11,7 @@ vi.mock("../../../../services/employeeDisciplinaryService.js", () => ({
 
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
-const warning = { id: "warning-1", warning_type: "first_written_warning", subject: "Attendance procedure", issued_date: "2026-09-20", status: "delivered", viewed_at: null };
+const warning = { id: "warning-1", display_sequence: 1, warning_type: "first_written_warning", subject: "Attendance procedure", issued_date: "2026-09-20", status: "delivered", viewed_at: null };
 const detail = { ...warning, incident_date: "2026-09-19", warning_details: "The issued warning text.", required_action: "Follow the documented procedure.", outlet_name_snapshot: "QA Outlet", has_evidence: false, response: null };
 
 describe("Crew Warnings & Notices", () => {
@@ -20,7 +20,16 @@ describe("Crew Warnings & Notices", () => {
     render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
     expect(await screen.findByText("Attendance procedure")).not.toBeNull();
     expect(screen.getByText("Delivered")).not.toBeNull();
+    expect(screen.getByText(/Warning #1/)).not.toBeNull();
+    expect(screen.getByText(/First Written Warning/)).not.toBeNull();
     expect(screen.getByRole("button", { name: "Review" })).not.toBeNull();
+  });
+
+  it("distinguishes chronological sequence from the future Written Warning level", async () => {
+    employeeDisciplinaryService.crewOverview.mockResolvedValue({ warnings: [{ ...warning, display_sequence: 3, warning_type: "written_warning" }] });
+    render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
+    expect(await screen.findByText(/Warning #3/)).not.toBeNull();
+    expect(screen.getByText(/Written Warning/)).not.toBeNull();
   });
 
   it("loads exact issued detail and records the view through the canonical authority", async () => {
