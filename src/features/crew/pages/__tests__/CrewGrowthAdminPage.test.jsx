@@ -60,7 +60,7 @@ describe("Crew Growth Admin", () => {
     render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByRole("heading", { name: "Skills" });
     expect(mocks.evidence).toHaveBeenCalledWith("outlet-1");
-    fireEvent.click(screen.getByRole("button", { name: "View / Edit" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
     expect(screen.getByRole("dialog", { name: "Edit Skill" })).not.toBeNull();
     expect(screen.getByText("Certification Requirements")).not.toBeNull();
     expect(screen.getByText("Changes create a new requirements version. Existing certification evidence is preserved.")).not.toBeNull();
