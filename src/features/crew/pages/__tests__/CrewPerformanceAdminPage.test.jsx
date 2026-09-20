@@ -40,7 +40,9 @@ describe("Crew Performance Admin", () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect((await screen.findAllByText("Alex Tan")).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("row").filter((entry) => entry.textContent.includes("Alex Tan") && entry.textContent.includes("Service Standards") === false).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getAllByRole("button", { name: "Review" })[1]);
+    expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: "View review" }).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Review" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Meets Standard" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
     await waitFor(() => expect(mocks.review).toHaveBeenCalledWith(expect.objectContaining({ employeeId: "employee-1", component: "conduct" })));
@@ -49,7 +51,7 @@ describe("Crew Performance Admin", () => {
   it("uses the five current Service Standards criteria and never submits Initiative", async () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findAllByText("Alex Tan");
-    fireEvent.click(screen.getAllByRole("button", { name: "Review" })[0]);
+    fireEvent.click(screen.getAllByRole("button", { name: "View review" })[0]);
     expect(screen.getByRole("dialog", { name: "Service Standards Review" })).not.toBeNull();
     expect(screen.queryByText("Initiative")).toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Meets Standard" })[0]);
@@ -62,6 +64,7 @@ describe("Crew Performance Admin", () => {
   it("filters real Crew rows and shows a compact server-backed scoring reference", async () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("71 / 100")).not.toBeNull();
+    expect(document.querySelector('[data-admin-summary-grid="standard"]')).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Review Queue" })).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Needs Attention" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "How scoring works" }));

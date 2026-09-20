@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { AlertTriangle, CheckCircle2, Check, ChevronRight, CircleHelp, Copy, Download, FileText, MessageSquareText, QrCode, Search, UserRoundPen } from "lucide-react";
+import { AlertTriangle, ChartNoAxesCombined, CheckCircle2, Check, ChevronRight, CircleHelp, Copy, Download, FileText, MessageSquareText, QrCode, Search, UserRoundPen } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
@@ -129,29 +129,28 @@ function PerformanceOverview({ data, filters, onFiltersChange, onOpen, onReview,
   const filteredRows = teamListing.rows;
   const reviewRows = reviewListing.rows;
   const maxScore = (data.scoring_framework || []).reduce((total, item) => total + Number(item.max_score || 0), 0);
-  return <div className="crew-performance-overview"><AdminSummaryGrid ariaLabel="Period summary" items={[{ label: "Average Score", value: s.average_score == null ? "—" : `${Math.round(s.average_score)} / ${maxScore || "—"}`, helper: `${rows.length} Crew this period` }, { label: "Reviewed", value: `${reviewed} / ${rows.length}`, helper: "Service and Conduct complete", tone: "success" }, { label: "Awaiting Review", value: awaiting, helper: "Service or Conduct pending", tone: awaiting ? "warning" : "neutral", onClick: () => onFiltersChange((current) => ({ ...current, status: "awaiting" })), title: "Show Crew awaiting review" }]} />
-    <PerformanceSection title="Review Queue" description="Complete Service Standards and Conduct reviews before finalization."><ReviewQueue rows={reviewRows} onReview={onReview} canReview={canReview} /> <AdminPagination {...reviewListing} onPageChange={reviewActions.requestPage} onPageSizeChange={reviewActions.requestPageSize} noun="Crew reviews" /></PerformanceSection>
-    <PerformanceSection title="Team Performance" description={`${teamListing.loadedTotal} Crew shown for this period.`} action={<button type="button" className="btn-secondary crew-performance-info" onClick={onScoringInfo}><CircleHelp size={15} /> How scoring works</button>}>{filteredRows.length ? <section className="crew-growth-table is-embedded"><DataTable rows={filteredRows} getRowKey={(row) => row.employee.id} onRowClick={onOpen} tableClassName="min-w-[960px] crew-performance-team-table" columns={[
+  return <div className="crew-performance-overview"><AdminSummaryGrid variant="standard" ariaLabel="Period summary" items={[{ label: "Average Score", value: s.average_score == null ? "—" : `${Math.round(s.average_score)} / ${maxScore || "—"}`, helper: `${rows.length} Crew this period`, icon: ChartNoAxesCombined }, { label: "Reviewed", value: `${reviewed} / ${rows.length}`, helper: "Service and Conduct complete", tone: "success", icon: CheckCircle2 }, { label: "Awaiting Review", value: awaiting, helper: "Service or Conduct pending", tone: awaiting ? "warning" : "neutral", icon: AlertTriangle, onClick: () => onFiltersChange((current) => ({ ...current, status: "awaiting" })), title: "Show Crew awaiting review" }]} />
+    <AdminDataSection title="Review Queue" description="Complete Service Standards and Conduct reviews before finalization."><ReviewQueue rows={reviewRows} onReview={onReview} canReview={canReview} /> <AdminPagination {...reviewListing} onPageChange={reviewActions.requestPage} onPageSizeChange={reviewActions.requestPageSize} noun="Crew reviews" /></AdminDataSection>
+    <AdminDataSection title="Team Performance" description={`${teamListing.loadedTotal} Crew shown for this period.`} actions={<button type="button" className="btn-secondary inline-flex items-center gap-1.5 whitespace-nowrap" onClick={onScoringInfo}><CircleHelp size={15} /> How scoring works</button>}>{filteredRows.length ? <DataTable density="compact" rows={filteredRows} getRowKey={(row) => row.employee.id} onRowClick={onOpen} tableClassName="min-w-[960px]" columns={[
       { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
-      { key: "performance", header: "Performance", align: "right", render: (row) => <strong className="crew-performance-total">{displayedPerformanceScore(row.result) == null ? "—" : Math.round(displayedPerformanceScore(row.result))}</strong> },
-      ...performanceComponents.map(([key, label]) => ({ key, header: label, align: "right", render: (row) => <span className="crew-performance-number">{componentScore(row, key)}</span> })),
-      { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.result.status)}>{statusLabel(row.result.status)}</Badge> }, { key: "open", header: "", align: "right", render: () => <ChevronRight size={15} /> },
-    ]} /></section> : <EmptyState title={rows.length ? "No Crew match these filters" : "No performance records yet"} description={rows.length ? "Clear or adjust the filters to review the full team." : "Performance records will appear after monthly evidence is available."} />}<AdminPagination {...teamListing} onPageChange={teamActions.requestPage} onPageSizeChange={teamActions.requestPageSize} noun="Crew members" /></PerformanceSection>
+      { key: "performance", header: "Performance", align: "right", render: (row) => <strong className="tabular-nums text-text-primary">{displayedPerformanceScore(row.result) == null ? "—" : Math.round(displayedPerformanceScore(row.result))}</strong> },
+      ...performanceComponents.map(([key, label]) => ({ key, header: label, align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{componentScore(row, key)}</span> })),
+      { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.result.status)}>{statusLabel(row.result.status)}</Badge> }, { key: "open", header: "", align: "right", render: () => <ChevronRight className="text-text-muted" size={15} /> },
+    ]} /> : <EmptyState title={rows.length ? "No Crew match these filters" : "No performance records yet"} description={rows.length ? "Clear or adjust the filters to review the full team." : "Performance records will appear after monthly evidence is available."} />}<AdminPagination {...teamListing} onPageChange={teamActions.requestPage} onPageSizeChange={teamActions.requestPageSize} noun="Crew members" /></AdminDataSection>
   </div>;
 }
 
 function ReviewQueue({ rows, onReview, canReview }) {
   if (!rows?.length) return <EmptyState title="No reviews match these filters" description="Clear or adjust the filters to see the manager review queue." />;
-  return <section className="crew-growth-table is-embedded"><DataTable rows={rows} getRowKey={(row) => row.employee.id} tableClassName="min-w-[850px]" columns={[
+  return <DataTable density="compact" rows={rows} getRowKey={(row) => row.employee.id} tableClassName="min-w-[850px]" columns={[
     { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
     { key: "service", header: "Service Standards", render: (row) => <ReviewCell row={row} component="service" onReview={onReview} canReview={canReview} /> },
     { key: "conduct", header: "Conduct", render: (row) => <ReviewCell row={row} component="conduct" onReview={onReview} canReview={canReview} /> },
-    { key: "status", header: "Overall", render: (row) => <Badge tone={rowReviewStatus(row) === "completed" ? "neutral" : "warning"}>{rowReviewStatus(row) === "completed" ? "Completed" : "Review"}</Badge> },
-  ]} /></section>;
+    { key: "status", header: "Overall", render: (row) => <Badge tone={semanticStatusTone(rowReviewStatus(row))}>{rowReviewStatus(row) === "completed" ? "Completed" : "Pending"}</Badge> },
+  ]} />;
 }
 
-function ReviewCell({ row, component, onReview, canReview }) { const done = reviewDone(row, component); return <span className="crew-performance-review-cell"><Badge tone={semanticStatusTone(done ? "completed" : "pending")}>{done ? "Completed" : "Pending"}</Badge><button type="button" className={done ? "btn-ghost" : "btn-primary"} disabled={!canReview} onClick={() => onReview({ ...row, component })}>Review</button></span>; }
-function PerformanceSection({ title, description, action, children }) { return <AdminDataSection title={title} description={description} actions={action} className="crew-performance-section">{children}</AdminDataSection>; }
+function ReviewCell({ row, component, onReview, canReview }) { const done = reviewDone(row, component); return <div className="flex flex-wrap items-center gap-2"><Badge tone={semanticStatusTone(done ? "completed" : "pending")}>{done ? "Completed" : "Pending"}</Badge><button type="button" className="btn-secondary h-8 px-2 text-xs" disabled={!canReview} onClick={() => onReview({ ...row, component })}>{done ? "View review" : "Review"}</button></div>; }
 
 function PerformanceScoringDialog({ framework, onClose }) { return <Modal title="How scoring works" description="Component weights are supplied by the server with this Performance period." onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="crew-performance-scoring"><dl>{(framework || []).map((item) => <div key={item.key}><dt>{item.label}</dt><dd>{item.max_score} pts</dd></div>)}</dl><p>Attendance, Customer and Knowledge use protected evidence. Service Standards and Conduct use manager reviews. Finalized results remain immutable.</p></div></Modal>; }
 
