@@ -723,6 +723,26 @@
     border-color: var(--theme-input-border);
   }
 
+  .admin-form-field {
+    display: grid;
+    min-width: 0;
+    align-content: start;
+    gap: 0.5rem;
+  }
+
+  .admin-form-field-label {
+    color: var(--text-secondary);
+    font-size: var(--type-caption);
+    font-weight: 600;
+    line-height: var(--leading-tight-ui);
+  }
+
+  .admin-form-field-message {
+    color: var(--text-muted);
+    font-size: var(--type-caption);
+    line-height: var(--leading-body-ui);
+  }
+
   .btn-primary {
     @apply inline-flex h-9 items-center justify-center gap-2 rounded-control bg-primary px-3 text-[13.5px] font-semibold text-white shadow-sm transition hover:bg-primary-700 disabled:cursor-not-allowed disabled:bg-slate-300;
   }

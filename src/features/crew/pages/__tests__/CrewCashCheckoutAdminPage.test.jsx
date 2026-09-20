@@ -77,7 +77,8 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getAllByRole("button", { name: "Settings" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("dialog", { name: "Cash Checkout Settings" })).not.toBeNull();
-    expect(screen.getByText("Cash Rules")).not.toBeNull();
+    expect(screen.getAllByText("Floating Cash")).toHaveLength(2);
+    expect(screen.getByText("Checkout Rules")).not.toBeNull();
     expect(screen.getByText("Eligible Crew")).not.toBeNull();
     expect(screen.getByText("Review Rules")).not.toBeNull();
     expect(screen.getByText("Require internal receiver confirmation")).not.toBeNull();
@@ -93,14 +94,26 @@ describe("Crew Cash Checkout Admin", () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByText("QA Crew");
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.queryByLabelText(/Reason for Floating Cash Change/)).toBeNull();
+    expect(screen.queryByLabelText(/Reason for change/)).toBeNull();
 
     fireEvent.input(screen.getByLabelText("Floating Cash (RM)"), { target: { value: "350" } });
-    await waitFor(() => expect(screen.getByLabelText(/Reason for Floating Cash Change/).required).toBe(true));
-    fireEvent.change(screen.getByLabelText(/Reason for Floating Cash Change/), { target: { value: "Weekend operating float" } });
+    await waitFor(() => expect(screen.getByLabelText(/Reason for change/).required).toBe(true));
+    fireEvent.change(screen.getByLabelText(/Reason for change/), { target: { value: "Weekend operating float" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
 
     await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ floating_cash: "350", reason: "Weekend operating float", required_position_ids: [cashierPositionId] })));
+  });
+
+  it("groups Floating Cash changes separately from Checkout Rules using the shared field grammar", async () => {
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("QA Crew");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+
+    expect(screen.getByText("Applies to a changed Floating Cash amount.")).not.toBeNull();
+    expect(screen.getByText("Sets the amount allowed before the review rule applies.")).not.toBeNull();
+    expect(screen.getByText("Require review when variance exceeds tolerance")).not.toBeNull();
+    expect(screen.getByLabelText("Floating Cash (RM)").closest("label").className).toContain("admin-form-field");
+    expect(screen.getByLabelText("Variance Tolerance (RM)").closest("label").className).toContain("admin-form-field");
   });
 
   it("saves Checkout Positions by canonical Job Position ID", async () => {

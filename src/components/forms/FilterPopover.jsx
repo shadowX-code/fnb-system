@@ -26,6 +26,8 @@ export default function FilterPopover({
   multiple = false,
   placeholder = "All",
   className = "",
+  helper,
+  variant = "filter",
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [draftValue, setDraftValue] = useState(() => normalizeValue(value, multiple));
@@ -34,6 +36,7 @@ export default function FilterPopover({
   const selectedValue = useMemo(() => normalizeValue(value, multiple), [multiple, value]);
   const hasSelection = multiple ? selectedValue.length > 0 : Boolean(selectedValue);
   const displayText = getDisplayText({ options, value: selectedValue, multiple, placeholder });
+  const isFormField = variant === "form";
 
   useEffect(() => {
     if (!isOpen) return;
@@ -66,10 +69,10 @@ export default function FilterPopover({
   }
 
   return (
-    <div className={`relative min-w-0 ${className}`} ref={containerRef}>
-      {label ? <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div> : null}
+    <div className={`relative min-w-0 ${isFormField ? "admin-form-field" : ""} ${className}`} ref={containerRef}>
+      {label ? <div className={isFormField ? "admin-form-field-label" : "mb-1 text-[11px] font-bold uppercase tracking-wide text-text-muted"}>{label}</div> : null}
       <button
-        className={`flex h-9 w-full min-w-36 items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-primary/15 ${
+        className={`flex ${isFormField ? "h-10 text-[14px] font-medium" : "h-9 min-w-36 text-sm font-semibold"} w-full items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/15 ${
           isOpen ? "border-primary/50 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"
         }`}
         type="button"
@@ -81,6 +84,7 @@ export default function FilterPopover({
         </span>
         <ChevronDown className={`shrink-0 text-text-muted transition ${isOpen ? "rotate-180" : ""}`} size={15} />
       </button>
+      {helper ? <div className="admin-form-field-message">{helper}</div> : null}
 
       <FloatingLayer
         open={isOpen}

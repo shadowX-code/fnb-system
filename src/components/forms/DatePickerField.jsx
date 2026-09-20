@@ -202,16 +202,16 @@ export default function DatePickerField({
       : `${fullMonthNames[visibleMonth]} ${visibleYear}`;
 
   return (
-    <label className={`relative flex flex-col gap-1 ${className}`} ref={wrapperRef}>
+    <label className={`admin-form-field relative ${className}`} ref={wrapperRef}>
       {label ? (
-        <span className="type-caption font-semibold text-text-secondary">
+        <span className="admin-form-field-label">
           {label} {required ? <span className="text-rose-500">*</span> : null}
         </span>
       ) : null}
       <div className="relative">
         <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
         <input
-          className={`control h-9 w-full pl-9 pr-10 text-[13px] ${error ? "border-rose-200 focus:border-rose-300 focus:ring-rose-50" : ""}`}
+          className={`control h-10 w-full pl-9 pr-10 text-[13px] ${error ? "border-rose-200 focus:border-rose-300 focus:ring-rose-50" : ""}`}
           inputMode="text"
           placeholder={placeholder}
           value={displayValue}
@@ -233,8 +233,8 @@ export default function DatePickerField({
           <ChevronRight className={`transition ${open ? "rotate-90 text-primary" : ""}`} size={15} />
         </button>
       </div>
-      {error ? <span className="type-caption font-semibold text-rose-600">{error}</span> : null}
-      {!error && helper ? <span className="type-caption text-text-muted">{helper}</span> : null}
+      {error ? <span className="admin-form-field-message font-medium text-rose-600">{error}</span> : null}
+      {!error && helper ? <span className="admin-form-field-message">{helper}</span> : null}
 
       <FloatingLayer
         open={open}
