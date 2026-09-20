@@ -77,8 +77,8 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
 
   const outlet = outlets.find((row) => row.id === outletId);
   return <div className="crew-reward-page">
-    <PageHeader section="Crew · Reward" title="Reward Overview" description="Plan monthly Reward Campaigns, monitor projected payouts and finalize transparent Crew rewards." />
-    <AdminFilterToolbar ariaLabel="Reward filters" outlet={<CrewAdminOutletField />} period={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
+    <PageHeader section="Crew · Reward" title="Reward Overview" description="Plan monthly Reward Campaigns, monitor projected payouts and finalize transparent Crew rewards." primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
+    <AdminFilterToolbar ariaLabel="Reward filters" outlet={<CrewAdminOutletField />} period={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
 
     <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Rewards" hasData={Boolean(data.cycle || data.cycles.length)} onRetry={() => refresh()}><RewardOverview data={data} canManage={canManage} onOpenCampaign={() => setCampaignOpen(true)} onOpenEmployee={setEmployeeOpen} onOpenCycle={openCycle} /></AsyncDataSurface>
 

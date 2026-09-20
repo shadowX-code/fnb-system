@@ -15,6 +15,17 @@ const pageFiles = [
   "src/features/sales-purchase/pages/DutyRosterPage.jsx",
 ];
 
+const actionOwnershipFiles = [
+  "src/features/crew/pages/CrewOperationsAdminPage.jsx",
+  "src/features/crew/pages/CrewCashCheckoutAdminPage.jsx",
+  "src/features/sales-purchase/pages/DutyRosterPage.jsx",
+  "src/features/crew/pages/CrewLearningAdminResetPage.jsx",
+  "src/features/crew/pages/CrewSopLibraryPage.jsx",
+  "src/features/crew/pages/CrewGrowthAdminPage.jsx",
+  "src/features/crew/pages/CrewPerformanceAdminPage.jsx",
+  "src/features/crew/pages/CrewRewardAdminPage.jsx",
+];
+
 const source = (file) => readFileSync(resolve(process.cwd(), file), "utf8");
 
 describe("Crew Admin toolbar contract", () => {
@@ -22,9 +33,14 @@ describe("Crew Admin toolbar contract", () => {
     expect(source(file)).toContain("AdminFilterToolbar");
   });
 
-  it.each(pageFiles)("keeps controls out of PageHeader actions on %s", (file) => {
+  it.each(actionOwnershipFiles)("keeps page-level commands out of AdminFilterToolbar on %s", (file) => {
     const contents = source(file);
-    expect(contents).not.toMatch(/<PageHeader[\s\S]{0,500}?\sactions=/);
+    expect(contents).not.toMatch(/<AdminFilterToolbar[\s\S]{0,1600}?\s(?:secondaryActions|primaryActions)=/);
+  });
+
+  it.each(actionOwnershipFiles)("uses PageHeader action groups for page-level commands on %s", (file) => {
+    const contents = source(file);
+    expect(contents).toMatch(/<PageHeader[\s\S]{0,800}?\s(?:secondaryActions|primaryActions)=/);
   });
 
   it("wraps all routed Admin pages in the shared Outlet provider", () => {

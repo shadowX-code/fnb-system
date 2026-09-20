@@ -2305,6 +2305,8 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         section={crewOwned ? "Crew · Workforce" : "Operations · Crew compatibility"}
         title="Duty Roster"
         description={crewOwned ? "Plan, publish, and share the official outlet schedule." : "Shared Crew roster workspace. All changes use the same roster authority."}
+        secondaryActions={canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}
+        primaryActions={canPublishRoster ? <button className="btn-primary" type="button" disabled={!period || period.status === "locked" || (period.status === "published" && !period.has_unpublished_changes)} onClick={() => setStatus("published")}><Send size={16} /> {hasUnpublishedChanges ? "Republish Roster" : "Publish Roster"}</button> : null}
       />
 
       <AdminFilterToolbar
@@ -2316,8 +2318,6 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel>{viewMode === "month" ? <FieldLabel label="Publish week"><SelectField ariaLabel="Publish week" value={activePublicationWeekStart} options={publicationWeeks.map((date) => ({ value: date, label: formatWeekRange(datesBetween(new Date(`${date}T00:00:00`), new Date(`${toDateInputValue(addDays(`${date}T00:00:00`, 6))}T00:00:00`))) }))} onChange={setPublicationWeekStart} /></FieldLabel> : null}<AdminSegmentedControl value={viewMode} onChange={(mode) => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }} label="Duty Roster view" options={[{ value: "week", label: "week" }, { value: "month", label: "month" }]} /></>}
         activeFilters={[employeeSearch && { key: "employee", label: "Employee", value: employeeSearch, onRemove: () => setEmployeeSearch("") }, groupFilter !== "all" && { key: "group", label: "Group", value: groupFilter, onRemove: () => setGroupFilter("all") }, positionFilter !== "all" && { key: "position", label: "Position", value: positionFilter, onRemove: () => setPositionFilter("all") }].filter(Boolean)}
         onClear={() => { setEmployeeSearch(""); setGroupFilter("all"); setPositionFilter("all"); }}
-        secondaryActions={canManageRoster ? <button className="btn-secondary" type="button" onClick={() => setSettingsOpen(true)}>Settings</button> : null}
-        primaryActions={canPublishRoster ? <button className="btn-primary" type="button" disabled={!period || period.status === "locked" || (period.status === "published" && !period.has_unpublished_changes)} onClick={() => setStatus("published")}><Send size={16} /> {hasUnpublishedChanges ? "Republish Roster" : "Publish Roster"}</button> : null}
       />
 
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}

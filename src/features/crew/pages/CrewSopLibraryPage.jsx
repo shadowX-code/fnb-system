@@ -243,7 +243,13 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
 
   return (
     <div className="crew-sop-admin-shell crew-admin-page">
-      <PageHeader section="Crew · Knowledge" title="SOP Library" description="Manage outlet procedures and employee knowledge." />
+      <PageHeader
+        section="Crew · Knowledge"
+        title="SOP Library"
+        description="Manage outlet procedures and employee knowledge."
+        secondaryActions={canManage ? <button className="btn-secondary" type="button" onClick={() => setCategoriesOpen(true)}><FolderCog size={15} /> Manage Categories</button> : null}
+        primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}><Plus size={15} /> Create SOP</button> : null}
+      />
       <SopLibrary
         outletControl={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
         outlet={outlet}
@@ -256,7 +262,6 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
         onOpen={openDetail}
         onEdit={(sop) => openEditor(sop.id, draftVersion(sop)?.id)}
         onCreate={() => setCreateOpen(true)}
-        onManageCategories={() => setCategoriesOpen(true)}
         onUsage={setUsageSop}
         onNewVersion={createVersion}
         onDeleteDraft={deleteDraft}
@@ -296,7 +301,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
   );
 }
 
-function SopLibrary({ outletControl, outlet, sops, categories, loading, error, onRetry, canManage, onOpen, onEdit, onCreate, onManageCategories, onUsage, onNewVersion, onDeleteDraft }) {
+function SopLibrary({ outletControl, outlet, sops, categories, loading, error, onRetry, canManage, onOpen, onEdit, onCreate, onUsage, onNewVersion, onDeleteDraft }) {
   const [query, setQuery] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [status, setStatus] = useState("");
@@ -321,7 +326,7 @@ function SopLibrary({ outletControl, outlet, sops, categories, loading, error, o
   const emptyDescription = sops.length ? "Adjust the search or filter selection." : `Create the first SOP for ${outlet?.name || "this outlet"}. You can start blank or clone an existing SOP.`;
 
   return <div className="crew-sop-library-sections">
-    <AdminFilterToolbar ariaLabel="SOP filters" outlet={outletControl} search={<label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>} filters={<><SelectField label="Category" ariaLabel="Category" value={categoryId} onChange={setCategoryId} options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "", label: "All" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" }]} /></>} activeFilters={activeFilters} onClear={() => { setQuery(""); setCategoryId(""); setStatus(""); }} secondaryActions={canManage ? <button className="btn-secondary" type="button" onClick={onManageCategories}><FolderCog size={15} /> Manage Categories</button> : null} primaryActions={canManage ? <button className="btn-primary" type="button" onClick={onCreate}><Plus size={15} /> Create SOP</button> : null} />
+    <AdminFilterToolbar ariaLabel="SOP filters" outlet={outletControl} search={<label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>} filters={<><SelectField label="Category" ariaLabel="Category" value={categoryId} onChange={setCategoryId} options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} /><SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "", label: "All" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" }]} /></>} activeFilters={activeFilters} onClear={() => { setQuery(""); setCategoryId(""); setStatus(""); }} />
     <section className="crew-sop-table-card" aria-label="SOP list">
     <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load SOP Library" hasData={rows.length > 0} isEmpty={!rows.length} emptyTitle={emptyTitle} emptyDescription={emptyDescription} emptyActions={!sops.length && canManage ? <button className="btn-primary" type="button" onClick={onCreate}>Create SOP</button> : null} onRetry={onRetry}>
     {rows.length ? <DataTable

@@ -82,13 +82,17 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
 
   const reviewCount = useMemo(() => data.checkouts.filter((item) => item.review_required && item.review_status === "pending").length + data.collections.filter((item) => item.status === "review_required").length, [data]);
   return <div className="space-y-4">
-    <PageHeader section="Crew · Operations" title="Cash Checkout" description="Reconcile daily outlet cash separately from the auditable Cash Deposit ledger." />
+    <PageHeader
+      section="Crew · Operations"
+      title="Cash Checkout"
+      description="Reconcile daily outlet cash separately from the auditable Cash Deposit ledger."
+      secondaryActions={<>{canManage ? <button className="btn-secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</button> : null}{tab === "deposit" && canCollect ? <button className="btn-secondary" onClick={() => setReceiverConfigOpen(true)}>Cash Handover Receivers</button> : null}</>}
+      primaryActions={tab === "deposit" && canCollect ? <button className="btn-primary" onClick={() => setCollectionOpen(true)}><HandCoins size={16} /> Hand Over Cash</button> : null}
+    />
     <AdminFilterToolbar
       ariaLabel="Cash Checkout filters"
       outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
       period={<FeedXDateRangePicker from={from} to={to} today={localDate()} onApply={({ from: nextFrom, to: nextTo }) => { setFrom(nextFrom); setTo(nextTo); }} />}
-      secondaryActions={canManage ? <button className="btn-secondary" onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</button> : null}
-      primaryActions={tab === "deposit" && canCollect ? <><button className="btn-secondary" onClick={() => setReceiverConfigOpen(true)}>Cash Handover Receivers</button><button className="btn-primary" onClick={() => setCollectionOpen(true)}><HandCoins size={16} /> Hand Over Cash</button></> : null}
     />
     <AdminSegmentedControl value={tab} onChange={setTab} label="Cash Checkout sections" options={[{ value: "checkout", label: "Daily Checkout" }, { value: "deposit", label: "Cash Deposit" }]} />
     <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Cash Checkout" hasData={tab === "checkout" ? data.checkouts.length > 0 : data.ledger.length > 0 || data.collections.length > 0} isEmpty={tab === "checkout" ? !data.checkouts.length : !data.ledger.length && !data.collections.length} emptyTitle={tab === "checkout" ? "No Cash Checkouts" : "No Cash Deposit activity"} emptyDescription={tab === "checkout" ? "No checkout records match this outlet and date range." : "No deposit ledger or handover records match this outlet and date range."} emptyIcon={Banknote} onRetry={refresh}>{tab === "checkout" ? <>

@@ -130,14 +130,13 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
 
   const hasData = activeTab === "skills" ? data.skills.length > 0 : data.crew.length > 0 || data.skills.length > 0;
   return <div className="crew-growth-page">
-    <PageHeader section="Crew · Growth" title={header.title} description={header.description} />
+    <PageHeader section="Crew · Growth" title={header.title} description={header.description} primaryActions={activeTab === "skills" && canManage ? <button className="btn-primary" type="button" onClick={() => setSkillEditor({})}><Plus size={15} /> New Skill</button> : null} />
     {(loading || error || !hasData) ? <AdminFilterToolbar
       ariaLabel={`${header.title} controls`}
       outlet={outletSelect}
-      primaryActions={activeTab === "skills" && canManage ? <button className="btn-primary" type="button" onClick={() => setSkillEditor({})}>Create Skill</button> : null}
     /> : null}
     <AsyncDataSurface loading={loading} error={error} errorTitle={`Unable to load ${header.title}`} hasData={hasData} isEmpty={!hasData} emptyTitle={activeTab === "skills" ? "No skills configured" : "No Growth records"} emptyDescription={activeTab === "skills" ? "Create the first outlet skill to define certification requirements." : "Eligible Crew capability records will appear for this outlet."} emptyIcon={ShieldCheck} emptyActions={activeTab === "skills" && canManage ? <button className="btn-primary" type="button" onClick={() => setSkillEditor({})}>Create Skill</button> : null} onRetry={refresh}>
-      {activeTab === "skills" ? <SkillsLibrary data={data} canManage={canManage} onView={setSkillEditor} outletSelect={outletSelect} onCreate={() => setSkillEditor({})} positionOptions={positionOptions} /> : <GrowthOverview data={data} outletSelect={outletSelect} onOpenReview={setReview} onOpenEmployee={setEmployeeProfile} />}
+      {activeTab === "skills" ? <SkillsLibrary data={data} canManage={canManage} onView={setSkillEditor} outletSelect={outletSelect} positionOptions={positionOptions} /> : <GrowthOverview data={data} outletSelect={outletSelect} onOpenReview={setReview} onOpenEmployee={setEmployeeProfile} />}
     </AsyncDataSurface>
     {skillEditor ? <SkillEditor skill={skillEditor} evidence={evidence} outlet={outlet} positionOptions={positionOptions} saving={savingSkill} onClose={() => setSkillEditor(null)} onSave={saveSkill} /> : null}
     {employeeProfile ? <CrewGrowthProfile row={employeeProfile} onClose={() => setEmployeeProfile(null)} onReview={(item) => { setEmployeeProfile(null); setReview(item); }} /> : null}
@@ -208,12 +207,12 @@ function RecentCertifications({ rows }) {
   ]} /></section>;
 }
 
-function SkillsLibrary({ data, canManage, onView, outletSelect, onCreate, positionOptions }) {
+function SkillsLibrary({ data, canManage, onView, outletSelect, positionOptions }) {
   const [query, setQuery] = useState(""); const [category, setCategory] = useState("all"); const [position, setPosition] = useState("all"); const [status, setStatus] = useState("all");
   const rows = data.skills.filter((skill) => `${skill.name} ${skill.description || ""}`.toLowerCase().includes(query.toLowerCase()) && (category === "all" || skill.category === category) && (position === "all" || (skill.positions || []).includes(position)) && (status === "all" || skill.status === status));
   const states = flattenStates(data);
   return <div className="crew-growth-stack">
-    <AdminFilterToolbar ariaLabel="Skills filters" outlet={outletSelect} search={<SearchField label="Search Skills" value={query} onChange={setQuery} placeholder="Search skills" />} filters={<><SelectField label="Category" value={category} onChange={setCategory} options={[allOption, ...SKILL_CATEGORIES.map((value) => ({ value, label: value }))]} /><SelectField label="Position" value={position} onChange={setPosition} options={[allOption, ...positionOptions]} /><SelectField label="Status" value={status} onChange={setStatus} options={[allOption, ...SKILL_STATUSES]} /></>} activeFilters={[query && { key: "query", label: "Search", value: query, onRemove: () => setQuery("") }, category !== "all" && { key: "category", label: "Category", value: category, onRemove: () => setCategory("all") }, position !== "all" && { key: "position", label: "Position", value: position, onRemove: () => setPosition("all") }, status !== "all" && { key: "status", label: "Status", value: status, onRemove: () => setStatus("all") }].filter(Boolean)} onClear={() => { setQuery(""); setCategory("all"); setPosition("all"); setStatus("all"); }} primaryActions={canManage ? <button className="btn-primary" onClick={onCreate}><Plus size={15} /> New Skill</button> : null} />
+    <AdminFilterToolbar ariaLabel="Skills filters" outlet={outletSelect} search={<SearchField label="Search Skills" value={query} onChange={setQuery} placeholder="Search skills" />} filters={<><SelectField label="Category" value={category} onChange={setCategory} options={[allOption, ...SKILL_CATEGORIES.map((value) => ({ value, label: value }))]} /><SelectField label="Position" value={position} onChange={setPosition} options={[allOption, ...positionOptions]} /><SelectField label="Status" value={status} onChange={setStatus} options={[allOption, ...SKILL_STATUSES]} /></>} activeFilters={[query && { key: "query", label: "Search", value: query, onRemove: () => setQuery("") }, category !== "all" && { key: "category", label: "Category", value: category, onRemove: () => setCategory("all") }, position !== "all" && { key: "position", label: "Position", value: position, onRemove: () => setPosition("all") }, status !== "all" && { key: "status", label: "Status", value: status, onRemove: () => setStatus("all") }].filter(Boolean)} onClear={() => { setQuery(""); setCategory("all"); setPosition("all"); setStatus("all"); }} />
     <section className="crew-growth-table"><DataTable rows={rows} getRowKey={(row) => row.id} onRowClick={onView} tableClassName="min-w-[960px]" columns={[
       { key: "skill", header: "Skill + Description", render: (row) => <NameCell title={row.name} detail={row.description || "No description"} /> },
       { key: "category", header: "Category" },
