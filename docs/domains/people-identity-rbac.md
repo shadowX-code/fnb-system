@@ -66,7 +66,7 @@ Corrections never rewrite an issued record. Admins withdraw with a reason or iss
 
 Supporting evidence uses the private `employee-disciplinary-evidence` bucket with immutable object paths and short-lived authorized reads. Disciplinary records do not affect Performance, Reward, Attendance, Duty Roster, payroll, Tasks, or Crew Access. A future Incident / Show Cause / Response / Review / Outcome model may reference a warning as one possible outcome, but is deliberately outside V1.
 
-## Legal Employers And Employment Documents V1
+## Legal Employers And Employment Documents
 
 People owns legal-employer master data and Employment Documents. A Legal Entity records legal company name, registration number, registered address, optional display name, and active state. `employees.legal_entity_id` is the canonical current assignment; it is separate from Workplace/Outlet, which remains operational location. Legacy employees may remain unassigned, but an Employment Contract cannot be sent until an active Legal Entity is assigned.
 
@@ -75,6 +75,14 @@ V1 supports uploaded Employment Contract PDFs only, with a 10 MB limit and no te
 Completion is an employment-document acknowledgement, not a FeedX claim of legal electronic-signature status. Crew identity is derived only from the current opaque Crew session. Opening the exact private PDF records first view once; acknowledgement stores a retry-safe request identity and append-only event containing the pinned PDF and consent evidence. Dedicated `employee_employment_documents.view` and `.manage` permissions enforce People authority and employee outlet scope.
 
 PDFs use the private `employee-employment-documents` bucket. Ordinary clients have no direct object authority; a dedicated server boundary validates Admin or Crew scope and returns five-minute signed view/download URLs. Completed, withdrawn, and superseded history remains immutable. V1 has no outlet-wide overview, former-employee access, payroll, Performance, Reward, Attendance, roster, or Crew Access effects.
+
+### Employment Contract Builder V2
+
+V2 adds Legal-Entity-owned Employment Contract templates without replacing the V1 document lifecycle. Templates are English Full-Time or Part-Time contract templates. A template may have many immutable published versions and one optional default per Legal Entity, contract type, and language. Template clauses are ordered plain text and may use only the server-approved merge-variable allowlist; they do not accept HTML, conditions, loops, AI-generated clauses, or general document-builder expressions.
+
+Create Contract is employee-profile-first: an authorized Admin selects a published template, confirms contract-owned terms, reviews the exact server-generated PDF, and then sends it through the existing Employment Documents authority. Employee legal name/code and legal employer are prefetched from People; Legal Employer cannot be overridden. Position, workplace, employment type, and commencement date can be explicitly overridden only inside the contract context and never write back to Employee, payroll, roster, or other authorities. Salary, allowances, working arrangements, notice, effective date, and additional terms are contract-owned structured data.
+
+The database builds a canonical render manifest from the exact template version, current employee/legal-employer values, and terms. The dedicated Employment Documents Edge Function renders that manifest to a private PDF and records its SHA-256. Send recomputes the manifest and refuses a stale preview; it snapshots the terms and template version alongside the existing V1 PDF, employee, employer, issuer, consent, and lifecycle evidence. Generated and uploaded contracts therefore share the same Draft → Sent → Viewed → Completed acknowledgement lifecycle and Crew Contracts & Letters consumer. V2 remains an acknowledgement workflow, not a claim of electronic-signature status.
 
 ## Workflows And Integrations
 

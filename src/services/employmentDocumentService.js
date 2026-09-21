@@ -24,6 +24,24 @@ export const legalEntityService = {
   },
 };
 
+export const employmentContractTemplateService = {
+  async list(legalEntityId) {
+    const { data, error } = await supabase.rpc("employment_contract_templates_for_legal_entity", { p_legal_entity_id: legalEntityId });
+    throwSupabaseError("employmentContractTemplates.list", error);
+    return data ?? [];
+  },
+  async save(templateId, payload) {
+    const { data, error } = await supabase.rpc("employment_contract_template_save", { p_template_id: templateId || null, p_payload: payload });
+    throwSupabaseError("employmentContractTemplates.save", error);
+    return data;
+  },
+  async publish(templateId, versionId) {
+    const { data, error } = await supabase.rpc("employment_contract_template_publish", { p_template_id: templateId, p_version_id: versionId });
+    throwSupabaseError("employmentContractTemplates.publish", error);
+    return data;
+  },
+};
+
 export const employmentDocumentService = {
   async adminDetail(employeeId) {
     const { data, error } = await supabase.rpc("employee_employment_documents_admin_detail", { p_employee_id: employeeId });
@@ -39,6 +57,17 @@ export const employmentDocumentService = {
       p_supersedes_document_id: supersedesDocumentId,
     });
     throwSupabaseError("employmentDocuments.saveDraft", error);
+    return data;
+  },
+  async saveTemplateDraft({ documentId = null, employeeId, title, effectiveDate, templateVersionId, terms, requestId, supersedesDocumentId = null }) {
+    const { data, error } = await supabase.rpc("employee_employment_contract_save_draft", {
+      p_document_id: documentId,
+      p_employee_id: employeeId,
+      p_payload: { title, effective_date: effectiveDate, template_version_id: templateVersionId, terms },
+      p_request_id: requestId,
+      p_supersedes_document_id: supersedesDocumentId,
+    });
+    throwSupabaseError("employmentDocuments.saveTemplateDraft", error);
     return data;
   },
   async upload({ documentId, requestId, file }) {
@@ -59,6 +88,7 @@ export const employmentDocumentService = {
     return data;
   },
   async adminRead(documentId) { return invokeDocument({ action: "admin_read", document_id: documentId }); },
+  async previewTemplateContract(documentId) { return invokeDocument({ action: "contract_preview", document_id: documentId }); },
   async crewList(token) {
     const { data, error } = await supabase.rpc("crew_employee_employment_documents", { p_token: token });
     throwSupabaseError("employmentDocuments.crewList", error);

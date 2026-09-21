@@ -75,7 +75,7 @@ Historical snapshots preserve meaning when master data or rules later change.
 
 Examples include financial period snapshots, roster publication revisions, SOP and learning versions, localized snapshots, performance evidence, stock and cash ledgers, and production traceability records.
 Employee Compliance follows the same rule: evidence submissions and review decisions are append-only, replacements supersede only after verification, and private historical evidence is never overwritten by resubmission.
-Employment Documents also follow this rule: Draft PDF evidence is replaceable, but Send pins the exact private object and server-calculated SHA-256 together with employee, legal-employer, issuer, and consent snapshots. Viewed/Completed events are token-bound and append-only; withdrawal or supersession never edits the sent version.
+Employment Documents also follow this rule: Draft PDF evidence is replaceable, but Send pins the exact private object and server-calculated SHA-256 together with employee, legal-employer, issuer, and consent snapshots. V2 template contracts additionally pin the immutable published template version, contract-term snapshot, and canonical render-manifest hash. The server regenerates that manifest at Send and rejects a stale preview, so the server-rendered preview bytes are the bytes whose hash enters the existing immutable document authority. Viewed/Completed events are token-bound and append-only; withdrawal or supersession never edits the sent version.
 The exact state model remains owned by each domain document and current contracts.
 
 ## Audit Discipline

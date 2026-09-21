@@ -1,5 +1,7 @@
 # FeedX Development Log
 
+- Added People-owned Employment Contract Builder V2 on the existing Employment Documents authority. Legal-Entity-owned Full-Time/Part-Time templates publish immutable clause versions; employee-profile Create Contract records contract-only terms, server-generates an exact PDF from a hashed manifest, and sends it through the existing immutable PDF/acknowledgement lifecycle. This adds no legal electronic-signature claim and does not write to Employee, payroll, roster, or Crew authority.
+
 - Added the minimum People-owned Legal Employer master and employee assignment, plus Employment Documents V1 for uploaded Employment Contract PDFs. Send pins server-hashed PDF evidence and employee/employer/issuer/consent snapshots; Crew Employment Records provides token-bound view and explicit acknowledgement without claiming legal electronic-signature status. Sent/completed evidence and events remain immutable, corrections use withdrawal/supersession, and no payroll, roster, Attendance, Performance, Reward, or Crew Access behavior changes.
 
 - Added People-owned Employee Disciplinary Records V1 with First and Final Written Warning drafts, immutable issuance, private evidence, server-derived delivery/view/acknowledgement events, append-only employee responses, and controlled withdrawal/supersession. Employee Profile owns Admin management and Crew Me exposes token-bound Warnings & Notices without any Performance, Reward, Attendance, roster, payroll, Task, or Crew Access effect.
