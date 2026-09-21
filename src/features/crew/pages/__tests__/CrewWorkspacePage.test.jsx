@@ -72,7 +72,11 @@ describe("Crew Access outlet read lifecycle", () => {
   it("renders the operational dashboard from its canonical read projection", async () => {
     crewService.dashboardAdminData.mockResolvedValueOnce({
       summary: { scheduled_today: 7, present_today: 6, not_checked_in: 1, attendance_issues: 0, on_leave_today: 1, tasks_total: 3, tasks_completed: 2, tasks_overdue: 1, leave_today: [] },
-      upcoming: [{ type: "birthday", name: "Aina Rahman", position: "Service Crew", date: "2026-09-22", days_until: 1 }],
+      upcoming: [
+        { type: "birthday", name: "Aina Rahman", position: "Service Crew", date: "2026-09-22", days_until: 1 },
+        { type: "leave", name: "Mei Ling", position: "Kitchen Crew", date: "2026-09-25", days_until: 4, leave_type: "annual" },
+        { type: "compliance", name: "Rizal Ahmad", position: "Service Crew", requirement_name: "Typhoid Injection", date: "2026-10-04", days_until: 13 },
+      ],
       attention: [{ key: "leave_requests", count: 2, title: "Pending leave requests", detail: "New requests need review." }],
       crew_today: [{ employee_id: "crew-a", name: "Aina Rahman", position: "Service Crew", start_time: "10:00:00", end_time: "18:00:00", status: "working", group: "on_duty" }],
       tasks_today: [{ id: "task-a", name: "Opening checklist", assignment: "Service Crew", due_at: null, status: "in_progress" }],
@@ -86,6 +90,8 @@ describe("Crew Access outlet read lifecycle", () => {
     expect(screen.getByText("1 area needs attention today.")).not.toBeNull();
     expect(screen.getByText("1 Crew has not checked in and 1 task is overdue.")).not.toBeNull();
     expect(screen.getByText("Aina Rahman's birthday")).not.toBeNull();
+    expect(screen.getByText("Mei Ling")).not.toBeNull();
+    expect(screen.getByText("Rizal Ahmad")).not.toBeNull();
     expect(screen.getByText("Pending leave requests")).not.toBeNull();
     expect(crewService.dashboardAdminData).toHaveBeenCalledWith("outlet-a");
     expect(employeeService.crewAccessAdminPage).not.toHaveBeenCalled();
