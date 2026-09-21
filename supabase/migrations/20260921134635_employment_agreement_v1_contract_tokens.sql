@@ -47,7 +47,7 @@ begin
   if coalesce(p_terms->>'currency','')<>'MYR' or coalesce((p_terms->>'basic_salary')::numeric,-1)<0
     or coalesce(p_terms->>'salary_payment_period','') not in ('monthly','daily','hourly') then return false; end if;
   if (p_terms->>'effective_date') is null or (p_terms#>>'{employee_context,commencement_date}') is null then return false; end if;
-  if (p_terms->>'contract_date') is not null and (p_terms->>'contract_date') !~ '^\\d{4}-\\d{2}-\\d{2}$' then return false; end if;
+  if (p_terms->>'contract_date') is not null and (p_terms->>'contract_date') !~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}$' then return false; end if;
   if (p_terms->>'probation_months') is not null and ((p_terms->>'probation_months')::integer not between 0 and 24) then return false; end if;
   if jsonb_typeof(coalesce(p_terms->'rest_days','[]'::jsonb))<>'array' or jsonb_array_length(coalesce(p_terms->'rest_days','[]'::jsonb))=0 or jsonb_array_length(coalesce(p_terms->'rest_days','[]'::jsonb))>7 then return false; end if;
   for v_day in select value from jsonb_array_elements(p_terms->'rest_days') loop if jsonb_typeof(v_day)<>'string' or nullif(btrim(v_day #>> '{}'),'') is null or length(v_day #>> '{}')>32 then return false; end if; end loop;
