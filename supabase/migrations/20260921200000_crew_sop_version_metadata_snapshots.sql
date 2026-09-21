@@ -7,7 +7,24 @@ alter table public.crew_sop_versions
   add column if not exists summary text;
 
 -- Preserve the current historical wording before drafts begin owning edits.
-select public.crew_begin_learning_transition();
+-- Migration execution has no request JWT, so establish the same transaction-
+-- scoped transition lock using an existing authenticated actor when present.
+select set_config(
+  'request.jwt.claims',
+  jsonb_build_object('sub', actor.id, 'role', 'authenticated')::text,
+  true
+)
+from auth.users actor
+order by actor.created_at, actor.id
+limit 1;
+
+insert into public.crew_learning_transition_locks(transaction_id, actor_id)
+select txid_current(), auth.uid()
+where auth.uid() is not null
+on conflict (transaction_id) do update
+set actor_id = excluded.actor_id,
+    created_at = now();
+
 update public.crew_sop_versions version_row
 set title = coalesce(version_row.title, sop.title),
     category = coalesce(version_row.category, sop.category),
@@ -16,7 +33,10 @@ set title = coalesce(version_row.title, sop.title),
 from public.crew_sops sop
 where sop.id = version_row.sop_id
   and (version_row.title is null or version_row.category is null or version_row.category_id is null);
-select public.crew_end_learning_transition();
+
+delete from public.crew_learning_transition_locks
+where transaction_id = txid_current()
+  and actor_id = auth.uid();
 
 create or replace function public.crew_sop_version_metadata_defaults()
 returns trigger

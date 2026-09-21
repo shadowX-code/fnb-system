@@ -220,7 +220,7 @@ describe("Crew SOP Library Admin", () => {
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     fireEvent.click(await screen.findByRole("button", { name: "SOP Details" }));
-    fireEvent.change(screen.getByLabelText("Title *"), { target: { value: "Updated welcome standard" } });
+    fireEvent.change(await screen.findByLabelText("Title *"), { target: { value: "Updated welcome standard" } });
     fireEvent.change(screen.getByLabelText("Summary"), { target: { value: "Draft-only summary" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(mocks.saveDraft).toHaveBeenCalledWith("crew_sop_versions", expect.objectContaining({
