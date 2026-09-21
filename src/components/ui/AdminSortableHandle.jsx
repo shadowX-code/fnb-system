@@ -10,6 +10,7 @@ export default function AdminSortableHandle({
   count,
   onMove,
   onPointerDragStart,
+  onMouseDragStart,
   dragging = false,
   disabled = false,
 }) {
@@ -35,6 +36,7 @@ export default function AdminSortableHandle({
       draggable={false}
       disabled={disabled}
       onPointerDown={(event) => { if (!disabled) onPointerDragStart?.(event); }}
+      onMouseDown={(event) => { if (!disabled) onMouseDragStart?.(event); }}
       onKeyDown={onKeyDown}
     >
       <GripVertical size={16} aria-hidden="true" />

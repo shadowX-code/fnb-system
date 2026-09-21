@@ -50,12 +50,15 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
   }
 
   function startPointerDrag(itemId, event) {
+    if (pointerDragRef.current) return;
     if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.focus();
+    const isPointer = event.type.startsWith("pointer");
+    const inputId = isPointer ? event.pointerId : "mouse";
     event.currentTarget.setPointerCapture?.(event.pointerId);
     setDrop(null);
-    const initial = { itemId, pointerId: event.pointerId, startY: event.clientY, offsetY: 0, moved: false };
+    const initial = { itemId, inputId, startY: event.clientY, offsetY: 0, moved: false };
     pointerDragRef.current = initial;
     setPointerDrag(initial);
     document.body.classList.add("admin-sortable-is-dragging");
@@ -64,12 +67,14 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", complete);
       window.removeEventListener("pointercancel", cancel);
+      window.removeEventListener("mousemove", onPointerMove);
+      window.removeEventListener("mouseup", complete);
       removePointerListenersRef.current = () => {};
       document.body.classList.remove("admin-sortable-is-dragging");
     };
     const onPointerMove = (moveEvent) => {
       const current = pointerDragRef.current;
-      if (!current || moveEvent.pointerId !== current.pointerId) return;
+      if (!current || (isPointer && moveEvent.pointerId !== current.inputId)) return;
       moveEvent.preventDefault();
       const offsetY = moveEvent.clientY - current.startY;
       if (Math.abs(offsetY) < 5) return;
@@ -81,7 +86,7 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
     };
     const complete = (upEvent) => {
       const current = pointerDragRef.current;
-      if (!current || upEvent.pointerId !== current.pointerId) return;
+      if (!current || (isPointer && upEvent.pointerId !== current.inputId)) return;
       const target = pointerPlacement(upEvent.clientY, current.itemId);
       if (current.moved && target) onMoveRef.current(current.itemId, target.itemId, target.position);
       pointerDragRef.current = null;
@@ -91,7 +96,7 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
     };
     const cancel = (cancelEvent) => {
       const current = pointerDragRef.current;
-      if (!current || cancelEvent.pointerId !== current.pointerId) return;
+      if (!current || (isPointer && cancelEvent.pointerId !== current.inputId)) return;
       pointerDragRef.current = null;
       setDrop(null);
       setPointerDrag(null);
@@ -99,9 +104,14 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
     };
     removePointerListenersRef.current();
     removePointerListenersRef.current = clear;
-    window.addEventListener("pointermove", onPointerMove, { passive: false });
-    window.addEventListener("pointerup", complete);
-    window.addEventListener("pointercancel", cancel);
+    if (isPointer) {
+      window.addEventListener("pointermove", onPointerMove, { passive: false });
+      window.addEventListener("pointerup", complete);
+      window.addEventListener("pointercancel", cancel);
+    } else {
+      window.addEventListener("mousemove", onPointerMove, { passive: false });
+      window.addEventListener("mouseup", complete);
+    }
   }
 
   useEffect(() => {
@@ -127,7 +137,7 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
               item,
               index,
               dragging,
-              handle: <AdminSortableHandle label={getLabel(item, index)} index={index} count={items.length} dragging={dragging} onMove={(direction) => onMove(itemId, getId(items[index + direction]), direction < 0 ? "before" : "after")} onPointerDragStart={(event) => startPointerDrag(itemId, event)} />,
+              handle: <AdminSortableHandle label={getLabel(item, index)} index={index} count={items.length} dragging={dragging} onMove={(direction) => onMove(itemId, getId(items[index + direction]), direction < 0 ? "before" : "after")} onPointerDragStart={(event) => startPointerDrag(itemId, event)} onMouseDragStart={(event) => startPointerDrag(itemId, event)} />,
             })}
           </div>
         );
