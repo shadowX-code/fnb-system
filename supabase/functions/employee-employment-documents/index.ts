@@ -40,7 +40,10 @@ function contractTokenValues(manifest: Record<string, any>) {
     "legal_entity.display_name": entity.display_name || entity.legal_company_name || "",
     "employee.full_name": employee.full_name || "",
     "employee.employee_code": employee.employee_code || "",
+    "employee.ic_no": employee.ic_no || "Not recorded",
+    "employee.residential_address": employee.residential_address || "Not recorded",
     "contract.title": document.title || "Employment Contract",
+    "contract.contract_date": displayDate(terms.contract_date || terms.effective_date || document.effective_date),
     "contract.position": context.position || "",
     "contract.workplace": context.workplace || "",
     "contract.employment_type": context.employment_type || "",
@@ -53,6 +56,8 @@ function contractTokenValues(manifest: Record<string, any>) {
     "contract.normal_working_hours": `${terms.normal_hours_per_day || ""} hours per day${terms.normal_hours_description ? ` — ${terms.normal_hours_description}` : ""}`,
     "contract.rest_days": Array.isArray(terms.rest_days) ? terms.rest_days.join(", ") : "",
     "contract.notice_period": `${terms.notice_period_value || ""} ${terms.notice_period_unit || ""}`.trim(),
+    "contract.probation_notice_period": `${terms.probation_notice_period_value || terms.notice_period_value || ""} ${terms.probation_notice_period_unit || terms.notice_period_unit || ""}`.trim(),
+    "contract.confirmed_notice_period": `${terms.confirmed_notice_period_value || terms.notice_period_value || ""} ${terms.confirmed_notice_period_unit || terms.notice_period_unit || ""}`.trim(),
     "contract.additional_terms": terms.additional_terms || "",
     allowances_table: allowances,
   };
@@ -93,6 +98,52 @@ async function renderContractPdf(manifest: Record<string, any>) {
     ensure(Math.max(lineHeight, lines.length * lineHeight));
     for (const line of lines) { page.drawText(line, { x: pdfPage.margin, y, size, font, color: colour }); y -= lineHeight; }
   };
+  const drawTable = (headers: string[], rows: string[][], widths: number[]) => {
+    const rowHeight = 20;
+    const drawRow = (cells: string[], isHeader = false) => {
+      ensure(rowHeight);
+      let x = pdfPage.margin;
+      cells.forEach((cell, index) => {
+        page.drawRectangle({ x, y: y - rowHeight + 3, width: widths[index], height: rowHeight, borderColor: rgb(0.78, 0.82, 0.81), borderWidth: 0.5, color: isHeader ? rgb(0.92, 0.95, 0.94) : rgb(1, 1, 1) });
+        page.drawText(cell, { x: x + 6, y: y - 13, size: isHeader ? 8.5 : 8.5, font: isHeader ? sans : serif, color: rgb(0.06, 0.15, 0.16) });
+        x += widths[index];
+      });
+      y -= rowHeight;
+    };
+    ensure(rowHeight * 2 + 8);
+    drawRow(headers, true);
+    rows.forEach((row) => {
+      if (y - rowHeight < pdfPage.margin) { newPage(); drawRow(headers, true); }
+      drawRow(row);
+    });
+    y -= 10;
+  };
+  const drawAnnualLeaveTable = () => drawTable(["Length of service", "Paid annual leave"], [["Less than 2 years", "8 working days"], ["2 to 5 years", "12 working days"], ["5 years or more", "16 working days"]], [width * 0.58, width * 0.42]);
+  const drawSickHospitalisationLeaveTable = () => drawTable(["Length of service", "Paid sick leave", "Hospitalisation leave"], [["Less than 2 years", "14 days", "60 days"], ["2 to 5 years", "18 days", "60 days"], ["5 years or more", "22 days", "60 days"]], [width * 0.40, width * 0.28, width * 0.32]);
+  const drawSignatureBlock = () => {
+    const terms = manifest.terms || {};
+    ensure(145);
+    const columnWidth = (width - 24) / 2;
+    const column = (x: number, heading: string, name: string, detail: string) => {
+      page.drawText(heading, { x, y, size: 10, font: serifBold, color: rgb(0.04, 0.13, 0.14) });
+      y -= 50;
+      page.drawLine({ start: { x, y }, end: { x: x + columnWidth, y }, thickness: 0.7, color: rgb(0.36, 0.43, 0.42) });
+      y -= 14;
+      page.drawText(`Name: ${name || ""}`, { x, y, size: 8.5, font: sans, color: rgb(0.06, 0.15, 0.16) });
+      y -= 13;
+      page.drawText(detail, { x, y, size: 8.5, font: sans, color: rgb(0.06, 0.15, 0.16) });
+      y -= 13;
+      page.drawText("Signature: ____________________", { x, y, size: 8.5, font: sans, color: rgb(0.06, 0.15, 0.16) });
+      y -= 13;
+      page.drawText("Date: ________________________", { x, y, size: 8.5, font: sans, color: rgb(0.06, 0.15, 0.16) });
+    };
+    const startY = y;
+    column(pdfPage.margin, "For and on behalf of Employer", terms.employer_signatory_name || "", `Designation: ${terms.employer_signatory_designation || ""}`);
+    const employerEndY = y;
+    y = startY;
+    column(pdfPage.margin + columnWidth + 24, "Employee", manifest.employee?.full_name || "", `NRIC/Passport: ${manifest.employee?.ic_no || "Not recorded"}`);
+    y = Math.min(employerEndY, y) - 8;
+  };
   const entity = manifest.legal_entity || {};
   const template = manifest.template || {};
   const values = contractTokenValues(manifest);
@@ -107,10 +158,16 @@ async function renderContractPdf(manifest: Record<string, any>) {
   for (const section of sections) {
     const heading = String(section.heading || "");
     const body = replaceContractTokens(String(section.body || ""), values);
-    ensure(30);
+    ensure(50);
     page.drawText(heading, { x: pdfPage.margin, y, size: 12, font: serifBold, color: rgb(0.04, 0.13, 0.14) });
     y -= 17;
-    drawLines(body, serif, 10.5, 15.5);
+    const blocks = String(section.body || "").split(/(\{\{(?:annual_leave_table|sick_hospitalisation_leave_table|signature_block)\}\})/g);
+    for (const block of blocks) {
+      if (block === "{{annual_leave_table}}") drawAnnualLeaveTable();
+      else if (block === "{{sick_hospitalisation_leave_table}}") drawSickHospitalisationLeaveTable();
+      else if (block === "{{signature_block}}") drawSignatureBlock();
+      else if (block.trim()) drawLines(replaceContractTokens(block, values), serif, 10.5, 15.5);
+    }
     y -= 10;
   }
   const pages = pdf.getPages();

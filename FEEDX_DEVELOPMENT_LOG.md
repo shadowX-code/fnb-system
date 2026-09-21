@@ -578,3 +578,7 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Rebuilt Crew Dashboard as a permission-aware, outlet-scoped operational projection over active Crew, the currently published roster, same-day attendance, approved leave, upcoming birthdays, Crew Access, Compliance, and Performance review authorities.
 - Added a server-side Dashboard read RPC with outlet and permission enforcement. It exposes only the seven-day birthday display projection needed by Admin and deep-links compact attention items to their owning workflows; it creates no unified activity log, duplicate lifecycle, or source-evidence mutation path.
+# 2026-09-21 — Employment Agreement V1
+
+- Added a reusable Malaysian Employment Agreement V1 template starter to the existing People-owned Contract Builder V2, with bounded identity/term tokens and server-rendered leave-table/signature blocks.
+- Added optional Employee residential address master data for immutable contract render-manifest use; no separate contract lifecycle, storage authority, or signature claim was introduced.

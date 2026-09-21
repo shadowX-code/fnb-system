@@ -54,6 +54,7 @@ function createEmptyUser() {
     email: "",
     contact: "",
     ic_no: "",
+    residential_address: "",
     gender: "",
     birthday: "",
     role: "",
@@ -1025,6 +1026,7 @@ function UserFormModal({
               <ReadOnlyField label="Gender">{values.gender}</ReadOnlyField>
               <ReadOnlyField label="Nationality">{values.nationality || "Malaysia"}</ReadOnlyField>
               <ReadOnlyField label={isMalaysia ? "IC No." : "Passport / ID No."}>{values.ic_no}</ReadOnlyField>
+              <ReadOnlyField label="Residential Address">{values.residential_address || "-"}</ReadOnlyField>
               <ReadOnlyField label="Birthday">{formatDateForView(values.birthday)}</ReadOnlyField>
               <ReadOnlyField label="Contact">{values.contact}</ReadOnlyField>
             </div>
@@ -1064,6 +1066,9 @@ function UserFormModal({
                 onChange={(event) => updateValue("ic_no", event.target.value)}
                 placeholder={isMalaysia ? "123456-08-1234" : "Passport or foreign ID number"}
               />
+            </FormField>
+            <FormField label="Residential Address" helper="Used for employment-document identity details when available.">
+              <textarea className={inputClass(visibleError("residential_address"))} value={values.residential_address || ""} onBlur={() => markTouched("residential_address")} onChange={(event) => updateValue("residential_address", event.target.value)} />
             </FormField>
             <div>
               <DatePickerField label="Birthday" value={values.birthday} onChange={(value) => updateValue("birthday", value)} onBlur={() => markTouched("birthday")} error={visibleError("birthday")} helper={birthdayHelper} required yearFirst />
