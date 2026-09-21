@@ -157,7 +157,7 @@ function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
     <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Crew Dashboard" hasData={hasLoaded} isEmpty={!outletId} emptyTitle="No outlet selected" emptyDescription="Select an outlet to see its current Crew operations." onRetry={refresh}>
       <DailyBrief brief={brief} date={data.business_date} />
       <TodayMetrics summary={summary} attention={attention} />
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,.82fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,.82fr)]">
         {crewToday.length ? <CrewTodayList rows={crewToday} /> : null}
         <div className="grid content-start gap-4">
           {tasksToday.length ? <TasksTodayList rows={tasksToday} /> : null}
@@ -263,7 +263,7 @@ function CrewTodayRow({ row }) {
 
 function TasksTodayList({ rows }) {
   return <AdminDataSection title="Today's Tasks" description="Current task occurrences for this outlet." actions={<a className="btn-secondary h-8 px-3 text-xs" href="#crew_operations">View all</a>}>
-    <div className="crew-dashboard-list">{rows.map((row) => <a className="crew-dashboard-row" href="#crew_operations" key={row.id}>
+    <div className="crew-dashboard-list">{rows.map((row) => <a className="crew-dashboard-row" href={`#crew_operations/instance/${row.id}`} key={row.id}>
       <span className={`crew-dashboard-task-icon is-${row.status}`}><ListChecks size={17} /></span>
       <span className="min-w-0 flex-1"><strong>{row.name}</strong><small>{row.assignment}</small></span>
       <span className="crew-dashboard-row-meta"><DashboardStatus status={row.status} /><small>{taskTiming(row)}</small></span>

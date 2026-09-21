@@ -132,6 +132,16 @@ describe("Crew unified Tasks Admin", () => {
     expect(screen.getByRole("tab", { name: "By Crew" })).not.toBeNull();
   });
 
+  it("opens an exact task occurrence from a dashboard deep link", async () => {
+    window.history.replaceState(null, "", "#crew_operations/instance/instance-1");
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByRole("dialog", { name: "Task occurrence" })).not.toBeNull();
+    await waitFor(() => expect(mocks.result).toHaveBeenCalledWith("instance-1"));
+    expect(await screen.findByRole("tab", { name: "By Task Item" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(window.location.hash).toBe("#crew_operations");
+  });
+
   it("routes pause and end-date changes through the controlled lifecycle authority", async () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("button", { name: "More actions for Opening Checklist" }));

@@ -37,6 +37,9 @@ const additionalNoteRule = (blocks) => blocks.some((block) => block.evidence_req
 export default function CrewOperationsAdminPage({ auth, ui, store }) {
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []); const [from, setFrom] = useState(localDate()); const [to, setTo] = useState(localDate());
   const [status, setStatus] = useState("active"); const [assignee, setAssignee] = useState("all"); const [query, setQuery] = useState(""); const [editor, setEditor] = useState(null); const [detail, setDetail] = useState(null); const [scheduleTask, setScheduleTask] = useState(null); const [actionMenu, setActionMenu] = useState(null);
+  const [linkedInstanceId, setLinkedInstanceId] = useState(taskInstanceIdFromHash);
+  const [linkedResult, setLinkedResult] = useState(null);
+  const [linkedResultLoading, setLinkedResultLoading] = useState(false);
   const canManage = auth.hasPermission("crew_operations.manage");
   const canReview = auth.hasPermission("crew_operations.review");
   const taskFilters = useMemo(() => ({ status, assignment: assignee, query }), [assignee, query, status]);
@@ -44,6 +47,26 @@ export default function CrewOperationsAdminPage({ auth, ui, store }) {
   const reviewSignature = useMemo(() => JSON.stringify({ outletId, from, to, listing: "review_queue" }), [from, outletId, to]);
   const [taskListing, taskActions] = useAdminPagedQuery({ storageKey: "crew-tasks", enabled: Boolean(outletId), querySignature: taskSignature, loadPage: ({ page, pageSize }) => crewService.tasksAdminPage({ outletId, from, to, filters: taskFilters, page, pageSize }) });
   const [reviewListing, reviewActions] = useAdminPagedQuery({ storageKey: "crew-task-manager-review", enabled: Boolean(outletId), querySignature: reviewSignature, loadPage: ({ page, pageSize }) => crewService.tasksAdminPage({ outletId, from, to, listing: "review_queue", page, pageSize }) });
+  useEffect(() => {
+    const syncLinkedInstance = () => setLinkedInstanceId(taskInstanceIdFromHash());
+    window.addEventListener("hashchange", syncLinkedInstance);
+    return () => window.removeEventListener("hashchange", syncLinkedInstance);
+  }, []);
+  useEffect(() => {
+    let live = true;
+    if (!linkedInstanceId) {
+      setLinkedResult(null);
+      setLinkedResultLoading(false);
+      return () => { live = false; };
+    }
+    setLinkedResult(null);
+    setLinkedResultLoading(true);
+    crewService.taskAdminResult(linkedInstanceId)
+      .then((value) => { if (live) setLinkedResult(value); })
+      .catch((cause) => { if (live) ui.notify({ title: "Unable to load task occurrence", message: cause.message || "This task occurrence is unavailable.", tone: "error" }); })
+      .finally(() => { if (live) setLinkedResultLoading(false); });
+    return () => { live = false; };
+  }, [linkedInstanceId, ui]);
   const data = useMemo(() => ({ definitions: taskListing.rows, review_queue: reviewListing.rows, published_sops: taskListing.summary?.published_sops || [], employees: taskListing.summary?.employees || [] }), [reviewListing.rows, taskListing.rows, taskListing.summary]);
   const refresh = useCallback(async () => { await Promise.all([taskActions.refreshNow(), reviewActions.refreshNow()]); }, [reviewActions, taskActions]);
   async function save(task) { try { const versionId = await crewService.saveTask(outletId, task); const detail = await crewService.taskAdminDetail(versionId); const canonical = detail?.draft || detail?.definition || { ...task, id: versionId }; await crewService.saveLocalizedContentUnits("task", versionId, taskLocalizationUnits(canonical, task._source_language || detectContentLanguage(task.name))); setEditor(null); await refresh(); ui.notify({ title: "Task draft saved", message: "Schedule, assignment, content and language source were saved together." }); return versionId; } catch (cause) { ui.notify({ title: "Unable to save Task", message: cause.message, tone: "error" }); return null; } }
@@ -102,7 +125,13 @@ export default function CrewOperationsAdminPage({ auth, ui, store }) {
     {editor ? <TaskEditor initial={editor} employees={data.employees} sops={data.published_sops} outletName={outlets.find((row) => row.id === outletId)?.name || "Selected outlet"} onConfirm={ui.confirm} onClose={() => setEditor(null)} onSave={save} onPublish={publish} /> : null}
     {detail ? <TaskDetail task={detail} canManage={canManage} onEditDraft={openDraft} onClose={() => setDetail(null)} /> : null}
     {scheduleTask ? <ManageSchedule task={scheduleTask} onClose={() => setScheduleTask(null)} onAction={(action, endDate) => manageSchedule(scheduleTask, action, endDate)} /> : null}
+    {linkedInstanceId ? <Modal title="Task occurrence" description={linkedResult?.instance?.business_date ? `${formatDate(linkedResult.instance.business_date)} · Frozen task execution` : "Loading the selected task occurrence."} size="xl" panelClassName="max-h-[90vh]" bodyClassName="p-0" onClose={() => { window.history.replaceState(null, "", "#crew_operations"); setLinkedInstanceId(null); }} footer={<button className="btn-secondary" onClick={() => { window.history.replaceState(null, "", "#crew_operations"); setLinkedInstanceId(null); }}>Close</button>}>{linkedResultLoading ? <div className="p-8 text-sm text-text-muted">Loading task occurrence…</div> : linkedResult ? <TaskExecutionResult result={linkedResult} /> : <div className="p-8 text-sm text-text-muted">Task occurrence is unavailable.</div>}</Modal> : null}
   </div>;
+}
+
+function taskInstanceIdFromHash() {
+  const match = String(window.location.hash || "").match(/^#crew_operations\/instance\/([^/?#]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
 }
 
 function TaskEditor({ initial, employees, sops, outletName, onConfirm, onClose, onSave, onPublish }) {
