@@ -330,7 +330,7 @@ describe("Crew Cash Checkout mobile", () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Hand Over Cash" }));
     expect(screen.getByRole("heading", { name: "Hand Over Cash" })).not.toBeNull();
-    expect(document.querySelector(".crew-ui-modal.crew-cash-collection-modal")).not.toBeNull();
+    expect(document.querySelector(".crew-ui-bottom-sheet.crew-cash-collection-sheet")).not.toBeNull();
     expect(screen.getByText("Friends Corner Crew")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Receiver" })).not.toBeNull();
     expect(screen.getByLabelText("Amount (RM)").getAttribute("inputmode")).toBe("decimal");
@@ -344,16 +344,37 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByRole("dialog", { name: "Hand Over Cash" })).not.toBeNull();
     expect(document.body.style.overflow).toBe("hidden");
     fireEvent.click(screen.getByRole("button", { name: "Receiver" }));
-    const receiverSearch = screen.getByRole("textbox", { name: "Receiver" });
+    const receiverSearch = screen.getByRole("textbox", { name: "Choose Crew" });
     receiverSearch.focus();
     fireEvent.change(receiverSearch, { target: { value: "Receiver QA" } });
     expect(document.activeElement).toBe(receiverSearch);
-    fireEvent.click(await screen.findByText("Receiver QA · Supervisor"));
+    fireEvent.click(await screen.findByRole("option", { name: /Receiver QA.*Supervisor/ }));
     fireEvent.change(screen.getByLabelText("Amount (RM)"), { target: { value: "25" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByText("From")).not.toBeNull();
     expect(screen.getByText("To")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Confirm Handover" })).not.toBeNull();
+  });
+
+  it("never renders an auth email as a Cash actor fallback", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, deposit: { ...payload.deposit, recent: [{ id: "admin-entry", entry_type: "collection", occurred_at: "2026-08-20T10:00:00+08:00", signed_amount: -100, balance_after: 400, handover_from: "isaacyap28@gmail.com", handover_to: "Receiver QA" }] }, pending_receipts: [{ id: "admin-handover", amount: 100, sender: "isaacyap28@gmail.com", outlet_name: "Friends Corner" }], is_cash_handover_receiver: true });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByText("Admin → Receiver QA")).not.toBeNull();
+    expect(screen.queryByText("isaacyap28@gmail.com")).toBeNull();
+    expect(screen.getByText("Handed over by Admin")).not.toBeNull();
+  });
+
+  it("keeps Continue disabled until the handover receiver and valid money amount are chosen", async () => {
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Hand Over Cash" }));
+    const continueButton = screen.getByRole("button", { name: "Continue" });
+    expect(continueButton.disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Amount (RM)"), { target: { value: "999" } });
+    expect(continueButton.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Receiver" }));
+    fireEvent.click(await screen.findByRole("option", { name: /Receiver QA.*Supervisor/ }));
+    fireEvent.change(screen.getByLabelText("Amount (RM)"), { target: { value: "25.50" } });
+    expect(continueButton.disabled).toBe(false);
   });
 
   it("opens a server-backed Cash Deposit ledger with balance, pending status, and no duplicate handover action", async () => {
