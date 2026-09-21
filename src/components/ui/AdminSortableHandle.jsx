@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { GripVertical } from "lucide-react";
 
 /**
@@ -7,15 +6,13 @@ import { GripVertical } from "lucide-react";
  */
 export default function AdminSortableHandle({
   label,
-  scope,
-  itemId,
   index,
   count,
   onMove,
-  onDragStateChange,
+  onPointerDragStart,
+  dragging = false,
   disabled = false,
 }) {
-  const [dragging, setDragging] = useState(false);
   function onKeyDown(event) {
     if (disabled) return;
     if (event.key === "ArrowUp" && index > 0) {
@@ -35,15 +32,9 @@ export default function AdminSortableHandle({
       type="button"
       aria-label={`${label}. Drag to reorder or use Arrow Up and Arrow Down.`}
       title="Drag to reorder. Use Arrow keys as a keyboard fallback."
-      draggable={!disabled}
+      draggable={false}
       disabled={disabled}
-      onDragStart={(event) => {
-        setDragging(true);
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData("text/plain", JSON.stringify({ scope, itemId }));
-        onDragStateChange?.(true);
-      }}
-      onDragEnd={() => { setDragging(false); onDragStateChange?.(false); }}
+      onPointerDown={(event) => { if (!disabled) onPointerDragStart?.(event); }}
       onKeyDown={onKeyDown}
     >
       <GripVertical size={16} aria-hidden="true" />
