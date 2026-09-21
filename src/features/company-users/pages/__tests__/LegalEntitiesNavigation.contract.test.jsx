@@ -7,6 +7,7 @@ import LegalEntitiesPage from "../LegalEntitiesPage.jsx";
 import UsersPage from "../UsersPage.jsx";
 
 const usersPageSource = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/UsersPage.jsx"), "utf8");
+const legalEntitiesPageSource = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/LegalEntitiesPage.jsx"), "utf8");
 const migrationSource = readFileSync(resolve(process.cwd(), "supabase/migrations/20260921130551_legal_entity_people_module.sql"), "utf8");
 
 describe("Legal Entities People module", () => {
@@ -30,5 +31,9 @@ describe("Legal Entities People module", () => {
     expect(migrationSource).toContain("count(e.id)");
     expect(migrationSource).toContain("current_user_has_permission('legal_entities.view')");
     expect(migrationSource).not.toContain("alter table public.employees");
+  });
+
+  it("uses the canonical ActionMenu render trigger contract", () => {
+    expect(legalEntitiesPageSource).toContain("trigger={({ toggle, ariaLabel }) =>");
   });
 });
