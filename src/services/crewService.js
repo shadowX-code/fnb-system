@@ -1670,6 +1670,14 @@ export const crewService = {
     return data;
   },
 
+  async getAttendancePerformanceException(attendanceRecordId) {
+    const { data, error } = await supabase.rpc("crew_attendance_performance_exception_current", {
+      p_attendance_record_id: attendanceRecordId,
+    });
+    throwSupabaseError("crew.getAttendancePerformanceException", error);
+    return data || null;
+  },
+
   async growthAdminData(outletId) {
     const { data, error } = await supabase.rpc("crew_growth_admin_data", { p_outlet_id: outletId });
     throwSupabaseError("crew.growthAdminData", error);

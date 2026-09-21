@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ attendance: vi.fn(), outlets: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { listAttendancePage: mocks.attendance } }));
+const mocks = vi.hoisted(() => ({ attendance: vi.fn(), outlets: vi.fn(), performanceException: vi.fn(), updatePerformanceException: vi.fn() }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { listAttendancePage: mocks.attendance, getAttendancePerformanceException: mocks.performanceException, updateAttendancePerformanceException: mocks.updatePerformanceException } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: mocks.outlets } }));
 import CrewAttendanceAdminPage from "../CrewAttendanceAdminPage.jsx";
 
@@ -44,6 +44,8 @@ const ui = { notify: vi.fn() };
 beforeEach(() => {
   mocks.attendance.mockReset().mockResolvedValue({ rows: fixture, total_count: fixture.length, page: 1, page_size: 20, summary: { present: fixture.length, variance: 2, exceptions: 1, incomplete: 1, non_working: 2, no_roster: 1, large_variance: 1, filter_options: { employees: fixture.map((item) => item.employee), positions: ["Service Crew"] } } });
   mocks.outlets.mockReset().mockResolvedValue([outlet, { id: "outlet-2", name: "Hola Hola", is_active: true }]);
+  mocks.performanceException.mockReset().mockResolvedValue(null);
+  mocks.updatePerformanceException.mockReset().mockResolvedValue({ action: "approve" });
   ui.notify.mockReset();
 });
 afterEach(cleanup);
@@ -102,6 +104,18 @@ describe("Crew Attendance Admin", () => {
     const exceptionDialog = screen.getByRole("dialog", { name: "Attendance Details" });
     expect(within(exceptionDialog).getByText("GPS unavailable")).not.toBeNull();
     expect(within(exceptionDialog).getAllByText("Distance from Outlet")).toHaveLength(2);
+  });
+
+  it("requires an audited reason before a manager records a scoring exception", async () => {
+    render(<CrewAttendanceAdminPage auth={{ hasPermission: (permission) => permission === "crew_attendance.manage" }} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click((await screen.findByText("Verified Crew")).closest("tr"));
+    const dialog = screen.getByRole("dialog", { name: "Attendance Details" });
+    expect(await within(dialog).findByText("Performance Scoring")).not.toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Record scoring exception" }));
+    expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Reason required" }));
+    fireEvent.change(within(dialog).getByLabelText("Reason"), { target: { value: "Verified attendance correction" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Record scoring exception" }));
+    await waitFor(() => expect(mocks.updatePerformanceException).toHaveBeenCalledWith(expect.objectContaining({ attendanceRecordId: "verified", action: "approve", reason: "Verified attendance correction" })));
   });
 
   it("shows a clean empty state without manufacturing OFF or leave records", async () => {

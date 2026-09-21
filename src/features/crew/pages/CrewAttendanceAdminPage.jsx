@@ -130,7 +130,8 @@ function issueClass(row) {
   return "";
 }
 
-export default function CrewAttendanceAdminPage({ ui, store }) {
+export default function CrewAttendanceAdminPage({ auth, ui, store }) {
+  const canManage = auth?.hasPermission?.("crew_attendance.manage") || false;
   const sharedOutlet = useCrewAdminOutlet(store?.outlets || []);
   const today = useMemo(() => businessDate(), []);
   const [from, setFrom] = useState(today);
@@ -205,7 +206,7 @@ export default function CrewAttendanceAdminPage({ ui, store }) {
         <AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="attendance records" />
       </AsyncDataSurface>
     </AdminDataSection>
-    {detail ? <AttendanceDetail row={detail} onClose={() => setDetail(null)} /> : null}
+    {detail ? <AttendanceDetail row={detail} canManage={canManage} ui={ui} onChanged={listingActions.retry} onClose={() => setDetail(null)} /> : null}
   </div>;
 }
 
@@ -228,7 +229,7 @@ function Evidence({ title, at, verified, exception, reason, distance, accuracy }
   return <section className={`rounded-xl border p-4 ${exception ? "border-amber-200 bg-amber-50/60" : "border-border bg-slate-50"}`}><div className="flex items-center justify-between gap-3"><div className="font-bold text-text-primary">{title}</div><Badge tone={verified ? "success" : exception ? "warning" : "neutral"}>{state}</Badge></div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><DetailValue label="Time" value={at ? new Date(at).toLocaleString("en-MY") : "—"} /><DetailValue label="Distance from Outlet" value={distance == null ? "Location unavailable" : `${Math.round(Number(distance))}m`} /><DetailValue label="Accuracy" value={accuracy == null ? "—" : `±${Math.round(Number(accuracy))}m`} />{exception ? <DetailValue label="Exception Reason" value={reason || "No reason supplied"} /> : null}</dl></section>;
 }
 
-function AttendanceDetail({ row, onClose }) {
+function AttendanceDetail({ row, canManage, ui, onChanged, onClose }) {
   const schedule = rosterContext(row);
   const variance = varianceContext(row);
   const status = attendanceStatusPresentation(attendanceState(row));
@@ -238,9 +239,49 @@ function AttendanceDetail({ row, onClose }) {
       <section className="grid gap-4 rounded-xl border border-border bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4"><DetailValue label="Employee" value={row.employee?.full_name || row.employee?.nickname} /><DetailValue label="Position" value={row.employee?.position || row.schedule?.position} /><DetailValue label="Actual Outlet" value={row.outlet?.name || row.employee?.workplace} /><div><dt className="text-xs font-semibold text-text-secondary">Attendance Status</dt><dd className="mt-1"><Badge tone={status.tone}>{status.label}</Badge></dd></div></section>
       <section><h3 className="mb-3 font-bold text-text-primary">Schedule & Actual</h3><dl className="grid gap-4 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-4"><DetailValue label="Scheduled Shift" value={schedule.title} /><DetailValue label="Schedule Context" value={schedule.detail} /><DetailValue label="Actual Clock In" value={row.clock_in_at ? new Date(row.clock_in_at).toLocaleString("en-MY") : "—"} /><DetailValue label="Actual Clock Out" value={row.clock_out_at ? new Date(row.clock_out_at).toLocaleString("en-MY") : "—"} /><DetailValue label="Worked Duration" value={formatDuration(minutes)} /><DetailValue label="Schedule Variance" value={variance?.label || "Not applicable"} /><DetailValue label="Roster Evidence" value={row.evidence_version || "Roster evidence"} />{minutes > 1440 ? <div><dt className="text-xs font-semibold text-text-secondary">Duration Review</dt><dd className="mt-1"><Badge tone="danger">Potential anomaly</Badge></dd></div> : null}</dl>{schedule.kind === "no_roster" ? <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-text-secondary">Attendance was recorded without a published roster for this date.</p> : null}{schedule.kind === "not_required" ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800">{schedule.title}: attendance was not required, but an actual attendance record exists.</p> : null}</section>
       <section><h3 className="mb-3 font-bold text-text-primary">Location Verification</h3><div className="grid gap-3 lg:grid-cols-2"><Evidence title="Clock In" at={row.clock_in_at} verified={row.clock_in_location_verified} exception={row.clock_in_location_exception} reason={row.clock_in_exception_reason} distance={row.clock_in_distance_meters} accuracy={row.clock_in_accuracy_meters} /><Evidence title="Clock Out" at={row.clock_out_at} verified={row.clock_out_location_verified} exception={row.clock_out_location_exception} reason={row.clock_out_exception_reason} distance={row.clock_out_distance_meters} accuracy={row.clock_out_accuracy_meters} /></div></section>
+      <AttendancePerformanceException attendanceRecordId={row.id} canManage={canManage} ui={ui} onChanged={onChanged} />
       <section><h3 className="mb-3 font-bold text-text-primary">Timeline</h3><ol className="grid gap-2 rounded-xl border border-border p-4"><TimelineItem label="Scheduled" value={schedule.title} muted={schedule.kind !== "working"} /><TimelineItem label="Clock In" value={row.clock_in_at ? new Date(row.clock_in_at).toLocaleString("en-MY") : "Not recorded"} /><TimelineItem label="Clock Out" value={row.clock_out_at ? new Date(row.clock_out_at).toLocaleString("en-MY") : row.status === "open" ? "Shift in progress" : "Not recorded"} /></ol></section>
     </div>
   </Modal>;
+}
+
+function AttendancePerformanceException({ attendanceRecordId, canManage, ui, onChanged }) {
+  const [exception, setException] = useState(undefined);
+  const [exceptionType, setExceptionType] = useState("approved_correction");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const refresh = () => crewService.getAttendancePerformanceException(attendanceRecordId)
+    .then(setException)
+    .catch(() => setException(null));
+
+  useEffect(() => { refresh(); }, [attendanceRecordId]);
+
+  if (exception === undefined || (!exception && !canManage)) return null;
+
+  const save = async (action) => {
+    if (reason.trim().length < 3) {
+      ui.notify({ title: "Reason required", message: "Add a concise reason for this audited scoring exception.", tone: "error" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await crewService.updateAttendancePerformanceException({ attendanceRecordId, action, exceptionType, reason: reason.trim() });
+      setReason("");
+      await refresh();
+      onChanged?.();
+      ui.notify({ title: action === "approve" ? "Scoring exception recorded" : "Scoring exception revoked", tone: "success" });
+    } catch {
+      ui.notify({ title: "Unable to update scoring exception", message: "The attendance record was not changed. Check your access and try again.", tone: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <section className="rounded-xl border border-border p-4" aria-label="Performance scoring exception">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold text-text-primary">Performance Scoring</h3><p className="mt-1 text-sm text-text-secondary">Approved corrections and verified outages exclude this attendance date from the monthly score.</p></div>{exception ? <Badge tone="warning">Exception active</Badge> : null}</div>
+    {exception ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3"><div className="font-semibold text-text-primary">{exception.exception_type === "system_outage" ? "Verified system outage" : "Approved attendance correction"}</div><p className="mt-1 text-sm text-text-secondary">{exception.reason}</p><p className="mt-2 text-xs text-text-secondary">Recorded {exception.approved_at ? new Date(exception.approved_at).toLocaleString("en-MY") : ""}</p>{canManage ? <div className="mt-3 grid gap-3"><label className="grid gap-2 text-sm font-semibold text-text-secondary">Reason for revocation<textarea className="min-h-20 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} placeholder="Why should this exception no longer apply?" /></label><div><button type="button" className="btn-secondary" disabled={saving} onClick={() => save("revoke")}>{saving ? "Saving…" : "Revoke exception"}</button></div></div> : null}</div> : <div className="mt-3 grid gap-3"><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Exception type" ariaLabel="Exception type" value={exceptionType} onChange={setExceptionType} options={[{ value: "approved_correction", label: "Approved attendance correction" }, { value: "system_outage", label: "Verified system outage" }]} /><label className="grid gap-2 text-sm font-semibold text-text-secondary">Reason<textarea className="min-h-24 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} placeholder="Explain the approved correction or verified outage" /></label></div><div><button type="button" className="btn-secondary" disabled={saving} onClick={() => save("approve")}>{saving ? "Saving…" : "Record scoring exception"}</button></div></div>}
+  </section>;
 }
 
 function TimelineItem({ label, value, muted = false }) {
