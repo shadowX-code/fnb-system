@@ -74,10 +74,14 @@ describe("Crew Access outlet read lifecycle", () => {
       summary: { scheduled_today: 7, present_today: 6, not_checked_in: 1, attendance_issues: 0, on_leave_today: 1, tasks_total: 3, tasks_completed: 2, tasks_overdue: 1, leave_today: [] },
       upcoming: [{ type: "birthday", name: "Aina Rahman", position: "Service Crew", date: "2026-09-22", days_until: 1 }],
       attention: [{ key: "leave_requests", count: 2, title: "Pending leave requests", detail: "New requests need review." }],
+      crew_today: [{ employee_id: "crew-a", name: "Aina Rahman", position: "Service Crew", start_time: "10:00:00", end_time: "18:00:00", status: "working", group: "on_duty" }],
+      tasks_today: [{ id: "task-a", name: "Opening checklist", assignment: "Service Crew", due_at: null, status: "in_progress" }],
     });
     mount(outlets, "dashboard");
 
-    expect(await screen.findByText("Today")).not.toBeNull();
+    expect(await screen.findByText("Your Crew Today")).not.toBeNull();
+    expect(screen.getByText("Today's Tasks")).not.toBeNull();
+    expect(screen.getByText("Opening checklist")).not.toBeNull();
     expect(screen.getByText("1 area needs attention today.")).not.toBeNull();
     expect(screen.getByText("1 Crew has not checked in and 1 task is overdue.")).not.toBeNull();
     expect(screen.getByText("Aina Rahman's birthday")).not.toBeNull();

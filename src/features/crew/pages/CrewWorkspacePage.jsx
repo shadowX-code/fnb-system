@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { CalendarDays, ChevronRight, Clock3, ListChecks, MoreHorizontal, ShieldCheck, UserCheck } from "lucide-react";
+import { AlertTriangle, CalendarDays, CheckCircle2, ChevronRight, ClipboardCheck, Clock3, ListChecks, MoreHorizontal, ShieldCheck, SunMedium, UserCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
@@ -146,60 +146,69 @@ function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
   const summary = data.summary || {};
   const attention = data.attention || [];
   const upcoming = data.upcoming || [];
+  const crewToday = data.crew_today || [];
+  const tasksToday = data.tasks_today || [];
   const brief = operationalBrief(summary, attention.length);
   const outletControl = <CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
 
-  return <div className="space-y-4">
+  return <div className="space-y-4 crew-dashboard">
     <PageHeader section="Crew · Overview" title="Crew Dashboard" description="What is happening with your Crew today, and what needs attention." />
     <AdminFilterToolbar outlet={outletControl} compact ariaLabel="Dashboard scope" />
     <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Crew Dashboard" hasData={hasLoaded} isEmpty={!outletId} emptyTitle="No outlet selected" emptyDescription="Select an outlet to see its current Crew operations." onRetry={refresh}>
-      <AdminDataSection title="Today" description="Live operational context for the selected outlet.">
-        <TodayMetrics summary={summary} />
-      </AdminDataSection>
-      <section className="rounded-lg border border-border bg-mint-50/40 px-4 py-3" aria-label="Operational brief">
-        <strong className="block text-sm text-text-primary">{brief.headline}</strong>
-        {brief.detail ? <span className="mt-0.5 block text-sm text-text-secondary">{brief.detail}</span> : null}
-      </section>
-      <div className={`grid gap-4 ${upcoming.length ? "xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]" : ""}`}>
-        <AdminDataSection title="Needs Your Attention" description="Prioritized operational items with an owning workflow.">
-          <AttentionList items={attention} />
-        </AdminDataSection>
-        {upcoming.length ? <AdminDataSection title="Coming Up" description="The next 30 days, where the outlet has confirmed operational context.">
-          <UpcomingList items={upcoming} />
-        </AdminDataSection> : null}
+      <DailyBrief brief={brief} date={data.business_date} />
+      <TodayMetrics summary={summary} attention={attention} />
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,.82fr)]">
+        {crewToday.length ? <CrewTodayList rows={crewToday} /> : null}
+        <div className="grid content-start gap-4">
+          {tasksToday.length ? <TasksTodayList rows={tasksToday} /> : null}
+          <AdminDataSection title="Needs Your Attention" description="Prioritized items that need an owning workflow." className="crew-dashboard-attention">
+            <AttentionList items={attention} />
+          </AdminDataSection>
+        </div>
       </div>
-      {!upcoming.length ? <section className="px-1 py-1" aria-label="Coming Up"><strong className="text-sm text-text-primary">Coming Up</strong><p className="mt-0.5 text-sm text-text-secondary">No confirmed Crew events in the next 30 days.</p></section> : null}
+      {upcoming.length ? <AdminDataSection title="Coming Up" description="The next 30 days, where the outlet has confirmed operational context." actions={<a className="btn-secondary h-8 px-3 text-xs" href="#crew_employees">View all</a>}>
+        <UpcomingList items={upcoming} />
+      </AdminDataSection> : <CompactUpcomingEmpty />}
     </AsyncDataSurface>
   </div>;
 }
 
+function DailyBrief({ brief, date }) {
+  return <section className="crew-dashboard-brief" aria-label="Daily brief">
+    <span className="crew-dashboard-brief-icon"><SunMedium size={21} /></span>
+    <div className="min-w-0"><strong>{brief.headline}</strong>{brief.detail ? <span>{brief.detail}</span> : null}</div>
+    {date ? <time dateTime={date}>{formatDashboardDate(date)}</time> : null}
+  </section>;
+}
+
 function UpcomingList({ items }) {
-  return <div className="divide-y divide-border px-4">
-    {items.map((item, index) => <a className="flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary" href={upcomingHref(item.type)} key={`${item.type}-${item.name}-${index}`}>
-      <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${item.type === "birthday" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}><CalendarDays size={15} /></span>
-      <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-text-primary">{item.type === "birthday" ? `${item.name}'s birthday` : item.name}</strong><small className="block truncate text-xs text-text-secondary">{upcomingContext(item)}</small></span>
-      <span className="shrink-0 text-right"><strong className="block text-sm text-text-primary">{formatUpcomingDate(item.date)}</strong><small className={`block text-xs font-medium ${Number(item.days_until) <= 7 ? "text-primary" : "text-text-secondary"}`}>{relativeBirthdayDay(item.days_until)}</small></span>
-      <ChevronRight className="shrink-0 text-text-muted" size={16} />
+  return <div className="crew-dashboard-list">
+    {items.slice(0, 6).map((item, index) => <a className="crew-dashboard-row" href={upcomingHref(item.type)} key={`${item.type}-${item.name}-${index}`}>
+      <PersonAvatar name={item.name} tone={item.type === "birthday" ? "rose" : "mint"} />
+      <span className="min-w-0 flex-1"><strong>{item.type === "birthday" ? `${item.name}'s birthday` : item.name}</strong><small>{upcomingContext(item)}</small></span>
+      <span className="crew-dashboard-row-meta"><strong>{formatUpcomingDate(item.date)}</strong><small className={Number(item.days_until) <= 7 ? "is-near" : ""}>{relativeUpcomingDay(item.days_until)}</small></span>
+      <ChevronRight className="shrink-0 text-text-muted" size={16} aria-hidden="true" />
     </a>)}
   </div>;
 }
 
-function TodayMetrics({ summary }) {
+function TodayMetrics({ summary, attention }) {
   const leaveNames = (summary.leave_today || []).slice(0, 2).map((item) => item.name).join(", ");
   const pending = Number(summary.not_checked_in || 0);
-  return <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">
-    <DailyMetric label="Scheduled today" value={summary.scheduled_today || 0} helper={`${summary.present_today || 0} checked in${pending ? ` · ${pending} not yet accounted for` : ""}`} icon={CalendarDays} />
-    <DailyMetric label="Attendance" value={summary.attendance_issues || 0} helper={Number(summary.attendance_issues || 0) ? "Recorded exception needs review" : pending ? "No recorded exceptions · roster is still pending" : "No recorded exceptions"} icon={UserCheck} />
-    <DailyMetric label="On leave today" value={summary.on_leave_today || 0} helper={leaveNames || "No approved leave"} icon={Clock3} />
-    <DailyMetric label="Tasks today" value={`${summary.tasks_completed || 0}/${summary.tasks_total || 0}`} helper={Number(summary.tasks_overdue || 0) ? `${summary.tasks_overdue} overdue` : "No overdue tasks"} icon={ListChecks} />
-  </div>;
+  const compliance = attention.filter((item) => ["compliance_review", "compliance_status"].includes(item.key)).reduce((count, item) => count + Number(item.count || 0), 0);
+  return <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Today">
+    <DailyMetric label="On Duty Today" value={summary.scheduled_today || 0} helper={`${summary.present_today || 0} accounted for${pending ? ` · ${pending} not checked in` : ""}`} icon={UsersRound} tone={pending ? "warning" : "mint"} />
+    <DailyMetric label="Tasks Today" value={`${summary.tasks_completed || 0}/${summary.tasks_total || 0}`} helper={Number(summary.tasks_overdue || 0) ? `${summary.tasks_overdue} overdue` : "No overdue tasks"} icon={ListChecks} tone={Number(summary.tasks_overdue || 0) ? "danger" : "mint"} />
+    <DailyMetric label="On Leave Today" value={summary.on_leave_today || 0} helper={leaveNames || "No approved leave"} icon={Clock3} tone="neutral" />
+    <DailyMetric label="Compliance" value={compliance} helper={compliance ? "Require attention" : "No current follow-up"} icon={ClipboardCheck} tone={compliance ? "warning" : "mint"} />
+  </section>;
 }
 
-function DailyMetric({ label, value, helper, icon: Icon }) {
-  return <div className="flex gap-3 rounded-md bg-background/70 px-3 py-3">
-    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><Icon size={17} /></span>
-    <span className="min-w-0"><small className="block text-xs font-medium text-text-secondary">{label}</small><strong className="block text-xl text-text-primary">{value}</strong><small className="block truncate text-xs text-text-secondary">{helper}</small></span>
-  </div>;
+function DailyMetric({ label, value, helper, icon: Icon, tone = "mint" }) {
+  return <article className={`crew-dashboard-metric is-${tone}`}>
+    <span><Icon size={18} /></span>
+    <div className="min-w-0"><small>{label}</small><strong>{value}</strong><p>{helper}</p></div>
+  </article>;
 }
 
 function operationalBrief(summary, attentionAreas) {
@@ -217,13 +226,74 @@ function operationalBrief(summary, attentionAreas) {
 }
 
 function AttentionList({ items }) {
-  if (!items.length) return <div className="p-5 text-sm text-text-secondary">No current Crew items need action.</div>;
-  return <div className="divide-y divide-border px-4">
-    {items.map((item) => <a className={`flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary ${item.priority === "urgent" ? "bg-rose-50/40" : ""}`} href={attentionHref(item.key)} key={item.key}>
-      <span className="min-w-0 flex-1"><strong className={`block text-sm ${item.priority === "urgent" ? "text-rose-800" : "text-text-primary"}`}>{item.title}</strong><small className="block text-xs text-text-secondary">{item.detail}</small></span>
+  if (!items.length) return <div className="crew-dashboard-empty"><CheckCircle2 size={17} />Everything is on track right now.</div>;
+  return <div className="crew-dashboard-list">
+    {items.map((item) => <a className={`crew-dashboard-row is-${item.priority || "normal"}`} href={attentionHref(item.key)} key={item.key}>
+      <span className="crew-dashboard-attention-icon"><AttentionIcon item={item} size={17} /></span>
+      <span className="min-w-0 flex-1"><strong>{item.title}</strong><small>{item.detail}</small></span>
       <ChevronRight className="shrink-0 text-text-muted" size={16} />
     </a>)}
   </div>;
+}
+
+function CrewTodayList({ rows }) {
+  const [filter, setFilter] = useState("all");
+  const groups = [
+    { key: "on_duty", label: "Currently On Duty" },
+    { key: "starting_later", label: "Starting Later" },
+    { key: "on_leave", label: "On Leave Today" },
+  ];
+  const counts = Object.fromEntries(groups.map((group) => [group.key, rows.filter((row) => row.group === group.key).length]));
+  const visibleGroups = groups.filter((group) => filter === "all" || filter === group.key).filter((group) => counts[group.key]);
+  return <AdminDataSection title="Your Crew Today" description="Published roster and current attendance." actions={<a className="btn-secondary h-8 px-3 text-xs" href="#crew_roster">View roster</a>}>
+    {groups.filter((group) => counts[group.key]).length > 1 ? <div className="crew-dashboard-tabs" role="tablist" aria-label="Crew today filter"><button type="button" className={filter === "all" ? "is-active" : ""} onClick={() => setFilter("all")}>All <span>{rows.length}</span></button>{groups.filter((group) => counts[group.key]).map((group) => <button type="button" role="tab" aria-selected={filter === group.key} className={filter === group.key ? "is-active" : ""} onClick={() => setFilter(group.key)} key={group.key}>{group.label.replace(" Today", "")} <span>{counts[group.key]}</span></button>)}</div> : null}
+    <div className="crew-dashboard-list crew-dashboard-crew-list">{visibleGroups.map((group) => <div key={group.key}><h3>{group.label} <span>· {counts[group.key]}</span></h3>{rows.filter((row) => row.group === group.key).map((row) => <CrewTodayRow row={row} key={row.employee_id} />)}</div>)}</div>
+  </AdminDataSection>;
+}
+
+function CrewTodayRow({ row }) {
+  return <a className="crew-dashboard-row" href="#crew_roster">
+    <PersonAvatar name={row.name} />
+    <span className="min-w-0 flex-1"><strong>{row.name}</strong><small>{row.position || "Crew"}</small></span>
+    <span className="crew-dashboard-shift">{formatShift(row.start_time, row.end_time)}</span>
+    <DashboardStatus status={row.status} />
+    <ChevronRight className="shrink-0 text-text-muted" size={16} aria-hidden="true" />
+  </a>;
+}
+
+function TasksTodayList({ rows }) {
+  return <AdminDataSection title="Today's Tasks" description="Current task occurrences for this outlet." actions={<a className="btn-secondary h-8 px-3 text-xs" href="#crew_operations">View all</a>}>
+    <div className="crew-dashboard-list">{rows.map((row) => <a className="crew-dashboard-row" href="#crew_operations" key={row.id}>
+      <span className={`crew-dashboard-task-icon is-${row.status}`}><ListChecks size={17} /></span>
+      <span className="min-w-0 flex-1"><strong>{row.name}</strong><small>{row.assignment}</small></span>
+      <span className="crew-dashboard-row-meta"><DashboardStatus status={row.status} /><small>{taskTiming(row)}</small></span>
+      <ChevronRight className="shrink-0 text-text-muted" size={16} aria-hidden="true" />
+    </a>)}</div>
+  </AdminDataSection>;
+}
+
+function CompactUpcomingEmpty() {
+  return <section className="crew-dashboard-upcoming-empty" aria-label="Coming Up"><CalendarDays size={17} /><span><strong>Coming Up</strong><small>No confirmed Crew events in the next 30 days.</small></span></section>;
+}
+
+function PersonAvatar({ name, tone = "mint" }) {
+  const initials = String(name || "Crew").split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join("").toUpperCase();
+  return <span className={`crew-dashboard-avatar is-${tone}`} aria-hidden="true">{initials}</span>;
+}
+
+function DashboardStatus({ status }) {
+  const meta = {
+    working: ["Working", "success"], not_checked_in: ["Not checked in", "danger"], starting_later: ["Starting later", "neutral"], on_leave: ["On leave", "neutral"], finished: ["Finished", "neutral"], overdue: ["Overdue", "danger"], in_progress: ["In progress", "info"], upcoming: ["Upcoming", "neutral"], completed: ["Completed", "success"],
+  }[status] || ["Scheduled", "neutral"];
+  return <Badge tone={meta[1]}>{meta[0]}</Badge>;
+}
+
+function AttentionIcon({ item, size }) {
+  if (item.key === "tasks") return <ListChecks size={size} />;
+  if (item.key === "missing_checkin" || item.key === "attendance_exceptions") return <UserCheck size={size} />;
+  if (item.key === "leave_requests") return <CalendarDays size={size} />;
+  if (item.key?.startsWith("compliance")) return <ClipboardCheck size={size} />;
+  return <AlertTriangle size={size} />;
 }
 
 function attentionHref(key) {
@@ -256,9 +326,30 @@ function formatUpcomingDate(value) {
   return new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short" }).format(new Date(`${value}T00:00:00`));
 }
 
-function relativeBirthdayDay(daysUntil) {
+function relativeUpcomingDay(daysUntil) {
   const days = Number(daysUntil || 0);
   if (days === 0) return "Today";
   if (days === 1) return "Tomorrow";
   return `In ${days} days`;
+}
+
+function formatDashboardDate(value) {
+  return new Intl.DateTimeFormat("en-MY", { weekday: "short", day: "numeric", month: "short" }).format(new Date(`${value}T00:00:00`));
+}
+
+function formatShift(startTime, endTime) {
+  if (!startTime || !endTime) return "—";
+  const format = (value) => new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(new Date(`1970-01-01T${value}`));
+  return `${format(startTime)} – ${format(endTime)}`;
+}
+
+function taskTiming(row) {
+  if (!row.due_at) return "Today";
+  const due = new Date(row.due_at);
+  if (Number.isNaN(due.getTime())) return "Today";
+  if (row.status === "overdue") {
+    const minutes = Math.max(1, Math.round((Date.now() - due.getTime()) / 60000));
+    return `${minutes} min overdue`;
+  }
+  return `Due ${new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(due)}`;
 }
