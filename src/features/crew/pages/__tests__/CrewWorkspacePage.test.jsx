@@ -3,8 +3,13 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import CrewWorkspacePage from "../CrewWorkspacePage.jsx";
 import { CrewAdminOutletProvider } from "../../context/CrewAdminOutletContext.jsx";
 import { employeeService } from "../../../../services/employeeService.js";
+import { crewService } from "../../../../services/crewService.js";
 
 vi.mock("../../../../services/employeeService.js", () => ({ employeeService: { crewAccessAdminPage: vi.fn() } }));
+vi.mock("../../../../services/crewService.js", async (importOriginal) => {
+  const actual = await importOriginal();
+  return { ...actual, crewService: { ...actual.crewService, dashboardAdminData: vi.fn() } };
+});
 
 const outlets = [
   { id: "outlet-a", name: "Outlet A", status: "active", is_active: true },
@@ -27,6 +32,7 @@ const page = (rows, summary = {}) => ({ rows, totalCount: rows.length, page: 1, 
 beforeEach(() => {
   localStorage.clear();
   employeeService.crewAccessAdminPage.mockReset();
+  crewService.dashboardAdminData.mockReset().mockResolvedValue({ summary: {}, birthdays: [], attention: [], crew_access: {} });
   ui.notify.mockReset();
 });
 afterEach(cleanup);
@@ -63,18 +69,21 @@ describe("Crew Access outlet read lifecycle", () => {
     expect(screen.queryByText("intern")).toBeNull();
   });
 
-  it("shows the compact access readiness summary from the existing Crew access read model", async () => {
-    employeeService.crewAccessAdminPage.mockResolvedValue(page([
-      { id: "active", full_name: "Active Crew", crew_access: { access_state: "active" } },
-      { id: "locked", full_name: "Locked Crew", crew_access: { access_state: "locked" } },
-      { id: "pending", full_name: "Pending Crew", crew_access: null },
-    ], { active: 1, locked: 1, not_enabled: 1 }));
+  it("renders the operational dashboard from its canonical read projection", async () => {
+    crewService.dashboardAdminData.mockResolvedValueOnce({
+      summary: { active_crew: 9, scheduled_today: 7, present_today: 6, on_leave_today: 1 },
+      birthdays: [{ employee_id: "birthday-1", full_name: "Aina Rahman", position: "Service Crew", date: "2026-09-22", days_until: 1 }],
+      attention: [{ key: "leave_requests", count: 2, title: "Pending leave requests", detail: "New requests need review." }],
+      crew_access: { active: 7, not_enabled: 2, locked: 0 },
+    });
     mount(outlets, "dashboard");
 
-    expect(await screen.findByRole("region", { name: "Crew access readiness" })).not.toBeNull();
-    expect(screen.getByText("Active Crew access")).not.toBeNull();
-    expect(screen.getByText("Not enabled")).not.toBeNull();
-    expect(screen.getByText("Locked")).not.toBeNull();
+    expect(await screen.findByText("Workforce Snapshot")).not.toBeNull();
+    expect(screen.getByText("Active Crew")).not.toBeNull();
+    expect(screen.getByText("Aina Rahman")).not.toBeNull();
+    expect(screen.getByText("Pending leave requests")).not.toBeNull();
+    expect(crewService.dashboardAdminData).toHaveBeenCalledWith("outlet-a");
+    expect(employeeService.crewAccessAdminPage).not.toHaveBeenCalled();
   });
 
   it("shows an explicit failed-read state and retries instead of rendering an empty employee table", async () => {

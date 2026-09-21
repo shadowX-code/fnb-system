@@ -571,3 +571,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Clarified Employee Master Workplace as workforce belonging: `Factory` is a canonical non-outlet workplace, while Management and Restaurant employees are not eligible for Factory staff/operator selections merely because they have Factory permissions.
 - Added server-authoritative Restaurant-only role outlet-scope classification. Roles with Restaurant permissions use the existing All/Selected Outlet model; Factory, Crew, People, System, and Guest-only roles persist with no Restaurant outlet scope. No Factory access-scope concept was introduced.
 - Preserved Role permissions as the authority boundary, existing Restaurant outlet access, RLS, and Factory workflow permissions. Existing Factory-only Staging QA roles were reclassified from legacy all-outlet scope to no outlet scope without changing employee or historical records.
+
+# 2026-09-21 - Crew Admin Dashboard Operations Projection
+
+- Rebuilt Crew Dashboard as a permission-aware, outlet-scoped operational projection over active Crew, the currently published roster, same-day attendance, approved leave, upcoming birthdays, Crew Access, Compliance, and Performance review authorities.
+- Added a server-side Dashboard read RPC with outlet and permission enforcement. It exposes only the seven-day birthday display projection needed by Admin and deep-links compact attention items to their owning workflows; it creates no unified activity log, duplicate lifecycle, or source-evidence mutation path.

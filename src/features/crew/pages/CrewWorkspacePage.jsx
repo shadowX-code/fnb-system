@@ -1,10 +1,12 @@
-import { useMemo, useState } from "react";
-import { MoreHorizontal, ShieldCheck, UsersRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, CalendarDays, ChevronRight, ClipboardCheck, Clock3, MoreHorizontal, ShieldCheck, UserCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
+import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
@@ -18,7 +20,7 @@ import CrewSpecialAccessModal from "../components/CrewSpecialAccessModal.jsx";
 import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { employeeService } from "../../../services/employeeService.js";
-import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
+import { crewAccessState, crewService, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
 import { formatOperationalDateTime } from "../../../lib/dateTime.js";
 
 export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashboard" }) {
@@ -32,18 +34,18 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   const canManage = auth.hasPermission("crew_employees.manage");
   const accessFilters = useMemo(() => ({ query, employment_status: employmentStatus }), [employmentStatus, query]);
   const accessSignature = useMemo(() => JSON.stringify({ outletId, accessFilters }), [accessFilters, outletId]);
+  const isEmployees = initialTab === "employees";
   const [listing, listingActions] = useAdminPagedQuery({
     storageKey: "crew-access",
-    enabled: Boolean(outletId),
+    enabled: Boolean(isEmployees && outletId),
     querySignature: accessSignature,
     loadPage: ({ page, pageSize }) => employeeService.crewAccessAdminPage({ outletId, filters: accessFilters, page, pageSize }),
   });
   const employees = listing.rows;
-  const accessSummary = listing.summary || {};
   const refresh = listingActions.refreshNow;
   const outletControl = <CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
 
-  if (initialTab === "employees") return <div className="space-y-4">
+  if (isEmployees) return <div className="space-y-4">
     <PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." />
     <AdminFilterToolbar
       outlet={outletControl}
@@ -60,23 +62,7 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
     {disableEmployee ? <CrewDisableAccessModal employee={disableEmployee} onClose={() => setDisableEmployee(null)} onSaved={refresh} /> : null}
   </div>;
 
-  return <div className="space-y-4">
-    <PageHeader section="Crew · Overview" title="Crew Dashboard" description="A concise readiness view for the selected outlet's Crew mobile access." />
-    <AdminFilterToolbar outlet={outletControl} />
-    <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={listing.hasLoaded} isEmpty={listing.hasLoaded && !listing.loadedTotal} emptyTitle="No Crew access records" emptyDescription="Crew access records for this outlet will appear here." onRetry={listingActions.retry}>
-      <section className="overflow-hidden rounded-lg border border-border bg-surface" aria-label="Crew access readiness">
-        <div className="grid divide-y divide-border sm:grid-cols-3 sm:divide-x sm:divide-y-0">
-          <DashboardMetric icon={UsersRound} label="Active Crew access" value={Number(accessSummary.active || 0)} helper="Able to use Crew mobile" />
-          <DashboardMetric icon={ShieldCheck} label="Not enabled" value={Number(accessSummary.not_enabled || 0)} helper="Require Crew access setup" />
-          <DashboardMetric icon={ShieldCheck} label="Locked" value={Number(accessSummary.locked || 0)} helper="Require access review" tone="warning" />
-        </div>
-      </section>
-      <section className="border-t border-border pt-4">
-        <h2 className="text-sm font-semibold text-text-primary">Operational shortcuts</h2>
-        <p className="mt-1 text-sm text-text-secondary">Use the dedicated workforce, operations, learning, performance, and reward workspaces for their canonical evidence and decisions.</p>
-      </section>
-    </AsyncDataSurface>
-  </div>;
+  return <CrewDashboard outletId={outletId} outlets={outlets} setOutletId={setOutletId} ui={ui} />;
 }
 
 function employmentLabel(row) {
@@ -119,4 +105,136 @@ function employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDis
   } },
 ]; }
 
-function DashboardMetric({ icon: Icon, label, value, helper, tone = "neutral" }) { return <article className={`flex items-center gap-3 p-4 ${tone === "warning" ? "bg-amber-50/60" : ""}`}><span className={`grid h-9 w-9 place-items-center rounded-md ${tone === "warning" ? "bg-amber-100 text-amber-700" : "bg-primary/10 text-primary"}`}><Icon size={17} /></span><span className="min-w-0"><strong className="block text-xl text-text-primary">{value}</strong><span className="block text-sm font-semibold text-text-primary">{label}</span><small className="block text-xs text-text-secondary">{helper}</small></span></article>; }
+function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
+  const [data, setData] = useState({ summary: {}, birthdays: [], attention: [], crew_access: {} });
+  const [loading, setLoading] = useState(Boolean(outletId));
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [error, setError] = useState("");
+  const requestId = useRef(0);
+
+  async function refresh() {
+    if (!outletId) {
+      setLoading(false);
+      setHasLoaded(false);
+      setError("");
+      setData({ summary: {}, birthdays: [], attention: [], crew_access: {} });
+      return;
+    }
+    const currentRequest = ++requestId.current;
+    setLoading(true);
+    setHasLoaded(false);
+    setData({ summary: {}, birthdays: [], attention: [], crew_access: {} });
+    setError("");
+    try {
+      const next = await crewService.dashboardAdminData(outletId);
+      if (currentRequest === requestId.current) {
+        setData(next);
+        setHasLoaded(true);
+      }
+    } catch (cause) {
+      if (currentRequest === requestId.current) {
+        const message = cause.message || "Crew Dashboard could not be loaded.";
+        setError(message);
+        ui?.notify?.({ title: "Unable to load Crew Dashboard", message, tone: "error" });
+      }
+    } finally {
+      if (currentRequest === requestId.current) setLoading(false);
+    }
+  }
+
+  useEffect(() => { refresh(); }, [outletId]);
+
+  const summary = data.summary || {};
+  const attention = data.attention || [];
+  const access = data.crew_access || {};
+  const outletControl = <CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
+
+  return <div className="space-y-4">
+    <PageHeader section="Crew · Overview" title="Crew Dashboard" description="What is happening with your Crew today, and what needs attention." />
+    <AdminFilterToolbar outlet={outletControl} />
+    <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Crew Dashboard" hasData={hasLoaded} isEmpty={!outletId} emptyTitle="No outlet selected" emptyDescription="Select an outlet to see its current Crew operations." onRetry={refresh}>
+      <AdminDataSection title="Workforce Snapshot" description="Today for the selected outlet.">
+        <div className="p-4">
+          <AdminSummaryGrid ariaLabel="Workforce snapshot" items={[
+            { label: "Active Crew", value: Number(summary.active_crew || 0), helper: "Current active employees", icon: UsersRound },
+            { label: "Scheduled Today", value: Number(summary.scheduled_today || 0), helper: "Published working roster", icon: CalendarDays },
+            { label: "Present Today", value: Number(summary.present_today || 0), helper: "Attendance recorded", icon: UserCheck, tone: "success" },
+            { label: "On Leave Today", value: Number(summary.on_leave_today || 0), helper: "Approved leave", icon: Clock3, tone: Number(summary.on_leave_today || 0) ? "warning" : "neutral" },
+          ]} />
+        </div>
+      </AdminDataSection>
+
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]">
+        <AdminDataSection title="Today & Upcoming" description="Upcoming Crew birthdays over the next seven days." actions={<a className="btn-secondary" href="#crew_employees">View Crew</a>}>
+          <BirthdayList birthdays={data.birthdays || []} />
+        </AdminDataSection>
+        <AdminDataSection title="Needs Attention" description="Items that have an owning Crew workflow." actions={attention.length ? <span className="text-xs font-semibold text-text-muted">{attention.length} areas</span> : null}>
+          <AttentionList items={attention} />
+        </AdminDataSection>
+      </div>
+
+      <AdminDataSection title="Crew Access" description="Mobile access status for active Crew." actions={<a className="btn-secondary" href="#crew_employees">Manage</a>}>
+        <div className="p-4">
+          <AdminSummaryGrid variant="compact" ariaLabel="Crew access summary" items={[
+            { label: "Active", value: Number(access.active || 0), helper: "Can use Crew mobile", icon: UsersRound, tone: "success" },
+            { label: "Not enabled", value: Number(access.not_enabled || 0), helper: "Need access setup", icon: ShieldCheck, tone: Number(access.not_enabled || 0) ? "warning" : "neutral" },
+            { label: "Locked", value: Number(access.locked || 0), helper: "Need access review", icon: ShieldCheck, tone: Number(access.locked || 0) ? "warning" : "neutral" },
+          ]} />
+        </div>
+      </AdminDataSection>
+    </AsyncDataSurface>
+  </div>;
+}
+
+function BirthdayList({ birthdays }) {
+  if (!birthdays.length) return <div className="p-5 text-sm text-text-secondary">No active Crew birthdays in the next seven days.</div>;
+  return <div className="divide-y divide-border px-4">
+    {birthdays.map((birthday) => <a className="flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary" href="#crew_employees" key={birthday.employee_id}>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-rose-50 text-rose-700"><CalendarDays size={15} /></span>
+      <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-text-primary">{birthday.full_name}</strong><small className="block truncate text-xs text-text-secondary">{birthday.position || "Crew"}</small></span>
+      <span className="shrink-0 text-right"><strong className="block text-sm text-text-primary">{formatBirthdayDate(birthday.date)}</strong><small className="block text-xs font-medium text-primary">{relativeBirthdayDay(birthday.days_until)}</small></span>
+      <ChevronRight className="shrink-0 text-text-muted" size={16} />
+    </a>)}
+  </div>;
+}
+
+function AttentionList({ items }) {
+  if (!items.length) return <div className="p-5 text-sm text-text-secondary">No current Crew items need action.</div>;
+  return <div className="divide-y divide-border px-4">
+    {items.map((item) => <a className="flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary" href={attentionHref(item.key)} key={item.key}>
+      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-50 text-amber-700"><AttentionIcon itemKey={item.key} /></span>
+      <span className="min-w-0 flex-1"><strong className="block text-sm text-text-primary">{item.title}</strong><small className="block text-xs text-text-secondary">{item.detail}</small></span>
+      <span className="grid h-6 min-w-6 shrink-0 place-items-center rounded-full bg-amber-100 px-1.5 text-xs font-bold text-amber-800">{item.count}</span>
+      <ChevronRight className="shrink-0 text-text-muted" size={16} />
+    </a>)}
+  </div>;
+}
+
+function AttentionIcon({ itemKey }) {
+  if (itemKey === "attendance_exceptions") return <AlertTriangle size={15} />;
+  if (itemKey.startsWith("compliance")) return <ClipboardCheck size={15} />;
+  if (itemKey === "performance_reviews") return <UserCheck size={15} />;
+  return <CalendarDays size={15} />;
+}
+
+function attentionHref(key) {
+  return {
+    leave_requests: "#crew_leave",
+    attendance_exceptions: "#crew_attendance",
+    compliance_review: "#employee_compliance",
+    compliance_status: "#employee_compliance",
+    performance_reviews: "#crew_performance",
+  }[key] || "#crew_dashboard";
+}
+
+function formatBirthdayDate(value) {
+  if (!value) return "—";
+  return new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short" }).format(new Date(`${value}T00:00:00`));
+}
+
+function relativeBirthdayDay(daysUntil) {
+  const days = Number(daysUntil || 0);
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  return `In ${days} days`;
+}
