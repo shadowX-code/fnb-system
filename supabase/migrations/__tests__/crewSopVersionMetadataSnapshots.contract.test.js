@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import fs from "node:fs";
 import path from "node:path";
 
-const migration = fs.readFileSync(path.resolve("supabase/migrations/20260921065636_crew_sop_version_metadata_snapshots.sql"), "utf8");
+const migration = fs.readFileSync(path.resolve("supabase/migrations/20260921200000_crew_sop_version_metadata_snapshots.sql"), "utf8");
 
 describe("Crew SOP version metadata snapshots", () => {
   it("stores editable metadata with each SOP version and backfills historical snapshots", () => {
