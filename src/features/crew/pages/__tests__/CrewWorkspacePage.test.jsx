@@ -91,6 +91,14 @@ describe("Crew Access outlet read lifecycle", () => {
     expect(employeeService.crewAccessAdminPage).not.toHaveBeenCalled();
   });
 
+  it("keeps an empty Coming Up state inside the compact dashboard surface", async () => {
+    crewService.dashboardAdminData.mockResolvedValueOnce({ summary: {}, upcoming: [], attention: [], crew_today: [], tasks_today: [] });
+    mount(outlets, "dashboard");
+
+    expect(await screen.findByRole("heading", { name: "Coming Up" })).not.toBeNull();
+    expect(screen.getByText("Nothing coming up in the next 30 days.")).not.toBeNull();
+  });
+
   it("shows an explicit failed-read state and retries instead of rendering an empty employee table", async () => {
     employeeService.crewAccessAdminPage.mockRejectedValueOnce(new Error("Crew access unavailable")).mockResolvedValueOnce(page([]));
     mount();

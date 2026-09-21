@@ -158,7 +158,10 @@ function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
       <DailyBrief brief={brief} date={data.business_date} />
       <TodayMetrics summary={summary} attention={attention} />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,.82fr)]">
-        {crewToday.length ? <CrewTodayList rows={crewToday} /> : null}
+        <div className="grid content-start gap-4">
+          {crewToday.length ? <CrewTodayList rows={crewToday} /> : null}
+          <ComingUpSurface items={upcoming} />
+        </div>
         <div className="grid content-start gap-4">
           {tasksToday.length ? <TasksTodayList rows={tasksToday} /> : null}
           <AdminDataSection title="Needs Your Attention" description="Prioritized items that need an owning workflow." className="crew-dashboard-attention">
@@ -166,9 +169,6 @@ function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
           </AdminDataSection>
         </div>
       </div>
-      {upcoming.length ? <AdminDataSection title="Coming Up" description="The next 30 days, where the outlet has confirmed operational context." actions={<a className="btn-secondary h-8 px-3 text-xs" href="#crew_employees">View all</a>}>
-        <UpcomingList items={upcoming} />
-      </AdminDataSection> : <CompactUpcomingEmpty />}
     </AsyncDataSurface>
   </div>;
 }
@@ -190,6 +190,12 @@ function UpcomingList({ items }) {
       <ChevronRight className="shrink-0 text-text-muted" size={16} aria-hidden="true" />
     </a>)}
   </div>;
+}
+
+function ComingUpSurface({ items }) {
+  return <AdminDataSection title="Coming Up" description="Next 30 days" className="crew-dashboard-upcoming" actions={items.length ? <a className="btn-secondary h-8 px-3 text-xs" href="#crew_employees">View all</a> : null}>
+    {items.length ? <UpcomingList items={items} /> : <CompactUpcomingEmpty />}
+  </AdminDataSection>;
 }
 
 function TodayMetrics({ summary, attention }) {
@@ -273,7 +279,7 @@ function TasksTodayList({ rows }) {
 }
 
 function CompactUpcomingEmpty() {
-  return <section className="crew-dashboard-upcoming-empty" aria-label="Coming Up"><CalendarDays size={17} /><span><strong>Coming Up</strong><small>No confirmed Crew events in the next 30 days.</small></span></section>;
+  return <div className="crew-dashboard-upcoming-empty"><CalendarDays size={17} /><span><strong>Nothing coming up in the next 30 days.</strong><small>Confirmed Crew events will appear here.</small></span></div>;
 }
 
 function PersonAvatar({ name, tone = "mint" }) {
