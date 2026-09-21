@@ -156,7 +156,7 @@ function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
     <AdminFilterToolbar outlet={outletControl} compact ariaLabel="Dashboard scope" />
     <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Crew Dashboard" hasData={hasLoaded} isEmpty={!outletId} emptyTitle="No outlet selected" emptyDescription="Select an outlet to see its current Crew operations." onRetry={refresh}>
       <DailyBrief brief={brief} date={data.business_date} />
-      <TodayMetrics summary={summary} attention={attention} />
+      <TodayMetrics summary={summary} />
       <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(360px,.82fr)]">
         <div className="grid content-start gap-4">
           {crewToday.length ? <CrewTodayList rows={crewToday} /> : null}
@@ -193,20 +193,20 @@ function UpcomingList({ items }) {
 }
 
 function ComingUpSurface({ items }) {
-  return <AdminDataSection title="Coming Up" description="Next 30 days" className="crew-dashboard-upcoming" actions={items.length ? <a className="btn-secondary h-8 px-3 text-xs" href="#crew_employees">View all</a> : null}>
+  return <AdminDataSection title="Coming Up" description="Next 30 days" className="crew-dashboard-upcoming">
     {items.length ? <UpcomingList items={items} /> : <CompactUpcomingEmpty />}
   </AdminDataSection>;
 }
 
-function TodayMetrics({ summary, attention }) {
+function TodayMetrics({ summary }) {
   const leaveNames = (summary.leave_today || []).slice(0, 2).map((item) => item.name).join(", ");
   const pending = Number(summary.not_checked_in || 0);
-  const compliance = attention.filter((item) => ["compliance_review", "compliance_status"].includes(item.key)).reduce((count, item) => count + Number(item.count || 0), 0);
+  const attendanceIssues = Number(summary.attendance_issues || 0);
   return <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Today">
-    <DailyMetric label="On Duty Today" value={summary.scheduled_today || 0} helper={`${summary.present_today || 0} accounted for${pending ? ` · ${pending} not checked in` : ""}`} icon={UsersRound} tone={pending ? "warning" : "mint"} />
+    <DailyMetric label="Scheduled Today" value={summary.scheduled_today || 0} helper={`${summary.present_today || 0} accounted for${pending ? ` · ${pending} not checked in` : ""}`} icon={UsersRound} tone={pending ? "warning" : "mint"} />
     <DailyMetric label="Tasks Today" value={`${summary.tasks_completed || 0}/${summary.tasks_total || 0}`} helper={Number(summary.tasks_overdue || 0) ? `${summary.tasks_overdue} overdue` : "No overdue tasks"} icon={ListChecks} tone={Number(summary.tasks_overdue || 0) ? "danger" : "mint"} />
     <DailyMetric label="On Leave Today" value={summary.on_leave_today || 0} helper={leaveNames || "No approved leave"} icon={Clock3} tone="neutral" />
-    <DailyMetric label="Compliance" value={compliance} helper={compliance ? "Require attention" : "No current follow-up"} icon={ClipboardCheck} tone={compliance ? "warning" : "mint"} />
+    <DailyMetric label="Attendance" value={attendanceIssues} helper={attendanceIssues ? `${attendanceIssues} recorded issue${attendanceIssues === 1 ? "" : "s"}` : "No recorded issues"} icon={UserCheck} tone={attendanceIssues ? "warning" : "neutral"} />
   </section>;
 }
 

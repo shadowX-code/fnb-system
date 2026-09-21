@@ -84,6 +84,8 @@ describe("Crew Access outlet read lifecycle", () => {
     mount(outlets, "dashboard");
 
     expect(await screen.findByText("Your Crew Today")).not.toBeNull();
+    expect(screen.getByText("Scheduled Today")).not.toBeNull();
+    expect(screen.getByText("Attendance")).not.toBeNull();
     expect(screen.getByText("Today's Tasks")).not.toBeNull();
     expect(screen.getByText("Opening checklist")).not.toBeNull();
     expect(screen.getByRole("link", { name: /Opening checklist/i }).getAttribute("href")).toBe("#crew_operations/instance/task-a");
