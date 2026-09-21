@@ -28,6 +28,8 @@ The Crew browser keeps only the opaque session envelope locally. Its employee-sc
 Crew-scoped operational capabilities, including Cash Handover initiation, Asset creation, Asset adjustment, and Asset inspection, are owned by the employee's active Crew Access record and outlet rather than by Admin roles or Admin Access. Their changes use the controlled Crew Access administration path and retain audit evidence. Asset creation, adjustment, and inspection are independent grants; any one exposes the minimum-safe Assets read surface. Creation is limited to a new outlet asset and an initial photo, not ongoing asset administration.
 
 Draft Duty Roster weeks are editable by authorized Admins and are not Crew-visible.
+
+Platform Notification V1 consumes, but does not own, workforce lifecycle events. A first roster publication may deliver a normal notice to affected active Crew; a later immutable publication revision compares published entries and delivers important notices only to affected Crew, including additions, changes, and removals. Short-notice schedule changes retain the same priority with concise context. Approved/rejected leave review may deliver a normal notice. Notification reads never change leave or roster state.
 Publishing atomically creates an immutable Crew-facing revision for one outlet week. Later Admin edits keep the period Published with unpublished changes; Crew continues consuming the prior revision until Republish atomically promotes the latest working snapshot, including removals.
 Multi-outlet scheduling validates both operational and employee scope where current contracts require it.
 

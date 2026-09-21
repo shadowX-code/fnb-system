@@ -23,6 +23,8 @@ Crew Localization owns translated content state and fallback behavior.
 
 Published or active task definitions create scheduled operational work according to current assignment rules.
 Crew receives only work applicable to its validated session, outlet/date/position context, and assignment. An unfinished personal Task may be redone only through the token-bound reset authority: it clears current response rows, returns the assignee to not started, and appends reset evidence without changing the frozen Task definition, assignment, or existing audit history.
+
+Platform Notification V1 consumes canonical Task occurrences, never recurring templates. A scheduler-owned, Malaysia-time projection creates one deterministic actionable notification per occurrence/assignee, important for one-off work and normal for recurring work. It separately creates exactly-once due-soon and overdue reminders only while the assignee remains incomplete; completion suppresses future reminders. A material assignment, availability, due-time, or cancellation change to an actionable occurrence may produce an important change notice. Notification delivery/read never starts, saves, resets, or completes a Task.
 Completion and review transitions are server-controlled and preserve required evidence.
 Crew All Tasks History is a token-bound, fixed 30-calendar-day execution projection; it cannot widen the Crew query window and does not alter Admin's full task audit history. Crew Task Detail projects responsibility from the frozen instance assignment and completion actor/time from immutable response evidence, without changing Task assignment or completion authority.
 

@@ -30,6 +30,9 @@ const mocks = vi.hoisted(() => ({
   myProfile: vi.fn(),
   assetsMobile: vi.fn(),
   myDisciplinary: vi.fn(),
+  notificationUnreadCount: vi.fn(),
+  notificationsPage: vi.fn(),
+  markNotificationRead: vi.fn(),
 }));
 
 vi.mock("../../../services/crewService.js", () => ({ crewService: mocks }));
@@ -85,6 +88,9 @@ beforeEach(() => {
   mocks.myProfile.mockReset().mockResolvedValue({ employment_type: "full_time" });
   mocks.assetsMobile.mockReset().mockRejectedValue(new Error("Crew Asset access is unavailable."));
   mocks.myDisciplinary.mockReset().mockResolvedValue({ warnings: [], unread_count: 0 });
+  mocks.notificationUnreadCount.mockReset().mockResolvedValue({ unread_count: 0 });
+  mocks.notificationsPage.mockReset().mockResolvedValue({ rows: [], total_count: 0, page: 1, page_size: 20 });
+  mocks.markNotificationRead.mockReset().mockResolvedValue({ action_descriptor: null, source_available: false });
   mocks.clock.mockReset().mockResolvedValue({});
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
   mocks.updateMyProfilePhoto.mockReset().mockResolvedValue({ profile_photo_path: "employee-a/profile.webp", profile_photo_url: "https://example.test/profile.webp" });
@@ -927,5 +933,25 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByText("Service Standards")).not.toBeNull();
     expect(document.body.textContent).not.toContain("Manager note");
     expect(mocks.performanceMobile).toHaveBeenCalledWith("crew-token");
+  });
+
+  it("keeps platform notification reads separate from the linked task lifecycle", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.notificationUnreadCount.mockResolvedValue({ unread_count: 1 });
+    mocks.notificationsPage.mockResolvedValue({
+      rows: [{ id: "notification-1", priority: "important", title: "Task ready", body: "Opening Checklist", created_at: "2026-09-21T02:00:00Z", is_read: false, action_descriptor: { version: 1, type: "task_occurrence", occurrence_id: "ops-1" }, source_available: true }],
+      total_count: 1, page: 1, page_size: 20,
+    });
+    mocks.markNotificationRead.mockResolvedValue({ action_descriptor: { version: 1, type: "task_occurrence", occurrence_id: "ops-1" }, source_available: true });
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "1 unread notifications" }));
+    expect(await screen.findByRole("heading", { name: "Notifications" })).not.toBeNull();
+    expect(mocks.notificationsPage).toHaveBeenCalledWith("crew-token", { unreadOnly: false, page: 1, pageSize: 20 });
+    fireEvent.click(await screen.findByRole("button", { name: /Task ready/ }));
+    await waitFor(() => expect(mocks.markNotificationRead).toHaveBeenCalledWith("crew-token", "notification-1"));
+    expect(await screen.findByRole("heading", { name: "Opening Checklist" })).not.toBeNull();
+    expect(mocks.operationDetail).toHaveBeenCalledWith("crew-token", "ops-1");
+    expect(mocks.updateOperationItem).not.toHaveBeenCalled();
+    expect(mocks.completeOperationChecklist).not.toHaveBeenCalled();
   });
 });

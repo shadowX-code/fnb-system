@@ -2,6 +2,7 @@ const CREW_ROOT = "crew";
 
 const routeByPath = {
   home: { screen: "home" },
+  notifications: { screen: "notifications" },
   learn: { screen: "learn" },
   reward: { screen: "reward" },
   growth: { screen: "growth", growthInitialView: "overview" },
@@ -41,6 +42,7 @@ export function parseCrewRoute(hash = window.location.hash) {
 }
 
 export function crewRouteForState({ screen, growthInitialView = "overview" }) {
+  if (screen === "notifications") return { screen, canonicalHash: "#crew/notifications" };
   if (screen === "learn") return { screen, canonicalHash: "#crew/learn" };
   if (screen === "reward") return { screen, canonicalHash: "#crew/reward" };
   if (screen === "growth") return { screen, growthInitialView, canonicalHash: growthInitialView === "performance" ? "#crew/growth/performance" : "#crew/growth" };

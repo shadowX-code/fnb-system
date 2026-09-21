@@ -44,7 +44,7 @@ Crew may update only the profile-photo object path derived for the employee reso
 
 ## Employee Compliance V1
 
-People owns employee compliance. V1 has exactly two seeded requirements: Food Handler Certificate (one photo, no expiry) and Typhoid Injection (one photo with required expiry). Requirements apply to every active employee; there are no exemptions, position/outlet policies, notifications, or downstream eligibility effects.
+People owns employee compliance. V1 has exactly two seeded requirements: Food Handler Certificate (one photo, no expiry) and Typhoid Injection (one photo with required expiry). Requirements apply to every active employee; there are no exemptions, position/outlet policies, or downstream eligibility effects. Platform may deliver a normal expiring-soon or important expired notification from the server-derived effective state; this does not change Compliance ownership, action state, or verification authority.
 
 Submissions are immutable and retain an outlet snapshot. Reviews are append-only, require the dedicated `employee_compliance.review` permission, enforce the employee's current outlet scope, and require a reason when rejected. Crew identity is always derived from the opaque Crew session token and Crew can never verify its own evidence.
 
@@ -64,7 +64,7 @@ Each issued warning receives a server-derived, employee-scoped chronological dis
 
 Corrections never rewrite an issued record. Admins withdraw with a reason or issue a new warning linked as a superseding record; the original content, sequence, relationships, evidence, response, and chronological activity remain private history. Dedicated `employee_disciplinary.view` and `employee_disciplinary.manage` permissions are separate from general employee edit authority. Crew identity is derived only from its opaque session token and Crew can access only its own non-draft records.
 
-Supporting evidence uses the private `employee-disciplinary-evidence` bucket with immutable object paths and short-lived authorized reads. Disciplinary records do not affect Performance, Reward, Attendance, Duty Roster, payroll, Tasks, or Crew Access. A future Incident / Show Cause / Response / Review / Outcome model may reference a warning as one possible outcome, but is deliberately outside V1.
+Supporting evidence uses the private `employee-disciplinary-evidence` bucket with immutable object paths and short-lived authorized reads. Issuing a warning may create an important Platform notification for an active Crew recipient; reading that notification is not delivery, view, acknowledgement, or admission evidence. Disciplinary records do not affect Performance, Reward, Attendance, Duty Roster, payroll, Tasks, or Crew Access. A future Incident / Show Cause / Response / Review / Outcome model may reference a warning as one possible outcome, but is deliberately outside V1.
 
 ## Legal Employers And Employment Documents
 

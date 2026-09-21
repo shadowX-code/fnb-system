@@ -1,5 +1,11 @@
 # FeedX Development Log
 
+## 2026-09-21 — Platform Crew Notification Foundation V1
+
+- Added a private, token-bound Platform delivery/read projection for Crew notifications with deterministic producer dedupe, source-domain typed descriptors, and append-only read receipts.
+- Connected the Crew Home bell and mobile Notification Center without coupling notification reads to disciplinary, employment-document, compliance, leave, roster, or Task lifecycle actions.
+- Documented the Platform ownership boundary and producer contracts for People, Workforce, and Operations. Time-based compliance/Task notification generation is server-scheduled in Malaysia time and launches prospectively without historical backfill.
+
 - Added People-owned Employment Contract Builder V2 on the existing Employment Documents authority. Legal-Entity-owned Full-Time/Part-Time templates publish immutable clause versions; employee-profile Create Contract records contract-only terms, server-generates an exact PDF from a hashed manifest, and sends it through the existing immutable PDF/acknowledgement lifecycle. This adds no legal electronic-signature claim and does not write to Employee, payroll, roster, or Crew authority.
 
 - Added the minimum People-owned Legal Employer master and employee assignment, plus Employment Documents V1 for uploaded Employment Contract PDFs. Send pins server-hashed PDF evidence and employee/employer/issuer/consent snapshots; Crew Employment Records provides token-bound view and explicit acknowledgement without claiming legal electronic-signature status. Sent/completed evidence and events remain immutable, corrections use withdrawal/supersession, and no payroll, roster, Attendance, Performance, Reward, or Crew Access behavior changes.

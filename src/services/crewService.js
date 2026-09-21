@@ -123,6 +123,29 @@ async function saveCrewDraftRow(table, row, payload) {
 }
 
 export const crewService = {
+  async notificationUnreadCount(token) {
+    const { data, error } = await supabase.rpc("crew_notification_unread_count", { p_token: token });
+    throwSupabaseError("crew.notificationUnreadCount", error);
+    return data || { unread_count: 0 };
+  },
+
+  async notificationsPage(token, { unreadOnly = false, page = 1, pageSize = 20 } = {}) {
+    const { data, error } = await supabase.rpc("crew_notifications_page", {
+      p_token: token,
+      p_unread_only: unreadOnly,
+      p_page: page,
+      p_page_size: pageSize,
+    });
+    throwSupabaseError("crew.notificationsPage", error);
+    return data || { rows: [], total_count: 0, page, page_size: pageSize };
+  },
+
+  async markNotificationRead(token, notificationId) {
+    const { data, error } = await supabase.rpc("crew_notification_mark_read", { p_token: token, p_notification_id: notificationId });
+    throwSupabaseError("crew.markNotificationRead", error);
+    return data || { action_descriptor: null, source_available: false };
+  },
+
   async myDisciplinary(token) {
     const { data, error } = await supabase.rpc("crew_employee_disciplinary", { p_token: token });
     throwSupabaseError("crew.myDisciplinary", error);

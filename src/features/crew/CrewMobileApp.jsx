@@ -6,6 +6,7 @@ import useCrewRoute from "./hooks/useCrewRoute.js";
 import useCrewAttendance from "./hooks/useCrewAttendance.js";
 import useCrewTheme from "./hooks/useCrewTheme.js";
 import useCrewVisualViewport from "./hooks/useCrewVisualViewport.js";
+import useCrewNotifications from "./hooks/useCrewNotifications.js";
 import CrewLogin from "./components/CrewLogin.jsx";
 import CrewHomeMobile from "./components/CrewHomeMobile.jsx";
 import CrewMeMobile from "./components/CrewMeMobile.jsx";
@@ -43,6 +44,7 @@ const CrewComplianceMobile = lazy(() => import("./components/CrewComplianceMobil
 const CrewDisciplinaryMobile = lazy(() => import("./components/CrewDisciplinaryMobile.jsx"));
 const CrewEmploymentRecordsMobile = lazy(() => import("./components/CrewEmploymentRecordsMobile.jsx"));
 const CrewEmploymentDocumentsMobile = lazy(() => import("./components/CrewEmploymentDocumentsMobile.jsx"));
+const CrewNotificationsMobile = lazy(() => import("./components/CrewNotificationsMobile.jsx"));
 
 
 export default function CrewMobileApp({ onNotify }) {
@@ -55,8 +57,9 @@ export default function CrewMobileApp({ onNotify }) {
 function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, route, onNotify }) {
   const { t } = useTranslation();
   useCrewVisualViewport();
-  const { theme, toggleTheme } = useCrewTheme();
   const { screen, growthInitialView, entry, navigate } = route;
+  const { theme, toggleTheme } = useCrewTheme();
+  const { unreadCount, refreshUnreadCount } = useCrewNotifications(session.token, screen);
   const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave, assets, disciplinary } = data;
   const clock = useCrewAttendance({ session, attendance, context, roster, refresh, screen });
   const [cashCheckoutFlow, setCashCheckoutFlow] = useState(false);
@@ -65,10 +68,24 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   const homeScrollY = useRef(0);
   const logout = () => { navigate("home"); replaceSession(null); };
   const openTask = (target) => { homeScrollY.current = window.scrollY; setOperationTarget(target); navigate("operations"); };
+  const openNotification = (descriptor) => {
+    const type = descriptor?.type;
+    if (type === "task_occurrence" && descriptor?.occurrence_id) {
+      setOperationTarget({ row: { id: descriptor.occurrence_id, name: "Task" }, context: { from: "notification" } });
+      navigate("operations");
+      return;
+    }
+    if (type === "roster_publication") { navigate("schedule"); return; }
+    if (type === "leave_request") { navigate("leave"); return; }
+    if (type === "disciplinary_warning") { navigate("disciplinary"); return; }
+    if (type === "employment_document") { navigate("employment-documents"); return; }
+    if (type === "compliance_submission" || type === "compliance_requirement") navigate("compliance");
+  };
 
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     <Suspense fallback={<CrewRouteLoading />}>
-    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} />)}
+    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} />)}
+    {screen === "notifications" && <CrewNotificationsMobile token={session.token} onBack={() => navigate("home")} onOpenNotification={openNotification} onUnreadChanged={refreshUnreadCount} />}
     {screen === "learn" && <CrewLearningMobile token={session.token} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={refresh} onViewPerformance={() => navigate("growth", { growthInitialView: "performance" })} />}
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading} error={growthError} onRetry={refresh} onNavigate={navigate} onViewChange={(view) => { if (view === "overview" || view === "performance") navigate("growth", { growthInitialView: view }); }} />}
@@ -85,6 +102,6 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} disciplinary={disciplinary} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
-    {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
+    {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;
 }

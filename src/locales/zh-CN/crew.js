@@ -66,4 +66,5 @@ resources.disciplinary = {
 };
 resources.employmentRecords = { ...en.employmentRecords, title:"雇佣记录", meSubtitle:"合同、合规文件及工作场所通知", intro:"您的雇佣记录按各自负责的 People 功能分类。", contracts:"合同与信函", compliance:"文件与合规", warnings:"警告与通知" };
 resources.employmentDocuments = { ...en.employmentDocuments, intro:"查看雇主向您发出的当前及历史雇佣合同。", empty:"暂无雇佣合同", loadError:"无法加载雇佣合同。", contract:"雇佣合同", effective:"生效日期 {{date}}", view:"查看文件", download:"下载原始 PDF", legalEmployer:"法定雇主", registration:"公司注册号", sent:"发送时间", acknowledge:"查看并确认", ackTitle:"确认雇佣文件", ackAction:"确认雇佣文件", status:{ sent:"已发送", viewed:"已查看", completed:"已完成", withdrawn:"已撤回", superseded:"已取代" } };
+resources.notifications = { title:"通知", unreadCount:"{{count}} 条未读通知", all:"全部", unread:"未读", loading:"正在加载通知…", loadError:"无法加载通知。", openError:"无法打开此通知。", unavailable:"此项目目前不可用。", empty:"您已全部处理完毕。", emptyUnread:"目前没有未读通知。", important:"重要", justNow:"刚刚", minutesAgo:"{{count}} 分钟前", hoursAgo:"{{count}} 小时前", daysAgo:"{{count}} 天前", previous:"上一页", next:"下一页", page:"第 {{page}} / {{pageCount}} 页" };
 export default resources;
