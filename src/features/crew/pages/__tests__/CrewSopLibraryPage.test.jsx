@@ -100,7 +100,8 @@ describe("Crew SOP Library Admin", () => {
     await screen.findByRole("heading", { name: "SOP Library" });
     await waitFor(() => expect(document.querySelector("table")).not.toBeNull());
     expect(document.querySelector("table").className).toContain("min-w-[1040px]");
-    expect(screen.getByText("Published · Unpublished changes")).not.toBeNull();
+    expect(screen.getAllByText("Published").length).toBeGreaterThan(0);
+    expect(screen.getByText("Draft v2 ready")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Search SOP"), { target: { value: "Kitchen" } });
     await waitFor(() => expect(screen.queryByText("Welcome & Goodbye Standard")).toBeNull());
     expect(screen.getByText("Kitchen Safety")).not.toBeNull();
@@ -151,8 +152,9 @@ describe("Crew SOP Library Admin", () => {
     mocks.list.mockResolvedValue({ categories, sops: [draftOnly] });
     renderPage();
     await screen.findByText("Opening Checklist");
-    const edit = screen.getByRole("button", { name: "Edit" });
-    expect(screen.getByRole("button", { name: "Delete" })).not.toBeNull();
+    const edit = screen.getByRole("button", { name: "Edit Draft" });
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Opening Checklist" }));
+    expect(screen.getByRole("menuitem", { name: "Delete Draft" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "New Version" })).toBeNull();
     fireEvent.click(edit);
     expect(screen.getByRole("heading", { name: "Opening Checklist" })).not.toBeNull();
@@ -171,7 +173,7 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.change(within(modal).getByLabelText("Title *"), { target: { value: "Cash Handling" } });
     fireEvent.change(within(modal).getByLabelText("Summary"), { target: { value: "Cash control" } });
     fireEvent.change(within(modal).getByLabelText("Section Title *"), { target: { value: "Cash security" } });
-    fireEvent.click(within(modal).getByLabelText("Acknowledgement Required"));
+    fireEvent.click(within(modal).getByRole("switch", { name: /Acknowledgement Required/ }));
     fireEvent.click(createButton);
     await screen.findByText("Draft v1");
     expect(mocks.newVersion).toHaveBeenCalledWith("new-sop");
@@ -190,13 +192,13 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Warm and attentive" } });
     fireEvent.click(screen.getByRole("button", { name: /01.*Welcome promptly/ }));
     expect(screen.getByLabelText("Section Title *").value).toBe("Welcome promptly");
-    fireEvent.click(screen.getByRole("button", { name: "Move section down" }));
+    fireEvent.keyDown(screen.getByRole("button", { name: /Reorder section 1/ }), { key: "ArrowDown" });
     fireEvent.click(screen.getByRole("button", { name: "Add Section" }));
     fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Thank the guest" } });
     const editor = screen.getByRole("textbox", { name: "Content" });
     editor.innerHTML = "<p>Thank every guest before leaving.</p>";
     fireEvent.input(editor);
-    fireEvent.click(screen.getByLabelText("Key Point"));
+    fireEvent.click(screen.getByRole("switch", { name: /Key Point/ }));
     fireEvent.change(screen.getByLabelText("Key Point Content"), { target: { value: "Always end warmly." } });
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(mocks.saveSections).toHaveBeenCalledTimes(1));
@@ -334,7 +336,8 @@ describe("Crew SOP Library Admin", () => {
     mocks.detail.mockResolvedValue({ ...sops[1], versions: [{ ...sops[1].versions[0], sections: longSections }] });
     renderPage();
     await screen.findByText("Kitchen Safety");
-    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Kitchen Safety" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "View" }));
     expect(await screen.findByRole("heading", { name: `Long Section ${sectionCount}` })).not.toBeNull();
     const scrollRegion = document.querySelector(".crew-sop-document-scroll");
     expect(scrollRegion).not.toBeNull();
@@ -377,8 +380,8 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Create SOP" }));
     fireEvent.click(screen.getByRole("tab", { name: "Clone existing SOP" }));
     expect(screen.getByLabelText("Source Outlet").textContent).toContain("Friends Corner");
-    await waitFor(() => expect(screen.getByLabelText("Kitchen Safety")).not.toBeNull());
-    fireEvent.click(screen.getByLabelText("Kitchen Safety"));
+    await waitFor(() => expect(screen.getByRole("radio", { name: /Kitchen Safety/ })).not.toBeNull());
+    fireEvent.click(screen.getByRole("radio", { name: /Kitchen Safety/ }));
     fireEvent.click(screen.getByRole("button", { name: "Clone as Draft" }));
     await waitFor(() => expect(mocks.clone).toHaveBeenCalledWith(expect.objectContaining({ sourceOutletId: "outlet-2", targetOutletId: "outlet-1", sopIds: ["sop-2"] })));
   });
