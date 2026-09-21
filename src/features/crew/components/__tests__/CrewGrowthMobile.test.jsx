@@ -185,7 +185,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText("15 of 15 completed")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Why this score" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Keep it up" })).not.toBeNull();
-    expect(screen.getByText(/Location exceptions are not automatically penalized/)).not.toBeNull();
+    expect(screen.getByText(/15 points for completed eligible shifts and 15 points for punctuality/)).not.toBeNull();
     expect(screen.getByRole("button", { name: "View Attendance" })).not.toBeNull();
     expect(document.body.textContent).not.toContain("Manager note");
     fireEvent.click(screen.getByRole("button", { name: "Close" }));

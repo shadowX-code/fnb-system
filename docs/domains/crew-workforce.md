@@ -33,7 +33,9 @@ Platform Notification V1 consumes, but does not own, workforce lifecycle events.
 Publishing atomically creates an immutable Crew-facing revision for one outlet week. Later Admin edits keep the period Published with unpublished changes; Crew continues consuming the prior revision until Republish atomically promotes the latest working snapshot, including removals.
 Multi-outlet scheduling validates both operational and employee scope where current contracts require it.
 
-Attendance is recorded through token-bound server authority.
+Attendance is recorded through token-bound server authority. Clock-in stores the current published working-roster entry, publication, start/end time, and publication timestamp as schedule evidence; later roster edits cannot silently rewrite that clock-in evidence. Approved leave and non-working roster entries remain non-attendance days.
+
+Attendance managers may record a reason-required, outlet-scoped Performance exception for an attendance record only through `crew_attendance.manage`. Approved corrections and verified system outages are auditable, may be revoked with a reason, and refresh mutable Performance only. Location verification exceptions remain attendance evidence and do not themselves create a Performance deduction.
 Location verification, when enabled for an outlet, uses canonical outlet configuration and preserves original evidence and exceptions.
 Clock-out safety and exception behavior follow current RPC contracts rather than client inference.
 

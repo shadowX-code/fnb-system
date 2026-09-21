@@ -24,6 +24,8 @@ Source domains retain ownership of roster, attendance, task, cash, and learning 
 ## Lifecycle And Business Rules
 
 Monthly Performance uses defined, private evidence adapters rather than reading mutable page state.
+
+Attendance contributes a server-derived 30-point component: 15 points for completed eligible published shifts and 15 points for punctuality. Clock-ins within a 10-minute grace period receive no punctuality deduction; 11–20 minutes deduct 0.5 points, 21–45 deduct 1.5 points, and more than 45 deduct 3 points per eligible completed shift, with punctuality never below zero. No completed eligible evidence leaves the affected half at its neutral 12/15 baseline. Approved leave, non-working roster entries, schedules published or updated after their shift start, and reasoned active Attendance Performance exceptions are excluded. Finalized Performance snapshots remain immutable; only mutable current-period results refresh when attendance evidence changes.
 The server derives protected scoring, eligibility, and reward values from canonical evidence and configured rules.
 Reviewers may add permitted assessment evidence or decisions but cannot rewrite source-domain history.
 Current mutable Service Standards reviews contain Welcome / Greeting, Thank You / Goodbye, Grooming, Work Area Cleanliness, and Guest Interaction. The server requires that exact current set and derives the observed-criterion denominator; retired Initiative evidence remains only in prior review snapshots for audit. A finalized Performance period rejects new review evidence and remains immutable.

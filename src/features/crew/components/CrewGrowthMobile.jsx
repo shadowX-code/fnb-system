@@ -305,14 +305,24 @@ function buildComponentGuidance(component, t) {
   let cta = null;
 
   if (key === "attendance") {
-    const records = asNumber(evidence.records);
-    const completed = asNumber(evidence.completed);
-    const incomplete = asNumber(evidence.incomplete);
+    const scheduled = asNumber(evidence.scheduled_completed_shifts) ?? asNumber(evidence.records);
+    const completed = asNumber(evidence.completed_scheduled_shifts) ?? asNumber(evidence.completed);
+    const completeness = asNumber(evidence.completeness_score);
+    const punctuality = asNumber(evidence.punctuality_score);
+    const minorLate = asNumber(evidence.late_minor) ?? 0;
+    const late = asNumber(evidence.late) ?? 0;
+    const severeLate = asNumber(evidence.late_severe) ?? 0;
+    const approvedExceptions = asNumber(evidence.approved_exceptions) ?? 0;
+    const incomplete = scheduled != null && completed != null ? Math.max(0, scheduled - completed) : asNumber(evidence.incomplete);
     const exceptions = asNumber(evidence.location_exceptions);
     const approvedLeave = asNumber(evidence.approved_leave_days);
-    if (records != null) why.push({ label: t("performanceGuidance.attendance.records"), value: t("performanceGuidance.attendance.completed", { completed: completed ?? 0, records }), tone: incomplete > 0 ? "warning" : "success" });
+    if (scheduled != null) why.push({ label: t("performanceGuidance.attendance.scheduledShifts"), value: t("performanceGuidance.attendance.completed", { completed: completed ?? 0, records: scheduled }), tone: incomplete > 0 ? "warning" : "success" });
+    if (completeness != null) why.push({ label: t("performanceGuidance.attendance.completeness"), value: t("performanceGuidance.attendance.points", { score: completeness, max: 15 }), tone: completeness < 15 ? "warning" : "success" });
+    if (punctuality != null) why.push({ label: t("performanceGuidance.attendance.punctuality"), value: t("performanceGuidance.attendance.points", { score: punctuality, max: 15 }), tone: punctuality < 15 ? "warning" : "success" });
+    if (minorLate + late + severeLate > 0) why.push({ label: t("performanceGuidance.attendance.lateArrivals"), value: t("performanceGuidance.attendance.lateBands", { minor: minorLate, late, severe: severeLate }), tone: "warning" });
     if (incomplete > 0) why.push({ label: t("performanceGuidance.attendance.incomplete"), value: String(incomplete), tone: "warning" });
     if (approvedLeave > 0) why.push({ label: t("performanceGuidance.attendance.approvedLeave"), value: t("performanceGuidance.attendance.daysExcluded", { count: approvedLeave }), tone: "neutral" });
+    if (approvedExceptions > 0) why.push({ label: t("performanceGuidance.attendance.approvedExceptions"), value: String(approvedExceptions), tone: "neutral" });
     if (exceptions != null) why.push({ label: t("performanceGuidance.attendance.locationExceptions"), value: t("performanceGuidance.attendance.evidenceFlags", { count: exceptions }), tone: exceptions > 0 ? "warning" : "neutral" });
     improve = fullScore ? [t("performanceGuidance.attendance.maintainComplete")] : [
       incomplete > 0 ? t("performanceGuidance.attendance.completeClock") : t("performanceGuidance.attendance.keepComplete"),

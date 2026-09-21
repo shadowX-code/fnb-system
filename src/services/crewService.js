@@ -1659,6 +1659,17 @@ export const crewService = {
     return data || { rows: [], total_count: 0, page, page_size: pageSize, summary: {}, filter_options: {} };
   },
 
+  async updateAttendancePerformanceException({ attendanceRecordId, action, exceptionType = null, reason }) {
+    const { data, error } = await supabase.rpc("crew_attendance_performance_exception_update", {
+      p_attendance_record_id: attendanceRecordId,
+      p_action: action,
+      p_exception_type: exceptionType,
+      p_reason: reason,
+    });
+    throwSupabaseError("crew.updateAttendancePerformanceException", error);
+    return data;
+  },
+
   async growthAdminData(outletId) {
     const { data, error } = await supabase.rpc("crew_growth_admin_data", { p_outlet_id: outletId });
     throwSupabaseError("crew.growthAdminData", error);
