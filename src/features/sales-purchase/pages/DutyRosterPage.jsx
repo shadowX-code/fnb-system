@@ -1289,7 +1289,7 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
   );
 }
 
-function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelectDate, onPrevious, onNext }) {
+export function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelectDate, onPrevious, onNext }) {
   const [open, setOpen] = useState(false);
   const [draftDate, setDraftDate] = useState(() => new Date(`${weekStart}T00:00:00`));
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(`${weekStart}T00:00:00`));
@@ -1370,19 +1370,19 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
   }
 
   return (
-    <div>
-      <div className="flex min-w-0 items-center gap-2">
-        <button className="icon-btn" type="button" onClick={onPrevious} aria-label={mode === "month" ? "Previous month" : "Previous week"}><ChevronLeft size={16} /></button>
+    <div className="admin-date-range-navigation">
+      <div className="admin-date-range-navigation-row">
+        <button className="icon-btn admin-date-range-navigation-button" type="button" onClick={onPrevious} aria-label={mode === "month" ? "Previous month" : "Previous week"}><ChevronLeft size={16} /></button>
         <button
           ref={buttonRef}
-          className="flex h-10 min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 text-left text-sm font-bold text-text-primary shadow-sm transition hover:border-primary/40 hover:bg-primary/5"
+          className="admin-date-range-navigation-trigger flex min-w-0 flex-1 items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 text-left text-sm font-bold text-text-primary shadow-sm transition hover:border-primary/40 hover:bg-primary/5"
           type="button"
           onClick={() => setOpen((current) => !current)}
         >
           <span className="flex min-w-0 items-center gap-2"><CalendarDays size={16} className="shrink-0 text-primary" /><span className="truncate">{rangeLabel}</span></span>
           <ChevronRight size={14} className={`text-text-muted transition ${open ? "rotate-90" : ""}`} />
         </button>
-        <button className="icon-btn" type="button" onClick={onNext} aria-label={mode === "month" ? "Next month" : "Next week"}><ChevronRight size={16} /></button>
+        <button className="icon-btn admin-date-range-navigation-button" type="button" onClick={onNext} aria-label={mode === "month" ? "Next month" : "Next week"}><ChevronRight size={16} /></button>
       </div>
 
       {open && popoverRect ? createPortal((
@@ -2313,8 +2313,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       <AdminFilterToolbar
         ariaLabel="Duty Roster filters"
         outlet={<FieldLabel label="Outlet"><SelectField ariaLabel="Outlet" value={outletId} options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} /></FieldLabel>}
-        periodWidth="w-full sm:w-[280px]"
-        period={<FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}><RosterDateSelector mode={viewMode} weekStart={weekStart} weekDates={weekDates} visibleDates={visibleDates} onSelectDate={selectRosterDate} onPrevious={() => navigateRoster(-1)} onNext={() => navigateRoster(1)} /></FieldLabel>}
+        period={<FieldLabel label={viewMode === "month" ? "Month" : "Date Range"} adminFilterRole="date-range-navigation"><RosterDateSelector mode={viewMode} weekStart={weekStart} weekDates={weekDates} visibleDates={visibleDates} onSelectDate={selectRosterDate} onPrevious={() => navigateRoster(-1)} onNext={() => navigateRoster(1)} /></FieldLabel>}
         search={<AdminSearchField label="Employee" value={employeeSearch} onChange={setEmployeeSearch} placeholder="Search name..." />}
         filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel>{viewMode === "month" ? <FieldLabel label="Publish week"><SelectField ariaLabel="Publish week" value={activePublicationWeekStart} options={publicationWeeks.map((date) => ({ value: date, label: formatWeekRange(datesBetween(new Date(`${date}T00:00:00`), new Date(`${toDateInputValue(addDays(`${date}T00:00:00`, 6))}T00:00:00`))) }))} onChange={setPublicationWeekStart} /></FieldLabel> : null}<AdminSegmentedControl value={viewMode} onChange={(mode) => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }} label="Duty Roster view" options={[{ value: "week", label: "week" }, { value: "month", label: "month" }]} /></>}
         activeFilters={[employeeSearch && { key: "employee", label: "Employee", value: employeeSearch, onRemove: () => setEmployeeSearch("") }, groupFilter !== "all" && { key: "group", label: "Group", value: groupFilter, onRemove: () => setGroupFilter("all") }, positionFilter !== "all" && { key: "position", label: "Position", value: positionFilter, onRemove: () => setPositionFilter("all") }].filter(Boolean)}

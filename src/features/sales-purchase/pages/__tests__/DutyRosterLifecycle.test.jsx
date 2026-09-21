@@ -11,7 +11,7 @@ vi.mock("../../../../services/shiftTemplateService.js", () => ({ shiftTemplateSe
 vi.mock("../../../../services/dutyRosterService.js", () => ({ dutyRosterService: { listRosterEligibleEmployees: mocks.employees, listDutyRosters: mocks.rosters, saveRosterWeekSnapshot: mocks.snapshot, publishRosterWeek: mocks.publish } }));
 vi.mock("../../../../services/rosterPeriodService.js", () => ({ rosterPeriodService: { getOrCreateRosterPeriod: mocks.period } }));
 
-import DutyRosterPage, { rosterPermission } from "../DutyRosterPage.jsx";
+import DutyRosterPage, { RosterDateSelector, rosterPermission } from "../DutyRosterPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Main Outlet", status: "active" };
 const employee = { id: "employee-1", full_name: "Aina", nickname: "Aina", position: "Cook", department: "Kitchen", workplace: "outlet-1", employment_status: "active", is_active: true, roster_eligible: true };
@@ -42,6 +42,21 @@ afterEach(() => {
 });
 
 describe("Duty Roster trusted week snapshot integration", () => {
+  it("keeps week navigation controls square, separate, and interactive", () => {
+    const previous = vi.fn();
+    const next = vi.fn();
+    render(<RosterDateSelector mode="week" weekStart="2026-09-21" weekDates={Array.from({ length: 7 }, (_, index) => new Date(2026, 8, 21 + index))} visibleDates={[new Date(2026, 8, 21)]} onSelectDate={vi.fn()} onPrevious={previous} onNext={next} />);
+    const previousButton = screen.getByRole("button", { name: "Previous week" });
+    const nextButton = screen.getByRole("button", { name: "Next week" });
+    expect(previousButton.className).toContain("admin-date-range-navigation-button");
+    expect(nextButton.className).toContain("admin-date-range-navigation-button");
+    expect(screen.getByText("21 Sept - 27 Sept 2026").closest("button").className).toContain("admin-date-range-navigation-trigger");
+    fireEvent.click(previousButton);
+    fireEvent.click(nextButton);
+    expect(previous).toHaveBeenCalledTimes(1);
+    expect(next).toHaveBeenCalledTimes(1);
+  });
+
   it("accepts only canonical Crew roster permissions", () => {
     const legacyAuth = { hasPermission: (code) => ["duty_roster.view", "duty_roster.manage"].includes(code) };
     const crewAuth = { hasPermission: (code) => ["crew_roster.view", "crew_roster.manage", "crew_roster.publish"].includes(code) };

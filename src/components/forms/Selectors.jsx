@@ -3,7 +3,7 @@ import { getAccessibleOutletOptions } from "../../utils/accessControl.js";
 import { buildDynamicYearOptions } from "../../utils/yearOptions.js";
 import SelectField from "./SelectField.jsx";
 
-export function FieldLabel({ label, children }) {
+export function FieldLabel({ label, children, adminFilterRole }) {
   return (
     <label className="flex flex-col gap-0.5">
       <span className="text-xs font-semibold text-text-secondary">{label}</span>

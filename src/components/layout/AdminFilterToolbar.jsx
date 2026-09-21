@@ -7,7 +7,7 @@ function labelForField(field) {
 }
 
 function roleForField(field) {
-  const declaredRole = isValidElement(field) ? field.type?.adminFilterRole : null;
+  const declaredRole = isValidElement(field) ? field.props.adminFilterRole || field.type?.adminFilterRole : null;
   if (declaredRole) return declaredRole;
   const label = labelForField(field);
   if (label.includes("date range")) return "date-range";
@@ -17,6 +17,7 @@ function roleForField(field) {
 
 function widthForField(field) {
   const role = roleForField(field);
+  if (role === "date-range-navigation") return "w-full sm:w-[320px]";
   if (role === "date-range") return "w-full sm:w-[220px]";
   return "w-full sm:w-[180px]";
 }

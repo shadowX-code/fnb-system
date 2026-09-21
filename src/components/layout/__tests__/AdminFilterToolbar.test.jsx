@@ -4,6 +4,7 @@ import AdminFilterToolbar from "../AdminFilterToolbar.jsx";
 import FactoryFilterBar from "../../../features/factory/components/FactoryFilterBar.jsx";
 import FeedXDateRangePicker from "../../ui/FeedXDateRangePicker.jsx";
 import AdminSearchField from "../../forms/AdminSearchField.jsx";
+import { FieldLabel } from "../../forms/Selectors.jsx";
 
 function Field({ label }) {
   return <label>{label}<input aria-label={label} /></label>;
@@ -51,6 +52,14 @@ describe("AdminFilterToolbar", () => {
     const range = screen.getByLabelText("Date Range").closest('[data-admin-filter-slot]');
     expect(range.dataset.adminFilterRole).toBe("date-range");
     expect(range.className).toContain("sm:w-[220px]");
+  });
+
+  it("reserves a stable slot for date-range navigation controls", () => {
+    render(<AdminFilterToolbar period={<FieldLabel label="Date Range" adminFilterRole="date-range-navigation"><div>Week navigation</div></FieldLabel>} />);
+    const range = screen.getByText("Date Range").closest('[data-admin-filter-slot]');
+    expect(range.dataset.adminFilterRole).toBe("date-range-navigation");
+    expect(range.className).toContain("sm:w-[320px]");
+    expect(range.className).toContain("shrink-0");
   });
 
   it("flattens fragment filters into the main control flow", () => {
