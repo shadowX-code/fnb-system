@@ -16,6 +16,7 @@ import SharedDutyRosterPage from "../features/roster/pages/SharedDutyRosterPage.
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
+import LegalEntitiesPage from "../features/company-users/pages/LegalEntitiesPage.jsx";
 import EmployeeCompliancePage from "../features/company-users/pages/EmployeeCompliancePage.jsx";
 import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.jsx";
 import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
@@ -128,6 +129,11 @@ export const routeDetails = {
     description: "Manage employee profiles, employment data, bank information and optional system login.",
     component: UsersPage,
     props: { peopleMode: "employees" },
+  },
+  "legal-entities": {
+    description: "Manage legal employing entities referenced by employee records and employment documents.",
+    component: LegalEntitiesPage,
+    permission: "legal_entities.view",
   },
   "job-positions": {
     description: "Manage HR job titles used in employee profiles.",

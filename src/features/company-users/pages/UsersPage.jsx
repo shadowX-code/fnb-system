@@ -18,8 +18,7 @@ import { employeeService } from "../../../services/employeeService.js";
 import { employeeComplianceService } from "../../../services/employeeComplianceService.js";
 import EmployeeDisciplinaryPanel from "../components/EmployeeDisciplinaryPanel.jsx";
 import EmployeeEmploymentDocumentsPanel from "../components/EmployeeEmploymentDocumentsPanel.jsx";
-import LegalEntitiesModal from "../components/LegalEntitiesModal.jsx";
-import { legalEntityService } from "../../../services/employmentDocumentService.js";
+import { legalEntityService } from "../../../services/legalEntityService.js";
 import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
 import { normalizeEmployeeLoginEmail } from "../../../services/employeeIdentity.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
@@ -1381,7 +1380,6 @@ export default function UsersPage({ ui, store, auth }) {
   const [jobPositions, setJobPositions] = useState([]);
   const [roleRecords, setRoleRecords] = useState([]);
   const [legalEntities, setLegalEntities] = useState([]);
-  const [legalEntitiesOpen, setLegalEntitiesOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
@@ -1407,7 +1405,6 @@ export default function UsersPage({ ui, store, auth }) {
   const canViewDisciplinary = hasPermission(auth, "employee_disciplinary.view");
   const canManageDisciplinary = hasPermission(auth, "employee_disciplinary.manage");
   const canViewLegalEntities = hasPermission(auth, "legal_entities.view");
-  const canManageLegalEntities = hasPermission(auth, "legal_entities.manage");
   const canViewEmploymentDocuments = hasPermission(auth, "employee_employment_documents.view");
   const canManageEmploymentDocuments = hasPermission(auth, "employee_employment_documents.manage");
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
@@ -1861,7 +1858,6 @@ export default function UsersPage({ ui, store, auth }) {
         description={pageCopy.description}
         actions={
           <div className="flex flex-wrap gap-2">
-            {canManageLegalEntities ? <button className="btn-secondary" type="button" onClick={() => setLegalEntitiesOpen(true)}><BriefcaseBusiness size={16} /> Legal Entities</button> : null}
             {canCreateEmployee ? <button className="btn-primary" type="button" onClick={() => setFormState({ mode: "add", user: createEmptyUser() })}><Plus size={16} /> {pageCopy.action}</button> : <Badge tone="neutral">Read-only access</Badge>}
           </div>
         }
@@ -2014,7 +2010,6 @@ export default function UsersPage({ ui, store, auth }) {
           onSubmit={saveUser}
         />
       ) : null}
-      {legalEntitiesOpen ? <LegalEntitiesModal entities={legalEntities} ui={ui} onClose={() => setLegalEntitiesOpen(false)} onChanged={async (selectedId) => { const rows = await legalEntityService.list(); setLegalEntities(rows); return rows.find((entity) => entity.id === selectedId); }} /> : null}
       {setupLink ? (
         <Modal
           title="Login Setup Link Generated"

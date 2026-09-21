@@ -8,22 +8,6 @@ async function invokeDocument(body) {
   return data;
 }
 
-export const legalEntityService = {
-  async list() {
-    const { data, error } = await supabase.rpc("legal_entity_list");
-    throwSupabaseError("legalEntities.list", error);
-    return data ?? [];
-  },
-  async save(legalEntity) {
-    const { data, error } = await supabase.rpc("legal_entity_save", {
-      p_legal_entity_id: legalEntity.id || null,
-      p_payload: legalEntity,
-    });
-    throwSupabaseError("legalEntities.save", error);
-    return data;
-  },
-};
-
 export const employmentContractTemplateService = {
   async list(legalEntityId) {
     const { data, error } = await supabase.rpc("employment_contract_templates_for_legal_entity", { p_legal_entity_id: legalEntityId });

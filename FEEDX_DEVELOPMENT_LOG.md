@@ -2,6 +2,8 @@
 
 ## 2026-09-21 — Platform Crew Notification Foundation V1
 
+- Promoted Legal Entities from an Employees-page utility into its own People master-data module. The existing canonical Legal Entity table, RPC authority, permissions and employee relationship remain unchanged; the standalone list now exposes server-derived linked-employee counts and deactivation preserves existing assignments and document history.
+
 - Added a private, token-bound Platform delivery/read projection for Crew notifications with deterministic producer dedupe, source-domain typed descriptors, and append-only read receipts.
 - Connected the Crew Home bell and mobile Notification Center without coupling notification reads to disciplinary, employment-document, compliance, leave, roster, or Task lifecycle actions.
 - Documented the Platform ownership boundary and producer contracts for People, Workforce, and Operations. Time-based compliance/Task notification generation is server-scheduled in Malaysia time and launches prospectively without historical backfill.
