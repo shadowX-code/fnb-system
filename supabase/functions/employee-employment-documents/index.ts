@@ -21,7 +21,15 @@ function displayDate(value: unknown) {
 }
 
 function formatMoney(value: unknown) {
+  if (value === null || value === undefined || value === "") return "Not provided";
   return new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR", minimumFractionDigits: 2 }).format(Number(value || 0));
+}
+
+function base64(bytes: Uint8Array) {
+  let text = "";
+  const chunkSize = 0x8000;
+  for (let index = 0; index < bytes.length; index += chunkSize) text += String.fromCharCode(...bytes.subarray(index, index + chunkSize));
+  return btoa(text);
 }
 
 function contractTokenValues(manifest: Record<string, any>) {
@@ -222,6 +230,27 @@ Deno.serve(async (request) => {
     }
 
     const body = await request.json();
+    if (body?.action === "template_preview") {
+      const legalEntityId = String(body?.legal_entity_id || "");
+      const employeeId = String(body?.employee_id || "");
+      if (!uuidPattern.test(legalEntityId) || !uuidPattern.test(employeeId) || !body?.template) return reply({ error: "Choose a legal employer, employee and valid template draft." }, 400);
+      const { data: userData, error: userError } = await caller.auth.getUser();
+      if (userError || !userData.user?.id) return reply({ error: "Your Admin session is unavailable." }, 401);
+      const { data: manifest, error: contextError } = await caller.rpc("employment_contract_template_preview_context", {
+        p_legal_entity_id: legalEntityId,
+        p_employee_id: employeeId,
+        p_payload: body.template,
+      });
+      if (contextError || !manifest) return reply({ error: "The draft template preview is unavailable. Review the required template fields and employee scope." }, 403);
+      const bytes = await renderContractPdf(manifest);
+      if (!bytes.byteLength || bytes.byteLength > maxBytes) return reply({ error: "The generated contract exceeds the 10 MB document limit." }, 400);
+      return reply({
+        preview_pdf_base64: base64(bytes),
+        file_name: `${String(manifest.document?.title || "employment-contract").replace(/[^A-Za-z0-9_-]+/g, "_")}.pdf`,
+        missing_variables: manifest.missing_variables || [],
+        preview: true,
+      });
+    }
     const documentId = String(body?.document_id || "");
     if (!uuidPattern.test(documentId)) return reply({ error: "Employment document was not found." }, 400);
     if (body?.action === "contract_preview") {

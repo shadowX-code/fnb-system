@@ -88,6 +88,8 @@ Create Contract is employee-profile-first: an authorized Admin selects a publish
 
 The database builds a canonical render manifest from the exact template version, current employee/legal-employer values, and terms. The dedicated Employment Documents Edge Function renders that manifest to a private PDF and records its SHA-256. Send recomputes the manifest and refuses a stale preview; it snapshots the terms and template version alongside the existing V1 PDF, employee, employer, issuer, consent, and lifecycle evidence. Generated and uploaded contracts therefore share the same Draft → Sent → Viewed → Completed acknowledgement lifecycle and Crew Contracts & Letters consumer. V2 remains an acknowledgement workflow, not a claim of electronic-signature status.
 
+The Legal Entity contract workspace may also render a transient draft preview. This is a read-only, permission- and employee-scope-checked use of the same Employment Documents server PDF renderer: it receives only an active employee linked to the selected Legal Entity, returns in-memory PDF bytes plus missing-token indicators, and never publishes a template, creates an Employment Document, writes Storage, or records an audit event. Draft preview is therefore not a contract issuance path and cannot alter immutable published versions.
+
 ## Workflows And Integrations
 
 Admins create and maintain employees, link eligible Admin identities through controlled workflows, assign roles, configure permissions, and manage scope.

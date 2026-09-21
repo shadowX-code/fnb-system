@@ -24,6 +24,14 @@ export const employmentContractTemplateService = {
     throwSupabaseError("employmentContractTemplates.publish", error);
     return data;
   },
+  async previewEmployees(legalEntityId) {
+    const { data, error } = await supabase.rpc("employment_contract_template_preview_employees", { p_legal_entity_id: legalEntityId });
+    throwSupabaseError("employmentContractTemplates.previewEmployees", error);
+    return data ?? [];
+  },
+  async previewDraft({ legalEntityId, employeeId, template }) {
+    return invokeDocument({ action: "template_preview", legal_entity_id: legalEntityId, employee_id: employeeId, template });
+  },
 };
 
 export const employmentDocumentService = {

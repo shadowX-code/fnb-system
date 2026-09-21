@@ -33,7 +33,10 @@ describe("Legal Entities People module", () => {
     expect(migrationSource).not.toContain("alter table public.employees");
   });
 
-  it("uses the canonical ActionMenu render trigger contract", () => {
-    expect(legalEntitiesPageSource).toContain("trigger={({ toggle, ariaLabel }) =>");
+  it("uses direct Legal Entity row actions without an overflow-menu dependency", () => {
+    expect(legalEntitiesPageSource).not.toContain("ActionMenu");
+    expect(legalEntitiesPageSource).not.toContain("MoreHorizontal");
+    expect(legalEntitiesPageSource).toContain("Contract Templates");
+    expect(legalEntitiesPageSource).toContain("Deactivate");
   });
 });

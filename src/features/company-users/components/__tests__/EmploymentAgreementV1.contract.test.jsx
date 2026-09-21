@@ -5,6 +5,8 @@ import { employmentAgreementV1 } from "../../constants/employmentAgreementV1.js"
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260921134635_employment_agreement_v1_contract_tokens.sql"), "utf8");
 const renderer = readFileSync(resolve(process.cwd(), "supabase/functions/employee-employment-documents/index.ts"), "utf8");
+const templateWorkspace = readFileSync(resolve(process.cwd(), "src/features/company-users/components/LegalEntityContractTemplatesModal.jsx"), "utf8");
+const draftPreviewMigration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260922020000_employment_contract_template_draft_preview.sql"), "utf8");
 
 describe("Employment Agreement V1", () => {
   it("is a reusable Malaysian agreement without reference-person or employer data", () => {
@@ -33,5 +35,20 @@ describe("Employment Agreement V1", () => {
     expect(renderer).toContain("drawSignatureBlock");
     expect(renderer).toContain("employee.residential_address");
     expect(renderer).toContain("employee_employment_contract_render_finalize_service");
+  });
+
+  it("keeps the standard agreement editable through a compact clause workspace and previews with the same renderer", () => {
+    expect(templateWorkspace).toContain("Use Employment Agreement V1");
+    expect(templateWorkspace).toContain("Insert Variable");
+    expect(templateWorkspace).toContain("Preview as Employee");
+    expect(templateWorkspace).toContain("Draft preview");
+    expect(templateWorkspace).toContain("TEMPLATES / VERSIONS");
+    expect(templateWorkspace).toContain("selectedVersionId");
+    expect(draftPreviewMigration).toContain("employment_contract_template_preview_context");
+    expect(draftPreviewMigration).toContain("employment_contract_template_preview_employees");
+    expect(draftPreviewMigration).toContain("'sections',version.sections");
+    expect(draftPreviewMigration).toContain("never create an employment document");
+    expect(renderer).toContain('body?.action === "template_preview"');
+    expect(renderer).toContain("renderContractPdf(manifest)");
   });
 });

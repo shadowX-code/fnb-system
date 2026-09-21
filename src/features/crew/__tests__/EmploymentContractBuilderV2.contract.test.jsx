@@ -30,6 +30,7 @@ describe("People Employment Contract Builder V2 authority", () => {
     expect(edgeFunction).toContain('from "npm:pdf-lib@1.17.1"');
     expect(edgeFunction).toContain('body?.action === "contract_preview"');
     expect(edgeFunction).toContain("employee_employment_contract_render_finalize_service");
+    expect(edgeFunction).toContain('body?.action === "template_preview"');
     expect(edgeFunction).toContain('crypto.subtle.digest("SHA-256", bytes)');
     expect(panel).toContain("Create Contract");
     expect(panel).toContain("Upload Existing");
