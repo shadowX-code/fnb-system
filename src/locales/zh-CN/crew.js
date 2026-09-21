@@ -57,7 +57,7 @@ Object.assign(resources.tasks, { summary:"任务摘要", assignedTo:"负责人",
 Object.assign(resources.home, { shift:"班次", complete:"完成" });
 Object.assign(resources.reward, { awaitingPerformance:"奖励暂未准备好", awaitingPerformanceBody:"本月绩效审核完成后，您的奖励将会显示。", notEligible:"此期间暂不可获得奖励", notEligibleBody:"此期间不符合获得奖励的条件。", preparing:"奖励正在准备中", preparingBody:"准备就绪后将显示您的奖励详情。" });
 Object.assign(resources.reward, { notFinal:"尚未确认", basedOnCurrentPerformance:"基于您当前的绩效", draftProjectionAssumption:"本月绩效确认前，您的奖励金额仍可能变动。" });
-Object.assign(resources.performance, { trendUp:"↑ {{points}} 分", trendDown:"↓ {{points}} 分", trendNoChange:"— 无变化", vsPreviousPeriod:"较 {{period}}", latestFinalizedResult:"最新已确认结果", scoreLabel:"绩效分数" });
+Object.assign(resources.performance, { trendUp:"↑ {{points}} 分", trendDown:"↓ {{points}} 分", trendNoChange:"— 无变化", vsPreviousPeriod:"较 {{period}}", latestFinalizedResult:"最新已确认结果", scoreLabel:"绩效分数", currentScore:"当前分数", currentScoreLabel:"当前分数：{{score}} / 100", currentScoreProgress:"已计分 {{scored}} / {{total}} 项 · {{pending}} 项待审核", currentScorePending:"{{pending}} 项待审核" });
 resources.disciplinary = {
   title:"警告与通知", intro:"查看正式雇佣通知及您的回应记录。", empty:"暂无警告或通知", emptyBody:"正式雇佣通知将显示在这里。", loadError:"无法加载警告与通知。", review:"审阅", view:"查看", issued:"发出于 {{date}}",
   warningNumber:"警告 #{{number}}", unreadCount:"{{count}} 条未读警告", relatedWarning:"相关先前警告", relatedWarningSummary:"警告 #{{number}} · {{type}} · {{subject}}",

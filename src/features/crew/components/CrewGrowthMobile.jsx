@@ -22,8 +22,6 @@ import {
   Sparkles,
   Star,
   Target,
-  TrendingDown,
-  TrendingUp,
 } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { CrewMobilePageHeader, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
@@ -31,7 +29,7 @@ import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import { CrewHelpSheet, CrewHelpTrigger } from "./CrewHelp.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
-import { getFinalizedPerformanceTrend, getPerformanceScoreComparison } from "../utils/performanceTrend.js";
+import { getFinalizedPerformanceTrend, getPerformanceScoreComparison, getPerformanceScorePresentation } from "../utils/performanceTrend.js";
 import growthPerformanceHeroBackground from "../assets/growth-performance-hero-approved.webp";
 import performanceDetailHeroBackground from "../assets/performance-detail-hero-approved.webp";
 
@@ -240,21 +238,22 @@ function GrowthPerformanceScore({ score, label }) {
 
 function GrowthPerformanceHero({ performance, onOpen }) {
   const { t } = useTranslation();
-  const score = performance?.score == null ? null : Math.round(Number(performance.score));
-  const comparison = getPerformanceScoreComparison(performance);
+  const presentation = getPerformanceScorePresentation(performance);
+  const score = presentation.score == null ? null : Math.round(presentation.score);
+  const comparison = presentation.isComparable ? getPerformanceScoreComparison({ ...performance, score: presentation.score }) : null;
   const trendCopy = comparison
     ? { value: comparison.direction === "up" ? t("performance.trendUp", { points: comparison.points }) : comparison.direction === "down" ? t("performance.trendDown", { points: comparison.points }) : t("performance.trendNoChange"), context: t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) }) }
     : { value: t("growth.noTrend"), context: null };
-  const TrendIcon = comparison?.direction === "down" ? TrendingDown : comparison?.direction === "neutral" ? null : TrendingUp;
+  const progressCopy = t("performance.currentScoreProgress", { scored: presentation.scoredComponents, total: presentation.totalComponents, pending: presentation.pendingComponents });
   return <article className="crew-growth-performance-hero" style={{ "--crew-growth-performance-background": `url(${growthPerformanceHeroBackground})` }}>
     <div className="crew-growth-performance-copy">
       <small>{t("growth.performance")}</small>
-      <h2>{performanceLevel(score, t)}</h2>
-      <p>{t("growth.thisMonth")}</p>
-      <span className={`crew-growth-performance-trend is-${comparison?.direction || "neutral"}`}>{TrendIcon ? <TrendIcon size={17} aria-hidden="true" /> : <i aria-hidden="true">—</i>}<span><strong>{trendCopy.value}</strong>{trendCopy.context ? <small>{trendCopy.context}</small> : null}</span></span>
+      <h2>{presentation.isPartial ? t("performance.currentScore") : performanceLevel(score, t)}</h2>
+      <p>{presentation.isPartial ? progressCopy : t("growth.thisMonth")}</p>
+      <span className={`crew-growth-performance-trend is-${presentation.isPartial ? "neutral" : comparison?.direction || "neutral"}`}><span><strong>{presentation.isPartial ? t("performance.reviewProgress") : trendCopy.value}</strong>{presentation.isPartial ? <small>{t("performance.currentScorePending", { pending: presentation.pendingComponents })}</small> : trendCopy.context ? <small>{trendCopy.context}</small> : null}</span></span>
       <button type="button" className="crew-mobile-secondary" onClick={onOpen}>{t("growth.viewPerformance")} <ChevronRight size={18} /></button>
     </div>
-    <GrowthPerformanceScore score={score} label={score == null ? t("performance.awaitingData") : `${score} / 100`} />
+    <GrowthPerformanceScore score={score} label={presentation.isPartial ? t("performance.currentScoreLabel", { score }) : score == null ? t("performance.awaitingData") : `${score} / 100`} />
   </article>;
 }
 
@@ -404,24 +403,25 @@ function PerformanceComponentModal({ component, onClose, onNavigate }) {
 
 function PerformanceHero({ performance }) {
   const { t } = useTranslation();
-  const score = performance.score == null ? null : Math.round(Number(performance.score));
-  const comparison = getPerformanceScoreComparison(performance);
+  const presentation = getPerformanceScorePresentation(performance);
+  const score = presentation.score == null ? null : Math.round(presentation.score);
+  const comparison = presentation.isComparable ? getPerformanceScoreComparison({ ...performance, score: presentation.score }) : null;
   const deltaLabel = comparison?.direction === "up" ? t("performance.trendUp", { points: comparison.points }) : comparison?.direction === "down" ? t("performance.trendDown", { points: comparison.points }) : comparison ? t("performance.trendNoChange") : null;
-  const TrendIcon = comparison?.direction === "down" ? TrendingDown : comparison?.direction === "neutral" ? null : TrendingUp;
   return <article className="crew-performance-final-hero" style={{ "--crew-performance-detail-background": `url(${performanceDetailHeroBackground})` }}>
     <div className="crew-performance-final-hero-copy">
       <div className="crew-performance-final-period"><strong>{monthLabel(performance.period_start, "long", t)}</strong><span className={`is-${performance.status}`}>{performanceStatus(performance.status, t)}</span></div>
       <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong><span>/100</span></div>
-      <h2>{score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
-      <p>{score == null ? t("performance.evidenceReview") : performanceMessage(score, t)}</p>
-      {comparison ? <small className={`is-${comparison.direction}`}>{TrendIcon ? <TrendIcon size={13} aria-hidden="true" /> : <i aria-hidden="true">—</i>}<span><strong>{deltaLabel}</strong><span>{t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) })}</span></span></small> : null}
+      <h2>{presentation.isPartial ? t("performance.currentScore") : score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
+      <p>{presentation.isPartial ? t("performance.currentScoreProgress", { scored: presentation.scoredComponents, total: presentation.totalComponents, pending: presentation.pendingComponents }) : score == null ? t("performance.evidenceReview") : performanceMessage(score, t)}</p>
+      {comparison ? <small className={`is-${comparison.direction}`}><span><strong>{deltaLabel}</strong><span>{t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) })}</span></span></small> : null}
     </div>
   </article>;
 }
 
 function PerformanceBreakdown({ performance, onSelect }) {
   const { t } = useTranslation();
-  const total = performance.score == null ? null : Math.round(Number(performance.score));
+  const presentationScore = getPerformanceScorePresentation(performance).score;
+  const total = presentationScore == null ? null : Math.round(presentationScore);
   return <section className="crew-performance-final-breakdown">
     <header className="crew-performance-final-breakdown-head"><h2 className="crew-type-section-title">{t("performance.scoreBreakdown")}</h2><strong aria-hidden="true">{total == null ? "— / 100" : `${total} / 100`}</strong></header>
     <div className="crew-performance-final-breakdown-card">
@@ -442,6 +442,7 @@ function PerformanceBreakdown({ performance, onSelect }) {
 
 function PerformanceStrengths({ performance }) {
   const { t } = useTranslation();
+  if (!getPerformanceScorePresentation(performance).isComparable) return null;
   const strengths = performanceComponents(t).map((definition) => {
     const item = performance.breakdown?.[definition.key] || {};
     const score = item.score == null ? null : Number(item.score);

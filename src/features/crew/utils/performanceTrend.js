@@ -8,6 +8,51 @@ const finiteNumber = (value) => {
   return Number.isFinite(number) ? number : null;
 };
 
+const scoreStates = new Set(["unavailable", "partial", "complete", "finalized"]);
+
+const componentScoreCount = (breakdown) => Object.values(breakdown || {}).filter((component) => finiteNumber(component?.score) != null).length;
+
+// The database owns the score and completion projection. This only makes older
+// responses and focused UI fixtures safe to render while the mobile contract
+// rolls out.
+export const getPerformanceScorePresentation = (performance) => {
+  const explicitState = performance?.score_state;
+  const fallbackState = performance?.status === "finalized"
+    ? "finalized"
+    : finiteNumber(performance?.total_score) != null
+      ? "complete"
+      : finiteNumber(performance?.current_score) != null || performance?.status === "review_required"
+        ? "partial"
+        : finiteNumber(performance?.score) != null
+          ? "complete"
+          : "unavailable";
+  const state = scoreStates.has(explicitState) ? explicitState : fallbackState;
+  const score = state === "partial"
+    ? finiteNumber(performance?.current_score) ?? finiteNumber(performance?.score)
+    : state === "unavailable"
+      ? null
+      : finiteNumber(performance?.total_score) ?? finiteNumber(performance?.score);
+  const scoredComponents = performance?.scored_components != null && Number.isInteger(Number(performance.scored_components))
+    ? Number(performance.scored_components)
+    : componentScoreCount(performance?.breakdown);
+  const totalComponents = performance?.total_components != null && Number.isInteger(Number(performance.total_components))
+    ? Number(performance.total_components)
+    : 5;
+  const pendingComponents = performance?.pending_components != null && Number.isInteger(Number(performance.pending_components))
+    ? Number(performance.pending_components)
+    : Math.max(0, totalComponents - scoredComponents);
+
+  return {
+    state,
+    score,
+    scoredComponents,
+    totalComponents,
+    pendingComponents,
+    isPartial: state === "partial",
+    isComparable: state === "complete" || state === "finalized",
+  };
+};
+
 const byPeriod = (left, right) => String(left.period_start || "").localeCompare(String(right.period_start || ""));
 
 export const getFinalizedPerformanceTrend = (trend, limit = 4) => (Array.isArray(trend) ? trend : [])
@@ -30,8 +75,9 @@ export const formatPerformanceScorePoints = (value, language) => {
 };
 
 export const getPerformanceScoreComparison = (performance) => {
+  if (!getPerformanceScorePresentation(performance).isComparable) return null;
   const { score, period_start: periodStart, trend } = performance || {};
-  const currentScore = finiteNumber(score);
+  const currentScore = getPerformanceScorePresentation(performance).score ?? finiteNumber(score);
   if (currentScore == null) return null;
 
   const comparable = getFinalizedPerformanceTrend(trend, Number.POSITIVE_INFINITY);

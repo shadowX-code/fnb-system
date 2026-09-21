@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatPerformanceScorePoints, getPerformanceScoreComparison, normalizePerformanceScoreDelta } from "../performanceTrend.js";
+import { formatPerformanceScorePoints, getPerformanceScoreComparison, getPerformanceScorePresentation, normalizePerformanceScoreDelta } from "../performanceTrend.js";
 
 const comparison = (score, previousScore) => getPerformanceScoreComparison({
   score,
@@ -36,5 +36,26 @@ describe("Crew Performance trend presentation", () => {
     expect(getPerformanceScoreComparison({ score: 80, period_start: "2026-09-01", trend: [] })).toBeNull();
     expect(getPerformanceScoreComparison({ score: 80, period_start: "2026-09-01", trend: [{ period_start: "2026-08-01", status: "review_required", score: 72 }] })).toBeNull();
     expect(formatPerformanceScorePoints(null)).toBeNull();
+  });
+
+  it("keeps a server-projected partial score out of month-over-month comparison", () => {
+    const partial = {
+      status: "review_required",
+      score_state: "partial",
+      score: 51,
+      current_score: 51,
+      total_score: null,
+      scored_components: 3,
+      pending_components: 2,
+      total_components: 5,
+      period_start: "2026-09-01",
+      trend: [{ period_start: "2026-08-01", status: "finalized", score: 86 }],
+    };
+    expect(getPerformanceScorePresentation(partial)).toMatchObject({ state: "partial", score: 51, scoredComponents: 3, pendingComponents: 2, isComparable: false });
+    expect(getPerformanceScoreComparison(partial)).toBeNull();
+  });
+
+  it("uses the completed score for a mutable result only after every component is scored", () => {
+    expect(getPerformanceScorePresentation({ status: "draft", current_score: 84, total_score: 84, scored_components: 5, pending_components: 0, total_components: 5 })).toMatchObject({ state: "complete", score: 84, isComparable: true });
   });
 });

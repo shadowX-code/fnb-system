@@ -85,6 +85,25 @@ describe("Crew Growth mobile final IA", () => {
     expect(document.body.textContent).not.toContain("-19.930000000000007");
   });
 
+  it("presents a partial score as current work in progress without a performance band or prior-month comparison", () => {
+    const partialPerformance = {
+      period_start: "2026-09-01", status: "review_required", score_state: "partial", score: 51, current_score: 51, total_score: null,
+      scored_components: 3, pending_components: 2, total_components: 5,
+      breakdown: { attendance: { score: 24 }, customer: { score: 12 }, knowledge: { score: 15 }, service: { score: null }, conduct: { score: null } },
+      trend: [{ period_start: "2026-08-01", status: "finalized", score: 86 }],
+    };
+    const { rerender } = render(<CrewGrowthMobile data={data} performance={partialPerformance} />);
+    expect(screen.getByText("Current score")).not.toBeNull();
+    expect(screen.getByText("3 of 5 components scored · 2 pending")).not.toBeNull();
+    expect(screen.queryByText("Below Standard")).toBeNull();
+    expect(screen.queryByText("↓ 35 pts")).toBeNull();
+    rerender(<CrewGrowthMobile data={data} performance={partialPerformance} initialView="performance" />);
+    expect(screen.getByText("Current score")).not.toBeNull();
+    expect(screen.getByText("3 of 5 components scored · 2 pending")).not.toBeNull();
+    expect(screen.queryByText("Below Standard")).toBeNull();
+    expect(screen.queryByText("vs August 2026")).toBeNull();
+  });
+
   it.each([0, 1, 50, 87, 100])("renders exactly %s active score segments", (score) => {
     render(<CrewGrowthMobile data={data} performance={{ score, trend: [] }} />);
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(score);
