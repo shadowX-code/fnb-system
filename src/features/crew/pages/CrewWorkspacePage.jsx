@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, CalendarDays, ChevronRight, ClipboardCheck, Clock3, ListChecks, MoreHorizontal, ShieldCheck, UserCheck } from "lucide-react";
+import { CalendarDays, ChevronRight, Clock3, ListChecks, MoreHorizontal, ShieldCheck, UserCheck } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
@@ -154,16 +154,15 @@ function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
       <AdminDataSection title="Today" description="Live operational context for the selected outlet.">
         <TodayMetrics summary={summary} />
       </AdminDataSection>
-      <section className="rounded-lg border border-border bg-mint-50/40 px-4 py-3 text-sm text-text-primary" aria-label="Operational brief"><strong className="mr-2">Operational brief</strong>{operationalBrief(summary)}</section>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]">
-        <AdminDataSection title="Needs Your Attention" description="Prioritized operational items with an owning workflow." actions={attention.length ? <span className="text-xs font-semibold text-text-muted">{attention.length} items</span> : null}>
+      <section className="rounded-lg border border-border bg-mint-50/40 px-4 py-3 text-sm text-text-primary" aria-label="Operational brief">{operationalBrief(summary, attention.length)}</section>
+      <div className={`grid gap-4 ${data.upcoming?.length ? "xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]" : ""}`}>
+        <AdminDataSection title="Needs Your Attention" description="Prioritized operational items with an owning workflow." actions={attention.length ? <span className="text-xs font-semibold text-text-muted">{attention.length} areas need attention</span> : null}>
           <AttentionList items={attention} />
         </AdminDataSection>
-        <AdminDataSection title="Coming Up" description="The next seven days, where the outlet has confirmed operational context.">
+        {data.upcoming?.length ? <AdminDataSection title="Coming Up" description="The next seven days, where the outlet has confirmed operational context.">
           <UpcomingList items={data.upcoming || []} />
-        </AdminDataSection>
+        </AdminDataSection> : null}
       </div>
-      {Number(summary.tasks_total || 0) > 0 ? <AdminDataSection title="Today's Progress" description="Task work completed today."><div className="p-4"><div className="flex items-center justify-between text-sm"><span className="font-medium text-text-primary"><ListChecks className="mr-2 inline text-primary" size={16} />Tasks</span><span>{summary.tasks_completed || 0} / {summary.tasks_total}</span></div><div className="mt-2 h-2 overflow-hidden rounded bg-border"><div className="h-full rounded bg-primary" style={{ width: `${Math.min(100, Math.round((Number(summary.tasks_completed || 0) / Number(summary.tasks_total || 1)) * 100))}%` }} /></div></div></AdminDataSection> : null}
     </AsyncDataSurface>
   </div>;
 }
@@ -180,28 +179,19 @@ function UpcomingList({ items }) {
   </div>;
 }
 
-function TodayMetrics({ summary }) { const leaveNames=(summary.leave_today||[]).slice(0,2).map((item)=>item.name).join(", "); return <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"><DailyMetric label="Scheduled today" value={summary.scheduled_today || 0} helper={`${summary.present_today || 0} present · ${summary.not_checked_in || 0} not yet checked in`} icon={CalendarDays}/><DailyMetric label="Attendance" value={summary.attendance_issues || 0} helper={Number(summary.attendance_issues||0) ? "Issue needs review" : "No recorded issues"} icon={UserCheck}/><DailyMetric label="On leave today" value={summary.on_leave_today || 0} helper={leaveNames || "No approved leave"} icon={Clock3}/><DailyMetric label="Tasks today" value={`${summary.tasks_completed || 0}/${summary.tasks_total || 0}`} helper={Number(summary.tasks_overdue||0) ? `${summary.tasks_overdue} overdue` : "No overdue tasks"} icon={ListChecks}/></div>; }
+function TodayMetrics({ summary }) { const leaveNames=(summary.leave_today||[]).slice(0,2).map((item)=>item.name).join(", "); const pending=Number(summary.not_checked_in||0); return <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"><DailyMetric label="Scheduled today" value={summary.scheduled_today || 0} helper={`${summary.present_today || 0} checked in${pending ? ` · ${pending} not yet accounted for` : ""}`} icon={CalendarDays}/><DailyMetric label="Attendance" value={summary.attendance_issues || 0} helper={Number(summary.attendance_issues||0) ? "Recorded exception needs review" : pending ? "No recorded exceptions · roster is still pending" : "No recorded exceptions"} icon={UserCheck}/><DailyMetric label="On leave today" value={summary.on_leave_today || 0} helper={leaveNames || "No approved leave"} icon={Clock3}/><DailyMetric label="Tasks today" value={`${summary.tasks_completed || 0}/${summary.tasks_total || 0}`} helper={Number(summary.tasks_overdue||0) ? `${summary.tasks_overdue} overdue` : "No overdue tasks"} icon={ListChecks}/></div>; }
 function DailyMetric({label,value,helper,icon:Icon}) { return <div className="flex gap-3 p-4"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><Icon size={17}/></span><span className="min-w-0"><small className="block text-xs font-medium text-text-secondary">{label}</small><strong className="block text-xl text-text-primary">{value}</strong><small className="block truncate text-xs text-text-secondary">{helper}</small></span></div>; }
-function operationalBrief(summary) { const scheduled=Number(summary.scheduled_today||0); const present=Number(summary.present_today||0); const issues=Number(summary.attendance_issues||0); const overdue=Number(summary.tasks_overdue||0); if (!scheduled && !Number(summary.tasks_total||0)) return "No published roster or task work is scheduled for this outlet today."; if (!issues && !overdue && present>=scheduled) return "Everything looks on track. All scheduled Crew are accounted for and there are no urgent operational issues."; return `${scheduled} Crew scheduled today. ${present} have checked in.${issues ? ` ${issues} attendance issue${issues===1?"":"s"}` : ""}${overdue ? `${issues ? " and" : ""} ${overdue} overdue task${overdue===1?"":"s"}` : ""} need attention.`; }
+function operationalBrief(summary, attentionAreas) { const missing=Number(summary.not_checked_in||0); const overdue=Number(summary.tasks_overdue||0); if (!attentionAreas) return "Everything looks on track today."; const details=[missing ? `${missing} Crew ${missing===1?"has":"have"} not checked in` : "",overdue ? `${overdue} task${overdue===1?"":"s"} ${overdue===1?"is":"are"} overdue` : ""].filter(Boolean); const prefix=`${attentionAreas} area${attentionAreas===1?"":"s"} need attention today.`; return details.length ? `${prefix} ${details.join(" and ")}.` : prefix; }
 
 function AttentionList({ items }) {
   if (!items.length) return <div className="p-5 text-sm text-text-secondary">No current Crew items need action.</div>;
   return <div className="divide-y divide-border px-4">
     {items.map((item) => <a className="flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary" href={attentionHref(item.key)} key={item.key}>
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-amber-50 text-amber-700"><AttentionIcon itemKey={item.key} /></span>
+      <span className={`grid h-8 w-1 shrink-0 rounded-full ${item.priority === "urgent" ? "bg-rose-500" : item.priority === "low" ? "bg-border" : "bg-amber-400"}`} aria-hidden="true" />
       <span className="min-w-0 flex-1"><strong className="block text-sm text-text-primary">{item.title}</strong><small className="block text-xs text-text-secondary">{item.detail}</small></span>
-      <span className="grid h-6 min-w-6 shrink-0 place-items-center rounded-full bg-amber-100 px-1.5 text-xs font-bold text-amber-800">{item.count}</span>
       <ChevronRight className="shrink-0 text-text-muted" size={16} />
     </a>)}
   </div>;
-}
-
-function AttentionIcon({ itemKey }) {
-  if (itemKey === "attendance_exceptions") return <AlertTriangle size={15} />;
-  if (itemKey.startsWith("compliance")) return <ClipboardCheck size={15} />;
-  if (itemKey === "performance_reviews") return <UserCheck size={15} />;
-  if (itemKey === "tasks") return <ListChecks size={15} />;
-  return <CalendarDays size={15} />;
 }
 
 function attentionHref(key) {
