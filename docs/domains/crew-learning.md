@@ -43,6 +43,8 @@ Published versions, pinned assignment snapshots, quiz attempts/scores, acknowled
 Admins author SOPs and journeys, configure sequencing and quizzes, publish versions, assign learning, and monitor progress.
 Crew view assigned onboarding and learning, read pinned SOP content, acknowledge requirements, complete lessons, and submit quizzes.
 
+The Admin SOP and Onboarding builders share the canonical ordered-list interaction: a dedicated drag handle initiates pointer reordering, visible insertion feedback preserves the destination context, and Arrow Up/Down on the focused handle remains the keyboard fallback. Builder presentation is shared; each domain retains its own draft and publication authority.
+
 ## Integrations
 
 Crew Workforce provides employee eligibility and secure Crew sessions.
