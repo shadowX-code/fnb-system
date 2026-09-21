@@ -32,7 +32,7 @@ const page = (rows, summary = {}) => ({ rows, totalCount: rows.length, page: 1, 
 beforeEach(() => {
   localStorage.clear();
   employeeService.crewAccessAdminPage.mockReset();
-  crewService.dashboardAdminData.mockReset().mockResolvedValue({ summary: {}, birthdays: [], attention: [], crew_access: {} });
+  crewService.dashboardAdminData.mockReset().mockResolvedValue({ summary: {}, upcoming: [], attention: [] });
   ui.notify.mockReset();
 });
 afterEach(cleanup);
@@ -71,15 +71,14 @@ describe("Crew Access outlet read lifecycle", () => {
 
   it("renders the operational dashboard from its canonical read projection", async () => {
     crewService.dashboardAdminData.mockResolvedValueOnce({
-      summary: { active_crew: 9, scheduled_today: 7, present_today: 6, on_leave_today: 1 },
-      birthdays: [{ employee_id: "birthday-1", full_name: "Aina Rahman", position: "Service Crew", date: "2026-09-22", days_until: 1 }],
+      summary: { scheduled_today: 7, present_today: 6, not_checked_in: 1, attendance_issues: 0, on_leave_today: 1, tasks_total: 3, tasks_completed: 2, tasks_overdue: 1, leave_today: [] },
+      upcoming: [{ type: "birthday", name: "Aina Rahman", position: "Service Crew", date: "2026-09-22", days_until: 1 }],
       attention: [{ key: "leave_requests", count: 2, title: "Pending leave requests", detail: "New requests need review." }],
-      crew_access: { active: 7, not_enabled: 2, locked: 0 },
     });
     mount(outlets, "dashboard");
 
-    expect(await screen.findByText("Workforce Snapshot")).not.toBeNull();
-    expect(screen.getByText("Active Crew")).not.toBeNull();
+    expect(await screen.findByText("Today")).not.toBeNull();
+    expect(screen.getByText("Operational brief")).not.toBeNull();
     expect(screen.getByText("Aina Rahman")).not.toBeNull();
     expect(screen.getByText("Pending leave requests")).not.toBeNull();
     expect(crewService.dashboardAdminData).toHaveBeenCalledWith("outlet-a");
