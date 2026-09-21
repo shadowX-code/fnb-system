@@ -3,14 +3,17 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const mobile = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewComplianceMobile.jsx"), "utf8");
-const me = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewMeMobile.jsx"), "utf8");
+const employmentRecords = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewEmploymentRecordsMobile.jsx"), "utf8");
 const route = readFileSync(resolve(process.cwd(), "src/features/crew/crewRoute.js"), "utf8");
 const admin = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/EmployeeCompliancePage.jsx"), "utf8");
+const crewLocale = readFileSync(resolve(process.cwd(), "src/locales/en/crew.js"), "utf8");
 
-describe("Employee Compliance V1 surfaces", () => {
-  it("activates Documents & Compliance from Me", () => {
-    expect(me).toContain('navigate("compliance")');
-    expect(route).toContain('"me/compliance"');
+describe("Food Handling Compliance V1 surfaces", () => {
+  it("activates Food Handling Compliance from Employment Records", () => {
+    expect(employmentRecords).toContain('id: "compliance"');
+    expect(route).toContain('"me/employment-records/documents-compliance"');
+    expect(crewLocale).toContain('compliance:"Food Handling Compliance"');
+    expect(crewLocale).toContain('title: "Food Handling Compliance"');
   });
 
   it("requires one prepared photo and expiry only for configured requirements", () => {

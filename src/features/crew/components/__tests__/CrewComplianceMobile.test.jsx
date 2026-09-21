@@ -17,7 +17,7 @@ const requirement = (status, extra = {}) => ({
   ...extra,
 });
 
-describe("Crew Documents & Compliance", () => {
+describe("Crew Food Handling Compliance", () => {
   it("uses the shared Crew page-section rhythm around the requirement list", async () => {
     employeeComplianceService.crewOverview.mockResolvedValue({ requirements: [requirement("missing"), requirement("verified", { effective_submission_id: "verified" })] });
     const { container } = render(<CrewComplianceMobile token="opaque-token" onBack={() => {}} />);
@@ -52,7 +52,7 @@ describe("Crew Documents & Compliance", () => {
     fireEvent.click(await screen.findByRole("button", { name: "View Submission" }));
     await waitFor(() => expect(employeeComplianceService.crewEvidenceUrl).toHaveBeenCalledWith("opaque-token", "submission-1"));
     expect(await screen.findByRole("button", { name: /View full image/ })).not.toBeNull();
-    expect(screen.getByAltText("Compliance evidence").getAttribute("src")).toBe("https://signed.example/evidence.webp");
+    expect(screen.getByAltText("Food handling evidence").getAttribute("src")).toBe("https://signed.example/evidence.webp");
   });
 
   it("uses the shared bottom-sheet submission grammar and keeps submit disabled until evidence exists", async () => {

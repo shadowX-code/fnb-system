@@ -44,9 +44,9 @@ Security-sensitive changes derive actor identity server-side and retain meaningf
 Secrets, password material, passcode hashes, and tokens are never exposed in employee payloads or audit details.
 Crew may update only the profile-photo object path derived for the employee resolved from its current opaque token. The private Storage object is read through the approved server boundary using a short-lived signed URL; neither employee ID nor arbitrary Storage path is accepted from Crew clients.
 
-## Employee Compliance V1
+## Food Handling Compliance V1
 
-People owns employee compliance. V1 has exactly two seeded requirements: Food Handler Certificate (one photo, no expiry) and Typhoid Injection (one photo with required expiry). Requirements apply to every active employee; there are no exemptions, position/outlet policies, or downstream eligibility effects. Platform may deliver a normal expiring-soon or important expired notification from the server-derived effective state; this does not change Compliance ownership, action state, or verification authority.
+People owns the user-facing Food Handling Compliance capability. V1 has exactly two seeded requirements: Food Handler Certificate (one photo, no expiry) and Typhoid Injection (one photo with required expiry). Requirements apply to every active employee; there are no exemptions, position/outlet policies, or downstream eligibility effects. Platform may deliver a normal expiring-soon or important expired notification from the server-derived effective state; this does not change Food Handling Compliance ownership, action state, or verification authority. Internal `employee_compliance` contracts retain their established identifiers.
 
 Submissions are immutable and retain an outlet snapshot. Reviews are append-only, require the dedicated `employee_compliance.review` permission, enforce the employee's current outlet scope, and require a reason when rejected. Crew identity is always derived from the opaque Crew session token and Crew can never verify its own evidence.
 

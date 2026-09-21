@@ -98,16 +98,16 @@ export default function EmployeeCompliancePage({ store, auth }) {
   ].filter(Boolean);
 
   return <div className="space-y-5">
-    <PageHeader section="People" title="Employee Compliance" description="Review required employee documents and expiry status across accessible outlets." />
+    <PageHeader section="People" title="Food Handling Compliance" description="Review Food Handler Certificate and Typhoid Injection records, verification and expiry status across accessible outlets." />
     <AdminFilterToolbar outlet={<SelectField label="Outlet" value={outletId} options={outletOptions} onChange={setOutletId} />} search={<AdminSearchField label="Search Crew" value={query} onChange={setQuery} placeholder="Name or employee code" />} filters={<><SelectField label="Requirement" value={requirement} options={requirementOptions} onChange={setRequirement} /><SelectField label="Status" value={status} options={statusOptions} onChange={setStatus} /></>} activeFilters={activeFilters} onClear={() => { setOutletId("all"); setQuery(""); setRequirement("all"); setStatus("all"); }} />
-    <AdminSummaryGrid variant="standard" ariaLabel="Compliance summary" items={[
+    <AdminSummaryGrid variant="standard" ariaLabel="Food handling compliance summary" items={[
       { key: "compliant", label: "Compliant", value: summary.compliant ?? 0, helper: "Currently effective", tone: "success", icon: CheckCircle2 },
       { key: "verification", label: "Needs Verification", value: summary.needs_verification ?? 0, helper: "Pending Admin review", tone: "warning", icon: ShieldCheck },
       { key: "expiring", label: "Expiring Soon", value: summary.expiring_soon ?? 0, helper: "Within 30 days", tone: "warning", icon: Clock3 },
       { key: "missing", label: "Missing or Expired", value: summary.missing_or_expired ?? 0, helper: "Action required", tone: "danger", icon: AlertTriangle },
     ]} />
     <AdminDataSection>
-      <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={listing.hasLoaded && listing.rows.length > 0} isEmpty={listing.hasLoaded && !listing.rows.length} emptyTitle="No compliance records" emptyDescription="No active employees match these filters." onRetry={actions.retry}>
+      <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={listing.hasLoaded && listing.rows.length > 0} isEmpty={listing.hasLoaded && !listing.rows.length} emptyTitle="No food handling records" emptyDescription="No active employees match these filters." onRetry={actions.retry}>
         <DataTable columns={columns} rows={listing.rows} getRowKey={(row) => `${row.employee_id}:${row.requirement_id}`} density="compact" />
         <AdminPagination page={listing.loadedPage} pageSize={listing.loadedPageSize} total={listing.loadedTotal} loading={listing.loading} noun="requirements" onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize} />
       </AsyncDataSurface>

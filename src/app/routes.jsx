@@ -445,7 +445,7 @@ export const routeDetails = {
     props: { initialTab: "employees" },
   },
   employee_compliance: {
-    description: "Review employee compliance documents, verification and expiry state.",
+    description: "Review Food Handler Certificate and Typhoid Injection records, verification and expiry state.",
     component: EmployeeCompliancePage,
     permission: "employee_compliance.view",
   },

@@ -361,7 +361,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "employee_compliance",
     section: "People",
-    label: "Employee Compliance",
+    label: "Food Handling Compliance",
     route: "/people/compliance",
     icon: "employee-compliance",
     sidebar: true,
