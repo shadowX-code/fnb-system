@@ -11,7 +11,7 @@ import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { hasPermission } from "../../../utils/accessControl.js";
 import { legalEntityService } from "../../../services/legalEntityService.js";
-import LegalEntityContractTemplatesModal from "../components/LegalEntityContractTemplatesModal.jsx";
+import LegalEntityContractWorkspacePage from "./LegalEntityContractWorkspacePage.jsx";
 
 function emptyEntity() {
   return {
@@ -101,7 +101,7 @@ export default function LegalEntitiesPage({ ui, auth }) {
   const [status, setStatus] = useState("all");
   const [formEntity, setFormEntity] = useState(null);
   const [deactivateEntity, setDeactivateEntity] = useState(null);
-  const [templatesEntity, setTemplatesEntity] = useState(null);
+  const [contractWorkspaceEntityId, setContractWorkspaceEntityId] = useState(() => contractWorkspaceIdFromHash());
   const [busy, setBusy] = useState(false);
   const canView = hasPermission(auth, "legal_entities.view");
   const canManage = hasPermission(auth, "legal_entities.manage");
@@ -119,6 +119,11 @@ export default function LegalEntitiesPage({ ui, auth }) {
   }
 
   useEffect(() => { if (canView) loadEntities(); else { setLoading(false); setEntities([]); } }, [canView]);
+  useEffect(() => {
+    const syncContractWorkspace = () => setContractWorkspaceEntityId(contractWorkspaceIdFromHash());
+    window.addEventListener("hashchange", syncContractWorkspace);
+    return () => window.removeEventListener("hashchange", syncContractWorkspace);
+  }, []);
 
   const filteredEntities = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -153,8 +158,18 @@ export default function LegalEntitiesPage({ ui, auth }) {
     { key: "registration", header: "Registration / Company ID", width: "24%", render: (row) => <span className="font-medium text-text-primary">{row.company_registration_no}</span> },
     { key: "status", header: "Status", width: "14%", render: (row) => <Badge tone={row.is_active ? "success" : "neutral"}>{row.is_active ? "Active" : "Inactive"}</Badge> },
     { key: "employees", header: "Employees linked", width: "16%", render: (row) => <span className="inline-flex items-center gap-1.5 font-semibold text-text-primary"><Users size={15} className="text-text-muted" />{Number(row.linked_employee_count || 0)}</span> },
-    { key: "actions", header: "Actions", align: "right", width: "250px", render: (row) => canManage ? <div className="flex flex-wrap justify-end gap-x-3 gap-y-2 text-sm font-semibold" onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 text-text-primary hover:text-emerald-800 hover:underline" type="button" onClick={() => setFormEntity(row)}><Edit3 size={14} /> Edit</button><button className="inline-flex items-center gap-1 text-text-primary hover:text-emerald-800 hover:underline" type="button" onClick={() => setTemplatesEntity(row)}><FileText size={14} /> Contract Templates</button>{row.is_active ? <button className="inline-flex items-center gap-1 text-rose-700 hover:underline" type="button" onClick={() => setDeactivateEntity(row)}><Power size={14} /> Deactivate</button> : <button className="inline-flex items-center gap-1 text-emerald-800 hover:underline" type="button" onClick={() => setFormEntity({ ...row, is_active: true })}><Power size={14} /> Activate</button>}</div> : <span className="text-text-muted">—</span> },
+    { key: "actions", header: "Actions", align: "right", width: "250px", render: (row) => canManage ? <div className="flex flex-wrap justify-end gap-x-3 gap-y-2 text-sm font-semibold" onClick={(event) => event.stopPropagation()}><button className="inline-flex items-center gap-1 text-text-primary hover:text-emerald-800 hover:underline" type="button" onClick={() => setFormEntity(row)}><Edit3 size={14} /> Edit</button><button className="inline-flex items-center gap-1 text-text-primary hover:text-emerald-800 hover:underline" type="button" onClick={() => { window.location.hash = `#legal-entities/${row.id}/contract-templates`; }}><FileText size={14} /> Contract Templates</button>{row.is_active ? <button className="inline-flex items-center gap-1 text-rose-700 hover:underline" type="button" onClick={() => setDeactivateEntity(row)}><Power size={14} /> Deactivate</button> : <button className="inline-flex items-center gap-1 text-emerald-800 hover:underline" type="button" onClick={() => setFormEntity({ ...row, is_active: true })}><Power size={14} /> Activate</button>}</div> : <span className="text-text-muted">—</span> },
   ];
+
+  if (contractWorkspaceEntityId) {
+    return <LegalEntityContractWorkspacePage
+      legalEntity={entities.find((entity) => entity.id === contractWorkspaceEntityId) || null}
+      loading={loading}
+      auth={auth}
+      ui={ui}
+      onBack={() => { window.location.hash = "#legal-entities"; }}
+    />;
+  }
 
   return <div className="space-y-4">
     <PageHeader section="People" title="Legal Entities" description="Manage employing entities used across employee records." actions={canManage ? <button className="btn-primary" type="button" onClick={() => setFormEntity(emptyEntity())}><Plus size={16} /> Add Legal Entity</button> : null} />
@@ -163,6 +178,10 @@ export default function LegalEntitiesPage({ ui, auth }) {
     <Card>{loading ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading Legal Entities...</div> : error ? <div className="p-8 text-center text-sm font-semibold text-rose-700">{error}</div> : filteredEntities.length ? <DataTable columns={columns} rows={filteredEntities} getRowKey={(row) => row.id} density="compact" tableClassName="min-w-[980px]" onRowClick={canManage ? (row) => setFormEntity(row) : undefined} /> : <div className="p-8 text-center"><div className="text-sm font-bold text-text-primary">No Legal Entities found.</div><p className="mt-1 text-sm text-text-secondary">Add a legal employer before assigning one to an employee.</p></div>}</Card>
     {formEntity ? <LegalEntityFormModal entity={formEntity} ui={ui} onClose={() => setFormEntity(null)} onSaved={async (saved) => { const latest = await legalEntityService.list(); setEntities(latest); return saved; }} /> : null}
     {deactivateEntity ? <DeactivateModal entity={deactivateEntity} busy={busy} onClose={() => setDeactivateEntity(null)} onConfirm={deactivate} /> : null}
-    {templatesEntity ? <LegalEntityContractTemplatesModal legalEntity={templatesEntity} ui={ui} onClose={() => setTemplatesEntity(null)} /> : null}
   </div>;
+}
+
+function contractWorkspaceIdFromHash() {
+  const match = window.location.hash.match(/^#legal-entities\/([0-9a-f-]{36})\/contract-templates$/i);
+  return match?.[1] || null;
 }

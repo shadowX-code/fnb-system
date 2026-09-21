@@ -101,6 +101,8 @@ Navigation links should target canonical routes.
 Permissions may hide or deny a route but must not redefine its ownership.
 Route completeness contracts should remain aligned with the module registry.
 
+Legal Entity Contract Workspace is the nested canonical People route `#legal-entities/<legal-entity-id>/contract-templates`; it remains owned by Legal Entities and reuses Legal Entity view/manage plus existing Employment Contract Template and Employment Documents authority. It is intentionally not a second sidebar module or a modal workflow.
+
 Restaurant `Reports` is the canonical Admin route for Reporting preview composition. Its page owns filter state and preview controls; its standalone fixed-ratio poster components own visual rendering only. Both consume the Reporting feature service rather than querying Supabase or deriving financial results in the UI.
 
 Compatibility routes preserve old bookmarks or prior module locations by redirecting or resolving to the canonical owner.

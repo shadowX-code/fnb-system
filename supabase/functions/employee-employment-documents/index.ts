@@ -244,9 +244,11 @@ Deno.serve(async (request) => {
       if (contextError || !manifest) return reply({ error: "The draft template preview is unavailable. Review the required template fields and employee scope." }, 403);
       const bytes = await renderContractPdf(manifest);
       if (!bytes.byteLength || bytes.byteLength > maxBytes) return reply({ error: "The generated contract exceeds the 10 MB document limit." }, 400);
+      const pageCount = (await PDFDocument.load(bytes)).getPageCount();
       return reply({
         preview_pdf_base64: base64(bytes),
         file_name: `${String(manifest.document?.title || "employment-contract").replace(/[^A-Za-z0-9_-]+/g, "_")}.pdf`,
+        page_count: pageCount,
         missing_variables: manifest.missing_variables || [],
         preview: true,
       });
