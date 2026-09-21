@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarDays, CheckCircle2, ChevronRight, ClipboardCheck, Clock3, ListChecks, MoreHorizontal, ShieldCheck, SunMedium, UserCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminScopeSwitcher from "../../../components/layout/AdminScopeSwitcher.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -149,11 +150,9 @@ function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
   const crewToday = data.crew_today || [];
   const tasksToday = data.tasks_today || [];
   const brief = operationalBrief(summary, attention.length);
-  const outletControl = <CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
-
   return <div className="space-y-4 crew-dashboard">
     <PageHeader section="Crew · Overview" title="Crew Dashboard" description="What is happening with your Crew today, and what needs attention." />
-    <AdminFilterToolbar outlet={outletControl} compact ariaLabel="Dashboard scope" />
+    <AdminScopeSwitcher ariaLabel="Dashboard outlet" items={outlets} value={outletId} onChange={setOutletId} />
     <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Crew Dashboard" hasData={hasLoaded} isEmpty={!outletId} emptyTitle="No outlet selected" emptyDescription="Select an outlet to see its current Crew operations." onRetry={refresh}>
       <DailyBrief brief={brief} date={data.business_date} />
       <TodayMetrics summary={summary} />

@@ -99,6 +99,15 @@ describe("Crew Access outlet read lifecycle", () => {
     expect(employeeService.crewAccessAdminPage).not.toHaveBeenCalled();
   });
 
+  it("switches the Dashboard outlet directly without rendering a filter toolbar", async () => {
+    crewService.dashboardAdminData.mockResolvedValue({ summary: {}, upcoming: [], attention: [], crew_today: [], tasks_today: [] });
+    mount(outlets, "dashboard");
+    expect(await screen.findByRole("group", { name: "Dashboard outlet" })).not.toBeNull();
+    expect(screen.queryByRole("region", { name: "Dashboard scope" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Outlet B" }));
+    await waitFor(() => expect(crewService.dashboardAdminData).toHaveBeenLastCalledWith("outlet-b"));
+  });
+
   it("keeps an empty Coming Up state inside the compact dashboard surface", async () => {
     crewService.dashboardAdminData.mockResolvedValueOnce({ summary: {}, upcoming: [], attention: [], crew_today: [], tasks_today: [] });
     mount(outlets, "dashboard");
