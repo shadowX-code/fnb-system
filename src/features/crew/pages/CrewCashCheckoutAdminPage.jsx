@@ -42,6 +42,10 @@ const normalizeData = (payload) => {
 };
 const receiverTypeOptions = [{ value: "internal", label: "Internal Receiver" }, { value: "external", label: "External Receiver" }];
 const ledgerDateTime = (value) => ({ date: formatCrewOperationalDate(value), time: formatCrewTime(value, { hour12: true }).toLowerCase() });
+const checkoutDateTime = (row) => {
+  const value = row.completed_at || row.submitted_at || row.updated_at || row.created_at;
+  return value ? ledgerDateTime(value) : { date: "—", time: "" };
+};
 const sameIds = (left = [], right = []) => left.length === right.length && left.every((id) => right.includes(id));
 
 export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
@@ -108,7 +112,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
     <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Cash Checkout" hasData={tab === "checkout" ? data.checkouts.length > 0 : data.ledger.length > 0 || data.collections.length > 0} isEmpty={listing.hasLoaded && listing.loadedTotal === 0 && !data.collections.length} emptyTitle={tab === "checkout" ? "No Cash Checkouts" : "No Cash Deposit activity"} emptyDescription={tab === "checkout" ? "No checkout records match this outlet and date range." : "No deposit ledger or handover records match this outlet and date range."} emptyIcon={Banknote} onRetry={listingActions.retry}>{tab === "checkout" ? <>
       <AdminSummaryGrid ariaLabel="Cash checkout summary" items={[{ label: "Floating Cash", value: data.settings ? money(data.settings.effective_floating_cash ?? data.settings.floating_cash) : "Not configured", helper: data.settings ? "Current effective outlet amount" : "Set this before Crew can reconcile opening cash", icon: WalletCards }, { label: "Completed", value: data.checkouts.filter((item) => item.status === "completed").length, helper: "Selected period", icon: CheckCircle2, tone: "success" }, { label: "In Progress", value: data.checkouts.filter((item) => item.status !== "completed").length, helper: "Draft through submitted", icon: History, tone: "warning" }, { label: "Needs Review", value: reviewCount, helper: "Variance, shortfall or receipt difference", icon: Banknote, tone: reviewCount ? "warning" : "success" }]} />
       <AdminDataSection className="crew-cash-table"><DataTable density="compact" tableClassName="min-w-[1080px]" rows={data.checkouts} getRowKey={(row) => row.id} columns={[
-        { key: "date", header: "Date", render: (row) => date(row.business_date) },
+        { key: "date", header: "Date & time", render: (row) => <AdminDateTimeCell {...checkoutDateTime(row)} /> },
         { key: "crew", header: "Checked Out By", render: (row) => <span className="font-semibold text-text-primary">{formatCrewEmployee(row.checked_out_by)}</span> },
         { key: "opening", header: "Opening", align: "right", render: (row) => money(row.expected_opening_cash) },
         { key: "counted", header: "Counted", align: "right", render: (row) => money(row.counted_cash) },

@@ -39,7 +39,7 @@ describe("Crew Access outlet read lifecycle", () => {
       .mockImplementationOnce(() => outletA.promise)
       .mockImplementationOnce(() => outletB.promise);
     mount();
-    await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a", filters: { query: "" }, page: 1, pageSize: 20 })));
+    await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-a", filters: { query: "", employment_status: "all" }, page: 1, pageSize: 20 })));
     fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
     fireEvent.click(screen.getByRole("button", { name: "Outlet B" }));
     await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-b" })));
@@ -91,6 +91,14 @@ describe("Crew Access outlet read lifecycle", () => {
     mount();
     await screen.findByPlaceholderText("Name, position or employee code");
     fireEvent.change(screen.getByPlaceholderText("Name, position or employee code"), { target: { value: "Aina" } });
-    await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenLastCalledWith(expect.objectContaining({ filters: { query: "Aina" }, page: 1 })));
+    await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenLastCalledWith(expect.objectContaining({ filters: { query: "Aina", employment_status: "all" }, page: 1 })));
+  });
+
+  it("sends Employment Status to the paged Crew Access authority", async () => {
+    employeeService.crewAccessAdminPage.mockResolvedValue(page([]));
+    mount();
+    fireEvent.click(await screen.findByRole("button", { name: "Employment Status" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resigned" }));
+    await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenLastCalledWith(expect.objectContaining({ filters: { query: "", employment_status: "resigned" }, page: 1 })));
   });
 });

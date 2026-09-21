@@ -338,8 +338,8 @@ function AdminLearningImage({ media, previewUrl = "" }) {
   return url ? <img className="crew-onboarding-media-preview" src={url} alt={media.alt_text || media.caption || "Learning content preview"} /> : <div className="crew-onboarding-media-loading" aria-label="Loading image preview" />;
 }
 
-function Toggle({ label, detail, checked, onChange }) {
-  return <ToggleField label={label} helper={detail} checked={checked} onChange={onChange} />;
+function Toggle({ label, detail, checked, onChange, className }) {
+  return <ToggleField label={label} helper={detail} checked={checked} onChange={onChange} className={className} />;
 }
 
 function OnboardingPreview({ draft, sops }) {

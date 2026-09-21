@@ -1,11 +1,11 @@
-export default function ToggleField({ label, helper, checked, onChange, disabled = false }) {
+export default function ToggleField({ label, helper, checked, onChange, disabled = false, className = "" }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={checked}
       disabled={disabled}
-      className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-white p-3 text-left transition hover:border-slate-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60"
+      className={`flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-white p-3 text-left transition hover:border-slate-300 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-60 ${className}`.trim()}
       onClick={() => onChange(!checked)}
     >
       <span className="min-w-0">

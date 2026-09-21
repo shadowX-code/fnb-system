@@ -8,6 +8,9 @@ import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
+import AdminDateTimeCell from "../../../components/tables/AdminDateTimeCell.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import CrewAccessManagerModal from "../components/CrewAccessManagerModal.jsx";
 import CrewDisableAccessModal from "../components/CrewDisableAccessModal.jsx";
@@ -16,6 +19,7 @@ import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { employeeService } from "../../../services/employeeService.js";
 import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
+import { formatOperationalDateTime } from "../../../lib/dateTime.js";
 
 export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashboard" }) {
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
@@ -24,8 +28,9 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   const [disableEmployee, setDisableEmployee] = useState(null);
   const [employeeMenuId, setEmployeeMenuId] = useState(null);
   const [query, setQuery] = useState("");
+  const [employmentStatus, setEmploymentStatus] = useState("all");
   const canManage = auth.hasPermission("crew_employees.manage");
-  const accessFilters = useMemo(() => ({ query }), [query]);
+  const accessFilters = useMemo(() => ({ query, employment_status: employmentStatus }), [employmentStatus, query]);
   const accessSignature = useMemo(() => JSON.stringify({ outletId, accessFilters }), [accessFilters, outletId]);
   const [listing, listingActions] = useAdminPagedQuery({
     storageKey: "crew-access",
@@ -40,7 +45,13 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
 
   if (initialTab === "employees") return <div className="space-y-4">
     <PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." />
-    <AdminFilterToolbar outlet={outletControl} search={<label className="field"><span>Search Crew</span><input className="control w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Name, position or employee code" /></label>} />
+    <AdminFilterToolbar
+      outlet={outletControl}
+      search={<AdminSearchField label="Search Crew" value={query} onChange={setQuery} placeholder="Name, position or employee code" />}
+      filters={<SelectField label="Employment Status" ariaLabel="Employment Status" value={employmentStatus} onChange={setEmploymentStatus} options={[{ value: "all", label: "All" }, { value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }, { value: "resigned", label: "Resigned" }, { value: "terminated", label: "Terminated" }]} />}
+      activeFilters={employmentStatus !== "all" ? [{ key: "employment-status", label: "Employment Status", value: employmentStatus[0].toUpperCase() + employmentStatus.slice(1), onRemove: () => setEmploymentStatus("all") }] : []}
+      onClear={() => { setQuery(""); setEmploymentStatus("all"); }}
+    />
     <Card>
       <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={employees.length > 0} isEmpty={listing.hasLoaded && !employees.length} emptyTitle={listing.loadedTotal ? "No Crew match this search" : "No Crew access records"} emptyDescription={listing.loadedTotal ? "Clear or adjust the search to see more Crew." : "Crew access records for this outlet will appear here."} onRetry={listingActions.retry}><DataTable tableClassName="min-w-[1120px]" rows={employees} getRowKey={(row) => row.id} columns={employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId)} /><AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="Crew members" /></AsyncDataSurface>
     </Card>
@@ -74,13 +85,33 @@ function employmentLabel(row) {
   return <div><div className="font-medium text-text-primary">{type}</div><div className="text-xs text-text-secondary">{status}</div></div>;
 }
 
+function specialAccessSummary(access) {
+  const permissions = [
+    access?.can_initiate_handover && "Hand Over Cash",
+    access?.can_add_assets && "Add Assets",
+    access?.can_manage_asset_details && "Manage Asset Details",
+    access?.can_adjust_assets && "Adjust Assets",
+    access?.can_perform_asset_inspections && "Asset Inspections",
+  ].filter(Boolean);
+  if (!permissions.length) return "None";
+  return permissions.length === 1 ? permissions[0] : `${permissions.length} permissions`;
+}
+
+function lastLoginCell(value) {
+  if (!value) return <span className="text-text-muted">Never</span>;
+  const formatted = formatOperationalDateTime(value);
+  if (formatted === "—") return <span className="text-text-muted">—</span>;
+  const [date, ...time] = formatted.split(" ");
+  return <AdminDateTimeCell date={date} time={time.join(" ")} />;
+}
+
 function employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId) { return [
   { key: "employee", header: "Employee", render: (row) => <div><div className="font-bold text-text-primary">{row.full_name}</div><div className="text-xs text-text-secondary">{row.position || "No position"} · {row.workplace || "No workplace"}</div></div> },
   { key: "employment", header: "Employment", render: employmentLabel },
   { key: "mobile", header: "Mobile", render: (row) => row.crew_access?.mobile_number || row.contact || "—" },
   { key: "crew", header: "Crew Access", render: (row) => { const state = crewAccessState(row.crew_access); return <Badge tone={semanticStatusTone(state)}>{CREW_ACCESS_STATE_LABEL[state]}</Badge>; } },
-  { key: "special", header: "Special Access", render: (row) => row.crew_access?.access_state === "active" ? <span className="text-sm text-text-secondary">{[row.crew_access?.can_initiate_handover && "Hand Over Cash", row.crew_access?.can_add_assets && "Add Assets", row.crew_access?.can_manage_asset_details && "Manage Asset Details", row.crew_access?.can_adjust_assets && "Adjust Assets", row.crew_access?.can_perform_asset_inspections && "Asset Inspections"].filter(Boolean).join(" · ") || "None"}</span> : <span className="text-sm text-text-muted">Enable Crew Access first</span> },
-  { key: "last", header: "Last login", render: (row) => row.crew_access?.last_login_at ? new Date(row.crew_access.last_login_at).toLocaleString("en-MY") : "—" },
+  { key: "special", header: "Special Access", render: (row) => row.crew_access?.access_state === "active" ? <span className="text-sm text-text-secondary">{specialAccessSummary(row.crew_access)}</span> : <span className="text-sm text-text-muted">Enable Crew Access first</span> },
+  { key: "last", header: "Last login", render: (row) => lastLoginCell(row.crew_access?.last_login_at) },
   { key: "action", header: "Actions", align: "right", render: (row) => {
     if (!canManage) return null;
     const activeAccess = row.crew_access?.access_state === "active";
