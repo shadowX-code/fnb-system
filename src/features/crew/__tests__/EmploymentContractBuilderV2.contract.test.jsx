@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260921110000_employment_contract_builder_v2.sql"), "utf8");
+const legalEmployerGuardFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260921110200_employment_documents_legal_employer_assignment_guard_fix.sql"), "utf8");
 const edgeFunction = readFileSync(resolve(process.cwd(), "supabase/functions/employee-employment-documents/index.ts"), "utf8");
 const panel = readFileSync(resolve(process.cwd(), "src/features/company-users/components/EmployeeEmploymentDocumentsPanel.jsx"), "utf8");
 
@@ -37,5 +38,11 @@ describe("People Employment Contract Builder V2 authority", () => {
   it("does not change Crew acknowledgement into an electronic-signature claim", () => {
     expect(migration).toContain("it is not represented by FeedX as a legal electronic signature");
     expect(migration).toContain("crew_session_acknowledgement");
+  });
+
+  it("validates an employee's active legal employer through the trusted assignment guard", () => {
+    expect(legalEmployerGuardFix).toContain("security definer");
+    expect(legalEmployerGuardFix).toContain("Choose an active legal employer.");
+    expect(legalEmployerGuardFix).toContain("revoke all on function public.employee_legal_entity_assignment_guard()");
   });
 });
