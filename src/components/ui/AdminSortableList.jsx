@@ -3,13 +3,18 @@ import AdminSortableHandle from "./AdminSortableHandle.jsx";
 
 /**
  * Shared ordered-builder interaction. Consumers retain their data authority;
- * this owner supplies native drag state, insertion feedback, and keyboard
+ * this owner supplies pointer drag state, insertion feedback, and keyboard
  * movement through the same handle.
  */
 export default function AdminSortableList({ items, getId = (item) => item.id, getLabel = (_item, index) => `Reorder item ${index + 1}`, onMove, className = "", children }) {
   const [drop, setDrop] = useState(null);
   const [pointerDrag, setPointerDrag] = useState(null);
   const listRef = useRef(null);
+  const pointerDragRef = useRef(null);
+  const removePointerListenersRef = useRef(() => {});
+  const onMoveRef = useRef(onMove);
+
+  onMoveRef.current = onMove;
 
   const activeDragId = pointerDrag?.itemId || "";
 
@@ -48,44 +53,60 @@ export default function AdminSortableList({ items, getId = (item) => item.id, ge
     if (event.button !== undefined && event.button !== 0) return;
     event.preventDefault();
     event.currentTarget.focus();
+    event.currentTarget.setPointerCapture?.(event.pointerId);
     setDrop(null);
-    setPointerDrag({ itemId, pointerId: event.pointerId, startY: event.clientY, offsetY: 0, moved: false });
-  }
-
-  useEffect(() => {
-    if (!pointerDrag) return undefined;
-    const onPointerMove = (event) => {
-      if (event.pointerId !== pointerDrag.pointerId) return;
-      event.preventDefault();
-      const offsetY = event.clientY - pointerDrag.startY;
-      if (Math.abs(offsetY) < 5) return;
-      setPointerDrag((current) => current ? { ...current, offsetY, moved: true } : current);
-      setDrop(pointerPlacement(event.clientY, pointerDrag.itemId));
-      scrollNearPointer(event.clientY);
-    };
-    const complete = (event) => {
-      if (event.pointerId !== pointerDrag.pointerId) return;
-      const target = pointerPlacement(event.clientY, pointerDrag.itemId);
-      if (pointerDrag.moved && target) onMove(pointerDrag.itemId, target.itemId, target.position);
-      setDrop(null);
-      setPointerDrag(null);
-    };
-    const cancel = (event) => {
-      if (event.pointerId !== pointerDrag.pointerId) return;
-      setDrop(null);
-      setPointerDrag(null);
-    };
-    window.addEventListener("pointermove", onPointerMove, { passive: false });
-    window.addEventListener("pointerup", complete);
-    window.addEventListener("pointercancel", cancel);
+    const initial = { itemId, pointerId: event.pointerId, startY: event.clientY, offsetY: 0, moved: false };
+    pointerDragRef.current = initial;
+    setPointerDrag(initial);
     document.body.classList.add("admin-sortable-is-dragging");
-    return () => {
+
+    const clear = () => {
       window.removeEventListener("pointermove", onPointerMove);
       window.removeEventListener("pointerup", complete);
       window.removeEventListener("pointercancel", cancel);
+      removePointerListenersRef.current = () => {};
       document.body.classList.remove("admin-sortable-is-dragging");
     };
-  }, [pointerDrag, onMove]);
+    const onPointerMove = (moveEvent) => {
+      const current = pointerDragRef.current;
+      if (!current || moveEvent.pointerId !== current.pointerId) return;
+      moveEvent.preventDefault();
+      const offsetY = moveEvent.clientY - current.startY;
+      if (Math.abs(offsetY) < 5) return;
+      const next = { ...current, offsetY, moved: true };
+      pointerDragRef.current = next;
+      setPointerDrag(next);
+      setDrop(pointerPlacement(moveEvent.clientY, current.itemId));
+      scrollNearPointer(moveEvent.clientY);
+    };
+    const complete = (upEvent) => {
+      const current = pointerDragRef.current;
+      if (!current || upEvent.pointerId !== current.pointerId) return;
+      const target = pointerPlacement(upEvent.clientY, current.itemId);
+      if (current.moved && target) onMoveRef.current(current.itemId, target.itemId, target.position);
+      pointerDragRef.current = null;
+      setDrop(null);
+      setPointerDrag(null);
+      clear();
+    };
+    const cancel = (cancelEvent) => {
+      const current = pointerDragRef.current;
+      if (!current || cancelEvent.pointerId !== current.pointerId) return;
+      pointerDragRef.current = null;
+      setDrop(null);
+      setPointerDrag(null);
+      clear();
+    };
+    removePointerListenersRef.current();
+    removePointerListenersRef.current = clear;
+    window.addEventListener("pointermove", onPointerMove, { passive: false });
+    window.addEventListener("pointerup", complete);
+    window.addEventListener("pointercancel", cancel);
+  }
+
+  useEffect(() => {
+    return () => removePointerListenersRef.current();
+  }, []);
 
   return (
     <div ref={listRef} className={`admin-sortable-list ${className}`.trim()} data-sortable-active={activeDragId ? "true" : undefined}>
