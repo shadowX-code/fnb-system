@@ -177,7 +177,14 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.click(createButton);
     await screen.findByText("Draft v1");
     expect(mocks.newVersion).toHaveBeenCalledWith("new-sop");
-    expect(mocks.saveDraft).toHaveBeenCalledWith("crew_sop_versions", { id: "new-version", require_acknowledgement: true });
+    expect(mocks.saveDraft).toHaveBeenCalledWith("crew_sop_versions", {
+      id: "new-version",
+      title: "Cash Handling",
+      category: "Service",
+      category_id: "cat-service",
+      summary: "Cash control",
+      require_acknowledgement: true,
+    });
     expect(mocks.saveSections).toHaveBeenCalledWith("new-version", expect.arrayContaining([expect.objectContaining({ title: "Cash security" })]), [], []);
     expect(screen.getByRole("heading", { name: "Cash Handling" })).not.toBeNull();
   });
@@ -206,6 +213,44 @@ describe("Crew SOP Library Admin", () => {
     expect(saved.map((section) => section.title)).toEqual(["Warm and attentive", "Welcome promptly", "Thank the guest"]);
     expect(saved[2].body).toContain("data-feedx-key-point");
     expect(screen.getByText("Saved")).not.toBeNull();
+  });
+
+  it("edits SOP Details in the draft version without changing the parent SOP editor contract", async () => {
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    fireEvent.click(await screen.findByRole("button", { name: "SOP Details" }));
+    fireEvent.change(screen.getByLabelText("Title *"), { target: { value: "Updated welcome standard" } });
+    fireEvent.change(screen.getByLabelText("Summary"), { target: { value: "Draft-only summary" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(mocks.saveDraft).toHaveBeenCalledWith("crew_sop_versions", expect.objectContaining({
+      id: "v2",
+      title: "Updated welcome standard",
+      summary: "Draft-only summary",
+      category_id: "cat-service",
+    })));
+    fireEvent.click(screen.getByRole("button", { name: /01.*Welcome/ }));
+    expect(screen.getByLabelText("Section Title *")).not.toBeNull();
+  });
+
+  it("keeps five long section rows as individually addressable sortable outline entries", async () => {
+    const longDraft = {
+      ...draft,
+      sections: Array.from({ length: 5 }, (_, index) => ({
+        id: `long-${index + 1}`,
+        title: `Section ${index + 1} with a deliberately long title that must remain an individual row`,
+        body: "",
+        key_point: false,
+        sort_order: index + 1,
+      })),
+    };
+    mocks.detail.mockResolvedValueOnce({ ...sops[0], versions: [published, longDraft] });
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    await screen.findByRole("button", { name: /01.*Section 1 with a deliberately long title/ });
+    expect(document.querySelectorAll(".crew-sop-outline-row").length).toBe(5);
+    expect(screen.getAllByRole("button", { name: /Reorder section/ }).length).toBe(5);
   });
 
   it("previews unsaved draft state in the shared scrollable Crew document", async () => {

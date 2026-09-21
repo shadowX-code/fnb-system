@@ -162,7 +162,14 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
         status: "draft",
       });
       const versionId = await crewService.newSopVersion(sop.id);
-      await crewService.saveDraftRecord("crew_sop_versions", { id: versionId, require_acknowledgement: values.requireAcknowledgement });
+      await crewService.saveDraftRecord("crew_sop_versions", {
+        id: versionId,
+        title: values.title.trim(),
+        category: category.name,
+        category_id: category.id,
+        summary: values.summary.trim() || null,
+        require_acknowledgement: values.requireAcknowledgement,
+      });
       const sectionPayload = [];
       for (const [index, section] of sections.entries()) {
         let media = null;
@@ -286,6 +293,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
         <SopEditor
           sop={selectedSop}
           outlet={outlet}
+          categories={categories}
           version={(selectedSop.versions || []).find((version) => version.id === activeVersionId) || draftVersion(selectedSop)}
           saving={saving}
           onBack={() => setView("library")}
@@ -433,22 +441,38 @@ const hydrateSection = (section) => {
   return { ...section, editorHtml: content.html, keyPointContent: content.keyPointContent, media: section.media || (section.media_id ? { id: section.media_id, caption: section.media_caption } : null), pendingImage: null };
 };
 
-function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm, onPublish, onDeleteDraft }) {
+function SopDetailsFields({ values, categories, onChange, autoFocus = false }) {
+  return <div className="crew-sop-details-fields">
+    <AdminFormField label="Title" required><input className="control w-full" autoFocus={autoFocus} value={values.title} onChange={(event) => onChange({ title: event.target.value })} /></AdminFormField>
+    <AdminFormField label="Category" required as="div"><SelectField ariaLabel="Category" label="" value={values.categoryId} onChange={(categoryId) => onChange({ categoryId })} options={categories.map((category) => ({ value: category.id, label: category.name }))} /></AdminFormField>
+    <AdminFormField label="Summary"><textarea className="control min-h-20 w-full py-3" value={values.summary} onChange={(event) => onChange({ summary: event.target.value })} /></AdminFormField>
+    <ToggleField label="Acknowledgement Required" helper="Crew acknowledge the exact published version." checked={values.requireAcknowledgement} onChange={(requireAcknowledgement) => onChange({ requireAcknowledgement })} />
+  </div>;
+}
+
+function SopEditor({ sop, outlet, categories, version, saving, onBack, onRefresh, onConfirm, onPublish, onDeleteDraft }) {
   const initialSections = useMemo(() => byOrder(version?.sections).map(hydrateSection), [version?.id]);
   const originalIds = useRef(initialSections.map((section) => section.id));
   const originalMediaIds = useRef(initialSections.map((section) => section.media?.id).filter(Boolean));
   const [sections, setSections] = useState(initialSections);
   const [selectedId, setSelectedId] = useState(initialSections[0]?.id || "");
+  const [metadata, setMetadata] = useState(() => ({ title: version?.title || sop.title || "", categoryId: version?.category_id || sop.category_id || "", summary: version?.summary ?? sop.summary ?? "", requireAcknowledgement: Boolean(version?.require_acknowledgement) }));
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pane, setPane] = useState("edit");
   const [sectionActionsOpen, setSectionActionsOpen] = useState(false);
   const [imageError, setImageError] = useState("");
   const [sourceLanguage, setSourceLanguage] = useState(() => detectContentLanguage(sop.title));
-  const selected = sections.find((section) => section.id === selectedId) || sections[0];
+  const selected = sections.find((section) => section.id === selectedId);
   const hasPendingImage = sections.some((section) => section.pendingImage || section.uploadingImage);
-  const valid = sections.length > 0 && sections.every((section) => section.title?.trim());
+  const valid = metadata.title.trim() && metadata.categoryId && sections.length > 0 && sections.every((section) => section.title?.trim());
   useEffect(() => () => sections.forEach((section) => section.pendingImage?.url && URL.revokeObjectURL?.(section.pendingImage.url)), []);
+  useEffect(() => {
+    setSections(initialSections);
+    setSelectedId(initialSections[0]?.id || "");
+    setMetadata({ title: version?.title || sop.title || "", categoryId: version?.category_id || sop.category_id || "", summary: version?.summary ?? sop.summary ?? "", requireAcknowledgement: Boolean(version?.require_acknowledgement) });
+    setDirty(false);
+  }, [version?.id]);
   if (!version) return null;
 
   function updateSelected(next) {
@@ -457,6 +481,10 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
   }
   function updateSection(sectionId, next) {
     setSections((current) => current.map((section) => section.id === sectionId ? { ...section, ...next } : section));
+    setDirty(true);
+  }
+  function updateMetadata(next) {
+    setMetadata((current) => ({ ...current, ...next }));
     setDirty(true);
   }
   function addSection() {
@@ -522,6 +550,16 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
     if (!valid || hasPendingImage) return false;
     setBusy(true);
     try {
+      const category = categories.find((item) => item.id === metadata.categoryId);
+      if (!category) throw new Error("Choose an SOP category.");
+      await crewService.saveDraftRecord("crew_sop_versions", {
+        id: version.id,
+        title: metadata.title.trim(),
+        category: category.name,
+        category_id: category.id,
+        summary: metadata.summary.trim() || null,
+        require_acknowledgement: metadata.requireAcknowledgement,
+      });
       const payload = sections.map((section) => ({
         ...section,
         media: section.media?.id ? {
@@ -536,7 +574,7 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
       }));
       const saved = await crewService.saveSopDraftSections(version.id, payload, originalIds.current, originalMediaIds.current);
       const hydrated = byOrder(saved).map(hydrateSection);
-      await crewService.saveLocalizedContentUnits("sop", version.id, sopLocalizationUnits(sop, version, hydrated, sourceLanguage));
+      await crewService.saveLocalizedContentUnits("sop", version.id, sopLocalizationUnits({ ...sop, ...metadata, category_id: metadata.categoryId }, { ...version, ...metadata, require_acknowledgement: metadata.requireAcknowledgement }, hydrated, sourceLanguage));
       const selectedIndex = Math.max(0, sections.findIndex((section) => section.id === selectedId));
       originalIds.current = hydrated.map((section) => section.id);
       originalMediaIds.current = hydrated.map((section) => section.media?.id).filter(Boolean);
@@ -562,18 +600,18 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm,
   }
   async function publish() {
     if (dirty && !(await save())) return;
-    await onPublish({ ...version, sections: sections.map((section, index) => ({ ...section, sort_order: index + 1 })) });
+    await onPublish({ ...version, title: metadata.title, category_id: metadata.categoryId, summary: metadata.summary, require_acknowledgement: metadata.requireAcknowledgement, sections: sections.map((section, index) => ({ ...section, sort_order: index + 1 })) });
   }
   const previewSections = sections.map((section, index) => ({ ...section, body: serializeSopBody(section.editorHtml, section.keyPointContent), key_point: Boolean(section.keyPointContent?.trim()), sort_order: index + 1 }));
-  const localizationUnits = sopLocalizationUnits(sop, version, sections, sourceLanguage);
+  const localizationUnits = sopLocalizationUnits({ ...sop, ...metadata, category_id: metadata.categoryId }, { ...version, ...metadata, require_acknowledgement: metadata.requireAcknowledgement }, sections, sourceLanguage);
   const footer = <div className="crew-sop-modal-footer">
     <div className="flex gap-2">{pane !== "edit" ? <button className="btn-ghost" type="button" onClick={() => setPane("edit")}>← Back to Editor</button> : <button className="btn-secondary" type="button" onClick={() => setPane("preview")}>Preview</button>}<button className="btn-secondary" type="button" onClick={() => setPane("languages")}>Languages</button></div>
     <div><button className="btn-ghost" type="button" disabled={busy || saving} onClick={requestClose}>Cancel</button><button className="btn-secondary is-danger" disabled={busy || saving} onClick={onDeleteDraft}><Trash2 size={15} /> Delete Draft</button><button className="btn-secondary" disabled={busy || !dirty || !valid || hasPendingImage} onClick={save}>{busy ? "Saving…" : "Save Draft"}</button><button className="btn-primary" disabled={busy || saving || !valid || hasPendingImage} onClick={publish}>Publish</button></div>
   </div>;
-  return <Modal title={sop.title} description={`Draft v${version.version} · ${outlet?.name}`} size="2xl" panelClassName="crew-sop-editor-popout" bodyClassName={`crew-sop-editor-popout-body ${pane === "preview" ? "is-preview" : ""}`} onClose={requestClose} headerActions={<span className={`crew-sop-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved changes" : <><Check size={13} /> Saved</>}</span>} footer={footer} footerClassName="block">
+  return <Modal title={metadata.title || sop.title} description={`Draft v${version.version} · ${outlet?.name}`} size="2xl" panelClassName="crew-sop-editor-popout" bodyClassName={`crew-sop-editor-popout-body ${pane === "preview" ? "is-preview" : ""}`} onClose={requestClose} headerActions={<span className={`crew-sop-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved changes" : <><Check size={13} /> Saved</>}</span>} footer={footer} footerClassName="block">
     {pane === "edit" ? <div className="crew-sop-draft-workspace">
-      <aside><div><strong>SOP Details</strong><span>Draft</span></div><p className="crew-sop-outline-note">Title, category, summary, and acknowledgement are set when this draft is created. Published versions stay unchanged.</p><div><strong>Sections</strong><span>{sections.length}</span></div><AdminSortableList items={sections} scope="sop-section" getLabel={(_section, index) => `Reorder section ${index + 1}`} onMove={moveSectionTo}>{({ item: section, index, handle }) => <div className="crew-sop-outline-row">{handle}<button className={selected?.id === section.id ? "is-active" : ""} onClick={() => setSelectedId(section.id)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title || "Untitled Section"}</strong><ChevronRight size={15} /></button></div>}</AdminSortableList><button className="crew-sop-add-section" onClick={addSection}><Plus size={15} /> Add Section</button></aside>
-      <main>{selected ? <><div className="crew-sop-editor-form-head"><div><span>Section {sections.findIndex((item) => item.id === selected.id) + 1}</span><h2>{selected.title || "Untitled Section"}</h2></div><div><ActionMenu open={sectionActionsOpen} onOpenChange={setSectionActionsOpen} ariaLabel={`Actions for ${selected.title || "section"}`} trigger={({ toggle, ariaLabel }) => <button className="icon-btn" disabled={sections.length === 1} onClick={toggle} aria-label={ariaLabel}><MoreHorizontal size={16} /></button>}><div role="menu"><button role="menuitem" className="is-danger" disabled={sections.length === 1} type="button" onClick={() => { setSectionActionsOpen(false); remove(); }}>Delete section</button></div></ActionMenu></div></div><AdminFormField label="Section Title" required><input className="control w-full" value={selected.title || ""} onChange={(event) => updateSelected({ title: event.target.value })} /></AdminFormField><AdminFormField label="Content" as="div"><RichTextEditor value={selected.editorHtml} onChange={(editorHtml) => updateSelected({ editorHtml })} onImage={chooseImage} disabled={selected.uploadingImage} />{imageError ? <small role="alert" className="crew-sop-editor-error">{imageError}</small> : null}</AdminFormField>{selected.pendingImage || selected.media ? <div className="crew-sop-image-placeholder"><div>{selected.pendingImage?.url ? <img src={selected.pendingImage.url} alt="Uploading preview" /> : <CrewSopImage media={selected.media} admin />}</div><AdminFormField label="Image caption"><input className="control w-full" disabled={selected.uploadingImage} value={selected.pendingImage?.caption ?? selected.media?.caption ?? ""} onChange={(event) => selected.pendingImage ? updateSelected({ pendingImage: { ...selected.pendingImage, caption: event.target.value } }) : updateSelected({ media: { ...selected.media, caption: event.target.value } })} /></AdminFormField><button className="btn-secondary is-danger" type="button" disabled={selected.uploadingImage} onClick={removeSelectedImage}>Remove Image</button>{selected.uploadingImage ? <p role="status">Uploading and securing image…</p> : <p>Stored privately for this Outlet, SOP, and version.</p>}</div> : null}<ToggleField label="Key Point" helper="Add an optional callout below the normal section content." checked={Boolean(selected.keyPointContent)} onChange={(checked) => updateSelected({ keyPointContent: checked ? selected.keyPointContent || "Add the key point…" : "" })} />{selected.keyPointContent ? <AdminFormField label="Key Point Content"><textarea className="control min-h-24 w-full py-3" value={selected.keyPointContent} onChange={(event) => updateSelected({ keyPointContent: event.target.value })} /></AdminFormField> : null}</> : <EmptyState title="Add the first section" description="Create a section to start this SOP draft." />}</main>
+      <aside><div><strong>Draft</strong><span>v{version.version}</span></div><button type="button" className={`crew-sop-sidebar-action ${!selectedId ? "is-active" : ""}`} onClick={() => setSelectedId("")}><strong>SOP Details</strong><ChevronRight size={15} /></button><div><strong>Sections</strong><span>{sections.length}</span></div><AdminSortableList items={sections} scope="sop-section" getLabel={(_section, index) => `Reorder section ${index + 1}`} onMove={moveSectionTo}>{({ item: section, index, handle }) => <div className="crew-sop-outline-row">{handle}<button type="button" className={selected?.id === section.id ? "is-active" : ""} onClick={() => setSelectedId(section.id)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title || "Untitled Section"}</strong><ChevronRight size={15} /></button></div>}</AdminSortableList><button className="crew-sop-add-section" type="button" onClick={addSection}><Plus size={15} /> Add Section</button></aside>
+      <main>{!selected ? <><div className="crew-sop-editor-form-head"><div><span>Draft metadata</span><h2>SOP Details</h2></div></div><SopDetailsFields values={metadata} categories={categories} onChange={updateMetadata} autoFocus /></> : <><div className="crew-sop-editor-form-head"><div><span>Section {sections.findIndex((item) => item.id === selected.id) + 1}</span><h2>{selected.title || "Untitled Section"}</h2></div><div><ActionMenu open={sectionActionsOpen} onOpenChange={setSectionActionsOpen} ariaLabel={`Actions for ${selected.title || "section"}`} trigger={({ toggle, ariaLabel }) => <button className="icon-btn" disabled={sections.length === 1} onClick={toggle} aria-label={ariaLabel}><MoreHorizontal size={16} /></button>}><div role="menu"><button role="menuitem" className="is-danger" disabled={sections.length === 1} type="button" onClick={() => { setSectionActionsOpen(false); remove(); }}>Delete section</button></div></ActionMenu></div></div><AdminFormField label="Section Title" required><input className="control w-full" value={selected.title || ""} onChange={(event) => updateSelected({ title: event.target.value })} /></AdminFormField><AdminFormField label="Content" as="div"><RichTextEditor value={selected.editorHtml} onChange={(editorHtml) => updateSelected({ editorHtml })} onImage={chooseImage} disabled={selected.uploadingImage} />{imageError ? <small role="alert" className="crew-sop-editor-error">{imageError}</small> : null}</AdminFormField>{selected.pendingImage || selected.media ? <div className="crew-sop-image-placeholder"><div>{selected.pendingImage?.url ? <img src={selected.pendingImage.url} alt="Uploading preview" /> : <CrewSopImage media={selected.media} admin />}</div><AdminFormField label="Image caption"><input className="control w-full" disabled={selected.uploadingImage} value={selected.pendingImage?.caption ?? selected.media?.caption ?? ""} onChange={(event) => selected.pendingImage ? updateSelected({ pendingImage: { ...selected.pendingImage, caption: event.target.value } }) : updateSelected({ media: { ...selected.media, caption: event.target.value } })} /></AdminFormField><button className="btn-secondary is-danger" type="button" disabled={selected.uploadingImage} onClick={removeSelectedImage}>Remove Image</button>{selected.uploadingImage ? <p role="status">Uploading and securing image…</p> : <p>Stored privately for this Outlet, SOP, and version.</p>}</div> : null}<ToggleField label="Key Point" helper="Add an optional callout below the normal section content." checked={Boolean(selected.keyPointContent)} onChange={(checked) => updateSelected({ keyPointContent: checked ? selected.keyPointContent || "Add the key point…" : "" })} />{selected.keyPointContent ? <AdminFormField label="Key Point Content"><textarea className="control min-h-24 w-full py-3" value={selected.keyPointContent} onChange={(event) => updateSelected({ keyPointContent: event.target.value })} /></AdminFormField> : null}</> }</main>
     </div> : pane === "languages" ? <div className="p-5 md:p-6"><LocalizedContentEditor domain="sop" versionId={version.id} sourceLanguage={sourceLanguage} onSourceLanguageChange={(next) => { setSourceLanguage(next); setDirty(true); }} onHydrateSourceLanguage={setSourceLanguage} sourceUnits={localizationUnits} sourceDirty={dirty} confirm={onConfirm} disabled={busy || saving} /></div> : <section className="crew-sop-preview-pane" aria-label={`Preview v${version.version}`}>
       <div className="crew-sop-preview-context"><Star size={16} aria-hidden="true" /><span>Crew view · Unsaved draft changes included</span></div>
       <div className="crew-sop-preview-scroll" data-testid="sop-preview-scroll"><CrewSopDocument sections={previewSections} admin className="is-admin-preview" /></div>
@@ -672,10 +710,7 @@ function CreateSopModal({ categories, targetOutlet, sourceOutlets, saving, onClo
     <div className="crew-sop-create-modes"><AdminSegmentedControl value={mode} onChange={setMode} label="SOP creation mode" options={[{ value: "blank", label: "Blank SOP" }, { value: "clone", label: <><Copy size={15} /> Clone existing SOP</> }]} /></div>
     {mode === "blank" ? <div className="crew-sop-create-workspace">
       <aside className="crew-sop-create-meta">
-        <AdminFormField label="Title" required><input className="control w-full" autoFocus value={values.title} onChange={(event) => setValues({ ...values, title: event.target.value })} /></AdminFormField>
-        <AdminFormField label="Category" required as="div"><SelectField ariaLabel="Category" label="" value={values.categoryId} onChange={(categoryId) => setValues({ ...values, categoryId })} options={categories.map((category) => ({ value: category.id, label: category.name }))} /></AdminFormField>
-        <AdminFormField label="Summary"><textarea className="control min-h-20 w-full py-3" value={values.summary} onChange={(event) => setValues({ ...values, summary: event.target.value })} /></AdminFormField>
-        <ToggleField label="Acknowledgement Required" helper="Crew acknowledge the exact published version." checked={values.requireAcknowledgement} onChange={(requireAcknowledgement) => setValues({ ...values, requireAcknowledgement })} />
+        <SopDetailsFields values={values} categories={categories} autoFocus onChange={(next) => setValues((current) => ({ ...current, ...next }))} />
         <div className="crew-sop-create-outline"><header><strong>Sections</strong><span>{sections.length}</span></header><AdminSortableList items={sections} scope="create-sop-section" getLabel={(_section, index) => `Reorder section ${index + 1}`} onMove={moveSectionTo}>{({ item: section, index, handle }) => <div className="crew-sop-outline-row">{handle}<button className={section.id === selected.id ? "is-active" : ""} onClick={() => setSelectedId(section.id)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title || "Untitled Section"}</strong><ChevronRight size={15} /></button></div>}</AdminSortableList><button className="btn-secondary crew-sop-add-section" onClick={addSection}><Plus size={15} /> Add Section</button></div>
       </aside>
       <main className="crew-sop-create-section"><div className="crew-sop-editor-form-head"><div><span>Section {sections.findIndex((row) => row.id === selected.id) + 1}</span><h2>{selected.title}</h2></div><ActionMenu open={createSectionActionsOpen} onOpenChange={setCreateSectionActionsOpen} ariaLabel={`Actions for ${selected.title || "section"}`} trigger={({ toggle, ariaLabel }) => <button className="icon-btn" disabled={sections.length === 1} onClick={toggle} aria-label={ariaLabel}><MoreHorizontal size={16} /></button>}><div role="menu"><button role="menuitem" className="is-danger" disabled={sections.length === 1} type="button" onClick={() => { setCreateSectionActionsOpen(false); removeSection(); }}>Delete section</button></div></ActionMenu></div><AdminFormField label="Section Title" required><input className="control w-full" value={selected.title} onChange={(event) => updateSelected({ title: event.target.value })} /></AdminFormField><AdminFormField label="Content" as="div"><RichTextEditor value={selected.editorHtml} onChange={(editorHtml) => updateSelected({ editorHtml })} onImage={chooseImage} /></AdminFormField>{selected.pendingImage ? <div className="crew-sop-image-placeholder"><div><img src={selected.pendingImage.url} alt="SOP draft preview" /></div><AdminFormField label="Image caption"><input className="control w-full" value={selected.pendingImage.caption} onChange={(event) => updateSelected({ pendingImage: { ...selected.pendingImage, caption: event.target.value } })} /></AdminFormField><button className="btn-secondary is-danger" onClick={() => updateSelected({ pendingImage: null })}>Remove Image</button><p>Uploads securely when the complete draft is saved.</p></div> : null}<ToggleField label="Key Point" helper="Optional callout after the section content." checked={Boolean(selected.keyPointContent)} onChange={(checked) => updateSelected({ keyPointContent: checked ? "Add the key point…" : "" })} />{selected.keyPointContent ? <AdminFormField label="Key Point Content"><textarea className="control min-h-20 w-full py-3" value={selected.keyPointContent} onChange={(event) => updateSelected({ keyPointContent: event.target.value })} /></AdminFormField> : null}{error ? <p role="alert" className="crew-sop-editor-error">{error}</p> : null}</main>

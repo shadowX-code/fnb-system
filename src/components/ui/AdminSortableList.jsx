@@ -49,7 +49,7 @@ export default function AdminSortableList({ items, scope, getId = (item) => item
               item,
               index,
               dragging,
-              handle: <AdminSortableHandle label={getLabel(item, index)} scope={scope} itemId={itemId} index={index} count={items.length} onMove={(direction) => onMove(itemId, items[index + direction]?.id, direction < 0 ? "before" : "after")} onDragStateChange={(active) => { setDragId(active ? itemId : ""); if (!active) setDrop(null); }} />,
+              handle: <AdminSortableHandle label={getLabel(item, index)} scope={scope} itemId={itemId} index={index} count={items.length} onMove={(direction) => onMove(itemId, getId(items[index + direction]), direction < 0 ? "before" : "after")} onDragStateChange={(active) => { setDragId(active ? itemId : ""); if (!active) setDrop(null); }} />,
             })}
           </div>
         );
