@@ -48,7 +48,7 @@ describe("Roles current mounted lifecycle", () => {
     fireEvent.change(screen.getByLabelText("Role Name *"), { target: { value: "Dispatch Viewer" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Role" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
-    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ name: "dispatch_viewer", outletAccess: "all", selectedOutletIds: [], permissions: [] }));
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ name: "dispatch_viewer", outletAccess: "none", selectedOutletIds: [], permissions: [] }));
     await waitFor(() => expect(screen.queryByText("Create Role")).toBeNull());
     expect(screen.getByText("dispatch_viewer")).not.toBeNull();
     expect(mocks.list).toHaveBeenCalledTimes(1);
@@ -78,6 +78,25 @@ describe("Roles current mounted lifecycle", () => {
     expect(screen.queryByRole("button", { name: "Add Role" })).toBeNull();
     expect(mocks.save).not.toHaveBeenCalled();
   });
+
+  it("only requires Outlet Access once Restaurant permissions are enabled", async () => {
+    render(<RolesPage ui={ui} auth={auth} store={{ outlets: [{ id: "outlet-1", name: "Central" }] }} />);
+    await screen.findByText("operations");
+    fireEvent.click(screen.getByRole("button", { name: "Add Role" }));
+    fireEvent.change(screen.getByLabelText("Role Name *"), { target: { value: "Factory Operator" } });
+    expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
+    expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Restaurant · \d+/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
+    expect(screen.getByText("Outlet Access")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: "Enabled" })[0]);
+    expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Role" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ outletAccess: "none", selectedOutletIds: [], permissions: ["factory_dashboard.view"] })));
+  }, 10_000);
 
   it("navigates catalog actions through full-page role routes and keeps permission selection across category tabs", async () => {
     window.history.replaceState(null, "", "#roles");

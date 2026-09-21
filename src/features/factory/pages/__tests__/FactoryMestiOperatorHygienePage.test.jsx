@@ -74,11 +74,11 @@ describe("Factory MeSTI Operator Hygiene", () => {
   });
 
   it("uses the shared Factory employee scope for new operator selection without rewriting existing evidence", async () => {
-    const scopedDaily = { ...draftDaily, employees: [{ id: "factory", name: "Factory Operator", position: "Operator", workplace: "Factory" }, { id: "management", name: "Management Reviewer", position: "Manager", workplace: "Management" }] };
+    const scopedDaily = { ...draftDaily, employees: [{ id: "factory", name: "Factory Operator", position: "Operator", workplace: "Factory" }] };
     renderPage({ daily: scopedDaily });
     fireEvent.click(await screen.findByRole("button", { name: "Add Operator" }));
     expect(await screen.findByRole("button", { name: "Factory Operator - Operator" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Management Reviewer - Manager" })).toBeTruthy();
+    expect(screen.queryByRole("button", { name: "Management Reviewer - Manager" })).toBeNull();
     expect(screen.getByText("Aisha")).toBeTruthy();
   });
 

@@ -565,3 +565,9 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added the independent `Manage Asset Details` Special Access capability. Its token-bound, request-id-audited authority permits only Asset name, description, location, and master-photo changes; quantity, condition, category, maintenance, and archival remain on their existing canonical authorities.
 - Standardized Crew inspection count/photo controls and Asset Detail media/activity presentation on shared mobile primitives. Asset master photos continue through the canonical normalized media pipeline; inspection evidence remains unchanged.
+
+# 2026-09-21 - Factory Workplace and Restaurant Role Scope
+
+- Clarified Employee Master Workplace as workforce belonging: `Factory` is a canonical non-outlet workplace, while Management and Restaurant employees are not eligible for Factory staff/operator selections merely because they have Factory permissions.
+- Added server-authoritative Restaurant-only role outlet-scope classification. Roles with Restaurant permissions use the existing All/Selected Outlet model; Factory, Crew, People, System, and Guest-only roles persist with no Restaurant outlet scope. No Factory access-scope concept was introduced.
+- Preserved Role permissions as the authority boundary, existing Restaurant outlet access, RLS, and Factory workflow permissions. Existing Factory-only Staging QA roles were reclassified from legacy all-outlet scope to no outlet scope without changing employee or historical records.
