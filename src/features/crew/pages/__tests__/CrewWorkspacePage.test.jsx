@@ -78,8 +78,9 @@ describe("Crew Access outlet read lifecycle", () => {
     mount(outlets, "dashboard");
 
     expect(await screen.findByText("Today")).not.toBeNull();
-    expect(screen.getByText("1 area need attention today. 1 Crew has not checked in and 1 task is overdue.")).not.toBeNull();
-    expect(screen.getByText("Aina Rahman")).not.toBeNull();
+    expect(screen.getByText("1 area needs attention today.")).not.toBeNull();
+    expect(screen.getByText("1 Crew has not checked in and 1 task is overdue.")).not.toBeNull();
+    expect(screen.getByText("Aina Rahman's birthday")).not.toBeNull();
     expect(screen.getByText("Pending leave requests")).not.toBeNull();
     expect(crewService.dashboardAdminData).toHaveBeenCalledWith("outlet-a");
     expect(employeeService.crewAccessAdminPage).not.toHaveBeenCalled();

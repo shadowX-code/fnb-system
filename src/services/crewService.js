@@ -124,9 +124,9 @@ async function saveCrewDraftRow(table, row, payload) {
 
 export const crewService = {
   async dashboardAdminData(outletId) {
-    const { data, error } = await supabase.rpc("crew_dashboard_admin_data", { p_outlet_id: outletId });
+    const { data, error } = await supabase.rpc("crew_dashboard_admin_data_v2", { p_outlet_id: outletId });
     throwSupabaseError("crew.dashboardAdminData", error);
-    return data || { summary: {}, birthdays: [], attention: [], crew_access: {} };
+    return data || { summary: {}, upcoming: [], attention: [] };
   },
 
   async notificationUnreadCount(token) {

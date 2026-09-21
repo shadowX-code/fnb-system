@@ -41,7 +41,7 @@ Attendance history is an outlet/date-scoped server-paged Admin projection. Emplo
 
 Crew Access, Leave Requests, and grouped Leave Balances use separate outlet-scoped server-paged Admin projections. Crew Access search and employment-status scope, and Leave search and applicable lifecycle filters, execute before the authoritative count and page are returned; balance paging does not change the canonical entitlement or calculation authority.
 
-Crew Dashboard is a permission-aware, outlet-scoped daily operational projection. It summarizes published roster attendance, approved leave, today’s task instances, upcoming birthdays/leave, and only unresolved access, compliance, and Performance review issues the current Admin may view. Its deterministic operational brief and prioritized attention items deep-link to their owning workflows; it intentionally does not create a cross-domain activity log, duplicate lifecycle, or mutate source evidence.
+Crew Dashboard is a permission-aware, outlet-scoped daily operational projection. It summarizes published roster attendance, approved leave, today’s task instances, and a next-30-day timeline of birthdays, approved leave, and verified compliance expiry where the current Admin may view those authorities. Its deterministic operational brief and prioritized attention items deep-link to their owning workflows; it intentionally does not create a cross-domain activity log, duplicate lifecycle, or mutate source evidence.
 
 Leave balances are server-derived from policy, entitlement, approved usage, pending reservations, adjustments, carry-forward, and expiry evidence.
 Request, approval, rejection, cancellation, and adjustment transitions must preserve balance integrity and audit history.

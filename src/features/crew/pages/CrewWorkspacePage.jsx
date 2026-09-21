@@ -145,50 +145,82 @@ function CrewDashboard({ outletId, outlets, setOutletId, ui }) {
 
   const summary = data.summary || {};
   const attention = data.attention || [];
+  const upcoming = data.upcoming || [];
+  const brief = operationalBrief(summary, attention.length);
   const outletControl = <CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
 
   return <div className="space-y-4">
     <PageHeader section="Crew · Overview" title="Crew Dashboard" description="What is happening with your Crew today, and what needs attention." />
-    <AdminFilterToolbar outlet={outletControl} />
+    <AdminFilterToolbar outlet={outletControl} compact ariaLabel="Dashboard scope" />
     <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Crew Dashboard" hasData={hasLoaded} isEmpty={!outletId} emptyTitle="No outlet selected" emptyDescription="Select an outlet to see its current Crew operations." onRetry={refresh}>
       <AdminDataSection title="Today" description="Live operational context for the selected outlet.">
         <TodayMetrics summary={summary} />
       </AdminDataSection>
-      <section className="rounded-lg border border-border bg-mint-50/40 px-4 py-3 text-sm text-text-primary" aria-label="Operational brief">{operationalBrief(summary, attention.length)}</section>
-      <div className={`grid gap-4 ${data.upcoming?.length ? "xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]" : ""}`}>
-        <AdminDataSection title="Needs Your Attention" description="Prioritized operational items with an owning workflow." actions={attention.length ? <span className="text-xs font-semibold text-text-muted">{attention.length} areas need attention</span> : null}>
+      <section className="rounded-lg border border-border bg-mint-50/40 px-4 py-3" aria-label="Operational brief">
+        <strong className="block text-sm text-text-primary">{brief.headline}</strong>
+        {brief.detail ? <span className="mt-0.5 block text-sm text-text-secondary">{brief.detail}</span> : null}
+      </section>
+      <div className={`grid gap-4 ${upcoming.length ? "xl:grid-cols-[minmax(0,1.18fr)_minmax(340px,.82fr)]" : ""}`}>
+        <AdminDataSection title="Needs Your Attention" description="Prioritized operational items with an owning workflow.">
           <AttentionList items={attention} />
         </AdminDataSection>
-        {data.upcoming?.length ? <AdminDataSection title="Coming Up" description="The next seven days, where the outlet has confirmed operational context.">
-          <UpcomingList items={data.upcoming || []} />
+        {upcoming.length ? <AdminDataSection title="Coming Up" description="The next 30 days, where the outlet has confirmed operational context.">
+          <UpcomingList items={upcoming} />
         </AdminDataSection> : null}
       </div>
+      {!upcoming.length ? <section className="px-1 py-1" aria-label="Coming Up"><strong className="text-sm text-text-primary">Coming Up</strong><p className="mt-0.5 text-sm text-text-secondary">No confirmed Crew events in the next 30 days.</p></section> : null}
     </AsyncDataSurface>
   </div>;
 }
 
 function UpcomingList({ items }) {
-  if (!items.length) return <div className="p-5 text-sm text-text-secondary">No confirmed Crew events in the next seven days.</div>;
   return <div className="divide-y divide-border px-4">
-    {items.map((item, index) => <a className="flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary" href={item.type === "leave" ? "#crew_leave" : "#crew_employees"} key={`${item.type}-${item.name}-${index}`}>
+    {items.map((item, index) => <a className="flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary" href={upcomingHref(item.type)} key={`${item.type}-${item.name}-${index}`}>
       <span className={`grid h-8 w-8 shrink-0 place-items-center rounded-full ${item.type === "birthday" ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-700"}`}><CalendarDays size={15} /></span>
-      <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-text-primary">{item.name}</strong><small className="block truncate text-xs text-text-secondary">{item.type === "birthday" ? item.position || "Crew" : `${item.type || "Leave"} · ${item.position || "Crew"}`}</small></span>
-      <span className="shrink-0 text-right"><strong className="block text-sm text-text-primary">{formatBirthdayDate(item.date)}</strong><small className="block text-xs font-medium text-primary">{relativeBirthdayDay(item.days_until)}</small></span>
+      <span className="min-w-0 flex-1"><strong className="block truncate text-sm text-text-primary">{item.type === "birthday" ? `${item.name}'s birthday` : item.name}</strong><small className="block truncate text-xs text-text-secondary">{upcomingContext(item)}</small></span>
+      <span className="shrink-0 text-right"><strong className="block text-sm text-text-primary">{formatUpcomingDate(item.date)}</strong><small className={`block text-xs font-medium ${Number(item.days_until) <= 7 ? "text-primary" : "text-text-secondary"}`}>{relativeBirthdayDay(item.days_until)}</small></span>
       <ChevronRight className="shrink-0 text-text-muted" size={16} />
     </a>)}
   </div>;
 }
 
-function TodayMetrics({ summary }) { const leaveNames=(summary.leave_today||[]).slice(0,2).map((item)=>item.name).join(", "); const pending=Number(summary.not_checked_in||0); return <div className="grid divide-y divide-border sm:grid-cols-2 sm:divide-x sm:divide-y-0 lg:grid-cols-4"><DailyMetric label="Scheduled today" value={summary.scheduled_today || 0} helper={`${summary.present_today || 0} checked in${pending ? ` · ${pending} not yet accounted for` : ""}`} icon={CalendarDays}/><DailyMetric label="Attendance" value={summary.attendance_issues || 0} helper={Number(summary.attendance_issues||0) ? "Recorded exception needs review" : pending ? "No recorded exceptions · roster is still pending" : "No recorded exceptions"} icon={UserCheck}/><DailyMetric label="On leave today" value={summary.on_leave_today || 0} helper={leaveNames || "No approved leave"} icon={Clock3}/><DailyMetric label="Tasks today" value={`${summary.tasks_completed || 0}/${summary.tasks_total || 0}`} helper={Number(summary.tasks_overdue||0) ? `${summary.tasks_overdue} overdue` : "No overdue tasks"} icon={ListChecks}/></div>; }
-function DailyMetric({label,value,helper,icon:Icon}) { return <div className="flex gap-3 p-4"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><Icon size={17}/></span><span className="min-w-0"><small className="block text-xs font-medium text-text-secondary">{label}</small><strong className="block text-xl text-text-primary">{value}</strong><small className="block truncate text-xs text-text-secondary">{helper}</small></span></div>; }
-function operationalBrief(summary, attentionAreas) { const missing=Number(summary.not_checked_in||0); const overdue=Number(summary.tasks_overdue||0); if (!attentionAreas) return "Everything looks on track today."; const details=[missing ? `${missing} Crew ${missing===1?"has":"have"} not checked in` : "",overdue ? `${overdue} task${overdue===1?"":"s"} ${overdue===1?"is":"are"} overdue` : ""].filter(Boolean); const prefix=`${attentionAreas} area${attentionAreas===1?"":"s"} need attention today.`; return details.length ? `${prefix} ${details.join(" and ")}.` : prefix; }
+function TodayMetrics({ summary }) {
+  const leaveNames = (summary.leave_today || []).slice(0, 2).map((item) => item.name).join(", ");
+  const pending = Number(summary.not_checked_in || 0);
+  return <div className="grid gap-2 p-3 sm:grid-cols-2 lg:grid-cols-4">
+    <DailyMetric label="Scheduled today" value={summary.scheduled_today || 0} helper={`${summary.present_today || 0} checked in${pending ? ` · ${pending} not yet accounted for` : ""}`} icon={CalendarDays} />
+    <DailyMetric label="Attendance" value={summary.attendance_issues || 0} helper={Number(summary.attendance_issues || 0) ? "Recorded exception needs review" : pending ? "No recorded exceptions · roster is still pending" : "No recorded exceptions"} icon={UserCheck} />
+    <DailyMetric label="On leave today" value={summary.on_leave_today || 0} helper={leaveNames || "No approved leave"} icon={Clock3} />
+    <DailyMetric label="Tasks today" value={`${summary.tasks_completed || 0}/${summary.tasks_total || 0}`} helper={Number(summary.tasks_overdue || 0) ? `${summary.tasks_overdue} overdue` : "No overdue tasks"} icon={ListChecks} />
+  </div>;
+}
+
+function DailyMetric({ label, value, helper, icon: Icon }) {
+  return <div className="flex gap-3 rounded-md bg-background/70 px-3 py-3">
+    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-primary/10 text-primary"><Icon size={17} /></span>
+    <span className="min-w-0"><small className="block text-xs font-medium text-text-secondary">{label}</small><strong className="block text-xl text-text-primary">{value}</strong><small className="block truncate text-xs text-text-secondary">{helper}</small></span>
+  </div>;
+}
+
+function operationalBrief(summary, attentionAreas) {
+  const missing = Number(summary.not_checked_in || 0);
+  const overdue = Number(summary.tasks_overdue || 0);
+  if (!attentionAreas) return { headline: "Everything looks on track today.", detail: "" };
+  const details = [
+    missing ? `${missing} Crew ${missing === 1 ? "has" : "have"} not checked in` : "",
+    overdue ? `${overdue} task${overdue === 1 ? " is" : "s are"} overdue` : "",
+  ].filter(Boolean);
+  return {
+    headline: `${attentionAreas} ${attentionAreas === 1 ? "area needs" : "areas need"} attention today.`,
+    detail: details.length ? `${details.join(" and ")}.` : "",
+  };
+}
 
 function AttentionList({ items }) {
   if (!items.length) return <div className="p-5 text-sm text-text-secondary">No current Crew items need action.</div>;
   return <div className="divide-y divide-border px-4">
-    {items.map((item) => <a className="flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary" href={attentionHref(item.key)} key={item.key}>
-      <span className={`grid h-8 w-1 shrink-0 rounded-full ${item.priority === "urgent" ? "bg-rose-500" : item.priority === "low" ? "bg-border" : "bg-amber-400"}`} aria-hidden="true" />
-      <span className="min-w-0 flex-1"><strong className="block text-sm text-text-primary">{item.title}</strong><small className="block text-xs text-text-secondary">{item.detail}</small></span>
+    {items.map((item) => <a className={`flex min-w-0 items-center gap-3 py-3 transition-colors hover:text-primary ${item.priority === "urgent" ? "bg-rose-50/40" : ""}`} href={attentionHref(item.key)} key={item.key}>
+      <span className="min-w-0 flex-1"><strong className={`block text-sm ${item.priority === "urgent" ? "text-rose-800" : "text-text-primary"}`}>{item.title}</strong><small className="block text-xs text-text-secondary">{item.detail}</small></span>
       <ChevronRight className="shrink-0 text-text-muted" size={16} />
     </a>)}
   </div>;
@@ -207,7 +239,19 @@ function attentionHref(key) {
   }[key] || "#crew_dashboard";
 }
 
-function formatBirthdayDate(value) {
+function upcomingContext(item) {
+  if (item.type === "birthday") return item.position || "Crew";
+  if (item.type === "compliance") return `Compliance expiry · ${item.requirement_name || "Document"}`;
+  return `Approved leave · ${item.position || "Crew"}`;
+}
+
+function upcomingHref(type) {
+  if (type === "leave") return "#crew_leave";
+  if (type === "compliance") return "#employee_compliance";
+  return "#crew_employees";
+}
+
+function formatUpcomingDate(value) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short" }).format(new Date(`${value}T00:00:00`));
 }
