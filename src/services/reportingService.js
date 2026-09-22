@@ -26,6 +26,30 @@ async function readMonthlyProductSales(outletId, year, month) {
   return data;
 }
 
+async function readMonthlyScopeFinancials(outletId, year, month) {
+  const { data, error } = await supabase.rpc("reporting_monthly_scope_financials", {
+    p_outlet_id: outletId, p_year: year, p_month: month,
+  });
+  throwSupabaseError("reporting.monthly_scope_financials", error);
+  return data;
+}
+
+async function readMonthlyScopeProductSales(outletId, year, month) {
+  const { data, error } = await supabase.rpc("reporting_monthly_scope_product_sales", {
+    p_outlet_id: outletId, p_year: year, p_month: month,
+  });
+  throwSupabaseError("reporting.monthly_scope_product_sales", error);
+  return data;
+}
+
+async function readYearlyScopeFinancials(outletId, year) {
+  const { data, error } = await supabase.rpc("reporting_yearly_scope_financials", {
+    p_outlet_id: outletId, p_year: year,
+  });
+  throwSupabaseError("reporting.yearly_scope_financials", error);
+  return data;
+}
+
 // All Reporting consumers, including the future Poster renderer, must use this
 // service rather than querying Reporting source tables from the browser.
 export const reportingService = {
@@ -33,6 +57,14 @@ export const reportingService = {
     const [financialContract, productContract] = await Promise.all([
       readMonthlyFinancials(outletId, year, month),
       readMonthlyProductSales(outletId, year, month),
+    ]);
+    return buildMonthlyReportingDataset({ financialContract, productContract });
+  },
+
+  async getMonthlyAllOutletsReport({ year, month }) {
+    const [financialContract, productContract] = await Promise.all([
+      readMonthlyScopeFinancials(null, year, month),
+      readMonthlyScopeProductSales(null, year, month),
     ]);
     return buildMonthlyReportingDataset({ financialContract, productContract });
   },
@@ -45,6 +77,18 @@ export const reportingService = {
       outlet: monthlyContracts[0]?.outlet ?? { id: outletId },
       year,
       monthlyContracts,
+      currentYear: current.year,
+      currentMonth: current.month,
+    });
+  },
+
+  async getYearlyAllOutletsFinancialReport({ year, now }) {
+    const current = malaysiaCurrentPeriod(now);
+    const contract = await readYearlyScopeFinancials(null, year);
+    return buildYearlyFinancialDataset({
+      outlet: contract?.outlet ?? { id: null, name: "All Outlets", scope: "all" },
+      year,
+      monthlyContracts: contract?.months ?? [],
       currentYear: current.year,
       currentMonth: current.month,
     });
