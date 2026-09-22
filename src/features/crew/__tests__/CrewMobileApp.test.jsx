@@ -99,6 +99,13 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); document.documentElement.removeAttribute("data-crew-theme"); document.documentElement.removeAttribute("data-crew-theme-transition"); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it("applies a saved Crew theme on the pre-auth login", () => {
+    localStorage.setItem("feedx.crew.theme", "dark");
+    renderCrewApp({ crewSession: null });
+    expect(screen.getByRole("heading", { name: "Welcome to FeedX Crew" })).not.toBeNull();
+    expect(document.documentElement.dataset.crewTheme).toBe("dark");
+  });
+
   it("applies and persists the Home-only Crew theme choice without adding a second route control", async () => {
     const first = renderCrewApp();
 
@@ -364,7 +371,7 @@ describe("Crew Mobile redesign", () => {
   it("uses a two-step mobile and custom passcode login that auto-submits four digits", async () => {
     render(<CrewMobileApp />);
     expect(screen.queryByText("Passcode")).toBeNull();
-    expect(screen.getByLabelText("FeedX").querySelector("img").getAttribute("src")).toBe("/design-homepage/logo.png");
+    expect(screen.getByAltText("FeedX").getAttribute("src")).toBe("/crew-login-logo-horizontal.png");
     expect(screen.queryByText("FeedX Admin sign in")).toBeNull();
     fireEvent.change(screen.getByLabelText("Mobile Number"), { target: { value: "12 345 6789" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));

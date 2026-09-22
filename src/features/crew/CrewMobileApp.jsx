@@ -50,15 +50,16 @@ const CrewNotificationsMobile = lazy(() => import("./components/CrewNotification
 export default function CrewMobileApp({ onNotify }) {
   const route = useCrewRoute();
   const crew = useCrewSession(route.screen);
+  const crewTheme = useCrewTheme();
   // Replacing a token unmounts every employee-owned view, draft and dialog.
-  return crew.session ? <CrewWorkspace key={crew.session.token} {...crew} route={route} onNotify={onNotify} /> : <CrewLogin onSignedIn={crew.replaceSession} />;
+  return crew.session ? <CrewWorkspace key={crew.session.token} {...crew} route={route} onNotify={onNotify} crewTheme={crewTheme} /> : <CrewLogin onSignedIn={crew.replaceSession} />;
 }
 
-function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, retryBootstrap, bootstrapFailure, bootstrapRetrying, route, onNotify }) {
+function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, retryBootstrap, bootstrapFailure, bootstrapRetrying, route, onNotify, crewTheme }) {
   const { t } = useTranslation();
   useCrewVisualViewport();
   const { screen, growthInitialView, entry, navigate } = route;
-  const { theme, toggleTheme } = useCrewTheme();
+  const { theme, toggleTheme } = crewTheme;
   const { unreadCount, refreshUnreadCount } = useCrewNotifications(session.token, screen);
   const { attendance, context, profile, growth, growthError, performance, reward, operations, roster, leave, assets, disciplinary } = data;
   const clock = useCrewAttendance({ session, attendance, context, roster, refresh, screen });

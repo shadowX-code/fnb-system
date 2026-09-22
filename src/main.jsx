@@ -1,10 +1,11 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
 import App from "./app/App.jsx";
+import { isCrewWebAppHostname } from "./app/hostnameRouting.js";
 import "./styles/workspaceStyles.js";
 
 try {
-  const isCrewRoute = window.location.hash === "#crew" || window.location.hash.startsWith("#crew/");
+  const isCrewRoute = isCrewWebAppHostname(window.location.hostname) || window.location.hash === "#crew" || window.location.hash.startsWith("#crew/");
   const crewThemeChoice = localStorage.getItem("feedx.crew.theme");
   const themeChoice = localStorage.getItem("fnb.theme") || "system";
   const systemTheme = window.matchMedia?.("(prefers-color-scheme: dark)")?.matches ? "dark" : "light";
