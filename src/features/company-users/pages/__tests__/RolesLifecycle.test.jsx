@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn() }));
-vi.mock("../../../../services/roleService.js", () => ({ roleService: { listRoles: mocks.list, saveRole: mocks.save, deleteRole: mocks.remove } }));
+const mocks = vi.hoisted(() => ({ list: vi.fn(), save: vi.fn(), remove: vi.fn(), assigned: vi.fn() }));
+vi.mock("../../../../services/roleService.js", () => ({ roleService: { listRoles: mocks.list, saveRole: mocks.save, deleteRole: mocks.remove, listAssignedEmployees: mocks.assigned } }));
 
 import RolesPage from "../RolesPage.jsx";
 
@@ -32,6 +32,7 @@ beforeEach(() => {
   mocks.list.mockReset().mockResolvedValue([existing]);
   mocks.save.mockReset().mockResolvedValue({ ...existing, id: "role-2", name: "dispatch_viewer", description: "Custom company role." });
   mocks.remove.mockReset();
+  mocks.assigned.mockReset().mockResolvedValue([]);
   ui.confirm.mockReset().mockResolvedValue(true);
   ui.notify.mockReset();
 });
@@ -41,6 +42,57 @@ afterEach(() => {
 });
 
 describe("Roles current mounted lifecycle", () => {
+  it("renders only canonical role assignments and keeps membership states visible", async () => {
+    const manager = { ...existing, id: "00000000-0000-4000-8000-000000000021", name: "manager", assignedUsers: 2 };
+    mocks.list.mockResolvedValueOnce([manager]);
+    mocks.assigned.mockResolvedValueOnce([
+      { id: "employee-1", fullName: "Ari Chen", preferredName: "Ari", employeeCode: "EMP-001", position: "Outlet Manager", workplace: "Central", accountState: "active", employmentStatus: "active", employmentType: "full_time" },
+      { id: "employee-2", fullName: "Bee Tan", preferredName: "", employeeCode: "EMP-002", position: "Service Crew", workplace: "North", accountState: "invited", employmentStatus: "resigned", employmentType: "part_time" },
+    ]);
+    render(<RolesPage ui={ui} auth={auth} store={{ outlets: [] }} />);
+    await screen.findByText("manager");
+    fireEvent.click(screen.getByText("manager"));
+    await screen.findByText("View Role");
+    fireEvent.click(screen.getByRole("button", { name: "2", exact: true }));
+    await screen.findByText("Ari");
+    expect(mocks.assigned).toHaveBeenCalledWith(manager.id);
+    expect(screen.getByText("EMP-001")).not.toBeNull();
+    expect(screen.getByText("Invitation Pending")).not.toBeNull();
+    expect(screen.getByText("Resigned")).not.toBeNull();
+    expect(screen.queryByText("Jason Lim")).toBeNull();
+    expect(screen.queryByText("Nur Aina")).toBeNull();
+    fireEvent.change(screen.getByPlaceholderText("Search assigned employees..."), { target: { value: "EMP-002" } });
+    expect(screen.getByText("Bee Tan")).not.toBeNull();
+    expect(screen.queryByText("Ari")).toBeNull();
+  });
+
+  it("shows an empty state instead of borrowing employees from another role", async () => {
+    const emptyRole = { ...existing, id: "00000000-0000-4000-8000-000000000022", name: "new_role", assignedUsers: 0 };
+    mocks.list.mockResolvedValueOnce([emptyRole]);
+    render(<RolesPage ui={ui} auth={auth} store={{ outlets: [] }} />);
+    await screen.findByText("new_role");
+    fireEvent.click(screen.getByText("new_role"));
+    await screen.findByText("View Role");
+    fireEvent.click(screen.getByRole("button", { name: "0", exact: true }));
+    await screen.findByText("No employees are assigned to this role.");
+    expect(mocks.assigned).toHaveBeenCalledWith(emptyRole.id);
+    expect(screen.queryByText("Jason Lim")).toBeNull();
+  });
+
+  it("shows a read failure without substituting fixture identities", async () => {
+    const role = { ...existing, id: "00000000-0000-4000-8000-000000000023", assignedUsers: 1 };
+    mocks.list.mockResolvedValueOnce([role]);
+    mocks.assigned.mockRejectedValueOnce(new Error("Employee visibility denied"));
+    render(<RolesPage ui={ui} auth={auth} store={{ outlets: [] }} />);
+    await screen.findByText("operations");
+    fireEvent.click(screen.getByText("operations"));
+    await screen.findByText("View Role");
+    fireEvent.click(screen.getByRole("button", { name: "1", exact: true }));
+    await screen.findByText("Unable to load assigned employees.");
+    expect(screen.getByText("Employee visibility denied")).not.toBeNull();
+    expect(screen.queryByText("Jason Lim")).toBeNull();
+  });
+
   it("creates through the parent-owned save callback, closes only after success, and updates the local listing without a second read", async () => {
     render(<RolesPage ui={ui} auth={auth} store={{ outlets: [] }} />);
     await screen.findByText("operations");

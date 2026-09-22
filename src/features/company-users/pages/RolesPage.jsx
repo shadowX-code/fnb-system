@@ -9,7 +9,7 @@ import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
-import { defaultPermissions, defaultRoles, rolePermissionMatrix } from "../data/rbacDefaults.js";
+import { defaultPermissions } from "../data/rbacDefaults.js";
 import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
 import { navigateAdminRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { roleService } from "../../../services/roleService.js";
@@ -17,19 +17,7 @@ import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess, roleHasRestaurantPermissions } from "../utils/roleAccess.js";
 import { canEdit, getAccessibleOutletIds, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { isProtectedRoleName, normalizeRoleName } from "../../../auth/rbac.js";
-
-const roleMeta = {
-  owner: { assignedUsers: 1, outletAccess: "all", selectedOutletIds: [], updatedAt: "2026-05-10", updatedBy: "System" },
-  admin: { assignedUsers: 1, outletAccess: "all", selectedOutletIds: [], updatedAt: "2026-05-10", updatedBy: "System" },
-  manager: { assignedUsers: 3, outletAccess: "selected", selectedOutletIds: ["jymt-kopitiam", "happiness-ipoh", "hola-ipoh"], updatedAt: "2026-05-09", updatedBy: "Marcus Lee" },
-  finance: { assignedUsers: 1, outletAccess: "all", selectedOutletIds: [], updatedAt: "2026-05-07", updatedBy: "Marcus Lee" },
-  hr: { assignedUsers: 1, outletAccess: "all", selectedOutletIds: [], updatedAt: "2026-05-07", updatedBy: "Marcus Lee" },
-  supervisor: { assignedUsers: 4, outletAccess: "selected", selectedOutletIds: ["friends-corner"], updatedAt: "2026-05-03", updatedBy: "Amanda Tan" },
-  purchaser: { assignedUsers: 2, outletAccess: "all", selectedOutletIds: [], updatedAt: "2026-05-03", updatedBy: "Amanda Tan" },
-  cashier: { assignedUsers: 8, outletAccess: "selected", selectedOutletIds: ["jymt-kopitiam"], updatedAt: "2026-04-29", updatedBy: "HR" },
-  kitchen: { assignedUsers: 6, outletAccess: "selected", selectedOutletIds: ["happiness-ipoh"], updatedAt: "2026-04-29", updatedBy: "HR" },
-  staff: { assignedUsers: 12, outletAccess: "selected", selectedOutletIds: ["friends-corner"], updatedAt: "2026-04-25", updatedBy: "System" },
-};
+import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../../../constants/employeeAccessStates.js";
 
 const roleEditorGroups = getPermissionGroups();
 const roleEditorPermissionCodeSet = new Set(defaultPermissions.map((permission) => permission.code));
@@ -142,38 +130,8 @@ function buildOutletScopeSet(outletIds, outlets = []) {
   return scope;
 }
 
-const roleAssignedUserSamples = [
-  { id: "u-owner", role: "owner", fullName: "Marcus Lee", nickname: "Marcus", email: "marcus@hola.test", position: "Owner", workplace: "All Outlets", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-admin", role: "admin", fullName: "Amanda Tan", nickname: "Amanda", email: "amanda@hola.test", position: "Admin", workplace: "HQ", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-manager-1", role: "manager", fullName: "Jason Lim", nickname: "Jason", email: "jason@hola.test", position: "Outlet Manager", workplace: "JYMT Kopitiam", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-manager-2", role: "manager", fullName: "Nur Aina", nickname: "Aina", email: "aina@hola.test", position: "Outlet Manager", workplace: "Happiness Kopitiam Ipoh", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-manager-3", role: "manager", fullName: "Ng Wei Jian", nickname: "Ken", email: "ken@hola.test", position: "Outlet Manager", workplace: "Hola Hola Kopitiam Ipoh", accountStatus: "Invitation Pending", employmentStatus: "Full Time" },
-  { id: "u-finance", role: "finance", fullName: "Chloe Wong", nickname: "Chloe", email: "chloe@hola.test", position: "Finance Officer", workplace: "HQ", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-hr", role: "hr", fullName: "Farah Zain", nickname: "Farah", email: "farah@hola.test", position: "HR Officer", workplace: "HQ", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-supervisor-1", role: "supervisor", fullName: "Muhammad Syafiq", nickname: "Syafiq", email: "syafiq@hola.test", position: "Supervisor", workplace: "Friends Corner", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-purchaser", role: "purchaser", fullName: "Ooi Ee-Lyn", nickname: "Ee-Lyn", email: "eelyn@hola.test", position: "Purchaser", workplace: "HQ", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-cashier", role: "cashier", fullName: "Siti Aisyah", nickname: "Siti", email: "siti@hola.test", position: "Cashier", workplace: "JYMT Kopitiam", accountStatus: "Active", employmentStatus: "Part Time" },
-  { id: "u-kitchen", role: "kitchen", fullName: "Daniel Koh", nickname: "Daniel", email: "daniel@hola.test", position: "Kitchen Crew", workplace: "Happiness Kopitiam Ipoh", accountStatus: "Active", employmentStatus: "Full Time" },
-  { id: "u-staff", role: "staff", fullName: "Aung Min", nickname: "Min", email: "min@hola.test", position: "Service Crew", workplace: "Friends Corner", accountStatus: "Inactive", employmentStatus: "Resigned" },
-];
-
 function getRoleEditorModuleCodes(module) {
   return Object.values(module.actions).flatMap((action) => action.codes);
-}
-
-function permissionModules(roleName) {
-  const codes = rolePermissionMatrix[roleName] ?? [];
-  return [...new Set(codes.map((code) => defaultPermissions.find((permission) => permission.code === code)?.module).filter(Boolean))];
-}
-
-function enrichRole(role) {
-  const meta = roleMeta[role.name] ?? { assignedUsers: 0, outletAccess: "all", selectedOutletIds: [], updatedAt: "Not saved", updatedBy: "-" };
-  return {
-    ...role,
-    ...meta,
-    permissions: rolePermissionMatrix[role.name] ?? [],
-    modules: permissionModules(role.name),
-  };
 }
 
 function StatCard({ label, value, helper, tone = "neutral", icon }) {
@@ -571,11 +529,76 @@ function FragmentLike({ children }) {
   return children;
 }
 
-function getAssignedUsersForRole(role) {
-  const directUsers = roleAssignedUserSamples.filter((user) => user.role === role.name);
-  if (directUsers.length >= role.assignedUsers) return directUsers.slice(0, role.assignedUsers);
-  const fallbackUsers = roleAssignedUserSamples.filter((user) => user.role !== role.name);
-  return [...directUsers, ...fallbackUsers].slice(0, role.assignedUsers);
+function titleCase(value) {
+  return String(value ?? "").trim().split(/[_\s-]+/).filter(Boolean).map((part) => part[0]?.toUpperCase() + part.slice(1)).join(" ") || "—";
+}
+
+function accountTone(state) {
+  if (state === EMPLOYEE_ACCESS_STATE.ACTIVE) return "success";
+  if (state === EMPLOYEE_ACCESS_STATE.INVITED) return "warning";
+  if (state === EMPLOYEE_ACCESS_STATE.NOT_SENT) return "info";
+  return "neutral";
+}
+
+function employmentTone(status) {
+  if (status === "active") return "success";
+  if (status === "resigned") return "warning";
+  if (status === "terminated") return "danger";
+  return "neutral";
+}
+
+function AssignedEmployeesModal({ role, onClose }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [query, setQuery] = useState("");
+  const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    let ignore = false;
+    setLoading(true);
+    setError("");
+    roleService.listAssignedEmployees(role.id)
+      .then((nextRows) => { if (!ignore) setRows(nextRows); })
+      .catch((nextError) => { if (!ignore) setError(nextError.message || "Unable to load assigned employees."); })
+      .finally(() => { if (!ignore) setLoading(false); });
+    return () => { ignore = true; };
+  }, [retryKey, role.id]);
+
+  const filteredRows = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    if (!normalized) return rows;
+    return rows.filter((employee) => [employee.fullName, employee.preferredName, employee.employeeCode, employee.position, employee.workplace, employee.employmentStatus, employee.employmentType, EMPLOYEE_ACCESS_STATE_LABEL[employee.accountState]]
+      .some((value) => String(value ?? "").toLowerCase().includes(normalized)));
+  }, [query, rows]);
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-[1px]" role="dialog" aria-modal="true" aria-label={`Assigned employees for ${role.name}`}>
+      <div className="flex max-h-[78vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wide text-primary">Assigned Employees</div>
+            <h3 className="mt-1 text-lg font-semibold text-text-primary">{role.name}</h3>
+            <p className="mt-1 text-sm text-text-secondary">Employees currently assigned to this role.</p>
+          </div>
+          <button className="flex h-9 w-9 items-center justify-center rounded-xl text-text-muted transition hover:bg-slate-100 hover:text-text-primary" type="button" onClick={onClose} aria-label="Close assigned employees">×</button>
+        </header>
+        <div className="border-b border-border px-5 py-3">
+          <div className="relative max-w-md">
+            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+            <input className="control h-10 w-full pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search assigned employees..." disabled={loading} />
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-auto">
+          {loading ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading assigned employees...</div> : null}
+          {!loading && error ? <div className="p-8 text-center"><div className="text-sm font-bold text-rose-700">Unable to load assigned employees.</div><p className="mt-1 text-sm text-text-secondary">{error}</p><button className="btn-secondary mt-4" type="button" onClick={() => setRetryKey((value) => value + 1)}>Retry</button></div> : null}
+          {!loading && !error && filteredRows.length ? <table className="min-w-[760px] w-full text-sm"><thead className="table-head"><tr><th className="px-4 py-3 text-left">Employee</th><th className="px-4 py-3 text-left">Position</th><th className="px-4 py-3 text-left">Workplace</th><th className="px-4 py-3 text-left">Account</th><th className="px-4 py-3 text-left">Employment</th></tr></thead><tbody>{filteredRows.map((employee) => <tr key={employee.id} className="border-b border-border hover:bg-slate-50"><td className="px-4 py-3"><div className="font-bold text-text-primary">{employee.preferredName || employee.fullName || "Unnamed employee"}</div><div className="mt-1 text-xs text-text-secondary">{employee.employeeCode || (employee.preferredName && employee.preferredName !== employee.fullName ? employee.fullName : "—")}</div></td><td className="px-4 py-3 text-text-secondary">{employee.position || "—"}</td><td className="px-4 py-3 text-text-secondary">{employee.workplace || "—"}</td><td className="px-4 py-3"><Badge tone={accountTone(employee.accountState)}>{EMPLOYEE_ACCESS_STATE_LABEL[employee.accountState] || "No Access"}</Badge></td><td className="px-4 py-3"><Badge tone={employmentTone(employee.employmentStatus)}>{titleCase(employee.employmentStatus)}</Badge><div className="mt-1 text-xs text-text-secondary">{titleCase(employee.employmentType)}</div></td></tr>)}</tbody></table> : null}
+          {!loading && !error && !filteredRows.length ? <div className="p-8 text-center"><div className="text-sm font-bold text-text-primary">{rows.length ? "No assigned employees found." : "No employees are assigned to this role."}</div><p className="mt-1 text-sm text-text-secondary">{rows.length ? "Try another search term." : "Assign a role in an employee profile to add it here."}</p></div> : null}
+        </div>
+        <footer className="shrink-0 border-t border-border px-5 py-3 text-right"><button className="btn-secondary" type="button" onClick={onClose}>Close</button></footer>
+      </div>
+    </div>
+  );
 }
 
 function AddRolePage({ onClose, onSubmit, ui, outlets, auth }) {
@@ -592,18 +615,10 @@ function AddRolePage({ onClose, onSubmit, ui, outlets, auth }) {
 
 function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editDisabledReason, editDebug }) {
   const [assignedUsersOpen, setAssignedUsersOpen] = useState(false);
-  const [assignedUserSearch, setAssignedUserSearch] = useState("");
   const [matrixTab, setMatrixTab] = useState("All");
   const [matrixSearch, setMatrixSearch] = useState("");
   const permissions = new Set(role.permissions ?? []);
   const isProtectedRole = isProtectedRoleName(role.name);
-  const assignedUsers = getAssignedUsersForRole(role);
-  const filteredAssignedUsers = assignedUsers.filter((user) => {
-    const query = assignedUserSearch.trim().toLowerCase();
-    if (!query) return true;
-    return [user.fullName, user.nickname, user.email, user.position, user.workplace, user.accountStatus, user.employmentStatus]
-      .some((value) => value.toLowerCase().includes(query));
-  });
   const activeModuleCount = roleEditorGroups
     .flatMap((group) => group.modules)
     .filter((module) => getRoleEditorModuleCodes(module).some((code) => permissions.has(code))).length;
@@ -766,64 +781,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
                 </div>
             </section>
           </div>
-          {assignedUsersOpen ? (
-            <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-[1px]" role="dialog" aria-modal="true">
-              <div className="flex max-h-[78vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
-                <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
-                  <div>
-                    <div className="text-xs font-bold uppercase tracking-wide text-primary">Assigned Employees</div>
-                    <h3 className="mt-1 text-lg font-semibold text-text-primary">{role.name}</h3>
-                    <p className="mt-1 text-sm text-text-secondary">Employees currently assigned to this role.</p>
-                  </div>
-                  <button className="flex h-9 w-9 items-center justify-center rounded-xl text-text-muted transition hover:bg-slate-100 hover:text-text-primary" type="button" onClick={() => setAssignedUsersOpen(false)} aria-label="Close assigned employees">
-                    ×
-                  </button>
-                </header>
-                <div className="border-b border-border px-5 py-3">
-                  <div className="relative max-w-md">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                    <input className="control h-10 w-full pl-9" value={assignedUserSearch} onChange={(event) => setAssignedUserSearch(event.target.value)} placeholder="Search assigned employees..." />
-                  </div>
-                </div>
-                <div className="min-h-0 flex-1 overflow-auto">
-                  <table className="min-w-[760px] w-full text-sm">
-                    <thead className="table-head">
-                      <tr>
-                        <th className="px-4 py-3 text-left">Employee</th>
-                        <th className="px-4 py-3 text-left">Position</th>
-                        <th className="px-4 py-3 text-left">Workplace</th>
-                        <th className="px-4 py-3 text-left">Account</th>
-                        <th className="px-4 py-3 text-left">Employment</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredAssignedUsers.map((user) => (
-                        <tr key={user.id} className="border-b border-border hover:bg-slate-50">
-                          <td className="px-4 py-3">
-                            <div className="font-bold text-text-primary">{user.fullName} <span className="font-semibold text-text-muted">({user.nickname})</span></div>
-                            <div className="mt-1 text-xs text-text-secondary">{user.email}</div>
-                          </td>
-                          <td className="px-4 py-3 text-text-secondary">{user.position}</td>
-                          <td className="px-4 py-3 text-text-secondary">{user.workplace}</td>
-                          <td className="px-4 py-3"><Badge tone={user.accountStatus === "Active" ? "success" : user.accountStatus === "Inactive" ? "neutral" : "warning"}>{user.accountStatus}</Badge></td>
-                          <td className="px-4 py-3"><Badge tone={user.employmentStatus === "Full Time" ? "success" : user.employmentStatus === "Part Time" ? "info" : "neutral"}>{user.employmentStatus}</Badge></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {!filteredAssignedUsers.length ? (
-                    <div className="p-8 text-center">
-                      <div className="text-sm font-bold text-text-primary">No assigned users found.</div>
-                      <p className="mt-1 text-sm text-text-secondary">Try another search term.</p>
-                    </div>
-                  ) : null}
-                </div>
-                <footer className="shrink-0 border-t border-border px-5 py-3 text-right">
-                  <button className="btn-secondary" type="button" onClick={() => setAssignedUsersOpen(false)}>Close</button>
-                </footer>
-              </div>
-            </div>
-          ) : null}
+          {assignedUsersOpen ? <AssignedEmployeesModal role={role} onClose={() => setAssignedUsersOpen(false)} /> : null}
     </RoleAccessLayout>
   );
 }
