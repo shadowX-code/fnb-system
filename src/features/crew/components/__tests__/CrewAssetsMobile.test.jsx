@@ -147,9 +147,9 @@ describe("Crew Assets Mobile", () => {
     crewService.archiveAssetInspectionDraft.mockResolvedValue({ inspection_id: "draft-1", status: "archived" });
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
     fireEvent.click(await screen.findByText("Resume inspection"));
-    fireEvent.click(screen.getByRole("button", { name: "Cancel Inspection" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel Inspection" }).at(0));
     expect(screen.getByRole("heading", { name: "Cancel inspection?" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Cancel inspection" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Cancel Inspection" }).at(-1));
     await waitFor(() => expect(crewService.archiveAssetInspectionDraft).toHaveBeenCalledWith("token", "draft-1"));
     expect(await screen.findByText("Inspection draft cancelled")).not.toBeNull();
     expect(screen.queryByText("Resume inspection")).toBeNull();

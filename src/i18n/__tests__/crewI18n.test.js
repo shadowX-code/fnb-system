@@ -44,6 +44,24 @@ describe("Crew i18n foundation", () => {
     expect(i18n.options.fallbackLng).toContain("en");
   });
 
+  it("keeps current People, Cash, Performance and notification terminology localized", async () => {
+    await i18n.changeLanguage("zh-CN");
+    expect(i18n.t("employmentRecords.title")).toBe("雇佣记录");
+    expect(i18n.t("employmentRecords.compliance")).toBe("食品处理合规");
+    expect(i18n.t("disciplinary.title")).toBe("警告与通知");
+    expect(i18n.t("cash.handOverCash")).toBe("交接现金");
+    expect(i18n.t("performance.currentScore")).toBe("当前分数");
+    expect(i18n.t("notifications.title")).toBe("通知");
+
+    await i18n.changeLanguage("ms");
+    expect(i18n.t("employmentRecords.title")).toBe("Rekod Pekerjaan");
+    expect(i18n.t("employmentRecords.compliance")).toBe("Pematuhan Pengendalian Makanan");
+    expect(i18n.t("disciplinary.title")).toBe("Amaran & Notis");
+    expect(i18n.t("cash.handOverCash")).toBe("Serah Tunai");
+    expect(i18n.t("performance.currentScore")).toBe("Skor semasa");
+    expect(i18n.t("notifications.title")).toBe("Pemberitahuan");
+  });
+
   it("uses locale-aware singular and plural day units", async () => {
     expect(i18n.t("common.day", { count: 1 })).toBe("day");
     expect(i18n.t("common.day", { count: 2 })).toBe("days");

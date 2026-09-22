@@ -1,4 +1,5 @@
 import { CircleAlert } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import CrewRichContent from "./CrewRichContent.jsx";
 import CrewSopImage from "./CrewSopImage.jsx";
 import { parseSopBody } from "../utils/sopDocumentContent.js";
@@ -16,13 +17,14 @@ export default function CrewSopDocument({
   className = "",
   sectionRefs,
 }) {
+  const { t } = useTranslation();
   const rows = orderedSections(sections);
 
   if (!rows.length) {
     return (
       <div className="crew-sop-reader-empty" role="status">
-        <strong>No content yet</strong>
-        <p>This SOP has no content in this version.</p>
+        <strong>{t("learn.noContent")}</strong>
+        <p>{t("learn.noContentBody")}</p>
       </div>
     );
   }
@@ -51,7 +53,7 @@ export default function CrewSopDocument({
               {content.html ? <CrewRichContent html={content.html} /> : null}
               <CrewSopImage media={media} token={token} sopVersionId={sopVersionId} admin={admin} />
               {content.keyPointContent ? (
-                <aside className="crew-ui-note crew-ui-note--mint crew-sop-reader-key-point" aria-label="Key point">
+                <aside className="crew-ui-note crew-ui-note--mint crew-sop-reader-key-point" aria-label={t("tasks.types.key_point")}>
                   <CircleAlert size={17} aria-hidden="true" />
                   <span><p>{content.keyPointContent}</p></span>
                 </aside>

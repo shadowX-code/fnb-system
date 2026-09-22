@@ -35,15 +35,6 @@ import performanceDetailHeroBackground from "../assets/performance-detail-hero-a
 
 gsap.registerPlugin(useGSAP);
 
-const statusCopy = {
-  certified: "Certified",
-  in_progress: "In Progress",
-  ready_for_review: "Ready for Review",
-  not_started: "Not Started",
-  needs_renewal: "Ready for Review",
-  expired: "Expired",
-};
-
 const statusTone = (status) => status === "certified" ? "success" : ["ready_for_review", "needs_renewal"].includes(status) ? "ready" : status === "in_progress" ? "info" : "neutral";
 const percentFor = (skill) => {
   const total = Number(skill?.requirements_total) || 0;
