@@ -29,7 +29,6 @@
   --crew-auth-hover: #e6f4f1;
   --crew-auth-placeholder: #648184;
   --crew-auth-accent: #078978;
-  --crew-auth-brand-surface: #e4f4ef;
   --crew-auth-art-opacity: .47;
   --crew-auth-error-surface: #fbecee;
   --crew-auth-error-text: #a52e3d;
@@ -54,7 +53,6 @@
   --crew-auth-hover: #24454a;
   --crew-auth-placeholder: #a2bdbc;
   --crew-auth-accent: #62d9c7;
-  --crew-auth-brand-surface: #e4f4ef;
   --crew-auth-art-opacity: .78;
   --crew-auth-error-surface: #4c3038;
   --crew-auth-error-text: #ffd6db;
@@ -80,8 +78,6 @@
   width: 216px;
   height: 58px;
   overflow: hidden;
-  border-radius: 8px;
-  background: var(--crew-auth-brand-surface);
 
 }
 
@@ -98,7 +94,7 @@
 .crew-v2-login-copy {
   position: relative;
   z-index: 1;
-  margin-top: clamp(30px, 6vh, 54px);
+  margin-top: clamp(36px, 8vh, 66px);
 
 }
 
@@ -112,22 +108,11 @@
 
 }
 
-.crew-auth-welcome-prefix, .crew-auth-outlet-name, .crew-auth-crew-name { display: block; }
-.crew-auth-welcome-prefix { font-weight: 560; }
-.crew-auth-crew-name { color: var(--crew-auth-accent); }
-.crew-auth-outlet-name { font-size: clamp(27px, 8vw, 34px); }
-
 .crew-v2-login-copy p {
-  margin: 10px 0 0;
+  margin: 14px 0 0;
   color: var(--crew-auth-secondary);
-  font-size: 15px;
-  line-height: 1.45;
-
-}
-
-.crew-v2-login-copy .crew-auth-lead {
-  margin-top: 14px;
   font-size: 16px;
+  line-height: 1.45;
 
 }
 
@@ -136,7 +121,7 @@
   z-index: 2;
   display: grid;
   gap: 10px;
-  margin-top: 24px;
+  margin-top: 32px;
 
 }
 
@@ -426,20 +411,6 @@
 @media (max-height: 680px) {
 .crew-v2-login-copy {
   margin-top: 30px;
-
-}
-}
-
-@media (max-height: 680px) {
-.crew-v2-login-copy p {
-  margin-top: 14px;
-
-}
-}
-
-@media (max-height: 680px) {
-.crew-v2-login-copy .crew-auth-lead {
-  margin-top: 12px;
 
 }
 }
