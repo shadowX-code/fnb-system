@@ -44,6 +44,15 @@ describe("People Employment Contract Builder V2 authority", () => {
     expect(panel).toContain("Upload Existing PDF");
   });
 
+  it("keeps variable inspection as a non-persistent workspace layer around the canonical PDF", () => {
+    expect(workspace).toContain("Show Variables");
+    expect(workspace).toContain("Variable inspection");
+    expect(workspace).toContain("Authoring annotations only. The canonical PDF above is unchanged.");
+    expect(workspace).toContain("Editable in Create Contract → Terms");
+    expect(workspace).toContain("missing_variables");
+    expect(workspace).toContain("Authoring annotations are never included.");
+  });
+
   it("does not change Crew acknowledgement into an electronic-signature claim", () => {
     expect(migration).toContain("it is not represented by FeedX as a legal electronic signature");
     expect(migration).toContain("crew_session_acknowledgement");
