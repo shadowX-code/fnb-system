@@ -42,7 +42,10 @@ export default function CrewNotificationsMobile({ token, onBack, onOpenNotificat
       const result = await crewService.markNotificationRead(token, row.id);
       setRows((current) => current.map((item) => item.id === row.id ? { ...item, is_read: true } : item));
       await onUnreadChanged?.();
-      if (result?.source_available) onOpenNotification?.(result.action_descriptor);
+      if (result?.source_available) {
+        const opened = await onOpenNotification?.(result.action_descriptor, row.id);
+        if (opened === false) setError(t("notifications.unavailable"));
+      }
       else setError(t("notifications.unavailable"));
     } catch { setError(t("notifications.openError")); }
     finally { setOpeningId(""); }

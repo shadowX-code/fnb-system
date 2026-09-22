@@ -5,13 +5,14 @@ import useCrewSession from "../hooks/useCrewSession.js";
 import { crewService } from "../../../services/crewService.js";
 import "../../../i18n/index.js";
 
-vi.mock("../../../services/crewService.js", () => ({ crewService: Object.fromEntries(["changePasscode", "updateMyProfilePhoto", "myAttendance", "attendanceContext", "growthMobile", "performanceMobile", "rewardMobile", "operationsToday", "myRoster", "myLeave", "myProfile"].map((name) => [name, vi.fn()])) }));
+vi.mock("../../../services/crewService.js", () => ({ crewService: Object.fromEntries(["changePasscode", "updateMyProfilePhoto", "myAttendance", "attendanceContext", "growthMobile", "performanceMobile", "rewardMobile", "operationsToday", "managementTasks", "managementAssets", "outletScope", "myRoster", "myLeave", "myProfile"].map((name) => [name, vi.fn()])) }));
 const session = (token) => ({ token, expires_at: "2099-01-01", employee: { id: token } });
 const deferred = () => { let resolve, reject; const promise = new Promise((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject }; };
 beforeEach(() => {
   localStorage.setItem("feedx.crew.session", JSON.stringify(session("A")));
   for (const fn of Object.values(crewService)) fn.mockReset().mockImplementation(async (token) => ({ owner: token }));
   crewService.myAttendance.mockImplementation(async (token) => [{ owner: token }]);
+  crewService.outletScope.mockImplementation(async (token) => ({ employee_id: token, management: false, outlets: [{ id: "outlet-1", name: "Friends Corner" }], default_outlet_id: "outlet-1" }));
 });
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
 
@@ -166,6 +167,29 @@ describe("Crew session orchestration", () => {
     expect(result.current.session.token).toBe("rotated");
     expect(result.current.passcodeSuccess).toBe(true);
     expect(crewService.changePasscode).toHaveBeenCalledWith("A", "1234", "5678");
+  });
+
+  it("uses only validated Management outlets and refetches scoped reads after a switch", async () => {
+    const outlets = [{ id: "jymt", name: "JYMT" }, { id: "other", name: "Other" }];
+    crewService.outletScope.mockResolvedValue({ employee_id: "A", management: true, outlets, default_outlet_id: "jymt" });
+    crewService.managementTasks.mockImplementation(async (_token, outletId) => ({ tasks: [{ outletId }] }));
+    localStorage.setItem("feedx.crew.outlet.A", "other");
+    const { result } = renderHook(() => useCrewSession("home"));
+    await waitFor(() => expect(result.current.data.operations?.tasks?.[0]?.outletId).toBe("other"));
+    expect(crewService.operationsToday).not.toHaveBeenCalled();
+    await act(async () => { expect(await result.current.selectOutlet("jymt")).toBe(true); });
+    await waitFor(() => expect(result.current.data.operations?.tasks?.[0]?.outletId).toBe("jymt"));
+    expect(localStorage.getItem("feedx.crew.outlet.A")).toBe("jymt");
+    await act(async () => { expect(await result.current.selectOutlet("inaccessible")).toBe(false); });
+    expect(result.current.selectedOutletId).toBe("jymt");
+  });
+
+  it("discards a remembered outlet removed from the active role scope", async () => {
+    crewService.outletScope.mockResolvedValue({ employee_id: "A", management: true, outlets: [{ id: "jymt", name: "JYMT" }], default_outlet_id: "jymt" });
+    localStorage.setItem("feedx.crew.outlet.A", "removed");
+    const { result } = renderHook(() => useCrewSession("home"));
+    await waitFor(() => expect(result.current.selectedOutletId).toBe("jymt"));
+    expect(localStorage.getItem("feedx.crew.outlet.A")).toBe("jymt");
   });
 
   it.each(["logout", "replacement", "unmount"])("does not apply passcode rotation after %s", async (mode) => {

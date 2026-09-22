@@ -80,4 +80,5 @@ Object.assign(resources.cash, { startCheckout:"开始", continueCheckout:"继续
 Object.assign(resources.employmentRecords, { contractsBody:"雇佣合同和雇主发出的信函", warningsBody:"正式工作场所通知及您的回应" });
 Object.assign(resources.employmentDocuments, { emptyBody:"雇主发送的合同会显示在这里。", completeError:"无法确认此雇佣文件。", completedAt:"确认于 {{date}}" });
 resources.recovery = { offlineTitle:"您已离线", entryTitle:"无法打开 FeedX", connectionTitle:"无法连接", offlineBody:"请重新连接网络，FeedX 会自动再次尝试。", entryBody:"FeedX 需要重新加载才能继续。", connectionBody:"您的网络连接可能不稳定。请重试。", waiting:"正在等待网络连接…", tryingAgain:"正在重试…", reload:"重新加载 FeedX" };
+resources.learn.referenceOnly = "仅供查阅";
 export default resources;

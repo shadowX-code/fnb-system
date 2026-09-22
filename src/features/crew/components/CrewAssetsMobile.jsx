@@ -47,14 +47,14 @@ function activityProjection(data, assetId) {
   return [...movements, ...inspections].sort((a, b) => new Date(b.at) - new Date(a.at));
 }
 
-export default function CrewAssetsMobile({ token, onBack, onFlowChange }) {
+export default function CrewAssetsMobile({ token, onBack, onFlowChange, management = false, outletId = null }) {
   const { t } = useTranslation();
   const [data, setData] = useState(null); const [loading, setLoading] = useState(true); const [error, setError] = useState("");
   const [query, setQuery] = useState(""); const [category, setCategory] = useState("all"); const [asset, setAsset] = useState(null);
   const [adjusting, setAdjusting] = useState(false); const [adding, setAdding] = useState(false); const [inspection, setInspection] = useState(null); const [activity, setActivity] = useState(false); const [notice, setNotice] = useState("");
   const categoryChipRefs = useRef(new Map());
-  async function load(assetId) { setLoading(true); setError(""); try { const next = await crewService.assetsMobile(token, assetId); setData(next); return next; } catch (cause) { setError(cause.message || t("assets.loadError")); return null; } finally { setLoading(false); } }
-  useEffect(() => { void load(); }, [token]);
+  async function load(assetId) { setLoading(true); setError(""); try { const next = management ? await crewService.managementAssets(token, outletId, assetId) : await crewService.assetsMobile(token, assetId); setData(next); return next; } catch (cause) { setError(cause.message || t("assets.loadError")); return null; } finally { setLoading(false); } }
+  useEffect(() => { void load(); }, [token, management, outletId]);
   useEffect(() => {
     onFlowChange?.(Boolean(inspection));
     return () => onFlowChange?.(false);
