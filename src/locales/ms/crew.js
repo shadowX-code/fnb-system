@@ -81,4 +81,6 @@ Object.assign(resources.employmentRecords, { contractsBody:"Kontrak pekerjaan da
 Object.assign(resources.employmentDocuments, { emptyBody:"Kontrak yang dihantar oleh majikan anda akan dipaparkan di sini.", completeError:"Dokumen pekerjaan ini tidak dapat diakui.", completedAt:"Diakui {{date}}" });
 resources.recovery = { offlineTitle:"Anda di luar talian", entryTitle:"FeedX tidak dapat dibuka", connectionTitle:"Tidak dapat menyambung", offlineBody:"Sambungkan semula internet dan FeedX akan cuba lagi secara automatik.", entryBody:"FeedX perlu dimuat semula untuk diteruskan.", connectionBody:"Sambungan anda mungkin tidak stabil. Cuba lagi untuk meneruskan.", waiting:"Menunggu sambungan…", tryingAgain:"Mencuba lagi…", reload:"Muat semula FeedX" };
 resources.learn.referenceOnly = "Untuk rujukan sahaja";
+resources.tasks.noOutletTasks = "Tiada tugas di cawangan ini hari ini.";
+resources.assets.readOnlySubtitle = "Lihat aset cawangan";
 export default resources;

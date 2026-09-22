@@ -95,7 +95,8 @@ export default function CrewLearningMobile({ token, management = false, outletId
         management ? crewService.managementSopLibrary(token, outletId) : crewService.sopLibrary(token),
       ]);
       if (loadVersion !== loadVersionRef.current) return;
-      const retainedAssignment = cached?.assignment?.id === nextHome?.assignment?.id ? cached.assignment : null;
+      const retainedAssignment = cached?.assignment?.id && cached.assignment.id === nextHome?.assignment?.id
+        ? cached.assignment : null;
       setHome(nextHome);
       setLibrary(nextLibrary || { categories: [], sops: [] });
       setAssignment(retainedAssignment);
