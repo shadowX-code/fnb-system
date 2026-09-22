@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260922192301_crew_management_operational_scope.sql"), "utf8");
+const leaveSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260922201000_crew_management_leave_personal_read.sql"), "utf8");
 
 describe("Management Crew operational scope", () => {
   it("reuses the active role outlet authority without changing fixed workplace identity", () => {
@@ -34,5 +35,16 @@ describe("Management Crew operational scope", () => {
     expect(sql).toContain("i.id=v_notification.source_entity_id");
     expect(sql).toContain("v_outlet_id=any(public.crew_authorized_outlet_ids(v_employee_id))");
     expect(sql).not.toContain("v_notification.outlet_id_snapshot");
+  });
+
+  it("keeps Management Leave personal without deriving entitlement from selected outlet", () => {
+    expect(leaveSql).toContain("create or replace function public.crew_leave_mobile(p_token text)");
+    expect(leaveSql).toContain("where e.employee_id=employee");
+    expect(leaveSql).toContain("where r.employee_id=employee");
+    expect(leaveSql).toContain("where a.employee_id=employee");
+    expect(leaveSql).toContain("if v_management then");
+    expect(leaveSql).toContain("public.crew_leave_ensure_entitlement(employee,leave_type");
+    expect(leaveSql).toContain("'can_apply',not v_management");
+    expect(leaveSql).not.toContain("crew_selected_outlet");
   });
 });

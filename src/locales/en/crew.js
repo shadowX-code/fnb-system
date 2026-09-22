@@ -78,4 +78,5 @@ resources.notifications = { title:"Notifications", unreadCount:"{{count}} unread
 resources.recovery = { offlineTitle:"You're offline", entryTitle:"We couldn't open FeedX", connectionTitle:"We couldn't connect", offlineBody:"Reconnect to the internet and FeedX will try again automatically.", entryBody:"FeedX needs to reload to continue.", connectionBody:"Your connection may be unstable. Try again to continue.", waiting:"Waiting for connection…", tryingAgain:"Trying again…", reload:"Reload FeedX" };
 resources.tasks.noOutletTasks = "No tasks at this outlet today.";
 resources.assets.readOnlySubtitle = "View outlet assets";
+resources.leave.managementReadOnly = "Leave applications need an assigned employment outlet. Your leave history remains available.";
 export default resources;

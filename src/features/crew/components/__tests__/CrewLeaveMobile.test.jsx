@@ -16,6 +16,14 @@ beforeEach(() => { crewService.myLeave.mockResolvedValue(payload); });
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 describe("Crew Leave mobile", () => {
+  it("shows employee history without offering Management a selected-outlet application", async () => {
+    crewService.myLeave.mockResolvedValue({ balances: [], requests: [], upcoming: [], can_apply: false });
+    render(<CrewLeaveMobile token="management-session" onBack={() => {}} />);
+
+    expect(await screen.findByText(/Leave applications need an assigned employment outlet/)).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Apply Leave" })).toBeNull();
+  });
+
   it("keeps balances semantic and uses the canonical Crew date field instead of native date inputs", async () => {
     crewService.myLeave.mockResolvedValue({
       ...payload,
