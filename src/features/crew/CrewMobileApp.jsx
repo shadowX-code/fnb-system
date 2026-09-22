@@ -12,6 +12,7 @@ import CrewHomeMobile from "./components/CrewHomeMobile.jsx";
 import CrewMeMobile from "./components/CrewMeMobile.jsx";
 import CrewAttendanceMobile, { CrewClockDialogs } from "./components/CrewAttendanceMobile.jsx";
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
+import CrewRecoverySurface from "./components/CrewRecoverySurface.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import { CrewBottomNav, CrewRouteLoading } from "./components/CrewMobileUI.jsx";
 import "./CrewMobileSystem.css";
@@ -54,7 +55,7 @@ export default function CrewMobileApp({ onNotify }) {
   return crew.session ? <CrewWorkspace key={crew.session.token} {...crew} route={route} onNotify={onNotify} /> : <CrewLogin onSignedIn={crew.replaceSession} />;
 }
 
-function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, route, onNotify }) {
+function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, retryBootstrap, bootstrapFailure, bootstrapRetrying, route, onNotify }) {
   const { t } = useTranslation();
   useCrewVisualViewport();
   const { screen, growthInitialView, entry, navigate } = route;
@@ -82,6 +83,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     if (type === "compliance_submission" || type === "compliance_requirement") navigate("compliance");
   };
 
+  if (bootstrapFailure) return <CrewRecoverySurface {...bootstrapFailure} onRetry={retryBootstrap} retrying={bootstrapRetrying} onReload={() => window.location.reload()} />;
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     <Suspense fallback={<CrewRouteLoading />}>
     {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} />)}

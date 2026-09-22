@@ -6,8 +6,14 @@ const storageKey = "feedx.crew.session";
 const methods = { attendance: "myAttendance", context: "attendanceContext", operations: "operationsToday", roster: "myRoster", growth: "growthMobile", performance: "performanceMobile", reward: "rewardMobile", leave: "myLeave", profile: "myProfile", assets: "assetsMobile", disciplinary: "myDisciplinary" };
 const routeReads = { home: ["operations", "roster"], operations: ["operations"], schedule: ["roster"], growth: ["growth", "performance"], reward: ["reward"], me: ["profile", "leave", "assets", "disciplinary"], assets: ["assets"], "employment-records": ["disciplinary"], disciplinary: ["disciplinary"] };
 const cacheLifetime = 60_000;
+const autoRetryDelay = 900;
 const fallback = (key) => key === "attendance" ? [] : key === "operations" ? { tasks: [] } : key === "roster" ? { today: null, entries: [] } : null;
 const emptyData = () => ({ attendance: [], context: null, growth: null, performance: null, reward: null, operations: null, roster: null, leave: null, profile: null, assets: null, disciplinary: null, growthError: "" });
+const errorMessage = (error) => [error?.message, error?.cause?.message].filter(Boolean).join(" ");
+const isInvalidCrewSession = (error) => error?.code === "42501" || error?.cause?.code === "42501"
+  ? /crew session has expired|crew access is no longer active/i.test(errorMessage(error))
+  : false;
+const browserOffline = () => typeof navigator !== "undefined" && navigator.onLine === false;
 const readSession = () => {
   try {
     const value = JSON.parse(localStorage.getItem(storageKey) || "null");
@@ -31,6 +37,11 @@ export default function useCrewSession(screen = "home") {
   requiredRef.current = required;
   const [data, setData] = useState(emptyData);
   const [passcodeSuccess, setPasscodeSuccess] = useState(false);
+  const [bootstrapFailure, setBootstrapFailure] = useState(null);
+  const [bootstrapRetrying, setBootstrapRetrying] = useState(false);
+  const bootstrapAttempt = useRef(0);
+  const reportedBootstrapFailure = useRef(-1);
+  const bootstrapRetry = useRef(null);
 
   const replaceSession = useCallback((nextSession, { passcodeChanged = false } = {}) => {
     generation.current += 1;
@@ -41,7 +52,14 @@ export default function useCrewSession(screen = "home") {
     else localStorage.removeItem(storageKey);
     setData(emptyData());
     setPasscodeSuccess(passcodeChanged);
+    setBootstrapFailure(null);
     setSession(nextSession);
+  }, []);
+
+  const reportBootstrapFailure = useCallback(() => {
+    if (reportedBootstrapFailure.current === bootstrapAttempt.current) return;
+    reportedBootstrapFailure.current = bootstrapAttempt.current;
+    setBootstrapFailure({ mode: browserOffline() ? "offline" : "connection", attempts: bootstrapAttempt.current + 1 });
   }, []);
 
   const changePasscode = useCallback(async (currentPasscode, newPasscode) => {
@@ -82,13 +100,17 @@ export default function useCrewSession(screen = "home") {
       return true;
     }).catch((cause) => {
       if (!current()) return false;
-      if (key === "attendance" || key === "context") { replaceSession(null); return false; }
+      if (key === "attendance" || key === "context") {
+        if (isInvalidCrewSession(cause)) replaceSession(null);
+        else reportBootstrapFailure();
+        return false;
+      }
       setData((previous) => ({ ...previous, [key]: key === "growth" ? previous.growth : fallback(key), ...(key === "growth" ? { growthError: cause?.message || translate.current("growth.unavailable") } : {}) }));
       setLoaded((previous) => ({ ...previous, [key]: true }));
       return false;
     }).finally(() => { if (current()) request.promise = null; });
     return request.promise;
-  }, [session?.token, replaceSession]);
+  }, [session?.token, replaceSession, reportBootstrapFailure]);
 
   const refresh = useCallback(async () => {
     if (!session?.token || currentSession.current?.token !== session.token) return false;
@@ -101,13 +123,44 @@ export default function useCrewSession(screen = "home") {
     return results.every(Boolean);
   }, [session?.token, load]);
 
+  const retryBootstrap = useCallback(() => {
+    if (!session?.token || currentSession.current?.token !== session.token) return Promise.resolve(false);
+    if (bootstrapRetry.current) return bootstrapRetry.current;
+    if (browserOffline()) {
+      setBootstrapFailure((previous) => previous ? { ...previous, mode: "offline" } : { mode: "offline", attempts: bootstrapAttempt.current + 1 });
+      return Promise.resolve(false);
+    }
+    bootstrapAttempt.current += 1;
+    reportedBootstrapFailure.current = -1;
+    setBootstrapFailure(null);
+    setBootstrapRetrying(true);
+    bootstrapRetry.current = Promise.all(requiredRef.current.map((key) => load(key, true)))
+      .then((results) => results.every(Boolean))
+      .finally(() => {
+        bootstrapRetry.current = null;
+        if (mounted.current) setBootstrapRetrying(false);
+      });
+    return bootstrapRetry.current;
+  }, [session?.token, load]);
+
   useEffect(() => {
     for (const key of requiredRef.current) void load(key);
   }, [load, screen]);
+  useEffect(() => {
+    if (!session || !bootstrapFailure) return undefined;
+    const onOnline = () => { void retryBootstrap(); };
+    window.addEventListener("online", onOnline);
+    return () => window.removeEventListener("online", onOnline);
+  }, [session, bootstrapFailure, retryBootstrap]);
+  useEffect(() => {
+    if (!bootstrapFailure || bootstrapFailure.mode === "offline" || bootstrapFailure.attempts !== 1) return undefined;
+    const timeout = window.setTimeout(() => { void retryBootstrap(); }, autoRetryDelay);
+    return () => window.clearTimeout(timeout);
+  }, [bootstrapFailure, retryBootstrap]);
   useEffect(() => {
     return () => { generation.current += 1; cache.current = {}; };
   }, []);
 
   const pageLoading = Boolean(session) && required.some((key) => !loaded[key]);
-  return { session, replaceSession, changePasscode, updateProfilePhoto, refresh, data, pageLoading, passcodeSuccess };
+  return { session, replaceSession, changePasscode, updateProfilePhoto, refresh, retryBootstrap, bootstrapFailure, bootstrapRetrying, data, pageLoading, passcodeSuccess };
 }

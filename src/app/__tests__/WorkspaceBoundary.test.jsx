@@ -21,7 +21,7 @@ it("contains failed entry chunks with explicit reload and permits workspace swit
   const Entry = lazy(() => Promise.reject(new Error("chunk unavailable")));
   const view = render(<WorkspaceBoundary key="crew" workspace="crew"><Entry /></WorkspaceBoundary>);
   expect(await screen.findByRole("alert")).toBeTruthy();
-  expect(screen.getByRole("button", { name: "Reload page" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Reload FeedX" })).toBeTruthy();
   view.rerender(<WorkspaceBoundary key="admin" workspace="admin"><h1>Admin</h1></WorkspaceBoundary>);
   expect(screen.queryByRole("alert")).toBeNull();
   expect(screen.getByRole("heading").textContent).toBe("Admin");

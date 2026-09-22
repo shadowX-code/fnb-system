@@ -430,6 +430,12 @@
 
 }
 
+.crew-recovery-surface { display: grid; min-height: 100dvh; place-items: center; padding-bottom: max(var(--crew-mobile-page-block), env(safe-area-inset-bottom)); }
+.crew-recovery-card { display: grid; width: min(100%, 360px); justify-items: center; gap: 14px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); padding: 24px; box-shadow: var(--crew-shadow-focus); text-align: center; }
+.crew-recovery-card > div { display: grid; gap: 7px; }.crew-recovery-card h1, .crew-recovery-card p { margin: 0; }.crew-recovery-card p { color: var(--crew-color-text-secondary); }.crew-recovery-card button { width: 100%; }.crew-recovery-waiting { color: var(--crew-color-text-muted) !important; font-size: var(--crew-type-helper); font-weight: 650; }.crew-recovery-spin { animation: crew-recovery-spin 900ms linear infinite; }
+@keyframes crew-recovery-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .crew-recovery-spin { animation: none; } }
+
 .crew-v2-section-block {
   margin-top: 19px;
 

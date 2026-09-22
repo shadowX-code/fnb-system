@@ -1,5 +1,9 @@
 import { Component, Suspense } from "react";
 import FeedXLoadingMark from "../features/crew/components/FeedXLoadingMark.jsx";
+import CrewRecoverySurface from "../features/crew/components/CrewRecoverySurface.jsx";
+
+const lazyLoadFailure = (error) => /dynamically imported module|importing a module script failed|loading chunk|chunkloaderror/i.test(String(error?.message || ""));
+const reloadKey = "feedx.crew.lazy-reload";
 
 export default class WorkspaceBoundary extends Component {
   state = { failed: false };
@@ -8,9 +12,21 @@ export default class WorkspaceBoundary extends Component {
     return { failed: true };
   }
 
+  componentDidCatch(error) {
+    if (this.props.workspace !== "crew" || !lazyLoadFailure(error)) return;
+    try {
+      if (sessionStorage.getItem(reloadKey) === "1") return;
+      sessionStorage.setItem(reloadKey, "1");
+      window.location.reload();
+    } catch {
+      // The visible recovery surface remains available when reload is blocked.
+    }
+  }
+
   render() {
     const crew = this.props.workspace === "crew";
     const frame = crew ? "crew-v2-shell" : "flex min-h-screen items-center justify-center bg-app-bg px-4";
+    if (this.state.failed && crew) return <CrewRecoverySurface mode="entry" onReload={() => window.location.reload()} />;
     if (this.state.failed) {
       return <main className={frame}><section className="card p-6" role="alert">
         <h1 className="text-lg font-semibold">Unable to open FeedX</h1>

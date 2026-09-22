@@ -96,12 +96,41 @@ describe("Crew session orchestration", () => {
   it("clears all route caches when a current mandatory read rejects", async () => {
     const { result } = renderHook(() => useCrewSession("reward"));
     await waitFor(() => expect(result.current.data.reward?.owner).toBe("A"));
-    crewService.attendanceContext.mockRejectedValueOnce(new Error("revoked"));
+    const revoked = Object.assign(new Error("Crew Access is no longer active. Please sign in again."), { code: "42501" });
+    crewService.attendanceContext.mockRejectedValueOnce(revoked);
     await act(async () => { await result.current.refresh(); });
     expect(result.current.session).toBeNull();
     expect(result.current.data.reward).toBeNull();
     act(() => result.current.replaceSession(session("B")));
     await waitFor(() => expect(result.current.data.reward?.owner).toBe("B"));
+  });
+
+  it("keeps a valid session and permits a single-flight retry after a transient critical bootstrap failure", async () => {
+    crewService.attendanceContext.mockRejectedValueOnce(new Error("network interrupted"));
+    const { result } = renderHook(() => useCrewSession("home"));
+    await waitFor(() => expect(result.current.bootstrapFailure?.mode).toBe("connection"));
+    expect(result.current.session.token).toBe("A");
+    const first = result.current.retryBootstrap();
+    const second = result.current.retryBootstrap();
+    expect(second).toBe(first);
+    await act(async () => { await first; });
+    await waitFor(() => expect(result.current.bootstrapFailure).toBeNull());
+    expect(result.current.pageLoading).toBe(false);
+    expect(result.current.session.token).toBe("A");
+  });
+
+  it("retries the retained session when the browser reconnects", async () => {
+    const descriptor = Object.getOwnPropertyDescriptor(navigator, "onLine");
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: false });
+    crewService.myAttendance.mockRejectedValueOnce(new Error("offline"));
+    const { result } = renderHook(() => useCrewSession("home"));
+    await waitFor(() => expect(result.current.bootstrapFailure?.mode).toBe("offline"));
+    expect(result.current.session.token).toBe("A");
+    Object.defineProperty(navigator, "onLine", { configurable: true, value: true });
+    act(() => window.dispatchEvent(new Event("online")));
+    await waitFor(() => expect(result.current.bootstrapFailure).toBeNull());
+    expect(crewService.myAttendance).toHaveBeenCalledTimes(2);
+    if (descriptor) Object.defineProperty(navigator, "onLine", descriptor);
   });
 
   it("invalidates an off-route pending projection after a mutation refresh", async () => {
