@@ -1,5 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
-import { crewHomeRoute, crewRouteForState, parseCrewRoute } from "../crewRoute.js";
+import { crewHomeRoute, crewRouteForState, isCrewWebAppLocation, parseCrewRoute } from "../crewRoute.js";
+
+function destinationFor(route) {
+  return isCrewWebAppLocation() ? route.canonicalPath : route.canonicalHash;
+}
+
+function currentDestination() {
+  return isCrewWebAppLocation() ? window.location.pathname : window.location.hash;
+}
+
+function writeRoute(route, { replace = false } = {}) {
+  const destination = destinationFor(route);
+  if (currentDestination() === destination) return;
+  window.history[replace ? "replaceState" : "pushState"](null, "", destination);
+}
 
 export default function useCrewRoute() {
   const [route, setRoute] = useState(() => ({ ...(parseCrewRoute() || crewHomeRoute), entry: 0 }));
@@ -7,7 +21,7 @@ export default function useCrewRoute() {
     const syncRoute = () => {
       const next = parseCrewRoute();
       if (!next) return;
-      if (next.needsNormalization) window.history.replaceState(null, "", next.canonicalHash);
+      if (next.needsNormalization) writeRoute(next, { replace: true });
       setRoute((current) => ({ ...next, entry: current.entry + 1 }));
     };
     window.addEventListener("popstate", syncRoute);
@@ -20,15 +34,13 @@ export default function useCrewRoute() {
 
   useEffect(() => {
     const canonical = crewRouteForState(route);
-    if (window.location.hash !== canonical.canonicalHash) {
-      window.history[route.needsNormalization ? "replaceState" : "pushState"](null, "", canonical.canonicalHash);
-    }
+    writeRoute(canonical, { replace: route.needsNormalization });
   }, [route]);
 
   const navigate = useCallback((screen, options = {}) => {
     const next = crewRouteForState({ screen, growthInitialView: "overview", ...options });
-    if (window.location.hash !== next.canonicalHash) window.history.pushState(null, "", next.canonicalHash);
-    setRoute((current) => ({ screen, growthInitialView: "overview", ...options, entry: current.entry + 1 }));
+    writeRoute(next);
+    setRoute((current) => ({ ...next, entry: current.entry + 1 }));
   }, []);
   return { screen: route.screen, growthInitialView: route.growthInitialView || "overview", entry: route.entry, navigate };
 }

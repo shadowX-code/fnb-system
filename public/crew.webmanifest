@@ -1,0 +1,18 @@
+{
+  "id": "/",
+  "name": "FeedX Crew",
+  "short_name": "FeedX",
+  "start_url": "/home",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f7faf8",
+  "theme_color": "#0f766e",
+  "icons": [
+    {
+      "src": "/logo-icon.jpg",
+      "sizes": "1254x1254",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
+}

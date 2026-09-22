@@ -162,13 +162,14 @@ function nestedRouteDefinition({ id, routeId, pathPattern, legacyHashPattern, pa
   });
 }
 
-function crewMobileRouteDefinition({ id, screen, path, legacyPath = path, growthInitialView, aliases = [] }) {
+function crewMobileRouteDefinition({ id, screen, path, legacyPath, growthInitialView, aliases = [], pathAliases = [] }) {
   const canonicalHash = `#${legacyPath}`;
   return Object.freeze({
     id,
     routeId: id,
     canonicalPath: `/${path}`,
     pathPattern: `/${path}`,
+    pathAliases: Object.freeze(pathAliases),
     legacyHashPattern: legacyPath,
     legacyHashAliases: Object.freeze([canonicalHash, ...aliases]),
     params: Object.freeze([]),
@@ -219,23 +220,23 @@ const nestedDefinitions = [
 ];
 
 const crewMobileDefinitions = [
-  crewMobileRouteDefinition({ id: "crew-mobile-home", screen: "home", path: "crew/home", aliases: ["#crew"] }),
-  crewMobileRouteDefinition({ id: "crew-mobile-notifications", screen: "notifications", path: "crew/notifications" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-learn", screen: "learn", path: "crew/learn" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-reward", screen: "reward", path: "crew/reward" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-growth", screen: "growth", path: "crew/growth", growthInitialView: "overview" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-growth-performance", screen: "growth", path: "crew/growth/performance", growthInitialView: "performance" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-me", screen: "me", path: "crew/me" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-attendance", screen: "attendance", path: "crew/me/attendance" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-cash-checkout", screen: "cash-checkout", path: "crew/me/cash-checkout" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-leave", screen: "leave", path: "crew/me/leave" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-assets", screen: "assets", path: "crew/me/assets" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-employment-records", screen: "employment-records", path: "crew/me/employment-records" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-employment-documents", screen: "employment-documents", path: "crew/me/employment-records/contracts" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-compliance", screen: "compliance", path: "crew/me/employment-records/food-handling-compliance", legacyPath: "crew/me/employment-records/documents-compliance", aliases: ["#crew/me/compliance"] }),
-  crewMobileRouteDefinition({ id: "crew-mobile-disciplinary", screen: "disciplinary", path: "crew/me/employment-records/warnings-notices", legacyPath: "crew/me/employment-records/warnings", aliases: ["#crew/me/warnings"] }),
-  crewMobileRouteDefinition({ id: "crew-mobile-tasks", screen: "operations", path: "crew/tasks" }),
-  crewMobileRouteDefinition({ id: "crew-mobile-schedule", screen: "schedule", path: "crew/schedule" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-home", screen: "home", path: "home", legacyPath: "crew/home", aliases: ["#crew"], pathAliases: ["/"] }),
+  crewMobileRouteDefinition({ id: "crew-mobile-notifications", screen: "notifications", path: "notifications", legacyPath: "crew/notifications" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-learn", screen: "learn", path: "learn", legacyPath: "crew/learn" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-reward", screen: "reward", path: "reward", legacyPath: "crew/reward" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-growth", screen: "growth", path: "growth", legacyPath: "crew/growth", growthInitialView: "overview" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-growth-performance", screen: "growth", path: "growth/performance", legacyPath: "crew/growth/performance", growthInitialView: "performance" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-me", screen: "me", path: "me", legacyPath: "crew/me" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-attendance", screen: "attendance", path: "me/attendance", legacyPath: "crew/me/attendance" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-cash-checkout", screen: "cash-checkout", path: "me/cash-checkout", legacyPath: "crew/me/cash-checkout" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-leave", screen: "leave", path: "me/leave", legacyPath: "crew/me/leave" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-assets", screen: "assets", path: "me/assets", legacyPath: "crew/me/assets" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-employment-records", screen: "employment-records", path: "me/employment-records", legacyPath: "crew/me/employment-records" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-employment-documents", screen: "employment-documents", path: "me/employment-records/contracts", legacyPath: "crew/me/employment-records/contracts" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-compliance", screen: "compliance", path: "me/employment-records/food-handling-compliance", legacyPath: "crew/me/employment-records/documents-compliance", aliases: ["#crew/me/compliance"] }),
+  crewMobileRouteDefinition({ id: "crew-mobile-disciplinary", screen: "disciplinary", path: "me/employment-records/warnings-notices", legacyPath: "crew/me/employment-records/warnings", aliases: ["#crew/me/warnings"] }),
+  crewMobileRouteDefinition({ id: "crew-mobile-tasks", screen: "operations", path: "tasks", legacyPath: "crew/tasks" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-schedule", screen: "schedule", path: "schedule", legacyPath: "crew/schedule" }),
 ];
 
 // Parameterized definitions must win before their parent module definition.
@@ -438,4 +439,16 @@ export function crewMobileRouteForState({ screen, growthInitialView = "overview"
 export function resolveCrewMobileHash(hash = "") {
   const route = resolveLegacyHash(hash);
   return route?.definition.ownership.surface === "crew-mobile" ? route : null;
+}
+
+export function resolveCrewMobilePath(pathname = "") {
+  const path = normalizePath(pathname);
+  for (const definition of crewMobileDefinitions) {
+    const patterns = [definition.pathPattern, ...definition.pathAliases];
+    for (const pattern of patterns) {
+      const params = patternMatch(pattern.replace(/^\//, ""), path.replace(/^\//, ""));
+      if (params) return resolution(definition, params, {}, "crew-pathname");
+    }
+  }
+  return null;
 }
