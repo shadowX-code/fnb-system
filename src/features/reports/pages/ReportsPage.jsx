@@ -12,6 +12,8 @@ import { reportMonths, statusLabel } from "../components/reportingFormatters.js"
 import { exportPoster, REPORT_POSTER_LOGICAL_WIDTH, REPORT_POSTER_MONTHLY_LOGICAL_HEIGHT, REPORT_POSTER_YEARLY_LOGICAL_HEIGHT } from "../services/reportPosterExport.js";
 import { financialTerminology } from "../../../utils/financialTerminology.js";
 
+const ALL_OUTLETS_SCOPE = "all";
+
 function defaultPeriod() {
   const now = new Date();
   return { year: now.getFullYear(), month: now.getMonth() + 1 };
@@ -20,14 +22,17 @@ function defaultPeriod() {
 export default function ReportsPage({ store, ui, auth }) {
   const initial = defaultPeriod();
   const exportPosterRef = useRef(null);
-  const [draft, setDraft] = useState({ reportType: "monthly", outletId: store.outlets[0]?.id ?? "", year: initial.year, month: initial.month });
+  const [draft, setDraft] = useState({ reportType: "monthly", outletId: ALL_OUTLETS_SCOPE, year: initial.year, month: initial.month });
   const [generated, setGenerated] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState("");
   const [exportError, setExportError] = useState("");
   const [exportSuccess, setExportSuccess] = useState("");
-  const outletOptions = useMemo(() => getAccessibleOutletOptions(auth, store.outlets, { includeAll: false }), [auth, store.outlets]);
+  const outletOptions = useMemo(() => [
+    { value: ALL_OUTLETS_SCOPE, label: "All Outlets" },
+    ...getAccessibleOutletOptions(auth, store.outlets, { includeAll: false }),
+  ], [auth, store.outlets]);
   const yearOptions = useMemo(() => Array.from({ length: 5 }, (_, index) => initial.year - 2 + index).map((year) => ({ value: year, label: year })), [initial.year]);
   const hasExportPermission = Boolean(auth?.hasPermission?.("reports.export"));
 
@@ -41,13 +46,18 @@ export default function ReportsPage({ store, ui, auth }) {
     setExportSuccess("");
     setLoading(true);
     try {
+      const isAllOutlets = draft.outletId === ALL_OUTLETS_SCOPE;
       const dataset = draft.reportType === "monthly"
-        ? await reportingService.getMonthlyOutletReport({ outletId: draft.outletId, year: Number(draft.year), month: Number(draft.month) })
-        : await reportingService.getYearlyOutletFinancialReport({ outletId: draft.outletId, year: Number(draft.year) });
+        ? isAllOutlets
+          ? await reportingService.getMonthlyAllOutletsReport({ year: Number(draft.year), month: Number(draft.month) })
+          : await reportingService.getMonthlyOutletReport({ outletId: draft.outletId, year: Number(draft.year), month: Number(draft.month) })
+        : isAllOutlets
+          ? await reportingService.getYearlyAllOutletsFinancialReport({ year: Number(draft.year) })
+          : await reportingService.getYearlyOutletFinancialReport({ outletId: draft.outletId, year: Number(draft.year) });
       setGenerated({ reportType: draft.reportType, dataset, filters: { ...draft } });
     } catch (nextError) {
       setError(nextError?.message ?? "Unable to generate this report.");
-      ui?.notify?.({ title: "Report unavailable", message: "The Reporting service could not return this outlet-scoped dataset.", tone: "error" });
+      ui?.notify?.({ title: "Report unavailable", message: "The Reporting service could not return this authorized-scope dataset.", tone: "error" });
     } finally {
       setLoading(false);
     }
@@ -80,7 +90,7 @@ export default function ReportsPage({ store, ui, auth }) {
   };
 
   return <div className="space-y-5">
-    <PageHeader section="Overview" title="Reports" description="Generate outlet-scoped financial poster previews from the canonical Reporting read contract." />
+    <PageHeader section="Overview" title="Reports" description="Generate financial poster previews from the canonical, permission-scoped Reporting read contract." />
     <FilterBar actions={<button className="btn-primary" type="button" onClick={generate} disabled={loading || !draft.outletId}><FileBarChart2 size={15} />{loading ? "Generating…" : "Generate Report"}</button>}>
       <SelectField label="Report Type" value={draft.reportType} options={[{ value: "monthly", label: financialTerminology.monthlyPnl }, { value: "yearly", label: financialTerminology.yearlyPnl }]} onChange={(reportType) => setDraft((current) => ({ ...current, reportType }))} />
       <SelectField label="Outlet" value={draft.outletId} options={outletOptions} placeholder="Select outlet" searchable onChange={(outletId) => setDraft((current) => ({ ...current, outletId }))} />
