@@ -13,6 +13,7 @@ import {
   resolveAdminLocation,
   resolveCanonicalPath,
   resolveCrewMobileHash,
+  resolveCrewMobilePath,
   resolveLegacyHash,
 } from "../routeOwnership.js";
 import { moduleRegistry, moduleWorkspace } from "../../../config/modules.ts";
@@ -93,12 +94,13 @@ describe("FeedX canonical route contract", () => {
     expect(resolveCanonicalPath("/people/roles/role-1")).toMatchObject({ definitionId: "roles-detail", params: { roleId: "role-1" } });
   });
 
-  it("defines Crew Mobile future pathnames without changing its legacy hash authority", () => {
-    expect(getFeedxRouteDefinition("crew-mobile-home")).toMatchObject({ canonicalPath: "/crew/home", legacyHashAliases: ["#crew/home", "#crew"] });
-    expect(resolveCanonicalPath("/crew/me/employment-records/contracts")).toMatchObject({ routeId: "crew-mobile-employment-documents", source: "pathname" });
+  it("defines dedicated Crew pathname routes while retaining its legacy hash authority", () => {
+    expect(getFeedxRouteDefinition("crew-mobile-home")).toMatchObject({ canonicalPath: "/home", legacyHashAliases: ["#crew/home", "#crew"] });
+    expect(resolveCrewMobilePath("/")).toMatchObject({ routeId: "crew-mobile-home", source: "crew-pathname" });
+    expect(resolveCrewMobilePath("/me/employment-records/contracts")).toMatchObject({ routeId: "crew-mobile-employment-documents", source: "crew-pathname" });
     expect(resolveLegacyHash("#crew/me")).toMatchObject({ routeId: "crew-mobile-me", source: "legacy-hash" });
     expect(resolveCrewMobileHash("#crew/me/compliance")).toMatchObject({ routeId: "crew-mobile-compliance" });
-    expect(canonicalPathForRoute("crew-mobile-compliance")).toBe("/crew/me/employment-records/food-handling-compliance");
+    expect(canonicalPathForRoute("crew-mobile-compliance")).toBe("/me/employment-records/food-handling-compliance");
     expect(legacyHashForRoute("crew-mobile-compliance")).toBe("#crew/me/employment-records/documents-compliance");
     expect(resolveAdminLocation({ pathname: "/", hash: "#crew/home" })).toBeNull();
   });

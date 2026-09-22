@@ -1,4 +1,5 @@
-import { crewMobileRouteForState, legacyHashForRoute, resolveCrewMobileHash } from "../../app/routeOwnership.js";
+import { CREW_WEB_APP_ORIGIN, isCrewWebAppHostname, isProductionOperationsHostname } from "../../app/hostnameRouting.js";
+import { crewMobileRouteForState, legacyHashForRoute, resolveCrewMobileHash, resolveCrewMobilePath } from "../../app/routeOwnership.js";
 
 const CREW_ROOT = "crew";
 
@@ -6,6 +7,7 @@ function routeState(definition) {
   return {
     ...definition.crewState,
     canonicalHash: legacyHashForRoute(definition.id),
+    canonicalPath: definition.canonicalPath,
   };
 }
 
@@ -20,7 +22,30 @@ export function isCrewHash(hash = window.location.hash) {
   return path === CREW_ROOT || path.startsWith(`${CREW_ROOT}/`);
 }
 
-export function parseCrewRoute(hash = window.location.hash) {
+export function isCrewWebAppLocation(location = window.location) {
+  return isCrewWebAppHostname(location?.hostname);
+}
+
+export function crewWorkspaceForLocation(location = window.location) {
+  if (isCrewWebAppLocation(location)) return "crew";
+  if (isCrewHash(location?.hash)) return isProductionOperationsHostname(location?.hostname) ? "legacy-crew-redirect" : "crew";
+  return "admin";
+}
+
+export function crewRouteUrlForLegacyHash(hash = window.location.hash) {
+  const route = resolveCrewMobileHash(hash);
+  if (!route) return null;
+  return new URL(route.definition.canonicalPath, CREW_WEB_APP_ORIGIN).toString();
+}
+
+export function parseCrewRoute(location = window.location) {
+  if (isCrewWebAppLocation(location)) {
+    const route = resolveCrewMobilePath(location.pathname);
+    if (!route) return { ...crewHomeRoute, needsNormalization: true };
+    return { ...routeState(route.definition), needsNormalization: location.pathname !== route.definition.canonicalPath };
+  }
+
+  const hash = location.hash;
   const path = hashPath(hash);
   if (path === CREW_ROOT) return { ...crewHomeRoute, needsNormalization: true };
   if (!path.startsWith(`${CREW_ROOT}/`)) return null;
@@ -28,6 +53,6 @@ export function parseCrewRoute(hash = window.location.hash) {
   return route ? routeState(route.definition) : { ...crewHomeRoute, needsNormalization: true };
 }
 
-export function crewRouteForState({ screen, growthInitialView = "overview" }) {
+export function crewRouteForState({ screen, growthInitialView = "overview" } = {}) {
   return routeState(crewMobileRouteForState({ screen, growthInitialView }));
 }

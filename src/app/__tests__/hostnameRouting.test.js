@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import hostnameRoutingMiddleware, { isPublicHostname } from "../../../middleware.js";
-import { isProductFeedbackPublicHostname, isPublicHostname as isPublicClientHostname } from "../hostnameRouting.js";
+import { isCrewWebAppHostname, isProductFeedbackPublicHostname, isPublicHostname as isPublicClientHostname } from "../hostnameRouting.js";
 
 it("recognizes only the canonical public hostname", () => {
   [isPublicHostname, isPublicClientHostname].forEach((recognizes) => {
@@ -17,6 +17,13 @@ it("recognizes the dedicated Product Feedback hostname without treating it as th
   expect(isProductFeedbackPublicHostname("FEEDBACK.FEEDX.MY")).toBe(true);
   expect(isProductFeedbackPublicHostname("feedx.my")).toBe(false);
   expect(isProductFeedbackPublicHostname("fnb-system-staging.vercel.app")).toBe(false);
+});
+
+it("recognizes the dedicated Crew web app host without changing Admin host ownership", () => {
+  expect(isCrewWebAppHostname("crew.feedx.my")).toBe(true);
+  expect(isCrewWebAppHostname("CREW.FEEDX.MY")).toBe(true);
+  expect(isCrewWebAppHostname("os.feedx.my")).toBe(false);
+  expect(isCrewWebAppHostname("fnb-system-staging.vercel.app")).toBe(false);
 });
 
 it("redirects every non-root public request to the public root while preserving OS and staging routes", () => {
