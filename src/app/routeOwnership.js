@@ -155,10 +155,13 @@ function patternMatch(pattern, value) {
   return Object.fromEntries(names.map((name, index) => [name, safeDecode(match[index + 1])]));
 }
 
-function ownedQuery(definition, rawQuery) {
+function ownedQuery(definition, rawQuery, fallbackQuery = "") {
   const source = rawQuery instanceof URLSearchParams ? rawQuery : new URLSearchParams(String(rawQuery || "").replace(/^\?/, ""));
+  const fallback = fallbackQuery instanceof URLSearchParams ? fallbackQuery : new URLSearchParams(String(fallbackQuery || "").replace(/^\?/, ""));
   return Object.fromEntries(definition.query.flatMap((entry) => {
-    const value = entry.aliases.map((key) => source.get(key)).find((candidate) => candidate !== null && candidate !== "");
+    const value = [source, fallback]
+      .flatMap((params) => entry.aliases.map((key) => params.get(key)))
+      .find((candidate) => candidate !== null && candidate !== "");
     return value === undefined ? [] : [[entry.key, value]];
   }));
 }
@@ -204,20 +207,23 @@ export function resolveCanonicalPath(pathname = "/", search = "") {
   return null;
 }
 
-export function resolveLegacyHash(hash = "") {
+export function resolveLegacyHash(hash = "", search = "") {
   const { path, query } = splitHash(hash);
   if (!path) return null;
   for (const definition of nestedDefinitions) {
     const params = patternMatch(definition.legacyHashPattern, path);
-    if (params) return resolution(definition, params, ownedQuery(definition, query), "legacy-hash");
+    if (params) return resolution(definition, params, ownedQuery(definition, query, search), "legacy-hash");
   }
   const routeId = canonicalRouteId(path.split("/")[0]);
   const definition = defaultDefinitionByRouteId.get(routeId);
-  return definition ? resolution(definition, {}, ownedQuery(definition, query), "legacy-hash") : null;
+  return definition ? resolution(definition, {}, ownedQuery(definition, query, search), "legacy-hash") : null;
 }
 
 export function resolveAdminLocation({ pathname = "/", search = "", hash = "" } = {}) {
-  return resolveCanonicalPath(pathname, search) ?? resolveLegacyHash(hash);
+  // Hashes remain the runtime navigation authority through Phase 2. A direct
+  // canonical pathname resolves only when no recognized Admin/Factory hash is
+  // present, which keeps reload/back-forward correct after existing hash writes.
+  return resolveLegacyHash(hash, search) ?? resolveCanonicalPath(pathname, search);
 }
 
 export function canonicalPathForRoute(id, params = {}, query = {}) {

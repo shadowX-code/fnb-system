@@ -56,6 +56,7 @@ import InventoryPurchaseOrderDetail from "../inventory/purchaseOrders/InventoryP
 import { orderedQty, poProgress, poSourceLabel, poStatusLabel, receivedQty, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
 import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
 import AdminPagination, { useAdminClientPagination } from "../../../components/tables/AdminPagination.jsx";
@@ -190,10 +191,10 @@ function businessDateToLocalDate(value) {
 
 function stockCheckDateFromUrl() {
   if (typeof window === "undefined") return "";
-  const hashQuery = window.location.hash.includes("?") ? window.location.hash.split("?")[1] : "";
-  const searchParams = new URLSearchParams(window.location.search || "");
-  const hashParams = new URLSearchParams(hashQuery || "");
-  const candidate = hashParams.get("date") || searchParams.get("stockCheckDate") || searchParams.get("date") || "";
+  const route = resolveAdminLocation(window.location);
+  const candidate = route?.routeId === "inventory_stock_check" || route?.routeId === "inventory_groups"
+    ? route.query.date ?? ""
+    : "";
   return candidate ? normalizeBusinessDate(candidate, "") : "";
 }
 

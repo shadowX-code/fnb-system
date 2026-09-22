@@ -46,6 +46,13 @@ function visit(hash, event = "hashchange") {
     window.dispatchEvent(new Event(event));
   });
 }
+
+function visitPath(path, event = "popstate") {
+  act(() => {
+    window.history.replaceState(null, "", path);
+    window.dispatchEvent(new Event(event));
+  });
+}
 beforeEach(() => {
   vi.clearAllMocks();
   localStorage.clear();
@@ -102,6 +109,16 @@ it.each(["#dashboard", "#reports", "#crew_dashboard"])("recovers Admin session a
   expect(window.location.hash).toBe(hash);
 });
 
+it("restores a direct canonical Admin pathname through the unchanged Admin session boundary", async () => {
+  visitPath("/restaurant/reports?qa=external");
+  render(<App />);
+  expect(await screen.findByRole("heading", { name: "Reports probe" })).toBeTruthy();
+  expect(window.location.pathname).toBe("/restaurant/reports");
+  expect(window.location.search).toBe("?qa=external");
+  expect(window.location.hash).toBe("");
+  expect(mocks.crewMount).not.toHaveBeenCalled();
+});
+
 it("supports anonymous Admin login through the unchanged AuthProvider", async () => {
   mocks.getSession.mockResolvedValue(null);
   visit("#dashboard");
@@ -111,6 +128,18 @@ it("supports anonymous Admin login through the unchanged AuthProvider", async ()
   fireEvent.submit(screen.getByLabelText("Email").closest("form"));
   expect(await screen.findByRole("heading", { name: "Dashboard probe" })).toBeTruthy();
   expect(mocks.signIn).toHaveBeenCalledWith({ email: "test@example.test", password: "test-password" });
+});
+
+it("keeps a direct canonical pathname as the requested destination through sign-in", async () => {
+  mocks.getSession.mockResolvedValue(null);
+  visitPath("/restaurant/reports");
+  render(<App />);
+  fireEvent.change(await screen.findByLabelText("Email"), { target: { value: "test@example.test" } });
+  fireEvent.change(screen.getByLabelText("Password"), { target: { value: "test-password" } });
+  fireEvent.submit(screen.getByLabelText("Email").closest("form"));
+  expect(await screen.findByRole("heading", { name: "Reports probe" })).toBeTruthy();
+  expect(window.location.pathname).toBe("/restaurant/reports");
+  expect(window.location.hash).toBe("");
 });
 
 it("retains password recovery without Admin master-data bootstrap", async () => {

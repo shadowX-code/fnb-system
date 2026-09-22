@@ -12,7 +12,7 @@ import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { hasPermission } from "../../../utils/accessControl.js";
 import { legalEntityService } from "../../../services/legalEntityService.js";
-import { resolveLegacyHash } from "../../../app/routeOwnership.js";
+import { resolveAdminLocation } from "../../../app/routeOwnership.js";
 import LegalEntityContractWorkspacePage from "./LegalEntityContractWorkspacePage.jsx";
 
 function emptyEntity() {
@@ -125,7 +125,11 @@ export default function LegalEntitiesPage({ ui, auth }) {
   useEffect(() => {
     const syncContractWorkspace = () => setContractWorkspaceEntityId(contractWorkspaceIdFromHash());
     window.addEventListener("hashchange", syncContractWorkspace);
-    return () => window.removeEventListener("hashchange", syncContractWorkspace);
+    window.addEventListener("popstate", syncContractWorkspace);
+    return () => {
+      window.removeEventListener("hashchange", syncContractWorkspace);
+      window.removeEventListener("popstate", syncContractWorkspace);
+    };
   }, []);
 
   const filteredEntities = useMemo(() => {
@@ -185,6 +189,6 @@ export default function LegalEntitiesPage({ ui, auth }) {
 }
 
 function contractWorkspaceIdFromHash() {
-  const route = resolveLegacyHash(window.location.hash);
+  const route = resolveAdminLocation(window.location);
   return route?.definitionId === "legal-entities-contract-templates" ? route.params.legalEntityId : null;
 }

@@ -11,7 +11,7 @@ import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions, defaultRoles, rolePermissionMatrix } from "../data/rbacDefaults.js";
 import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
-import { resolveLegacyHash } from "../../../app/routeOwnership.js";
+import { resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess, roleHasRestaurantPermissions } from "../utils/roleAccess.js";
@@ -79,7 +79,7 @@ const roleEditorOutlets = [
 ];
 
 function getRolePagePath() {
-  const route = resolveLegacyHash(window.location.hash);
+  const route = resolveAdminLocation(window.location);
   if (route?.routeId !== "roles") return "";
   if (route.definitionId === "roles-new") return "/new";
   if (route.definitionId === "roles-edit") return `/${route.params.roleId}/edit`;

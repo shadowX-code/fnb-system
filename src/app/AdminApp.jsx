@@ -4,7 +4,7 @@ import ToastViewport from "../components/feedback/ToastViewport.jsx";
 import AppShell from "../layouts/AppShell.jsx";
 import { operationsService } from "../features/sales-purchase/services/operationsService.js";
 import { salesPurchaseRoutes } from "./routes.jsx";
-import { canonicalRouteId } from "./routeOwnership.js";
+import { canonicalRouteId, legacyHashForRoute, resolveAdminLocation } from "./routeOwnership.js";
 import AdminRouteBoundary from "./AdminRouteBoundary.jsx";
 import { outletService } from "../services/outletService.js";
 import { supplierService } from "../services/supplierService.js";
@@ -170,6 +170,14 @@ function workspaceForRoute(routeId) {
   return "restaurant";
 }
 
+function currentAdminLocation() {
+  return resolveAdminLocation({
+    pathname: window.location.pathname,
+    search: window.location.search,
+    hash: window.location.hash,
+  });
+}
+
 function RbacDiagnosticsPanel({ auth, loads }) {
   if (!import.meta.env.DEV) return null;
 
@@ -283,8 +291,7 @@ function AdminApp() {
     () => `${auth.profile?.role_outlet_access_type ?? auth.profile?.role?.outlet_access_type ?? ""}|${(auth.profile?.role_outlet_ids ?? auth.profile?.roleOutletIds ?? []).join("|")}`,
     [auth.profile?.role?.outlet_access_type, auth.profile?.roleOutletIds, auth.profile?.role_outlet_access_type, auth.profile?.role_outlet_ids],
   );
-  const requestedInitialRoute = window.location.hash?.replace("#", "") || "dashboard";
-  const initialRouteId = canonicalRouteId(requestedInitialRoute) || "dashboard";
+  const initialRouteId = currentAdminLocation()?.routeId || "dashboard";
   const [activeRouteId, setActiveRouteId] = useState(
     salesPurchaseRoutes.some((route) => route.id === initialRouteId) ? initialRouteId : "dashboard",
   );
@@ -343,17 +350,17 @@ function AdminApp() {
   }, [auth, store]);
 
   useEffect(() => {
-    const requestedRouteId = String(window.location.hash || "").replace(/^#/, "").split("/")[0];
-    const canonicalId = canonicalRouteId(requestedRouteId);
-    if (requestedRouteId && canonicalId !== requestedRouteId) {
-      window.history.replaceState(null, "", `#${canonicalId}`);
-    }
+    const route = currentAdminLocation();
+    if (route?.source !== "legacy-hash") return;
+    const requestedRouteId = String(window.location.hash || "").replace(/^#/, "").split(/[/?]/)[0];
+    if (!requestedRouteId || canonicalRouteId(requestedRouteId) === requestedRouteId) return;
+    const canonicalHash = legacyHashForRoute(route.definitionId, route.params, route.query);
+    if (canonicalHash && window.location.hash !== canonicalHash) window.history.replaceState(null, "", canonicalHash);
   }, []);
 
   useEffect(() => {
     const syncRouteFromHistory = () => {
-      const requestedRouteId = String(window.location.hash || "").replace(/^#/, "").split("/")[0];
-      const routeId = canonicalRouteId(requestedRouteId);
+      const routeId = currentAdminLocation()?.routeId;
       if (salesPurchaseRoutes.some((route) => route.id === routeId)) setActiveRouteId(routeId);
     };
     window.addEventListener("popstate", syncRouteFromHistory);

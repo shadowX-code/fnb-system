@@ -32,6 +32,17 @@ describe("Admin/Factory canonical route contract", () => {
       routeId: "inventory_stock_check", query: { date: "2026-09-22" }, source: "legacy-hash",
     });
     expect(canonicalPathForRoute("inventory_stock_check", {}, { date: "2026-09-22" })).toBe("/restaurant/inventory/stock-check?date=2026-09-22");
+    expect(resolveAdminLocation({ pathname: "/", search: "?stockCheckDate=2026-09-22&audit=external", hash: "#inventory_stock_check" })).toMatchObject({
+      routeId: "inventory_stock_check", query: { date: "2026-09-22" }, source: "legacy-hash",
+    });
+  });
+
+  it("dual-reads direct Admin and Factory pathnames while a recognized legacy hash remains authoritative", () => {
+    expect(resolveAdminLocation({ pathname: "/restaurant/reports", search: "?qa=external", hash: "" })).toMatchObject({ routeId: "reports", source: "pathname", query: {} });
+    expect(resolveAdminLocation({ pathname: "/people/employees", hash: "" })).toMatchObject({ routeId: "employees", source: "pathname" });
+    expect(resolveAdminLocation({ pathname: "/factory/dashboard", hash: "" })).toMatchObject({ routeId: "factory_dashboard", source: "pathname" });
+    expect(resolveAdminLocation({ pathname: "/factory/job-orders", hash: "" })).toMatchObject({ routeId: "factory_job_order_records", source: "pathname" });
+    expect(resolveAdminLocation({ pathname: "/restaurant/reports", hash: "#dashboard" })).toMatchObject({ routeId: "dashboard", source: "legacy-hash" });
   });
 
   it("round-trips the nested Legal Entity Contract Workspace with its route parameter", () => {
@@ -41,6 +52,9 @@ describe("Admin/Factory canonical route contract", () => {
     expect(legacy.definition.legacyHashAliases).toEqual(["#legal-entities/:legalEntityId/contract-templates"]);
     expect(canonicalPathForRoute("legal-entities-contract-templates", legacy.params)).toBe(`/people/legal-entities/${id}/contract-templates`);
     expect(legacyHashForRoute("legal-entities-contract-templates", legacy.params)).toBe(`#legal-entities/${id}/contract-templates`);
+    expect(resolveAdminLocation({ pathname: `/people/legal-entities/${id}/contract-templates`, hash: "" })).toMatchObject({
+      definitionId: "legal-entities-contract-templates", routeId: "legal-entities", params: { legalEntityId: id }, source: "pathname",
+    });
   });
 
   it("centralizes existing Roles detail variants without changing their legacy hashes", () => {
