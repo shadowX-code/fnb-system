@@ -39,13 +39,14 @@ export function crewRouteUrlForLegacyHash(hash = window.location.hash) {
 }
 
 export function parseCrewRoute(location = window.location) {
-  if (isCrewWebAppLocation(location)) {
-    const route = resolveCrewMobilePath(location.pathname);
+  const currentLocation = typeof location === "string" ? { hash: location } : location;
+  if (isCrewWebAppLocation(currentLocation)) {
+    const route = resolveCrewMobilePath(currentLocation.pathname);
     if (!route) return { ...crewHomeRoute, needsNormalization: true };
-    return { ...routeState(route.definition), needsNormalization: location.pathname !== route.definition.canonicalPath };
+    return { ...routeState(route.definition), needsNormalization: currentLocation.pathname !== route.definition.canonicalPath };
   }
 
-  const hash = location.hash;
+  const hash = currentLocation.hash;
   const path = hashPath(hash);
   if (path === CREW_ROOT) return { ...crewHomeRoute, needsNormalization: true };
   if (!path.startsWith(`${CREW_ROOT}/`)) return null;
