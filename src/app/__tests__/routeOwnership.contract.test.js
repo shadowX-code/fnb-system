@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   adminRouteDefinitions,
   canonicalAdminUrlForLegacyLocation,
+  canonicalAdminUrlForLegacyPath,
   canonicalAdminUrlForRoute,
   canonicalPathForRoute,
   feedxRouteDefinitions,
@@ -52,6 +53,8 @@ describe("FeedX canonical route contract", () => {
       hash: "#purchase-comparison?supplier=Kedai%20A",
     })).toBe("/restaurant/purchases/comparison?supplier=Kedai+A&audit=trace");
     expect(canonicalAdminUrlForLegacyLocation({ pathname: "/", hash: "#crew/me" })).toBeNull();
+    expect(canonicalAdminUrlForLegacyPath("/factory/raw-inventory?detail_id=raw-1", "?qa=route-run"))
+      .toBe("/factory/raw-materials/inventory?detail_id=raw-1&qa=route-run");
   });
 
   it("models inventory date ownership and its legacy stockCheckDate alias", () => {

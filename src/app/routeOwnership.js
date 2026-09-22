@@ -195,6 +195,15 @@ const contractModules = moduleRegistry.filter((module) => {
 });
 
 const moduleDefinitions = contractModules.map(moduleRouteDefinition);
+// Some established Factory read models return legacy module paths as action
+// targets. Keep those paths readable at this single boundary while rendering
+// the destination through the canonical Admin route contract.
+const moduleDefinitionByLegacyPath = new Map(
+  moduleDefinitions.map((definition) => {
+    const module = moduleRegistry.find((candidate) => candidate.id === definition.routeId);
+    return [normalizePath(module?.route), definition];
+  }),
+);
 const nestedDefinitions = [
   nestedRouteDefinition({
     id: "legal-entities-contract-templates",
@@ -381,6 +390,20 @@ export function canonicalAdminUrlForLegacyLocation({ pathname = "/", search = ""
   const route = resolveLegacyHash(hash, search);
   if (route?.definition.ownership.surface !== "admin") return null;
   return canonicalAdminUrlForRoute(route.definitionId, route.params, route.query, search);
+}
+
+/**
+ * Converts a legacy module pathname emitted by an established read model to
+ * its contract-owned Admin pathname. New links should use a route ID with
+ * `canonicalAdminUrlForRoute`; this remains a compatibility input boundary.
+ */
+export function canonicalAdminUrlForLegacyPath(value = "", search = "") {
+  const [pathname, inlineQuery = ""] = String(value).split("?", 2);
+  const definition = moduleDefinitionByLegacyPath.get(normalizePath(pathname));
+  if (definition?.ownership.surface !== "admin") return null;
+  const query = ownedQuery(definition, inlineQuery);
+  const combinedSearch = [inlineQuery, String(search || "").replace(/^\?/, "")].filter(Boolean).join("&");
+  return canonicalAdminUrlForRoute(definition.id, {}, query, combinedSearch);
 }
 
 /**
