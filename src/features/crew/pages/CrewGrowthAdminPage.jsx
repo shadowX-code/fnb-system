@@ -13,8 +13,7 @@ import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
-import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
-import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 
 const SKILL_CATEGORIES = Object.freeze(["Service", "Cashier", "Cleaning", "Opening & Closing", "Kitchen", "Leadership", "Other"]);
@@ -126,7 +125,7 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
   const header = activeTab === "skills"
     ? { title: "Skills", description: "Define outlet capabilities, applicability and server-derived certification requirements." }
     : { title: "Growth Overview", description: "Review certification readiness and team capability in one operational view." };
-  const outletSelect = <CrewAdminOutletField ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />;
+  const outletSelect = <AdminOutletField ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />;
   const fallbackPositions = [...new Set([...data.crew.map((row) => row.employee?.position), ...data.skills.flatMap((skill) => skill.positions || [])].filter(Boolean))].sort();
   const positionOptions = mergePositionOptions(positions, fallbackPositions);
 

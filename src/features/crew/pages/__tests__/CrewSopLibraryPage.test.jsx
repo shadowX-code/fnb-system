@@ -4,6 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 const mocks = vi.hoisted(() => ({
   list: vi.fn(), detail: vi.fn(), saveSop: vi.fn(), saveCategory: vi.fn(), newVersion: vi.fn(), saveDraft: vi.fn(),
   saveSections: vi.fn(), deleteDraft: vi.fn(), swap: vi.fn(), publish: vi.fn(), usage: vi.fn(), clone: vi.fn(),
+  page: vi.fn(),
   uploadMedia: vi.fn(), deleteMedia: vi.fn(), mediaUrl: vi.fn(),
   manageCategory: vi.fn(),
   resumeMediaCleanup: vi.fn(),
@@ -11,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   listOutletSopsAdmin: mocks.list,
+  sopAdminPage: mocks.page,
   getSopAdmin: mocks.detail,
   saveSop: mocks.saveSop,
   saveSopCategory: mocks.saveCategory,
@@ -60,6 +62,13 @@ const sops = [
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn(), confirm: vi.fn() };
 const renderPage = () => render(<CrewSopLibraryPage auth={auth} ui={ui} store={{ outlets }} />);
+const mockSopPage = (rows) => {
+  mocks.page.mockReset().mockImplementation(({ filters = {}, page = 1, pageSize = 20 }) => {
+    const query = filters.query?.toLowerCase() || "";
+    const filtered = rows.filter((sop) => (!query || `${sop.title} ${sop.summary || ""}`.toLowerCase().includes(query)) && (!filters.category_id || sop.category_id === filters.category_id) && (!filters.status || (sop.versions.some((version) => version.status === "draft") ? "draft" : sop.versions.some((version) => version.status === "published") ? "published" : sop.status) === filters.status)).sort((a, b) => `${a.category} ${a.title}`.localeCompare(`${b.category} ${b.title}`) * (filters.sort === "category_desc" ? -1 : 1));
+    return Promise.resolve({ rows: filtered.slice((page - 1) * pageSize, page * pageSize), total_count: filtered.length, page, page_size: pageSize });
+  });
+};
 const selectOption = (label, option) => {
   fireEvent.click(screen.getByLabelText(label));
   fireEvent.click(screen.getByRole("button", { name: option }));
@@ -67,6 +76,7 @@ const selectOption = (label, option) => {
 
 beforeEach(() => {
   mocks.list.mockReset().mockResolvedValue({ categories, sops });
+  mockSopPage(sops);
   mocks.detail.mockReset().mockImplementation(async (sopId) => structuredClone(sops.find((sop) => sop.id === sopId)));
   mocks.saveSop.mockReset().mockResolvedValue({ id: "new-sop" });
   mocks.saveCategory.mockReset();
@@ -105,6 +115,7 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.change(screen.getByLabelText("Search SOP"), { target: { value: "Kitchen" } });
     await waitFor(() => expect(screen.queryByText("Welcome & Goodbye Standard")).toBeNull());
     expect(screen.getByText("Kitchen Safety")).not.toBeNull();
+    expect(mocks.page).toHaveBeenLastCalledWith(expect.objectContaining({ outletId: "outlet-1", filters: expect.objectContaining({ query: "Kitchen" }) }));
     expect(screen.getByRole("button", { name: "Clear all" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
     expect(await screen.findByText("Welcome & Goodbye Standard")).not.toBeNull();
@@ -117,6 +128,7 @@ describe("Crew SOP Library Admin", () => {
 
   it("shows a compact empty state with one Create SOP entry point", async () => {
     mocks.list.mockResolvedValue({ categories: [], sops: [] });
+    mockSopPage([]);
     renderPage();
     await screen.findByText("No SOPs yet");
     expect(screen.getAllByRole("button", { name: "Create SOP" }).length).toBeGreaterThan(0);
@@ -124,11 +136,11 @@ describe("Crew SOP Library Admin", () => {
   });
 
   it("separates a failed SOP request from a successful empty library and retries", async () => {
-    mocks.list.mockRejectedValueOnce(new Error("statement timeout"));
+    mocks.page.mockRejectedValueOnce(new Error("statement timeout"));
     renderPage();
     expect(await screen.findByText("Unable to load SOP Library")).not.toBeNull();
     expect(screen.queryByText("No SOPs yet")).toBeNull();
-    mocks.list.mockResolvedValueOnce({ categories, sops });
+    mockSopPage(sops);
     fireEvent.click(screen.getByRole("button", { name: "Retry" }));
     expect(await screen.findByText("Welcome & Goodbye Standard")).not.toBeNull();
   });
@@ -150,6 +162,7 @@ describe("Crew SOP Library Admin", () => {
   it("offers edit and safe deletion for a draft-only SOP", async () => {
     const draftOnly = { id: "draft-only", title: "Opening Checklist", summary: "Draft procedure", category: "Service", category_id: "cat-service", status: "draft", current_version: null, updated_at: "2026-08-12T00:00:00Z", versions: [{ ...draft, id: "draft-v1", version: 1 }] };
     mocks.list.mockResolvedValue({ categories, sops: [draftOnly] });
+    mockSopPage([draftOnly]);
     renderPage();
     await screen.findByText("Opening Checklist");
     const edit = screen.getByRole("button", { name: "Edit Draft" });
@@ -164,6 +177,8 @@ describe("Crew SOP Library Admin", () => {
   it("creates a complete SOP draft from one editor without an intermediate metadata modal", async () => {
     const created = { id: "new-sop", title: "Cash Handling", summary: "Cash control", category: "Service", category_id: "cat-service", status: "draft", versions: [{ id: "new-version", version: 1, status: "draft", require_acknowledgement: true, sections: [] }] };
     mocks.list.mockResolvedValueOnce({ categories, sops }).mockResolvedValue({ categories, sops: [...sops, created] });
+    mocks.detail.mockImplementation(async (sopId) => structuredClone(sopId === created.id ? created : sops.find((sop) => sop.id === sopId)));
+    mockSopPage([...sops, created]);
     renderPage();
     await screen.findByRole("heading", { name: "SOP Library" });
     fireEvent.click(screen.getByRole("button", { name: "Create SOP" }));
@@ -378,6 +393,7 @@ describe("Crew SOP Library Admin", () => {
       sort_order: index + 1,
     }));
     mocks.list.mockResolvedValue({ categories, sops: [{ ...sops[1], versions: [{ ...sops[1].versions[0], sections: longSections }] }] });
+    mockSopPage([{ ...sops[1], versions: [{ ...sops[1].versions[0], sections: longSections }] }]);
     mocks.detail.mockResolvedValue({ ...sops[1], versions: [{ ...sops[1].versions[0], sections: longSections }] });
     renderPage();
     await screen.findByText("Kitchen Safety");

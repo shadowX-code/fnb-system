@@ -25,7 +25,6 @@ import "./components/CrewScheduleMobile.css";
 import "./components/CrewLearningMobile.css";
 import "./components/CrewOperationsMobile.css";
 import "./components/CrewMeMobile.css";
-import "./components/CrewTaskBlockRenderer.css";
 
 const navItems = [
   { id: "home", label: "Home", icon: Home },

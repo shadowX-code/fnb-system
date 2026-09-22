@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Banknote, CheckCircle2, Clipboard, Eye, HandCoins, History, Settings2, WalletCards } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
-import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -15,7 +15,6 @@ import FeedXDateRangePicker from "../../../components/ui/FeedXDateRangePicker.js
 import MultiSelectField from "../../../components/forms/MultiSelectField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import ToggleField from "../../../components/forms/ToggleField.jsx";
-import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { formatCrewEmployee, formatCrewMoney, formatCrewOperationalDate, formatCrewTime } from "../utils/crewI18n.js";
@@ -106,7 +105,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
     <AdminSegmentedControl value={tab} onChange={setTab} label="Cash Checkout sections" options={[{ value: "checkout", label: "Daily Checkout" }, { value: "deposit", label: "Cash Deposit" }]} />
     <AdminFilterToolbar
       ariaLabel="Cash Checkout filters"
-      outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
+      outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
       period={<FeedXDateRangePicker from={from} to={to} today={localDate()} onApply={({ from: nextFrom, to: nextTo }) => { setFrom(nextFrom); setTo(nextTo); }} />}
     />
     <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Cash Checkout" hasData={tab === "checkout" ? data.checkouts.length > 0 : data.ledger.length > 0 || data.collections.length > 0} isEmpty={listing.hasLoaded && listing.loadedTotal === 0 && !data.collections.length} emptyTitle={tab === "checkout" ? "No Cash Checkouts" : "No Cash Deposit activity"} emptyDescription={tab === "checkout" ? "No checkout records match this outlet and date range." : "No deposit ledger or handover records match this outlet and date range."} emptyIcon={Banknote} onRetry={listingActions.retry}>{tab === "checkout" ? <>

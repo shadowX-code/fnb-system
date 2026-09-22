@@ -5,6 +5,8 @@ import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import FloatingLayer from "../ui/FloatingLayer.jsx";
 
 const PAGE_SIZES = [20, 50, 100];
+const PAGINATION_STORAGE_PREFIX = "admin.pagination.";
+const LEGACY_PAGINATION_STORAGE_PREFIX = "factory.pagination.";
 
 function validPageSize(value, fallback = 20) {
   const normalizedFallback = PAGE_SIZES.includes(Number(fallback)) ? Number(fallback) : 20;
@@ -133,11 +135,16 @@ function PageSizeSelect({ value, loading, onChange }) {
 
 function storedPageSize(storageKey, fallback) {
   if (typeof window === "undefined") return validPageSize(fallback);
-  const value = Number(window.localStorage.getItem(`factory.pagination.${storageKey}`));
+  const value = Number(window.localStorage.getItem(`${PAGINATION_STORAGE_PREFIX}${storageKey}`)
+    ?? window.localStorage.getItem(`${LEGACY_PAGINATION_STORAGE_PREFIX}${storageKey}`));
   return validPageSize(value, fallback);
 }
 
-export function factoryPageItems(page = 1, totalPages = 1) {
+function savePageSize(storageKey, value) {
+  if (typeof window !== "undefined") window.localStorage.setItem(`${PAGINATION_STORAGE_PREFIX}${storageKey}`, String(value));
+}
+
+export function adminPageItems(page = 1, totalPages = 1) {
   const safeTotalPages = positivePage(totalPages);
   const safePage = Math.min(positivePage(page), safeTotalPages);
   const pages = new Set([1, safeTotalPages, safePage - 1, safePage, safePage + 1]);
@@ -150,7 +157,7 @@ export function factoryPageItems(page = 1, totalPages = 1) {
   return items;
 }
 
-export function useFactoryPagedQuery({ storageKey, enabled = true, querySignature, loadPage, defaultPageSize = 20, onError, shouldClearOnError, mapError }) {
+export function useAdminPagedQuery({ storageKey, enabled = true, querySignature, loadPage, defaultPageSize = 20, onError, shouldClearOnError, mapError }) {
   const [state, setState] = useState(() => {
     const pageSize = storedPageSize(storageKey, defaultPageSize);
     return {
@@ -295,7 +302,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
     },
     requestPageSize(pageSize) {
       const normalized = validPageSize(pageSize, defaultPageSize);
-      if (typeof window !== "undefined") window.localStorage.setItem(`factory.pagination.${storageKey}`, String(normalized));
+      savePageSize(storageKey, normalized);
       setState((current) => ({ ...current, requestedPage: 1, requestedPageSize: normalized }));
     },
     retry() {
@@ -433,7 +440,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
   }, actions];
 }
 
-export function useFactoryClientPagination(storageKey, totalRows = 0, defaultPageSize = 20, resetKey = "") {
+export function useAdminClientPagination(storageKey, totalRows = 0, defaultPageSize = 20, resetKey = "") {
   const [pageSize, setPageSizeState] = useState(() => storedPageSize(storageKey, defaultPageSize));
   const [page, setPage] = useState(1);
   const safeTotalRows = nonNegativeTotal(totalRows);
@@ -454,18 +461,14 @@ export function useFactoryClientPagination(storageKey, totalRows = 0, defaultPag
     setPage: (value) => setPage(Math.max(1, Math.min(Number(value) || 1, totalPages))),
     setPageSize(value) {
       const normalized = validPageSize(value, defaultPageSize);
-      if (typeof window !== "undefined") window.localStorage.setItem(`factory.pagination.${storageKey}`, String(normalized));
+      savePageSize(storageKey, normalized);
       setPageSizeState(normalized);
       setPage(1);
     },
   };
 }
 
-export const useAdminClientPagination = useFactoryClientPagination;
-export const useAdminPagedQuery = useFactoryPagedQuery;
-export const AdminTableLoadState = FactoryTableLoadState;
-
-export function FactoryTableLoadState({ state, label, onRetry, permissionMessage = "Some data is hidden by your current role.", staleMessage = "" }) {
+export function AdminTableLoadState({ state, label, onRetry, permissionMessage = "Some data is hidden by your current role.", staleMessage = "" }) {
   const message = state.errorKind === "permission"
     ? permissionMessage
     : state.hasLoaded
@@ -499,7 +502,7 @@ export default function AdminPagination({ page = 1, pageSize = 20, total = 0, lo
   const safePage = Math.min(positivePage(page), totalPages);
   const from = ((safePage - 1) * safePageSize) + 1;
   const to = Math.min(safePage * safePageSize, safeTotal);
-  const items = factoryPageItems(safePage, totalPages);
+  const items = adminPageItems(safePage, totalPages);
   return (
     <div className="border-t border-border px-4 py-3">
       <div className="hidden items-center justify-between gap-4 md:flex">

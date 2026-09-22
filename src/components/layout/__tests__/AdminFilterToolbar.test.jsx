@@ -1,13 +1,21 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import AdminFilterToolbar from "../AdminFilterToolbar.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../AdminFilterToolbar.jsx";
 import FactoryFilterBar from "../../../features/factory/components/FactoryFilterBar.jsx";
 import FeedXDateRangePicker from "../../ui/FeedXDateRangePicker.jsx";
 import AdminSearchField from "../../forms/AdminSearchField.jsx";
 import { FieldLabel } from "../../forms/Selectors.jsx";
+import { CREW_ADMIN_OUTLET_STORAGE_KEY, CrewAdminOutletProvider, useCrewAdminOutlet } from "../../../features/crew/context/CrewAdminOutletContext.jsx";
 
 function Field({ label }) {
   return <label>{label}<input aria-label={label} /></label>;
+}
+
+const outlets = [{ id: "outlet-1", name: "Friends Corner", is_active: true }, { id: "outlet-2", name: "Hola Hola", is_active: true }];
+
+function OutletHarness() {
+  const { outletId, setOutletId } = useCrewAdminOutlet();
+  return <><AdminFilterToolbar outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />} /><output>{outletId}</output></>;
 }
 
 afterEach(cleanup);
@@ -23,6 +31,16 @@ describe("AdminFilterToolbar", () => {
     expect(screen.getByLabelText("Outlet").closest("[data-admin-filter-slot]").dataset.adminFilterRole).toBe("outlet");
     expect(screen.getByText("Export")).toBeTruthy();
     expect(screen.getByText("Create")).toBeTruthy();
+  });
+
+  it("accepts an existing outlet scope without owning its context", () => {
+    localStorage.clear();
+    const view = render(<CrewAdminOutletProvider outlets={outlets}><OutletHarness /></CrewAdminOutletProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Hola Hola" }));
+    expect(localStorage.getItem(CREW_ADMIN_OUTLET_STORAGE_KEY)).toBe("outlet-2");
+    view.rerender(<CrewAdminOutletProvider outlets={[outlets[0]]}><OutletHarness /></CrewAdminOutletProvider>);
+    expect(screen.getByText("outlet-1")).not.toBeNull();
   });
 
   it("renders removable active filters and reset", () => {

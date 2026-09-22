@@ -10,11 +10,10 @@ import PublicationState from "../../../components/ui/PublicationState.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
-import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
 import { crewService } from "../../../services/crewService.js";
 import CrewOnboardingEditor from "../components/CrewOnboardingEditor.jsx";
-import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { localizationLanguageSummary } from "../utils/localizedContent.js";
 
@@ -161,7 +160,7 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
 
   return <div className="crew-onboarding-admin-page">
     <PageHeader section="Crew · Learning" title="New Crew Onboarding" description="Mandatory for all eligible Crew" secondaryActions={canManage ? <button className="btn-secondary" onClick={() => setCloneOpen(true)}><Copy size={15} /> Clone From Outlet</button> : null} primaryActions={canManage ? <button className="btn-primary" disabled={saving} onClick={openEditor}>{draft ? "Edit Draft" : published ? "Create Draft" : "Create Onboarding"}</button> : null} />
-    <AdminFilterToolbar ariaLabel="Onboarding controls" outlet={<CrewAdminOutletField />} />
+    <AdminFilterToolbar ariaLabel="Onboarding controls" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />} />
     <AsyncDataSurface loading={loading} error={loadError} errorTitle="Unable to load Onboarding" hasData={Boolean(journey)} isEmpty={!journey} emptyIcon={GraduationCap} emptyTitle={`No onboarding setup for ${outlet?.name || "this outlet"}`} emptyDescription="Create the standard eight-module onboarding or clone an independent setup from another outlet." emptyActions={canManage ? <><button className="btn-primary" onClick={openEditor}>Create Onboarding</button><button className="btn-secondary" onClick={() => setCloneOpen(true)}>Clone From Outlet</button></> : null} onRetry={() => refresh(outletId)} className="crew-onboarding-data-surface">
       {journey ? <OnboardingWorkspace outlet={outlet} journey={journey} draft={draft} progress={progress} section={section} setSection={setSection} onViewModule={setViewModuleId} onViewEmployee={setViewEmployeeId} /> : null}
     </AsyncDataSurface>

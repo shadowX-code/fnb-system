@@ -28,7 +28,7 @@ const actionOwnershipFiles = [
 
 const source = (file) => readFileSync(resolve(process.cwd(), file), "utf8");
 
-describe("Crew Admin toolbar contract", () => {
+describe("Crew Admin filter toolbar contract", () => {
   it.each(pageFiles)("uses the canonical Admin filter toolbar on %s", (file) => {
     expect(source(file)).toContain("AdminFilterToolbar");
   });
@@ -49,9 +49,9 @@ describe("Crew Admin toolbar contract", () => {
     expect(app).toContain("</CrewAdminOutletProvider>");
   });
 
-  it("uses the server-scoped Crew Access employee read instead of matching workplace text in the browser", () => {
+  it("uses the server-scoped Crew Access read instead of matching workplace text in the browser", () => {
     const contents = source("src/features/crew/pages/CrewWorkspacePage.jsx");
-    expect(contents).toContain("employeeService.listCrewAccessEmployees(outletId)");
+    expect(contents).toContain("employeeService.crewAccessAdminPage");
     expect(contents).not.toContain("employee.workplace ===");
   });
 });

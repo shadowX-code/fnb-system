@@ -9,11 +9,10 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
-import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import { crewService } from "../../../services/crewService.js";
-import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { formatLeaveDate, formatLeaveDateRange } from "../utils/leaveFormatters.js";
 
@@ -99,7 +98,7 @@ function LeaveToolbar({ tab, outlets, outletId, setOutletId, filters, setFilters
     tab === "requests" && filters.type !== "all" && { key: "type", label: "Leave type", value: typeLabel[filters.type], onRemove: () => setFilters({ ...filters, type: "all" }) },
     tab === "requests" && filters.status !== "all" && { key: "status", label: "Status", value: statusLabel(filters.status), onRemove: () => setFilters({ ...filters, status: "all" }) },
   ].filter(Boolean);
-  return <AdminFilterToolbar outlet={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />} search={searchable ? <AdminSearchField label="Search Employee" value={filters.search} onChange={(search) => setFilters({ ...filters, search })} placeholder="Search employee name or position" /> : null} filters={tab === "requests" ? <><SelectField label="Leave Type" value={filters.type} onChange={(type) => setFilters({ ...filters, type })} options={[{ value: "all", label: "All" }, ...Object.entries(typeLabel).map(([value, label]) => ({ value, label }))]} /><SelectField label="Status" value={filters.status} onChange={(status) => setFilters({ ...filters, status })} options={[{ value: "all", label: "All" }, ...["pending", "approved", "rejected", "cancelled"].map((value) => ({ value, label: statusLabel(value) }))]} /></> : !searchable ? <p className="self-center text-sm text-text-secondary">Policies apply to the selected outlet and future entitlement generation.</p> : null} activeFilters={activeFilters} onClear={clearFilters} />;
+  return <AdminFilterToolbar outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />} search={searchable ? <AdminSearchField label="Search Employee" value={filters.search} onChange={(search) => setFilters({ ...filters, search })} placeholder="Search employee name or position" /> : null} filters={tab === "requests" ? <><SelectField label="Leave Type" value={filters.type} onChange={(type) => setFilters({ ...filters, type })} options={[{ value: "all", label: "All" }, ...Object.entries(typeLabel).map(([value, label]) => ({ value, label }))]} /><SelectField label="Status" value={filters.status} onChange={(status) => setFilters({ ...filters, status })} options={[{ value: "all", label: "All" }, ...["pending", "approved", "rejected", "cancelled"].map((value) => ({ value, label: statusLabel(value) }))]} /></> : !searchable ? <p className="self-center text-sm text-text-secondary">Policies apply to the selected outlet and future entitlement generation.</p> : null} activeFilters={activeFilters} onClear={clearFilters} />;
 }
 
 function RequestsPanel({ rows, listing, actions, filtered, canReview, setReview }) {

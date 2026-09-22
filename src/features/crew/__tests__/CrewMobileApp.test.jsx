@@ -15,9 +15,7 @@ const mocks = vi.hoisted(() => ({
   myRoster: vi.fn(),
   myLeave: vi.fn(),
   operationDetail: vi.fn(),
-  updateOperationItem: vi.fn(),
   updateTaskBlock: vi.fn(),
-  completeOperationChecklist: vi.fn(),
   updateDailyTask: vi.fn(),
   sopLibrary: vi.fn(),
   sopVersion: vi.fn(),
@@ -59,6 +57,10 @@ const growth = {
 const performance = { period_start: "2026-08-01", status: "finalized", score: 87, calculation_version: "performance-v1", breakdown: { attendance: { score: 28, explanation: "Verified attendance evidence." }, service: { score: 26, explanation: "Reviewed standards." }, customer: { score: 13, confidence: "established", explanation: "Five responses." }, knowledge: { score: 14, explanation: "Learning evidence." }, conduct: { score: 6, explanation: "Reviewed conduct." } }, trend: [{ period_start: "2026-08-01", score: 87, status: "finalized" }] };
 const reward = { period_start: "2026-08-01", status: "qualified", cycle_status: "review", reward_label: "Estimated Reward", reward_amount: 120.72, estimated_reward: 120.72, performance_score: 75, performance_level: "Meets Standard", earn_rate: .45, eligible_hours: 235, total_eligible_hours: 730, contribution_share: .3219, maximum_share: 268.33, reward_pool: 500, calculation_version: "reward-tier-v2", projection_applicable: true, projections: [{ key: "current", label: "Current", score: 75, earn_rate: .45, amount: 120.72 }, { key: "on_track", label: "On Track", score: 80, earn_rate: .65, amount: 174.41 }, { key: "great", label: "Great", score: 85, earn_rate: .8, amount: 214.66 }, { key: "max", label: "Max Potential", score: 95, earn_rate: 1, amount: 268.33 }], history: [{ period_start: "2026-07-01", amount: 112.4, status: "paid", paid_at: "2026-08-05T00:00:00Z" }] };
 const currentBusinessDate = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const renderCrewApp = ({ crewSession = session, ...props } = {}) => {
+  if (crewSession) localStorage.setItem("feedx.crew.session", JSON.stringify(crewSession));
+  return render(<CrewMobileApp {...props} />);
+};
 
 beforeEach(() => {
   window.history.replaceState(null, "", "#crew/home");
@@ -76,9 +78,7 @@ beforeEach(() => {
   mocks.myRoster.mockReset().mockResolvedValue({ from: "2026-08-13", to: "2026-08-26", today: { entry_id: "roster-1", date: "2026-08-13", outlet_id: "outlet-1", outlet_name: "Friends Corner", start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew" }, entries: [{ id: "roster-1", date: "2026-08-13", outlet: { id: "outlet-1", name: "Friends Corner" }, start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew", template: { code: "MORNING", name: "Morning" } }, { id: "roster-2", date: "2026-08-14", outlet: { id: "outlet-2", name: "Hola Hola" }, entry_type: "off", template: { code: "OFF", name: "OFF" } }] });
   mocks.myLeave.mockReset().mockResolvedValue({ requests: [], upcoming: [] });
   mocks.operationDetail.mockReset().mockResolvedValue({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "checklist_item", required: true, status: "pending" }] });
-  mocks.updateOperationItem.mockReset().mockResolvedValue({});
   mocks.updateTaskBlock.mockReset().mockResolvedValue({});
-  mocks.completeOperationChecklist.mockReset().mockResolvedValue({});
   mocks.updateDailyTask.mockReset().mockResolvedValue({});
   mocks.sopLibrary.mockReset().mockResolvedValue({ categories: [], sops: [] });
   mocks.sopVersion.mockReset().mockResolvedValue({ id: "sop-version-1", title: "Welcome Standard", category: "Service", version: 2, acknowledgement_required: true, acknowledged: false, summary: "Welcome every guest consistently.", sections: [] });
@@ -100,8 +100,7 @@ afterEach(async () => { cleanup(); document.documentElement.removeAttribute("dat
 
 describe("Crew Mobile redesign", () => {
   it("applies and persists the Home-only Crew theme choice without adding a second route control", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    const first = render(<CrewMobileApp />);
+    const first = renderCrewApp();
 
     const toggle = await screen.findByRole("button", { name: "Switch to dark mode" });
     expect(document.querySelector(".crew-v2-home-header .crew-v2-avatar")).toBeNull();
@@ -117,7 +116,7 @@ describe("Crew Mobile redesign", () => {
     await screen.findByRole("button", { name: "Switch to light mode" });
     first.unmount();
 
-    render(<CrewMobileApp />);
+    renderCrewApp();
     expect(await screen.findByRole("button", { name: "Switch to light mode" })).not.toBeNull();
     expect(document.documentElement.dataset.crewTheme).toBe("dark");
   });
@@ -125,8 +124,7 @@ describe("Crew Mobile redesign", () => {
   it("keeps navigation mounted and hides Home business empties until required projections settle", async () => {
     let resolveOperations;
     mocks.operationsToday.mockReturnValueOnce(new Promise((resolve) => { resolveOperations = resolve; }));
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     await waitFor(() => expect(mocks.operationsToday).toHaveBeenCalledTimes(1));
     expect(screen.getByRole("navigation", { name: "Crew navigation" })).not.toBeNull();
     expect(screen.getByRole("status").getAttribute("aria-busy")).toBe("true");
@@ -138,8 +136,7 @@ describe("Crew Mobile redesign", () => {
   it("retains a server-rotated token when Me unmounts during passcode change", async () => {
     let resolveChange;
     mocks.changePasscode.mockReturnValueOnce(new Promise((resolve) => { resolveChange = resolve; }));
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click(await screen.findByRole("button", { name: "Me" }));
     fireEvent.click(screen.getByRole("button", { name: "Change Passcode" }));
     const inputs = document.querySelectorAll(".crew-v2-passcode-form input");
@@ -154,8 +151,7 @@ describe("Crew Mobile redesign", () => {
 
   it("restores a canonical Crew deep link and follows browser hash navigation", async () => {
     window.history.replaceState(null, "", "#crew/reward");
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
 
     expect(await screen.findByRole("heading", { name: "Reward" })).not.toBeNull();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[0]);
@@ -167,8 +163,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("defers Learn reads until the Learn route is opened", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
 
     const navigation = await screen.findByRole("navigation", { name: "Crew navigation" });
     expect(mocks.learningHome).not.toHaveBeenCalled();
@@ -179,7 +174,6 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("keeps onboarding progress and module states visually distinct without changing lesson access", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.learningHome.mockResolvedValueOnce({ assignment: { id: "assignment-1", progress_percentage: 50, lessons_completed: 2, lessons_total: 4 }, required_sops: [] });
     mocks.learningAssignment.mockResolvedValueOnce({
       id: "assignment-1",
@@ -190,7 +184,7 @@ describe("Crew Mobile redesign", () => {
         { module: { id: "module-available", title: "Taking orders" }, status: "not_started", progress_percentage: 0, completed: false, locked: false, lessons: [{ lesson: { id: "lesson-ready", title: "Taking an order" }, completed: false, locked: false }] },
       ],
     });
-    render(<CrewMobileApp />);
+    renderCrewApp();
 
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[1]);
     fireEvent.click(await screen.findByRole("button", { name: /New Crew Onboarding/ }));
@@ -214,8 +208,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("changes and persists the Crew system language from Me Settings", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.click(screen.getByRole("button", { name: /Language/ }));
@@ -227,8 +220,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("uses the shared segmented-control treatment for the three Crew languages", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     fireEvent.click(screen.getByRole("button", { name: "Language" }));
@@ -240,7 +232,6 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("keeps Me as an identity-only profile hub with grouped navigation", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myAttendance.mockResolvedValueOnce([
       { id: "attendance-1", clock_in_at: "2026-08-14T02:00:00Z", clock_out_at: "2026-08-14T10:00:00Z", status: "completed" },
       { id: "attendance-2", clock_in_at: "2026-08-13T02:00:00Z", clock_out_at: "2026-08-13T10:00:00Z", status: "completed" },
@@ -250,7 +241,7 @@ describe("Crew Mobile redesign", () => {
       requests: [{ id: "leave-1", status: "pending" }],
       upcoming: [],
     });
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
 
     expect(screen.getByRole("heading", { name: "Me" })).not.toBeNull();
@@ -261,35 +252,33 @@ describe("Crew Mobile redesign", () => {
     const profileHero = document.querySelector(".crew-me-profile-hero");
     expect(profileHero?.querySelector("img.crew-me-profile-credential-art[aria-hidden='true']")).not.toBeNull();
     expect(screen.getByText("1 Pending")).not.toBeNull();
-    expect(screen.getAllByText("Documents & Compliance")).toHaveLength(1);
+    expect(screen.getAllByText("Employment Records")).toHaveLength(1);
     expect(screen.getByRole("heading", { name: "Work" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Account" })).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Support" })).toBeNull();
   });
 
   it("shows the server-projected unread warning count without deriving it from warning rows", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myDisciplinary.mockResolvedValueOnce({ warnings: [], unread_count: 2 });
-    const first = render(<CrewMobileApp />);
+    const first = renderCrewApp();
 
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
-    const warningsRow = await screen.findByRole("button", { name: /Warnings & Notices/ });
-    expect(warningsRow.querySelector(".crew-ui-count")?.textContent).toBe("2");
-    expect(warningsRow.querySelector(".crew-ui-count")?.getAttribute("aria-label")).toBe("2 unread warnings");
+    const employmentRecordsRow = await screen.findByRole("button", { name: /Employment Records/ });
+    expect(employmentRecordsRow.querySelector(".crew-ui-count")?.textContent).toBe("2");
+    expect(employmentRecordsRow.querySelector(".crew-ui-count")?.getAttribute("aria-label")).toBe("2 unread warnings");
     expect(mocks.myDisciplinary).toHaveBeenCalledWith("crew-token");
 
     first.unmount();
     mocks.myDisciplinary.mockResolvedValue({ warnings: [{ id: "already-viewed" }], unread_count: 0 });
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
-    expect((await screen.findByRole("button", { name: /Warnings & Notices/ })).querySelector(".crew-ui-count")).toBeNull();
+    expect((await screen.findByRole("button", { name: /Employment Records/ })).querySelector(".crew-ui-count")).toBeNull();
   });
 
   it("keeps Me truthful for empty attendance and pending states without restoring the removed summary strip", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify({ ...session, employee: { ...session.employee, full_name: "A Very Long International Employee Name", nickname: "A" } }));
     mocks.attendanceContext.mockResolvedValueOnce({ outlet_name: "An Exceptionally Long International Restaurant Outlet Name", location_enabled: false });
     mocks.myLeave.mockResolvedValueOnce({ balances: [], requests: [], upcoming: [] });
-    render(<CrewMobileApp />);
+    renderCrewApp({ crewSession: { ...session, employee: { ...session.employee, full_name: "A Very Long International Employee Name", nickname: "A" } } });
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
 
     expect(screen.getAllByText("No activity yet").length).toBeGreaterThan(0);
@@ -299,9 +288,8 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("renders canonical employment type labels without deriving them from role or status", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myProfile.mockResolvedValueOnce({ employment_type: "part_time" });
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
 
     expect(await screen.findByText("Part-Time")).not.toBeNull();
@@ -309,9 +297,8 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("does not invent an employment type when the canonical session field is unavailable", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myProfile.mockResolvedValueOnce(null);
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
 
     expect(document.querySelector(".crew-me-profile-hero .crew-ui-status")).toBeNull();
@@ -319,9 +306,8 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("omits Profile identity metadata when Employee Master supplies no employment type", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify({ ...session, employee: { ...session.employee, employment_type: "" } }));
     mocks.myProfile.mockResolvedValueOnce(null);
-    render(<CrewMobileApp />);
+    renderCrewApp({ crewSession: { ...session, employee: { ...session.employee, employment_type: "" } } });
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
     fireEvent.click(screen.getByRole("button", { name: "Profile Information" }));
 
@@ -330,8 +316,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("routes Attendance, Leave and Profile from Me and confirms logout", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
     fireEvent.click(screen.getByRole("button", { name: "Profile Information" }));
     expect(screen.getByRole("heading", { name: "Profile Information" })).not.toBeNull();
@@ -349,8 +334,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("keeps passcode changes on their own page and leaves Settings for app preferences", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
     fireEvent.click(screen.getByRole("button", { name: "Change Passcode" }));
     expect(screen.getByRole("heading", { name: "Change Passcode" })).not.toBeNull();
@@ -466,8 +450,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("has exactly Home, Learn, Reward, Growth and Me in bottom navigation", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     const nav = await screen.findByRole("navigation", { name: "Crew navigation" });
     expect(Array.from(nav.querySelectorAll("button")).map((button) => button.textContent)).toEqual(["Home", "Learn", "Reward", "Growth", "Me"]);
     expect(nav.textContent).not.toContain("Work");
@@ -475,8 +458,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("keeps attendance as a contextual Home action instead of a primary tab", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     expect(await screen.findByRole("button", { name: "Clock In" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /View Attendance/ }));
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
@@ -485,9 +467,10 @@ describe("Crew Mobile redesign", () => {
 
   it("renders Attendance as a three-month operational history without changing the month read model", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    const currentMonth = currentBusinessDate().slice(0, 7);
     mocks.myAttendance.mockResolvedValueOnce([
-      { id: "attendance-1", clock_in_at: "2026-08-21T10:45:00+08:00", clock_out_at: "2026-08-21T18:28:00+08:00", status: "completed", clock_in_location_exception: true },
-      { id: "attendance-2", clock_in_at: "2026-08-19T17:00:00+08:00", clock_out_at: "2026-08-20T01:00:00+08:00", status: "completed", clock_in_location_verified: true },
+      { id: "attendance-1", clock_in_at: `${currentMonth}-21T10:45:00+08:00`, clock_out_at: `${currentMonth}-21T18:28:00+08:00`, status: "completed", clock_in_location_exception: true },
+      { id: "attendance-2", clock_in_at: `${currentMonth}-19T17:00:00+08:00`, clock_out_at: `${currentMonth}-20T01:00:00+08:00`, status: "completed", clock_in_location_verified: true },
     ]);
     render(<CrewMobileApp />);
     fireEvent.click(await screen.findByRole("button", { name: /View Attendance/ }));
@@ -507,8 +490,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("keeps Home scoped to today while View all opens the Crew All Tasks read model", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click(await screen.findByRole("button", { name: "All Tasks" }));
     expect(await screen.findByRole("heading", { name: "All Tasks" })).not.toBeNull();
     await waitFor(() => expect(mocks.operationsAllTasks).toHaveBeenCalledWith("crew-token"));
@@ -553,8 +535,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("shows only the token-bound published roster and opens My Schedule without adding a bottom tab", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     expect((await screen.findAllByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/)).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "View all" }));
     expect(screen.getByRole("heading", { name: "My Schedule" })).not.toBeNull();
@@ -620,8 +601,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("keeps one selected date across the inline seven-day and full-month schedule calendar", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click(await screen.findByRole("button", { name: "View all" }));
     fireEvent.click(screen.getByRole("button", { name: "Expand calendar" }));
     expect(document.querySelector(".crew-schedule-final-calendar.is-expanded")).not.toBeNull();
@@ -681,7 +661,6 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByText("1 of 1 completed")).toBeNull();
     expect(screen.queryByText("Confirmed")).toBeNull();
     expect(screen.queryByRole("button", { name: "Complete Task" })).toBeNull();
-    expect(mocks.completeOperationChecklist).not.toHaveBeenCalled();
   });
 
   it("uses the shared detail header for long SOP titles while keeping the full title and metadata in the reader", async () => {
@@ -874,8 +853,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("keeps the Home shift footer time on its own readable row", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     const footer = await screen.findByRole("button", { name: /Today’s shift.*View Attendance/ });
     expect(footer.querySelector(".crew-ui-icon-container")).not.toBeNull();
     expect(footer.querySelector("small")?.textContent).toBe("Today’s shift");
@@ -884,16 +862,14 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("uses the compact shift-status icon instead of the decorative hand in the Home header", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     await screen.findByText("Today’s Tasks");
     expect(document.querySelector(".crew-v2-home-header h1 .crew-home-shift-status-icon")).not.toBeNull();
     expect(document.querySelector(".crew-v2-home-header h1 .lucide-hand")).toBeNull();
   });
 
   it("shows only the signed-in employee's transparent Reward result", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[2]);
     expect((await screen.findAllByText("RM 120.72")).length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Qualified")).not.toBeNull();
@@ -906,8 +882,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("shows only the signed-in employee's safe Growth state and no manager controls", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[3]);
     expect(await screen.findByText("Performance")).not.toBeNull();
     expect(screen.getByRole("heading", { name: /All Skills/ })).not.toBeNull();
@@ -924,8 +899,7 @@ describe("Crew Mobile redesign", () => {
   });
 
   it("shows the signed-in employee's safe Performance breakdown", async () => {
-    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
-    render(<CrewMobileApp />);
+    renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[3]);
     fireEvent.click(await screen.findByRole("button", { name: "View my performance" }));
     expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
@@ -951,7 +925,5 @@ describe("Crew Mobile redesign", () => {
     await waitFor(() => expect(mocks.markNotificationRead).toHaveBeenCalledWith("crew-token", "notification-1"));
     expect(await screen.findByRole("heading", { name: "Opening Checklist" })).not.toBeNull();
     expect(mocks.operationDetail).toHaveBeenCalledWith("crew-token", "ops-1");
-    expect(mocks.updateOperationItem).not.toHaveBeenCalled();
-    expect(mocks.completeOperationChecklist).not.toHaveBeenCalled();
   });
 });

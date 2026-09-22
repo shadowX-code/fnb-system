@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, CalendarDays, CheckCircle2, ChevronRight, ClipboardCheck, Clock3, ListChecks, MoreHorizontal, ShieldCheck, SunMedium, UserCheck, UsersRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
-import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import AdminScopeSwitcher from "../../../components/layout/AdminScopeSwitcher.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -17,7 +17,6 @@ import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
 import CrewAccessManagerModal from "../components/CrewAccessManagerModal.jsx";
 import CrewDisableAccessModal from "../components/CrewDisableAccessModal.jsx";
 import CrewSpecialAccessModal from "../components/CrewSpecialAccessModal.jsx";
-import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { employeeService } from "../../../services/employeeService.js";
 import { crewAccessState, crewService, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
@@ -48,7 +47,7 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   });
   const employees = listing.rows;
   const refresh = listingActions.refreshNow;
-  const outletControl = <CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
+  const outletControl = <AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
 
   if (isEmployees) return <div className="space-y-4">
     <PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." />

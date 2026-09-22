@@ -42,8 +42,7 @@ describe("Crew learning mobile service boundaries", () => {
     await crewService.operationsHistory("crew-token");
     await crewService.operationDetail("crew-token", "instance-1");
     await crewService.resetTask("crew-token", "instance-1");
-    await crewService.updateOperationItem("crew-token", "item-1", "exception", "equipment_issue", "Reported");
-    await crewService.completeOperationChecklist("crew-token", "instance-1");
+    await crewService.updateTaskBlock("crew-token", "item-1", "exception", {}, "equipment_issue", "Reported");
     await crewService.updateDailyTask("crew-token", "task-1", "completed");
     await crewService.learningAssignment("crew-token", "assignment-1");
     await crewService.sopLibrary("crew-token");
@@ -61,7 +60,6 @@ describe("Crew learning mobile service boundaries", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("crew_tasks_detail", { p_token: "crew-token", p_instance_id: "instance-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_tasks_reset", { p_token: "crew-token", p_instance_id: "instance-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_tasks_update_block", expect.objectContaining({ p_token: "crew-token", p_block_id: "item-1", p_action: "exception" }));
-    expect(mocks.rpc).toHaveBeenCalledWith("crew_tasks_complete", { p_token: "crew-token", p_instance_id: "instance-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_update_daily_task", expect.objectContaining({ p_token: "crew-token", p_task_id: "task-1", p_action: "completed" }));
     expect(mocks.rpc).toHaveBeenCalledWith("crew_learning_assignment", { p_token: "crew-token", p_assignment_id: "assignment-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_sop_library", { p_token: "crew-token" });

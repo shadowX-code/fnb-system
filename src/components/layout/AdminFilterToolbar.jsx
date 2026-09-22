@@ -1,6 +1,12 @@
 import { Children, Fragment, isValidElement, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import ActionMenu from "../ui/ActionMenu.jsx";
+import SelectField from "../forms/SelectField.jsx";
+
+export function AdminOutletField({ value, onChange, options = [], allowAll = false, allValue = "all", ariaLabel = "Outlet" }) {
+  const outletOptions = allowAll ? [{ value: allValue, label: "All" }, ...options] : options;
+  return <SelectField label="Outlet" ariaLabel={ariaLabel} value={value} onChange={onChange} options={outletOptions} />;
+}
 
 function labelForField(field) {
   return String(isValidElement(field) ? field.props.label || field.props["aria-label"] || "" : "").toLowerCase();

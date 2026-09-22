@@ -53,6 +53,7 @@ Object.assign(resources.cash, { previousCarryForward:"上期结转", carryForwar
 Object.assign(resources.cash, { cashDepositBalance:"现金存款余额", pendingConfirmationAmount:"{{amount}} 待确认", confirmation:{pending_confirmation:"待确认",confirmed:"已确认",review_required:"需要审核"}, availableToCollect:"可收取：{{amount}}", availableAfterPendingReceipt:"待确认收款后可收取：{{amount}}", recentActivity:"近期活动", continueReview:"继续审核", openLedgerEntry:"在账本中打开{{activity}}", handoverUnavailablePermission:"您没有移交现金存款资金的权限。", handoverUnavailableNoBalance:"没有可移交的现金存款余额。", ledgerMonth:"现金活动月份", noCashActivityThisMonth:"本月暂无现金活动" });
 Object.assign(resources.cash, { completedWithTime:"已完成 · {{time}}", checkoutHistory:"结账历史", noCheckoutHistory:"过去 30 天没有结账历史" });
 Object.assign(resources.cash, { confirmHandoverAction:"确认交接" });
+Object.assign(resources.cash, { amountUpTo:"请输入不超过 {{amount}} 的金额。" });
 Object.assign(resources.cash, { handOverCash:"交接现金", pendingConfirmations:"待确认", noPendingConfirmations:"没有等待确认的现金", handedOverBy:"由 {{name}} 交接", confirmReceived:"确认收款", confirmCashReceived:"确认收到现金", from:"来自", to:"交给", outletCrew:"{{outlet}} 员工" });
 Object.assign(resources.learn, { journeyProgress: "共 {{total}} 节已完成", journeyProgressOf: "共 {{total}} 节", journeyProgressCompleted: "已完成", moduleProgress: "已完成 {{completed}}/{{total}} 节" });
 Object.assign(resources.tasks, { summary:"任务摘要", assignedTo:"负责人", completedBy:"完成者", you:"你", positionTeam:"{{label}} 团队", groupTeam:"{{label}} 团队", outletTeam:"{{label}} 门店团队", sharedTask:"共享团队任务", schedule:{ ...resources.tasks.schedule, weekdaysLabel:"工作日" } });

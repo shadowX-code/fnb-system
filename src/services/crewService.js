@@ -244,12 +244,6 @@ export const crewService = {
     return data;
   },
 
-  async leaveAdminData(outletId, from = null, to = null) {
-    const { data, error } = await supabase.rpc("crew_leave_admin_data", { p_outlet_id: outletId, p_from: from || null, p_to: to || null });
-    throwSupabaseError("crew.leaveAdminData", error);
-    return data || { requests: [] };
-  },
-
   async leaveRequestsAdminPage({ outletId, from = null, to = null, filters = {}, page = 1, pageSize = 20 }) {
     const { data, error } = await supabase.rpc("crew_leave_requests_admin_page", {
       p_outlet_id: outletId,
@@ -321,12 +315,6 @@ export const crewService = {
     return data;
   },
 
-  async updateOperationItem(token, itemId, action, reason = null, note = null) {
-    const { data, error } = await supabase.rpc("crew_tasks_update_block", { p_token: token, p_block_id: itemId, p_action: action, p_response: {}, p_reason: reason, p_note: note });
-    throwSupabaseError("crew.updateOperationItem", error);
-    return data;
-  },
-
   async updateTaskBlock(token, blockId, action, response = {}, reason = null, note = null) {
     const { data, error } = await supabase.rpc("crew_tasks_update_block", { p_token: token, p_block_id: blockId, p_action: action, p_response: response, p_reason: reason, p_note: note });
     throwSupabaseError("crew.updateTaskBlock", error);
@@ -339,28 +327,10 @@ export const crewService = {
     return data;
   },
 
-  async completeOperationChecklist(token, instanceId) {
-    const { data, error } = await supabase.rpc("crew_tasks_complete", { p_token: token, p_instance_id: instanceId });
-    throwSupabaseError("crew.completeOperationChecklist", error);
-    return data;
-  },
-
   async updateDailyTask(token, taskId, action, reason = null, note = null) {
     const { data, error } = await supabase.rpc("crew_operations_update_daily_task", { p_token: token, p_task_id: taskId, p_action: action, p_reason: reason, p_note: note });
     throwSupabaseError("crew.updateDailyTask", error);
     return data;
-  },
-
-  async operationsAdminData(outletId, date = new Date().toISOString().slice(0, 10)) {
-    const { data, error } = await supabase.rpc("crew_operations_admin_data", { p_outlet_id: outletId, p_business_date: date });
-    throwSupabaseError("crew.operationsAdminData", error);
-    return data || { summary: {}, templates: [], instances: [], daily_tasks: [], activity: [], published_sops: [] };
-  },
-
-  async tasksAdminData(outletId, from = localBusinessDate(), to = from) {
-    const { data, error } = await supabase.rpc("crew_tasks_admin_data", { p_outlet_id: outletId, p_from: from, p_to: to });
-    throwSupabaseError("crew.tasksAdminData", error);
-    return data || { definitions: [], instances: [], published_sops: [], employees: [] };
   },
 
   async tasksAdminPage({ outletId, from = localBusinessDate(), to = from, listing = "definitions", filters = {}, page = 1, pageSize = 20 }) {
@@ -397,21 +367,6 @@ export const crewService = {
     const { data, error } = await supabase.rpc("crew_cash_confirm_collection", { p_token: token, p_collection_id: collectionId, p_received_amount: receivedAmount });
     throwSupabaseError("crew.confirmCashCollection", error);
     return data;
-  },
-
-  async cashCheckoutAdminData(outletId, from = localBusinessDate(), to = from) {
-    const [adminResult, settingsResult] = await Promise.all([
-      supabase.rpc("crew_cash_admin_data", { p_outlet_id: outletId, p_from: from, p_to: to }),
-      supabase.rpc("crew_cash_settings_context", { p_outlet_id: outletId }),
-    ]);
-    throwSupabaseError("crew.cashCheckoutAdminData", adminResult.error);
-    throwSupabaseError("crew.cashCheckoutSettingsContext", settingsResult.error);
-    const adminData = adminResult.data || { settings: {}, summary: {}, checkouts: [], ledger: [], collections: [], float_history: [], employees: [] };
-    return {
-      ...adminData,
-      settings: settingsResult.data?.settings || adminData.settings,
-      checkout_positions: settingsResult.data?.checkout_positions || [],
-    };
   },
 
   async cashCheckoutAdminPage({ outletId, from = localBusinessDate(), to = from, listing = "checkouts", page = 1, pageSize = 20 }) {
@@ -505,33 +460,9 @@ export const crewService = {
     return data;
   },
 
-  async operationAdminDetail(instanceId) {
-    const { data, error } = await supabase.rpc("crew_operations_admin_detail", { p_instance_id: instanceId });
-    throwSupabaseError("crew.operationAdminDetail", error);
-    return data;
-  },
-
-  async saveOperationTemplate(outletId, template) {
-    const { data, error } = await supabase.rpc("crew_operations_save_template", { p_outlet_id: outletId, p_template: template });
-    throwSupabaseError("crew.saveOperationTemplate", error);
-    return data;
-  },
-
   async activateOperationTemplate(templateId) {
     const { data, error } = await supabase.rpc("crew_operations_activate_template", { p_template_id: templateId });
     throwSupabaseError("crew.activateOperationTemplate", error);
-    return data;
-  },
-
-  async archiveOperationTemplate(templateId) {
-    const { data, error } = await supabase.rpc("crew_operations_archive_template", { p_template_id: templateId });
-    throwSupabaseError("crew.archiveOperationTemplate", error);
-    return data;
-  },
-
-  async saveDailyOperationTask(outletId, task) {
-    const { data, error } = await supabase.rpc("crew_operations_save_daily_task", { p_outlet_id: outletId, p_task: task });
-    throwSupabaseError("crew.saveDailyOperationTask", error);
     return data;
   },
 
@@ -914,19 +845,6 @@ export const crewService = {
     return data;
   },
 
-  async listLearningAdmin() {
-    const [{ data: journeys, error: journeyError }, { data: assignments, error: assignmentError }] = await Promise.all([
-      supabase.from("crew_journeys").select("*, modules:crew_journey_modules(id,title,sort_order,required,status,lessons:crew_lessons(id,title,sort_order,required,estimated_minutes,blocks:crew_lesson_blocks(id,block_type,payload,sort_order),quizzes:crew_quizzes(id,title,passing_score,required,status,questions:crew_quiz_questions(id,prompt,question_type,sort_order,options:crew_quiz_options(id,label,is_correct,sort_order)))))").order("updated_at", { ascending: false }),
-      supabase.from("crew_journey_assignments").select("id,journey_id,employee_id,status,due_at,assigned_at,employee:employees(id,full_name,position),journey:crew_journeys(id,name,version)").order("assigned_at", { ascending: false }).limit(100),
-    ]);
-    throwSupabaseError("crew.listLearningAdmin.journeys", journeyError);
-    throwSupabaseError("crew.listLearningAdmin.assignments", assignmentError);
-    return {
-      journeys: (journeys || []).map(normalizeAdminJourney),
-      assignments: assignments || [],
-    };
-  },
-
   async listOnboardingAdmin(outletId) {
     const { data, error } = await supabase.rpc("crew_admin_onboarding_list", {
       p_outlet_id: outletId,
@@ -956,18 +874,6 @@ export const crewService = {
       p_outlet_id: outletId,
     });
     throwSupabaseError("crew.createDefaultOnboarding", error);
-    return data;
-  },
-
-  async cloneLearningSetup({ sourceOutletId, targetOutletId, copyOnboarding, copyCategories, copySops }) {
-    const { data, error } = await supabase.rpc("crew_clone_learning_setup", {
-      p_source_outlet_id: sourceOutletId,
-      p_target_outlet_id: targetOutletId,
-      p_copy_onboarding: Boolean(copyOnboarding),
-      p_copy_sop_categories: Boolean(copyCategories),
-      p_copy_sops: Boolean(copySops),
-    });
-    throwSupabaseError("crew.cloneLearningSetup", error);
     return data;
   },
 
@@ -1044,12 +950,6 @@ export const crewService = {
     });
     throwSupabaseError("crew.sopUsageAdmin", error);
     return data || { current: [], historical: [] };
-  },
-
-  async listSopsAdmin() {
-    const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point,media_url,media_id,media_caption))").order("updated_at", { ascending: false });
-    throwSupabaseError("crew.listSopsAdmin", error);
-    return data || [];
   },
 
   async listOutletSopsAdmin(outletId) {
@@ -1161,14 +1061,6 @@ export const crewService = {
       p_sort_order: sortOrder,
     });
     throwSupabaseError("crew.manageSopCategory", error);
-    return data;
-  },
-
-  async saveJourney(values) {
-    const { id, ...payload } = values;
-    const query = id ? supabase.from("crew_journeys").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id) : supabase.from("crew_journeys").insert(payload);
-    const { data, error } = await query.select().single();
-    throwSupabaseError("crew.saveJourney", error);
     return data;
   },
 
@@ -1419,25 +1311,6 @@ export const crewService = {
     throwSupabaseError("crew.manageAccess", error);
     return data;
   },
-  async updateCashOperationsAccess(employeeId, canInitiateHandover) {
-    const { data, error } = await supabase.rpc("crew_update_cash_operations_access", {
-      p_employee_id: employeeId,
-      p_can_initiate_handover: Boolean(canInitiateHandover),
-    });
-    throwSupabaseError("crew.updateCashOperationsAccess", error);
-    return data;
-  },
-  async updateAssetAccess(employeeId, { addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
-    const { data, error } = await supabase.rpc("crew_update_asset_access", {
-      p_employee_id: employeeId,
-      p_can_adjust_assets: Boolean(adjustAssets),
-      p_can_perform_asset_inspections: Boolean(inspectAssets),
-      p_can_add_assets: Boolean(addAssets),
-      p_can_manage_asset_details: Boolean(manageAssetDetails),
-    });
-    throwSupabaseError("crew.updateAssetAccess", error);
-    return data;
-  },
   async updateSpecialAccess(employeeId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
     const { data, error } = await supabase.rpc("crew_update_special_access", {
       p_employee_id: employeeId,
@@ -1638,19 +1511,6 @@ export const crewService = {
     const { data, error } = await supabase.functions.invoke("crew-profile-photo", { body });
     throwSupabaseError("crew.updateMyProfilePhoto", error);
     return data;
-  },
-
-  async listAttendance({ from: requestedFrom, to: requestedTo, outletId = null } = {}) {
-    const today = localBusinessDate();
-    const fallbackFrom = new Date(`${today}T00:00:00`);
-    fallbackFrom.setDate(fallbackFrom.getDate() - 90);
-    const { data, error } = await supabase.rpc("crew_attendance_admin_with_roster", {
-      p_from: requestedFrom || localBusinessDate(fallbackFrom),
-      p_to: requestedTo || today,
-      p_outlet_id: outletId || null,
-    });
-    throwSupabaseError("crew.listAttendance", error);
-    return data || [];
   },
 
   async listAttendancePage({ from, to, outletId = null, filters = {}, page = 1, pageSize = 20 } = {}) {

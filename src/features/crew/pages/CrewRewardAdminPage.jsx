@@ -12,8 +12,7 @@ import DataTable from "../../../components/tables/DataTable.jsx";
 import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
 import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
 import { crewService } from "../../../services/crewService.js";
-import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
-import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 
 const currentPeriod = () => `${new Date().toISOString().slice(0, 7)}-01`;
@@ -86,7 +85,7 @@ export default function CrewRewardAdminPage({ auth, ui, store }) {
   const outlet = outlets.find((row) => row.id === outletId);
   return <div className="space-y-5">
     <PageHeader section="Crew · Reward" title="Reward Overview" description="Plan monthly Reward Campaigns, monitor projected payouts and finalize transparent Crew rewards." primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}>+ Create Reward</button> : null} />
-    <AdminFilterToolbar ariaLabel="Reward filters" outlet={<CrewAdminOutletField />} period={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
+    <AdminFilterToolbar ariaLabel="Reward filters" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />} period={<MonthPickerField label="Period" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
 
     <AsyncDataSurface loading={loading} error={error} errorTitle="Unable to load Rewards" hasData={Boolean(data.cycle || data.cycles.length)} onRetry={() => refresh()}><RewardOverview data={data} entries={entriesListing.rows} entriesLoaded={entriesListing.hasLoaded} entriesPagination={<AdminPagination {...entriesListing} onPageChange={entriesActions.requestPage} onPageSizeChange={entriesActions.requestPageSize} noun="Crew rewards" />} campaigns={campaignsListing.rows} campaignsLoaded={campaignsListing.hasLoaded} campaignsPagination={<AdminPagination {...campaignsListing} onPageChange={campaignsActions.requestPage} onPageSizeChange={campaignsActions.requestPageSize} noun="Reward campaigns" />} canManage={canManage} onOpenCampaign={() => setCampaignOpen(true)} onOpenEmployee={setEmployeeOpen} onOpenCycle={openCycle} /></AsyncDataSurface>
 

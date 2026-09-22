@@ -36,7 +36,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import PublicationState from "../../../components/ui/PublicationState.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
-import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
@@ -49,7 +49,6 @@ import CrewSopDocument from "../components/CrewSopDocument.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
 import { parseSopBody, sanitizeSopHtml, serializeSopBody } from "../utils/sopDocumentContent.js";
-import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import LocalizedContentEditor from "../components/LocalizedContentEditor.jsx";
 import { detectContentLanguage, localizationLanguageSummary, sopLocalizationUnits } from "../utils/localizedContent.js";
@@ -274,7 +273,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
         primaryActions={canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}><Plus size={15} /> Create SOP</button> : null}
       />
       <SopLibrary
-        outletControl={<CrewAdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
+        outletControl={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />}
         outlet={outlet}
         sops={sops}
         categories={categories}
@@ -331,11 +330,7 @@ function SopLibrary({ outletControl, outlet, sops, categories, loading, error, o
   const [status, setStatus] = useState("");
   const [categorySort, setCategorySort] = useState("asc");
   const pageFilters = useMemo(() => ({ query, category_id: categoryId, status, sort: `category_${categorySort}` }), [query, categoryId, status, categorySort]);
-  const [listing, listingActions] = useAdminPagedQuery({ storageKey: "crew-sop-library", enabled: Boolean(outlet?.id), querySignature: JSON.stringify({ outletId: outlet?.id, pageFilters, legacyRows: crewService.sopAdminPage ? null : sops.map((sop) => sop.id) }), loadPage: ({ page, pageSize }) => {
-    if (crewService.sopAdminPage) return crewService.sopAdminPage({ outletId: outlet.id, filters: pageFilters, page, pageSize });
-    const filtered = sops.filter((sop) => (!pageFilters.query || `${sop.title} ${sop.summary || ""}`.toLowerCase().includes(pageFilters.query.toLowerCase())) && (!pageFilters.category_id || sop.category_id === pageFilters.category_id) && (!pageFilters.status || (draftVersion(sop) ? "draft" : currentVersion(sop) ? "published" : sop.status) === pageFilters.status)).sort((a, b) => `${a.category} ${a.title}`.localeCompare(`${b.category} ${b.title}`) * (pageFilters.sort === "category_desc" ? -1 : 1));
-    return Promise.resolve({ rows: filtered.slice((page - 1) * pageSize, page * pageSize), total_count: filtered.length, page, page_size: pageSize });
-  } });
+  const [listing, listingActions] = useAdminPagedQuery({ storageKey: "crew-sop-library", enabled: Boolean(outlet?.id), querySignature: JSON.stringify({ outletId: outlet?.id, pageFilters }), loadPage: ({ page, pageSize }) => crewService.sopAdminPage({ outletId: outlet.id, filters: pageFilters, page, pageSize }) });
   const rows = listing.rows;
   const activeFilters = [
     query && { key: "query", label: "Search", value: query, onRemove: () => setQuery("") },
