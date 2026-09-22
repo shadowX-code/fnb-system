@@ -84,7 +84,9 @@ Growth/Performance, Reward, Learn, Cash Checkout, and Leave components use route
 
 ### Admin/Factory Route Contract
 
-`src/app/routeOwnership.js` is the executable route contract for Admin/Restaurant, People/System, and Factory. It derives module ownership and canonical pathname taxonomy from `config/modules.ts`, declares the limited product query state that survives the pathname transition, and resolves legacy hashes including the nested Legal Entity Contract Workspace and Roles routes. Phase 2 dual-reads recognized legacy hashes and canonical pathnames at the Admin bootstrap and nested-page boundary; a recognized hash remains authoritative so existing hash navigation, reload, and history behavior continue unchanged. Admin and Factory still write hashes in this phase. Crew Mobile, public feedback, and auth callback routes retain their independent owners. External QA/debug query parameters are never part of the contract and are not stripped or persisted by it. Pathname write cutover requires a separately approved phase after the workspace/session boundary remains verified.
+`src/app/routeOwnership.js` is the single executable FeedX route contract. It derives routable Admin modules from `config/modules.ts`, defines the canonical pathname and retained hash aliases for Restaurant, Factory, People, System, Crew Admin, and Crew Mobile destinations, declares route parameters, and limits query state to product-owned values that must survive migration. Its canonical taxonomy is organized by real ownership rather than sidebar presentation: Restaurant uses `/restaurant/...`; Factory uses `/factory/warehouse`, `/factory/raw-materials`, `/factory/mesti`, and `/factory/master-data` where applicable; People uses `/people/...`; System uses `/system/...`; and Crew separates Admin workforce/operations from the Crew Mobile self-service experience.
+
+Phase 2 dual-reads recognized Admin hashes and canonical pathnames at the Admin bootstrap and nested-page boundary; a recognized Admin hash remains authoritative so existing navigation, reload, and history behavior continue unchanged. Admin and Factory still write hashes. Crew Mobile is represented in the contract now (including Employment Records deep links), but its runtime remains `#crew/*`-only: Crew is still selected before Admin bootstrap and neither Crew pathname read nor pathname write is enabled. Public Feedback and auth/recovery callbacks retain their independent owners. External QA/debug query parameters are never part of the contract and are not stripped or persisted by it. Pathname write cutover requires separately approved Admin/Factory and Crew migration gates after the workspace/session boundary remains verified.
 
 ### Production Host Surfaces
 
@@ -105,7 +107,7 @@ Navigation links should target canonical routes.
 Permissions may hide or deny a route but must not redefine its ownership.
 Route completeness contracts should remain aligned with the module registry.
 
-Legal Entity Contract Workspace is the nested canonical People route `#legal-entities/<legal-entity-id>/contract-templates`; it remains owned by Legal Entities and reuses Legal Entity view/manage plus existing Employment Contract Template and Employment Documents authority. It is intentionally not a second sidebar module or a modal workflow.
+Legal Entity Contract Workspace is the nested canonical People pathname `/people/legal-entities/<legal-entity-id>/contract-templates`, with `#legal-entities/<legal-entity-id>/contract-templates` retained as its runtime legacy hash. It remains owned by Legal Entities and reuses Legal Entity view/manage plus existing Employment Contract Template and Employment Documents authority. It is intentionally not a second sidebar module or a modal workflow.
 
 Restaurant `Reports` is the canonical Admin route for Reporting preview composition. Its page owns filter state and preview controls; its standalone fixed-ratio poster components own visual rendering only. Both consume the Reporting feature service rather than querying Supabase or deriving financial results in the UI.
 
@@ -113,7 +115,7 @@ Compatibility routes preserve old bookmarks or prior module locations by redirec
 They must not fork page implementations, mutation behavior, or documentation ownership.
 Current examples include legacy roster, Crew learning/operations, Growth people/review aliases, and Guest AI aliases resolved by `src/app/routeOwnership.js`.
 
-Crew Mobile uses a small hash sub-route map rather than inheriting Admin route state: `#crew/home`, `learn`, `reward`, `growth`, `growth/performance`, `me`, `me/attendance`, `me/cash-checkout`, `me/leave`, `me/compliance`, `tasks`, and `schedule`. `#crew` and an invalid Crew sub-route normalize to `#crew/home`. The Crew branch is selected before Admin Auth's bootstrap presentation, so Admin copy and shell do not flash while a Crew token-bound session restores. `me/compliance` is a People-owned compliance submission/status consumer, not a Crew Access authority.
+Crew Mobile reads its legacy hash aliases from the same contract rather than maintaining a second private route map. Its future canonical paths include `/crew/home`, `/crew/tasks`, `/crew/schedule`, `/crew/growth`, `/crew/me`, and `/crew/me/employment-records/contracts`; the current `#crew/*` values remain emitted until a Crew-specific cutover is approved. `#crew` and an invalid Crew sub-route normalize to `#crew/home`. The Crew branch is selected before Admin Auth's bootstrap presentation, so Admin copy and shell do not flash while a Crew token-bound session restores. Food Handling Compliance remains a People-owned submission/status authority, not a Crew Access authority.
 
 ## Major Boundaries
 

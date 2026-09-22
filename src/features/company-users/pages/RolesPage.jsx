@@ -11,7 +11,7 @@ import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions, defaultRoles, rolePermissionMatrix } from "../data/rbacDefaults.js";
 import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
-import { resolveAdminLocation } from "../../../app/routeOwnership.js";
+import { legacyHashForRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess, roleHasRestaurantPermissions } from "../utils/roleAccess.js";
@@ -855,7 +855,15 @@ export default function RolesPage({ ui, store, auth }) {
   );
 
   function navigateRolePage(path = "") {
-    window.history.pushState(null, "", `#roles${path}`);
+    const editMatch = path.match(/^\/([^/]+)\/edit$/);
+    const detailMatch = path.match(/^\/([^/]+)$/);
+    const definitionId = path === "/new"
+      ? "roles-new"
+      : editMatch ? "roles-edit"
+        : detailMatch ? "roles-detail"
+          : "roles";
+    const legacyHash = legacyHashForRoute(definitionId, { roleId: editMatch?.[1] ?? detailMatch?.[1] });
+    if (legacyHash) window.history.pushState(null, "", legacyHash);
     setRolePagePath(path);
   }
 

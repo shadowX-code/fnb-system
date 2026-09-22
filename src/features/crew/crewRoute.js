@@ -1,28 +1,15 @@
+import { crewMobileRouteForState, legacyHashForRoute, resolveCrewMobileHash } from "../../app/routeOwnership.js";
+
 const CREW_ROOT = "crew";
 
-const routeByPath = {
-  home: { screen: "home" },
-  notifications: { screen: "notifications" },
-  learn: { screen: "learn" },
-  reward: { screen: "reward" },
-  growth: { screen: "growth", growthInitialView: "overview" },
-  "growth/performance": { screen: "growth", growthInitialView: "performance" },
-  me: { screen: "me", meView: "main" },
-  "me/attendance": { screen: "attendance" },
-  "me/cash-checkout": { screen: "cash-checkout" },
-  "me/leave": { screen: "leave" },
-  "me/assets": { screen: "assets" },
-  "me/employment-records": { screen: "employment-records" },
-  "me/employment-records/contracts": { screen: "employment-documents" },
-  "me/employment-records/documents-compliance": { screen: "compliance" },
-  "me/employment-records/warnings": { screen: "disciplinary" },
-  "me/compliance": { screen: "compliance" },
-  "me/warnings": { screen: "disciplinary" },
-  tasks: { screen: "operations" },
-  schedule: { screen: "schedule" },
-};
+function routeState(definition) {
+  return {
+    ...definition.crewState,
+    canonicalHash: legacyHashForRoute(definition.id),
+  };
+}
 
-export const crewHomeRoute = Object.freeze({ screen: "home", canonicalHash: "#crew/home" });
+export const crewHomeRoute = Object.freeze(routeState(crewMobileRouteForState({ screen: "home" })));
 
 function hashPath(hash = window.location.hash) {
   return String(hash || "").replace(/^#/, "").split(/[?#]/)[0].replace(/^\/+|\/+$/g, "");
@@ -37,25 +24,10 @@ export function parseCrewRoute(hash = window.location.hash) {
   const path = hashPath(hash);
   if (path === CREW_ROOT) return { ...crewHomeRoute, needsNormalization: true };
   if (!path.startsWith(`${CREW_ROOT}/`)) return null;
-  const route = routeByPath[path.slice(`${CREW_ROOT}/`.length)];
-  return route ? { ...route, canonicalHash: `#${path}` } : { ...crewHomeRoute, needsNormalization: true };
+  const route = resolveCrewMobileHash(hash);
+  return route ? routeState(route.definition) : { ...crewHomeRoute, needsNormalization: true };
 }
 
 export function crewRouteForState({ screen, growthInitialView = "overview" }) {
-  if (screen === "notifications") return { screen, canonicalHash: "#crew/notifications" };
-  if (screen === "learn") return { screen, canonicalHash: "#crew/learn" };
-  if (screen === "reward") return { screen, canonicalHash: "#crew/reward" };
-  if (screen === "growth") return { screen, growthInitialView, canonicalHash: growthInitialView === "performance" ? "#crew/growth/performance" : "#crew/growth" };
-  if (screen === "me") return { screen, canonicalHash: "#crew/me" };
-  if (screen === "attendance") return { screen, canonicalHash: "#crew/me/attendance" };
-  if (screen === "cash-checkout") return { screen, canonicalHash: "#crew/me/cash-checkout" };
-  if (screen === "leave") return { screen, canonicalHash: "#crew/me/leave" };
-  if (screen === "assets") return { screen, canonicalHash: "#crew/me/assets" };
-  if (screen === "employment-records") return { screen, canonicalHash: "#crew/me/employment-records" };
-  if (screen === "employment-documents") return { screen, canonicalHash: "#crew/me/employment-records/contracts" };
-  if (screen === "compliance") return { screen, canonicalHash: "#crew/me/employment-records/documents-compliance" };
-  if (screen === "disciplinary") return { screen, canonicalHash: "#crew/me/employment-records/warnings" };
-  if (screen === "operations") return { screen, canonicalHash: "#crew/tasks" };
-  if (screen === "schedule") return { screen, canonicalHash: "#crew/schedule" };
-  return crewHomeRoute;
+  return routeState(crewMobileRouteForState({ screen, growthInitialView }));
 }

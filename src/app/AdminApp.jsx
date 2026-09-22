@@ -577,7 +577,8 @@ function AdminApp() {
   function navigate(routeId) {
     const canonicalId = canonicalRouteId(routeId);
     setActiveRouteId(canonicalId);
-    if (window.location.hash !== `#${canonicalId}`) window.history.pushState(null, "", `#${canonicalId}`);
+    const legacyHash = legacyHashForRoute(canonicalId);
+    if (legacyHash && window.location.hash !== legacyHash) window.history.pushState(null, "", legacyHash);
   }
 
   function handleWorkspaceChange(nextWorkspace) {

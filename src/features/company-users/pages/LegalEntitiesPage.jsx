@@ -12,7 +12,7 @@ import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { hasPermission } from "../../../utils/accessControl.js";
 import { legalEntityService } from "../../../services/legalEntityService.js";
-import { resolveAdminLocation } from "../../../app/routeOwnership.js";
+import { legacyHashForRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 import LegalEntityContractWorkspacePage from "./LegalEntityContractWorkspacePage.jsx";
 
 function emptyEntity() {
@@ -165,7 +165,7 @@ export default function LegalEntitiesPage({ ui, auth }) {
     { key: "registration", header: "Registration / Company ID", width: "24%", render: (row) => <span className="font-medium text-text-primary">{row.company_registration_no}</span> },
     { key: "status", header: "Status", width: "14%", render: (row) => <Badge tone={row.is_active ? "success" : "neutral"}>{row.is_active ? "Active" : "Inactive"}</Badge> },
     { key: "employees", header: "Employees linked", width: "16%", render: (row) => <span className="inline-flex items-center gap-1.5 font-semibold text-text-primary"><Users size={15} className="text-text-muted" />{Number(row.linked_employee_count || 0)}</span> },
-    { key: "actions", header: "Actions", align: "right", width: "72px", render: (row) => canManage ? <div onClick={(event) => event.stopPropagation()}><ActionMenu open={actionMenuEntityId === row.id} onOpenChange={(open) => setActionMenuEntityId(open ? row.id : null)} align="right" ariaLabel={`Actions for ${entityName(row)}`} trigger={({ toggle, ariaLabel }) => <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}><MoreHorizontal size={17} /></button>}><button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setFormEntity(row); setActionMenuEntityId(null); }}><Edit3 size={14} /> Edit</button><button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { window.location.hash = `#legal-entities/${row.id}/contract-templates`; setActionMenuEntityId(null); }}><FileText size={14} /> Contract Templates</button><div className="my-1 border-t border-border" />{row.is_active ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => { setDeactivateEntity(row); setActionMenuEntityId(null); }}><Power size={14} /> Deactivate</button> : <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-emerald-800 hover:bg-emerald-50" type="button" onClick={() => { setFormEntity({ ...row, is_active: true }); setActionMenuEntityId(null); }}><Power size={14} /> Activate</button>}</ActionMenu></div> : <span className="text-text-muted">—</span> },
+    { key: "actions", header: "Actions", align: "right", width: "72px", render: (row) => canManage ? <div onClick={(event) => event.stopPropagation()}><ActionMenu open={actionMenuEntityId === row.id} onOpenChange={(open) => setActionMenuEntityId(open ? row.id : null)} align="right" ariaLabel={`Actions for ${entityName(row)}`} trigger={({ toggle, ariaLabel }) => <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}><MoreHorizontal size={17} /></button>}><button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setFormEntity(row); setActionMenuEntityId(null); }}><Edit3 size={14} /> Edit</button><button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { window.location.hash = legacyHashForRoute("legal-entities-contract-templates", { legalEntityId: row.id }); setActionMenuEntityId(null); }}><FileText size={14} /> Contract Templates</button><div className="my-1 border-t border-border" />{row.is_active ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => { setDeactivateEntity(row); setActionMenuEntityId(null); }}><Power size={14} /> Deactivate</button> : <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-emerald-800 hover:bg-emerald-50" type="button" onClick={() => { setFormEntity({ ...row, is_active: true }); setActionMenuEntityId(null); }}><Power size={14} /> Activate</button>}</ActionMenu></div> : <span className="text-text-muted">—</span> },
   ];
 
   if (contractWorkspaceEntityId) {
@@ -174,7 +174,7 @@ export default function LegalEntitiesPage({ ui, auth }) {
       loading={loading}
       auth={auth}
       ui={ui}
-      onBack={() => { window.location.hash = "#legal-entities"; }}
+      onBack={() => { window.location.hash = legacyHashForRoute("legal-entities"); }}
     />;
   }
 

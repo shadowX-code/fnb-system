@@ -1,17 +1,17 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { parseCrewRoute } from "../crewRoute.js";
 
 const mobile = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewComplianceMobile.jsx"), "utf8");
 const employmentRecords = readFileSync(resolve(process.cwd(), "src/features/crew/components/CrewEmploymentRecordsMobile.jsx"), "utf8");
-const route = readFileSync(resolve(process.cwd(), "src/features/crew/crewRoute.js"), "utf8");
 const admin = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/EmployeeCompliancePage.jsx"), "utf8");
 const crewLocale = readFileSync(resolve(process.cwd(), "src/locales/en/crew.js"), "utf8");
 
 describe("Food Handling Compliance V1 surfaces", () => {
   it("activates Food Handling Compliance from Employment Records", () => {
     expect(employmentRecords).toContain('id: "compliance"');
-    expect(route).toContain('"me/employment-records/documents-compliance"');
+    expect(parseCrewRoute("#crew/me/employment-records/documents-compliance")?.screen).toBe("compliance");
     expect(crewLocale).toContain('compliance:"Food Handling Compliance"');
     expect(crewLocale).toContain('title: "Food Handling Compliance"');
   });

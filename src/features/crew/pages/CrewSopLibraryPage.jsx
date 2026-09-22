@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import { legacyHashForRoute } from "../../../app/routeOwnership.js";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
 import LoadingSkeleton from "../../../components/feedback/LoadingSkeleton.jsx";
@@ -666,7 +667,7 @@ function UsageView({ sopId, onNavigate }) {
 
 function SopUsageModal({ sop, onClose }) {
   const version = currentVersion(sop) || draftVersion(sop);
-  return <Modal title="SOP Usage" description={`${sop.title} · ${version ? `v${version.version}` : "No version"}`} size="lg" panelClassName="crew-sop-usage-popout" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><UsageView sopId={sop.id} onNavigate={() => { onClose(); window.location.hash = "crew_learning"; }} /></Modal>;
+  return <Modal title="SOP Usage" description={`${sop.title} · ${version ? `v${version.version}` : "No version"}`} size="lg" panelClassName="crew-sop-usage-popout" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><UsageView sopId={sop.id} onNavigate={() => { onClose(); window.location.hash = legacyHashForRoute("crew_learning"); }} /></Modal>;
 }
 
 function CreateSopModal({ categories, targetOutlet, sourceOutlets, saving, onClose, onCreate, onCloned }) {

@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
+import { parseCrewRoute } from "../crewRoute.js";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260921100000_people_employment_documents_v1.sql"), "utf8");
 const edgeFunction = readFileSync(resolve(process.cwd(), "supabase/functions/employee-employment-documents/index.ts"), "utf8");
 const app = readFileSync(resolve(process.cwd(), "src/features/crew/CrewMobileApp.jsx"), "utf8");
-const route = readFileSync(resolve(process.cwd(), "src/features/crew/crewRoute.js"), "utf8");
 
 describe("People Employment Documents V1 authority", () => {
   it("keeps legal employer distinct from workplace and snapshots it on send", () => {
@@ -33,9 +33,9 @@ describe("People Employment Documents V1 authority", () => {
   });
 
   it("exposes the shared Employment Records IA without sharing authorities", () => {
-    expect(route).toContain('"me/employment-records/contracts": { screen: "employment-documents" }');
-    expect(route).toContain('"me/employment-records/documents-compliance": { screen: "compliance" }');
-    expect(route).toContain('"me/employment-records/warnings": { screen: "disciplinary" }');
+    expect(parseCrewRoute("#crew/me/employment-records/contracts")?.screen).toBe("employment-documents");
+    expect(parseCrewRoute("#crew/me/employment-records/documents-compliance")?.screen).toBe("compliance");
+    expect(parseCrewRoute("#crew/me/employment-records/warnings")?.screen).toBe("disciplinary");
     expect(app).toContain("CrewEmploymentRecordsMobile");
     expect(app).toContain("CrewEmploymentDocumentsMobile");
   });

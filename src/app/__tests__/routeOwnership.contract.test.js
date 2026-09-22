@@ -2,22 +2,36 @@ import { describe, expect, it } from "vitest";
 import {
   adminRouteDefinitions,
   canonicalPathForRoute,
+  feedxRouteDefinitions,
+  getFeedxRouteDefinition,
   getAdminRouteDefinition,
+  legacyRouteRedirects,
   legacyHashForRoute,
   resolveAdminLocation,
   resolveCanonicalPath,
+  resolveCrewMobileHash,
   resolveLegacyHash,
 } from "../routeOwnership.js";
+import { moduleRegistry, moduleWorkspace } from "../../../config/modules.ts";
 
-describe("Admin/Factory canonical route contract", () => {
-  it("derives Restaurant, People, System and Factory paths from the module registry", () => {
+describe("FeedX canonical route contract", () => {
+  it("derives one canonical taxonomy for every routable workspace module", () => {
     expect(getAdminRouteDefinition("reports")).toMatchObject({ canonicalPath: "/restaurant/reports", legacyHashAliases: ["#reports"], ownership: { domain: "restaurant", moduleId: "reports" } });
     expect(getAdminRouteDefinition("employees")).toMatchObject({ canonicalPath: "/people/employees", ownership: { domain: "people", moduleId: "employees", permission: "employees.view" } });
-    expect(getAdminRouteDefinition("roles")).toMatchObject({ canonicalPath: "/system/roles", ownership: { domain: "system", moduleId: "roles", permission: "roles.view" } });
+    expect(getAdminRouteDefinition("employee_compliance")).toMatchObject({ canonicalPath: "/people/food-handling-compliance", ownership: { domain: "people" } });
+    expect(getAdminRouteDefinition("roles")).toMatchObject({ canonicalPath: "/people/roles", ownership: { domain: "people", moduleId: "roles", permission: "roles.view" } });
     expect(getAdminRouteDefinition("factory_job_order_records")).toMatchObject({ canonicalPath: "/factory/job-orders", ownership: { domain: "factory", moduleId: "factory_job_order_records" } });
-    const moduleDefinitions = adminRouteDefinitions.filter((route) => route.id === route.routeId);
-    expect(new Set(moduleDefinitions.map((route) => route.canonicalPath)).size).toBe(moduleDefinitions.length);
-    expect(moduleDefinitions.some((route) => route.ownership.workspace === "crew" || route.ownership.moduleId.startsWith("guest_ai"))).toBe(false);
+    expect(getAdminRouteDefinition("factory_finished_goods_dispatch")).toMatchObject({ canonicalPath: "/factory/warehouse/dispatch" });
+    expect(getAdminRouteDefinition("crew_roster")).toMatchObject({ canonicalPath: "/crew/workforce/roster", ownership: { surface: "admin", workspace: "crew" } });
+
+    const routableModules = moduleRegistry.filter((module) => (
+      module.routable !== false
+      && ["restaurant", "factory", "crew"].includes(moduleWorkspace(module))
+      && !legacyRouteRedirects[module.id]
+    ));
+    expect(routableModules.every((module) => getFeedxRouteDefinition(module.id)?.ownership.moduleId === module.id)).toBe(true);
+    expect(new Set(feedxRouteDefinitions.map((route) => route.canonicalPath)).size).toBe(feedxRouteDefinitions.length);
+    expect(feedxRouteDefinitions.some((route) => route.ownership.moduleId?.startsWith("guest_ai"))).toBe(false);
   });
 
   it("round-trips a canonical Restaurant route and only retains declared query state", () => {
@@ -60,14 +74,22 @@ describe("Admin/Factory canonical route contract", () => {
   it("centralizes existing Roles detail variants without changing their legacy hashes", () => {
     expect(resolveLegacyHash("#roles/new")).toMatchObject({ definitionId: "roles-new", routeId: "roles" });
     expect(resolveLegacyHash("#roles/role-1/edit")).toMatchObject({ definitionId: "roles-edit", params: { roleId: "role-1" } });
-    expect(resolveCanonicalPath("/system/roles/role-1")).toMatchObject({ definitionId: "roles-detail", params: { roleId: "role-1" } });
+    expect(resolveCanonicalPath("/people/roles/role-1")).toMatchObject({ definitionId: "roles-detail", params: { roleId: "role-1" } });
   });
 
-  it("keeps Crew Mobile and public routes outside this authority", () => {
-    expect(resolveLegacyHash("#crew/me")).toBeNull();
+  it("defines Crew Mobile future pathnames without changing its legacy hash authority", () => {
+    expect(getFeedxRouteDefinition("crew-mobile-home")).toMatchObject({ canonicalPath: "/crew/home", legacyHashAliases: ["#crew/home", "#crew"] });
+    expect(resolveCanonicalPath("/crew/me/employment-records/contracts")).toMatchObject({ routeId: "crew-mobile-employment-documents", source: "pathname" });
+    expect(resolveLegacyHash("#crew/me")).toMatchObject({ routeId: "crew-mobile-me", source: "legacy-hash" });
+    expect(resolveCrewMobileHash("#crew/me/compliance")).toMatchObject({ routeId: "crew-mobile-compliance" });
+    expect(canonicalPathForRoute("crew-mobile-compliance")).toBe("/crew/me/employment-records/food-handling-compliance");
+    expect(legacyHashForRoute("crew-mobile-compliance")).toBe("#crew/me/employment-records/documents-compliance");
+    expect(resolveAdminLocation({ pathname: "/", hash: "#crew/home" })).toBeNull();
+  });
+
+  it("keeps public routes outside this authority", () => {
     expect(resolveLegacyHash("#feedback?outlet=outlet-1")).toBeNull();
     expect(resolveCanonicalPath("/feedback/product/opaque-token")).toBeNull();
-    expect(resolveAdminLocation({ pathname: "/", hash: "#crew/home" })).toBeNull();
   });
 
   it("returns null for unknown routes and does not define external QA/debug parameters", () => {
