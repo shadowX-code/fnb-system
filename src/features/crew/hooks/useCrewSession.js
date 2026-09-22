@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { crewService } from "../../../services/crewService.js";
 
 const storageKey = "feedx.crew.session";
+const outletStorageKey = (employeeId) => `feedx.crew.outlet.${employeeId}`;
 const methods = { attendance: "myAttendance", context: "attendanceContext", operations: "operationsToday", roster: "myRoster", growth: "growthMobile", performance: "performanceMobile", reward: "rewardMobile", leave: "myLeave", profile: "myProfile", assets: "assetsMobile", disciplinary: "myDisciplinary" };
 const routeReads = { home: ["operations", "roster"], operations: ["operations"], schedule: ["roster"], growth: ["growth", "performance"], reward: ["reward"], me: ["profile", "leave", "assets", "disciplinary"], assets: ["assets"], "employment-records": ["disciplinary"], disciplinary: ["disciplinary"] };
 const cacheLifetime = 60_000;
@@ -26,6 +27,8 @@ export default function useCrewSession(screen = "home") {
   const translate = useRef(t);
   translate.current = t;
   const [session, setSession] = useState(readSession);
+  const [outletScope, setOutletScope] = useState(null);
+  const [selectedOutletId, setSelectedOutletId] = useState(null);
   const currentSession = useRef(session);
   const mounted = useRef(true);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -51,6 +54,8 @@ export default function useCrewSession(screen = "home") {
     if (nextSession) localStorage.setItem(storageKey, JSON.stringify(nextSession));
     else localStorage.removeItem(storageKey);
     setData(emptyData());
+    setOutletScope(null);
+    setSelectedOutletId(null);
     setPasscodeSuccess(passcodeChanged);
     setBootstrapFailure(null);
     setSession(nextSession);
@@ -61,6 +66,50 @@ export default function useCrewSession(screen = "home") {
     reportedBootstrapFailure.current = bootstrapAttempt.current;
     setBootstrapFailure({ mode: browserOffline() ? "offline" : "connection", attempts: bootstrapAttempt.current + 1 });
   }, []);
+
+  const refreshOutletScope = useCallback(async () => {
+    const token = currentSession.current?.token;
+    if (!token) return null;
+    try {
+      const next = await crewService.outletScope(token);
+      if (!mounted.current || currentSession.current?.token !== token) return null;
+      const allowed = next.outlets || [];
+      if (!allowed.length) throw Object.assign(new Error("Crew Access is no longer active."), { code: "42501" });
+      const remembered = localStorage.getItem(outletStorageKey(next.employee_id));
+      const previous = selectedOutletId;
+      const selected = allowed.find((item) => item.id === previous)?.id
+        || allowed.find((item) => item.id === remembered)?.id
+        || next.default_outlet_id;
+      if (next.management !== outletScope?.management || (next.management && previous && selected !== previous)) {
+        delete cache.current.operations;
+        delete cache.current.assets;
+        setLoaded((state) => ({ ...state, operations: false, assets: false }));
+        setData((state) => ({ ...state, operations: null, assets: null }));
+      }
+      setOutletScope(next);
+      setSelectedOutletId(selected);
+      if (next.management) localStorage.setItem(outletStorageKey(next.employee_id), selected);
+      return next;
+    } catch (cause) {
+      if (!mounted.current || currentSession.current?.token !== token) return null;
+      if (isInvalidCrewSession(cause)) replaceSession(null);
+      else reportBootstrapFailure();
+      return null;
+    }
+  }, [selectedOutletId, outletScope?.management, replaceSession, reportBootstrapFailure]);
+
+  const selectOutlet = useCallback(async (outletId) => {
+    const next = await refreshOutletScope();
+    if (!next?.management || !next.outlets?.some((item) => item.id === outletId)) return false;
+    if (outletId === selectedOutletId) return true;
+    delete cache.current.operations;
+    delete cache.current.assets;
+    setLoaded((state) => ({ ...state, operations: false, assets: false }));
+    setData((state) => ({ ...state, operations: null, assets: null }));
+    setSelectedOutletId(outletId);
+    localStorage.setItem(outletStorageKey(next.employee_id), outletId);
+    return true;
+  }, [refreshOutletScope, selectedOutletId]);
 
   const changePasscode = useCallback(async (currentPasscode, newPasscode) => {
     const original = currentSession.current;
@@ -92,7 +141,12 @@ export default function useCrewSession(screen = "home") {
     const request = { at: 0, promise: null };
     cache.current[key] = request;
     const current = () => mounted.current && epoch === generation.current && currentSession.current?.token === token && cache.current[key] === request;
-    request.promise = Promise.resolve().then(() => current() ? crewService[methods[key]](token) : undefined).then((value) => {
+    request.promise = Promise.resolve().then(() => {
+      if (!current()) return undefined;
+      if (outletScope?.management && key === "operations") return crewService.managementTasks(token, selectedOutletId);
+      if (outletScope?.management && key === "assets") return crewService.managementAssets(token, selectedOutletId);
+      return crewService[methods[key]](token);
+    }).then((value) => {
       if (!current()) return false;
       request.at = Date.now();
       setData((previous) => ({ ...previous, [key]: value ?? fallback(key), ...(key === "growth" ? { growthError: "" } : {}) }));
@@ -110,7 +164,7 @@ export default function useCrewSession(screen = "home") {
       return false;
     }).finally(() => { if (current()) request.promise = null; });
     return request.promise;
-  }, [session?.token, replaceSession, reportBootstrapFailure]);
+  }, [session?.token, outletScope?.management, selectedOutletId, replaceSession, reportBootstrapFailure]);
 
   const refresh = useCallback(async () => {
     if (!session?.token || currentSession.current?.token !== session.token) return false;
@@ -134,18 +188,30 @@ export default function useCrewSession(screen = "home") {
     reportedBootstrapFailure.current = -1;
     setBootstrapFailure(null);
     setBootstrapRetrying(true);
-    bootstrapRetry.current = Promise.all(requiredRef.current.map((key) => load(key, true)))
+    bootstrapRetry.current = (outletScope ? Promise.all(requiredRef.current.map((key) => load(key, true)))
+      : refreshOutletScope().then((scope) => [Boolean(scope)]))
       .then((results) => results.every(Boolean))
       .finally(() => {
         bootstrapRetry.current = null;
         if (mounted.current) setBootstrapRetrying(false);
       });
     return bootstrapRetry.current;
-  }, [session?.token, load]);
+  }, [session?.token, load, outletScope, refreshOutletScope]);
 
   useEffect(() => {
+    if (!session?.token) return;
+    void refreshOutletScope();
+  }, [session?.token]);
+  useEffect(() => {
+    if (!session?.token || !outletScope) return undefined;
+    const onFocus = () => { void refreshOutletScope(); };
+    window.addEventListener("focus", onFocus);
+    return () => window.removeEventListener("focus", onFocus);
+  }, [session?.token, outletScope, refreshOutletScope]);
+  useEffect(() => {
+    if (!outletScope || !selectedOutletId) return;
     for (const key of requiredRef.current) void load(key);
-  }, [load, screen]);
+  }, [load, screen, outletScope, selectedOutletId]);
   useEffect(() => {
     if (!session || !bootstrapFailure) return undefined;
     const onOnline = () => { void retryBootstrap(); };
@@ -161,6 +227,6 @@ export default function useCrewSession(screen = "home") {
     return () => { generation.current += 1; cache.current = {}; };
   }, []);
 
-  const pageLoading = Boolean(session) && required.some((key) => !loaded[key]);
-  return { session, replaceSession, changePasscode, updateProfilePhoto, refresh, retryBootstrap, bootstrapFailure, bootstrapRetrying, data, pageLoading, passcodeSuccess };
+  const pageLoading = Boolean(session) && (!outletScope || required.some((key) => !loaded[key]));
+  return { session, replaceSession, changePasscode, updateProfilePhoto, refresh, retryBootstrap, bootstrapFailure, bootstrapRetrying, data, pageLoading, passcodeSuccess, outletScope, selectedOutletId, selectOutlet, refreshOutletScope };
 }

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Gift, Home, Sparkles, UserRound } from "lucide-react";
 import useCrewSession from "./hooks/useCrewSession.js";
@@ -12,9 +12,11 @@ import CrewHomeMobile from "./components/CrewHomeMobile.jsx";
 import CrewMeMobile from "./components/CrewMeMobile.jsx";
 import CrewAttendanceMobile, { CrewClockDialogs } from "./components/CrewAttendanceMobile.jsx";
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
+import CrewManagementTasksMobile from "./components/CrewManagementTasksMobile.jsx";
 import CrewRecoverySurface from "./components/CrewRecoverySurface.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import { CrewBottomNav, CrewRouteLoading } from "./components/CrewMobileUI.jsx";
+import { crewService } from "../../services/crewService.js";
 import "./CrewMobileSystem.css";
 import "./CrewAuthMobile.css";
 import "./CrewMobileTypography.css";
@@ -55,7 +57,7 @@ export default function CrewMobileApp({ onNotify }) {
   return crew.session ? <CrewWorkspace key={crew.session.token} {...crew} route={route} onNotify={onNotify} crewTheme={crewTheme} /> : <CrewLogin onSignedIn={crew.replaceSession} />;
 }
 
-function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, retryBootstrap, bootstrapFailure, bootstrapRetrying, route, onNotify, crewTheme }) {
+function CrewWorkspace({ session, replaceSession, changePasscode, updateProfilePhoto, data, pageLoading, passcodeSuccess, refresh, retryBootstrap, bootstrapFailure, bootstrapRetrying, outletScope, selectedOutletId, selectOutlet, route, onNotify, crewTheme }) {
   const { t } = useTranslation();
   useCrewVisualViewport();
   const { screen, growthInitialView, entry, navigate } = route;
@@ -69,32 +71,39 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   const homeScrollY = useRef(0);
   const logout = () => { navigate("home"); replaceSession(null); };
   const openTask = (target) => { homeScrollY.current = window.scrollY; setOperationTarget(target); navigate("operations"); };
-  const openNotification = (descriptor) => {
+  const openNotification = async (descriptor, notificationId) => {
     const type = descriptor?.type;
-    if (type === "task_occurrence" && descriptor?.occurrence_id) {
-      setOperationTarget({ row: { id: descriptor.occurrence_id, name: "Task" }, context: { from: "notification" } });
-      navigate("operations");
-      return;
+    if (outletScope?.management && (type === "task_occurrence" || type === "roster_publication")) {
+      const destination = await crewService.notificationDestinationOutlet(session.token, notificationId);
+      if (!destination?.available || !destination.outlet_id || !await selectOutlet(destination.outlet_id)) return false;
     }
-    if (type === "roster_publication") { navigate("schedule"); return; }
-    if (type === "leave_request") { navigate("leave"); return; }
-    if (type === "disciplinary_warning") { navigate("disciplinary"); return; }
-    if (type === "employment_document") { navigate("employment-documents"); return; }
-    if (type === "compliance_submission" || type === "compliance_requirement") navigate("compliance");
+    if (type === "task_occurrence" && descriptor?.occurrence_id) {
+      setOperationTarget(outletScope?.management ? null : { row: { id: descriptor.occurrence_id, name: "Task" }, context: { from: "notification" } });
+      navigate("operations");
+      return true;
+    }
+    if (type === "roster_publication") { navigate("schedule"); return true; }
+    if (type === "leave_request") { navigate("leave"); return true; }
+    if (type === "disciplinary_warning") { navigate("disciplinary"); return true; }
+    if (type === "employment_document") { navigate("employment-documents"); return true; }
+    if (type === "compliance_submission" || type === "compliance_requirement") { navigate("compliance"); return true; }
+    return false;
   };
 
   if (bootstrapFailure) return <CrewRecoverySurface {...bootstrapFailure} onRetry={retryBootstrap} retrying={bootstrapRetrying} onReload={() => window.location.reload()} />;
+  if (!outletScope) return <CrewRouteLoading />;
   return <main className="crew-v2-shell"><section className="crew-v2-app">
+    {outletScope.management && <CrewOutletSwitcher outlets={outletScope.outlets} selectedOutletId={selectedOutletId} onSelect={selectOutlet} />}
     <Suspense fallback={<CrewRouteLoading />}>
-    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} />)}
+    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} management={outletScope.management} />)}
     {screen === "notifications" && <CrewNotificationsMobile token={session.token} onBack={() => navigate("home")} onOpenNotification={openNotification} onUnreadChanged={refreshUnreadCount} />}
-    {screen === "learn" && <CrewLearningMobile token={session.token} />}
+    {screen === "learn" && <CrewLearningMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={refresh} onViewPerformance={() => navigate("growth", { growthInitialView: "performance" })} />}
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading} error={growthError} onRetry={refresh} onNavigate={navigate} onViewChange={(view) => { if (view === "overview" || view === "performance") navigate("growth", { growthInitialView: view }); }} />}
-    {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={refresh} onBack={(returnContext) => { setOperationTarget(null); navigate("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />}
+    {screen === "operations" && (outletScope.management ? <CrewManagementTasksMobile data={operations} onBack={() => navigate("home")} /> : <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={refresh} onBack={(returnContext) => { setOperationTarget(null); navigate("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />)}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => navigate("me")} onChanged={refresh} />}
     {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
-    {screen === "assets" && <CrewAssetsMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setAssetInspectionFlow} />}
+    {screen === "assets" && <CrewAssetsMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} onBack={() => navigate("me")} onFlowChange={setAssetInspectionFlow} />}
     {screen === "employment-records" && <CrewEmploymentRecordsMobile onBack={() => navigate("me")} navigate={navigate} disciplinary={disciplinary} />}
     {screen === "employment-documents" && <CrewEmploymentDocumentsMobile token={session.token} onBack={() => navigate("employment-records")} />}
     {screen === "compliance" && <CrewComplianceMobile token={session.token} onBack={() => navigate("employment-records")} />}
@@ -106,4 +115,22 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
     {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;
+}
+
+function CrewOutletSwitcher({ outlets, selectedOutletId, onSelect }) {
+  const { t } = useTranslation();
+  const [busy, setBusy] = useState(false);
+  const active = useRef(null);
+  useEffect(() => { active.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }, [selectedOutletId]);
+  if (outlets.length <= 1) return <div className="crew-outlet-context"><span>{t("common.outlet")}</span><strong>{outlets[0]?.name}</strong></div>;
+  return <nav className="crew-outlet-context" aria-label={t("common.outlet")}>
+    <span>{t("common.outlet")}</span>
+    <div className="crew-v2-chips crew-outlet-context-rail">
+      {outlets.map((outlet) => <button key={outlet.id} type="button" ref={outlet.id === selectedOutletId ? active : null}
+        className={outlet.id === selectedOutletId ? "active" : ""} aria-current={outlet.id === selectedOutletId ? "true" : undefined}
+        disabled={busy} title={outlet.name} onClick={async () => { setBusy(true); try { await onSelect(outlet.id); } finally { setBusy(false); } }}>
+        {outlet.name}
+      </button>)}
+    </div>
+  </nav>;
 }

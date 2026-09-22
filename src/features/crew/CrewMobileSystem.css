@@ -492,6 +492,13 @@
 
 }
 
+.crew-outlet-context{display:grid;min-width:0;gap:5px;margin-bottom:10px;color:var(--crew-color-text-secondary);font-size:var(--crew-type-helper)}
+.crew-outlet-context>strong{color:var(--crew-color-text);font-size:var(--crew-type-label)}
+.crew-outlet-context-rail.crew-v2-chips{display:flex;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;min-width:0;margin:0 calc(-1 * var(--crew-mobile-page-inline));padding:0 var(--crew-mobile-page-inline) 5px;overscroll-behavior-x:contain;scrollbar-width:none}
+.crew-outlet-context-rail::-webkit-scrollbar{display:none}
+.crew-outlet-context-rail.crew-v2-chips button{flex:none;max-width:min(70vw,220px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-height:36px}
+.crew-outlet-context-rail.crew-v2-chips button.active{border-color:var(--crew-color-mist-mint);background:var(--crew-color-icon-default-bg);color:var(--crew-color-deep-teal)}
+
 .crew-v2-status {
   border-radius: 999px;
   background: var(--crew-color-mineral);

@@ -31,6 +31,11 @@ const mocks = vi.hoisted(() => ({
   notificationUnreadCount: vi.fn(),
   notificationsPage: vi.fn(),
   markNotificationRead: vi.fn(),
+  outletScope: vi.fn(),
+  managementTasks: vi.fn(),
+  managementAssets: vi.fn(),
+  managementSopLibrary: vi.fn(),
+  notificationDestinationOutlet: vi.fn(),
 }));
 
 vi.mock("../../../services/crewService.js", () => ({ crewService: mocks }));
@@ -91,6 +96,11 @@ beforeEach(() => {
   mocks.notificationUnreadCount.mockReset().mockResolvedValue({ unread_count: 0 });
   mocks.notificationsPage.mockReset().mockResolvedValue({ rows: [], total_count: 0, page: 1, page_size: 20 });
   mocks.markNotificationRead.mockReset().mockResolvedValue({ action_descriptor: null, source_available: false });
+  mocks.outletScope.mockReset().mockResolvedValue({ employee_id: "employee-a", management: false, outlets: [{ id: "outlet-1", name: "Friends Corner" }], default_outlet_id: "outlet-1" });
+  mocks.managementTasks.mockReset().mockResolvedValue({ tasks: [], read_only: true });
+  mocks.managementAssets.mockReset().mockResolvedValue({ assets: [], categories: [], read_only: true });
+  mocks.managementSopLibrary.mockReset().mockResolvedValue({ sops: [], categories: [], reference_only: true });
+  mocks.notificationDestinationOutlet.mockReset().mockResolvedValue({ available: true, outlet_id: "outlet-1" });
   mocks.clock.mockReset().mockResolvedValue({});
   mocks.changePasscode.mockReset().mockResolvedValue({ token: "new-token", expires_at: "2099-08-13T00:00:00Z" });
   mocks.updateMyProfilePhoto.mockReset().mockResolvedValue({ profile_photo_path: "employee-a/profile.webp", profile_photo_url: "https://example.test/profile.webp" });
@@ -99,6 +109,22 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); document.documentElement.removeAttribute("data-crew-theme"); document.documentElement.removeAttribute("data-crew-theme-transition"); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it("switches Management's read-only Home context without granting clock or task execution", async () => {
+    mocks.outletScope.mockResolvedValue({ employee_id: "employee-a", management: true, outlets: [{ id: "outlet-1", name: "JYMT" }, { id: "outlet-2", name: "Other" }], default_outlet_id: "outlet-1" });
+    mocks.attendanceContext.mockResolvedValue({ outlet_id: null, clock_eligible: false, location_enabled: false });
+    mocks.myRoster.mockResolvedValue({ today: null, entries: [] });
+    mocks.managementTasks.mockImplementation(async (_token, outletId) => ({ read_only: true, tasks: [{ id: `task-${outletId}`, source: "instance", name: `${outletId} checklist`, status: "not_started" }] }));
+    renderCrewApp();
+    expect(await screen.findByText("outlet-1 checklist")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Clock In" })).toBeNull();
+    expect(mocks.operationsToday).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+    expect(await screen.findByText("outlet-2 checklist")).not.toBeNull();
+    expect(screen.queryByText("outlet-1 checklist")).toBeNull();
+    fireEvent.click(screen.getByText("outlet-2 checklist"));
+    expect(await screen.findByRole("heading", { name: "All Tasks" })).not.toBeNull();
+    expect(mocks.operationDetail).not.toHaveBeenCalled();
+  });
   it("applies a saved Crew theme on the pre-auth login", () => {
     localStorage.setItem("feedx.crew.theme", "dark");
     renderCrewApp({ crewSession: null });

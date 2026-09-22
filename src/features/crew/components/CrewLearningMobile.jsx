@@ -26,8 +26,8 @@ import onboardingJourneyHero from "../../../assets/crew/onboarding-journey-hero-
 
 const learnHomeCache = new Map();
 
-function learnCacheKey(token, language) {
-  return `${token}:${language}`;
+function learnCacheKey(token, language, outletId = "") {
+  return `${token}:${language}:${outletId}`;
 }
 
 function onboardingJourneyDescription(description) {
@@ -49,10 +49,10 @@ function richBlock(block) {
   return block?.payload?.body_html || plainTextToSopHtml(plainBlock(block));
 }
 
-export default function CrewLearningMobile({ token }) {
+export default function CrewLearningMobile({ token, management = false, outletId = null }) {
   const { t, i18n } = useTranslation();
   const initialLanguage = i18n.resolvedLanguage || i18n.language || "en";
-  const initialCache = learnHomeCache.get(learnCacheKey(token, initialLanguage));
+  const initialCache = learnHomeCache.get(learnCacheKey(token, initialLanguage, management ? outletId : ""));
   const [home, setHome] = useState(() => initialCache?.home || null);
   const [assignment, setAssignment] = useState(() => initialCache?.assignment || null);
   const [library, setLibrary] = useState(() => initialCache?.library || { categories: [], sops: [] });
@@ -81,7 +81,7 @@ export default function CrewLearningMobile({ token }) {
   async function loadHome() {
     const loadVersion = ++loadVersionRef.current;
     const language = i18n.resolvedLanguage || i18n.language || "en";
-    const cacheKey = learnCacheKey(token, language);
+    const cacheKey = learnCacheKey(token, language, management ? outletId : "");
     const cached = learnHomeCache.get(cacheKey);
     setLoading(!cached);
     setHome(cached?.home || null);
@@ -92,7 +92,7 @@ export default function CrewLearningMobile({ token }) {
     try {
       const [nextHome, nextLibrary] = await Promise.all([
         crewService.learningHome(token),
-        crewService.sopLibrary(token),
+        management ? crewService.managementSopLibrary(token, outletId) : crewService.sopLibrary(token),
       ]);
       if (loadVersion !== loadVersionRef.current) return;
       const retainedAssignment = cached?.assignment?.id === nextHome?.assignment?.id ? cached.assignment : null;
@@ -153,7 +153,7 @@ export default function CrewLearningMobile({ token }) {
   useEffect(() => {
     void loadHome();
     return () => { loadVersionRef.current += 1; };
-  }, [token, i18n.resolvedLanguage]);
+  }, [token, i18n.resolvedLanguage, management, outletId]);
 
   useEffect(() => {
     if (!loading) {
@@ -179,7 +179,9 @@ export default function CrewLearningMobile({ token }) {
       crewService.localizedContentForCrew(token, "sop", [sop.id], language).catch(() => ({})),
     ]).then(([nextSop, localized]) => {
       if (active) {
-        setSop(applySopLocalization(nextSop, localized[sop.id] || {}));
+        setSop(applySopLocalization(sop.reference_only
+          ? { ...nextSop, reference_only: true, acknowledgement_required: false }
+          : nextSop, localized[sop.id] || {}));
         setSopLanguage(language);
       }
     }).catch((cause) => active && setError(cause.message || "This SOP is unavailable."));
@@ -202,7 +204,10 @@ export default function CrewLearningMobile({ token }) {
       const nextSop = await crewService.sopVersion(token, versionId);
       const language = i18n.resolvedLanguage || i18n.language || "en";
       const localized = await crewService.localizedContentForCrew(token, "sop", [versionId], language).catch(() => ({}));
-      setSop(applySopLocalization(nextSop, localized[versionId] || {}));
+      const libraryReference = management && returnScreen === "library";
+      setSop(applySopLocalization(libraryReference
+        ? { ...nextSop, reference_only: true, acknowledgement_required: false }
+        : nextSop, localized[versionId] || {}));
       setSopLanguage(language);
       setScreen(returnScreen === "lesson" ? "lesson-sop" : "sop");
     } catch (cause) {
@@ -451,7 +456,7 @@ function SopReader({ token, sop, saving, error, onBack, onAcknowledge }) {
   const acknowledgedAt = sop.acknowledged_at
     ? `${formatCrewDate(sop.acknowledged_at, { day: "numeric", month: "short", year: "numeric" })} · ${formatCrewTime(sop.acknowledged_at).toLowerCase()}`
     : "";
-  const acknowledgement = sop.acknowledgement_required
+  const acknowledgement = sop.reference_only ? t("learn.referenceOnly") : sop.acknowledgement_required
     ? sop.acknowledged ? t("learn.acknowledged") : t("learn.acknowledgementRequired")
     : t("learn.noAcknowledgement");
   return (
