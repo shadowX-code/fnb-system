@@ -5,6 +5,7 @@ import { isSupabaseUuid } from "./idUtils";
 import { enabledActions, getPermissionDefinitions, moduleRegistry, permissionCode } from "../../config/modules.ts";
 import { isProtectedRoleName } from "../auth/rbac.js";
 import { roleHasRestaurantPermissions } from "../features/company-users/utils/roleAccess.js";
+import { normalizeEmployeeAccessState } from "../constants/employeeAccessStates.js";
 
 const registryPermissionCodes = moduleRegistry.flatMap((module) =>
   enabledActions(module).map((action) => permissionCode(module.id, action)),
@@ -89,6 +90,20 @@ function mapRole(row) {
   };
 }
 
+function mapAssignedEmployee(row) {
+  return {
+    id: row.id,
+    fullName: row.full_name ?? "",
+    preferredName: row.nickname ?? "",
+    employeeCode: row.employee_code ?? "",
+    position: row.position ?? "",
+    workplace: row.workplace ?? "",
+    accountState: normalizeEmployeeAccessState(row.access_state, Boolean(row.enable_system_login)),
+    employmentStatus: row.employment_status ?? "",
+    employmentType: row.employment_type ?? "",
+  };
+}
+
 export const roleService = {
   async listRoles() {
     const queryRoles = (select) => supabase.from("roles").select(select).order("name", { ascending: true });
@@ -120,6 +135,18 @@ export const roleService = {
 
     throwSupabaseError("roles.options", error);
     return (data ?? []).map((row) => mapRole({ ...row, role_permissions: [] }));
+  },
+
+  async listAssignedEmployees(roleId) {
+    if (!isSupabaseUuid(roleId)) return [];
+    const { data, error } = await supabase
+      .from("employees")
+      .select("id,full_name,nickname,employee_code,position,workplace,enable_system_login,access_state,employment_status,employment_type")
+      .eq("role_id", roleId)
+      .order("full_name", { ascending: true });
+
+    throwSupabaseError("roles.assigned_employees", error);
+    return (data ?? []).map(mapAssignedEmployee);
   },
 
   async saveRole(role) {
