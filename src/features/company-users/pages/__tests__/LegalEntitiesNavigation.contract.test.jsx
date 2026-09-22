@@ -37,7 +37,7 @@ describe("Legal Entities People module", () => {
     expect(legalEntitiesPageSource).toContain("ActionMenu");
     expect(legalEntitiesPageSource).toContain("MoreHorizontal");
     expect(legalEntitiesPageSource).toContain("Contract Templates");
-    expect(legalEntitiesPageSource).toContain('legacyHashForRoute("legal-entities-contract-templates"');
+    expect(legalEntitiesPageSource).toContain('navigateAdminRoute("legal-entities-contract-templates"');
     expect(legalEntitiesPageSource).toContain("Deactivate");
   });
 });

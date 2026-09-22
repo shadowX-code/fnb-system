@@ -27,6 +27,11 @@ const productQueryStateByRouteId = Object.freeze({
   inventory_stock_check: [{ key: "date", aliases: ["stockCheckDate"] }],
 });
 
+const productQueryKeys = new Set(
+  Object.values(productQueryStateByRouteId)
+    .flatMap((entries) => entries.flatMap((entry) => [entry.key, ...(entry.aliases ?? [])])),
+);
+
 const canonicalPathByModuleId = Object.freeze({
   "sp-dashboard": "/restaurant/sales-purchase/dashboard",
   employee_compliance: "/people/food-handling-compliance",
@@ -332,9 +337,8 @@ export function resolveLegacyHash(hash = "", search = "") {
 }
 
 export function resolveAdminLocation({ pathname = "/", search = "", hash = "" } = {}) {
-  // Hashes remain the runtime navigation authority through Phase 2. A direct
-  // canonical pathname resolves only when no recognized Admin/Factory hash is
-  // present, which keeps reload/back-forward correct after existing hash writes.
+  // Legacy Admin hashes remain readable during Phase 3 so they can be replaced
+  // with their canonical pathname without changing route or permission ownership.
   const legacy = resolveLegacyHash(hash, search);
   if (legacy?.definition.ownership.surface === "admin") return legacy;
   if (legacy) return null;
@@ -347,6 +351,51 @@ export function canonicalPathForRoute(id, params = {}, query = {}) {
   if (!definition) return null;
   const path = buildPattern(definition.pathPattern, params);
   return path ? withQuery(path, definition, query) : null;
+}
+
+function externalQuery(search = "") {
+  const params = new URLSearchParams(String(search || "").replace(/^\?/, ""));
+  productQueryKeys.forEach((key) => params.delete(key));
+  return params;
+}
+
+/**
+ * Builds an Admin URL suitable for browser navigation. Product-owned query
+ * state belongs to the destination definition; unrelated external markers
+ * (for example QA/audit markers) remain untouched but are never adopted by
+ * the product route contract.
+ */
+export function canonicalAdminUrlForRoute(id, params = {}, query = {}, search = "") {
+  const definition = getAdminRouteDefinition(id);
+  if (!definition) return null;
+  const canonicalPath = canonicalPathForRoute(definition.id, params, query);
+  if (!canonicalPath) return null;
+  const [pathname, destinationSearch = ""] = canonicalPath.split("?", 2);
+  const combined = new URLSearchParams(destinationSearch);
+  externalQuery(search).forEach((value, key) => combined.append(key, value));
+  const suffix = combined.toString();
+  return suffix ? `${pathname}?${suffix}` : pathname;
+}
+
+export function canonicalAdminUrlForLegacyLocation({ pathname = "/", search = "", hash = "" } = {}) {
+  const route = resolveLegacyHash(hash, search);
+  if (route?.definition.ownership.surface !== "admin") return null;
+  return canonicalAdminUrlForRoute(route.definitionId, route.params, route.query, search);
+}
+
+/**
+ * The sole Admin pathname writer. Crew Mobile intentionally continues to own
+ * its own hash writes in `useCrewRoute` until its separate migration gate.
+ */
+export function navigateAdminRoute(id, params = {}, query = {}, { replace = false } = {}) {
+  if (typeof window === "undefined") return false;
+  const destination = canonicalAdminUrlForRoute(id, params, query, window.location.search);
+  if (!destination) return false;
+  const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (current === destination) return true;
+  window.history[replace ? "replaceState" : "pushState"](null, "", destination);
+  window.dispatchEvent(new PopStateEvent("popstate"));
+  return true;
 }
 
 export function legacyHashForRoute(id, params = {}, query = {}) {

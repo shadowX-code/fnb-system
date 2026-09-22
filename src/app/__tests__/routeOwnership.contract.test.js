@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   adminRouteDefinitions,
+  canonicalAdminUrlForLegacyLocation,
+  canonicalAdminUrlForRoute,
   canonicalPathForRoute,
   feedxRouteDefinitions,
   getFeedxRouteDefinition,
@@ -40,6 +42,16 @@ describe("FeedX canonical route contract", () => {
     expect(resolved).toMatchObject({ routeId: "purchase-comparison", query: { supplier: "Kedai A" }, source: "pathname" });
     expect(canonicalPathForRoute(resolved.definitionId, resolved.params, resolved.query)).toBe("/restaurant/purchases/comparison?supplier=Kedai+A");
     expect(legacyHashForRoute(resolved.definitionId, resolved.params, resolved.query)).toBe("#purchase-comparison?supplier=Kedai+A");
+  });
+
+  it("builds canonical Admin write URLs without adopting unrelated external state", () => {
+    expect(canonicalAdminUrlForRoute("purchase-comparison", {}, { supplier: "Kedai A" }, "?qa=route-run&date=obsolete")).toBe("/restaurant/purchases/comparison?supplier=Kedai+A&qa=route-run");
+    expect(canonicalAdminUrlForLegacyLocation({
+      pathname: "/",
+      search: "?audit=trace",
+      hash: "#purchase-comparison?supplier=Kedai%20A",
+    })).toBe("/restaurant/purchases/comparison?supplier=Kedai+A&audit=trace");
+    expect(canonicalAdminUrlForLegacyLocation({ pathname: "/", hash: "#crew/me" })).toBeNull();
   });
 
   it("models inventory date ownership and its legacy stockCheckDate alias", () => {

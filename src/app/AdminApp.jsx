@@ -4,7 +4,7 @@ import ToastViewport from "../components/feedback/ToastViewport.jsx";
 import AppShell from "../layouts/AppShell.jsx";
 import { operationsService } from "../features/sales-purchase/services/operationsService.js";
 import { salesPurchaseRoutes } from "./routes.jsx";
-import { canonicalRouteId, legacyHashForRoute, resolveAdminLocation } from "./routeOwnership.js";
+import { canonicalAdminUrlForLegacyLocation, canonicalRouteId, getAdminRouteDefinition, navigateAdminRoute, resolveAdminLocation } from "./routeOwnership.js";
 import AdminRouteBoundary from "./AdminRouteBoundary.jsx";
 import { outletService } from "../services/outletService.js";
 import { supplierService } from "../services/supplierService.js";
@@ -165,9 +165,7 @@ const BOOTSTRAP_LOADS = [
 
 function workspaceForRoute(routeId) {
   if (String(routeId || "").startsWith("guest_ai_")) return "guest_ai";
-  if (String(routeId || "").startsWith("factory_")) return "factory";
-  if (String(routeId || "").startsWith("crew_")) return "crew";
-  return "restaurant";
+  return getAdminRouteDefinition(routeId)?.ownership.workspace ?? "restaurant";
 }
 
 function currentAdminLocation() {
@@ -350,17 +348,15 @@ function AdminApp() {
   }, [auth, store]);
 
   useEffect(() => {
-    const route = currentAdminLocation();
-    if (route?.source !== "legacy-hash") return;
-    const requestedRouteId = String(window.location.hash || "").replace(/^#/, "").split(/[/?]/)[0];
-    if (!requestedRouteId || canonicalRouteId(requestedRouteId) === requestedRouteId) return;
-    const canonicalHash = legacyHashForRoute(route.definitionId, route.params, route.query);
-    if (canonicalHash && window.location.hash !== canonicalHash) window.history.replaceState(null, "", canonicalHash);
+    const canonicalUrl = canonicalAdminUrlForLegacyLocation(window.location);
+    if (canonicalUrl) window.history.replaceState(null, "", canonicalUrl);
   }, []);
 
   useEffect(() => {
     const syncRouteFromHistory = () => {
+      const legacyCanonicalUrl = canonicalAdminUrlForLegacyLocation(window.location);
       const routeId = currentAdminLocation()?.routeId;
+      if (legacyCanonicalUrl) window.history.replaceState(null, "", legacyCanonicalUrl);
       if (salesPurchaseRoutes.some((route) => route.id === routeId)) setActiveRouteId(routeId);
     };
     window.addEventListener("popstate", syncRouteFromHistory);
@@ -577,8 +573,7 @@ function AdminApp() {
   function navigate(routeId) {
     const canonicalId = canonicalRouteId(routeId);
     setActiveRouteId(canonicalId);
-    const legacyHash = legacyHashForRoute(canonicalId);
-    if (legacyHash && window.location.hash !== legacyHash) window.history.pushState(null, "", legacyHash);
+    navigateAdminRoute(canonicalId);
   }
 
   function handleWorkspaceChange(nextWorkspace) {

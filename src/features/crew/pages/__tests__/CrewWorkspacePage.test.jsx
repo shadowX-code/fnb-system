@@ -88,7 +88,7 @@ describe("Crew Access outlet read lifecycle", () => {
     expect(screen.getByText("Attendance")).not.toBeNull();
     expect(screen.getByText("Today's Tasks")).not.toBeNull();
     expect(screen.getByText("Opening checklist")).not.toBeNull();
-    expect(screen.getByRole("link", { name: /Opening checklist/i }).getAttribute("href")).toBe("#crew_operations/instance/task-a");
+    expect(screen.getByRole("link", { name: /Opening checklist/i }).getAttribute("href")).toBe("/crew/operations/instances/task-a");
     expect(screen.getByText("1 area needs attention today.")).not.toBeNull();
     expect(screen.getByText("1 Crew has not checked in and 1 task is overdue.")).not.toBeNull();
     expect(screen.getByText("Aina Rahman's birthday")).not.toBeNull();

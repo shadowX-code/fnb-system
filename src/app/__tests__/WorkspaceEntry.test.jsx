@@ -96,7 +96,11 @@ it("keeps Crew mounted for internal navigation and history, then recovers Admin 
   expect(screen.queryByLabelText("Admin shell")).toBeNull();
 });
 
-it.each(["#dashboard", "#reports", "#crew_dashboard"])("recovers Admin session and route %s without mounting Crew", async (hash) => {
+it.each([
+  ["#dashboard", "/restaurant/dashboard"],
+  ["#reports", "/restaurant/reports"],
+  ["#crew_dashboard", "/crew/workforce/dashboard"],
+])("recovers an Admin legacy route %s as %s without mounting Crew", async (hash, pathname) => {
   visit(hash);
   const view = render(<App />);
   expect(await screen.findByRole("heading", { name: /probe/ })).toBeTruthy();
@@ -106,7 +110,8 @@ it.each(["#dashboard", "#reports", "#crew_dashboard"])("recovers Admin session a
   view.unmount();
   render(<App />);
   expect(await screen.findByRole("heading", { name: /probe/ })).toBeTruthy();
-  expect(window.location.hash).toBe(hash);
+  expect(window.location.hash).toBe("");
+  expect(window.location.pathname).toBe(pathname);
 });
 
 it("restores a direct canonical Admin pathname through the unchanged Admin session boundary", async () => {

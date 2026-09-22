@@ -11,7 +11,7 @@ import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions, defaultRoles, rolePermissionMatrix } from "../data/rbacDefaults.js";
 import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
-import { legacyHashForRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
+import { navigateAdminRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess, roleHasRestaurantPermissions } from "../utils/roleAccess.js";
@@ -862,8 +862,7 @@ export default function RolesPage({ ui, store, auth }) {
       : editMatch ? "roles-edit"
         : detailMatch ? "roles-detail"
           : "roles";
-    const legacyHash = legacyHashForRoute(definitionId, { roleId: editMatch?.[1] ?? detailMatch?.[1] });
-    if (legacyHash) window.history.pushState(null, "", legacyHash);
+    navigateAdminRoute(definitionId, { roleId: editMatch?.[1] ?? detailMatch?.[1] });
     setRolePagePath(path);
   }
 

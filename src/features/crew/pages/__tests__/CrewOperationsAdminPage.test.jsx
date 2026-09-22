@@ -139,7 +139,7 @@ describe("Crew unified Tasks Admin", () => {
     await waitFor(() => expect(mocks.result).toHaveBeenCalledWith("instance-1"));
     expect(await screen.findByRole("tab", { name: "By Task Item" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    expect(window.location.hash).toBe("#crew_operations");
+    expect(window.location.pathname).toBe("/crew/operations");
   });
 
   it("routes pause and end-date changes through the controlled lifecycle authority", async () => {

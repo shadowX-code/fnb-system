@@ -27,7 +27,7 @@ import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 import { canCreate, canEdit, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
-import { legacyHashForRoute } from "../../../app/routeOwnership.js";
+import { navigateAdminRoute } from "../../../app/routeOwnership.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
@@ -1774,7 +1774,7 @@ export default function UsersPage({ ui, store, auth }) {
 
   function renderCrewAccessAction(row) {
     if (!hasPermission(auth, "crew_employees.view")) return null;
-    return <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setActionMenuUserId(null); window.location.hash = legacyHashForRoute("crew_employees"); }}><ShieldCheck size={14} /> Manage Crew Access</button>;
+    return <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setActionMenuUserId(null); navigateAdminRoute("crew_employees"); }}><ShieldCheck size={14} /> Manage Crew Access</button>;
   }
 
   const columns = [

@@ -19,7 +19,7 @@ import LocalizedContentEditor from "../components/LocalizedContentEditor.jsx";
 import { CrewAdminOutletField } from "../components/CrewAdminToolbar.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { detectContentLanguage, localizationLanguageSummary, taskLocalizationUnits } from "../utils/localizedContent.js";
-import { legacyHashForRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
+import { navigateAdminRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 
 const localDate = (value = new Date()) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
 const TASK_TYPES = [{ value: "checklist", label: "Checklist" }, { value: "instruction", label: "Instruction / Text" }, { value: "health_check", label: "Health Check" }, { value: "confirmation", label: "Confirmation" }, { value: "sop_review", label: "SOP Review" }];
@@ -130,7 +130,7 @@ export default function CrewOperationsAdminPage({ auth, ui, store }) {
     {editor ? <TaskEditor initial={editor} employees={data.employees} sops={data.published_sops} outletName={outlets.find((row) => row.id === outletId)?.name || "Selected outlet"} onConfirm={ui.confirm} onClose={() => setEditor(null)} onSave={save} onPublish={publish} /> : null}
     {detail ? <TaskDetail task={detail} canManage={canManage} onEditDraft={openDraft} onClose={() => setDetail(null)} /> : null}
     {scheduleTask ? <ManageSchedule task={scheduleTask} onClose={() => setScheduleTask(null)} onAction={(action, endDate) => manageSchedule(scheduleTask, action, endDate)} /> : null}
-    {linkedInstanceId ? <Modal title="Task occurrence" description={linkedResult?.instance?.business_date ? `${formatDate(linkedResult.instance.business_date)} · Frozen task execution` : "Loading the selected task occurrence."} size="xl" panelClassName="max-h-[90vh]" bodyClassName="p-0" onClose={() => { window.history.replaceState(null, "", legacyHashForRoute("crew_operations")); setLinkedInstanceId(null); }} footer={<button className="btn-secondary" onClick={() => { window.history.replaceState(null, "", legacyHashForRoute("crew_operations")); setLinkedInstanceId(null); }}>Close</button>}>{linkedResultLoading ? <div className="p-8 text-sm text-text-muted">Loading task occurrence…</div> : linkedResult ? <TaskExecutionResult result={linkedResult} /> : <div className="p-8 text-sm text-text-muted">Task occurrence is unavailable.</div>}</Modal> : null}
+    {linkedInstanceId ? <Modal title="Task occurrence" description={linkedResult?.instance?.business_date ? `${formatDate(linkedResult.instance.business_date)} · Frozen task execution` : "Loading the selected task occurrence."} size="xl" panelClassName="max-h-[90vh]" bodyClassName="p-0" onClose={() => { navigateAdminRoute("crew_operations", {}, {}, { replace: true }); setLinkedInstanceId(null); }} footer={<button className="btn-secondary" onClick={() => { navigateAdminRoute("crew_operations", {}, {}, { replace: true }); setLinkedInstanceId(null); }}>Close</button>}>{linkedResultLoading ? <div className="p-8 text-sm text-text-muted">Loading task occurrence…</div> : linkedResult ? <TaskExecutionResult result={linkedResult} /> : <div className="p-8 text-sm text-text-muted">Task occurrence is unavailable.</div>}</Modal> : null}
   </div>;
 }
 

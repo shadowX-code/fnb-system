@@ -22,6 +22,11 @@ import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { employeeService } from "../../../services/employeeService.js";
 import { crewAccessState, crewService, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
 import { formatOperationalDateTime } from "../../../lib/dateTime.js";
+import { canonicalAdminUrlForRoute } from "../../../app/routeOwnership.js";
+
+function adminHref(id, params = {}, query = {}) {
+  return canonicalAdminUrlForRoute(id, params, query, window.location.search);
+}
 
 export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashboard" }) {
   const { outlets, outletId, setOutletId } = useCrewAdminOutlet(store?.outlets || []);
@@ -250,14 +255,14 @@ function CrewTodayList({ rows }) {
   ];
   const counts = Object.fromEntries(groups.map((group) => [group.key, rows.filter((row) => row.group === group.key).length]));
   const visibleGroups = groups.filter((group) => filter === "all" || filter === group.key).filter((group) => counts[group.key]);
-  return <AdminDataSection title="Your Crew Today" description="Published roster and current attendance." actions={<a className="btn-secondary h-8 px-3 text-xs" href="#crew_roster">View roster</a>}>
+  return <AdminDataSection title="Your Crew Today" description="Published roster and current attendance." actions={<a className="btn-secondary h-8 px-3 text-xs" href={adminHref("crew_roster")}>View roster</a>}>
     {groups.filter((group) => counts[group.key]).length > 1 ? <div className="crew-dashboard-tabs" role="tablist" aria-label="Crew today filter"><button type="button" className={filter === "all" ? "is-active" : ""} onClick={() => setFilter("all")}>All <span>{rows.length}</span></button>{groups.filter((group) => counts[group.key]).map((group) => <button type="button" role="tab" aria-selected={filter === group.key} className={filter === group.key ? "is-active" : ""} onClick={() => setFilter(group.key)} key={group.key}>{group.label.replace(" Today", "")} <span>{counts[group.key]}</span></button>)}</div> : null}
     <div className="crew-dashboard-list crew-dashboard-crew-list">{visibleGroups.map((group) => <div key={group.key}><h3>{group.label} <span>· {counts[group.key]}</span></h3>{rows.filter((row) => row.group === group.key).map((row) => <CrewTodayRow row={row} key={row.employee_id} />)}</div>)}</div>
   </AdminDataSection>;
 }
 
 function CrewTodayRow({ row }) {
-  return <a className="crew-dashboard-row" href="#crew_roster">
+  return <a className="crew-dashboard-row" href={adminHref("crew_roster")}>
     <PersonAvatar name={row.name} />
     <span className="min-w-0 flex-1"><strong>{row.name}</strong><small>{row.position || "Crew"}</small></span>
     <span className="crew-dashboard-shift">{formatShift(row.start_time, row.end_time)}</span>
@@ -267,8 +272,8 @@ function CrewTodayRow({ row }) {
 }
 
 function TasksTodayList({ rows }) {
-  return <AdminDataSection title="Today's Tasks" description="Current task occurrences for this outlet." actions={<a className="btn-secondary h-8 px-3 text-xs" href="#crew_operations">View all</a>}>
-    <div className="crew-dashboard-list">{rows.map((row) => <a className="crew-dashboard-row" href={`#crew_operations/instance/${row.id}`} key={row.id}>
+  return <AdminDataSection title="Today's Tasks" description="Current task occurrences for this outlet." actions={<a className="btn-secondary h-8 px-3 text-xs" href={adminHref("crew_operations")}>View all</a>}>
+    <div className="crew-dashboard-list">{rows.map((row) => <a className="crew-dashboard-row" href={adminHref("crew-operations-instance", { instanceId: row.id })} key={row.id}>
       <span className={`crew-dashboard-task-icon is-${row.status}`}><ListChecks size={17} /></span>
       <span className="min-w-0 flex-1"><strong>{row.name}</strong><small>{row.assignment}</small></span>
       <span className="crew-dashboard-row-meta"><DashboardStatus status={row.status} /><small>{taskTiming(row)}</small></span>
@@ -303,15 +308,15 @@ function AttentionIcon({ item, size }) {
 
 function attentionHref(key) {
   return {
-    leave_requests: "#crew_leave",
-    attendance_exceptions: "#crew_attendance",
-    compliance_review: "#employee_compliance",
-    compliance_status: "#employee_compliance",
-    performance_reviews: "#crew_performance",
-    tasks: "#crew_operations",
-    missing_checkin: "#crew_attendance",
-    crew_access: "#crew_employees",
-  }[key] || "#crew_dashboard";
+    leave_requests: adminHref("crew_leave"),
+    attendance_exceptions: adminHref("crew_attendance"),
+    compliance_review: adminHref("employee_compliance"),
+    compliance_status: adminHref("employee_compliance"),
+    performance_reviews: adminHref("crew_performance"),
+    tasks: adminHref("crew_operations"),
+    missing_checkin: adminHref("crew_attendance"),
+    crew_access: adminHref("crew_employees"),
+  }[key] || adminHref("crew_dashboard");
 }
 
 function upcomingContext(item) {
@@ -321,9 +326,9 @@ function upcomingContext(item) {
 }
 
 function upcomingHref(type) {
-  if (type === "leave") return "#crew_leave";
-  if (type === "compliance") return "#employee_compliance";
-  return "#crew_employees";
+  if (type === "leave") return adminHref("crew_leave");
+  if (type === "compliance") return adminHref("employee_compliance");
+  return adminHref("crew_employees");
 }
 
 function formatUpcomingDate(value) {

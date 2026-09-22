@@ -107,20 +107,20 @@ describe("Roles current mounted lifecycle", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add Role" }));
     await screen.findByText("Create Role");
-    expect(window.location.hash).toBe("#roles/new");
+    expect(window.location.pathname).toBe("/people/roles/new");
     fireEvent.click(screen.getByRole("button", { name: /back to roles/i }));
-    expect(window.location.hash).toBe("#roles");
+    expect(window.location.pathname).toBe("/people/roles");
 
     fireEvent.click(screen.getByText("operations"));
     await screen.findByText("View Role");
-    expect(window.location.hash).toBe("#roles/role-1");
+    expect(window.location.pathname).toBe("/people/roles/role-1");
     expect(screen.getByText("Role Information")).not.toBeNull();
     expect(screen.getByText("Summary")).not.toBeNull();
     expect(screen.getAllByText("Audit").some((element) => element.tagName === "DIV")).toBe(true);
     expect(document.querySelector("aside")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Edit Role" }));
     await screen.findByText("Edit Role");
-    expect(window.location.hash).toBe("#roles/role-1/edit");
+    expect(window.location.pathname).toBe("/people/roles/role-1/edit");
     expect(document.querySelector("aside")).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));

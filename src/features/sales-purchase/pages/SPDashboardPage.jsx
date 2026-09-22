@@ -20,7 +20,7 @@ import {
   toCurrency,
   toPercent,
 } from "../utils/analytics.js";
-import { legacyHashForRoute } from "../../../app/routeOwnership.js";
+import { navigateAdminRoute } from "../../../app/routeOwnership.js";
 
 function formatAlertValue(alert, value) {
   if (["cogs_margin_critical", "cogs_margin_high", "cogs_margin_watch", "sst_unusual", "delivery_platform_dependency_high"].includes(alert.alert_type)) {
@@ -178,7 +178,7 @@ export default function SPDashboardPage({ store, auth }) {
   const topSupplierAmount = supplierTotals[0]?.total || 1;
 
   function openSupplierComparison(supplier) {
-    window.location.hash = legacyHashForRoute("purchase-comparison", {}, { supplier: supplier.name });
+    navigateAdminRoute("purchase-comparison", {}, { supplier: supplier.name });
   }
 
   function alertSuggestions(alert) {
@@ -433,7 +433,7 @@ Share of Purchase: ${toPercent(supplier.share)}`}
               className="btn-secondary w-full"
               type="button"
               onClick={() => {
-                window.location.hash = legacyHashForRoute(
+                navigateAdminRoute(
                   "purchase-comparison",
                   {},
                   selectedAlert.related_supplier_id ? { supplier: getSupplierName(store.suppliers, selectedAlert.related_supplier_id) } : {},

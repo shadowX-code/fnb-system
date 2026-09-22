@@ -71,7 +71,7 @@ describe("Users page employee/auth lifecycle guards", () => {
     fireEvent.click(screen.getByRole("button", { name: "User actions" }));
     fireEvent.click(screen.getByRole("button", { name: "Manage Crew Access" }));
 
-    expect(window.location.hash).toBe("#crew_employees");
+    expect(window.location.pathname).toBe("/crew/workforce/employees");
     expect(screen.queryByText("Generate Crew Passcode")).toBeNull();
     expect(screen.queryByText("Disable Crew Access")).toBeNull();
   });
