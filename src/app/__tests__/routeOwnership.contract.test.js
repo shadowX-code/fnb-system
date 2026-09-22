@@ -21,6 +21,7 @@ describe("FeedX canonical route contract", () => {
     expect(getAdminRouteDefinition("employee_compliance")).toMatchObject({ canonicalPath: "/people/food-handling-compliance", ownership: { domain: "people" } });
     expect(getAdminRouteDefinition("roles")).toMatchObject({ canonicalPath: "/people/roles", ownership: { domain: "people", moduleId: "roles", permission: "roles.view" } });
     expect(getAdminRouteDefinition("factory_job_order_records")).toMatchObject({ canonicalPath: "/factory/job-orders", ownership: { domain: "factory", moduleId: "factory_job_order_records" } });
+    expect(getAdminRouteDefinition("factory_production")).toMatchObject({ canonicalPath: "/factory/production/records" });
     expect(getAdminRouteDefinition("factory_finished_goods_dispatch")).toMatchObject({ canonicalPath: "/factory/warehouse/dispatch" });
     expect(getAdminRouteDefinition("crew_roster")).toMatchObject({ canonicalPath: "/crew/workforce/roster", ownership: { surface: "admin", workspace: "crew" } });
 
