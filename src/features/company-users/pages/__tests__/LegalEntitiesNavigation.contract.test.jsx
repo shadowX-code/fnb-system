@@ -33,9 +33,9 @@ describe("Legal Entities People module", () => {
     expect(migrationSource).not.toContain("alter table public.employees");
   });
 
-  it("uses direct Legal Entity row actions without an overflow-menu dependency", () => {
-    expect(legalEntitiesPageSource).not.toContain("ActionMenu");
-    expect(legalEntitiesPageSource).not.toContain("MoreHorizontal");
+  it("uses the canonical shared Legal Entity row-action menu", () => {
+    expect(legalEntitiesPageSource).toContain("ActionMenu");
+    expect(legalEntitiesPageSource).toContain("MoreHorizontal");
     expect(legalEntitiesPageSource).toContain("Contract Templates");
     expect(legalEntitiesPageSource).toContain("#legal-entities/${row.id}/contract-templates");
     expect(legalEntitiesPageSource).toContain("Deactivate");

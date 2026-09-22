@@ -14,7 +14,7 @@ export default function LegalEntityContractWorkspacePage({ legalEntity, loading,
     <PageHeader
       section="People"
       title="Contract Workspace"
-      description={`${legalEntity.display_name || legalEntity.legal_company_name} · Draft, preview and publish reusable employment contract templates.`}
+      description={`${legalEntity.display_name || legalEntity.legal_company_name} · Author reusable templates and create employee contracts from published versions.`}
       actions={<button className="btn-secondary" type="button" onClick={onBack}><ArrowLeft size={16} /> Back</button>}
     />
     {!canViewTemplates ? <div className="card flex items-start gap-3 p-6 text-sm text-text-secondary"><FileText className="mt-0.5 text-text-muted" size={18} /><div><strong className="block text-text-primary">Contract Templates access is required</strong><span className="mt-1 block">You need permission to view contract templates for this Legal Entity.</span></div></div> : <ContractTemplatesWorkspace legalEntity={legalEntity} canManage={canManageTemplates} ui={ui} onBack={onBack} />}

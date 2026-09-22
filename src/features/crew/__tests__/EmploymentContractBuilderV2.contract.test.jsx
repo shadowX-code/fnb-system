@@ -6,6 +6,8 @@ const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260
 const legalEmployerGuardFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260921110200_employment_documents_legal_employer_assignment_guard_fix.sql"), "utf8");
 const edgeFunction = readFileSync(resolve(process.cwd(), "supabase/functions/employee-employment-documents/index.ts"), "utf8");
 const panel = readFileSync(resolve(process.cwd(), "src/features/company-users/components/EmployeeEmploymentDocumentsPanel.jsx"), "utf8");
+const workspace = readFileSync(resolve(process.cwd(), "src/features/company-users/components/ContractTemplatesWorkspace.jsx"), "utf8");
+const creationFlow = readFileSync(resolve(process.cwd(), "src/features/company-users/components/EmploymentContractCreationFlow.jsx"), "utf8");
 
 describe("People Employment Contract Builder V2 authority", () => {
   it("keeps legal-entity templates versioned, published and defaultable without a generic builder", () => {
@@ -32,8 +34,14 @@ describe("People Employment Contract Builder V2 authority", () => {
     expect(edgeFunction).toContain("employee_employment_contract_render_finalize_service");
     expect(edgeFunction).toContain('body?.action === "template_preview"');
     expect(edgeFunction).toContain('crypto.subtle.digest("SHA-256", bytes)');
-    expect(panel).toContain("Create Contract");
-    expect(panel).toContain("Upload Existing");
+    expect(workspace).toContain("Create Contract");
+    expect(workspace).toContain("EmploymentContractCreationFlow");
+    expect(creationFlow).toContain("Create Employee Contract");
+    expect(creationFlow).toContain("Generate Exact Preview");
+    expect(creationFlow).toContain("Send to Employee");
+    expect(creationFlow).toContain("contract-only terms");
+    expect(panel).not.toContain("Create Contract");
+    expect(panel).toContain("Upload Existing PDF");
   });
 
   it("does not change Crew acknowledgement into an electronic-signature claim", () => {
