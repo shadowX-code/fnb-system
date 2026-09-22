@@ -82,6 +82,10 @@ Growth/Performance, Reward, Learn, Cash Checkout, and Leave components use route
 
 ## Canonical Routing
 
+### Admin/Factory Route Contract
+
+`src/app/routeOwnership.js` is the executable route contract for the future Admin/Restaurant, People/System, and Factory pathname migration. It derives module ownership and canonical pathname taxonomy from `config/modules.ts`, declares the limited product query state that survives a future pathname transition, and resolves current legacy hashes including the nested Legal Entity Contract Workspace and Roles routes. Phase 1 deliberately does not change runtime navigation: Admin and Factory continue to write and read hashes, while Crew Mobile, public feedback, and auth callback routes retain their independent owners. External QA/debug query parameters are never part of the contract and are not stripped or persisted by it. Phase 2 may consume this dual-read contract only after preserving the existing workspace/session boundary.
+
 ### Production Host Surfaces
 
 Production separates the public and operational browser surfaces by hostname. `feedx.my` is a public-only branded homepage using the shared FeedX login visual shell without any authentication controls. Its routing middleware redirects every non-root path to the public root, while the browser surface also normalizes hash deep links to that root. `feedback.feedx.my/<opaque-token>` is the Product Feedback public surface and mounts only the anonymous, token-bound campaign form; it never mounts Admin chrome. `os.feedx.my` is the canonical Admin/OS hostname and preserves the existing Admin login, hash deep links, Auth, RBAC, and RLS behavior; its legacy `/feedback/product/<opaque-token>` Product Feedback links redirect to the dedicated hostname. `feedx-os.vercel.app` remains an operational fallback. This hostname routing is Production-specific; Staging remains unchanged, and hostnames are presentation/routing boundaries rather than authorization boundaries.

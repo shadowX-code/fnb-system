@@ -11,6 +11,7 @@ import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions, defaultRoles, rolePermissionMatrix } from "../data/rbacDefaults.js";
 import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
+import { resolveLegacyHash } from "../../../app/routeOwnership.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess, roleHasRestaurantPermissions } from "../utils/roleAccess.js";
@@ -78,8 +79,12 @@ const roleEditorOutlets = [
 ];
 
 function getRolePagePath() {
-  const hash = window.location.hash.replace(/^#/, "");
-  return hash === "roles" || !hash.startsWith("roles/") ? "" : hash.slice("roles".length);
+  const route = resolveLegacyHash(window.location.hash);
+  if (route?.routeId !== "roles") return "";
+  if (route.definitionId === "roles-new") return "/new";
+  if (route.definitionId === "roles-edit") return `/${route.params.roleId}/edit`;
+  if (route.definitionId === "roles-detail") return `/${route.params.roleId}`;
+  return "";
 }
 
 function getRoleSelectedOutlets(role, outlets = roleEditorOutlets) {

@@ -12,6 +12,7 @@ import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { hasPermission } from "../../../utils/accessControl.js";
 import { legalEntityService } from "../../../services/legalEntityService.js";
+import { resolveLegacyHash } from "../../../app/routeOwnership.js";
 import LegalEntityContractWorkspacePage from "./LegalEntityContractWorkspacePage.jsx";
 
 function emptyEntity() {
@@ -184,6 +185,6 @@ export default function LegalEntitiesPage({ ui, auth }) {
 }
 
 function contractWorkspaceIdFromHash() {
-  const match = window.location.hash.match(/^#legal-entities\/([0-9a-f-]{36})\/contract-templates$/i);
-  return match?.[1] || null;
+  const route = resolveLegacyHash(window.location.hash);
+  return route?.definitionId === "legal-entities-contract-templates" ? route.params.legalEntityId : null;
 }
