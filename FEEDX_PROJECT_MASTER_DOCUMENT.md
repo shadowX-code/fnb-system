@@ -1,12 +1,20 @@
-# FeedX Project Master Document
+# FeedX Project Master Document — Legacy Deep Reference
 
-Last updated: 2026-08-10
+> **LEGACY DEEP REFERENCE / HISTORICAL SPECIFICATION**
+>
+> This document is retained for historical requirements, implementation context, and targeted deep reference. It is not the canonical architecture or current-system authority, and is not a daily synchronization target. Read [`FEEDX_SYSTEM_MASTER.md`](FEEDX_SYSTEM_MASTER.md), [`FEEDX_CODEX_CONTEXT.md`](FEEDX_CODEX_CONTEXT.md), and the documentation routed from [`docs/README.md`](docs/README.md) first. Current code, migrations, contracts, and verified runtime behavior prevail.
+
+Last updated: 2026-08-13
 Document owner: FeedX product / engineering workspace  
-Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
+Document purpose: Historical deep reference and archive for prior requirements, architecture, business rules, implementation phases, and development plans.
 
-## Documentation Maintenance Rule
+## Historical Maintenance Rule (Non-Normative)
 
-This document must be updated automatically whenever future development changes any of the following:
+The automatic maintenance rule below is retired and must not be followed for new work. Current documentation governance lives in `FEEDX_CODEX_CONTEXT.md`, `FEEDX_SYSTEM_MASTER.md`, and `docs/README.md`.
+Canonical domain documents plus current code, migrations, and tests take precedence over this file.
+Consult only the specific historical section needed after reading current sources.
+
+Historical rule preserved only for archive context:
 
 - Product requirements
 - Sidebar or module architecture
@@ -28,7 +36,7 @@ Future workflow:
 4. Assistant verifies build/tests where applicable.
 5. Assistant summarizes both documentation and code changes.
 
-This file is the permanent archive for FeedX system direction. Do not create competing requirement documents unless this document links to them explicitly.
+This file remains an archive, but Section 19 and all other sections may be stale. They do not override current implementation or canonical domain documentation.
 
 ---
 
@@ -648,7 +656,7 @@ Current status:
 - New uploads require `product_analytics.upload`; replacements require both `product_analytics.upload` and `product_analytics.manage`. The RPC derives `auth.uid()` and validates outlet access server-side.
 - Report header and item rows persist in one transaction. Failed replacements preserve the previous report; no header-only replacement can persist. Explicit Delete remains a separate single report delete with FK item cascade and best-effort audit logging.
 - After a successful trusted save, a report-list refresh failure does not reclassify persistence as failed: the returned canonical report is applied locally and the page shows a separate sync warning. This is P2 read-sync/availability debt. Large client-side analytics derivations are separate P2 performance debt and should be optimized only with real volume evidence.
-- Lifecycle test baseline: Product Analytics service 6/6 and mounted page 7/7; the full suite baseline is 277 passing tests.
+- Product Analytics contract and mounted lifecycle coverage are maintained with the current release suite. Do not use historical test counts as a release gate.
 
 ---
 
@@ -689,7 +697,7 @@ Behavior:
 
 - Load existing records when outlet/month/year changes.
 - Empty amount counts as 0.
-- Save uses upsert.
+- Save invokes the trusted full-period snapshot RPC; the browser does not coordinate period upserts or delete-omitted writes.
 - No duplicate channel rows for the same outlet/month/year.
 - Locked month is read-only.
 - User must have create/edit permission to save.
@@ -1084,11 +1092,40 @@ Future:
 
 Purpose:
 
-Manage lightweight outlet employee scheduling in the Operations workspace.
+Manage lightweight outlet employee scheduling as a Crew Workforce capability. Crew Workspace is the product owner; the Restaurant route remains a compatibility entry into the same shared page and authorities.
 
 This is not a full HR, payroll, attendance, shift swap, or staff request system yet.
 
-Operations Duty Roster is the scheduling and editing workspace:
+Availability + Shift Swap status:
+
+- **Deferred / not currently required.**
+- Availability, temporary availability exceptions, specific-Crew replacement, open cover and Shift Requests were intentionally withdrawn before Production on 13 Aug 2026.
+- Duty Roster remains the single scheduling authority. Crew My Schedule remains a read-only view of the latest Published roster.
+- Leave Request and Approved Leave projection remain active and are not part of this withdrawal.
+
+### Crew Leave Entitlement / Balance v1
+
+Leave entitlement is calendar-year, employee + leave-type + outlet scoped. The current v1 types are Annual Leave, Medical Leave, Unpaid Leave and configurable Other Leave.
+
+- Annual Leave defaults to 12 days and is prorated from `employees.joined_date` by eligible calendar days, rounded to the nearest 0.5 day. Medical Leave defaults to 14 days and is configurable. Unpaid Leave is balance-unlimited.
+- Full-day ranges count all inclusive calendar dates. Half day is exactly 0.5. V1 does not infer weekend, rest-day or public-holiday exclusions.
+- Policies and generated entitlement grants are durable historical records. Used days come from `crew_approved_leaves`; pending days come from pending `crew_leave_requests`; available is derived server-side from entitlement + active carry forward + immutable adjustments − used − pending.
+- A pending request reserves balance immediately. Approval moves the same evidence from pending to used without double deduction. Rejection or Crew cancellation releases the reservation. Both submit and approve run under the employee Leave advisory lock and reject insufficient enforced balance.
+- Carry forward is outlet-policy controlled, capped and expiry-dated. Expired carry remains in history but no longer contributes to current available balance.
+- Manager adjustments are append-only, actor/time/reason attributed and cannot be edited or deleted. The browser never writes balance tables directly.
+- New entitlements stop for resigned/terminated or inactive employees; already generated historical grants remain readable for audit.
+- Crew Mobile reads only its own balance through the opaque-token authority. Admin policy, balance and adjustment RPCs require explicit `crew_leave_balance.*` / `crew_leave_settings.manage` permissions plus existing outlet scope. Raw policy, entitlement and adjustment tables have RLS enabled and no anon/authenticated table grants.
+- Approved Leave projection, immutable published Roster revisions, Attendance, Performance and existing Leave history remain unchanged.
+
+#### Crew Workforce Leave admin UI
+
+- `Crew → Workforce → Leave` is one workspace with three tabs: **Requests**, **Balances** and **Settings**. The selected Outlet and tab-specific filters live in one shared toolbar below the tabs; Outlet is not isolated as a floating page-header action.
+- Requests use a compact review table. The review modal separates request summary, entitlement context, employee reason and published-roster conflicts; approval/rejection remains governed by the existing trusted Leave authorities and rejection requires an explicit reason.
+- Balances group all leave types into one employee row. **Manage** opens the employee’s complete period balance, while an adjustment remains an append-only, reason-attributed record rather than an editable balance value.
+- Settings describe the business policy in readable terms: entitlement, balance enforcement, join-date proration and carry-forward expiry. Unlimited leave hides entitlement/proration/carry-forward inputs that do not apply.
+- Leave Admin presentation uses the shared FeedX PageHeader, filter card, Select, DataTable, Badge, Modal and empty/loading/error patterns used by Restaurant and Factory. Browser-native select styling and Crew-specific list patterns are not permitted.
+
+Crew Workforce Duty Roster is the scheduling and editing workspace:
 
 - Weekly and monthly employee-by-date roster grid.
 - Click empty cells to add shifts.
@@ -1105,6 +1142,8 @@ Data tables:
 shift_templates
 duty_rosters
 roster_periods
+duty_roster_publications
+duty_roster_published_entries
 ```
 
 Shift template fields:
@@ -1253,6 +1292,12 @@ Behavior:
 - Copying into a published week returns that week to Draft because copied shifts must be reviewed and republished before they become historical snapshots.
 - Monthly overview status badges derive from actual duty_rosters row status first, not stale local UI state.
 - Saved roster data must persist after refresh.
+- `duty_roster_publications` and `duty_roster_published_entries` retain immutable publication revisions. Draft changes after publish do not replace the latest employee-visible revision until an explicit Republish.
+- Crew Mobile reads its own latest Published projection only through token-bound `crew_my_roster`; it has no direct roster-table access and no caller-supplied employee identity.
+- Crew Mobile **My Schedule** is a read-only, 14-day published-roster view. Its seven-day selector, selected-day summary and upcoming list all derive from the same `crew_my_roster` response; Working Shift, OFF, MC and projected Annual/Medical/Unpaid/Other Leave retain distinct visual states. The calendar action returns to today, while a Month-view CTA is intentionally absent until a real month experience exists.
+- A Crew member may be scheduled at different Outlets by date. The roster manager must have scope for both the target schedule Outlet and the employee's Home Outlet. Attendance and Daily Operations prefer the Published working schedule's Outlet/Position for that date and retain their established Home Outlet fallback when no working roster exists.
+- OFF, MC and Annual Leave remain manual scheduling entry types. They do not constitute an approved Leave record and do not require attendance. A future Leave domain may project approved absences into Roster without rewriting these historical manual entries.
+- Attendance exposes versioned scheduled-vs-actual evidence and Clock In variance but does not directly determine a Performance deduction. Finalized monthly Performance remains immutable.
 
 ### Trusted weekly lifecycle authority
 
@@ -1265,7 +1310,7 @@ Week-level Duty Roster lifecycle changes are frozen behind trusted, transactiona
 - All week-level operations use the `roster_week_snapshot:<outlet>:<week>` advisory-lock namespace; Copy Week acquires both relevant keys in sorted order.
 - Trusted functions derive the actor from `auth.uid()`, validate outlet access and the applicable Duty Roster permission server-side, and preserve an existing matching `duty_rosters.id` during snapshot updates. Copy Week preserves matching destination UUIDs and never reuses source UUIDs.
 
-The frozen lifecycle baseline covers snapshot save, Copy, Publish, Unpublish, and Lock. Remaining P2 debt is deliberately outside this authority boundary: stale-editor last-write-wins behavior, cross-outlet employee-overlap policy, isolated single-draft-shift browser CRUD, and future read/render performance work if production volume requires it.
+The frozen lifecycle baseline covers snapshot save, Copy, Publish, Unpublish, Lock, immutable publication revisions, token-bound Crew reads and scoped multi-outlet-by-date scheduling. Remaining P2 debt is deliberately outside this authority boundary: stale-editor last-write-wins behavior, explicit overlapping-shift conflict policy, isolated single-draft-shift browser CRUD, and future read/render performance work if production volume requires it.
 
 Audit actions:
 
@@ -1953,7 +1998,7 @@ Inventory Control permissions:
 
 RBAC verification status:
 
-- RBAC Full Verification completed on 30 May 2026. Historical report: [FEEDX RBAC Verification Report](../docs/archive/2026-05/FEEDX_RBAC_VERIFICATION_REPORT.md).
+- RBAC Full Verification completed on 30 May 2026. Historical report: [FEEDX RBAC Verification Report](docs/archive/2026-05/FEEDX_RBAC_VERIFICATION_REPORT.md).
 - Result: Pass with live-role UAT caveat.
 - Stock Requests was removed from the active module registry during verification so it cannot appear in generated permission groups or the permission catalog for new role saves.
 - Inventory Control bootstrap context now checks active child Inventory permissions instead of legacy `inventory_control.view`, so Inventory-only roles can load outlet and supplier context required for filters and scoped workflows.
@@ -2115,7 +2160,7 @@ Status as of 30 May 2026:
 - Purchase Suggestions to Draft PO creation is Supabase-backed through `inventory_purchase_orders` and `inventory_purchase_order_items`.
 - Purchase Orders submit, edit Draft PO, receive, partial receive, complete, and cancel are Supabase-backed through `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, and `inventory_movements`.
 - Inventory Movements created from Purchase Receive are Supabase-backed. Manual Inventory Movements entry is also Supabase-backed through `inventory_movements`.
-- Inventory Control P0 UAT completed on 29 May 2026. Historical report: [FEEDX Inventory Control UAT Report](../docs/archive/2026-05/FEEDX_INVENTORY_UAT_REPORT.md).
+- Inventory Control P0 UAT completed on 29 May 2026. Historical report: [FEEDX Inventory Control UAT Report](docs/archive/2026-05/FEEDX_INVENTORY_UAT_REPORT.md).
 - Wastage create waste record is Supabase-backed through `inventory_waste_records` and creates a Waste movement row in `inventory_movements`.
 - Recipes & Usage create/edit/archive and ingredient mapping are Supabase-backed through `inventory_recipes` and `inventory_recipe_items`.
 - Production Readiness Cleanup Phase 1 completed on 30 May 2026:
@@ -3223,7 +3268,7 @@ Date: 2026-08-08
 
 The approved Factory V1 scope passed Owner runtime smoke coverage, Operator permission smoke coverage, and read-only permission smoke coverage. Permission-boundary hardening is applied through migration `202608050031_factory_permission_boundary_hardening.sql`. This sign-off is operational release evidence, not a claim of independent penetration testing or exhaustive security certification.
 
-See [Factory V1 Staging Sign-off](../docs/audits/FACTORY_V1_STAGING_SIGNOFF.md) for the concise certification record.
+See [Factory V1 Staging Sign-off](docs/audits/FACTORY_V1_STAGING_SIGNOFF.md) for the concise certification record.
 
 ## 5.14 Outlets
 
@@ -3833,7 +3878,7 @@ Permission UI:
 
 People UAT status:
 
-- People Module UAT & Stabilization completed on 30 May 2026. Historical report: [FEEDX People Module UAT & Stabilization Report](../docs/archive/2026-05/FEEDX_PEOPLE_UAT_REPORT.md).
+- People Module UAT & Stabilization completed on 30 May 2026. Historical report: [FEEDX People Module UAT & Stabilization Report](docs/archive/2026-05/FEEDX_PEOPLE_UAT_REPORT.md).
 - Result: Production Ready Candidate with live-account UAT caveat.
 - Verified/stabilized modules: Employees, Job Positions, Departments, Roles & Permissions, and Employee Login Access.
 - Critical fixes from the pass:
@@ -4979,7 +5024,7 @@ Typography rules:
 - Shared components must use semantic type classes instead of raw `text-sm`, `text-lg`, or arbitrary text sizes.
 - Raw Tailwind typography is allowed only for one-off visual exceptions, not repeated UI patterns.
 - Page-level modules should migrate gradually through shared components rather than mass rewriting every text node.
-- Desktop density is historically tracked in [FEEDX Desktop Typography Audit](../docs/archive/2026-06/FEEDX_TYPOGRAPHY_AUDIT.md); future typography changes should create or update a current audit when they intentionally alter the global scale.
+- Desktop density is historically tracked in [FEEDX Desktop Typography Audit](docs/archive/2026-06/FEEDX_TYPOGRAPHY_AUDIT.md); future typography changes should create or update a current audit when they intentionally alter the global scale.
 - Sidebar navigation uses 13.5px-14px, medium-weight labels with 20px line height. Sidebar section labels use 11px, uppercase, 0.12em letter spacing, and 600 weight.
 - Sidebar user footer uses 14px for the name and 12px for the role.
 - Page header eyebrow labels use 12px uppercase text with 0.18em letter spacing. Page titles stay strong at about 26-28px with 700 weight, and subtitles use 13-14px muted text.
@@ -5162,6 +5207,75 @@ Service rules:
 - Confirm all UI actions are permission-gated.
 - Confirm all write services have client-side permission guards.
 
+### Crew Journey Phase B: Backend Closure
+
+- Crew Journey backend migrations `202608110006`–`202608110020` are applied and verified on Staging (`fnb-system-staging`).
+- The backend contract includes immutable quiz scoring, safe Crew payload serialization, pinned SOP acknowledgements, snapshot-derived sequential availability, and token/ownership-controlled Crew RPCs.
+- Phase B UI is deployed to Staging: Crew Mobile Learn consumes server-derived availability and safe quiz/SOP payloads; the Admin Learning and SOP Library surfaces use the existing authenticated RLS architecture for drafts. Lifecycle migrations `202608110021`, `20260811171948`, and `20260811172049` add authenticated publish/version authorities, outlet-scope-enforcing RLS predicates, and guards against in-place mutation of published content.
+- Phase B backend verification is closed; Crew UI implementation is the next planned phase. Deferred non-Phase-B hardening debt is tracked separately. No Production deployment is authorized by this record.
+
+### Crew Growth Admin Foundation
+
+- Growth is the long-term Crew capability and certification workspace. It is separate from Reward and is not a replacement for Performance scoring.
+- Admin IA is fixed to three routes: Growth Overview, Skills, and Certification Review. Growth Overview is the single team capability workspace and includes the filterable Crew Growth table, coverage, attention, certification status, and recent-certification context. The legacy Crew Growth route resolves to Growth Overview and is no longer advertised in navigation. These surfaces reuse the shared FeedX Restaurant/Factory page header, filters, tables, badges, modal, spacing, and action hierarchy.
+- `employees.id` remains the only Crew employee identity. Skills are scoped by owning outlet plus optional applicable outlets and positions.
+- Certification states are authoritative and shared across Growth surfaces: Not Started, In Progress, Ready for Review, Certified, Needs Renewal, Expired, and Not Applicable.
+- Requirements may reference a Published Onboarding module, lesson, SOP version, or Knowledge Check, plus practical, manual, and future performance evidence. Published references must belong to the Skill outlet. The Skill editor loads these references from the lightweight, outlet-scoped `crew_growth_admin_evidence` authority; completion is read from existing Learning authorities and is never duplicated or inferred by the browser.
+- Practical assessments and certifications are append-only history. Certifications freeze the Skill requirements version and evidence snapshot; later requirement edits do not rewrite prior evidence. Skills may define no expiry or a validity period in months.
+- Permissions are `crew_growth.view`, `crew_growth.manage`, `crew_growth.assess`, and `crew_growth.certify`. All mutations use fixed-search-path, permission- and outlet-checking authorities. Internal evidence/state helpers remain non-executable by `PUBLIC`, `anon`, and ordinary `authenticated` callers; Growth tables expose scoped reads only and no direct client DML.
+- Staging QA data is recreated only through `scripts/seedCrewGrowthQaData.sh`, which hard-checks Supabase ref `ujkzdaaadnvcfayuldmh`, reuses designated QA Crew and the scoped Crew Admin QA identity, and never runs automatically or targets Production.
+
+### Crew Reward Overview
+
+- Admin navigation has one canonical Reward destination: **Reward Overview**. The former Reward Cycles route is compatibility-only and resolves to Reward Overview, where Campaign History is part of the same operational page.
+- Reward operates as a monthly Campaign: choose month and pool, freeze the participating Crew snapshot, calculate from canonical finalized Performance and eligible Attendance evidence, review audited adjustments, finalize immutable payouts, and retain Campaign history.
+- `crew_reward_participants` is the server-authoritative Campaign membership snapshot. Later hires, transfers, terminations, or outlet changes never silently rewrite historical participation. Calculation reads this snapshot and does not trust a browser-supplied employee identity after Campaign creation.
+- Canonical Reward formulas, calculation version, pool cap, adjustment audit, outlet scope, RLS, finalization immutability, and Crew Mobile safe-read authority remain unchanged. The Admin UI displays server-returned hours, contribution, Performance factor, calculated reward, adjustment, and final payout; it does not reproduce the calculation in the browser.
+
+### Crew Performance Overview
+
+- Admin navigation has two Performance destinations: **Performance Overview** and **Customer Feedback**. The former standalone Reviews route is compatibility-only and resolves to Performance Overview.
+- Performance Overview is the single manager command center for server-derived monthly KPIs, a one-employee-per-row Service Standards and Conduct Review Queue, Team Performance, Needs Attention, and the versioned 100-point Performance Framework.
+- Service Standards and Conduct remain separate, auditable backend review objects. The UI groups their state and entry points without merging authorities, changing score calculation, or trusting browser-derived scores.
+- Attendance, Customer Feedback, Learning evidence, monthly isolation, outlet scope, permissions, RLS, review history, and finalized-result immutability remain canonical backend responsibilities.
+
+### Crew Learning Product Architecture
+
+- Crew Learn has two primary product surfaces only: mandatory **New Crew Onboarding** and the outlet **SOP Library**. Generic Journey Library, manual assignment, and standalone Crew Progress concepts remain historical compatibility data rather than primary navigation.
+- Every outlet owns one mandatory onboarding lineage. Eligible active Crew are enrolled automatically when access becomes active or when an onboarding version is published; completed onboarding remains permanently available for review.
+- The standard onboarding shell contains eight ordered modules: Welcome & Workplace; Customer Arrival & Greeting; Taking Orders; Serving & Table Service; Cleaning & Hygiene; Take Away & Packaging; Opening & Closing; Final & Role Readiness.
+- Onboarding versions, assignment snapshots, progress, quiz attempts, pinned SOP acknowledgements, and correct-answer secrecy remain immutable and server-authoritative. A later version never rewrites an existing employee assignment.
+- Learning setup is outlet-scoped end to end. Clone Learning Setup creates independent target drafts for onboarding, SOP categories, SOPs, versions, sections, quizzes, and SOP references; later edits do not cross outlet boundaries.
+- SOP content uses one hierarchy: Category → SOP → Version → ordered Sections. Published versions are read-only; edits require a new draft version. Crew can search every published SOP for their outlet and acknowledge required versions through token-bound authorities.
+- The finalized Crew Mobile Learn home uses the approved knowledge-library composition: a locally generated book/search hero, real SOP search, server-derived onboarding progress, a horizontally swipeable category carousel with live category counts, and one category-linked SOP list. Required, Optional, and Acknowledged states stay compact in each row; acknowledgement still enters the existing token-bound SOP-version flow. The five-item Home/Learn/Reward/Growth/Me navigation remains unchanged, and the former help card is intentionally absent.
+- Admin Learning uses one visible outlet context with `Onboarding` and `SOP Library`. Onboarding contains Overview, Modules, and Crew Progress tabs; no manager action is required to assign mandatory onboarding.
+
+### Crew Daily Operations v1
+
+- Daily Operations is the outlet-scoped execution surface for Opening, Closing, lightweight Daily checklists, one-time Daily Tasks and Store Health checks. It does not include Duty Roster, Leave, Payroll or project-management behavior.
+- Admin navigation is deliberately limited to `Daily Operations` for dated monitoring and `Checklist Templates` for configuration. Crew Mobile keeps the five-item Home/Learn/Reward/Growth/Me bottom navigation; Today’s Tasks is entered from Home.
+- Checklist templates and daily instances are separate authorities. Templates use a Draft → Active → Archived revision lifecycle. Activating a revision makes it immutable; later changes create a new Draft revision and never rewrite historical instances.
+- Every daily instance freezes the template revision and ordered item snapshot, including required state, applicability, evidence rule and exact Published SOP version reference. Instance status is server-derived as Not Started, In Progress, Completed, Completed With Exceptions or Overdue.
+- Multiple applicable Crew may contribute to one checklist. Each item records the first accepted employee, timestamp, status, exception reason/note and safe evidence reference. Controlled writes are idempotent and later duplicate completion cannot replace the original actor or evidence.
+- Required items must be completed or recorded as an explained exception before checklist completion. Optional items do not block completion. Opening/Closing execution windows are enforced by the server; missing windows mean all-day availability.
+- Store Health outcomes are Good, Needs Attention and Not Checked. Needs Attention requires a note and is visible to Managers as operational evidence; it does not directly deduct Performance points.
+- Daily Tasks are intentionally small, dated outlet tasks with priority, due time, applicability and optional pinned SOP reference. Their server-derived states are Pending, In Progress, Completed or Exception.
+- Crew can review applicable tasks without Clocking In. Attendance context is returned for clarity, but v1 does not impose an unreliable attendance hard gate on operational execution.
+- Daily Operations v1 resolves its default business date in `Asia/Kuala_Lumpur`; Admin and Crew Mobile pass the local calendar date explicitly so midnight UTC drift cannot show the previous day.
+- Permissions are `crew_operations.view`, `crew_operations.manage` and `crew_operations.review`. Admin authorities enforce authenticated permission and outlet scope. Crew authorities derive employee/outlet identity only from the opaque Crew session token. Operation tables have no direct Crew table-write path.
+- SECURITY DEFINER authorities use a fixed `public` search path and explicit grants. Internal helpers have no anon/authenticated execution; only token-bound Crew RPCs intentionally allow anon/authenticated execution.
+- Dedicated Daily Operations photo storage is deferred hardening debt. Photo evidence remains disabled until MIME/size policy, outlet-scoped upload authority, published/history reference tracking and safe deletion rules are provided; images are never stored as base64.
+- Staging QA data is recreated through `scripts/seedCrewDailyOperationsQaData.sh`, which hard-checks Supabase ref `ujkzdaaadnvcfayuldmh`, targets explicit QA Crew only and never runs automatically or against Production.
+
+### Crew Admin UI Foundation Rules
+
+- Every Crew Admin route uses the same three-layer page structure: (1) `PageHeader` with section, title and short description only; (2) one canonical context/filter toolbar; and (3) page content. Outlet, period/date, search, filters and business actions never float in the title row.
+- The canonical toolbar order is `Outlet → Time Context → Search → Filters → Secondary Action → Primary Action`. Outlet is the first control for every outlet-scoped page, and the primary CTA is the final far-right action. Responsive wrapping preserves this semantic and DOM order.
+- Crew Admin Outlet selection is a workspace preference shared across compatible routes. It is persisted locally, constrained to the authenticated user's already-scoped Outlet list, and falls back to the first allowed Outlet when the stored selection is missing, inactive or outside the current scope. Page components must not create a competing default-Outlet authority.
+- Crew dropdowns and selects must never use the browser-native grey control. Reuse the established Restaurant / Factory FeedX select pattern: white surface, shared border and radius, shared control height, explicit chevron, consistent typography, and visible hover/focus states.
+- Every filter's unscoped option is labelled exactly `All`. The field label already communicates the dimension, so labels such as `All Categories`, `All Status`, `All Frequency`, and `All Outlet` are not used.
+- All Crew list, table, filter, badge, modal, and action UI must follow the mature Restaurant / Factory patterns. Crew must not introduce or maintain a separate visual vocabulary for the same interaction.
+
 ### Phase C: Import Engine Completion
 
 - Complete Sales Import QA.
@@ -5219,9 +5333,9 @@ Service rules:
 - Asset, inventory, and dashboard summary logic can drift if base scope and active drill-down filters are not documented in each module.
 - Status naming can drift if Condition, Status, Maintenance Status, Inspection Status, and Inventory Status are not kept separate.
 
-### 17.1 Production Readiness Status - 1 June 2026
+### 17.1 Historical Production Readiness Status — 1 June 2026
 
-Current recommendation: **NOT READY for production cutover until release gates are completed.**
+Historical recommendation: **NOT READY for production cutover until release gates are completed.** This June 2026 status is retained as historical evidence only and is superseded by later verified release records and current canonical documentation.
 
 This is not a feature-readiness failure. Core FeedX modules are implemented in the staging codebase and `npm run build` is expected to pass, but production cutover requires environment-level verification that was not completed by static code review alone.
 
@@ -5231,15 +5345,15 @@ Production release gates:
 - Verify production RLS for owner/admin, all-outlet role, selected-outlet role, view-only role, and no-permission role.
 - Verify production Storage buckets and policies for `inventory-item-photos` and `asset-photos`.
 - Verify production Supabase Auth redirects, SMTP email delivery, forgot-password, invite/setup-password, and employee onboarding Edge Function.
-- Execute the current release checklist before cutover. The June 2026 checklist is preserved as [historical evidence](../docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md).
+- Execute the current release checklist before cutover. The June 2026 checklist is preserved as [historical evidence](docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md).
 - Confirm no authenticated production workflow relies on browser-local operational records or fallback/demo data.
 
 Release governance documents:
 
-- [FEEDX Production Readiness Audit](../docs/archive/2026-06/FEEDX_PRODUCTION_READINESS_AUDIT.md)
-- [FEEDX Production UAT Checklist](../docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md)
-- [FEEDX Release Candidate Report](../docs/archive/2026-06/FEEDX_RELEASE_CANDIDATE_REPORT.md)
-- [FEEDX Go-Live Checklist](../docs/archive/2026-06/FEEDX_GO_LIVE_CHECKLIST.md)
+- [FEEDX Production Readiness Audit](docs/archive/2026-06/FEEDX_PRODUCTION_READINESS_AUDIT.md)
+- [FEEDX Production UAT Checklist](docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md)
+- [FEEDX Release Candidate Report](docs/archive/2026-06/FEEDX_RELEASE_CANDIDATE_REPORT.md)
+- [FEEDX Go-Live Checklist](docs/archive/2026-06/FEEDX_GO_LIVE_CHECKLIST.md)
 - `FEEDX_DEVELOPMENT_LOG.md`
 - `docs/releases/`
 
@@ -5319,7 +5433,7 @@ Every new module or feature must answer:
 - Are audit logs added only for business-critical actions?
 - Does refresh preserve created/edited records?
 - Does `npm run build` pass?
-- Is this document updated?
+- Has Documentation Impact been classified and have the appropriate current canonical documents been updated?
 
 ## Roles and Permission Configuration Authority
 
@@ -5327,11 +5441,148 @@ Every new module or feature must answer:
 - `role_configuration_requests` is the request-ID ledger. An unchanged retry returns its canonical result; a conflicting fingerprint reuse is rejected. The editor clears an ID after success and creates a new one after a material form edit.
 - A role row plus differential `role_permissions` and `role_outlets` reconciliation commit in one transaction. Existing role UUIDs are preserved on edit; creates and duplicates receive new UUIDs. Ordinary role saves never mutate the permission catalog.
 - Non-protected actors cannot grant permissions outside their own authority or assign inaccessible outlets. Owner/Admin retain their intended broader authority. Delete remains a separate bounded hard-delete path protected by the existing employee role-reference FK.
-- Roles architecture is frozen at the 17/17 focused-test baseline. P2 debt: active-session permission context can lag until refresh/login, and concurrent stale editors remain last-write-wins; server authorization remains authoritative.
+- Roles architecture is frozen behind the current trusted-authority test suite. P2 debt: active-session permission context can lag until refresh/login, and concurrent stale editors remain last-write-wins; server authorization remains authoritative.
 
 ## Factory Product Recipe / BOM Transactional Authority
 
 - `save_factory_product_recipe` owns structural Draft Recipe/BOM saves. It derives `auth.uid()`, resolves `created_by` to the canonical employee identity, applies create/edit permission checks, locks existing Draft recipes, and persists the recipe, complete BOM snapshot, and request-ledger result atomically.
 - `factory_product_recipe_requests` binds a request ID to actor, operation, recipe identity, canonical payload fingerprint, and canonical `{ recipe, items }` result. Unchanged retries return the same result; changed intent requires a new request ID.
 - Product Recipe modal retries are request-safe and pending-submit guarded. Active recipe activation and archive/delete remain separate bounded lifecycle authorities. Factory Recipe stale-editor last-write-wins remains accepted P2 debt.
-- FeedX hardening is complete at P0=0 and P1=0. Frozen architecture rules remain authoritative; return to Feature / Operational Development.
+
+---
+
+## 19. Historical System Snapshot — 11 August 2026
+
+This is a historical snapshot from 11 August 2026. It is retained as a targeted legacy reference and may contain superseded assumptions, release state, test counts, and file paths. It does not override `FEEDX_SYSTEM_MASTER.md`, `FEEDX_CODEX_CONTEXT.md`, canonical domain/architecture documents, or current implementation evidence.
+
+### 19.1 Environments and release status
+
+| Environment | Git / deployment | Supabase | Status |
+|---|---|---|---|
+| Production | `main`; Vercel project `fnb-system`; `https://feedx-os.vercel.app` | `fnb-system` / `oyfobxdoyfuzsodogpgs` | Live release tree promoted at `500e6b7`; migration ledger is up to date; `employee-auth-onboarding` is ACTIVE (version 12). |
+| Staging | `dev`; Vercel project `fnb-system-staging`; `https://fnb-system-staging.vercel.app` | `fnb-system-staging` / `ujkzdaaadnvcfayuldmh` | Migration chain is up to date and Staging UAT was completed before the Production promotion. |
+
+- Production and Staging both include the Factory migration chain and `202608100001`–`202608100016` trusted-authority migrations.
+- Production Factory operational tables currently have valid empty states; no Staging Factory operational data was copied to Production.
+- The current local worktree may contain review-stage changes not yet promoted. At this document update, Active Employee Role editing is a verified local review change and is **not** evidence that it has been released to Production.
+- Never infer an environment from a branch name alone. Confirm the linked Supabase project and Vercel project/production branch before a migration or deploy.
+
+### 19.2 Canonical architecture and change rules
+
+- `config/modules.ts` is the canonical module registry for sidebar metadata, permission-matrix modules, and routable module identities. `src/app/routes.jsx` supplies the route component and page props; both contracts must be updated together.
+- A registered Factory route must resolve to a non-Dashboard page unless it is `factory_dashboard`. Route-completeness contracts protect this invariant.
+- Page/workspace components own presentation and local UI state. Their established parent/workspace handlers retain lifecycle mutations, notification timing, refresh orchestration, and canonical read snapshots unless a bounded authority migration explicitly moves them.
+- Trusted RPCs/Edge Functions derive the actor from `auth.uid()`, validate permission and outlet scope server-side, use a request-ID/fingerprint ledger where the lifecycle requires idempotency, and return canonical state. Browser code must not recreate a protected multi-write lifecycle with direct Supabase CRUD.
+- The current Factory and Inventory structural architectures are frozen. Normal feature work must make bounded changes inside existing ownership seams; do not restart broad presentation extraction or create duplicate query/mutation/refresh authority.
+
+### 19.3 Factory Workspace — active canonical modules
+
+Factory uses one Workspace shell with active routes/pages and permission checks from the module registry. Current Factory modules are:
+
+| Section | Modules |
+|---|---|
+| Factory | Dashboard; Production Planning; Job Order; Job Order Records; Production; Production Reports; Batch Traceability |
+| Warehouse | Finished Goods; Finished Goods Dispatch; Product Movements; Product Stock Check |
+| Raw Material | Raw Material Receiving; Raw Material Inventory; Raw Material Movements; Raw Material Stock Check |
+| Master Data | Product Recipes / BOM; Production SOP |
+| System | Factory Audit Logs; Storage Locations; Suppliers; Customers |
+
+- Sidebar clicks use canonical `factory_*` route IDs. A menu item must be tested only after its owning sidebar section is visibly expanded; collapsed controls may remain in the DOM but are not the user-actionable target.
+- Current live Production smoke verified visible-click and reload behavior for Raw Material Inventory, Raw Material Receiving, Product Recipes, Production SOP, Dashboard, Production Overview, Storage Locations, Suppliers, and Customers.
+- Factory Production Overview is rendered through its current canonical Job Order route identity; user-facing page title and lifecycle board remain Production Overview.
+- Factory Storage Locations, Suppliers, and Customers are canonical Factory master tables. They retain one Factory-specific read/mutation authority, permission/status controls, responsive presentation, and valid Production empty states.
+
+#### Factory lifecycle and Recipe/BOM authority
+
+- Job Order → Release → Start Production → Complete remains Workspace-owned orchestration over trusted Factory lifecycle authorities. The local Job Order and Start Production modal catches only already-notified rejected promises so a failure remains open/retryable without an unhandled React rejection.
+- Receiving, dispatch/batch allocation, stock checks, production usage, finished-goods batches, and movement ledgers remain trusted atomic Factory lifecycles; do not add a second browser mutation path.
+- `save_factory_product_recipe` is the sole transactional Draft Recipe/BOM save authority. It locks/validates the Draft identity, derives the canonical employee from `auth.uid()`, writes header and full BOM snapshot atomically, and returns canonical `{ recipe, items }`.
+- `factory_product_recipe_requests` binds request ID, actor, operation, identity, fingerprint, and canonical result. An unchanged retry is idempotent; a materially changed intent must use a new request ID.
+- Active Recipe activation and archive/delete are deliberately separate bounded lifecycle authorities. Accepted P2: stale Recipe editors are last-write-wins.
+
+### 19.4 Inventory and Restaurant operational baseline
+
+Inventory Control has one broad read snapshot in `InventoryControlPage`; extracted presentation pages receive data and callbacks and do not introduce a second Supabase listing authority.
+
+- Trusted Inventory lifecycle RPCs cover Purchase Order save/receive, Waste, Transfer, Stock Check, Manual Movement, and Recipe save. The browser submits one intent and refreshes canonical state after success.
+- Manual Movement and Transfer mutation authority remains `InventoryControlPage`; `refreshInventory` remains the single refresh authority. Purchase Order Detail/list presentation is canonical under `src/features/sales-purchase/inventory/purchaseOrders/`, while Draft Edit, Receive, Purchase Suggestion, permissions, and lifecycle callbacks remain parent-owned.
+- Restaurant Suppliers, Inventory Movements, Purchase Orders, and Recipes & Usage use the shared Factory pagination presentation pattern: default 20 rows, Factory rows-per-page options, `Showing X–Y of Z records`, clamped pages, and filter/search reset to page 1. Pagination applies after the existing filters and does not alter read or mutation authority.
+- Recipe Clone Ingredients is draft-only: it reads existing visible recipes, excludes the current Recipe as source, clones only ingredient-row fields, skips duplicate inventory items, flags ingredients unavailable for the selected outlet, and blocks Save while an incompatible cloned row remains. It never persists until the existing Recipe Save flow runs.
+- Existing Inventory item/outlet linking stays canonical. Clone Ingredients must never create outlet links implicitly.
+
+### 19.5 Trusted operational authorities outside Factory
+
+| Domain | Canonical server authority | Rule |
+|---|---|---|
+| Asset Tracking | `asset_adjust_quantity`, `asset_submit_inspection`, `asset_save_maintenance`, `asset_import_row` | Atomic asset/movement lifecycle; per-row import idempotency. |
+| Product Analytics | `product_analytics_save_report` | Authenticated full report/period save with server-derived identity and canonical response. |
+| Data Import | `import_begin_request`, `import_prepare_purchase_masters`, `import_apply_sales_row`, `import_apply_purchase_row`, `import_finalize_batch` | Trusted import request/batch authority; no client bypass of permission or outlet scope. |
+| Sales monthly | `save_sales_period_snapshot` | Transactional full-period snapshot: update matching rows, insert missing rows, delete omitted rows, preserve matching UUIDs. |
+| Purchase monthly | `save_purchase_period_snapshot` | Same snapshot/idempotency/concurrency model as Sales; canonical uniqueness is `(outlet_id, year, month, supplier_id, category_id)`. |
+| Duty Roster | `save_roster_week_snapshot`, `copy_roster_week`, `publish_roster_week`, `unpublish_roster_week`, `lock_roster_week` | Trusted weekly lifecycle and canonical snapshot result. |
+| Roles & Permissions | `save_role_configuration` | One transactional role, permission, and outlet configuration snapshot. |
+
+### 19.6 Employee/Auth and Roles & Permissions
+
+#### Employee/Auth
+
+- Canonical identity is `employees.id` (employee), `auth.users.id` (login), and unique `employees.auth_user_id` (link). Login email is normalized (`trim().toLowerCase()`) and protected by normalized uniqueness.
+- `employee-auth-onboarding` is the trusted Edge Function for setup/reset/manual-link lifecycle. It loads the authoritative employee first, protects disabled employees and canonical links, rejects identity conflicts, and keeps retries convergent.
+- State-based permissions are fixed: Active employees require `employees.reset_password` for reset/manual link; Not Sent and Invited employees require `employees.enable_login` for setup/manual link. Manual link never additionally requires `roles.edit`.
+- Linked Active employee Login Email is read-only on the employee profile; it must not mutate `auth_user_id` or relink an Auth account. Login identity changes belong to the dedicated identity-management path, not an ordinary employee save.
+- Employee role assignment is canonical `employees.role_id`. The verified local Active Employee Role edit change exposes the existing Role selector to users with `employees.edit`, preserves active Login Email and `auth_user_id`, immediately previews Outlet Access from the selected Role, and saves through the existing employee save authority only. Not Sent/Invited behavior remains editable; users without employee edit permission remain read-only.
+
+#### Roles & Permissions
+
+- Roles Catalog remains the listing page. Create, View, and Edit use full-page role management routes: `#roles/new`, `#roles/:roleId`, and `#roles/:roleId/edit`; the legacy large Create/Edit/View Role modal is not an active path.
+- Full-page Role management uses compact Role Information, Summary, and Audit cards above a full-width Permission Matrix. The Matrix has dynamic All, Restaurant, Factory, People & HR, and System tabs, tab-local search, sticky header/module column, and read-only versus editable behavior without changing permission codes.
+- Factory tab classification follows canonical Factory Workspace module ownership, not a naive string match on permission codes.
+- `save_role_configuration` and `role_configuration_requests` provide transactional create/edit/duplicate/disable persistence, request fingerprinting, retry-safe IDs, permission/outlet delegation checks, and protected Owner/Admin policy. Role UUIDs are preserved on edit; create/duplicate uses a new UUID. Browser relation replacement CRUD and ordinary permission-catalog mutation are prohibited.
+- Hard delete stays a separate bounded path protected by reference/protected-role rules.
+
+### 19.7 Accepted P2 technical debt
+
+- Vite build output currently carries a large-chunk warning; do not code-split speculatively without measured need.
+- Trusted-authority domains may retain stale-editor last-write-wins behavior where explicitly documented (notably Factory Recipe/BOM and Roles).
+- Role permission changes may not propagate into already-active sessions until refresh/login; server authorization remains authoritative.
+- Product Analytics has accepted post-success read-sync warning behavior and client-side large-volume derivation performance debt.
+- Asset storage uploads can precede a failed lifecycle RPC and leave an orphaned object; database lifecycle writes remain atomic.
+- Import browser parsing/large-file row RPC volume remains a performance concern to address only with production evidence.
+- Historical compatibility fallbacks for employee identity remain only for migrated legacy rows; they must not become a new identity authority.
+
+### 19.8 Current development and release guardrails
+
+1. Start from `dev` for ordinary feature work; do not develop directly on `main`.
+2. Keep Production actions opt-in and explicitly confirm the Supabase/Vercel target immediately before mutation or deploy.
+3. Do not deploy a page separately from RPC/schema/Edge Function dependencies it requires.
+4. For a trusted lifecycle change, add service and mounted failure/retry coverage before broad regression; rejected UI submits must not produce false success or unhandled promise rejections.
+5. Before promotion, run the applicable focused suites, full suite, `npm run build`, and `git diff --check`; verify migration status with the intended linked project.
+6. Do not introduce direct browser multi-write equivalents of current RPC/Edge Function authorities, duplicate query ownership, duplicate refresh ownership, hardcoded role-name access checks, or unregistered route IDs.
+
+### 19.9 Crew Foundation — Phase A
+
+Crew is the third FeedX workspace. It is independent from Restaurant and Factory, and its employee-facing entry point is the mobile-first `#crew` experience; its Admin surfaces continue to use the desktop workspace shell.
+
+- `employees` remains the only Employee Master Record. Crew configuration is a one-to-one `crew_access.employee_id` extension; it does not modify or reinterpret Admin `role_id`, `auth_user_id`, `access_state`, or `last_login_at`.
+- Crew Access is mobile-number plus four-digit passcode. The server stores only `crypt(..., gen_salt('bf'))` hashes. It rejects common/repeated passcodes, never provides a view-passcode capability, and returns a generated or manually entered temporary passcode only once as part of enable/reset.
+- Crew mobile sessions are opaque, hashed server-side records (`crew_sessions`), expire after 14 days, and are revoked by disable/reset. Failed sign-ins are logged in `crew_login_attempts`; five failures in 15 minutes lock access for 15 minutes. Crew authentication and attendance remain protected RPCs and do not create a second Supabase Auth user.
+- `crew_attendance_records` is the Phase A authority for mobile clock in/out. Only one open shift per employee is allowed. Phase A.1 adds GPS evidence as defined below; Wi-Fi/QR/NFC validation, face recognition, payroll and OT calculations remain intentionally excluded.
+- Admin modules are `crew_dashboard`, `crew_employees`, and `crew_attendance`. The future Journey, Knowledge, Operations, Performance and Documents areas are not registered as fake functional pages in Phase A, but the Crew workspace and table design leave them available for later migrations.
+- The schema and UI are delivered as local `dev` work until the append-only migration has been reviewed and explicitly applied to the intended Supabase target.
+
+#### Phase A.1 — GPS Geofence
+
+- `outlets` is the attendance-location source of truth. `attendance_location_enabled` defaults to false, and no migration supplies coordinates. Enabling it requires configured latitude, longitude and an allowed radius between 25 and 2,000 metres.
+- `crew_attendance_records` preserves the raw GPS evidence for clock in/out: latitude, longitude, browser accuracy, Haversine distance, verification state, exception state, reason and verification method. The enabled V1 method is `gps`; Wi-Fi, QR, NFC, beacon and selfie remain reserved values only.
+- Clock in within an enabled geofence is verified server-side. Outside, unavailable, or denied location requires an explicit exception reason; it is recorded, not silently treated as verified. An enabled Outlet with missing coordinates returns a configuration error.
+- Clock out attempts a GPS capture but cannot leave a shift open solely because location is unavailable or outside the configured radius. The server records a location exception for admin review.
+- The original two-argument `crew_clock` overload is removed by the Phase A.1 migration. Every Crew request rechecks current active Crew Access, lock state and employment state, so disablement blocks existing opaque sessions in addition to revoking them.
+- Crew Access and Attendance Admin reads/actions use existing outlet-scope authority. Admin correction is not in scope; raw location evidence has no direct employee/admin update policy and cannot be silently overwritten. Crew access changes are audit logged without passcodes or hashes.
+- Crew members can change their own passcode only through an active Crew session and after supplying the current passcode. The server applies the same weak-passcode rules, revokes all prior Crew sessions, and returns a fresh opaque session; hashes are never returned.
+
+#### Phase A Security Hardening
+
+- `202608110003_crew_foundation_security_hardening.sql` is mandatory before Crew apply. It revokes default `PUBLIC EXECUTE` from all Crew helpers/RPCs, then grants only intended external boundaries: authenticated-only for Crew Access administration and explicit anon/authenticated execution for token-bound mobile RPCs. Internal employee/outlet, session, mobile-normalization, passcode-validation, and Haversine helpers have no direct client execute grant.
+- Expired Crew locks recover only inside `crew_authenticate`'s existing row-lock flow and only for otherwise active, non-terminated/non-resigned employees. A successful authentication starts a fresh failed-attempt window. Disabled access never auto-reactivates.
+- Authorized Admins can always disable/revoke Crew access for resigned or terminated employees; enable/reset remains prohibited for them.
+- GPS evidence constraints prohibit negative accuracy/distance, verified-plus-exception contradictions, and orphaned exception reasons. Valid historical nullable GPS evidence remains allowed.

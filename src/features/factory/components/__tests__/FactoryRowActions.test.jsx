@@ -70,7 +70,7 @@ describe("FactoryRowActions", () => {
     render(<FactoryRowActions primaryAction={{ label: "Verify", onClick: vi.fn() }} />);
 
     expect(screen.getByRole("button", { name: "Verify" }).className).toContain("btn-primary");
-    expect(styles).toContain(".data-table-scroll td .text-xs:not(button)");
+    expect(styles).toContain(".admin-data-table .admin-table-cell .text-xs:not(button)");
     expect(styles).toContain("text-white");
   });
 });

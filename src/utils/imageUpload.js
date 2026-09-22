@@ -9,6 +9,14 @@ const OPTIMIZED_MIME_TYPE = "image/webp";
 const OPTIMIZED_EXTENSION = "webp";
 const MAX_LONG_SIDE = 1920;
 const QUALITY = 0.8;
+export const ASSET_MASTER_PHOTO_VARIANTS = {
+  display: { width: 1200, height: 900, quality: 0.82 },
+  thumbnail: { width: 400, height: 300, quality: 0.78 },
+};
+const ASSET_MASTER_PHOTO_BACKGROUND = "#f4f5f4";
+export const ASSET_MASTER_PHOTO_ACCEPT = "image/jpeg,image/png,image/webp,image/heic,image/heif";
+export const ASSET_MASTER_PHOTO_MAX_BYTES = 25 * 1024 * 1024;
+const ASSET_MASTER_SOURCE_LONG_SIDE = 1920;
 
 export function imageExtensionFromName(name = "", fallback = "") {
   const extension = String(name || "").split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || fallback;
@@ -26,6 +34,26 @@ export function validateImageFile(file) {
   if (!file) throw new Error("Please select an image.");
   if (!isAllowedImageFile(file)) throw new Error("Please upload a JPG, PNG, or WebP image.");
   if (file.size > IMAGE_UPLOAD_MAX_BYTES) throw new Error(IMAGE_UPLOAD_LIMIT_MESSAGE);
+}
+
+export function validateAssetMasterPhotoFile(file) {
+  if (!file) throw new Error("Please select a photo.");
+  const type = String(file.type || "").toLowerCase();
+  const extension = imageExtensionFromName(file.name || "", type.split("/").pop() || "");
+  if (!isAllowedImageFile(file) && !["image/heic", "image/heif"].includes(type) && !["heic", "heif"].includes(extension)) {
+    throw new Error("Choose a JPG, PNG, WebP, HEIC, or HEIF photo.");
+  }
+  if (!file.size || file.size > ASSET_MASTER_PHOTO_MAX_BYTES) {
+    throw new Error("That photo is too large to prepare on this device. Choose a smaller photo and try again.");
+  }
+}
+
+export function validateLearningImageFile(file) {
+  if (!file) throw new Error("Please select an image.");
+  if (!IMAGE_UPLOAD_ALLOWED_EXTENSIONS.has(String(file.type || "").split("/").pop()?.toLowerCase())) {
+    throw new Error("Please upload a JPG, PNG, or WebP image.");
+  }
+  if (file.size <= 0 || file.size > IMAGE_UPLOAD_MAX_BYTES) throw new Error(IMAGE_UPLOAD_LIMIT_MESSAGE);
 }
 
 function loadImageFromObjectUrl(url) {
@@ -79,6 +107,112 @@ function canvasToBlob(canvas, contentType, quality) {
     }, contentType, quality);
   });
 }
+
+export function containedImageDimensions(sourceWidth, sourceHeight, canvasWidth, canvasHeight) {
+  if (!sourceWidth || !sourceHeight || !canvasWidth || !canvasHeight) {
+    throw new Error("Unable to read image dimensions.");
+  }
+  const scale = Math.min(canvasWidth / sourceWidth, canvasHeight / sourceHeight);
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  return {
+    width,
+    height,
+    x: Math.round((canvasWidth - width) / 2),
+    y: Math.round((canvasHeight - height) / 2),
+  };
+}
+
+async function containedVariant(decoded, { width, height, quality }) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Unable to normalize image. Please try another file.");
+  const bounds = containedImageDimensions(decoded.width, decoded.height, width, height);
+  context.fillStyle = ASSET_MASTER_PHOTO_BACKGROUND;
+  context.fillRect(0, 0, width, height);
+  context.drawImage(decoded.image, bounds.x, bounds.y, bounds.width, bounds.height);
+  const blob = await canvasToBlob(canvas, OPTIMIZED_MIME_TYPE, quality);
+  return { blob, width, height, contentType: OPTIMIZED_MIME_TYPE, extension: OPTIMIZED_EXTENSION };
+}
+
+function normalizedCrop(crop = {}) {
+  return {
+    zoom: Math.min(3, Math.max(1, Number(crop.zoom) || 1)),
+    x: Math.min(1, Math.max(-1, Number(crop.x) || 0)),
+    y: Math.min(1, Math.max(-1, Number(crop.y) || 0)),
+  };
+}
+
+function coveredImageDimensions(sourceWidth, sourceHeight, canvasWidth, canvasHeight, crop = {}) {
+  if (!sourceWidth || !sourceHeight || !canvasWidth || !canvasHeight) throw new Error("Unable to read image dimensions.");
+  const normalized = normalizedCrop(crop);
+  const scale = Math.max(canvasWidth / sourceWidth, canvasHeight / sourceHeight) * normalized.zoom;
+  const width = Math.max(1, Math.round(sourceWidth * scale));
+  const height = Math.max(1, Math.round(sourceHeight * scale));
+  const maxX = Math.max(0, width - canvasWidth);
+  const maxY = Math.max(0, height - canvasHeight);
+  return {
+    width, height,
+    x: Math.round(-maxX / 2 + (maxX / 2) * normalized.x),
+    y: Math.round(-maxY / 2 + (maxY / 2) * normalized.y),
+  };
+}
+
+async function coveredVariant(decoded, { width, height, quality }, crop) {
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Unable to normalize image. Please try another file.");
+  const bounds = coveredImageDimensions(decoded.width, decoded.height, width, height, crop);
+  context.fillStyle = ASSET_MASTER_PHOTO_BACKGROUND;
+  context.fillRect(0, 0, width, height);
+  context.drawImage(decoded.image, bounds.x, bounds.y, bounds.width, bounds.height);
+  const blob = await canvasToBlob(canvas, OPTIMIZED_MIME_TYPE, quality);
+  return { blob, width, height, contentType: OPTIMIZED_MIME_TYPE, extension: OPTIMIZED_EXTENSION };
+}
+
+// Asset master media keeps the supplied file intact and derives fixed 4:3
+// presentation variants. Inspection evidence continues through optimizeImageBlob.
+export async function normalizeAssetMasterPhoto(file, crop = {}) {
+  validateAssetMasterPhotoFile(file);
+  const decoded = await decodeImage(file);
+  try {
+    if (!decoded.width || !decoded.height) throw new Error("Unable to read image dimensions.");
+    const [display, thumbnail] = await Promise.all([
+      coveredVariant(decoded, ASSET_MASTER_PHOTO_VARIANTS.display, crop),
+      coveredVariant(decoded, ASSET_MASTER_PHOTO_VARIANTS.thumbnail, crop),
+    ]);
+    const sourceCanvas = document.createElement("canvas");
+    const scale = Math.min(1, ASSET_MASTER_SOURCE_LONG_SIDE / Math.max(decoded.width, decoded.height));
+    sourceCanvas.width = Math.max(1, Math.round(decoded.width * scale));
+    sourceCanvas.height = Math.max(1, Math.round(decoded.height * scale));
+    const sourceContext = sourceCanvas.getContext("2d");
+    if (!sourceContext) throw new Error("Unable to normalize image. Please try another file.");
+    sourceContext.drawImage(decoded.image, 0, 0, sourceCanvas.width, sourceCanvas.height);
+    const sourceBlob = await canvasToBlob(sourceCanvas, OPTIMIZED_MIME_TYPE, 0.86);
+    return {
+      original: {
+        blob: sourceBlob,
+        contentType: OPTIMIZED_MIME_TYPE,
+        extension: OPTIMIZED_EXTENSION,
+      },
+      display,
+      thumbnail,
+    };
+  } finally {
+    decoded.close();
+  }
+}
+
+export async function assetMasterPhotoPreview(file, crop = {}) {
+  const bundle = await normalizeAssetMasterPhoto(file, crop);
+  return URL.createObjectURL(bundle.display.blob);
+}
+
+export { coveredImageDimensions, normalizedCrop };
 
 async function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
@@ -202,4 +336,42 @@ export async function uploadOptimizedImage(fileOrBlob, { bucket, path, previousP
 export async function uploadOptimizedDataUrl(dataUrl, options) {
   const optimized = await dataUrlToOptimizedBlob(dataUrl);
   return uploadOptimizedImage(optimized.blob, options);
+}
+
+export async function uploadAssetMasterPhotoBundle(file, { bucket, pathPrefix, metadata = {}, crop = {} }) {
+  if (!bucket || !pathPrefix) throw new Error("Missing asset photo destination.");
+  const normalized = await normalizeAssetMasterPhoto(file, crop);
+  const paths = {
+    original: `${pathPrefix}/original.${normalized.original.extension}`,
+    display: `${pathPrefix}/display.webp`,
+    thumbnail: `${pathPrefix}/thumbnail.webp`,
+  };
+  const uploads = [
+    ["original", normalized.original],
+    ["display", normalized.display],
+    ["thumbnail", normalized.thumbnail],
+  ];
+  const completedPaths = [];
+  try {
+    for (const [kind, variant] of uploads) {
+      const { data, error } = await supabase.storage.from(bucket).upload(paths[kind], variant.blob, {
+        contentType: variant.contentType,
+        cacheControl: "31536000",
+        upsert: false,
+        metadata: { ...metadata, asset_photo_role: kind },
+      });
+      if (error) throw error;
+      completedPaths.push(data.path);
+    }
+  } catch (error) {
+    if (completedPaths.length) await supabase.storage.from(bucket).remove(completedPaths);
+    throw error;
+  }
+  const storage = supabase.storage.from(bucket);
+  return {
+    paths,
+    original_image_url: storage.getPublicUrl(paths.original).data.publicUrl,
+    image_url: storage.getPublicUrl(paths.display).data.publicUrl,
+    thumbnail_url: storage.getPublicUrl(paths.thumbnail).data.publicUrl,
+  };
 }

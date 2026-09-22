@@ -3,7 +3,7 @@ import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
 const selectFields = `
-  id,outlet_id,employee_id,roster_date,shift_template_id,start_time,end_time,break_minutes,status,remark,created_by,updated_by,created_at,updated_at,
+  id,outlet_id,employee_id,roster_date,shift_template_id,start_time,end_time,break_minutes,status,remark,source,approved_leave_id,created_by,updated_by,created_at,updated_at,
   employee_name_snapshot,position_snapshot,department_snapshot,outlet_snapshot,shift_snapshot,publish_timestamp,
   shift_template:shift_templates(id,outlet_id,name,code,start_time,end_time,break_minutes,shift_type,color),
   employee:employees(id,full_name,nickname,position,department,workplace,employee_code,employment_status,is_active)
@@ -38,6 +38,8 @@ function mapRoster(row) {
     break_minutes: Number(row.break_minutes ?? template?.break_minutes ?? 0),
     status: row.status ?? "draft",
     remark: row.remark ?? "",
+    source: row.source ?? "manual_roster",
+    approved_leave_id: row.approved_leave_id ?? null,
     template: template ? {
       id: template.id,
       name: template.name,
@@ -99,6 +101,14 @@ function buildPublishedPayload(status, snapshot) {
 }
 
 export const dutyRosterService = {
+  async listRosterEligibleEmployees(outletId) {
+    const { data, error } = await supabase.rpc("list_roster_eligible_employees", {
+      p_outlet_id: outletId,
+    });
+    throwSupabaseError("duty_rosters.list_eligible_employees", error);
+    return Array.isArray(data) ? data : [];
+  },
+
   async copyRosterWeek({ requestId, outletId, sourceWeekStartDate, targetWeekStartDate, overwrite }) {
     const { data, error } = await supabase.rpc("copy_roster_week", {
       p_request_id: requestId, p_outlet_id: outletId, p_source_week_start_date: sourceWeekStartDate,
@@ -140,23 +150,43 @@ export const dutyRosterService = {
       p_rows: payloadRows,
     });
     throwSupabaseError("duty_rosters.save_week_snapshot", error);
+    const requestedRows = new Map((rows ?? []).map((row) => [
+      `${row.employee_id}|${row.roster_date}`,
+      row,
+    ]));
+    const mappedRows = (data?.rows ?? []).map(mapRoster).map((row) => {
+      const requested = requestedRows.get(`${row.employee_id}|${row.roster_date}`);
+      const requestedTemplate = requested?.template;
+      if (!requestedTemplate || requestedTemplate.id !== row.shift_template_id) return row;
+      return {
+        ...row,
+        start_time: requested?.start_time ?? requestedTemplate.start_time ?? row.start_time,
+        end_time: requested?.end_time ?? requestedTemplate.end_time ?? row.end_time,
+        break_minutes: Number(requested?.break_minutes ?? requestedTemplate.break_minutes ?? row.break_minutes ?? 0),
+        template: {
+          id: requestedTemplate.id,
+          name: requestedTemplate.name,
+          code: requestedTemplate.code,
+          shift_type: requestedTemplate.shift_type,
+          color: requestedTemplate.color,
+        },
+      };
+    });
     return {
       period: data?.period ?? null,
-      rows: (data?.rows ?? []).map(mapRoster),
+      rows: mappedRows,
     };
   },
 
   async listDutyRosters(outletId, startDate, endDate) {
-    const { data, error } = await supabase
-      .from("duty_rosters")
-      .select(selectFields)
-      .eq("outlet_id", outletId)
-      .gte("roster_date", startDate)
-      .lte("roster_date", endDate)
-      .order("roster_date", { ascending: true });
+    const { data, error } = await supabase.rpc("list_duty_roster_read_model", {
+      p_outlet_id: outletId,
+      p_start_date: startDate,
+      p_end_date: endDate,
+    });
 
     throwSupabaseError("duty_rosters.list", error);
-    return (data ?? []).map(mapRoster);
+    return (Array.isArray(data) ? data : []).map(mapRoster);
   },
 
   async saveDutyRoster({ outletId, employeeId, rosterDate, template, status = "draft", remark = "" }) {

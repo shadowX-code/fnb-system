@@ -15,6 +15,10 @@ import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
 import { employeeService } from "../../../services/employeeService.js";
+import { employeeComplianceService } from "../../../services/employeeComplianceService.js";
+import EmployeeDisciplinaryPanel from "../components/EmployeeDisciplinaryPanel.jsx";
+import EmployeeEmploymentDocumentsPanel from "../components/EmployeeEmploymentDocumentsPanel.jsx";
+import { legalEntityService } from "../../../services/legalEntityService.js";
 import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
 import { normalizeEmployeeLoginEmail } from "../../../services/employeeIdentity.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
@@ -22,9 +26,12 @@ import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 import { canCreate, canEdit, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
+import { navigateAdminRoute } from "../../../app/routeOwnership.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
+const FACTORY_WORKPLACE = "Factory";
 const MANAGEMENT_WORKPLACE = "Management";
 const employmentTypeOptions = [
   { value: "probation", label: "Probation" },
@@ -48,6 +55,7 @@ function createEmptyUser() {
     email: "",
     contact: "",
     ic_no: "",
+    residential_address: "",
     gender: "",
     birthday: "",
     role: "",
@@ -57,6 +65,7 @@ function createEmptyUser() {
     outlet_access: [],
     employment_type: "probation",
     employment_status: "active",
+    legal_entity_id: "",
     access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS,
     enable_system_login: false,
     is_active: false,
@@ -293,7 +302,7 @@ function getRequiredUserFields(values) {
     employment_type: "Employment Type is required.",
     employment_status: "Employment Status is required.",
     position: "Position is required.",
-    workplace: "Work Place / Outlet is required.",
+    workplace: "Workplace is required.",
   };
   if (values.enable_system_login) {
     required.email = "Email is required.";
@@ -533,6 +542,58 @@ function EmailStatusBadge({ status }) {
   return <Badge tone={config.tone}>{config.label}</Badge>;
 }
 
+const complianceStatusCopy = { missing: "Missing", pending_verification: "Pending Verification", verified: "Verified", expiring_soon: "Expiring Soon", expired: "Expired", rejected: "Rejected" };
+const complianceStatusTone = { missing: "neutral", pending_verification: "warning", verified: "success", expiring_soon: "warning", expired: "danger", rejected: "danger" };
+
+function EmployeeCompliancePanel({ employeeId, canView, canReview, ui }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [reviewing, setReviewing] = useState(null);
+  const [reason, setReason] = useState("");
+  const [evidenceUrl, setEvidenceUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  async function load() {
+    if (!employeeId || !canView) return;
+    setLoading(true); setError("");
+    try { setData(await employeeComplianceService.adminDetail(employeeId)); }
+    catch (cause) { setError(cause.message || "Unable to load compliance records."); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { load(); }, [employeeId, canView]);
+  async function openEvidence(submissionId) {
+    setEvidenceUrl("");
+    try { setEvidenceUrl(await employeeComplianceService.adminEvidenceUrl(submissionId)); }
+    catch (cause) { ui?.notify?.({ title: "Unable to open evidence", message: cause.message, tone: "error" }); }
+  }
+  async function decide(decision) {
+    if (decision === "rejected" && !reason.trim()) { setError("Rejection reason is required."); return; }
+    setBusy(true); setError("");
+    try { await employeeComplianceService.review({ submissionId: reviewing.pending_submission_id, decision, rejectionReason: reason }); setReviewing(null); setReason(""); await load(); }
+    catch (cause) { setError(cause.message || "Unable to review submission."); }
+    finally { setBusy(false); }
+  }
+  if (!canView || !employeeId) return null;
+  return <>
+    <FormSection title="Food Handling Compliance" icon={ShieldCheck}>
+      {loading ? <p className="text-sm font-semibold text-text-muted">Loading food handling records…</p> : error && !data ? <div className="flex items-center justify-between gap-3 text-sm text-rose-700"><span>{error}</span><button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={load}>Retry</button></div> : <div className="space-y-3">
+        {(data?.current ?? []).map((item) => <div className="rounded-xl border border-border bg-surface px-4 py-3" key={item.requirement_code}>
+          <div className="flex flex-wrap items-start justify-between gap-2"><div><strong className="text-sm text-text-primary">{item.requirement_name}</strong>{item.effective_expiry_date ? <p className="mt-0.5 text-xs text-text-muted">Expires {formatDateForView(item.effective_expiry_date)}</p> : null}</div><Badge tone={complianceStatusTone[item.status]}>{complianceStatusCopy[item.status] || item.status}</Badge></div>
+          {item.rejection_reason ? <p className="mt-2 text-xs font-semibold text-rose-700">Rejected: {item.rejection_reason}</p> : null}
+          {item.replacement_pending ? <p className="mt-2 text-xs font-semibold text-emerald-700">Existing verified evidence remains effective while this replacement is pending.</p> : null}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {item.pending_submission_id ? <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => openEvidence(item.pending_submission_id)}><Eye size={14} /> Evidence</button> : item.effective_submission_id ? <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => openEvidence(item.effective_submission_id)}><Eye size={14} /> Evidence</button> : null}
+            {item.pending_submission_id && canReview ? <button className="btn-primary px-3 py-2 text-xs" type="button" onClick={() => { setReviewing(item); setReason(""); setError(""); }}>Review</button> : null}
+          </div>
+        </div>)}
+        {(data?.history ?? []).length ? <details className="rounded-xl border border-border bg-slate-50 px-4 py-3"><summary className="cursor-pointer text-sm font-bold text-text-primary">Food handling history ({data.history.length})</summary><div className="mt-3 divide-y divide-border">{data.history.map((event) => <div className="py-2 text-xs" key={event.submission_id}><div className="flex justify-between gap-3"><strong>{event.requirement_name}</strong><span className="text-text-muted">{formatDateTime(event.submitted_at)}</span></div><p className="mt-1 text-text-secondary">{event.decision ? titleCase(event.decision) : "Pending Verification"}{event.reviewer_name ? ` · by ${event.reviewer_name}` : ""}</p>{event.rejection_reason ? <p className="mt-1 text-rose-700">{event.rejection_reason}</p> : null}</div>)}</div></details> : null}
+      </div>}
+    </FormSection>
+    {evidenceUrl ? <Modal title="Private food handling evidence" onClose={() => setEvidenceUrl("")} footer={<button className="btn-secondary" type="button" onClick={() => setEvidenceUrl("")}>Close</button>}><img className="max-h-[64vh] w-full rounded-xl bg-slate-50 object-contain" src={evidenceUrl} alt="Food handling evidence" /></Modal> : null}
+    {reviewing ? <Modal title={`Review ${reviewing.requirement_name}`} description="Verify valid evidence or reject it with a clear reason." onClose={() => setReviewing(null)} footer={<><button className="btn-secondary text-rose-700" type="button" disabled={busy} onClick={() => decide("rejected")}>Reject</button><button className="btn-primary" type="button" disabled={busy} onClick={() => decide("verified")}>Verify</button></>}><label className="block"><span className="mb-1.5 block text-sm font-semibold">Rejection reason</span><textarea className="control min-h-24 w-full py-2" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Required when rejecting" /></label>{error ? <p className="mt-2 text-sm font-semibold text-rose-700">{error}</p> : null}</Modal> : null}
+  </>;
+}
+
 function UserFormModal({
   mode,
   initialUser,
@@ -551,6 +612,13 @@ function UserFormModal({
   canEnableLogin = false,
   canDeactivateEmployee = false,
   canResetPassword = false,
+  canViewCompliance = false,
+  canReviewCompliance = false,
+  canViewDisciplinary = false,
+  canManageDisciplinary = false,
+  canViewEmploymentDocuments = false,
+  canManageEmploymentDocuments = false,
+  legalEntities = [],
 }) {
   const [values, setValues] = useState(() => {
     const merged = { ...createEmptyUser(), ...initialUser };
@@ -594,6 +662,7 @@ function UserFormModal({
   const isMalaysia = isMalaysiaNationality(values.nationality);
   const activeJobPositions = jobPositions.filter((position) => position.status === "active");
   const selectedPosition = findJobPosition(jobPositions, values.position);
+  const selectedLegalEntity = legalEntities.find((entity) => entity.id === values.legal_entity_id);
   const hasBankInfo = Boolean(values.bank_name || values.bank_account_number || values.bank_account_name);
   const detectedIcBirthday = isMalaysia ? extractMalaysiaIcBirthday(values.ic_no) : null;
   const birthdayHelper = detectedIcBirthday
@@ -958,6 +1027,7 @@ function UserFormModal({
               <ReadOnlyField label="Gender">{values.gender}</ReadOnlyField>
               <ReadOnlyField label="Nationality">{values.nationality || "Malaysia"}</ReadOnlyField>
               <ReadOnlyField label={isMalaysia ? "IC No." : "Passport / ID No."}>{values.ic_no}</ReadOnlyField>
+              <ReadOnlyField label="Residential Address">{values.residential_address || "-"}</ReadOnlyField>
               <ReadOnlyField label="Birthday">{formatDateForView(values.birthday)}</ReadOnlyField>
               <ReadOnlyField label="Contact">{values.contact}</ReadOnlyField>
             </div>
@@ -998,6 +1068,9 @@ function UserFormModal({
                 placeholder={isMalaysia ? "123456-08-1234" : "Passport or foreign ID number"}
               />
             </FormField>
+            <FormField label="Residential Address" helper="Used for employment-document identity details when available.">
+              <textarea className={inputClass(visibleError("residential_address"))} value={values.residential_address || ""} onBlur={() => markTouched("residential_address")} onChange={(event) => updateValue("residential_address", event.target.value)} />
+            </FormField>
             <div>
               <DatePickerField label="Birthday" value={values.birthday} onChange={(value) => updateValue("birthday", value)} onBlur={() => markTouched("birthday")} error={visibleError("birthday")} helper={birthdayHelper} required yearFirst />
               {detectedIcBirthday && values.birthday && values.birthday !== detectedIcBirthday ? (
@@ -1024,11 +1097,12 @@ function UserFormModal({
             <div className="grid gap-3 md:grid-cols-2">
               <ReadOnlyField label="Employment Type">{employmentTypeLabel(values.employment_type)}</ReadOnlyField>
               <ReadOnlyField label="Employment Status">{employmentStatusLabel(values.employment_status)}</ReadOnlyField>
+              <ReadOnlyField label="Legal Employer">{selectedLegalEntity ? (selectedLegalEntity.display_name || selectedLegalEntity.legal_company_name) : "Not assigned"}</ReadOnlyField>
               <ReadOnlyField label="Position">
                 <span>{values.position || "-"}</span>
                 {selectedPosition?.status === "inactive" ? <span className="ml-2"><Badge tone="warning">Disabled</Badge></span> : null}
               </ReadOnlyField>
-              <ReadOnlyField label="Work Place / Outlet">{values.workplace || "Missing"}</ReadOnlyField>
+              <ReadOnlyField label="Workplace">{values.workplace || "Missing"}</ReadOnlyField>
               <ReadOnlyField label="Employee Code">{values.employee_code || "-"}</ReadOnlyField>
               <ReadOnlyField label="Joined Date">{formatDateForView(values.joined_date)}</ReadOnlyField>
               {isEndedEmployment ? <ReadOnlyField label={values.employment_status === "terminated" ? "Terminated Date" : "Resigned Date"}>{formatDateForView(values.resigned_date)}</ReadOnlyField> : null}
@@ -1052,6 +1126,9 @@ function UserFormModal({
                   onChange={(nextValue) => updateValue("employment_status", nextValue)}
                 />
               </FormField>
+              <FormField label="Legal Employer" helper="The employing company is distinct from the employee's workplace.">
+                <SelectField value={values.legal_entity_id || ""} placeholder="Not assigned" searchable options={[{ value: "", label: "Not assigned" }, ...legalEntities.filter((entity) => entity.is_active || entity.id === values.legal_entity_id).map((entity) => ({ value: entity.id, label: `${entity.display_name || entity.legal_company_name} · ${entity.company_registration_no}${entity.is_active ? "" : " (inactive)"}` }))]} onChange={(nextValue) => updateValue("legal_entity_id", nextValue)} />
+              </FormField>
             <FormField label="Position" required error={visibleError("position")} helper="Position is the employee HR title. Role controls system permissions.">
               <SelectField
                 value={values.position}
@@ -1065,10 +1142,10 @@ function UserFormModal({
                 onChange={(nextValue) => updateValue("position", nextValue)}
               />
             </FormField>
-            <FormField label="Work Place / Outlet" required error={visibleError("workplace")}>
+            <FormField label="Workplace" required error={visibleError("workplace")}>
               <SelectField
                 value={values.workplace}
-                placeholder="Select work place"
+                placeholder="Select workplace"
                 buttonClassName={visibleError("workplace") ? "border-rose-200" : ""}
                 searchable
                 options={workplaceOptions.map((workplace) => ({ value: workplace, label: workplace }))}
@@ -1179,7 +1256,20 @@ function UserFormModal({
                 {accessState === EMPLOYEE_ACCESS_STATE.ACTIVE ? (
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <ReadOnlyField label="Login Email">{values.email || "-"}</ReadOnlyField>
-                    <ReadOnlyField label="Role"><Badge tone={values.role ? "info" : "warning"}>{values.role || "No Role"}</Badge></ReadOnlyField>
+                    {canEditEmployee ? (
+                      <FormField label="Role" required error={visibleError("role")} helper="Role controls permissions and outlet scope. Outlet access updates from the selected role.">
+                        <SelectField
+                          value={values.role}
+                          placeholder="No Role"
+                          buttonClassName={visibleError("role") ? "border-rose-200" : ""}
+                          searchable
+                          options={roleOptions.map((role) => ({ value: role, label: role }))}
+                          onChange={updateRole}
+                        />
+                      </FormField>
+                    ) : (
+                      <ReadOnlyField label="Role"><Badge tone={values.role ? "info" : "warning"}>{values.role || "No Role"}</Badge></ReadOnlyField>
+                    )}
                     <ReadOnlyField label="Outlet Access">
                       <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
                     </ReadOnlyField>
@@ -1282,6 +1372,10 @@ function UserFormModal({
             </>
           )}
         </FormSection>
+
+        <EmployeeCompliancePanel employeeId={values.id} canView={canViewCompliance} canReview={canReviewCompliance} ui={ui} />
+        <EmployeeEmploymentDocumentsPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewEmploymentDocuments} canManage={canManageEmploymentDocuments} ui={ui} />
+        <EmployeeDisciplinaryPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewDisciplinary} canManage={canManageDisciplinary} ui={ui} />
       </div>
     </Modal>
   );
@@ -1291,6 +1385,7 @@ export default function UsersPage({ ui, store, auth }) {
   const [users, setUsers] = useState([]);
   const [jobPositions, setJobPositions] = useState([]);
   const [roleRecords, setRoleRecords] = useState([]);
+  const [legalEntities, setLegalEntities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [query, setQuery] = useState("");
@@ -1311,14 +1406,21 @@ export default function UsersPage({ ui, store, auth }) {
   const canDeactivateEmployee = hasPermission(auth, "employees.deactivate");
   const canEnableLogin = hasPermission(auth, "employees.enable_login");
   const canResetPassword = hasPermission(auth, "employees.reset_password");
+  const canViewCompliance = hasPermission(auth, "employee_compliance.view");
+  const canReviewCompliance = hasPermission(auth, "employee_compliance.review");
+  const canViewDisciplinary = hasPermission(auth, "employee_disciplinary.view");
+  const canManageDisciplinary = hasPermission(auth, "employee_disciplinary.manage");
+  const canViewLegalEntities = hasPermission(auth, "legal_entities.view");
+  const canViewEmploymentDocuments = hasPermission(auth, "employee_employment_documents.view");
+  const canManageEmploymentDocuments = hasPermission(auth, "employee_employment_documents.manage");
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
   const workplaceOptions = useMemo(
     () => {
       const accessibleOutlets = getAccessibleOutlets(auth, store?.outlets ?? []);
       const outletNames = accessibleOutlets.map((outlet) => outlet.name).filter(Boolean);
       const baseOptions = outletNames.length ? outletNames : fallbackWorkplaceOptions;
-      const managementOptions = hasAllOutletAccess(auth) ? [MANAGEMENT_WORKPLACE] : [];
-      return [...new Set([...managementOptions, ...baseOptions])];
+      const sharedWorkplaceOptions = hasAllOutletAccess(auth) ? [FACTORY_WORKPLACE, MANAGEMENT_WORKPLACE] : [];
+      return [...new Set([...sharedWorkplaceOptions, ...baseOptions])];
     },
     [auth, store?.outlets],
   );
@@ -1329,15 +1431,17 @@ export default function UsersPage({ ui, store, auth }) {
       setLoading(true);
       setLoadError("");
       try {
-        const [employeeRows, positionRows, roleRows] = await Promise.all([
+        const [employeeRows, positionRows, roleRows, legalEntityRows] = await Promise.all([
           employeeService.listEmployees(),
           jobPositionService.listJobPositions(),
           roleService.listRoleOptions(),
+          canViewLegalEntities ? legalEntityService.list() : Promise.resolve([]),
         ]);
         if (!ignore) {
           setUsers(employeeRows);
           setJobPositions(positionRows);
           setRoleRecords(roleRows);
+          setLegalEntities(legalEntityRows);
         }
       } catch (error) {
         console.error("Unable to load employees", error);
@@ -1350,7 +1454,7 @@ export default function UsersPage({ ui, store, auth }) {
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [canViewLegalEntities]);
 
   const roles = useMemo(() => [...new Set(users.map((user) => user.role).filter(Boolean))].sort(), [users]);
   const workplaces = useMemo(() => [...new Set(users.map((user) => user.workplace).filter(Boolean))].sort(), [users]);
@@ -1668,6 +1772,11 @@ export default function UsersPage({ ui, store, auth }) {
     );
   }
 
+  function renderCrewAccessAction(row) {
+    if (!hasPermission(auth, "crew_employees.view")) return null;
+    return <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setActionMenuUserId(null); navigateAdminRoute("crew_employees"); }}><ShieldCheck size={14} /> Manage Crew Access</button>;
+  }
+
   const columns = [
     {
       key: "employee",
@@ -1696,14 +1805,19 @@ export default function UsersPage({ ui, store, auth }) {
         );
       },
     },
-    { key: "workplace", header: "Work Place", render: (row) => row.workplace || <Badge tone="warning">Missing</Badge> },
+    { key: "workplace", header: "Workplace", render: (row) => row.workplace || <Badge tone="warning">Missing</Badge> },
     { key: "employment_type", header: "Employment Type", render: (row) => <Badge tone={employmentTypeTone(row.employment_type)}>{employmentTypeLabel(row.employment_type)}</Badge> },
     { key: "employment_status", header: "Employment Status", render: (row) => <Badge tone={employmentTone(row.employment_status)}>{employmentStatusLabel(row.employment_status)}</Badge> },
-    { key: "account", header: "Access State", render: (row) => {
+    { key: "account", header: "Admin Access", render: (row) => {
       const accessState = getAccessState(row);
-      return <Badge tone={accountTone(accessState)}>{accountLabel(accessState)}</Badge>;
+      return <div className="space-y-1"><Badge tone={accountTone(accessState)}>{accountLabel(accessState)}</Badge><div className="text-xs text-text-muted">{row.role || "No role"} · {formatDateTime(row.last_login_at)}</div></div>;
     } },
-    { key: "last_login", header: "Last Login", className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell", render: (row) => <span className="text-xs font-medium text-text-secondary">{formatDateTime(row.last_login_at)}</span> },
+    { key: "crew_access", header: "Crew Access", className: "hidden xl:table-cell", headerClassName: "hidden xl:table-cell", render: (row) => {
+      const access = row.crew_access;
+      const state = crewAccessState(access);
+      const tone = state === "active" ? "success" : state === "locked" ? "warning" : "neutral";
+      return <div className="space-y-1"><Badge tone={tone}>{CREW_ACCESS_STATE_LABEL[state]}</Badge><div className="text-xs text-text-muted">{access?.last_login_at ? `Last: ${formatDateTime(access.last_login_at)}` : access?.mobile_number || "—"}</div></div>;
+    } },
     {
       key: "action",
       header: "Actions",
@@ -1729,6 +1843,7 @@ export default function UsersPage({ ui, store, auth }) {
                 <Edit3 size={14} /> Edit
               </button> : null}
               {renderAccountActions(row)}
+              {renderCrewAccessAction(row)}
           </ActionMenu>
         </div>
       ),
@@ -1739,8 +1854,6 @@ export default function UsersPage({ ui, store, auth }) {
     title: "Employees",
     description: "Manage employee HR profiles, employment data, bank information, and optional system login access.",
     action: "Add Employee",
-    cardTitle: "Employee Directory",
-    cardDescription: "One employee profile contains HR data and optional system access. Not every employee needs a login.",
   };
 
   return (
@@ -1750,9 +1863,9 @@ export default function UsersPage({ ui, store, auth }) {
         title={pageCopy.title}
         description={pageCopy.description}
         actions={
-          canCreateEmployee ? <button className="btn-primary" type="button" onClick={() => setFormState({ mode: "add", user: createEmptyUser() })}>
-            <Plus size={16} /> {pageCopy.action}
-          </button> : <Badge tone="neutral">Read-only access</Badge>
+          <div className="flex flex-wrap gap-2">
+            {canCreateEmployee ? <button className="btn-primary" type="button" onClick={() => setFormState({ mode: "add", user: createEmptyUser() })}><Plus size={16} /> {pageCopy.action}</button> : <Badge tone="neutral">Read-only access</Badge>}
+          </div>
         }
       />
 
@@ -1779,10 +1892,10 @@ export default function UsersPage({ ui, store, auth }) {
             onApply={(nextValue) => setRoleFilter(nextValue || "all")}
           />
         </FieldLabel>
-        <FieldLabel label="Work Place">
+        <FieldLabel label="Workplace">
           <FilterPopover
             value={workplaceFilter === "all" ? "" : workplaceFilter}
-            placeholder="All Work Places"
+            placeholder="All Workplaces"
             className="min-w-44"
             options={workplaces.map((workplace) => ({ value: workplace, label: workplace }))}
             onApply={(nextValue) => setWorkplaceFilter(nextValue || "all")}
@@ -1829,7 +1942,7 @@ export default function UsersPage({ ui, store, auth }) {
         </div>
       </div>
 
-      <Card title={pageCopy.cardTitle} description={pageCopy.cardDescription}>
+      <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading employees...</div>
         ) : loadError ? (
@@ -1859,6 +1972,13 @@ export default function UsersPage({ ui, store, auth }) {
           canEnableLogin={canEnableLogin}
           canDeactivateEmployee={canDeactivateEmployee}
           canResetPassword={canResetPassword}
+          canViewCompliance={canViewCompliance}
+          canReviewCompliance={canReviewCompliance}
+          canViewDisciplinary={canViewDisciplinary}
+          canManageDisciplinary={canManageDisciplinary}
+          canViewEmploymentDocuments={canViewEmploymentDocuments}
+          canManageEmploymentDocuments={canManageEmploymentDocuments}
+          legalEntities={legalEntities}
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
@@ -1884,6 +2004,13 @@ export default function UsersPage({ ui, store, auth }) {
           canEnableLogin={canEnableLogin}
           canDeactivateEmployee={canDeactivateEmployee}
           canResetPassword={canResetPassword}
+          canViewCompliance={canViewCompliance}
+          canReviewCompliance={canReviewCompliance}
+          canViewDisciplinary={canViewDisciplinary}
+          canManageDisciplinary={canManageDisciplinary}
+          canViewEmploymentDocuments={canViewEmploymentDocuments}
+          canManageEmploymentDocuments={canManageEmploymentDocuments}
+          legalEntities={legalEntities}
           onClose={() => setFormState(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSubmit={saveUser}

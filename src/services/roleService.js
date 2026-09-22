@@ -4,6 +4,7 @@ import { throwSupabaseError } from "./supabaseError";
 import { isSupabaseUuid } from "./idUtils";
 import { enabledActions, getPermissionDefinitions, moduleRegistry, permissionCode } from "../../config/modules.ts";
 import { isProtectedRoleName } from "../auth/rbac.js";
+import { roleHasRestaurantPermissions } from "../features/company-users/utils/roleAccess.js";
 
 const registryPermissionCodes = moduleRegistry.flatMap((module) =>
   enabledActions(module).map((action) => permissionCode(module.id, action)),
@@ -60,8 +61,11 @@ function mapRole(row) {
   const selectedOutletIds = (row.role_outlets ?? []).map((item) => item.outlet_id).filter(Boolean);
   const storedModules = [...new Set((row.role_permissions ?? []).map((item) => item.permissions?.module).filter(Boolean))];
   const modules = isProtectedRole ? registryModuleLabels : storedModules;
+  const outletScopeApplicable = roleHasRestaurantPermissions(permissions);
   const outletAccessValue = String(row.outlet_access_type || row.outlet_access || "").toLowerCase();
-  const outletAccess = ["all", "all_outlets"].includes(outletAccessValue)
+  const outletAccess = !outletScopeApplicable
+    ? "none"
+    : ["all", "all_outlets"].includes(outletAccessValue)
     ? "all"
     : selectedOutletIds.length
       ? "selected"
@@ -73,6 +77,7 @@ function mapRole(row) {
     is_system_role: Boolean(row.is_system_role),
     is_active: Boolean(row.is_active),
     assignedUsers: Number(row.assigned_users ?? 0),
+    outletScopeApplicable,
     outletAccess,
     selectedOutletIds,
     permissions,
@@ -118,19 +123,22 @@ export const roleService = {
   },
 
   async saveRole(role) {
+    const permissionCodes = [...new Set((role.permissions ?? []).filter((code) => registryPermissionCodeSet.has(code)))];
+    const outletScopeApplicable = roleHasRestaurantPermissions(permissionCodes);
+    const outletAccess = outletScopeApplicable ? (role.outletAccess === "selected" ? "selected" : "all") : "none";
+    const selectedOutletIds = outletScopeApplicable && outletAccess === "selected" ? (role.selectedOutletIds ?? []) : [];
     const payload = {
       ...(isSupabaseUuid(role.id) ? { id: role.id } : {}),
       name: role.name.trim().toLowerCase().replace(/\s+/g, "_"),
       description: role.description ?? "",
       is_active: role.is_active !== false,
-      outlet_access_type: role.outletAccess === "selected" ? "selected" : "all",
+      outlet_access_type: outletAccess,
     };
     const isUpdate = isSupabaseUuid(role.id);
-    const permissionCodes = [...new Set((role.permissions ?? []).filter((code) => registryPermissionCodeSet.has(code)))];
     const requestId = role.requestId || crypto.randomUUID();
     const { data, error } = await supabase.rpc("save_role_configuration", {
       p_request_id: requestId, p_role: payload, p_permission_codes: permissionCodes,
-      p_outlet_ids: role.outletAccess === "selected" ? (role.selectedOutletIds ?? []) : [],
+      p_outlet_ids: selectedOutletIds,
     });
     throwSupabaseError("roles.save_configuration", error);
     const savedRole = data?.role ?? data;
@@ -140,15 +148,16 @@ export const roleService = {
       module: "access-control",
       target: savedRole.name,
       description: isUpdate ? "Role updated." : "Role created.",
-      after: { ...savedRole, permissions: permissionCodes, outletAccess: role.outletAccess, selectedOutletIds: role.selectedOutletIds ?? [] },
+      after: { ...savedRole, permissions: permissionCodes, outletAccess, selectedOutletIds },
     }).catch(() => {});
 
     return {
       ...savedRole,
       permissions: data?.permissions ?? permissionCodes,
       modules: [],
-      outletAccess: role.outletAccess,
-      selectedOutletIds: data?.outlet_ids ?? (role.selectedOutletIds ?? []),
+      outletScopeApplicable,
+      outletAccess,
+      selectedOutletIds: data?.outlet_ids ?? selectedOutletIds,
       assignedUsers: role.assignedUsers ?? 0,
       updatedAt: new Date().toISOString(),
       updatedBy: "Current User",

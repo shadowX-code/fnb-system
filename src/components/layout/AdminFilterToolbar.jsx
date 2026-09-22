@@ -1,13 +1,19 @@
 import { Children, Fragment, isValidElement, useState } from "react";
 import { SlidersHorizontal, X } from "lucide-react";
 import ActionMenu from "../ui/ActionMenu.jsx";
+import SelectField from "../forms/SelectField.jsx";
+
+export function AdminOutletField({ value, onChange, options = [], allowAll = false, allValue = "all", ariaLabel = "Outlet" }) {
+  const outletOptions = allowAll ? [{ value: allValue, label: "All" }, ...options] : options;
+  return <SelectField label="Outlet" ariaLabel={ariaLabel} value={value} onChange={onChange} options={outletOptions} />;
+}
 
 function labelForField(field) {
   return String(isValidElement(field) ? field.props.label || field.props["aria-label"] || "" : "").toLowerCase();
 }
 
 function roleForField(field) {
-  const declaredRole = isValidElement(field) ? field.type?.adminFilterRole : null;
+  const declaredRole = isValidElement(field) ? field.props.adminFilterRole || field.type?.adminFilterRole : null;
   if (declaredRole) return declaredRole;
   const label = labelForField(field);
   if (label.includes("date range")) return "date-range";
@@ -17,6 +23,7 @@ function roleForField(field) {
 
 function widthForField(field) {
   const role = roleForField(field);
+  if (role === "date-range-navigation") return "w-full sm:w-[320px]";
   if (role === "date-range") return "w-full sm:w-[220px]";
   return "w-full sm:w-[180px]";
 }
@@ -46,6 +53,7 @@ export default function AdminFilterToolbar({
   secondaryActions,
   primaryActions,
   sortChildren = false,
+  compact = false,
   className = "",
   ariaLabel = "Filters",
 }) {
@@ -59,7 +67,7 @@ export default function AdminFilterToolbar({
   ].filter(Boolean);
 
   return (
-    <section className={`admin-filter-toolbar rounded-lg border border-border bg-surface/80 shadow-sm ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar>
+    <section className={`admin-filter-toolbar rounded-lg border border-border bg-surface/80 shadow-sm ${compact ? "admin-filter-toolbar-compact" : ""} ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar>
       <div className="admin-filter-toolbar-row flex flex-wrap items-end">
         <div className="flex min-w-0 flex-[1_1_640px] flex-wrap items-end" data-admin-filter-fields>
           {fields.map(({ field, slot, role, width }, index) => <div className={`${width} ${role === "search" ? "min-w-0" : "min-w-0 shrink-0"} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{field}</div>)}

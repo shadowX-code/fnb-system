@@ -37,6 +37,7 @@ import { purchaseRecordService } from "../../../services/purchaseRecordService.j
 import { salesRecordService } from "../../../services/salesRecordService.js";
 import { auditLogService } from "../../../services/auditLogService.js";
 import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
+import { resolveAdminLocation } from "../../../app/routeOwnership.js";
 
 const statusTone = {
   normal: "success",
@@ -481,8 +482,8 @@ export default function PurchaseComparisonPage({ store, setStore, ui, auth }) {
   const [viewMode, setViewMode] = useState("Supplier");
   const [compareWith, setCompareWith] = useState("3-Month Average");
   const [query, setQuery] = useState(() => {
-    const params = new URLSearchParams(window.location.hash.split("?")[1] || "");
-    return params.get("supplier") ?? "";
+    const route = resolveAdminLocation(window.location);
+    return route?.routeId === "purchase-comparison" ? route.query.supplier ?? "" : "";
   });
   const [abnormalOnly, setAbnormalOnly] = useState(false);
   const [showInactiveSuppliers, setShowInactiveSuppliers] = useState(false);

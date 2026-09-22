@@ -1,0 +1,401 @@
+/* Home owns operational presentation. It deliberately uses the shared Crew
+   tokens rather than a separate visual system. */
+.crew-v2-home { width: 100%; min-width: 0; color: var(--crew-color-text); }
+
+.crew-v2-home-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 2px 2px 14px; }
+.crew-v2-home-header > div:first-child { min-width: 0; }
+.crew-v2-home-header p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); font-weight: 600; line-height: 1.35; }
+.crew-v2-home-header h1 { display: flex; align-items: center; gap: 6px; margin: 2px 0 4px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-page-title); font-weight: 700; line-height: 1.12; letter-spacing: -.035em; }
+.crew-v2-home-header h1 svg { width: 19px; height: 19px; color: var(--crew-color-cyan); stroke-width: 2.1; }
+.crew-v2-home-header h1 .crew-home-shift-status-icon { width: 18px; height: 18px; color: var(--crew-color-text-secondary); stroke-width: 2; }
+.crew-v2-home-header small { display: block; overflow: hidden; max-width: 250px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.crew-v2-home-header > div:last-child { display: flex; flex: 0 0 auto; align-items: center; gap: 9px; }
+.crew-v2-home-header > div:last-child button { position: relative; display: grid; width: 38px; height: 38px; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: var(--crew-color-surface); color: var(--crew-color-deep-teal); }
+.crew-v2-home-header .crew-home-notifications .crew-ui-count { position: absolute; top: -4px; right: -4px; min-width: 18px; min-height: 18px; border: 2px solid var(--crew-color-surface); padding: 1px 4px; font-size: 10px; }
+
+/* Home signature clock: the supplied Mint artwork is the only decorative background. */
+.crew-v2-home .crew-home-attendance { display: block; width: 100%; min-width: 0; overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-focus); background: var(--crew-color-surface); box-shadow: var(--crew-shadow-focus); }
+.crew-home-attendance-main { position: relative; display: grid; min-height: 202px; grid-template-columns: minmax(0, 1fr) 146px; align-items: stretch; overflow: hidden; background: var(--crew-color-surface); color: var(--crew-color-deep-teal); isolation: isolate; }
+.crew-home-attendance-art { position: absolute; z-index: 0; width: 100%; height: 100%; inset: 0; object-fit: cover; object-position: 64% 50%; pointer-events: none; }
+.crew-home-attendance-copy { position: relative; z-index: 1; display: flex; min-width: 0; flex-direction: column; align-items: flex-start; justify-content: center; gap: 7px; padding: 18px 8px 18px 18px; }
+.crew-home-attendance-copy > .crew-ui-status { background: color-mix(in srgb, var(--crew-color-success-surface) 76%, var(--crew-color-surface)); color: var(--crew-color-success); }
+.crew-home-ready-row { display: grid; width: 100%; gap: 7px; }
+.crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { display: flex; align-items: baseline; gap: 3px; margin: 0; color: var(--crew-color-deep-teal); font-size: 40px; font-weight: 700; line-height: .96; letter-spacing: -.045em; white-space: nowrap; }
+.crew-home-current-time b { color: var(--crew-color-deep-teal); font-size: var(--crew-type-row-title); letter-spacing: 0; }
+.crew-home-ready-context { display: grid; min-width: 0; gap: 5px; }
+.crew-home-ready-context b { color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; white-space: nowrap; }
+.crew-home-ready-context small, .crew-home-attendance-copy > p { display: flex; min-width: 0; align-items: center; gap: 5px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); line-height: 1.3; }
+.crew-home-ready-context small span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.crew-home-attendance-copy > p { margin-top: 2px; }
+.crew-home-attendance-copy dl { display: flex; gap: 12px; margin: 0; }
+.crew-home-attendance-copy dl div { display: grid; gap: 2px; }
+.crew-home-attendance-copy dt { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); }
+.crew-home-attendance-copy dd { margin: 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 650; }
+.crew-home-clock-zone { position: relative; z-index: 1; display: grid; min-width: 0; block-size: 202px; box-sizing: border-box; grid-template-columns: minmax(0, 1fr); grid-template-rows: 100px minmax(18px, auto); align-content: center; justify-items: center; gap: 9px; padding: 16px 10px 7px 0; transform: translate(-5px, 3px); }
+.crew-home-clock-halo { position: absolute; top: calc(50% - 72.5px); left: calc(50% - 67px); width: 130px; aspect-ratio: 1; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 38%, transparent); opacity: .24; pointer-events: none; transform-origin: 50% 50%; }
+.crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { position: absolute; top: calc(50% - 65.5px); left: calc(50% - 60px); width: 116px; aspect-ratio: 1; border-radius: 50%; pointer-events: none; transform-origin: 50% 50%; will-change: transform, opacity; }
+.crew-home-clock-semantic-ring { border: 1.5px solid color-mix(in srgb, var(--crew-color-mist-mint) 78%, var(--crew-color-deep-teal)); opacity: .48; }
+.crew-home-clock-orbit-highlight { overflow: visible; fill: none; opacity: .78; transform: rotate(0deg); }
+.crew-home-clock-orbit-trail { fill: none; stroke: url(#crew-home-clock-energy-trail); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 56 315; }
+.crew-home-clock-orbit-leading-edge { fill: var(--crew-color-cyan); opacity: .42; }
+.crew-home-clock-action, .crew-home-complete-ring { position: absolute; z-index: 1; top: calc(50% - 57.5px); left: calc(50% - 52px); display: grid; width: 100px; max-width: calc(100% - 16px); aspect-ratio: 1; place-items: center; border: 1px solid var(--crew-color-border); border-radius: 50%; background: color-mix(in srgb, var(--crew-color-surface) 88%, transparent); padding: 10px; color: var(--crew-color-deep-teal); transform-origin: 50% 50%; box-shadow: 0 3px 8px color-mix(in srgb, var(--crew-color-deep-teal) 6%, transparent); }
+.crew-home-clock-rings { display: none; }
+.crew-home-clock-action > span, .crew-home-complete-ring > span { display: grid; min-width: 0; max-width: 100%; place-items: center; gap: 3px; text-align: center; }
+.crew-home-clock-action svg { width: 25px; height: 25px; }
+.crew-home-clock-action strong, .crew-home-complete-ring strong { color: var(--crew-color-deep-teal); font-size: var(--crew-type-status); font-weight: 700; line-height: 1.05; text-transform: uppercase; overflow-wrap: anywhere; }
+.crew-home-clock-action small, .crew-home-complete-ring small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); font-weight: 550; line-height: 1.15; }
+.crew-home-clock-action:disabled { opacity: .72; }
+.crew-home-clock-action:focus-visible { outline: 3px solid color-mix(in srgb, var(--crew-color-deep-teal) 28%, transparent); outline-offset: 4px; }
+.crew-home-clock-zone.is-confirmed .crew-home-clock-semantic-ring, .crew-home-attendance.is-completed .crew-home-clock-semantic-ring { border-color: var(--crew-color-success); opacity: .72; }
+.crew-home-attendance.is-completed .crew-home-clock-halo { background: var(--crew-color-success-surface); }
+.crew-home-complete-ring { background: color-mix(in srgb, var(--crew-color-success-surface) 62%, var(--crew-color-surface)); box-shadow: none; }
+.crew-home-attendance.is-completed .crew-home-clock-orbit-highlight { opacity: .34; }
+.crew-home-gps { position: absolute; z-index: 1; top: calc(50% + 51.5px); left: calc(50% - 2px); display: flex; width: max-content; max-width: 100%; align-items: flex-start; justify-content: center; gap: 4px; margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-badge); font-style: normal; line-height: 1.25; text-align: center; transform: translateX(-50%); }
+.crew-home-gps span { white-space: nowrap; }
+.crew-home-gps.is-exception { color: var(--crew-color-warning); }
+.crew-home-attendance-copy > .crew-home-location-exception { display: flex; width: 100%; min-width: 0; align-items: flex-start; gap: 4px; margin-top: 2px; color: var(--crew-color-warning); font-size: var(--crew-type-badge); font-style: normal; font-weight: 650; line-height: 1.3; text-align: left; }
+.crew-home-location-exception svg { flex: 0 0 auto; margin-top: 1px; }
+.crew-home-location-exception span { min-width: 0; overflow-wrap: anywhere; }
+.crew-home-attendance-footer { display: grid; width: 100%; min-height: 70px; grid-template-columns: 36px minmax(0, 1fr) auto; grid-template-areas: "icon label action" "icon time time"; align-items: center; gap: 3px 9px; border: 0; border-top: 1px solid color-mix(in srgb, var(--crew-color-divider) 64%, transparent); background: color-mix(in srgb, var(--crew-color-surface) 86%, var(--crew-color-mist-mint)); padding: 10px 14px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-home-attendance-footer > .crew-ui-icon-container { grid-area: icon; }
+.crew-home-attendance-footer small { grid-area: label; min-width: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
+.crew-home-attendance-footer strong { grid-area: time; color: var(--crew-color-deep-teal); font-size: var(--crew-type-body); font-weight: 650; line-height: 1.2; white-space: nowrap; }
+.crew-home-attendance-footer em { display: flex; grid-area: action; align-items: center; justify-self: end; gap: 2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-style: normal; font-weight: 650; white-space: nowrap; }
+
+.crew-v2-home .crew-v2-home-section { margin-top: 18px; }
+.crew-v2-home .crew-ui-section-head { min-height: 26px; margin: 0 4px 8px; }
+.crew-v2-home .crew-ui-section-head h2 { color: var(--crew-color-deep-teal); font-size: var(--crew-type-section-title); font-weight: 650; }
+.crew-v2-home .crew-ui-section-head h2 > span { display: grid; min-width: 22px; height: 22px; place-items: center; border-radius: 999px; background: color-mix(in srgb, var(--crew-color-mist-mint) 38%, var(--crew-color-surface)); color: var(--crew-color-deep-teal); font-size: var(--crew-type-badge); }
+.crew-v2-home .crew-ui-section-head > button { border: 0; background: transparent; padding: 4px 0; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-weight: 600; }
+.crew-home-list { overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); }
+.crew-home-tasks .crew-ui-section-head { gap: 8px; }
+.crew-home-tasks .crew-home-list { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.crew-home-tasks .crew-home-task-count { position: relative; isolation: isolate; }
+.crew-home-tasks .crew-home-task-count.is-alert { background: color-mix(in srgb, var(--crew-color-danger) 12%, var(--crew-color-surface)); color: var(--crew-color-danger); }
+.crew-home-tasks .crew-home-task-count.is-alert::after { position: absolute; z-index: -1; inset: -3px; border-radius: inherit; background: color-mix(in srgb, var(--crew-color-danger) 28%, transparent); content: ""; opacity: .1; transform: scale(.92); animation: crew-home-task-reminder 2s ease-in-out infinite; }
+@keyframes crew-home-task-reminder { 0%, 100% { opacity: .08; transform: scale(.92); } 50% { opacity: .28; transform: scale(1.13); } }
+@media (prefers-reduced-motion: reduce) {
+  .crew-home-tasks .crew-home-task-count.is-alert::after { animation: none; opacity: .16; transform: none; }
+}
+.crew-home-task, .crew-home-schedule-row { display: grid; width: 100%; min-width: 0; min-height: 64px; grid-template-columns: 34px minmax(0, 1fr) auto 16px; align-items: center; gap: 9px; border: 0; border-bottom: 1px solid var(--crew-color-divider); background: var(--crew-color-surface); padding: 9px 11px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-home-task:last-child, .crew-home-schedule-row:last-child { border-bottom: 0; }
+.crew-home-task { min-height: var(--crew-mobile-row-min); grid-template-columns: 30px minmax(0, 1fr) auto 16px; gap: 8px; border-radius: 0; background: transparent; padding: 8px 4px; box-shadow: none; }
+.crew-home-task-copy { display: grid; min-width: 0; gap: 2px; }
+.crew-home-schedule-row > span { display: grid; min-width: 0; gap: 3px; }
+.crew-home-task strong { color: var(--crew-color-deep-teal); overflow-wrap: anywhere; }
+.crew-home-schedule-row strong { display: -webkit-box; overflow: hidden; color: var(--crew-color-deep-teal); font-size: var(--crew-type-list-primary); font-weight: 600; line-height: 1.3; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.crew-home-task small, .crew-home-schedule-row small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-list-secondary); line-height: 1.32; }
+.crew-home-task .crew-home-task-meta { display: grid; grid-template-columns: minmax(0, max-content); grid-template-rows: repeat(2, auto); gap: 2px; overflow: visible; color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); line-height: 1.32; text-overflow: clip; white-space: normal; }
+.crew-home-task .crew-home-task-progress { color: var(--crew-color-text-secondary); }
+.crew-home-task .crew-home-task-due { display: inline-flex; grid-row: 2; width: fit-content; align-items: center; gap: 4px; color: var(--crew-color-text-secondary); }
+.crew-home-task .crew-home-task-due svg { width: 13px; height: 13px; flex: 0 0 auto; color: var(--crew-color-cyan); }
+.crew-home-task .crew-home-task-due b { color: var(--crew-color-cyan); font-weight: 700; }
+.crew-home-task .crew-home-task-due.is-overdue, .crew-home-task .crew-home-task-due.is-overdue span, .crew-home-task .crew-home-task-due.is-overdue b, .crew-home-task .crew-home-task-due.is-overdue svg { color: var(--crew-color-danger); }
+.crew-home-task > em { max-width: 100px; overflow: hidden; border-radius: 999px; background: var(--crew-color-warning-surface); padding: 4px 7px; color: var(--crew-color-warning); font-size: var(--crew-type-list-status); font-style: normal; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.crew-home-task.is-completed > em { background: var(--crew-color-success-surface); color: var(--crew-color-success); }
+.crew-home-task.is-overdue > em, .crew-home-task.is-exception > em { background: var(--crew-color-danger-surface); color: var(--crew-color-danger); }
+.crew-home-task > svg, .crew-home-schedule-row > svg { width: 16px; height: 16px; color: var(--crew-color-text-muted); }
+.crew-home-empty { display: flex; min-height: 62px; align-items: center; gap: 10px; padding: 11px 13px; color: var(--crew-color-deep-teal); }.crew-home-empty > span { display: grid; gap: 2px; }.crew-home-empty strong { font-size: var(--crew-type-row-title); }.crew-home-empty small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
+
+@media (max-width: 374px) {
+  .crew-home-attendance-main { min-height: 192px; grid-template-columns: minmax(0, 1fr) 126px; }
+  .crew-home-attendance-copy { padding-left: 14px; }
+  .crew-home-current-time, .crew-home-attendance-copy > .crew-home-attendance-metric > .crew-home-worked { font-size: 34px; }
+  .crew-home-clock-zone { block-size: 192px; grid-template-rows: 89px 15px; padding-top: 13px; transform: translate(-3px, 2px); }
+  .crew-home-clock-halo { top: calc(50% - 66px); left: calc(50% - 59.5px); width: 117px; }
+  .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { top: calc(50% - 60px); left: calc(50% - 54.5px); width: 105px; }
+  .crew-home-clock-action, .crew-home-complete-ring { top: calc(50% - 52px); left: calc(50% - 46.5px); width: 89px; }
+  .crew-home-gps { top: calc(50% + 49px); left: calc(50% - 1px); }
+  .crew-home-attendance-footer em { font-size: var(--crew-type-badge); }
+}
+
+@media (prefers-reduced-motion: reduce) { .crew-home-clock-action { transition: none; } .crew-home-clock-halo, .crew-home-clock-semantic-ring, .crew-home-clock-orbit-highlight { will-change: auto; } }
+
+
+/* Route residue migrated from CrewMobileApp.css. */
+.crew-v2-home-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0 2px 15px;
+
+}
+
+.crew-v2-home-header > div:first-child {
+  display: grid;
+  justify-items: start;
+
+}
+
+.crew-v2-home-header p {
+  margin: 0;
+  color: var(--crew-color-text);
+  font-size:var(--crew-type-helper);
+  font-weight: 720;
+
+}
+
+.crew-v2-home-header h1 {
+  margin: 4px 0 6px;
+  color: var(--crew-v2-navy);
+  font-size: 25px;
+  line-height: 1.05;
+  letter-spacing: -.035em;
+
+}
+
+.crew-v2-home-header h1 {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+}
+
+.crew-v2-home-header h1 svg {
+  color: var(--crew-v2-green);
+
+}
+
+.crew-v2-home-header small {
+  margin-top: 4px;
+  color: var(--crew-color-text-secondary);
+  font-size:var(--crew-type-helper);
+  font-weight: 620;
+
+}
+
+.crew-v2-home-header > div:last-child {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+}
+
+.crew-v2-home-header > div:last-child button {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: var(--crew-color-mineral);
+  color: var(--crew-color-text);
+
+}
+
+.crew-v2-avatar {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 3px solid var(--crew-color-border);
+  border-radius: 50%;
+  background: var(--crew-color-icon-default-bg);
+  color: var(--crew-v2-green-dark);
+  font-size: 18px;
+  font-weight: 850;
+
+}
+
+.crew-v2-avatar.is-large {
+  width: 60px;
+  height: 60px;
+  border-color: rgb(255 255 255 / .7);
+  background: var(--crew-color-surface);
+  font-size: 22px;
+
+}
+
+.crew-v2-home-section {
+  margin-top: 21px;
+
+}
+
+.crew-v2-home-header{
+  padding:5px 0 18px
+}
+
+.crew-v2-home-header p{
+  font-size:13px
+}
+
+.crew-v2-home-header h1{
+  margin:4px 0 7px;
+  font-size:25px
+}
+
+.crew-v2-home-header small{
+  margin:0;
+  font-size:var(--crew-type-helper)
+}
+
+.crew-v2-avatar{
+  width:42px;
+  height:42px;
+  border-width:2px;
+  font-size:16px
+}
+
+.crew-v2-home-header > div:last-child button.crew-home-theme-toggle {
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--crew-color-deep-teal);
+}
+
+.crew-v2-home-header .crew-home-theme-toggle:hover {
+  background: transparent;
+  color: var(--crew-color-cyan);
+}
+
+.crew-v2-home-header .crew-home-theme-toggle:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--crew-color-cyan) 45%, transparent);
+  outline-offset: 2px;
+}
+
+.crew-v2-home{
+  min-width:0
+}
+
+.crew-home-list{
+  overflow:hidden;
+  border:1px solid var(--crew-v2-border);
+  border-radius:16px;
+  background:var(--crew-color-surface);
+  box-shadow:0 5px 15px rgb(17 29 61/.055)
+}
+
+.crew-home-schedule-row{
+  display:grid;
+  width:100%;
+  min-width:0;
+  min-height:66px;
+  align-items:center;
+  gap:9px;
+  border:0;
+  border-bottom:1px solid var(--crew-color-divider);
+  background:var(--crew-color-surface);
+  padding:11px 12px;
+  color:var(--crew-v2-navy);
+  text-align:left
+}
+
+.crew-home-schedule-row:last-child{
+  border-bottom:0
+}
+
+.crew-home-schedule-row>.crew-ui-icon-container{
+  width:36px;
+  height:36px;
+  border-radius:50%;
+  font-style:normal
+}
+
+.crew-home-schedule-row>span{
+  display:grid;
+  min-width:0;
+  gap:3px
+}
+
+.crew-home-schedule-row strong{
+  overflow:hidden;
+  font-size:var(--crew-type-helper);
+  text-overflow:ellipsis;
+  white-space:nowrap
+}
+
+.crew-home-schedule-row small{
+  overflow:hidden;
+  color:var(--crew-color-text-secondary);
+  font-size:var(--crew-type-helper);
+  line-height:1.35;
+  text-overflow:ellipsis;
+  white-space:nowrap
+}
+
+.crew-home-schedule-row>svg{
+  color:var(--crew-color-text-muted)
+}
+
+.crew-home-empty{
+  display:flex;
+  min-height:66px;
+  align-items:center;
+  gap:10px;
+  padding:12px 14px;
+  color:var(--crew-color-success)
+}
+
+.crew-home-empty>span{
+  display:grid;
+  gap:3px
+}
+
+.crew-home-empty strong{
+  color:var(--crew-v2-navy);
+  font-size:var(--crew-type-helper)
+}
+
+.crew-home-empty small{
+  color:var(--crew-color-text-secondary);
+  font-size:var(--crew-type-helper)
+}
+
+.crew-clock-confirm-sheet { width: min(100%, 460px); }
+.crew-clock-confirm-content { display: grid; gap: 14px; }
+.crew-clock-location-callout { display: flex; align-items: flex-start; gap: 9px; border-radius: var(--crew-radius-control); padding: 11px 12px; font-size: var(--crew-type-helper); line-height: 1.4; }
+.crew-clock-location-callout > svg { flex: 0 0 auto; margin-top: 1px; }
+.crew-clock-location-callout > span { display: grid; min-width: 0; gap: 2px; }
+.crew-clock-location-callout strong { color: inherit; font-weight: 650; }
+.crew-clock-location-callout small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); }
+.crew-clock-location-callout.is-verified { background: var(--crew-color-success-surface); color: var(--crew-color-success); }
+.crew-clock-location-callout.is-warning { background: color-mix(in srgb, var(--crew-color-warning) 10%, var(--crew-color-surface)); color: var(--crew-color-warning); }
+.crew-clock-reason-field,.crew-clock-other-reason { display: grid; gap: 6px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-label); font-weight: 650; }
+.crew-clock-reason-field > button { display: flex; min-height: 44px; align-items: center; justify-content: space-between; gap: 12px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: color-mix(in srgb, var(--crew-color-mist-mint) 28%, var(--crew-color-surface)); padding: 10px 12px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-clock-reason-field > button strong { min-width: 0; overflow: hidden; font: inherit; text-overflow: ellipsis; white-space: nowrap; }
+.crew-clock-reason-field > button > svg { flex: 0 0 auto; color: var(--crew-color-text-secondary); }
+.crew-clock-reason-field > button:focus-visible,.crew-clock-other-reason input:focus-visible { border-color: var(--crew-color-cyan); outline: 2px solid color-mix(in srgb, var(--crew-color-cyan) 24%, transparent); outline-offset: 1px; }
+.crew-clock-other-reason input { min-height: 44px; box-sizing: border-box; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 10px 12px; color: var(--crew-color-deep-teal); font: inherit; font-size: var(--crew-type-input); }
+.crew-clock-reason-sheet { width: min(100%, 460px); }
+.crew-clock-reason-sheet-content { padding-top: 0; }
+.crew-clock-reason-options { display: grid; margin: 0 -20px; }
+.crew-clock-reason-options > button { display: flex; min-height: 52px; align-items: center; gap: 11px; border: 0; border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface); padding: 10px 20px; color: var(--crew-color-deep-teal); text-align: left; font: inherit; }
+.crew-clock-reason-options > button > span { min-width: 0; flex: 1 1 auto; font-size: var(--crew-type-secondary); line-height: 1.3; }
+.crew-clock-reason-options > button > svg { flex: 0 0 auto; color: var(--crew-color-text-secondary); }
+.crew-clock-reason-options > button.is-selected { background: color-mix(in srgb, var(--crew-color-mist-mint) 52%, var(--crew-color-surface)); }
+.crew-clock-reason-options > button.is-selected > svg { color: var(--crew-color-success); }
+.crew-clock-reason-options > button:focus-visible { position: relative; z-index: 1; outline: 2px solid color-mix(in srgb, var(--crew-color-cyan) 42%, transparent); outline-offset: -2px; }
+
+@media (max-width:390px) {
+.crew-home-schedule-row{
+  gap:7px;
+  padding-inline:10px
+}
+}
+
+/* Clock success content; the shared modal owns the overlay and scrolling. */
+.crew-home-success-content > span { width: 42px; height: 42px; margin: 0 auto; }
+.crew-home-success-content dl { width: 100%; margin: 16px 0 0; }
+.crew-home-success-content dl > div { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.crew-home-success-content dl > div + div { border-top: 1px solid var(--crew-color-divider); }
+.crew-home-success-content dt { color: var(--crew-color-text-secondary); }
+.crew-home-success-content dd { min-width: 0; margin: 0; color: var(--crew-color-deep-teal); font-weight: 800; text-align: right; overflow-wrap: anywhere; }
+
+@media (max-width:390px) {
+.crew-home-schedule-row>i{
+  width:33px;
+  height:33px
+}
+}
+
+.crew-v2-home .crew-home-task > .crew-ui-status { max-width: 96px; justify-self: end; white-space: normal; text-align: center; overflow-wrap: anywhere; }
+
+.crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px;align-items:start}.crew-v2-home .crew-home-schedule-row>span{gap:2px}.crew-v2-home .crew-home-schedule-time{color:var(--crew-color-deep-teal);font-size:var(--crew-type-helper);font-weight:600;line-height:1.25}.crew-v2-home .crew-home-schedule-row>svg{align-self:center}.crew-v2-home .crew-home-schedule-row>.crew-ui-status{grid-column:2;justify-self:start;margin-top:2px}
+@media (max-width:374px){.crew-v2-home .crew-home-schedule-time{font-size:10px;line-height:1.2}}
+
+@media (max-width:374px) {
+.crew-home-schedule-row strong{
+  font-size:var(--crew-type-helper)
+}
+}

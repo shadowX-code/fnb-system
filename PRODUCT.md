@@ -2,11 +2,13 @@
 
 ## Users
 
-FeedX is used by factory operators, supervisors, managers, warehouse staff, and authorized administrative users working in day-to-day food production and inventory operations.
+FeedX is used by restaurant operators and managers, authorized administrators, Crew members and supervisors, factory planners and operators, warehouse teams, and prototype operators validating Guest AI experiences.
 
 ## Product Purpose
 
-FeedX coordinates factory planning, production execution, quality control, warehouse activity, and traceability. Success means users can scan current operational state quickly, take the correct permitted action confidently, and trust that displayed quantities and lifecycle states match authoritative data.
+FeedX coordinates outlet finance and purchasing, inventory and assets, people and access, Crew workforce and daily execution, learning and performance, factory production and warehousing, and traceable operational evidence. Guest AI is a bounded prototype for validating guest-facing device, voice, protocol, and provider interactions without coupling them to core FeedX operations.
+
+Success means users can scan current operational state quickly, take the correct permitted action confidently, and trust that displayed quantities, permissions, evidence, and lifecycle states match authoritative data.
 
 ## Brand Personality
 

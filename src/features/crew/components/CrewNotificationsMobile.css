@@ -1,0 +1,17 @@
+.crew-notifications-page .crew-ui-page-section { gap: 14px; }
+.crew-notifications-tabs { width: fit-content; }
+.crew-notifications-list { display: grid; overflow: hidden; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-surface); background: var(--crew-color-surface); }
+.crew-notification-row { display: grid; grid-template-columns: 32px minmax(0,1fr) auto; align-items: start; gap: 10px; width: 100%; min-height: 78px; border: 0; border-bottom: 1px solid var(--crew-color-border); background: transparent; padding: 14px; color: var(--crew-color-text); text-align: left; }
+.crew-notification-row:last-child { border-bottom: 0; }
+.crew-notification-row:not(.is-read) { background: color-mix(in srgb, var(--crew-color-mist-mint) 18%, var(--crew-color-surface)); }
+.crew-notification-row:disabled { opacity: .65; }
+.crew-notification-icon { display: grid; width: 32px; height: 32px; place-items: center; border-radius: 50%; background: color-mix(in srgb, var(--crew-color-mist-mint) 42%, var(--crew-color-surface)); color: var(--crew-color-deep-teal); }
+.crew-notification-copy { display: grid; min-width: 0; gap: 4px; }
+.crew-notification-title-row { display: flex; min-width: 0; align-items: center; gap: 7px; }
+.crew-notification-title-row strong { overflow: hidden; color: var(--crew-color-text); font-size: var(--crew-type-card-title); line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.crew-notification-title-row .crew-ui-status { flex: 0 0 auto; }
+.crew-notification-copy small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.38; }
+.crew-notification-copy em { display: inline-flex; align-items: center; gap: 4px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-status); font-style: normal; }
+.crew-notification-row > svg { align-self: center; color: var(--crew-color-text-secondary); }
+.crew-notifications-pagination { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-notifications-pagination .crew-mobile-secondary { min-height: 38px; padding: 7px 12px; }

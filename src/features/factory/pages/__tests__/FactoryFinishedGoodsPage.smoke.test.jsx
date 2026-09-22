@@ -26,7 +26,7 @@ describe("FactoryFinishedGoodsPage smoke", () => {
     expect(screen.getByRole("button", { name: /expand sambal/i })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Expand all" }));
     expect(screen.getByRole("button", { name: /collapse sambal/i })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Table View" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Table View" }));
     expect(screen.getAllByText("RM2.50").length).toBeGreaterThan(0);
     expect(screen.getAllByText("RM10.00").length).toBeGreaterThan(0);
     expect(screen.getAllByText("75.0%").length).toBeGreaterThan(0);

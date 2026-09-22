@@ -38,6 +38,7 @@ Production Overview is a read model and does not own underlying lifecycle writes
 Admin access requires production permissions and applicable factory/storage scope.
 Protected transitions validate the caller and current state server-side.
 Released/completed orders, pinned master-data versions, material consumption, outputs, exceptions, and batch lineage retain auditable evidence.
+Factory staff/operator/responsible-person selectors use the People-owned active `workplace = Factory` population when the selection semantically requires Factory workforce. Factory role permissions authorize Factory functionality but do not make Management or Restaurant employees Factory workforce.
 
 ## Workflows And Integrations
 

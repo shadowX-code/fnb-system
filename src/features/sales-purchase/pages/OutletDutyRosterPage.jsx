@@ -13,6 +13,7 @@ import { rosterPeriodService } from "../../../services/rosterPeriodService.js";
 import { rosterPositionGroupService } from "../../../services/rosterPositionGroupService.js";
 import { canExport } from "../../../utils/accessControl.js";
 import { formatShiftTimeRange } from "../utils/shiftTime.js";
+import { navigateAdminRoute } from "../../../app/routeOwnership.js";
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -608,7 +609,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
 
   function openScheduleForDate(date) {
     localStorage.setItem("feedx:dutyRosterFocus", JSON.stringify({ outletId, date: toDateInputValue(date) }));
-    window.location.hash = "duty-roster";
+    navigateAdminRoute("crew_roster");
   }
 
   return (

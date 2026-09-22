@@ -1,0 +1,288 @@
+import { useEffect, useMemo, useState } from "react";
+import { AlertTriangle, CalendarDays, Clock3, Eye, HelpCircle, MapPin, UsersRound } from "lucide-react";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
+import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
+import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
+import Badge from "../../../components/ui/Badge.jsx";
+import DataTable from "../../../components/tables/DataTable.jsx";
+import AdminPagination, { useAdminPagedQuery } from "../../../components/tables/AdminPagination.jsx";
+import Modal from "../../../components/feedback/Modal.jsx";
+import AsyncDataSurface from "../../../components/feedback/AsyncDataSurface.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
+import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
+import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
+import FeedXDateRangePicker from "../../../components/ui/FeedXDateRangePicker.jsx";
+import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
+import { crewService } from "../../../services/crewService.js";
+import { outletService } from "../../../services/outletService.js";
+import "./CrewAttendanceAdminPage.css";
+
+const ALL = "all";
+const rosterLabels = {
+  off: "OFF",
+  leave: "Approved Leave",
+  annual_leave: "Annual Leave",
+  medical: "MC",
+  medical_leave: "Medical Leave",
+  unpaid_leave: "Unpaid Leave",
+  other_leave: "Other Leave",
+};
+
+function businessDate(date = new Date()) {
+  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+}
+
+function locationState(row) {
+  if (row.clock_in_location_exception || row.clock_out_location_exception) return "exception";
+  if (row.clock_in_location_verified && (!row.clock_out_at || row.clock_out_location_verified)) return "verified";
+  return "not_verified";
+}
+
+function durationMinutes(row) {
+  if (!row.clock_in_at) return null;
+  const end = row.clock_out_at ? new Date(row.clock_out_at) : new Date();
+  return Math.max(0, Math.round((end - new Date(row.clock_in_at)) / 60000));
+}
+
+function formatDuration(minutes) {
+  if (minutes == null) return "—";
+  return `${Math.floor(minutes / 60)}h ${String(minutes % 60).padStart(2, "0")}m`;
+}
+
+function formatRosterTime(value) {
+  if (!value) return "—";
+  const [hours, minutes] = String(value).slice(0, 5).split(":").map(Number);
+  const suffix = hours >= 12 ? "PM" : "AM";
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${suffix}`;
+}
+
+function formatTime(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit" });
+}
+
+function formatDate(value) {
+  if (!value) return "—";
+  return new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function rosterContext(row) {
+  const schedule = row.schedule;
+  if (!schedule) return { kind: "no_roster", title: "No published roster", detail: "Actual attendance only" };
+  if (schedule.entry_type !== "working") {
+    return {
+      kind: "not_required",
+      title: rosterLabels[schedule.entry_type] || schedule.template_name || "Non-working day",
+      detail: "Attendance not required",
+    };
+  }
+  return {
+    kind: "working",
+    title: `${formatRosterTime(schedule.start_time)} – ${formatRosterTime(schedule.end_time)}`,
+    detail: `${schedule.outlet_name || row.outlet?.name || "Outlet"}${schedule.position ? ` · ${schedule.position}` : ""}`,
+  };
+}
+
+function varianceContext(row) {
+  if (row.clock_in_variance_minutes == null || row.schedule?.entry_type !== "working") return null;
+  const minutes = Number(row.clock_in_variance_minutes);
+  if (minutes === 0) return { label: "No variance", tone: "success", attention: false };
+  const amount = Math.abs(minutes);
+  const formatted = amount >= 60 ? `${Math.floor(amount / 60)}h${amount % 60 ? ` ${amount % 60}m` : ""}` : `${amount}m`;
+  return { label: `${minutes > 0 ? "Late" : "Early"} ${formatted}`, tone: "warning", attention: amount >= 30 };
+}
+
+function attendanceState(row) {
+  if (row.roster_evidence_state === "no_roster" || !row.schedule) return "no_roster";
+  if (locationState(row) === "exception") return "exception";
+  if (row.status === "open" || row.roster_evidence_state === "open") return "on_shift";
+  if (row.status === "completed" && row.clock_out_at) return "completed";
+  return "incomplete";
+}
+
+const attendanceStatus = {
+  completed: "Completed",
+  on_shift: "On Shift",
+  incomplete: "Incomplete",
+  exception: "Exception",
+  no_roster: "No Roster Match",
+};
+
+function attendanceStatusPresentation(value) {
+  return { label: attendanceStatus[value] || "Unavailable", tone: semanticStatusTone(value) };
+}
+
+function rowMatchesStatus(row, filter) {
+  if (filter === ALL) return true;
+  if (filter === "verified") return locationState(row) === "verified";
+  if (filter === "variance") return Number(row.clock_in_variance_minutes || 0) !== 0;
+  if (filter === "location_exception") return locationState(row) === "exception";
+  if (filter === "incomplete") return attendanceState(row) === "incomplete";
+  if (filter === "no_roster") return row.roster_evidence_state === "no_roster" || !row.schedule;
+  return true;
+}
+
+function issueClass(row) {
+  if (attendanceState(row) === "incomplete") return "crew-attendance-row-danger";
+  if (locationState(row) === "exception" || varianceContext(row)?.attention) return "crew-attendance-row-warning";
+  if (attendanceState(row) === "no_roster") return "crew-attendance-row-neutral";
+  return "";
+}
+
+export default function CrewAttendanceAdminPage({ auth, ui, store }) {
+  const canManage = auth?.hasPermission?.("crew_attendance.manage") || false;
+  const sharedOutlet = useCrewAdminOutlet(store?.outlets || []);
+  const today = useMemo(() => businessDate(), []);
+  const [from, setFrom] = useState(today);
+  const [to, setTo] = useState(today);
+  const [outletId, setOutletIdState] = useState("");
+  const [employeeId, setEmployeeId] = useState(ALL);
+  const [position, setPosition] = useState(ALL);
+  const [status, setStatus] = useState(ALL);
+  const [outlets, setOutlets] = useState(() => (store?.outlets || []).filter((row) => row.is_active !== false));
+  const [detail, setDetail] = useState(null);
+
+  useEffect(() => { if (!outletId && sharedOutlet.outletId) setOutletIdState(sharedOutlet.outletId); }, [outletId, sharedOutlet.outletId]);
+  const setOutletId = (value) => { setOutletIdState(value); if (value !== ALL) sharedOutlet.setOutletId(value); };
+
+  useEffect(() => {
+    if (store?.outlets?.length) return undefined;
+    let live = true;
+    outletService.listActiveOutlets().then((data) => { if (live) setOutlets(data || []); }).catch((error) => ui.notify({ title: "Unable to load outlets", message: error.message, tone: "error" }));
+    return () => { live = false; };
+  }, [store?.outlets, ui]);
+
+  const attendanceFilters = useMemo(() => ({ employee_id: employeeId, position, status }), [employeeId, position, status]);
+  const attendanceQuerySignature = useMemo(() => JSON.stringify({ from, to, outletId: outletId === ALL ? null : outletId, ...attendanceFilters }), [attendanceFilters, from, outletId, to]);
+  const [listing, listingActions] = useAdminPagedQuery({
+    storageKey: "crew-attendance", enabled: Boolean(outletId), querySignature: attendanceQuerySignature,
+    loadPage: ({ page, pageSize }) => crewService.listAttendancePage({ from, to, outletId: outletId === ALL ? null : outletId, filters: attendanceFilters, page, pageSize }),
+  });
+  const rows = listing.rows;
+  const employees = listing.summary?.filter_options?.employees || [];
+  const positions = listing.summary?.filter_options?.positions || [];
+  const visibleRows = rows;
+
+  const summary = useMemo(() => ({ present: Number(listing.summary?.present || 0), variance: Number(listing.summary?.variance || 0), exceptions: Number(listing.summary?.exceptions || 0), incomplete: Number(listing.summary?.incomplete || 0), nonWorking: Number(listing.summary?.non_working || 0), noRoster: Number(listing.summary?.no_roster || 0), largeVariance: Number(listing.summary?.large_variance || 0) }), [listing.summary]);
+  const attentionCount = summary.exceptions + summary.incomplete + summary.noRoster + summary.largeVariance;
+
+  const isToday = from === today && to === today;
+  const activeFilters = [
+    employeeId !== ALL && { key: "employee", label: "Employee", value: employees.find((employee) => employee.id === employeeId)?.nickname || employees.find((employee) => employee.id === employeeId)?.full_name || "Selected", onRemove: () => setEmployeeId(ALL) },
+    position !== ALL && { key: "position", label: "Position", value: position, onRemove: () => setPosition(ALL) },
+    status !== ALL && { key: "status", label: "Attendance", value: status === "location_exception" ? "Location exception" : status === "no_roster" ? "No published roster" : status === "variance" ? "Late / variance" : status[0].toUpperCase() + status.slice(1), onRemove: () => setStatus(ALL) },
+  ].filter(Boolean);
+
+  const columns = [
+    { key: "employee", header: "Employee", width: "210px", render: (row) => <div><div className="font-bold text-text-primary">{row.employee?.nickname || row.employee?.full_name || "Employee"}</div><div className="mt-0.5 text-xs text-text-secondary">{row.employee?.position || "Crew"} · {row.outlet?.name || row.employee?.workplace || "Outlet"}</div>{row.schedule?.outlet_name && row.outlet?.name && row.schedule.outlet_name !== row.outlet.name ? <div className="mt-1 text-xs font-semibold text-amber-700">Worked at {row.outlet.name}</div> : null}</div> },
+    { key: "schedule", header: "Schedule", width: "210px", render: (row) => { const context = rosterContext(row); const variance = varianceContext(row); return <div><div className="font-semibold text-text-primary">{context.title}</div><div className="mt-0.5 text-xs text-text-secondary">{context.detail}</div>{variance ? <div className="mt-1.5"><Badge tone={variance.tone}>{variance.label}</Badge></div> : null}{context.kind === "not_required" ? <div className="mt-1 text-xs font-semibold text-amber-700">Unexpected attendance</div> : null}</div>; } },
+    { key: "clock_in", header: "Clock In", width: "112px", render: (row) => <TimeCell value={row.clock_in_at} /> },
+    { key: "clock_out", header: "Clock Out", width: "112px", render: (row) => <TimeCell value={row.clock_out_at} /> },
+    { key: "duration", header: "Duration", width: "112px", render: (row) => { const minutes = durationMinutes(row); return <div><div className="font-semibold text-text-primary">{formatDuration(minutes)}</div>{minutes > 1440 ? <div className="mt-1"><Badge tone="danger">Potential anomaly</Badge></div> : null}</div>; } },
+    { key: "location", header: "Location", width: "150px", render: (row) => <LocationCell row={row} /> },
+    { key: "status", header: "Attendance Status", width: "150px", render: (row) => { const state = attendanceStatusPresentation(attendanceState(row)); return <div><Badge tone={state.tone}>{state.label}</Badge>{row.schedule && row.schedule.entry_type !== "working" ? <div className="mt-1 text-xs text-text-secondary">Non-working day</div> : null}</div>; } },
+    { key: "actions", header: "Actions", width: "76px", align: "right", render: (row) => <button className="icon-btn" type="button" aria-label={`View attendance for ${row.employee?.nickname || row.employee?.full_name || "employee"}`} title="View attendance" onClick={() => setDetail(row)}><Eye size={16} /></button> },
+  ];
+
+  return <div className="space-y-4">
+    <PageHeader
+      section="Crew · Workforce"
+      title="Attendance"
+      description="Review actual attendance against published roster and verified location evidence."
+    />
+
+    <AdminFilterToolbar outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} allowAll allValue={ALL} />} period={<FeedXDateRangePicker from={from} to={to} today={today} onApply={(range) => { setFrom(range.from); setTo(range.to); }} />} filters={<><SelectField label="Employee" ariaLabel="Employee" value={employeeId} onChange={setEmployeeId} searchable options={[{ value: ALL, label: "All" }, ...employees.map((employee) => ({ value: employee.id, label: employee.nickname || employee.full_name }))]} /><SelectField label="Position" ariaLabel="Position" value={position} onChange={setPosition} options={[{ value: ALL, label: "All" }, ...positions.map((value) => ({ value, label: value }))]} /><SelectField label="Attendance Status" ariaLabel="Attendance Status" value={status} onChange={setStatus} options={[{ value: ALL, label: "All" }, { value: "verified", label: "Verified" }, { value: "variance", label: "Late / Variance" }, { value: "location_exception", label: "Location Exception" }, { value: "incomplete", label: "Incomplete" }, { value: "no_roster", label: "No Published Roster" }]} /></>} activeFilters={activeFilters} onClear={() => { setEmployeeId(ALL); setPosition(ALL); setStatus(ALL); }} secondaryActions={<button className="icon-btn" type="button" aria-label="About attendance scoring" title="Performance uses 15 points for completed eligible shifts and 15 points for punctuality. Clock-ins within 10 minutes are on time; location exceptions remain evidence only."><HelpCircle size={17} /></button>} />
+
+    <AdminSummaryGrid ariaLabel="Attendance summary" items={[{ label: isToday ? "Present Today" : "Present in Range", value: summary.present, helper: "Crew with attendance evidence", icon: UsersRound }, { label: "Late / Schedule Variance", value: summary.variance, helper: "Server-calculated clock-in variance", tone: summary.variance ? "warning" : "neutral", icon: Clock3 }, { label: "Location Exceptions", value: summary.exceptions, helper: "Location evidence needs review", tone: summary.exceptions ? "warning" : "neutral", icon: MapPin }, { label: "Incomplete Sessions", value: summary.incomplete, helper: "Missing a completed session", tone: summary.incomplete ? "danger" : "neutral", icon: AlertTriangle }]} />
+
+    {summary.nonWorking ? <div className="flex flex-wrap items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-text-secondary"><CalendarDays size={16} /><strong className="text-text-primary">{summary.nonWorking}</strong> attendance record{summary.nonWorking === 1 ? "" : "s"} occurred on OFF or approved leave days. Attendance was not required.</div> : null}
+
+    {attentionCount ? <section className="rounded-xl border border-amber-200 bg-amber-50/60 p-3" aria-label="Needs Attention"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div><div className="flex items-center gap-2 font-bold text-text-primary"><AlertTriangle className="text-amber-600" size={17} />{attentionCount} attendance record signal{attentionCount === 1 ? "" : "s"} need review</div><p className="mt-1 text-xs text-text-secondary">Signals remain separate: location, session completion, roster matching, and large clock-in variance.</p></div><div className="flex flex-wrap gap-2">{summary.exceptions ? <button className="btn-secondary" type="button" onClick={() => setStatus("location_exception")}>{summary.exceptions} Location Exception{summary.exceptions === 1 ? "" : "s"}</button> : null}{summary.incomplete ? <button className="btn-secondary" type="button" onClick={() => setStatus("incomplete")}>{summary.incomplete} Incomplete</button> : null}{summary.noRoster ? <button className="btn-secondary" type="button" onClick={() => setStatus("no_roster")}>{summary.noRoster} No Roster</button> : null}{summary.largeVariance ? <button className="btn-secondary" type="button" onClick={() => setStatus("variance")}>{summary.largeVariance} Large Variance</button> : null}</div></div></section> : null}
+
+    <AdminDataSection>
+      <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={visibleRows.length > 0} isEmpty={listing.hasLoaded && listing.loadedTotal === 0} emptyTitle="No attendance records" emptyDescription="No records match the selected date, outlet, or filters." onRetry={listingActions.retry}>
+        <DataTable density="compact" tableClassName="min-w-[1100px]" rows={visibleRows} getRowKey={(row) => row.id} getRowClassName={issueClass} onRowClick={setDetail} columns={columns} />
+        <AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="attendance records" />
+      </AsyncDataSurface>
+    </AdminDataSection>
+    {detail ? <AttendanceDetail row={detail} canManage={canManage} ui={ui} onChanged={listingActions.retry} onClose={() => setDetail(null)} /> : null}
+  </div>;
+}
+
+function TimeCell({ value }) {
+  return value ? <div><div className="font-semibold text-text-primary">{formatTime(value)}</div><div className="mt-0.5 text-xs text-text-secondary">{formatDate(value)}</div></div> : <span className="text-text-muted">—</span>;
+}
+
+function LocationCell({ row }) {
+  const state = locationState(row);
+  const distance = row.clock_in_distance_meters == null ? null : Math.round(Number(row.clock_in_distance_meters));
+  return <div><Badge tone={state === "verified" ? "success" : state === "exception" ? "warning" : "neutral"}>{state === "verified" ? "Verified" : state === "exception" ? "Location Exception" : "Not Verified"}</Badge><div className="mt-1 text-xs text-text-secondary">{distance == null ? "Location unavailable" : `${distance}m from outlet`}</div></div>;
+}
+
+function DetailValue({ label, value }) {
+  return <div><dt className="text-xs font-semibold text-text-secondary">{label}</dt><dd className="mt-1 text-sm font-bold text-text-primary">{value || "—"}</dd></div>;
+}
+
+function Evidence({ title, at, verified, exception, reason, distance, accuracy }) {
+  const state = verified ? "Verified" : exception ? "Location Exception" : "Not Verified";
+  return <section className={`rounded-xl border p-4 ${exception ? "border-amber-200 bg-amber-50/60" : "border-border bg-slate-50"}`}><div className="flex items-center justify-between gap-3"><div className="font-bold text-text-primary">{title}</div><Badge tone={verified ? "success" : exception ? "warning" : "neutral"}>{state}</Badge></div><dl className="mt-3 grid gap-3 sm:grid-cols-2"><DetailValue label="Time" value={at ? new Date(at).toLocaleString("en-MY") : "—"} /><DetailValue label="Distance from Outlet" value={distance == null ? "Location unavailable" : `${Math.round(Number(distance))}m`} /><DetailValue label="Accuracy" value={accuracy == null ? "—" : `±${Math.round(Number(accuracy))}m`} />{exception ? <DetailValue label="Exception Reason" value={reason || "No reason supplied"} /> : null}</dl></section>;
+}
+
+function AttendanceDetail({ row, canManage, ui, onChanged, onClose }) {
+  const schedule = rosterContext(row);
+  const variance = varianceContext(row);
+  const status = attendanceStatusPresentation(attendanceState(row));
+  const minutes = durationMinutes(row);
+  return <Modal title="Attendance Details" description={`${row.employee?.nickname || row.employee?.full_name || "Employee"} · ${formatDate(row.clock_in_at)}`} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+    <div className="space-y-4">
+      <section className="grid gap-4 rounded-xl border border-border bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4"><DetailValue label="Employee" value={row.employee?.full_name || row.employee?.nickname} /><DetailValue label="Position" value={row.employee?.position || row.schedule?.position} /><DetailValue label="Actual Outlet" value={row.outlet?.name || row.employee?.workplace} /><div><dt className="text-xs font-semibold text-text-secondary">Attendance Status</dt><dd className="mt-1"><Badge tone={status.tone}>{status.label}</Badge></dd></div></section>
+      <section><h3 className="mb-3 font-bold text-text-primary">Schedule & Actual</h3><dl className="grid gap-4 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-4"><DetailValue label="Scheduled Shift" value={schedule.title} /><DetailValue label="Schedule Context" value={schedule.detail} /><DetailValue label="Actual Clock In" value={row.clock_in_at ? new Date(row.clock_in_at).toLocaleString("en-MY") : "—"} /><DetailValue label="Actual Clock Out" value={row.clock_out_at ? new Date(row.clock_out_at).toLocaleString("en-MY") : "—"} /><DetailValue label="Worked Duration" value={formatDuration(minutes)} /><DetailValue label="Schedule Variance" value={variance?.label || "Not applicable"} /><DetailValue label="Roster Evidence" value={row.evidence_version || "Roster evidence"} />{minutes > 1440 ? <div><dt className="text-xs font-semibold text-text-secondary">Duration Review</dt><dd className="mt-1"><Badge tone="danger">Potential anomaly</Badge></dd></div> : null}</dl>{schedule.kind === "no_roster" ? <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-text-secondary">Attendance was recorded without a published roster for this date.</p> : null}{schedule.kind === "not_required" ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800">{schedule.title}: attendance was not required, but an actual attendance record exists.</p> : null}</section>
+      <section><h3 className="mb-3 font-bold text-text-primary">Location Verification</h3><div className="grid gap-3 lg:grid-cols-2"><Evidence title="Clock In" at={row.clock_in_at} verified={row.clock_in_location_verified} exception={row.clock_in_location_exception} reason={row.clock_in_exception_reason} distance={row.clock_in_distance_meters} accuracy={row.clock_in_accuracy_meters} /><Evidence title="Clock Out" at={row.clock_out_at} verified={row.clock_out_location_verified} exception={row.clock_out_location_exception} reason={row.clock_out_exception_reason} distance={row.clock_out_distance_meters} accuracy={row.clock_out_accuracy_meters} /></div></section>
+      <AttendancePerformanceException attendanceRecordId={row.id} canManage={canManage} ui={ui} onChanged={onChanged} />
+      <section><h3 className="mb-3 font-bold text-text-primary">Timeline</h3><ol className="grid gap-2 rounded-xl border border-border p-4"><TimelineItem label="Scheduled" value={schedule.title} muted={schedule.kind !== "working"} /><TimelineItem label="Clock In" value={row.clock_in_at ? new Date(row.clock_in_at).toLocaleString("en-MY") : "Not recorded"} /><TimelineItem label="Clock Out" value={row.clock_out_at ? new Date(row.clock_out_at).toLocaleString("en-MY") : row.status === "open" ? "Shift in progress" : "Not recorded"} /></ol></section>
+    </div>
+  </Modal>;
+}
+
+function AttendancePerformanceException({ attendanceRecordId, canManage, ui, onChanged }) {
+  const [exception, setException] = useState(undefined);
+  const [exceptionType, setExceptionType] = useState("approved_correction");
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const refresh = () => crewService.getAttendancePerformanceException(attendanceRecordId)
+    .then(setException)
+    .catch(() => setException(null));
+
+  useEffect(() => { refresh(); }, [attendanceRecordId]);
+
+  if (exception === undefined || (!exception && !canManage)) return null;
+
+  const save = async (action) => {
+    if (reason.trim().length < 3) {
+      ui.notify({ title: "Reason required", message: "Add a concise reason for this audited scoring exception.", tone: "error" });
+      return;
+    }
+    setSaving(true);
+    try {
+      await crewService.updateAttendancePerformanceException({ attendanceRecordId, action, exceptionType, reason: reason.trim() });
+      setReason("");
+      await refresh();
+      onChanged?.();
+      ui.notify({ title: action === "approve" ? "Scoring exception recorded" : "Scoring exception revoked", tone: "success" });
+    } catch {
+      ui.notify({ title: "Unable to update scoring exception", message: "The attendance record was not changed. Check your access and try again.", tone: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return <section className="rounded-xl border border-border p-4" aria-label="Performance scoring exception">
+    <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-bold text-text-primary">Performance Scoring</h3><p className="mt-1 text-sm text-text-secondary">Approved corrections and verified outages exclude this attendance date from the monthly score.</p></div>{exception ? <Badge tone="warning">Exception active</Badge> : null}</div>
+    {exception ? <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50/60 p-3"><div className="font-semibold text-text-primary">{exception.exception_type === "system_outage" ? "Verified system outage" : "Approved attendance correction"}</div><p className="mt-1 text-sm text-text-secondary">{exception.reason}</p><p className="mt-2 text-xs text-text-secondary">Recorded {exception.approved_at ? new Date(exception.approved_at).toLocaleString("en-MY") : ""}</p>{canManage ? <div className="mt-3 grid gap-3"><label className="grid gap-2 text-sm font-semibold text-text-secondary">Reason for revocation<textarea className="min-h-20 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} placeholder="Why should this exception no longer apply?" /></label><div><button type="button" className="btn-secondary" disabled={saving} onClick={() => save("revoke")}>{saving ? "Saving…" : "Revoke exception"}</button></div></div> : null}</div> : <div className="mt-3 grid gap-3"><div className="grid gap-3 sm:grid-cols-2"><SelectField label="Exception type" ariaLabel="Exception type" value={exceptionType} onChange={setExceptionType} options={[{ value: "approved_correction", label: "Approved attendance correction" }, { value: "system_outage", label: "Verified system outage" }]} /><label className="grid gap-2 text-sm font-semibold text-text-secondary">Reason<textarea className="min-h-24 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text-primary" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} placeholder="Explain the approved correction or verified outage" /></label></div><div><button type="button" className="btn-secondary" disabled={saving} onClick={() => save("approve")}>{saving ? "Saving…" : "Record scoring exception"}</button></div></div>}
+  </section>;
+}
+
+function TimelineItem({ label, value, muted = false }) {
+  return <li className="flex items-start gap-3"><span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${muted ? "bg-slate-300" : "bg-primary"}`} /><div><div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">{label}</div><div className="mt-0.5 text-sm font-semibold text-text-primary">{value}</div></div></li>;
+}

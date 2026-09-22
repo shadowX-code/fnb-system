@@ -338,7 +338,7 @@ export default function DepartmentsPage({ ui, auth }) {
       ) : null}
 
       {/* TODO: Reintroduce module dependency mapping when HR/KPI/Payroll modules are implemented. */}
-      <Card title="Department Catalog" description="Departments are used to group job positions and employees.">
+      <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading departments...</div>
         ) : error ? (

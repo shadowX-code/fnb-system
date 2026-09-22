@@ -39,6 +39,28 @@ beforeEach(() => {
 });
 
 describe("Duty Roster current browser lifecycle contracts", () => {
+  it("loads only server-authorized employees for the selected roster outlet", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [{ id: "employee-1", nickname: "Aina", roster_eligible: true }], error: null });
+    await expect(dutyRosterService.listRosterEligibleEmployees(outletId)).resolves.toEqual([
+      { id: "employee-1", nickname: "Aina", roster_eligible: true },
+    ]);
+    expect(mocks.rpc).toHaveBeenCalledWith("list_roster_eligible_employees", { p_outlet_id: outletId });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("loads the deterministic outlet-scoped roster read model without direct table reads", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [sourceRow], error: null });
+    await expect(dutyRosterService.listDutyRosters(outletId, "2026-08-10", "2026-08-16")).resolves.toEqual([
+      expect.objectContaining({ id: "source-1", employee_id: "employee-1" }),
+    ]);
+    expect(mocks.rpc).toHaveBeenCalledWith("list_duty_roster_read_model", {
+      p_outlet_id: outletId,
+      p_start_date: "2026-08-10",
+      p_end_date: "2026-08-16",
+    });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
   it("maps a complete week snapshot to the single trusted RPC without browser roster DML", async () => {
     mocks.rpc.mockResolvedValueOnce({ data: { period: { id: "period-1", status: "draft" }, rows: [{ ...sourceRow, roster_date: "2026-08-10" }] }, error: null });
     await expect(dutyRosterService.saveRosterWeekSnapshot({
@@ -49,6 +71,46 @@ describe("Duty Roster current browser lifecycle contracts", () => {
       p_request_id: "00000000-0000-4000-8000-000000000012", p_outlet_id: outletId, p_week_start_date: "2026-08-10",
       p_rows: [{ employee_id: "employee-1", roster_date: "2026-08-10", shift_template_id: "template-1", remark: "Open" }],
     });
+    expect(mocks.from).not.toHaveBeenCalled();
+  });
+
+  it("hydrates raw snapshot RPC rows from the submitted template so the saved grid updates immediately", async () => {
+    mocks.rpc.mockResolvedValueOnce({
+      data: {
+        period: { id: "period-1", status: "draft" },
+        rows: [{
+          id: "saved-1", outlet_id: outletId, employee_id: "employee-1", roster_date: "2026-08-10",
+          shift_template_id: template.id, start_time: "09:00", end_time: "17:00", break_minutes: 60,
+          status: "draft", remark: "", shift_snapshot: {
+            id: "old-template", name: "Old Evening", code: "EVENING", start_time: "14:00", end_time: "22:00",
+            break_minutes: 30, shift_type: "working", color: "blue",
+          },
+        }],
+      },
+      error: null,
+    });
+
+    const result = await dutyRosterService.saveRosterWeekSnapshot({
+      requestId: "00000000-0000-4000-8000-000000000013",
+      outletId,
+      weekStartDate: "2026-08-10",
+      rows: [{
+        employee_id: "employee-1",
+        roster_date: "2026-08-10",
+        shift_template_id: template.id,
+        template,
+        remark: "",
+      }],
+    });
+
+    expect(result.rows).toEqual([
+      expect.objectContaining({
+        id: "saved-1",
+        template: expect.objectContaining({ id: template.id, name: "Morning", code: "MORNING" }),
+        start_time: "09:00",
+        end_time: "17:00",
+      }),
+    ]);
     expect(mocks.from).not.toHaveBeenCalled();
   });
 
@@ -84,8 +146,8 @@ describe("Duty Roster current browser lifecycle contracts", () => {
   });
 
   it("copy week deletes the destination before its separate upsert, so an upsert failure leaves the deletion already persisted", async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: [sourceRow], error: null });
     const calls = queueQueries(
-      { data: [sourceRow], error: null },
       { error: null },
       { data: null, error: new Error("copy insert failed") },
     );
@@ -100,9 +162,12 @@ describe("Duty Roster current browser lifecycle contracts", () => {
   });
 
   it("has no request-ID/in-flight authority for repeated copy submissions; each call starts another direct upsert", async () => {
+    mocks.rpc
+      .mockResolvedValueOnce({ data: [sourceRow], error: null })
+      .mockResolvedValueOnce({ data: [sourceRow], error: null });
     const calls = queueQueries(
-      { data: [sourceRow], error: null }, { data: [{ ...sourceRow, roster_date: "2026-08-10" }], error: null },
-      { data: [sourceRow], error: null }, { data: [{ ...sourceRow, roster_date: "2026-08-10" }], error: null },
+      { data: [{ ...sourceRow, roster_date: "2026-08-10" }], error: null },
+      { data: [{ ...sourceRow, roster_date: "2026-08-10" }], error: null },
     );
     const input = { outletId, sourceStartDate: "2026-08-03", sourceEndDate: "2026-08-09", targetDates: ["2026-08-10"] };
     await dutyRosterService.copyWeek(input);

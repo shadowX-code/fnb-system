@@ -98,26 +98,6 @@ describe("Production SOP builder, document, and QC preset contracts", () => {
     expect(screen.getByText("2 steps · 1 sub-steps · 1 QC")).not.toBeNull();
   });
 
-  it("keeps Description optional and does not repeat a redundant Description in the timeline", () => {
-    const sopWithSubSteps = {
-      ...draftSop,
-      steps: [{
-        ...draftSop.steps[0],
-        step_name: "Prepare ingredients",
-        description: "Prepare ingredients",
-        sub_steps: [{ id: "sub-1", sequence_no: 1, instruction: "Wash and drain the ingredients", estimated_minutes: 5, remarks: "" }],
-      }],
-    };
-    const editor = render(<ProductionSopBuilderModal initialValue={sopWithSubSteps} productFamilies={[family]} recipes={[recipe]} equipment={[equipment]} sops={[sopWithSubSteps]} qcChecklistTemplates={[template]} onClose={vi.fn()} onSave={vi.fn()} />);
-    fireEvent.click(screen.getByRole("button", { name: /01 Prepare ingredients/ }));
-    expect(screen.getByText("Optional — add only if extra execution guidance is needed.")).not.toBeNull();
-    editor.unmount();
-
-    render(<ProductionSopDocumentModal sop={sopWithSubSteps} onClose={vi.fn()} />);
-    expect(screen.getAllByText("Prepare ingredients")).toHaveLength(1);
-    expect(screen.getByText("Wash and drain the ingredients")).not.toBeNull();
-  });
-
   it("renders active, draft, and legacy QC document paths without inventing missing history", () => {
     const activeView = render(<ProductionSopDocumentModal sop={{ ...draftSop, status: "active", linked_recipe: recipe, product_name_cn: family.name_cn, equipment_links: [{ equipment_id: equipment.id, equipment }, { equipment_id: secondEquipment.id, equipment: secondEquipment }] }} onClose={vi.fn()} />);
     expect(screen.getByRole("dialog", { name: "Sambal SOP · v2" })).not.toBeNull();

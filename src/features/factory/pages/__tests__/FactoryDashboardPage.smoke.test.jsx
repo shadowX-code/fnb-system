@@ -11,7 +11,7 @@ describe("FactoryDashboardPage render smoke", () => {
     expect(screen.getAllByText("12.5 kg").length).toBeGreaterThan(0);
     expect(screen.getAllByText("8 kg").length).toBeGreaterThan(0);
     expect(screen.getByText("Production Summary")).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Completion" })).not.toBeNull();
+    expect(screen.getByRole("tab", { name: "Completion" })).not.toBeNull();
     expect(screen.getByText("Total Batches")).not.toBeNull();
     expect(screen.getByText("Sambal")).not.toBeNull();
     expect(screen.getByText("Chili")).not.toBeNull();

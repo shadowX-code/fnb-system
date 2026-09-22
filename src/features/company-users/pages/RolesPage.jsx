@@ -11,9 +11,10 @@ import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions, defaultRoles, rolePermissionMatrix } from "../data/rbacDefaults.js";
 import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
+import { navigateAdminRoute, resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
-import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
+import { normalizeRoleOutletAccess, roleHasRestaurantPermissions } from "../utils/roleAccess.js";
 import { canEdit, getAccessibleOutletIds, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { isProtectedRoleName, normalizeRoleName } from "../../../auth/rbac.js";
 
@@ -39,13 +40,14 @@ const roleEditorActions = permissionActionOrder.map((action) => ({
 }));
 
 const roleModuleRegistryById = new Map(moduleRegistry.map((module) => [module.id, module]));
-const rolePermissionTabs = ["All", "Restaurant", "Factory", "People & HR", "System"];
+const rolePermissionTabs = ["All", "Restaurant", "Factory", "People & HR", "Workforce", "System"];
 
 function getRolePermissionCategory(module) {
   const registeredModule = roleModuleRegistryById.get(module.key);
   if (registeredModule?.workspace === "factory") return "Factory";
+  if (registeredModule?.workspace === "crew") return "Workforce";
   if (registeredModule?.id === "roles" || registeredModule?.id === "audit-logs" || registeredModule?.section === "System") return "System";
-  if (registeredModule?.section === "People" || registeredModule?.id === "duty-roster" || registeredModule?.id === "outlet_duty_roster") return "People & HR";
+  if (registeredModule?.section === "People") return "People & HR";
   return "Restaurant";
 }
 
@@ -77,8 +79,12 @@ const roleEditorOutlets = [
 ];
 
 function getRolePagePath() {
-  const hash = window.location.hash.replace(/^#/, "");
-  return hash === "roles" || !hash.startsWith("roles/") ? "" : hash.slice("roles".length);
+  const route = resolveAdminLocation(window.location);
+  if (route?.routeId !== "roles") return "";
+  if (route.definitionId === "roles-new") return "/new";
+  if (route.definitionId === "roles-edit") return `/${route.params.roleId}/edit`;
+  if (route.definitionId === "roles-detail") return `/${route.params.roleId}`;
+  return "";
 }
 
 function getRoleSelectedOutlets(role, outlets = roleEditorOutlets) {
@@ -91,6 +97,10 @@ function getRoleOutletAccessMode(role) {
 
 function RoleOutletAccessDisplay({ role, compact = false, outlets = roleEditorOutlets }) {
   const access = normalizeRoleOutletAccess(role, outlets);
+
+  if (access.mode === "none") {
+    return <span className="text-sm font-semibold text-text-muted">Not applicable</span>;
+  }
 
   if (access.mode === "all") {
     return <span className="text-sm font-semibold text-text-primary">All Outlets</span>;
@@ -206,7 +216,8 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
   const [matrixSearch, setMatrixSearch] = useState("");
   const isEdit = mode === "edit";
   const isProtectedRole = isProtectedRoleName(role?.name);
-  const allCurrentOutletsSelected = outlets.length > 0 && outlets.every((outlet) => values.selectedOutletIds.includes(outlet.id));
+  const outletScopeApplicable = roleHasRestaurantPermissions([...values.selectedPermissions]);
+  const allCurrentOutletsSelected = outletScopeApplicable && outlets.length > 0 && outlets.every((outlet) => values.selectedOutletIds.includes(outlet.id));
   const currentUserCanModifyEveryPermission = Boolean(auth?.isProtectedRole);
   const outOfScopePermissionCodes = useMemo(() => {
     if (!isEdit || currentUserCanModifyEveryPermission) return new Set();
@@ -233,7 +244,7 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
   }
 
   function toggleOutlet(outletId) {
-    if (readOnly) return;
+    if (readOnly || !outletScopeApplicable) return;
     setErrors((current) => ({ ...current, outletAccess: undefined }));
     setValues((current) => {
       const nextSelected = new Set(current.selectedOutletIds);
@@ -288,7 +299,7 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
       setErrors({ name: "Role name is required." });
       return;
     }
-    if (values.outletAccess === "selected" && values.selectedOutletIds.length === 0) {
+    if (outletScopeApplicable && values.outletAccess === "selected" && values.selectedOutletIds.length === 0) {
       setErrors({ outletAccess: "Select at least one outlet." });
       return;
     }
@@ -313,8 +324,8 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
       is_system_role: role?.is_system_role ?? false,
       is_active: values.is_active,
       assignedUsers: role?.assignedUsers ?? 0,
-      outletAccess: values.outletAccess,
-      selectedOutletIds: values.selectedOutletIds,
+      outletAccess: outletScopeApplicable ? values.outletAccess : "none",
+      selectedOutletIds: outletScopeApplicable ? values.selectedOutletIds : [],
       updatedAt: new Date().toISOString().slice(0, 10),
       updatedBy: "Development Owner",
       requestId,
@@ -368,7 +379,7 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
                   <FieldLabel label="Description">
                     <textarea className="control min-h-20 py-3" value={values.description} disabled={readOnly} onChange={(event) => markChanged({ description: event.target.value })} placeholder="Optional note about what this role can do." />
                   </FieldLabel>
-                  <div>
+                  {outletScopeApplicable ? <div>
                     <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-text-muted">Outlet Access</div>
                     <div className="grid gap-2">
                       {[
@@ -446,7 +457,7 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
                       </div>
                     ) : null}
                     {errors.outletAccess ? <div className="mt-1 text-[11px] font-medium text-rose-600">{errors.outletAccess}</div> : null}
-                  </div>
+                  </div> : <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm text-text-secondary">Outlet Access is not applicable until this role has a Restaurant permission.</div>}
                 </div>
               </section>
 
@@ -780,7 +791,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
                       <tr>
                         <th className="px-4 py-3 text-left">Employee</th>
                         <th className="px-4 py-3 text-left">Position</th>
-                        <th className="px-4 py-3 text-left">Work Place</th>
+                        <th className="px-4 py-3 text-left">Workplace</th>
                         <th className="px-4 py-3 text-left">Account</th>
                         <th className="px-4 py-3 text-left">Employment</th>
                       </tr>
@@ -844,7 +855,14 @@ export default function RolesPage({ ui, store, auth }) {
   );
 
   function navigateRolePage(path = "") {
-    window.history.pushState(null, "", `#roles${path}`);
+    const editMatch = path.match(/^\/([^/]+)\/edit$/);
+    const detailMatch = path.match(/^\/([^/]+)$/);
+    const definitionId = path === "/new"
+      ? "roles-new"
+      : editMatch ? "roles-edit"
+        : detailMatch ? "roles-detail"
+          : "roles";
+    navigateAdminRoute(definitionId, { roleId: editMatch?.[1] ?? detailMatch?.[1] });
     setRolePagePath(path);
   }
 
@@ -953,6 +971,7 @@ export default function RolesPage({ ui, store, auth }) {
   }
 
   function validateRoleSave(role) {
+    const outletScopeApplicable = roleHasRestaurantPermissions(role.permissions ?? []);
     if (!isOwnerUser && !isAdminUser) {
       if (role.id && role.id === currentRoleId) {
         ui.notify({ title: "Unable to update role", message: "You cannot edit your own role permissions.", tone: "error" });
@@ -962,13 +981,13 @@ export default function RolesPage({ ui, store, auth }) {
         ui.notify({ title: "Protected role", message: "Owner and admin roles cannot be edited by custom roles.", tone: "error" });
         return false;
       }
-      if (role.outletAccess === "all") {
+      if (outletScopeApplicable && role.outletAccess === "all") {
         ui.notify({ title: "Outlet access restricted", message: "Only owner/admin can grant All Outlets access.", tone: "error" });
         return false;
       }
       const accessibleOutletIds = getAccessibleOutletIds(auth);
       const accessibleOutletScope = buildOutletScopeSet(accessibleOutletIds === null ? null : [...accessibleOutletIds], editorOutlets);
-      const selectedRoleOutlets = role.selectedOutletIds ?? [];
+      const selectedRoleOutlets = outletScopeApplicable ? (role.selectedOutletIds ?? []) : [];
       const inaccessibleOutletIds = accessibleOutletScope === null
         ? []
         : selectedRoleOutlets.filter((outletId) => !accessibleOutletScope.has(String(outletId)));
@@ -1306,7 +1325,7 @@ export default function RolesPage({ ui, store, auth }) {
       </div>
 
       <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-        <strong>System note:</strong> Roles define access permissions across operational modules, HR tools, reports, and future company systems.
+        <strong>System note:</strong> Roles define access permissions across operational modules, HR tools, reports, and future company systems. Open a role to review its outlet scope, assigned employees, and accessible modules.
       </div>
 
       <FilterBar compact>
@@ -1315,7 +1334,7 @@ export default function RolesPage({ ui, store, auth }) {
         </FieldLabel>
       </FilterBar>
 
-      <Card title="Role Catalog" description="Rows summarize outlet access, assigned employees, and accessible modules.">
+      <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading roles...</div>
         ) : loadError ? (

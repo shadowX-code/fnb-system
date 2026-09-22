@@ -1,9 +1,22 @@
 # FeedX Development Log
 
-Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
+## 2026-09-21 — Platform Crew Notification Foundation V1
+
+- Promoted Legal Entities from an Employees-page utility into its own People master-data module. The existing canonical Legal Entity table, RPC authority, permissions and employee relationship remain unchanged; the standalone list now exposes server-derived linked-employee counts and deactivation preserves existing assignments and document history.
+
+- Added a private, token-bound Platform delivery/read projection for Crew notifications with deterministic producer dedupe, source-domain typed descriptors, and append-only read receipts.
+- Connected the Crew Home bell and mobile Notification Center without coupling notification reads to disciplinary, employment-document, compliance, leave, roster, or Task lifecycle actions.
+- Documented the Platform ownership boundary and producer contracts for People, Workforce, and Operations. Time-based compliance/Task notification generation is server-scheduled in Malaysia time and launches prospectively without historical backfill.
+
+- Added People-owned Employment Contract Builder V2 on the existing Employment Documents authority. Legal-Entity-owned Full-Time/Part-Time templates publish immutable clause versions; employee-profile Create Contract records contract-only terms, server-generates an exact PDF from a hashed manifest, and sends it through the existing immutable PDF/acknowledgement lifecycle. This adds no legal electronic-signature claim and does not write to Employee, payroll, roster, or Crew authority.
+
+- Added the minimum People-owned Legal Employer master and employee assignment, plus Employment Documents V1 for uploaded Employment Contract PDFs. Send pins server-hashed PDF evidence and employee/employer/issuer/consent snapshots; Crew Employment Records provides token-bound view and explicit acknowledgement without claiming legal electronic-signature status. Sent/completed evidence and events remain immutable, corrections use withdrawal/supersession, and no payroll, roster, Attendance, Performance, Reward, or Crew Access behavior changes.
+
+- Added People-owned Employee Disciplinary Records V1 with First and Final Written Warning drafts, immutable issuance, private evidence, server-derived delivery/view/acknowledgement events, append-only employee responses, and controlled withdrawal/supersession. Employee Profile owns Admin management and Crew Me exposes token-bound Warnings & Notices without any Performance, Reward, Attendance, roster, payroll, Task, or Crew Access effect.
+
+- Aligned Cash Checkout Settings with canonical Job Position IDs, current effective Floating Cash, and consistent internal receiver-confirmation behavior across Crew and Admin handovers. The Admin modal now has one page-level entry and groups Cash Rules, Eligible Crew, and Review Rules without changing the checkout lifecycle or inventing closing-deadline enforcement.
 
 - Factory Production SOP Equipment lifecycle: Draft SOPs may now be created and edited without Equipment while clearly marked as incomplete configuration; activation remains a trusted, server-enforced boundary requiring at least one active canonical Equipment binding. Existing versioning, permissions, audit, production snapshots, and SOP-bound After Production equipment-cleaning evidence remain unchanged.
-- Factory Production SOP Step Description is now optional supplementary guidance: empty values stay empty, duplicate Step Name text is cleared on save/read, and the read-only timeline renders only meaningful unique Description content above its Sub-steps.
 
 - Added the Factory Equipment foundation: canonical Equipment Categories and Equipment instances use Factory Locations, while idempotent actual Production Equipment Usage evidence snapshots the selected machine and batch/product/SOP context without coupling to Restaurant assets or SOP planning text.
 - Added Factory MeSTI Calibration Schedule & Record: trusted versioned Equipment/Calibration-Type requirements, module-level role settings, server-calculated monthly due dates, Schedule and Records projections, and immutable calibration snapshots. A verified Pass alone renews validity; verified Fail evidence remains Failed until a later verified Pass.
@@ -13,6 +26,7 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Moved Cleaning responsible/verifier assignment into one trusted module-level Cleaning Settings record; requirements retain schedule-only versioned configuration and finalized occurrence role snapshots remain immutable.
 - Added trusted future-pending rematerialization after role-setting changes and a task-grouped Monthly read model with aggregate state/counts and retained per-Location audit detail.
 
+Purpose: milestone changelog for meaningful FeedX development sessions. This file preserves delivery history but is not architecture or current-system authority. Current code and migrations take precedence, followed by tests/contracts and the canonical documentation routed from `docs/README.md`. Release notes under `docs/releases/` document Production releases.
 
 ## September 2026 — Factory MeSTI Cleaning Foundation
 
@@ -464,3 +478,107 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added `save_factory_product_recipe` and `factory_product_recipe_requests` (migration 016) so Draft Recipe header and complete BOM replacement commit atomically with request-ID idempotency.
 - Removed the active browser header-update/BOM-delete/BOM-insert save choreography. The Recipe modal owns retry-safe request IDs: unchanged retries reuse one ID, changed intent receives a new ID, and success clears it.
 - Final hardening baseline: Product Recipe focused 11/11 and full suite 356/356. FeedX hardening is complete at P0=0/P1=0; accepted P2 debt remains documented.
+
+## 2026-08-12
+
+### Crew Learning Architecture Reset
+- Reset Crew Learn to two operational product surfaces: mandatory New Crew Onboarding and the outlet SOP Library; generic Journey Library, manual assignment, and standalone Crew Progress navigation are retired from the primary UI without deleting historical data.
+- Added Staging migrations `20260812012742_crew_learning_architecture_reset.sql` and `20260812015242_crew_learning_home_runtime_fix.sql` for outlet onboarding lineages, automatic enrollment, outlet SOP categories, independent setup cloning, permanent completed-onboarding access, outlet SOP discovery, and token-bound acknowledgement/read authorities.
+- Added Staging migration `20260812021500_crew_learning_admin_outlet_visibility.sql` after real browser QA proved the existing outlet SELECT policy omitted Crew Learning/SOP roles. The policy is authenticated, read-only, permission-gated, and still requires canonical outlet scope.
+- Adapted the existing Staging New Crew Onboarding to the documented eight-module structure while preserving the completed v1 assignment and immutable employee snapshots. The current published v2 snapshot contains all eight modules; eligible Crew enrollment is automatic.
+- Rebuilt Admin Learning around one explicit Outlet context, Onboarding Overview/Modules/Crew Progress, a category-based SOP Library, editable module/lesson/block and SOP section drafts, and state-correct publish/new-version actions.
+- Normalized PostgREST one-to-one Lesson→Quiz relations at the service boundary after real Staging lesson-editor smoke exposed the runtime object/array cardinality mismatch.
+- Rebuilt Crew Mobile Learn so completed onboarding remains reviewable and all published outlet SOPs are searchable by category with required acknowledgements clearly surfaced.
+- Added reusable Staging-only architecture adaptation and rollback-only behavior verification scripts. Real Staging verification passed 12/12 for clone independence, automatic enrollment, outlet isolation, safe payloads, completed history, SOP library access, and acknowledgements.
+- No Production schema, data, or deployment was touched.
+
+### Crew Growth Admin Foundation
+- Added the Crew Growth workspace with Growth Overview, Skills, Crew Growth, and Certification Review routes using the shared Restaurant/Factory page, filter, table, badge, and modal foundation.
+- Added outlet- and position-scoped Skills, versioned certification requirements, server-derived employee skill states, practical assessment history, immutable certification evidence, and optional renewal/expiry.
+- Reused existing Onboarding module/lesson completion, exact SOP version acknowledgements, and Knowledge Check results as authoritative Growth evidence; the frontend does not calculate final certification eligibility.
+- Added permissions `crew_growth.view`, `crew_growth.manage`, `crew_growth.assess`, and `crew_growth.certify`, fixed-search-path SECURITY DEFINER authorities, outlet checks, RLS, private internal helpers, and explicit removal of authenticated table DML grants.
+- Applied Staging-only migrations `20260812115538`, `20260812121319`, `20260812121447`, `20260812122231`, `20260812123742`, `20260812125218`, and `20260812135044` to `fnb-system-staging`; the forward fixes cover RLS helper execution, PL/pgSQL/JSONB runtime ambiguity, least-privilege table grants, published same-outlet evidence references, and a lightweight Published evidence catalog for the Skill editor.
+- Created an idempotent, Staging-guarded Growth QA seed with eight Skills and Certified, In Progress, Ready for Review, Not Started, and Not Applicable examples using only existing QA Crew identities. The seed preserves immutable Learning evidence and does not touch operational employees.
+- Growth Staging behavior/security verification passed 12/12. No Reward, Performance rebuild, Production schema, Production data, or Production deployment was included.
+
+### Crew Phase C — Performance + Customer Feedback
+- Added the versioned monthly Performance Engine: Attendance 30, Service Standards 30, Customer Experience 15, Knowledge & SOP 15, and Conduct 10. Scores are server-derived from existing evidence, Manager criteria, and transparent sample-aware guest feedback; finalized results are immutable.
+- Added outlet-scoped Service Standards and Conduct review history, audited feedback exclusion, a controlled public QR feedback flow, and token-bound Crew own-result reads with no manager notes, moderation data, or cross-employee controls.
+- Added FeedX Admin Performance Overview, Reviews, and Customer Feedback routes plus Crew Mobile Growth → My Performance with monthly trend, component breakdown, and safe explanations. Reward remains a truthful Coming Soon surface.
+- Applied Staging-only migrations `20260812154112_crew_performance_feedback_engine.sql` and `20260812155805_crew_performance_admin_payload_scope_fix.sql`. The corrective migration partitions consolidated Admin payload fields by Performance, Review, and Feedback permission.
+- Created a guarded, reusable Staging QA seed for five scenarios: High Performer, Average, Needs Attention, Awaiting Review, and Insufficient Feedback. The seed uses controlled review/finalize/public feedback authorities and only `QA-CREW-*` employees.
+- Real Staging backend/security checks passed 16/16 across ACL/RLS, own-result isolation, public feedback duplicate protection, sample confidence, immutable finalization, and field-level Admin permission scoping. No Production resource was touched.
+# 2026-08-13 — Crew Phase D Reward
+
+- Added the server-authoritative `reward-v1` monthly Reward engine with team Pool unlock, eligible-hours contribution, Performance factors, capped payout normalization, audited adjustments and immutable finalized snapshots.
+- Added outlet-scoped Reward Overview and Reward Cycles Admin UI, plus token-bound Crew Mobile Reward estimates, calculation explanation and history.
+- Applied `20260812163541_crew_monthly_reward_engine.sql`, corrective `20260812164410_crew_reward_mark_paid_runtime_fix.sql`, strict rounding/pool-cap hardening `20260812164932_crew_reward_strict_pool_cap.sql`, and PostgREST session-activity fix `20260812170155_crew_reward_mobile_runtime_fix.sql` to Staging only.
+- Created reusable Staging-only Reward QA seed and rollback behavior/security verification scripts covering High Performer, Average, Needs Attention, part-time low-hours, Not Eligible and Awaiting Performance outcomes.
+
+## 2026-08-13
+
+### Crew Daily Operations v1
+- Added outlet-scoped Opening, Closing, Daily and Store Health checklist templates with immutable active revisions, whole-template Draft saves, optional position applicability, time windows and pinned Published SOP references.
+- Added server-generated daily checklist instances with frozen template/item snapshots, server-derived Not Started/In Progress/Completed/Completed With Exceptions/Overdue state, multi-Crew first-writer item evidence and required-item completion gating.
+- Added one-time Daily Tasks and lightweight Store Health outcomes. Exceptions require a controlled reason; Needs Attention Health results require a note and remain operational evidence rather than automatic Performance deductions.
+- Added FeedX Admin Daily Operations monitoring, Checklist Template management and read-only historical detail, plus Crew Mobile Home → Today’s Tasks, checklist execution, exception capture, SOP reading and sticky checklist completion without adding a sixth bottom-navigation item.
+- Applied Staging-only migrations `20260812171446_crew_daily_operations_v1.sql` and `20260812172437_crew_daily_operations_employee_context_fix.sql` to `fnb-system-staging`. The corrective migration resolves an employee-context PL/pgSQL ambiguity found by real database behavior testing.
+- Added idempotent Staging-only Friends Corner QA seed data: eight-item Opening and Closing checklists, a ten-item Store Health check and six one-time Daily Tasks covering completed, pending, exception, overdue and Needs Attention states. No QA Crew passcode was changed.
+- Real Staging rollback behavior/security verification passed 22/22, including snapshot immutability, outlet/role scope, token identity, first-writer concurrency, required gating, exceptions, Health evidence, direct-table denial and unauthorized Admin rejection.
+- Photo evidence remains intentionally disabled in v1 until Daily Operations has a dedicated controlled media store and reference-safe deletion lifecycle; no base64 or Learning-media reuse was introduced.
+- Added corrective Staging migrations `20260812181200_crew_daily_operations_business_date_fix.sql` and `20260812181500_crew_daily_operations_business_date_default_fix.sql` after authenticated midnight smoke testing exposed UTC-date drift. The follow-up keeps the internal date helper revoked while making anon-callable RPC defaults evaluate without caller execute rights. Admin, Crew Mobile, default RPC behavior and QA seeds now use the Malaysia business date consistently.
+## 2026-09-03 - Factory MeSTI Canonical Permission Authorization
+
+- Removed duplicated Cleaning of Area and Calibration Responsible/Verifier role configuration from Factory setup, service loading, and trusted authorities.
+- Preserved immutable Cleaning occurrence and Calibration record evidence while moving all future action authorization to canonical FeedX permissions with server-side self-verification denial.
+
+## 2026-09-03 - Factory MeSTI Cleaning of Equipment
+
+- Added Cleaning of Equipment under Factory MeSTI with scheduled daily/weekly requirements and After Operation requirements sourced only from completed canonical Production Equipment Usage evidence.
+- Added forward-effective logical requirement versions, no-op saves, database-level scheduled/usage-event occurrence identities, trusted lifecycle RPCs, canonical permissions, and immutable Equipment/Production provenance snapshots.
+
+## 2026-09-03 - Factory MeSTI Operator Hygiene Inspection
+
+- Added Operator Hygiene Inspection under Factory MeSTI with canonical Employee selection, daily draft/submitted/verified session evidence, required Issue and Action evidence for non-compliance, and Employee-centric monthly drill-down.
+- Added trusted RPCs, RLS read policies, canonical permissions, server-derived Overall result, immutable submitted sessions, and server-side self-verification denial.
+# 2026-09-16 - Factory Petty Cash
+
+- Added a Factory physical-cash ledger with server-derived running/current balance, immutable Posted transactions, linked reversal Adjustments, Malaysia-date daily references, auditable trusted RPC mutations, and private receipt evidence.
+- Added active/inactive Expense Category management, canonical Factory permissions/RLS, shared FilterBar/table/modal UI, and explicit isolation from Receiving, inventory, supplier payable, Recipe costing, and accounting data.
+
+# 2026-09-17 - Asset Tracking Phase 1 Integrity Hardening
+
+- Hardened Asset Tracking lifecycle history at the database boundary: ordinary clients can no longer delete assets or mutate/delete movement, maintenance, inspection, item, or evidence history; asset archival remains the supported lifecycle action.
+- Added same-outlet child-record triggers, one-asset-per-inspection uniqueness, finalized-inspection immutability, a trusted draft-archive RPC, and atomic server-derived audit events for quantity, inspection, maintenance, and import lifecycle requests.
+
+# 2026-09-17 - Asset Tracking Phase 2 Operational Semantics
+
+- Separated quantity-derived Availability (Available, Low Quantity, Missing) from physical Condition, and made the shared read-model selector the source for asset list badges, Operations Summary counts, and quick filters. Zero quantity now belongs only to Missing, avoiding the prior summary/filter disagreement.
+- Simplified the operational surface by prioritizing Operations Summary over the historical activity stream, removing the placeholder page export control and duplicate overflow View action, and making row-level Start Inspection preselect the intended asset.
+- Normalized recent-activity labels for imports, adjustments, inspection draft/completion, maintenance states, and archived assets. Hardened name-only import matching against ambiguity and made photo replacement retain the old object until a new reference saves successfully.
+
+# 2026-09-17 - Crew Mobile Assets MVP
+
+- Added independent `Adjust Assets` and `Perform Asset Inspections` Special Access capabilities on active Crew Access records. Crew Mobile now exposes Me > Work > Assets only when at least one capability is active and resolves all access through the current employee/outlet session boundary.
+- Added a minimum-safe outlet asset read model plus server-authoritative Crew quantity/condition adjustments and resumable inspections. Mutations reuse canonical Asset Tracking rows, lifecycle request idempotency/locking, finalized evidence, movement history, and audit while retaining Crew employee actor attribution.
+- Added token-mediated inspection evidence upload, mobile list/detail/adjust/inspection/history flows, and explicit separation from Admin asset/category/import/export/maintenance/disposal authority. Task integration remains deferred pending a canonical Task-to-Asset evidence contract.
+
+# 2026-09-19 - Crew Asset Inspection and Detail Refinement
+
+- Added the independent `Manage Asset Details` Special Access capability. Its token-bound, request-id-audited authority permits only Asset name, description, location, and master-photo changes; quantity, condition, category, maintenance, and archival remain on their existing canonical authorities.
+- Standardized Crew inspection count/photo controls and Asset Detail media/activity presentation on shared mobile primitives. Asset master photos continue through the canonical normalized media pipeline; inspection evidence remains unchanged.
+
+# 2026-09-21 - Factory Workplace and Restaurant Role Scope
+
+- Clarified Employee Master Workplace as workforce belonging: `Factory` is a canonical non-outlet workplace, while Management and Restaurant employees are not eligible for Factory staff/operator selections merely because they have Factory permissions.
+- Added server-authoritative Restaurant-only role outlet-scope classification. Roles with Restaurant permissions use the existing All/Selected Outlet model; Factory, Crew, People, System, and Guest-only roles persist with no Restaurant outlet scope. No Factory access-scope concept was introduced.
+- Preserved Role permissions as the authority boundary, existing Restaurant outlet access, RLS, and Factory workflow permissions. Existing Factory-only Staging QA roles were reclassified from legacy all-outlet scope to no outlet scope without changing employee or historical records.
+
+# 2026-09-21 - Crew Admin Dashboard Operations Projection
+
+- Rebuilt Crew Dashboard as a permission-aware, outlet-scoped operational projection over active Crew, the currently published roster, same-day attendance, approved leave, upcoming birthdays, Crew Access, Compliance, and Performance review authorities.
+- Added a server-side Dashboard read RPC with outlet and permission enforcement. It exposes only the seven-day birthday display projection needed by Admin and deep-links compact attention items to their owning workflows; it creates no unified activity log, duplicate lifecycle, or source-evidence mutation path.
+# 2026-09-21 — Employment Agreement V1
+
+- Added a reusable Malaysian Employment Agreement V1 template starter to the existing People-owned Contract Builder V2, with bounded identity/term tokens and server-rendered leave-table/signature blocks.
+- Added optional Employee residential address master data for immutable contract render-manifest use; no separate contract lifecycle, storage authority, or signature claim was introduced.

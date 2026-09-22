@@ -1,4 +1,5 @@
 import { CheckCircle2, Clock3, Info, MinusCircle, XCircle } from "lucide-react";
+import { semanticStatusTone } from "./semanticStatus.js";
 
 const toneClasses = {
   green: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -51,6 +52,8 @@ const semanticToneMap = {
 };
 
 export function statusTone(status, fallback = "gray") {
+  const sharedTone = semanticStatusTone(status, "");
+  if (sharedTone) return { success: "green", warning: "amber", danger: "red", info: "blue", neutral: "gray" }[sharedTone] || fallback;
   const key = String(status || "").trim().toLowerCase().replace(/-/g, "_");
   return semanticToneMap[key] || semanticToneMap[key.replace(/_/g, " ")] || fallback;
 }

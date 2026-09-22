@@ -4,6 +4,7 @@ import { ArrowUpDown, BarChart3, Clock, Download, FileSpreadsheet, History, Info
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import AdminPagination, { useAdminClientPagination } from "../../../components/tables/AdminPagination.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel, MonthSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
@@ -723,7 +724,6 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const [productCategory, setProductCategory] = useState("all");
   const yearOptions = useMemo(() => buildDynamicYearOptions(yearsFromRecords(reports, "report_year")), [reports]);
   const [productSort, setProductSort] = useState("net_sales");
-  const [productPage, setProductPage] = useState(1);
   const [productViewMode, setProductViewMode] = useState("summary");
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [focusedMatrixProductKey, setFocusedMatrixProductKey] = useState("");
@@ -868,18 +868,17 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
     if (productSort === "product_name") return a.product.localeCompare(b.product);
     return b.nett_sales - a.nett_sales;
   });
-  const pageSize = 12;
-  const totalProductPages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
-  const pagedProducts = sortedProducts.slice((productPage - 1) * pageSize, productPage * pageSize);
+  const productPagination = useAdminClientPagination(
+    "restaurant.product-analytics-products",
+    sortedProducts.length,
+    20,
+    JSON.stringify({ productViewMode, productCategory, productSearch, productSort }),
+  );
+  const pagedProducts = sortedProducts.slice(productPagination.from, productPagination.to);
   const historyReports = reports.filter((report) => outletId === "all" || report.outlet_id === outletId);
 
   useEffect(() => {
-    if (productPage > totalProductPages) setProductPage(totalProductPages);
-  }, [productPage, totalProductPages]);
-
-  useEffect(() => {
     setProductCategory("all");
-    setProductPage(1);
   }, [productViewMode]);
   const insights = focusedMatrixProduct
     ? matrixInsightsForProduct(focusedMatrixProduct, current.totals.nett_sales, matrixAvgQty, matrixAvgSales)
@@ -1215,10 +1214,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
               <input
                 className="input"
                 value={productSearch}
-                onChange={(event) => {
-                  setProductSearch(event.target.value);
-                  setProductPage(1);
-                }}
+                onChange={(event) => setProductSearch(event.target.value)}
                 placeholder="Search product or variant"
               />
             </FieldLabel>
@@ -1237,7 +1233,6 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
               options={productCategories.map((category) => ({ value: category, label: category === "all" ? "All Categories" : category }))}
               onChange={(value) => {
                 setProductCategory(value);
-                setProductPage(1);
               }}
             />
             <SelectField
@@ -1252,7 +1247,6 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
               ]}
               onChange={(value) => {
                 setProductSort(value);
-                setProductPage(1);
               }}
             />
           </div>
@@ -1278,14 +1272,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
             getRowKey={(row) => row.key}
             onRowClick={(row) => setSelectedProduct(row)}
           />
-          <div className="mt-4 flex flex-col gap-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
-            <span>{sortedProducts.length.toLocaleString()} products found</span>
-            <div className="flex items-center justify-end gap-2">
-              <button className="btn-secondary h-9 text-xs" type="button" disabled={productPage <= 1} onClick={() => setProductPage((page) => Math.max(1, page - 1))}>Previous</button>
-              <span className="min-w-24 text-center text-xs font-bold text-text-primary">Page {productPage} of {totalProductPages}</span>
-              <button className="btn-secondary h-9 text-xs" type="button" disabled={productPage >= totalProductPages} onClick={() => setProductPage((page) => Math.min(totalProductPages, page + 1))}>Next</button>
-            </div>
-          </div>
+          <AdminPagination page={productPagination.page} pageSize={productPagination.pageSize} total={sortedProducts.length} onPageChange={productPagination.setPage} onPageSizeChange={productPagination.setPageSize} />
         </Modal>
       ) : null}
 

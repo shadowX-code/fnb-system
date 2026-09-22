@@ -7,16 +7,16 @@ const internalModules = moduleRegistry.filter((module) => module.routable === fa
 
 describe("FeedX route completeness contract", () => {
   it("resolves every routable registry module through an explicit non-placeholder route detail", () => {
-    expect(moduleRegistry).toHaveLength(58);
-    expect(routableModules).toHaveLength(56);
-    expect(internalModules.map((module) => module.id)).toEqual(["inventory_categories", "inventory_uoms"]);
+    expect(moduleRegistry).toHaveLength(104);
+    expect(routableModules).toHaveLength(97);
+    expect(internalModules.map((module) => module.id)).toEqual(["guest_ai", "guest_ai_device_console", "inventory_categories", "inventory_uoms", "crew_leave_balance", "crew_leave_settings", "crew_cash_deposit"]);
 
     for (const module of routableModules) {
       const detail = routeDetails[module.id];
       const route = salesPurchaseRoutes.find((candidate) => candidate.id === module.id);
 
       expect(detail, `${module.id} must have explicit route details`).toBeTruthy();
-      expect(detail.component, `${module.id} must resolve to a component`).toEqual(expect.any(Function));
+      expect(typeof detail.component === "function" || detail.component?.$$typeof === Symbol.for("react.lazy"), `${module.id} must resolve to a component or lazy component`).toBe(true);
       expect(route, `${module.id} must be registered as a runtime route`).toBeTruthy();
       expect(route.component, `${module.id} must not use the generic placeholder`).toBe(detail.component);
       expect(route.permission, `${module.id} must use route or registry view permission`).toBe(detail.permission ?? viewPermission(module.id));

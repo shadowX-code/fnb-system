@@ -10,15 +10,26 @@ export type ModuleAction =
   | "upload"
   | "manage"
   | "review"
+  | "adjust"
+  | "finalize"
+  | "publish"
+  | "moderate"
+  | "mark_paid"
+  | "assess"
+  | "certify"
   | "audit"
   | "submit"
   | "post"
   | "reverse"
   | "receive"
   | "complete"
+  | "perform"
+  | "record_collection"
   | "cancel"
   | "enable_login"
-  | "reset_password";
+  | "reset_password"
+  | "access"
+  | "developer";
 
 export type AppModule = {
   id: string;
@@ -29,7 +40,7 @@ export type AppModule = {
   sidebar: boolean;
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
-  workspace?: "restaurant" | "factory";
+  workspace?: "restaurant" | "factory" | "crew";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -41,14 +52,25 @@ export const permissionActionOrder: ModuleAction[] = [
   "deactivate",
   "enable_login",
   "reset_password",
+  "access",
+  "developer",
   "approve",
   "review",
+  "adjust",
+  "finalize",
+  "publish",
+  "moderate",
+  "mark_paid",
+  "assess",
+  "certify",
   "audit",
   "submit",
   "post",
   "reverse",
   "receive",
   "complete",
+  "perform",
+  "record_collection",
   "cancel",
   "manage",
   "import",
@@ -64,14 +86,25 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   deactivate: "Deactivate",
   enable_login: "Enable Login",
   reset_password: "Reset Password",
+  access: "Access",
+  developer: "Developer Access",
   approve: "Approve",
   review: "Review",
+  adjust: "Adjust",
+  finalize: "Finalize",
+  publish: "Publish",
+  moderate: "Moderate",
+  mark_paid: "Mark Paid",
+  assess: "Assess",
+  certify: "Certify",
   audit: "Audit",
   submit: "Submit",
   post: "Post",
   reverse: "Reverse",
   receive: "Receive",
   complete: "Complete",
+  perform: "Perform",
+  record_collection: "Record Collection",
   cancel: "Cancel",
   manage: "Manage",
   import: "Import",
@@ -79,12 +112,28 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export type WorkspaceKey = "restaurant" | "factory";
+export type WorkspaceKey = "restaurant" | "factory" | "crew";
 
 export const workspaceLabels: Record<WorkspaceKey, string> = {
   restaurant: "Restaurant",
   factory: "Factory",
+  crew: "Crew",
 };
+
+// Workspace ownership stays separate from the module registry.  A workspace
+// permission is only required where a domain explicitly defines one; existing
+// Restaurant, Factory, and Crew visibility continues to be driven by their
+// route-level permissions.
+export const workspaceSwitcherOptions: Array<{
+  id: WorkspaceKey;
+  label: string;
+  detail: string;
+  permission?: string;
+}> = [
+  { id: "restaurant", label: "Restaurant", detail: "Store Operations" },
+  { id: "factory", label: "Factory", detail: "Production Operations" },
+  { id: "crew", label: "Crew", detail: "People, learning & workforce" },
+];
 
 export const moduleSectionOrder = [
   "Overview",
@@ -98,7 +147,14 @@ export const moduleSectionOrder = [
   "MeSTI",
   "Master Data",
   "People",
+  "Workforce",
   "System",
+  "Learning",
+  "Growth",
+  "Knowledge",
+  "Performance",
+  "Reward",
+  "Documents",
 ];
 
 export const moduleRegistry: AppModule[] = [
@@ -229,6 +285,24 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, deactivate: true, enable_login: true, reset_password: true },
   },
   {
+    id: "legal-entities",
+    section: "People",
+    label: "Legal Entities",
+    route: "/people/legal-entities",
+    icon: "briefcase-business",
+    sidebar: true,
+    permissions: { view: true, manage: true },
+  },
+  {
+    id: "employee_compliance",
+    section: "People",
+    label: "Food Handling Compliance",
+    route: "/people/compliance",
+    icon: "employee-compliance",
+    sidebar: true,
+    permissions: { view: true, review: true },
+  },
+  {
     id: "job-positions",
     section: "People",
     label: "Job Positions",
@@ -267,11 +341,11 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "duty-roster",
     section: "Operations",
-    label: "Duty Roster",
+    label: "Duty Roster (Legacy Route)",
     route: "/operations/duty-roster",
     icon: "duty-roster",
-    sidebar: true,
-    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+    sidebar: false,
+    permissions: {},
   },
   {
     id: "asset_tracking",
@@ -413,11 +487,11 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "outlet_duty_roster",
     section: "Overview",
-    label: "Outlet Duty Roster",
+    label: "Outlet Duty Roster (Legacy Route)",
     route: "/outlet-duty-roster",
     icon: "duty-roster",
-    sidebar: true,
-    permissions: { view: true, export: true },
+    sidebar: false,
+    permissions: {},
   },
   {
     id: "data-health",
@@ -597,11 +671,56 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, delete: true, submit: true, approve: true, export: true },
   },
-  { id: "factory_mesti_cleaning", section: "MeSTI", label: "Cleaning of Area", route: "/factory/mesti/cleaning-of-area", icon: "factory-mesti-cleaning", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true } },
-  { id: "factory_mesti_equipment_cleaning", section: "MeSTI", label: "Cleaning of Equipment", route: "/factory/mesti/cleaning-of-equipment", icon: "factory-mesti-cleaning", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true } },
-  { id: "factory_mesti_calibration", section: "MeSTI", label: "Calibration Schedule & Record", route: "/factory/mesti/calibration", icon: "factory-mesti-calibration", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, complete: true, review: true, manage: true } },
-  { id: "factory_mesti_finished_product_storage_control", section: "MeSTI", label: "Finished Product Storage Control", route: "/factory/mesti/finished-product-storage-control", icon: "factory-mesti-finished-product-storage-control", sidebar: true, workspace: "factory", permissions: {} },
-  { id: "factory_mesti_health_declaration", section: "MeSTI", label: "Health Declaration", route: "/factory/mesti/health-declaration", icon: "factory-mesti-health-declaration", sidebar: true, workspace: "factory", permissions: { view: true, create: true, manage: true } },
+  {
+    id: "factory_mesti_cleaning",
+    section: "MeSTI",
+    label: "Cleaning of Area",
+    route: "/factory/mesti/cleaning-of-area",
+    icon: "factory-mesti-cleaning",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true },
+  },
+  {
+    id: "factory_mesti_equipment_cleaning",
+    section: "MeSTI",
+    label: "Cleaning of Equipment",
+    route: "/factory/mesti/cleaning-of-equipment",
+    icon: "factory-mesti-cleaning",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, complete: true, review: true, manage: true, export: true },
+  },
+  {
+    id: "factory_mesti_calibration",
+    section: "MeSTI",
+    label: "Calibration Schedule & Record",
+    route: "/factory/mesti/calibration",
+    icon: "factory-mesti-calibration",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, complete: true, review: true, manage: true },
+  },
+  {
+    id: "factory_mesti_finished_product_storage_control",
+    section: "MeSTI",
+    label: "Finished Product Storage Control",
+    route: "/factory/mesti/finished-product-storage-control",
+    icon: "factory-mesti-finished-product-storage-control",
+    sidebar: true,
+    workspace: "factory",
+    permissions: {},
+  },
+  {
+    id: "factory_mesti_health_declaration",
+    section: "MeSTI",
+    label: "Health Declaration",
+    route: "/factory/mesti/health-declaration",
+    icon: "factory-mesti-health-declaration",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, manage: true },
+  },
   { id: "factory_mesti_operator_hygiene", section: "MeSTI", label: "Operator Hygiene Inspection", route: "/factory/mesti/operator-hygiene-inspection", icon: "factory-mesti-operator-hygiene", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, submit: true, verify: true } },
   { id: "factory_mesti_waste_disposal", section: "MeSTI", label: "Waste Disposal Record", route: "/factory/mesti/waste-disposal-record", icon: "factory-mesti-waste-disposal", sidebar: true, workspace: "factory", permissions: { view: true, manage: true, record: true, submit: true, verify: true } },
   { id: "factory_mesti_raw_material_control", section: "MeSTI", label: "Raw Material Control", route: "/factory/mesti/raw-material-control", icon: "factory-mesti-raw-material-control", sidebar: true, workspace: "factory", permissions: {} },
@@ -637,7 +756,16 @@ export const moduleRegistry: AppModule[] = [
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
   },
-  { id: "factory_equipment", section: "Master Data", label: "Equipment", route: "/factory/equipment", icon: "factory-equipment", sidebar: true, workspace: "factory", permissions: { view: true, create: true, edit: true, manage: true } },
+  {
+    id: "factory_equipment",
+    section: "Master Data",
+    label: "Equipment",
+    route: "/factory/equipment",
+    icon: "factory-equipment",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, manage: true },
+  },
   {
     id: "factory_audit_logs",
     section: "System",
@@ -677,6 +805,246 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, delete: true, export: true },
+  },
+  {
+    id: "crew_dashboard",
+    section: "Overview",
+    label: "Dashboard",
+    route: "/crew/dashboard",
+    icon: "crew-dashboard",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true },
+  },
+  {
+    id: "crew_employees",
+    section: "Workforce",
+    label: "Employees",
+    route: "/crew/employees",
+    icon: "crew-employees",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true },
+  },
+  {
+    id: "crew_attendance",
+    section: "Workforce",
+    label: "Attendance",
+    route: "/crew/attendance",
+    icon: "crew-attendance",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true },
+  },
+  {
+    id: "crew_roster",
+    section: "Workforce",
+    label: "Duty Roster",
+    route: "/crew/roster",
+    icon: "crew-roster",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true, publish: true },
+  },
+  {
+    id: "crew_leave",
+    section: "Workforce",
+    label: "Leave Requests",
+    route: "/crew/leave",
+    icon: "crew-leave",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, review: true, manage: true },
+  },
+  {
+    id: "crew_leave_balance",
+    section: "Workforce",
+    label: "Leave Balance",
+    route: "/crew/leave/balances",
+    sidebar: false,
+    routable: false,
+    workspace: "crew",
+    permissions: { view: true, manage: true, adjust: true },
+  },
+  {
+    id: "crew_leave_settings",
+    section: "Workforce",
+    label: "Leave Settings",
+    route: "/crew/leave/settings",
+    sidebar: false,
+    routable: false,
+    workspace: "crew",
+    permissions: { manage: true },
+  },
+  {
+    id: "crew_operations",
+    section: "Operations",
+    label: "Tasks",
+    route: "/crew/operations",
+    icon: "crew-operations",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true, review: true },
+  },
+  {
+    id: "crew_cash_checkout",
+    section: "Operations",
+    label: "Cash Checkout",
+    route: "/crew/operations/cash-checkout",
+    icon: "crew-cash-checkout",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, perform: true, review: true, manage: true },
+  },
+  {
+    id: "crew_cash_deposit",
+    section: "Operations",
+    label: "Cash Deposit",
+    route: "/crew/operations/cash-deposit",
+    sidebar: false,
+    routable: false,
+    workspace: "crew",
+    permissions: { view: true, record_collection: true },
+  },
+  {
+    id: "crew_operation_templates",
+    section: "Operations",
+    label: "Tasks",
+    route: "/crew/operations/templates",
+    icon: "crew-operation-templates",
+    sidebar: false,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
+    id: "crew_learning",
+    section: "Learning",
+    label: "Onboarding",
+    route: "/crew/learning",
+    icon: "crew-learning",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, create: true, edit: true, manage: true },
+  },
+  {
+    id: "crew_journeys",
+    section: "Learning",
+    label: "Journeys",
+    route: "/crew/journeys",
+    icon: "crew-learning",
+    sidebar: false,
+    workspace: "crew",
+    permissions: { view: true, create: true, edit: true, manage: true },
+  },
+  {
+    id: "crew_progress",
+    section: "Learning",
+    label: "Onboarding Progress",
+    route: "/crew/progress",
+    icon: "crew-learning",
+    sidebar: false,
+    workspace: "crew",
+    permissions: { view: true },
+  },
+  {
+    id: "crew_sop_library",
+    section: "Learning",
+    label: "SOP Library",
+    route: "/crew/sops",
+    icon: "crew-sops",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, create: true, edit: true, manage: true },
+  },
+  {
+    id: "crew_growth",
+    section: "Growth",
+    label: "Growth Overview",
+    route: "/crew/growth",
+    icon: "crew-growth",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true, assess: true, certify: true },
+  },
+  {
+    id: "crew_growth_skills",
+    section: "Growth",
+    label: "Skills",
+    route: "/crew/growth/skills",
+    icon: "crew-growth-skills",
+    sidebar: true,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
+    id: "crew_growth_people",
+    section: "Growth",
+    label: "Crew Growth",
+    route: "/crew/growth/crew",
+    icon: "crew-growth-people",
+    sidebar: false,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
+    id: "crew_growth_reviews",
+    section: "Growth",
+    label: "Certification Review",
+    route: "/crew/growth/reviews",
+    icon: "crew-growth-reviews",
+    sidebar: false,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
+    id: "crew_performance",
+    section: "Performance",
+    label: "Performance Overview",
+    route: "/crew/performance",
+    icon: "crew-performance",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, review: true, finalize: true },
+  },
+  {
+    id: "crew_performance_reviews",
+    section: "Performance",
+    label: "Reviews",
+    route: "/crew/performance/reviews",
+    icon: "crew-performance-reviews",
+    sidebar: false,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
+    id: "crew_customer_feedback",
+    section: "Performance",
+    label: "Customer Feedback",
+    route: "/crew/performance/feedback",
+    icon: "crew-feedback",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, moderate: true },
+  },
+  {
+    id: "crew_reward",
+    section: "Reward",
+    label: "Reward Overview",
+    route: "/crew/reward",
+    icon: "crew-reward",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true, finalize: true, mark_paid: true },
+  },
+  {
+    id: "crew_reward_cycles",
+    section: "Reward",
+    label: "Reward Cycles",
+    route: "/crew/reward/cycles",
+    icon: "crew-reward-cycles",
+    sidebar: false,
+    workspace: "crew",
+    permissions: {},
   },
 ];
 

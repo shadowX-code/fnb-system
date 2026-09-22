@@ -1,0 +1,28 @@
+// A reusable Malaysian employment-agreement starting point. It contains no
+// employer or employee data; those values are resolved by the canonical V2
+// render manifest when an authorised Admin creates a legal-entity template.
+export const employmentAgreementV1 = {
+  title: "Employment Agreement V1",
+  contract_kind: "full_time",
+  language_code: "en",
+  is_active: true,
+  is_default: false,
+  sections: [
+    { heading: "EMPLOYMENT AGREEMENT", body: "This Employment Agreement is made on {{contract.contract_date}} between the parties identified below. Nothing in this Agreement reduces any mandatory minimum entitlement under applicable Malaysian law." },
+    { heading: "Parties", body: "Employer\n{{legal_entity.legal_company_name}} (Registration No. {{legal_entity.company_registration_no}}), of {{legal_entity.registered_address}} (Employer).\n\nEmployee\n{{employee.full_name}} (NRIC/Passport: {{employee.ic_no}}), residing at {{employee.residential_address}} (Employee)." },
+    { heading: "1. Position and Commencement", body: "The Employer employs the Employee as {{contract.position}} at {{contract.workplace}} on a {{contract.employment_type}} basis. Employment commences on {{contract.commencement_date}} and takes effect on {{contract.effective_date}}." },
+    { heading: "2. Probation", body: "The Employee will serve a probationary period of {{contract.probation}} from commencement. Confirmation is subject to satisfactory performance and conduct and will be made in writing. The Employer may extend probation where reasonably appropriate and subject to applicable law." },
+    { heading: "3. Duties and Responsibilities", body: "The Employee will perform the duties reasonably assigned for the position, including customer service, cash and point-of-sale handling, food and beverage preparation or service, cleanliness and hygiene, stock arrangement, and other operational duties reasonably required for the business. The Employer may reasonably vary or add duties in line with business needs, provided this is consistent with the Employee's role, capability and applicable law." },
+    { heading: "4. Hours of Work and Rest Day", body: "The roster may provide for up to {{contract.working_days}} with rest day(s) of {{contract.rest_days}}. Normal working hours are {{contract.normal_working_hours}}. Actual shifts, breaks and rest days will be scheduled according to operational requirements, always subject to applicable Malaysian statutory requirements on working hours, breaks, overtime and rest days." },
+    { heading: "5. Salary, Allowances and Reimbursements", body: "The Employee will receive a basic salary of {{contract.basic_salary}} payable {{contract.salary_payment_period}} in accordance with the agreed payroll arrangement and applicable law.\n\n{{allowances_table}}\n\nApproved reasonable business expenses incurred in the course of duty and supported by valid receipts are reimbursements, not remuneration." },
+    { heading: "6. Statutory Contributions and Benefits", body: "The Employer will make contributions to EPF, SOCSO and EIS, and provide statutory benefits, as required by applicable law. Where this Agreement provides a benefit below a mandatory statutory minimum, the statutory minimum prevails." },
+    { heading: "7. Annual Leave", body: "Paid annual leave accrues in accordance with applicable law and is not conditional on completing probation. Subject to applicable law and any more favourable Employer policy:\n\n{{annual_leave_table}}" },
+    { heading: "8. Public Holidays", body: "The Employee is entitled to 11 paid gazetted public holidays in each calendar year, subject to applicable law. If the Employee is required to work on a public holiday, compensation will be provided in accordance with applicable statutory requirements." },
+    { heading: "9. Sick and Hospitalisation Leave", body: "Paid sick leave and paid hospitalisation leave apply in accordance with applicable law. The hospitalisation entitlement is stated separately and is subject to the applicable statutory requirements and certification.\n\n{{sick_hospitalisation_leave_table}}" },
+    { heading: "10. Termination", body: "During probation, either party may terminate employment by giving {{contract.probation_notice_period}} written notice or salary in lieu where applicable. After written confirmation, either party may terminate employment by giving {{contract.confirmed_notice_period}} written notice or salary in lieu where applicable. These terms apply equally to the Employer and Employee and remain subject to applicable law." },
+    { heading: "11. Misconduct", body: "The Employer may investigate alleged misconduct and take disciplinary action, including dismissal where justified, only in accordance with applicable law and due process." },
+    { heading: "12. Confidentiality and Non-Disclosure", body: "During and after employment, the Employee must not improperly disclose or use the Employer's confidential information, trade secrets, customer information, operational information or business affairs, except as required for proper performance of duties or by law." },
+    { heading: "13. Governing Law", body: "This Agreement is governed by the laws of Malaysia. Any mandatory protection or entitlement under applicable law prevails over an inconsistent term of this Agreement." },
+    { heading: "14. Signatures", body: "By signing below, the parties acknowledge this Agreement. FeedX may record a separate document acknowledgement through its Employment Documents workflow; that acknowledgement is not represented as a legal electronic signature.\n\n{{signature_block}}" },
+  ],
+};

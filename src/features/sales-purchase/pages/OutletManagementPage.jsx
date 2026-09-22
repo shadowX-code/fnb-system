@@ -50,6 +50,21 @@ export default function OutletManagementPage({ store, setStore, ui }) {
     { name: "name", label: "Outlet Name", placeholder: "Outlet name" },
     { name: "code", label: "Outlet Code", placeholder: "HIPB" },
     { name: "location", label: "Location", placeholder: "City / area" },
+    { name: "outlet_logo", label: "Outlet Logo", render: ({ values, setValues }) => {
+      const current = values.logo_path ? outletService.logoPublicUrl(values.logo_path, values.logo_version) : "";
+      const preview = values.logoFile ? URL.createObjectURL(values.logoFile) : current;
+      return <div className="grid gap-2"><div className="flex min-h-16 items-center gap-3 rounded border border-border bg-surface px-3 py-2">{preview ? <img className="h-12 w-20 object-contain" src={preview} alt="Outlet logo preview" /> : <span className="grid h-12 w-12 place-items-center rounded bg-mint-100 text-xs font-bold text-primary">{(values.name || "Outlet").slice(0, 2).toUpperCase()}</span>}<span className="text-xs text-text-secondary">PNG, JPG, or WebP. Up to 2 MB. Original proportions are preserved.</span></div><input aria-label="Outlet Logo" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => setValues((currentValues) => ({ ...currentValues, logoFile: event.target.files?.[0] || null, removeLogo: false }))} />{current && !values.logoFile ? <button className="btn-ghost w-fit text-rose-700" type="button" onClick={() => setValues((currentValues) => ({ ...currentValues, removeLogo: true, logo_path: "", logo_version: "" }))}>Remove logo</button> : null}</div>;
+    } },
+    { name: "brand_accent_color", label: "Brand Accent Color", render: ({ values, setValues }) => <div className="flex items-center gap-3"><input aria-label="Brand Accent Color picker" type="color" value={/^#[0-9a-fA-F]{6}$/.test(values.brand_accent_color || "") ? values.brand_accent_color : "#236647"} onChange={(event) => setValues((current) => ({ ...current, brand_accent_color: event.target.value.toUpperCase() }))} /><input aria-label="Brand Accent Color" className="control w-28" value={values.brand_accent_color || ""} placeholder="#236647" onChange={(event) => setValues((current) => ({ ...current, brand_accent_color: event.target.value }))} /><span className="h-8 w-8 rounded border border-border" style={{ background: /^#[0-9a-fA-F]{6}$/.test(values.brand_accent_color || "") ? values.brand_accent_color : "#236647" }} />{values.brand_accent_color ? <button type="button" className="btn-ghost" onClick={() => setValues((current) => ({ ...current, brand_accent_color: "" }))}>Reset</button> : null}</div> },
+    {
+      name: "attendance_location_enabled",
+      label: "Attendance Location Verification",
+      type: "select",
+      options: [{ value: "false", label: "Disabled until configured" }, { value: "true", label: "Enabled" }],
+    },
+    { name: "attendance_latitude", label: "Attendance Latitude", placeholder: "e.g. 3.139000" },
+    { name: "attendance_longitude", label: "Attendance Longitude", placeholder: "e.g. 101.686900" },
+    { name: "attendance_radius_meters", label: "Allowed Radius (meters)", placeholder: "100" },
     {
       name: "status",
       label: "Status",
@@ -107,10 +122,10 @@ export default function OutletManagementPage({ store, setStore, ui }) {
       <PageHeader
         section="Operations"
         title="Outlets"
-        description="Outlet master data used by sales and purchase records through outlet_id."
+        description="Manage outlets used by sales, purchase, reporting, and attendance workflows."
         actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Outlet</button>}
       />
-      <Card title="Outlet Directory" description="All sales and purchase records bind to outlet_id.">
+      <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading outlets...</div>
         ) : loadError ? (
@@ -122,25 +137,34 @@ export default function OutletManagementPage({ store, setStore, ui }) {
       {modal ? (
         <EntityModal
           title={modal.mode === "add" ? "Add Outlet" : "Edit Outlet"}
-          description="Outlet code and location are used in reports and imports."
+          description="Outlet code and location are used in reports and imports. Historical records remain linked to this outlet. Attendance GPS verification remains disabled until coordinates are configured."
           fields={fields}
-          initialValues={modal.row ?? { name: "", code: "", location: "", status: "active" }}
+          initialValues={{ name: "", code: "", location: "", status: "active", attendance_latitude: "", attendance_longitude: "", attendance_radius_meters: "100", ...(modal.row ?? {}), attendance_location_enabled: String(modal.row?.attendance_location_enabled ?? false) }}
           onClose={() => setModal(null)}
           onSubmit={async (values) => {
             if (!values.name?.trim()) return ui.notify({ title: "Outlet name required", tone: "error" });
+            const locationEnabled = values.attendance_location_enabled === true || values.attendance_location_enabled === "true";
+            const latitude = Number(values.attendance_latitude);
+            const longitude = Number(values.attendance_longitude);
+            const radius = Number(values.attendance_radius_meters || 100);
+            if (locationEnabled && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180)) return ui.notify({ title: "Valid outlet coordinates required", message: "Enter latitude and longitude before enabling attendance location verification.", tone: "error" });
+            if (!Number.isFinite(radius) || radius < 25 || radius > 2000) return ui.notify({ title: "Invalid attendance radius", message: "Use a radius between 25 and 2,000 meters.", tone: "error" });
             try {
-              const saved = await outletService.saveOutlet({ ...(modal.row ?? {}), ...values });
+              const saved = await outletService.saveOutlet({ ...(modal.row ?? {}), ...values, attendance_location_enabled: locationEnabled, attendance_radius_meters: radius });
+              if (values.removeLogo) await outletService.removeLogo(saved.id);
+              if (values.logoFile) await outletService.uploadLogo(saved.id, values.logoFile);
+              const refreshed = values.removeLogo || values.logoFile ? (await outletService.listOutlets()).find((outlet) => outlet.id === saved.id) || saved : saved;
               setOutlets((current) => {
-                const exists = current.some((outlet) => outlet.id === saved.id);
-                return exists ? current.map((outlet) => (outlet.id === saved.id ? saved : outlet)) : [saved, ...current];
+                const exists = current.some((outlet) => outlet.id === refreshed.id);
+                return exists ? current.map((outlet) => (outlet.id === refreshed.id ? refreshed : outlet)) : [refreshed, ...current];
               });
               setStore((current) => ({
                 ...current,
-                outlets: saved.is_active
-                  ? current.outlets.some((outlet) => outlet.id === saved.id)
-                    ? current.outlets.map((outlet) => (outlet.id === saved.id ? saved : outlet))
-                    : [...current.outlets, saved]
-                  : current.outlets.filter((outlet) => outlet.id !== saved.id),
+                outlets: refreshed.is_active
+                  ? current.outlets.some((outlet) => outlet.id === refreshed.id)
+                    ? current.outlets.map((outlet) => (outlet.id === refreshed.id ? refreshed : outlet))
+                    : [...current.outlets, refreshed]
+                  : current.outlets.filter((outlet) => outlet.id !== refreshed.id),
               }));
               setModal(null);
               ui.notify({ title: "Outlet saved", message: saved.name });

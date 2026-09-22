@@ -23,7 +23,7 @@ export default function ActionMenu({
         minWidth={width}
         align={align === "right" ? "end" : "start"}
         estimatedHeight={240}
-        className="p-1.5 text-sm"
+        className="admin-action-menu p-1.5 text-sm"
       >
         {children}
       </FloatingLayer>

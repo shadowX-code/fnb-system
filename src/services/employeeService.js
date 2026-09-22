@@ -16,6 +16,7 @@ function mapEmployee(row) {
     email: row.email ?? "",
     contact: row.contact ?? "",
     ic_no: row.ic_no ?? "",
+    residential_address: row.residential_address ?? "",
     gender: row.gender ?? "",
     birthday: row.birthday ?? "",
     role: row.role?.name ?? row.role_name ?? "",
@@ -26,11 +27,13 @@ function mapEmployee(row) {
     outlet_access: [],
     employment_type: row.employment_type ?? "probation",
     employment_status: row.employment_status ?? "active",
+    legal_entity_id: row.legal_entity_id ?? "",
     access_state: normalizeEmployeeAccessState(row.access_state, enableSystemLogin),
     enable_system_login: enableSystemLogin,
     is_active: row.is_active !== false,
     email_verified: Boolean(row.email_verified),
     last_login_at: row.last_login_at,
+    crew_access: Array.isArray(row.crew_access) ? row.crew_access[0] ?? null : row.crew_access ?? null,
     joined_date: row.joined_date ?? "",
     resigned_date: row.resigned_date ?? "",
     employee_code: row.employee_code ?? "",
@@ -47,11 +50,37 @@ export const employeeService = {
   async listEmployees() {
     const { data, error } = await supabase
       .from("employees")
-      .select("*,role:roles(id,name,description)")
+      .select("*,role:roles(id,name,description),crew_access:crew_access(employee_id,mobile_number,access_state,activated_at,disabled_at,locked_until,last_login_at,primary_outlet_id,can_initiate_handover,can_add_assets,can_manage_asset_details,can_adjust_assets,can_perform_asset_inspections)")
       .order("full_name", { ascending: true });
 
     throwSupabaseError("employees.list", error);
     return (data ?? []).map(mapEmployee);
+  },
+
+  async listCrewAccessEmployees(outletId) {
+    if (!outletId) return [];
+    const { data, error } = await supabase.rpc("crew_access_admin_list", {
+      p_outlet_id: outletId,
+    });
+    throwSupabaseError("crewAccess.list", error);
+    return (data ?? []).map(mapEmployee);
+  },
+
+  async crewAccessAdminPage({ outletId, filters = {}, page = 1, pageSize = 20 }) {
+    const { data, error } = await supabase.rpc("crew_access_admin_page", {
+      p_outlet_id: outletId,
+      p_filters: filters,
+      p_page: page,
+      p_page_size: pageSize,
+    });
+    throwSupabaseError("crewAccess.page", error);
+    return {
+      rows: (data?.rows ?? []).map(mapEmployee),
+      totalCount: data?.total_count ?? 0,
+      page: data?.page ?? page,
+      pageSize: data?.page_size ?? pageSize,
+      summary: data?.summary ?? {},
+    };
   },
 
   async saveEmployee(employee) {
@@ -100,10 +129,12 @@ export const employeeService = {
       auth_user_id: enableSystemLogin ? existingEmployee?.auth_user_id || employee.auth_user_id || null : null,
       contact: employee.contact ?? "",
       ic_no: employee.ic_no ?? "",
+      residential_address: employee.residential_address?.trim() || null,
       gender: employee.gender ?? "",
       birthday: employee.birthday || null,
       employment_type: employee.employment_type ?? "probation",
       employment_status: employee.employment_status ?? "active",
+      legal_entity_id: employee.legal_entity_id || null,
       department: employee.department || null,
       position: employee.position || null,
       workplace: employee.workplace || null,

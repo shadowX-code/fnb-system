@@ -10,22 +10,34 @@ import SalesInputPage from "../features/sales-purchase/pages/SalesInputPage.jsx"
 import SalesComparisonPage from "../features/sales-purchase/pages/SalesComparisonPage.jsx";
 import OutletPnlPage from "../features/sales-purchase/pages/OutletPnlPage.jsx";
 import ProductAnalyticsPage from "../features/sales-purchase/pages/ProductAnalyticsPage.jsx";
-import OutletDutyRosterPage from "../features/sales-purchase/pages/OutletDutyRosterPage.jsx";
 import ReportsPage from "../features/reports/pages/ReportsPage.jsx";
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
-import DutyRosterPage from "../features/sales-purchase/pages/DutyRosterPage.jsx";
-import AssetTrackingPage from "../features/sales-purchase/pages/AssetTrackingPage.jsx";
-import InventoryControlPage from "../features/sales-purchase/pages/InventoryControlPage.jsx";
+import SharedDutyRosterPage from "../features/roster/pages/SharedDutyRosterPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
+import LegalEntitiesPage from "../features/company-users/pages/LegalEntitiesPage.jsx";
+import EmployeeCompliancePage from "../features/company-users/pages/EmployeeCompliancePage.jsx";
 import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.jsx";
 import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
 import RolesPage from "../features/company-users/pages/RolesPage.jsx";
 import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
+import CrewWorkspacePage from "../features/crew/pages/CrewWorkspacePage.jsx";
+import CrewAttendanceAdminPage from "../features/crew/pages/CrewAttendanceAdminPage.jsx";
+import CrewLearningAdminResetPage from "../features/crew/pages/CrewLearningAdminResetPage.jsx";
+import CrewSopLibraryPage from "../features/crew/pages/CrewSopLibraryPage.jsx";
+import CrewGrowthAdminPage from "../features/crew/pages/CrewGrowthAdminPage.jsx";
+import CrewPerformanceAdminPage from "../features/crew/pages/CrewPerformanceAdminPage.jsx";
+import CrewRewardAdminPage from "../features/crew/pages/CrewRewardAdminPage.jsx";
+import CrewOperationsAdminPage from "../features/crew/pages/CrewOperationsAdminPage.jsx";
+import CrewLeaveAdminPage from "../features/crew/pages/CrewLeaveAdminPage.jsx";
+import CrewCashCheckoutAdminPage from "../features/crew/pages/CrewCashCheckoutAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
+// Keep one component identity per feature, including all of its route aliases.
 const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
+const InventoryControlPage = lazy(() => import("../features/sales-purchase/pages/InventoryControlPage.jsx"));
+const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/AssetTrackingPage.jsx"));
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
   const isFactoryModule = String(moduleId).startsWith("factory_");
@@ -92,6 +104,11 @@ export const routeDetails = {
     component: UsersPage,
     props: { peopleMode: "employees" },
   },
+  "legal-entities": {
+    description: "Manage legal employing entities referenced by employee records and employment documents.",
+    component: LegalEntitiesPage,
+    permission: "legal_entities.view",
+  },
   "job-positions": {
     description: "Manage HR job titles used in employee profiles.",
     component: JobPositionsPage,
@@ -125,16 +142,20 @@ export const routeDetails = {
     component: ProductAnalyticsPage,
   },
   outlet_duty_roster: {
-    description: "Monthly outlet duty coverage overview.",
-    component: OutletDutyRosterPage,
+    description: "Legacy Restaurant roster link resolved to the Crew-owned Duty Roster.",
+    component: SharedDutyRosterPage,
+    permission: "crew_roster.view",
+    props: { ownership: "crew" },
   },
   "operating-expenses": {
     description: "Monthly operating expense input for management P&L.",
     component: OperatingExpensesPage,
   },
   "duty-roster": {
-    description: "Weekly outlet employee scheduling by department.",
-    component: DutyRosterPage,
+    description: "Legacy Restaurant roster link resolved to the Crew-owned Duty Roster.",
+    component: SharedDutyRosterPage,
+    permission: "crew_roster.view",
+    props: { ownership: "crew" },
   },
   asset_tracking: {
     description: "Track outlet assets, quantities, inspections and movement logs.",
@@ -310,11 +331,35 @@ export const routeDetails = {
     permission: "factory_internal_transfer.view",
     props: { initialTab: "internal-transfer" },
   },
-  factory_mesti_cleaning: { description: "Complete and verify MeSTI Cleaning of Area requirements with monthly compliance history.", component: FactoryWorkspacePage, permission: "factory_mesti_cleaning.view", props: { initialTab: "mesti-cleaning" } },
-  factory_mesti_equipment_cleaning: { description: "Complete and verify scheduled and after-operation MeSTI equipment cleaning.", component: FactoryWorkspacePage, permission: "factory_mesti_equipment_cleaning.view", props: { initialTab: "mesti-equipment-cleaning" } },
-  factory_mesti_calibration: { description: "Schedule, record and verify Factory equipment calibration.", component: FactoryWorkspacePage, permission: "factory_mesti_calibration.view", props: { initialTab: "mesti-calibration" } },
-  factory_mesti_finished_product_storage_control: { description: "Read-only MeSTI projection of completed Production Finished Goods storage evidence.", component: FactoryWorkspacePage, permission: "factory_mesti_cleaning.view", props: { initialTab: "mesti-finished-product-storage-control" } },
-  factory_mesti_health_declaration: { component: FactoryWorkspacePage, permission: "factory_mesti_health_declaration.view", props: { initialTab: "mesti-health-declaration" } },
+  factory_mesti_cleaning: {
+    description: "Complete and verify MeSTI Cleaning of Area requirements with monthly compliance history.",
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_cleaning.view",
+    props: { initialTab: "mesti-cleaning" },
+  },
+  factory_mesti_equipment_cleaning: {
+    description: "Complete and verify scheduled and after-operation MeSTI equipment cleaning.",
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_equipment_cleaning.view",
+    props: { initialTab: "mesti-equipment-cleaning" },
+  },
+  factory_mesti_calibration: {
+    description: "Schedule, record and verify Factory equipment calibration.",
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_calibration.view",
+    props: { initialTab: "mesti-calibration" },
+  },
+  factory_mesti_finished_product_storage_control: {
+    description: "Read-only MeSTI projection of completed Production Finished Goods storage evidence.",
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_cleaning.view",
+    props: { initialTab: "mesti-finished-product-storage-control" },
+  },
+  factory_mesti_health_declaration: {
+    component: FactoryWorkspacePage,
+    permission: "factory_mesti_health_declaration.view",
+    props: { initialTab: "mesti-health-declaration" },
+  },
   factory_mesti_operator_hygiene: { component: FactoryWorkspacePage, permission: "factory_mesti_operator_hygiene.view", props: { initialTab: "mesti-operator-hygiene" } },
   factory_mesti_waste_disposal: { component: FactoryWorkspacePage, permission: "factory_mesti_waste_disposal.view", props: { initialTab: "mesti-waste-disposal" } },
   factory_mesti_raw_material_control: { component: FactoryWorkspacePage, permission: "factory_raw_receiving.view", props: { initialTab: "mesti-raw-material-control" } },
@@ -338,7 +383,12 @@ export const routeDetails = {
     permission: "factory_production_sop.view OR factory_production_sop.create OR factory_production_sop.edit OR factory_production_sop.manage",
     props: { initialTab: "production-sop" },
   },
-  factory_equipment: { description: "Manage canonical Factory equipment and actual production-use evidence.", component: FactoryWorkspacePage, permission: "factory_equipment.view OR factory_equipment.create OR factory_equipment.edit OR factory_equipment.manage", props: { initialTab: "equipment" } },
+  factory_equipment: {
+    description: "Manage canonical Factory equipment and actual production-use evidence.",
+    component: FactoryWorkspacePage,
+    permission: "factory_equipment.view OR factory_equipment.create OR factory_equipment.edit OR factory_equipment.manage",
+    props: { initialTab: "equipment" },
+  },
   factory_audit_logs: {
     description: "Review read-only Factory module audit events and document changes.",
     component: FactoryWorkspacePage,
@@ -362,6 +412,132 @@ export const routeDetails = {
     component: FactoryWorkspacePage,
     permission: "factory_customers.view",
     props: { initialTab: "customers" },
+  },
+  crew_dashboard: {
+    description: "Crew mobile access and workforce foundation overview.",
+    component: CrewWorkspacePage,
+    permission: "crew_dashboard.view",
+  },
+  crew_employees: {
+    description: "Manage employee Crew mobile access and one-time passcodes.",
+    component: CrewWorkspacePage,
+    permission: "crew_employees.view",
+    props: { initialTab: "employees" },
+  },
+  employee_compliance: {
+    description: "Review Food Handler Certificate and Typhoid Injection records, verification and expiry state.",
+    component: EmployeeCompliancePage,
+    permission: "employee_compliance.view",
+  },
+  crew_attendance: {
+    description: "Review Crew mobile attendance history.",
+    component: CrewAttendanceAdminPage,
+    permission: "crew_attendance.view",
+  },
+  crew_roster: {
+    description: "Plan and publish the shared outlet Duty Roster from Crew Workforce.",
+    component: SharedDutyRosterPage,
+    permission: "crew_roster.view",
+    props: { ownership: "crew" },
+  },
+  crew_leave: {
+    description: "Review employee leave requests with roster context and controlled approval projections.",
+    component: CrewLeaveAdminPage,
+    permission: "crew_leave.view",
+  },
+  crew_operations: {
+    description: "Create, schedule, assign and review unified outlet Tasks.",
+    component: CrewOperationsAdminPage,
+    permission: "crew_operations.view",
+    props: {},
+  },
+  crew_cash_checkout: {
+    description: "Reconcile outlet cash and review the linked Cash Deposit ledger.",
+    component: CrewCashCheckoutAdminPage,
+    permission: "crew_cash_checkout.view OR crew_cash_deposit.view",
+  },
+  crew_operation_templates: {
+    description: "Compatibility route for the unified Crew Tasks workspace.",
+    component: CrewOperationsAdminPage,
+    permission: "crew_operations.view",
+    props: {},
+  },
+  crew_learning: {
+    description: "Configure mandatory outlet onboarding and review Crew progress.",
+    component: CrewLearningAdminResetPage,
+    permission: "crew_learning.view OR crew_learning.manage",
+    props: { initialTab: "onboarding" },
+  },
+  crew_journeys: {
+    description: "Compatibility route for outlet onboarding.",
+    component: CrewLearningAdminResetPage,
+    permission: "crew_learning.view OR crew_learning.manage",
+    props: { initialTab: "onboarding" },
+  },
+  crew_progress: {
+    description: "Compatibility route for outlet onboarding progress.",
+    component: CrewLearningAdminResetPage,
+    permission: "crew_learning.view OR crew_learning.manage",
+    props: { initialTab: "onboarding" },
+  },
+  crew_sop_library: {
+    description: "Maintain versioned Crew SOPs and acknowledgement content.",
+    component: CrewSopLibraryPage,
+    permission: "crew_sop.view OR crew_sop.manage",
+  },
+  crew_growth: {
+    description: "Monitor outlet skill coverage and Crew certification readiness.",
+    component: CrewGrowthAdminPage,
+    permission: "crew_growth.view",
+    props: { initialTab: "overview" },
+  },
+  crew_growth_skills: {
+    description: "Maintain outlet-scoped Crew skills and certification requirements.",
+    component: CrewGrowthAdminPage,
+    permission: "crew_growth.view",
+    props: { initialTab: "skills" },
+  },
+  crew_growth_people: {
+    description: "Compatibility route for the unified Growth Overview.",
+    component: CrewGrowthAdminPage,
+    permission: "crew_growth.view",
+    props: { initialTab: "overview" },
+  },
+  crew_growth_reviews: {
+    description: "Compatibility route for integrated Growth Overview certification review.",
+    component: CrewGrowthAdminPage,
+    permission: "crew_growth.view",
+    props: { initialTab: "overview" },
+  },
+  crew_performance: {
+    description: "Review explainable monthly Crew performance and evidence.",
+    component: CrewPerformanceAdminPage,
+    permission: "crew_performance.view",
+    props: { initialTab: "overview" },
+  },
+  crew_performance_reviews: {
+    description: "Compatibility route for the unified Performance Overview Review Queue.",
+    component: CrewPerformanceAdminPage,
+    permission: "crew_performance.review",
+    props: { initialTab: "overview" },
+  },
+  crew_customer_feedback: {
+    description: "Review outlet-bound guest feedback and audited scoring exclusions.",
+    component: CrewPerformanceAdminPage,
+    permission: "crew_feedback.view",
+    props: { initialTab: "feedback" },
+  },
+  crew_reward: {
+    description: "Manage transparent outlet monthly Reward Pools and Crew payouts.",
+    component: CrewRewardAdminPage,
+    permission: "crew_reward.view",
+    props: { initialTab: "overview" },
+  },
+  crew_reward_cycles: {
+    description: "Compatibility route for unified Reward Overview Campaign history.",
+    component: CrewRewardAdminPage,
+    permission: "crew_reward.view",
+    props: {},
   },
 };
 

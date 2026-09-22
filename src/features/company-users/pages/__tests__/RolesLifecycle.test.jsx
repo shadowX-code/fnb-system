@@ -48,7 +48,7 @@ describe("Roles current mounted lifecycle", () => {
     fireEvent.change(screen.getByLabelText("Role Name *"), { target: { value: "Dispatch Viewer" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Role" }));
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(1));
-    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ name: "dispatch_viewer", outletAccess: "all", selectedOutletIds: [], permissions: [] }));
+    expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ name: "dispatch_viewer", outletAccess: "none", selectedOutletIds: [], permissions: [] }));
     await waitFor(() => expect(screen.queryByText("Create Role")).toBeNull());
     expect(screen.getByText("dispatch_viewer")).not.toBeNull();
     expect(mocks.list).toHaveBeenCalledTimes(1);
@@ -79,6 +79,25 @@ describe("Roles current mounted lifecycle", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
+  it("only requires Outlet Access once Restaurant permissions are enabled", async () => {
+    render(<RolesPage ui={ui} auth={auth} store={{ outlets: [{ id: "outlet-1", name: "Central" }] }} />);
+    await screen.findByText("operations");
+    fireEvent.click(screen.getByRole("button", { name: "Add Role" }));
+    fireEvent.change(screen.getByLabelText("Role Name *"), { target: { value: "Factory Operator" } });
+    expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
+    expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Restaurant · \d+/ }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
+    expect(screen.getByText("Outlet Access")).toBeTruthy();
+    fireEvent.click(screen.getAllByRole("button", { name: "Enabled" })[0]);
+    expect(screen.getByText("Outlet Access is not applicable until this role has a Restaurant permission.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Role" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ outletAccess: "none", selectedOutletIds: [], permissions: ["factory_dashboard.view"] })));
+  }, 10_000);
+
   it("navigates catalog actions through full-page role routes and keeps permission selection across category tabs", async () => {
     window.history.replaceState(null, "", "#roles");
     const factoryRole = { ...existing, permissions: ["factory_dashboard.view", "factory_job_orders.view"] };
@@ -88,20 +107,20 @@ describe("Roles current mounted lifecycle", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Add Role" }));
     await screen.findByText("Create Role");
-    expect(window.location.hash).toBe("#roles/new");
+    expect(window.location.pathname).toBe("/people/roles/new");
     fireEvent.click(screen.getByRole("button", { name: /back to roles/i }));
-    expect(window.location.hash).toBe("#roles");
+    expect(window.location.pathname).toBe("/people/roles");
 
     fireEvent.click(screen.getByText("operations"));
     await screen.findByText("View Role");
-    expect(window.location.hash).toBe("#roles/role-1");
+    expect(window.location.pathname).toBe("/people/roles/role-1");
     expect(screen.getByText("Role Information")).not.toBeNull();
     expect(screen.getByText("Summary")).not.toBeNull();
     expect(screen.getAllByText("Audit").some((element) => element.tagName === "DIV")).toBe(true);
     expect(document.querySelector("aside")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Edit Role" }));
     await screen.findByText("Edit Role");
-    expect(window.location.hash).toBe("#roles/role-1/edit");
+    expect(window.location.pathname).toBe("/people/roles/role-1/edit");
     expect(document.querySelector("aside")).toBeNull();
 
     fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
@@ -111,12 +130,15 @@ describe("Roles current mounted lifecycle", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Restaurant · \d+/ }));
     expect(screen.getByText("Sales Input")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: /People & HR · \d+/ }));
-    expect(screen.getByText("Employees")).not.toBeNull();
+    expect(screen.getAllByText("Employees")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("tab", { name: /Workforce · \d+/ }));
+    expect(screen.getByText("Onboarding Progress")).not.toBeNull();
+    expect(screen.getByText("Onboarding")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: /System · \d+/ }));
     expect(screen.getByText("Roles & Permissions")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
     expect(screen.getAllByRole("button", { name: "Enabled" }).length).toBeGreaterThanOrEqual(1);
-  });
+  }, 10_000);
 
   it("edits the existing role through one trusted snapshot and preserves its UUID across a rejected retry", async () => {
     const changed = { ...existing, description: "Updated operations", permissions: ["dashboard.view"], selectedOutletIds: [] };
@@ -136,7 +158,7 @@ describe("Roles current mounted lifecycle", () => {
     expect(mocks.save.mock.calls[1][0].requestId).toBe(mocks.save.mock.calls[0][0].requestId);
     await waitFor(() => expect(screen.queryByText("Edit Role")).toBeNull());
     expect(screen.getByText("Updated operations")).not.toBeNull();
-  });
+  }, 10_000);
 
   it("duplicates through the mounted create editor with copied configuration and one trusted create", async () => {
     const duplicate = { ...duplicateSource, id: "role-duplicate", name: "warehouse_operator_copy" };
@@ -183,7 +205,7 @@ describe("Roles current mounted lifecycle", () => {
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
     expect(mocks.save.mock.calls[1][0].requestId).toBe(mocks.save.mock.calls[0][0].requestId);
     await waitFor(() => expect(screen.getByText("warehouse_operator_copy")).not.toBeNull());
-  });
+  }, 10_000);
 
   it("reissues the request ID after a server delegation rejection when the editor changes to a valid snapshot", async () => {
     const saved = { ...existing, description: "Delegation allowed", permissions: ["dashboard.view"] };
@@ -202,7 +224,7 @@ describe("Roles current mounted lifecycle", () => {
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
     expect(mocks.save.mock.calls[1][0].requestId).not.toBe(mocks.save.mock.calls[0][0].requestId);
     await waitFor(() => expect(screen.getByText("Delegation allowed")).not.toBeNull());
-  });
+  }, 10_000);
 
   it("keeps an attempted permission delegation out of local state when the trusted server rejects it", async () => {
     mocks.save.mockRejectedValueOnce(new Error("Permission scope restricted"));

@@ -4,3 +4,14 @@ dist/
 *.local
 supabase/.temp/
 .impeccable/
+
+# K151 recovery dumps can contain Wi-Fi credentials and device binding data.
+src/features/guest-ai/hardware/firmware/dev-tools/recovery/.device-backups/
+src/features/guest-ai/hardware/firmware/.pio/
+src/features/guest-ai/hardware/firmware/k151-idf/build/
+src/features/guest-ai/hardware/firmware/k151-idf/build-*/
+.vercel
+.env*
+
+# Ephemeral authenticated Staging UI smoke artifacts. Never persist auth state here.
+/qa-artifacts/

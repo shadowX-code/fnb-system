@@ -641,10 +641,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
         </div>
       ) : null}
 
-      <Card
-        title="Position Catalog"
-        description="Job positions are used for employee profiles and HR grouping. They are separate from system roles."
-      >
+      <Card>
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading job positions...</div>
         ) : error ? (

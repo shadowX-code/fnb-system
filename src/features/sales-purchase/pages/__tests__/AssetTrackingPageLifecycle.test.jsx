@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -71,6 +71,47 @@ describe("Asset Tracking page lifecycle guards", () => {
     fireEvent.click(screen.getByRole("button", { name: "More actions for Mixer" }));
     expect(screen.queryByText("Adjust Quantity")).toBeNull();
     expect(mocks.service.adjustQuantity).not.toHaveBeenCalled();
+  });
+
+  it("keeps the category manager focused on selection and editing without duplicate category summaries", async () => {
+    const category = {
+      id: "category-1", name: "Kitchen Equipment", description: "Kitchen equipment and production tools.", is_active: true,
+      maintenance_enabled: true, created_at: "2026-05-24T00:00:00.000Z", updated_at: "2026-09-17T00:00:00.000Z",
+    };
+    mocks.service.loadOutletTrackingData.mockResolvedValue({ categories: [category], assets: [{ ...asset, category_id: category.id }], movements: [], inspections: [], maintenanceRecords: [] });
+    mount(["asset_tracking.view", "asset_tracking.create", "asset_tracking.edit", "asset_tracking.delete"]);
+    await screen.findByText("Mixer");
+
+    fireEvent.click(screen.getByRole("button", { name: "Categories" }));
+
+    expect(await screen.findByRole("heading", { name: "Asset Categories" })).toBeTruthy();
+    expect(screen.getByText("Manage categories used to classify assets.")).toBeTruthy();
+    expect(screen.getByText("1 asset")).toBeTruthy();
+    expect(screen.getAllByText("Maintenance").length).toBe(2);
+    expect(screen.queryByText("Asset Category Configuration")).toBeNull();
+    expect(screen.queryByText("Category History")).toBeNull();
+    expect(screen.queryByText("linked assets")).toBeNull();
+    expect(screen.getByRole("checkbox", { name: "Enable maintenance workflow" }).checked).toBe(true);
+    expect(screen.getByRole("button", { name: "Archive" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Save Changes" })).toBeTruthy();
+  });
+
+  it("uses the canonical create fields without create-time minimum quantity or remark", async () => {
+    mount(["asset_tracking.view", "asset_tracking.create"]);
+    await screen.findByText("Mixer");
+    fireEvent.click(screen.getByRole("button", { name: "Add Asset" }));
+
+    expect(await screen.findByRole("heading", { name: "Add Asset" })).toBeTruthy();
+    const modal = within(screen.getByRole("dialog"));
+    expect(modal.getByLabelText("Asset Name")).toBeTruthy();
+    expect(modal.getByLabelText("Initial Quantity")).toBeTruthy();
+    expect(modal.getByLabelText("Unit")).toBeTruthy();
+    expect(modal.getByLabelText("Asset Code (Optional)")).toBeTruthy();
+    expect(modal.getByLabelText("Location (Optional)")).toBeTruthy();
+    expect(modal.getByLabelText("Description")).toBeTruthy();
+    expect(modal.queryByLabelText("Minimum Quantity")).toBeNull();
+    expect(modal.queryByLabelText("Remark")).toBeNull();
+    expect(modal.queryByLabelText("Condition")).toBeNull();
   });
 
   it("uses asset_tracking.manage for the mounted adjustment action and prevents a second click while saving", async () => {

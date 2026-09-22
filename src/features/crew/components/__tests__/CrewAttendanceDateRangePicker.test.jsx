@@ -1,0 +1,133 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import CrewAttendanceDateRangePicker, { rangeLabel } from "../../../../components/ui/FeedXDateRangePicker.jsx";
+
+afterEach(cleanup);
+
+const today = "2026-08-15";
+
+describe("Crew Attendance Date Range Picker", () => {
+  it.each([
+    ["Today", "2026-08-15", "2026-08-15"],
+    ["Yesterday", "2026-08-14", "2026-08-14"],
+    ["This week", "2026-08-10", "2026-08-15"],
+    ["Last week", "2026-08-03", "2026-08-09"],
+    ["Last 7 days", "2026-08-09", "2026-08-15"],
+    ["This month", "2026-08-01", "2026-08-15"],
+    ["Last month", "2026-07-01", "2026-07-31"],
+  ])("applies the %s preset only after Apply", (preset, from, to) => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: preset }));
+    expect(onApply).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({ from, to });
+  });
+
+  it("supports custom single-day and multi-day ranges", () => {
+    const onApply = vi.fn();
+    const { rerender } = render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "10 Aug 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "14 Aug 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenLastCalledWith({ from: "2026-08-10", to: "2026-08-14" });
+
+    rerender(<CrewAttendanceDateRangePicker from="2026-08-10" to="2026-08-14" today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "12 Aug 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "12 Aug 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenLastCalledWith({ from: "2026-08-12", to: "2026-08-12" });
+  });
+
+  it("discards draft changes on Cancel", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Last month" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(onApply).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
+  });
+
+  it("supports direct month and year selection without changing the applied range", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, August 2026" }));
+    expect(screen.queryByRole("combobox")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "2027" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dec" }));
+
+    expect(screen.getByRole("region", { name: "December 2027" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "September 2026" })).toBeTruthy();
+    expect(onApply).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
+  });
+
+  it("uses the selected surface without decorative year or month markers", () => {
+    render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, August 2026" }));
+    expect(screen.getByRole("button", { name: "2026" }).querySelector("span")).toBeNull();
+    expect(screen.getByRole("button", { name: "Aug" }).querySelector("svg")).toBeNull();
+  });
+
+  it("keeps the left calendar unchanged when the right calendar is navigated", () => {
+    render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next month for September 2026" }));
+    expect(screen.getByRole("region", { name: "August 2026" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "October 2026" })).toBeTruthy();
+  });
+
+  it("keeps the right calendar unchanged when the left calendar is navigated", () => {
+    render(<CrewAttendanceDateRangePicker from="2026-09-16" to="2026-09-16" today={today} onApply={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Previous month for September 2026" }));
+    expect(screen.getByRole("region", { name: "August 2026" })).toBeTruthy();
+    expect(screen.getByRole("region", { name: "October 2026" })).toBeTruthy();
+  });
+
+  it("selects across independently browsed months and years", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from="2026-09-16" to="2026-09-16" today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, October 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Dec" }));
+    fireEvent.click(screen.getByRole("button", { name: "16 Sept 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "20 Dec 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({ from: "2026-09-16", to: "2026-12-20" });
+  });
+
+  it("supports a cross-year range after navigating the right calendar", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from="2026-12-20" to="2026-12-20" today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Choose month and year, January 2027" }));
+    fireEvent.click(screen.getByRole("button", { name: "Feb" }));
+    fireEvent.click(screen.getByRole("button", { name: "20 Dec 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "15 Feb 2027" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({ from: "2026-12-20", to: "2027-02-15" });
+  });
+
+  it("preserves the selected range while navigating months", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from="2026-08-10" to="2026-08-14" today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next month for August 2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    expect(onApply).toHaveBeenCalledWith({ from: "2026-08-10", to: "2026-08-14" });
+  });
+
+  it("formats current single-day and multi-day summaries", () => {
+    expect(rangeLabel(today, today, today)).toBe("Today");
+    expect(rangeLabel("2026-08-14", "2026-08-14", today)).toBe("14 Aug 2026");
+    expect(rangeLabel("2026-07-16", "2026-08-15", today)).toBe("16 Jul – 15 Aug 2026");
+  });
+});
