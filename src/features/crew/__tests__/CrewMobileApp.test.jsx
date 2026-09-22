@@ -129,7 +129,7 @@ describe("Crew Mobile redesign", () => {
   it("applies a saved Crew theme on the pre-auth login", () => {
     localStorage.setItem("feedx.crew.theme", "dark");
     renderCrewApp({ crewSession: null });
-    expect(screen.getByRole("heading", { name: "Welcome to FeedX Crew" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Let’s make today a good one." })).not.toBeNull();
     expect(document.documentElement.dataset.crewTheme).toBe("dark");
   });
   it("applies and persists the Home-only Crew theme choice without adding a second route control", async () => {
@@ -478,7 +478,7 @@ describe("Crew Mobile redesign", () => {
     expect((await screen.findByRole("alert")).textContent).toContain("Incorrect passcode. 2 attempts remaining.");
     expect(screen.getByLabelText("0 of 4 digits entered")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
-    expect(screen.getByRole("heading", { name: /Welcome to/ })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Let’s make today a good one." })).not.toBeNull();
     expect(screen.getByLabelText("Mobile Number").value).toBe("12 345 6789");
   });
 

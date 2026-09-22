@@ -59,7 +59,7 @@ export default function CrewLogin({ onSignedIn }) {
 
   return <main className="crew-v2-shell"><section className="crew-v2-login">
     {brand}
-    <div className="crew-v2-login-copy"><h1><span className="crew-auth-welcome-prefix">{t("auth.welcomeTo")}</span>{" "}<span className="crew-auth-outlet-name">FeedX</span>{" "}<span className="crew-auth-crew-name">{t("auth.crew")}</span></h1><p className="crew-auth-lead">{t("auth.workday")}</p><p>{t("auth.signInPrompt")}</p></div>
+    <div className="crew-v2-login-copy"><h1>{t("auth.heroHeadline")}</h1><p>{t("auth.heroSupport")}</p></div>
     <form onSubmit={(event) => { event.preventDefault(); if (!mobileNumberValid) { setError(t("auth.invalidMobile")); return; } setError(""); setStep("passcode"); }}>
       <label>{t("auth.mobile")}</label>
       <div className="crew-ui-field crew-auth-mobile-field"><span className="crew-auth-country"><select aria-label={t("auth.countryCode")} value={countryCode} onChange={(event) => setCountryCode(event.target.value)}><option value="+60">+60</option><option value="+65">+65</option></select><ChevronDown size={17} aria-hidden="true" /></span><input aria-label={t("auth.mobile")} aria-invalid={Boolean(error)} inputMode="tel" autoComplete="tel" value={mobile} onChange={(event) => { setMobile(event.target.value.replace(/[^\d\s-]/g, "")); if (error) setError(""); }} placeholder="12 345 6789" required /></div>
