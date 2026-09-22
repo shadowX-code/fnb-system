@@ -174,6 +174,15 @@ it("keeps permission denial in Admin without admitting Crew identity", async () 
   expect(mocks.crewMount).not.toHaveBeenCalled();
 });
 
+it("keeps a direct canonical pathname inside the existing Admin permission boundary", async () => {
+  mocks.getUserContext.mockResolvedValue({ profile: { id: "limited", role_name: "Custom" }, permissions: [], source: "database" });
+  visitPath("/restaurant/reports");
+  render(<App />);
+  expect(await screen.findByRole("heading", { name: "No modules are available for your role" })).toBeTruthy();
+  expect(screen.queryByText("Reports probe")).toBeNull();
+  expect(mocks.crewMount).not.toHaveBeenCalled();
+});
+
 it("does not apply pending Admin master data after switching to Crew", async () => {
   let resolve;
   const pending = new Promise((done) => { resolve = done; });
