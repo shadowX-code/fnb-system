@@ -81,4 +81,7 @@ Object.assign(resources.employmentRecords, { contractsBody:"雇佣合同和雇�
 Object.assign(resources.employmentDocuments, { emptyBody:"雇主发送的合同会显示在这里。", completeError:"无法确认此雇佣文件。", completedAt:"确认于 {{date}}" });
 resources.recovery = { offlineTitle:"您已离线", entryTitle:"无法打开 FeedX", connectionTitle:"无法连接", offlineBody:"请重新连接网络，FeedX 会自动再次尝试。", entryBody:"FeedX 需要重新加载才能继续。", connectionBody:"您的网络连接可能不稳定。请重试。", waiting:"正在等待网络连接…", tryingAgain:"正在重试…", reload:"重新加载 FeedX" };
 resources.learn.referenceOnly = "仅供查阅";
+resources.tasks.noOutletTasks = "这家门店今天没有任务。";
+resources.assets.readOnlySubtitle = "查看门店资产";
+resources.leave.managementReadOnly = "申请假期需要指定工作门店。您仍可查看请假记录。";
 export default resources;
