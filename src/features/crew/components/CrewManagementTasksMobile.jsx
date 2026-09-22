@@ -19,7 +19,7 @@ export default function CrewManagementTasksMobile({ data, onBack }) {
           {translateStatus(task.status, t)}
         </CrewStatusBadge>
       </div>)}
-      {!data?.tasks?.length ? <CrewEmptyState title={t("home.noTasks")} /> : null}
+      {!data?.tasks?.length ? <CrewEmptyState title={t("tasks.noOutletTasks")} /> : null}
     </div>
   </CrewMobilePage>;
 }

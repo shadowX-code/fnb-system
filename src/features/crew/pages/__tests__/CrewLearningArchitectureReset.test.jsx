@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   learningAssignment: vi.fn(),
   learningMediaUrl: vi.fn(),
   sopLibrary: vi.fn(),
+  managementSopLibrary: vi.fn(),
   sopVersion: vi.fn(),
   acknowledgeSop: vi.fn(),
   saveOnboardingDraft: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("../../../../services/crewService.js", () => ({
     learningAssignment: mocks.learningAssignment,
     learningMediaUrl: mocks.learningMediaUrl,
     sopLibrary: mocks.sopLibrary,
+    managementSopLibrary: mocks.managementSopLibrary,
     sopVersion: mocks.sopVersion,
     acknowledgeSop: mocks.acknowledgeSop,
     saveOnboardingDraft: mocks.saveOnboardingDraft,
@@ -396,6 +398,9 @@ describe("Crew mobile Learn reset", () => {
         },
       ],
     });
+    mocks.managementSopLibrary.mockReset().mockResolvedValue({
+      categories: [], sops: [], reference_only: true,
+    });
     mocks.learningMediaUrl.mockReset().mockResolvedValue({ signed_url: "https://signed.test/lesson.webp" });
     mocks.sopVersion.mockReset().mockResolvedValue({
       id: "version-1",
@@ -421,6 +426,15 @@ describe("Crew mobile Learn reset", () => {
     expect(screen.getByText("Required")).not.toBeNull();
     expect(screen.queryByText("I acknowledge this SOP")).toBeNull();
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
+  });
+
+  it("loads an uncached Management SOP library without an onboarding assignment", async () => {
+    mocks.learningHome.mockResolvedValue({ assignment: null, required_sops: [] });
+    render(<CrewLearningMobile token="management-token" management outletId="outlet-2" />);
+
+    expect(await screen.findByRole("heading", { name: "SOPs 0" })).not.toBeNull();
+    expect(screen.queryByText(/Cannot read properties/)).toBeNull();
+    expect(mocks.managementSopLibrary).toHaveBeenCalledWith("management-token", "outlet-2");
   });
 
   it("renders a white Learn shell immediately and delays its compact loading mark without skeleton placeholders", async () => {
