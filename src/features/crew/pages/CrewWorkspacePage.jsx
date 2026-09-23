@@ -35,19 +35,23 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   const [employeeMenuId, setEmployeeMenuId] = useState(null);
   const [query, setQuery] = useState("");
   const [employmentStatus, setEmploymentStatus] = useState("all");
+  const [accessScope, setAccessScope] = useState("");
+  const selectedAccessScope = accessScope || outletId;
+  const managementScope = selectedAccessScope === "management";
+  const canViewManagement = auth.isProtectedRole || auth.profile?.role_outlet_access_type === "all" || auth.profile?.role?.outlet_access_type === "all";
   const canManage = auth.hasPermission("crew_employees.manage");
-  const accessFilters = useMemo(() => ({ query, employment_status: employmentStatus }), [employmentStatus, query]);
-  const accessSignature = useMemo(() => JSON.stringify({ outletId, accessFilters }), [accessFilters, outletId]);
+  const accessFilters = useMemo(() => ({ query, employment_status: employmentStatus, ...(managementScope ? { workplace_scope: "management" } : {}) }), [employmentStatus, managementScope, query]);
+  const accessSignature = useMemo(() => JSON.stringify({ selectedAccessScope, accessFilters }), [accessFilters, selectedAccessScope]);
   const isEmployees = initialTab === "employees";
   const [listing, listingActions] = useAdminPagedQuery({
     storageKey: "crew-access",
-    enabled: Boolean(isEmployees && outletId),
+    enabled: Boolean(isEmployees && selectedAccessScope),
     querySignature: accessSignature,
-    loadPage: ({ page, pageSize }) => employeeService.crewAccessAdminPage({ outletId, filters: accessFilters, page, pageSize }),
+    loadPage: ({ page, pageSize }) => employeeService.crewAccessAdminPage({ outletId: managementScope ? null : selectedAccessScope, filters: accessFilters, page, pageSize }),
   });
   const employees = listing.rows;
   const refresh = listingActions.refreshNow;
-  const outletControl = <AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
+  const outletControl = <AdminOutletField label="Workplace" value={selectedAccessScope} onChange={(nextScope) => { setAccessScope(nextScope); if (nextScope !== "management") setOutletId(nextScope); }} options={[...(canViewManagement ? [{ value: "management", label: "Management" }] : []), ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} />;
 
   if (isEmployees) return <div className="space-y-4">
     <PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." />
@@ -59,7 +63,7 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
       onClear={() => { setQuery(""); setEmploymentStatus("all"); }}
     />
     <Card>
-      <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={employees.length > 0} isEmpty={listing.hasLoaded && !employees.length} emptyTitle={listing.loadedTotal ? "No Crew match this search" : "No Crew access records"} emptyDescription={listing.loadedTotal ? "Clear or adjust the search to see more Crew." : "Crew access records for this outlet will appear here."} onRetry={listingActions.retry}><DataTable tableClassName="min-w-[1120px]" rows={employees} getRowKey={(row) => row.id} columns={employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId)} /><AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="Crew members" /></AsyncDataSurface>
+      <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={employees.length > 0} isEmpty={listing.hasLoaded && !employees.length} emptyTitle={listing.loadedTotal ? "No Crew match this search" : "No Crew access records"} emptyDescription={listing.loadedTotal ? "Clear or adjust the search to see more Crew." : "Crew access records for this workplace will appear here."} onRetry={listingActions.retry}><DataTable tableClassName="min-w-[1120px]" rows={employees} getRowKey={(row) => row.id} columns={employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId, managementScope)} /><AdminPagination {...listing} onPageChange={listingActions.requestPage} onPageSizeChange={listingActions.requestPageSize} noun="Crew members" /></AsyncDataSurface>
     </Card>
     {request ? <CrewAccessManagerModal employee={request.employee} mode={request.mode} onClose={() => setRequest(null)} onSaved={refresh} /> : null}
     {specialAccessEmployee ? <CrewSpecialAccessModal employee={specialAccessEmployee} onClose={() => setSpecialAccessEmployee(null)} onSaved={refresh} /> : null}
@@ -95,15 +99,17 @@ function lastLoginCell(value) {
   return <AdminDateTimeCell date={date} time={time.join(" ")} />;
 }
 
-function employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId) { return [
+function employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDisableEmployee, employeeMenuId, setEmployeeMenuId, managementScope) { return [
   { key: "employee", header: "Employee", render: (row) => <div><div className="font-bold text-text-primary">{row.full_name}</div><div className="text-xs text-text-secondary">{row.position || "No position"} · {row.workplace || "No workplace"}</div></div> },
   { key: "employment", header: "Employment", render: employmentLabel },
   { key: "mobile", header: "Mobile", render: (row) => row.crew_access?.mobile_number || row.contact || "—" },
   { key: "crew", header: "Crew Access", render: (row) => { const state = crewAccessState(row.crew_access); return <Badge tone={semanticStatusTone(state)}>{CREW_ACCESS_STATE_LABEL[state]}</Badge>; } },
+  ...(managementScope ? [{ key: "role-outlets", header: "Role Outlet Access", render: (row) => <span className="text-sm text-text-secondary">{row.role_outlet_access?.type === "all" ? "All Outlets" : row.role_outlet_access?.count ? `${row.role_outlet_access.count} ${row.role_outlet_access.count === 1 ? "Outlet" : "Outlets"}` : "No Outlet Access"}</span> }] : []),
   { key: "special", header: "Special Access", render: (row) => row.crew_access?.access_state === "active" ? <span className="text-sm text-text-secondary">{specialAccessSummary(row.crew_access)}</span> : <span className="text-sm text-text-muted">Enable Crew Access first</span> },
   { key: "last", header: "Last login", render: (row) => lastLoginCell(row.crew_access?.last_login_at) },
   { key: "action", header: "Actions", align: "right", render: (row) => {
     if (!canManage) return null;
+    if (managementScope && row.role_outlet_access?.type !== "all" && !row.role_outlet_access?.count) return <span className="text-sm text-text-muted">No outlet access</span>;
     const activeAccess = row.crew_access?.access_state === "active";
     return <div className="flex justify-end gap-2">{activeAccess ? <><button className="btn-secondary whitespace-nowrap" type="button" onClick={() => setSpecialAccessEmployee(row)}>Special Access</button><ActionMenu open={employeeMenuId === row.id} onOpenChange={(open) => setEmployeeMenuId(open ? row.id : null)} ariaLabel={`More actions for ${row.full_name}`} trigger={({ toggle, ariaLabel }) => <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}><MoreHorizontal size={16} /></button>}><button className="w-full rounded-md px-3 py-2 text-left text-sm font-medium hover:bg-background" type="button" onClick={() => { setEmployeeMenuId(null); setRequest({ employee: row, mode: "reset" }); }}>Reset Passcode</button><button className="w-full rounded-md px-3 py-2 text-left text-sm font-medium text-rose-700 hover:bg-rose-50" type="button" onClick={() => { setEmployeeMenuId(null); setDisableEmployee(row); }}>Disable</button></ActionMenu></> : <button className="btn-primary whitespace-nowrap" type="button" onClick={() => setRequest({ employee: row, mode: "enable" })}>Activate</button>}</div>;
   } },

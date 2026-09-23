@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   learningAssignment: vi.fn(),
   learningMediaUrl: vi.fn(),
   sopLibrary: vi.fn(),
+  managementSopLibrary: vi.fn(),
   sopVersion: vi.fn(),
   acknowledgeSop: vi.fn(),
   saveOnboardingDraft: vi.fn(),
@@ -34,6 +35,7 @@ vi.mock("../../../../services/crewService.js", () => ({
     learningAssignment: mocks.learningAssignment,
     learningMediaUrl: mocks.learningMediaUrl,
     sopLibrary: mocks.sopLibrary,
+    managementSopLibrary: mocks.managementSopLibrary,
     sopVersion: mocks.sopVersion,
     acknowledgeSop: mocks.acknowledgeSop,
     saveOnboardingDraft: mocks.saveOnboardingDraft,
@@ -252,12 +254,13 @@ describe("Crew Learning architecture reset UI", () => {
   });
 
   it("uploads learning images into draft state and persists only durable media metadata", async () => {
-    const { container } = render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
     await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
     fireEvent.click(screen.getByText("Welcome & Workplace essentials", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    const input = container.querySelector('input[type="file"][accept="image/jpeg,image/png,image/webp"]');
+    await screen.findByRole("button", { name: "Add or replace lesson image" });
+    const input = document.querySelector('input[type="file"][aria-label="Add or replace lesson image"]');
     fireEvent.change(input, { target: { files: [new File(["image"], "welcome.png", { type: "image/png" })] } });
     expect(await screen.findByAltText("Learning content preview")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Image Caption"), { target: { value: "Welcome example" } });
@@ -396,6 +399,9 @@ describe("Crew mobile Learn reset", () => {
         },
       ],
     });
+    mocks.managementSopLibrary.mockReset().mockResolvedValue({
+      categories: [], sops: [], reference_only: true,
+    });
     mocks.learningMediaUrl.mockReset().mockResolvedValue({ signed_url: "https://signed.test/lesson.webp" });
     mocks.sopVersion.mockReset().mockResolvedValue({
       id: "version-1",
@@ -421,6 +427,15 @@ describe("Crew mobile Learn reset", () => {
     expect(screen.getByText("Required")).not.toBeNull();
     expect(screen.queryByText("I acknowledge this SOP")).toBeNull();
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
+  });
+
+  it("loads an uncached Management SOP library without an onboarding assignment", async () => {
+    mocks.learningHome.mockResolvedValue({ assignment: null, required_sops: [] });
+    render(<CrewLearningMobile token="management-token" management outletId="outlet-2" />);
+
+    expect(await screen.findByRole("heading", { name: "SOPs 0" })).not.toBeNull();
+    expect(screen.queryByText(/Cannot read properties/)).toBeNull();
+    expect(mocks.managementSopLibrary).toHaveBeenCalledWith("management-token", "outlet-2");
   });
 
   it("renders a white Learn shell immediately and delays its compact loading mark without skeleton placeholders", async () => {

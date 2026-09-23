@@ -1,0 +1,18 @@
+.crew-rich-content [data-feedx-text-tone="muted"], .admin-rich-text-surface [data-feedx-text-tone="muted"] { color: var(--theme-muted, #4b5563); }
+.crew-rich-content [data-feedx-text-tone="teal"], .admin-rich-text-surface [data-feedx-text-tone="teal"] { color: #087b66; }
+.crew-rich-content [data-feedx-text-tone="warning"], .admin-rich-text-surface [data-feedx-text-tone="warning"] { color: #986000; }
+.crew-rich-content [data-feedx-text-tone="danger"], .admin-rich-text-surface [data-feedx-text-tone="danger"] { color: #b4233b; }
+.crew-rich-content mark, .admin-rich-text-surface mark { border-radius: 2px; background: #fff1b8; padding: 0 2px; color: #352b0e; }
+.crew-rich-content mark[data-feedx-highlight="mint"], .admin-rich-text-surface mark[data-feedx-highlight="mint"] { background: #d9f3e9; color: #17493f; }
+.crew-rich-content mark[data-feedx-highlight="red"], .admin-rich-text-surface mark[data-feedx-highlight="red"] { background: #ffe0e4; color: #742332; }
+.crew-rich-content mark[data-feedx-highlight="info"], .admin-rich-text-surface mark[data-feedx-highlight="info"] { background: #dfeeff; color: #194478; }
+.crew-rich-content ul { list-style: disc outside; }
+.crew-rich-content ol { list-style: decimal outside; }
+:root[data-resolved-theme="dark"] .crew-rich-content [data-feedx-text-tone="teal"], :root[data-resolved-theme="dark"] .admin-rich-text-surface [data-feedx-text-tone="teal"] { color: #80e0c8; }
+:root[data-resolved-theme="dark"] .crew-rich-content [data-feedx-text-tone="warning"], :root[data-resolved-theme="dark"] .admin-rich-text-surface [data-feedx-text-tone="warning"] { color: var(--warning-text-dark); }
+:root[data-resolved-theme="dark"] .crew-rich-content [data-feedx-text-tone="danger"], :root[data-resolved-theme="dark"] .admin-rich-text-surface [data-feedx-text-tone="danger"] { color: var(--danger-text-dark); }
+:root[data-crew-theme="dark"] .crew-rich-content [data-feedx-text-tone="muted"] { color: var(--crew-color-text-muted); }
+:root[data-crew-theme="dark"] .crew-rich-content [data-feedx-text-tone="teal"] { color: var(--crew-color-success); }
+:root[data-crew-theme="dark"] .crew-rich-content [data-feedx-text-tone="warning"] { color: var(--crew-color-warning); }
+:root[data-crew-theme="dark"] .crew-rich-content [data-feedx-text-tone="danger"] { color: var(--crew-color-danger); }
+.crew-rich-content mark [data-feedx-text-tone], .admin-rich-text-surface mark [data-feedx-text-tone], :root[data-crew-theme="dark"] .crew-rich-content mark [data-feedx-text-tone], :root[data-resolved-theme="dark"] .admin-rich-text-surface mark [data-feedx-text-tone] { color: inherit; }

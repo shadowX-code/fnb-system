@@ -152,6 +152,12 @@ export const crewService = {
     return data || { action_descriptor: null, source_available: false };
   },
 
+  async notificationDestinationOutlet(token, notificationId) {
+    const { data, error } = await supabase.rpc("crew_notification_destination_outlet", { p_token: token, p_notification_id: notificationId });
+    throwSupabaseError("crew.notificationDestinationOutlet", error);
+    return data;
+  },
+
   async myDisciplinary(token) {
     const { data, error } = await supabase.rpc("crew_employee_disciplinary", { p_token: token });
     throwSupabaseError("crew.myDisciplinary", error);
@@ -197,6 +203,18 @@ export const crewService = {
     const { data, error } = await supabase.rpc("crew_tasks_today", { p_token: token, p_business_date: date });
     throwSupabaseError("crew.operationsToday", error);
     return data || { tasks: [], attendance_context: null };
+  },
+
+  async outletScope(token) {
+    const { data, error } = await supabase.rpc("crew_outlet_scope", { p_token: token });
+    throwSupabaseError("crew.outletScope", error);
+    return data;
+  },
+
+  async managementTasks(token, outletId, date = localBusinessDate()) {
+    const { data, error } = await supabase.rpc("crew_management_tasks", { p_token: token, p_outlet_id: outletId, p_business_date: date });
+    throwSupabaseError("crew.managementTasks", error);
+    return data;
   },
 
   async operationsAllTasks(token, from = null, to = null) {
@@ -821,6 +839,12 @@ export const crewService = {
     return data || { categories: [], sops: [] };
   },
 
+  async managementSopLibrary(token, outletId) {
+    const { data, error } = await supabase.rpc("crew_management_sop_library", { p_token: token, p_outlet_id: outletId });
+    throwSupabaseError("crew.managementSopLibrary", error);
+    return data || { categories: [], sops: [], reference_only: true };
+  },
+
   async submitQuiz(token, assignmentId, quizId, answers) {
     const { data, error } = await supabase.rpc("crew_submit_quiz", { p_token: token, p_assignment_id: assignmentId, p_quiz_id: quizId, p_answers: answers });
     throwSupabaseError("crew.submitQuiz", error);
@@ -1327,6 +1351,12 @@ export const crewService = {
   async assetsMobile(token, assetId = null) {
     const { data, error } = await supabase.rpc("crew_asset_mobile", { p_token: token, p_asset_id: assetId });
     throwSupabaseError("crew.assetsMobile", error);
+    return data;
+  },
+
+  async managementAssets(token, outletId, assetId = null) {
+    const { data, error } = await supabase.rpc("crew_management_asset_mobile", { p_token: token, p_outlet_id: outletId, p_asset_id: assetId });
+    throwSupabaseError("crew.managementAssets", error);
     return data;
   },
 
