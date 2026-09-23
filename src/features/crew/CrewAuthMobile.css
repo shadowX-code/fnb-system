@@ -263,8 +263,6 @@
 
 .crew-v2-login-back svg {
   display: block;
-  /* ArrowLeft's stroke mass sits left of its centered 24px viewBox. */
-  transform: translateX(2px);
 
 }
 
