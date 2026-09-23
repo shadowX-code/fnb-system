@@ -21,6 +21,7 @@ describe("Crew Admin rich text editor", () => {
     expect(await screen.findByRole("textbox", { name: "Content" })).not.toBeNull();
     await waitFor(() => expect(screen.getByRole("button", { name: "Bold" }).disabled).toBe(false));
     expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Undo" }).disabled).toBe(true);
   });
 
   it("formats a selected passage and emits safe HTML", async () => {

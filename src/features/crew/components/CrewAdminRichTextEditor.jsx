@@ -92,7 +92,7 @@ export default function CrewAdminRichTextEditor({ value = "", onChange, onImage,
   useEffect(() => {
     if (!editor) return;
     const next = sanitizeSopHtml(value);
-    if (sanitizeSopHtml(editor.getHTML()) !== next) editor.commands.setContent(next, { emitUpdate: false });
+    if (sanitizeSopHtml(editor.getHTML()) !== next) editor.chain().setMeta("addToHistory", false).setContent(next, { emitUpdate: false }).run();
     lastValueRef.current = sanitizeSopHtml(editor.getHTML());
   }, [editor, value]);
 
