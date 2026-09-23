@@ -38,6 +38,37 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Crew Access outlet read lifecycle", () => {
+  it("uses an explicit Management workplace scope without changing the dashboard outlet", async () => {
+    employeeService.crewAccessAdminPage.mockResolvedValue(page([{ id: "manager", full_name: "Manager Crew", workplace: "Management", role_outlet_access: { type: "selected", count: 2 }, crew_access: null }]));
+    render(<CrewAdminOutletProvider outlets={outlets}><CrewWorkspacePage auth={{ ...auth, profile: { role_outlet_access_type: "all" } }} ui={ui} store={{ outlets }} initialTab="employees" /></CrewAdminOutletProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Management" }));
+    await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenCalledWith(expect.objectContaining({ outletId: null, filters: { query: "", employment_status: "all", workplace_scope: "management" } })));
+    expect(await screen.findByText("2 Outlets")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Outlet B" }));
+    await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-b", filters: { query: "", employment_status: "all" } })));
+  });
+
+  it("does not offer Management scope to outlet-limited Admins", async () => {
+    employeeService.crewAccessAdminPage.mockResolvedValue(page([]));
+    mount();
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    expect(screen.queryByRole("button", { name: "Management" })).toBeNull();
+  });
+  it("shows All and No Outlet Access from the Role read context without offering invalid activation", async () => {
+    employeeService.crewAccessAdminPage.mockResolvedValue(page([
+      { id: "all", full_name: "All Scope Manager", workplace: "Management", role_outlet_access: { type: "all", count: 0 }, crew_access: null },
+      { id: "none", full_name: "No Scope Manager", workplace: "Management", role_outlet_access: { type: "none", count: 0 }, crew_access: null },
+    ]));
+    render(<CrewAdminOutletProvider outlets={outlets}><CrewWorkspacePage auth={{ ...auth, profile: { role_outlet_access_type: "all" } }} ui={ui} store={{ outlets }} initialTab="employees" /></CrewAdminOutletProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Management" }));
+    expect(await screen.findByText("All Outlets")).not.toBeNull();
+    expect(screen.getByText("No Outlet Access")).not.toBeNull();
+    expect(screen.getByText("No outlet access")).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "Activate" })).toHaveLength(1);
+  });
   it("does not allow a stale Outlet A response to overwrite Outlet B", async () => {
     const outletA = deferred();
     const outletB = deferred();
