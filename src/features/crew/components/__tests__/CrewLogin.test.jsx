@@ -12,6 +12,10 @@ describe("Crew login presentation", () => {
     expect(screen.getByRole("heading", { name: "Let’s make today a good one." })).not.toBeNull();
     expect(screen.getByText("Your day starts here.")).not.toBeNull();
     expect(screen.getByAltText("FeedX").getAttribute("src")).toBe("/crew-login-logo-horizontal.png");
+    const artwork = document.querySelector(".crew-auth-artwork");
+    expect(artwork?.getAttribute("aria-hidden")).toBe("true");
+    expect(artwork?.querySelector(".is-light")?.getAttribute("src")).toBe("/crew-auth-kopitiam-light.png");
+    expect(artwork?.querySelector(".is-dark")?.getAttribute("src")).toBe("/crew-auth-kopitiam-dark.png");
   });
 
   it("does not use outlet guesses while preserving the mobile sign-in flow", () => {

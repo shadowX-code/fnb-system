@@ -65,5 +65,9 @@ export default function CrewLogin({ onSignedIn }) {
       {error && <div className="crew-v2-error crew-auth-mobile-error" role="alert">{error}</div>}
       <button className="crew-mobile-primary" type="submit">{t("common.continue")}</button>
     </form>
+    <div className="crew-auth-artwork" aria-hidden="true">
+      <img className="is-light" src="/crew-auth-kopitiam-light.png" alt="" draggable="false" />
+      <img className="is-dark" src="/crew-auth-kopitiam-dark.png" alt="" draggable="false" />
+    </div>
   </section></main>;
 }
