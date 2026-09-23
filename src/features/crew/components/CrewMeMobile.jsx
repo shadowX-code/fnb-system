@@ -37,7 +37,7 @@ function ProfileInformation({ profile, employee, context, firstName, t, onBack, 
 }
 
 
-export default function CrewMeMobile({ session, context, profile, attendance, leave, assetAccess, cashAvailable = true, disciplinary, onChangePasscode, onUpdateProfilePhoto, passcodeSuccess, navigate, onLogout }) {
+export default function CrewMeMobile({ session, context, profile, attendance, leave, assetAccess, cashAvailable = true, management = false, disciplinary, onChangePasscode, onUpdateProfilePhoto, passcodeSuccess, navigate, onLogout }) {
   const { t, i18n } = useTranslation();
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
@@ -114,7 +114,7 @@ export default function CrewMeMobile({ session, context, profile, attendance, le
         <section className="crew-me-section"><h2>{t("me.work")}</h2><div className="crew-me-list">
           <button type="button" onClick={() => navigate("attendance")}><span className="crew-me-row-icon crew-ui-icon-container"><Clock3 size={20} /></span><span><strong>{t("me.attendance")}</strong><small>{currentMonthAttendance.length ? t("me.shiftsThisMonth", { count: currentMonthAttendance.length }) : t("me.noActivity")}</small></span><ChevronRight size={19} /></button>
           <button type="button" onClick={() => navigate("leave")}><span className="crew-me-row-icon crew-ui-icon-container"><Plane size={20} /></span><span><span>{t("me.leave")}</span></span>{pendingLeaveCount > 0 && <em className="crew-me-pending">{t("me.pendingCount", { count: pendingLeaveCount })}</em>}<ChevronRight size={19} /></button>
-          {cashAvailable && <button type="button" onClick={() => navigate("cash-checkout")}><span className="crew-me-row-icon crew-ui-icon-container"><Banknote size={20} /></span><span><strong>{t("cash.title")}</strong><small>{t("cash.meSubtitle")}</small></span><ChevronRight size={19} /></button>}
+          {cashAvailable && <button type="button" onClick={() => navigate("cash-checkout")}><span className="crew-me-row-icon crew-ui-icon-container"><Banknote size={20} /></span><span><strong>{t("cash.title")}</strong><small>{t(management ? "cash.managementMeSubtitle" : "cash.meSubtitle")}</small></span><ChevronRight size={19} /></button>}
           {assetAccess && <button type="button" onClick={() => navigate("assets")}><span className="crew-me-row-icon crew-ui-icon-container"><Archive size={20} /></span><span><strong>{t("assets.title")}</strong><small>{t(assetAccess.read_only ? "assets.readOnlySubtitle" : "assets.meSubtitle")}</small></span><ChevronRight size={19} /></button>}
           <button type="button" onClick={() => navigate("employment-records")}><span className="crew-me-row-icon crew-ui-icon-container"><FileText size={20} /></span><span><strong>{t("employmentRecords.title")}</strong><small>{t("employmentRecords.meSubtitle")}</small></span>{unreadWarningCount > 0 ? <span className="crew-ui-count" aria-label={t("disciplinary.unreadCount", { count: unreadWarningCount })}>{unreadWarningCount}</span> : null}<ChevronRight size={19} /></button>
         </div></section>
