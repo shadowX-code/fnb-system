@@ -29,7 +29,6 @@
   --crew-auth-hover: #e6f4f1;
   --crew-auth-placeholder: #648184;
   --crew-auth-accent: #078978;
-  --crew-auth-art-opacity: .47;
   --crew-auth-error-surface: #fbecee;
   --crew-auth-error-text: #a52e3d;
   position: relative;
@@ -53,7 +52,6 @@
   --crew-auth-hover: #24454a;
   --crew-auth-placeholder: #a2bdbc;
   --crew-auth-accent: #62d9c7;
-  --crew-auth-art-opacity: .78;
   --crew-auth-error-surface: #4c3038;
   --crew-auth-error-text: #ffd6db;
   color-scheme: dark;
@@ -65,9 +63,8 @@
   bottom: 0;
   left: 0;
   height: clamp(130px, 25vh, 230px);
-  background: url("/crew-auth-kopitiam-night.webp") center bottom / cover no-repeat;
+  background: url("/crew-auth-kopitiam-login.png") center bottom / 100% auto no-repeat;
   content: "";
-  opacity: var(--crew-auth-art-opacity);
   pointer-events: none;
 
 }
@@ -134,9 +131,8 @@
 
 .crew-auth-mobile-field {
   display: grid;
-  grid-template-columns: 92px 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   min-height: 58px;
-  overflow: hidden;
   border: 1px solid var(--crew-auth-field-border);
   border-radius: 12px;
   background: var(--crew-auth-field);
@@ -150,43 +146,35 @@
 
 }
 
-.crew-auth-mobile-field select, .crew-auth-mobile-field input {
+.crew-auth-mobile-field input {
   min-width: 0;
   border: 0;
   background: transparent;
   color: var(--crew-auth-foreground);
   font-size: 17px;
   outline: 0;
+  box-shadow: none;
+
+}
+
+.crew-v2-login .crew-auth-mobile-field input:focus-visible {
+  outline: 0;
+  box-shadow: none;
 
 }
 
 .crew-auth-country {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
+  align-self: center;
   border-right: 1px solid var(--crew-auth-field-border);
-  padding-right: 10px;
-
-}
-
-.crew-auth-country select {
-  width: 100%;
-  height: 100%;
-  appearance: none;
-  padding: 0 0 0 14px;
+  padding: 5px 14px;
+  color: var(--crew-auth-foreground);
+  font-size: 17px;
   font-weight: 790;
-  cursor: pointer;
-
-}
-
-.crew-auth-country svg {
-  color: var(--crew-auth-secondary);
-  pointer-events: none;
 
 }
 
 .crew-auth-mobile-field input {
+  width: 100%;
   padding: 0 16px;
   font-weight: 620;
 
