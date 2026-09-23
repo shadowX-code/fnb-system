@@ -34,6 +34,7 @@ function mapEmployee(row) {
     email_verified: Boolean(row.email_verified),
     last_login_at: row.last_login_at,
     crew_access: Array.isArray(row.crew_access) ? row.crew_access[0] ?? null : row.crew_access ?? null,
+    role_outlet_access: row.role_outlet_access ?? null,
     joined_date: row.joined_date ?? "",
     resigned_date: row.resigned_date ?? "",
     employee_code: row.employee_code ?? "",
