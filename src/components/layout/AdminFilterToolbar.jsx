@@ -3,9 +3,9 @@ import { SlidersHorizontal, X } from "lucide-react";
 import ActionMenu from "../ui/ActionMenu.jsx";
 import SelectField from "../forms/SelectField.jsx";
 
-export function AdminOutletField({ value, onChange, options = [], allowAll = false, allValue = "all", ariaLabel = "Outlet" }) {
+export function AdminOutletField({ value, onChange, options = [], allowAll = false, allValue = "all", label = "Outlet", ariaLabel = label }) {
   const outletOptions = allowAll ? [{ value: allValue, label: "All" }, ...options] : options;
-  return <SelectField label="Outlet" ariaLabel={ariaLabel} value={value} onChange={onChange} options={outletOptions} />;
+  return <SelectField label={label} ariaLabel={ariaLabel} value={value} onChange={onChange} options={outletOptions} />;
 }
 
 function labelForField(field) {
