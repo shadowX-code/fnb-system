@@ -41,7 +41,7 @@ export default function CrewLogin({ onSignedIn }) {
 
   const brand = <div className="crew-auth-brand"><img src="/crew-login-logo-horizontal.png" alt="FeedX" draggable="false" /></div>;
 
-  if (step === "passcode") return <main className="crew-v2-shell"><section className="crew-v2-login is-passcode">
+  if (step === "passcode") return <main className="crew-v2-shell crew-auth-shell"><section className="crew-v2-login is-passcode">
     <header className="crew-auth-passcode-header">
       <button className="crew-v2-login-back" type="button" onClick={() => { setStep("mobile"); setPasscode(""); setError(""); }} aria-label={t("common.back")}><ArrowLeft size={21} /></button>
       {brand}
@@ -56,7 +56,7 @@ export default function CrewLogin({ onSignedIn }) {
     <p className="crew-auth-security"><ShieldCheck size={17} /> {t("auth.secure")}</p>
   </section></main>;
 
-  return <main className="crew-v2-shell"><section className="crew-v2-login">
+  return <main className="crew-v2-shell crew-auth-shell"><section className="crew-v2-login">
     {brand}
     <div className="crew-v2-login-copy"><h1>{t("auth.heroHeadline")}</h1><p>{t("auth.heroSupport")}</p></div>
     <form onSubmit={(event) => { event.preventDefault(); if (!mobileNumberValid) { setError(t("auth.invalidMobile")); return; } setError(""); setStep("passcode"); }}>

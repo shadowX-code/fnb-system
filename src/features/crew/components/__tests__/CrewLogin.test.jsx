@@ -29,6 +29,18 @@ describe("Crew login presentation", () => {
     expect(screen.getByRole("heading", { name: "Let’s make today a good one." })).not.toBeNull();
   });
 
+  it("deletes the last passcode digit without changing the keypad step", () => {
+    render(<CrewLogin onSignedIn={() => {}} />);
+    fireEvent.change(screen.getByRole("textbox", { name: "Mobile Number" }), { target: { value: "12 345 6789" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "1" }));
+    const backspace = screen.getByRole("button", { name: "Backspace" });
+    expect(backspace.querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 24 24");
+    fireEvent.click(backspace);
+    expect(backspace.disabled).toBe(true);
+    expect(screen.getByRole("heading", { name: "Welcome back" })).not.toBeNull();
+  });
+
   it("has one fixed Malaysia prefix and submits the existing normalized number", async () => {
     const signIn = vi.spyOn(crewService, "signIn").mockResolvedValue({ token: "test" });
     const onSignedIn = vi.fn();
