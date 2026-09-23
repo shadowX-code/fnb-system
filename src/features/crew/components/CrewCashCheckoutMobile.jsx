@@ -52,7 +52,7 @@ const initialDraft = (checkout, cashContext, settings) => ({
   variance_reason: checkout?.variance_reason || "",
 });
 
-export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, onNotify }) {
+export default function CrewCashCheckoutMobile({ token, management = false, outletId = null, onBack, onFlowChange, onNotify }) {
   const { t } = useTranslation();
   const [data, setData] = useState(null);
   const [draft, setDraft] = useState(initialDraft(null, null));
@@ -70,10 +70,9 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
     setLoading(true); setError("");
     try {
       const businessDate = today();
-      const [result, checkoutHistory] = await Promise.all([
-        crewService.cashCheckoutMobile(token, businessDate),
-        crewService.cashCheckoutHistory(token, businessDate),
-      ]);
+      const [result, checkoutHistory] = management
+        ? [await crewService.managementCashMobile(token, outletId, businessDate), []]
+        : await Promise.all([crewService.cashCheckoutMobile(token, businessDate), crewService.cashCheckoutHistory(token, businessDate)]);
       const nextData = { ...result, checkout_history: checkoutHistory };
       setData(nextData); setDraft(initialDraft(nextData?.checkout, nextData?.cash_context, nextData?.settings));
       if (nextData?.checkout?.status === "completed") setStep("complete");
@@ -82,7 +81,7 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
     } catch (cause) { setError(cause.message || t("cash.unableLoad")); }
     finally { setLoading(false); }
   }
-  useEffect(() => { load(); }, [token]);
+  useEffect(() => { load(); }, [token, management, outletId]);
   useEffect(() => () => onFlowChange?.(false), [onFlowChange]);
 
   const counted = useMemo(() => DENOMINATIONS.reduce((sum, denomination) => sum + denomination * Number(draft.denomination_counts[denominationKey(denomination)] || 0), 0), [draft.denomination_counts]);
@@ -120,6 +119,13 @@ export default function CrewCashCheckoutMobile({ token, onBack, onFlowChange, on
   if (historyOpen) return <CheckoutHistory rows={data?.checkout_history || []} onBack={() => setHistoryOpen(false)} onOpen={(checkout) => setDetailCheckout(checkout)} />;
   if (ledgerOpen) return <CashLedger data={data} onBack={() => setLedgerOpen(false)} />;
   if (flowOpen) return <CheckoutFlow data={data} draft={draft} setDraft={setDraft} step={step} setStep={setStep} counted={counted} posExpected={posExpected} variance={variance} deposit={deposit} floating={floating} previousCarry={previousCarry} expectedOpening={expectedOpening} requiresReview={requiresReview} saving={saving} error={error} onBack={closeFlow} onSave={save} />;
+
+  if (management) return <section className="crew-cash-mobile crew-cash-summary-page">
+    <CrewMobileDetailHeader title={t("cash.cashDepositBalance")} onBack={onBack} variant="workflow" />
+    <section className="crew-cash-summary"><article className="crew-cash-deposit-summary"><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small>{data?.outlet?.name}</small><strong>{money(data?.deposit?.current_balance)}</strong></div><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}<ChevronRight size={17} /></button><CashHandoverAction canInitiate={data?.can_initiate_handover} balance={data?.deposit?.current_balance} onOpen={() => setCollectionOpen(true)} /></article></section>
+    <section className="crew-cash-recent-activity"><CrewSectionHeader title={t("cash.recentActivity")} />{data?.deposit?.recent?.length ? <div className="crew-cash-recent-activity-list">{data.deposit.recent.slice(0, 3).map((row) => <RecentActivityRow key={row.id} row={row} onOpen={() => setLedgerOpen(true)} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
+    {collectionOpen && <CollectionSheet data={data} token={token} outletId={outletId} onClose={() => setCollectionOpen(false)} onSaved={async () => { setCollectionOpen(false); await load(); }} />}
+  </section>;
 
   return <section className="crew-cash-mobile crew-cash-summary-page">
     <CrewMobileDetailHeader title={t("cash.title")} onBack={onBack} variant="workflow" />
@@ -271,7 +277,7 @@ function DetailSection({ icon, title, rows, note = null }) { return <section cla
 
 function PendingReceipts({ rows, token, onChanged }) { const { t } = useTranslation(); const [confirming, setConfirming] = useState(null); const [saving, setSaving] = useState(false); async function confirm() { setSaving(true); try { await crewService.confirmCashCollection(token, confirming.id, confirming.amount); await onChanged(); setConfirming(null); } finally { setSaving(false); } } return <section className="crew-cash-receipts">{rows.length ? <div>{rows.map((row) => <article key={row.id}><span className="crew-ui-icon-container crew-ui-icon-container--small"><HandCoins size={16} /></span><div className="crew-cash-receipt-copy"><strong>{money(row.amount)}</strong>{row.sender && <small>{t("cash.handedOverBy", { name: formatCrewEmployee(safeCashActor(row.sender)) })}</small>}{row.outlet_name && <small>{row.outlet_name}</small>}{row.occurred_at && <small>{formatCrewOperationalDateTime(row.occurred_at)}</small>}{row.note && <small>{row.note}</small>}</div><div className="crew-cash-receipt-action"><CrewStatusBadge tone="warning">{t("cash.confirmation.pending_confirmation")}</CrewStatusBadge><button className="crew-mobile-primary" type="button" onClick={() => setConfirming(row)}>{t("cash.confirmReceived")}</button></div></article>)}</div> : <CrewEmptyState title={t("cash.noPendingConfirmations")} />}{confirming && <CrewMobileModal title={t("cash.confirmCashReceived")} description={`${money(confirming.amount)} · ${formatCrewEmployee(safeCashActor(confirming.sender))}`} onClose={() => setConfirming(null)} closeDisabled={saving} footer={<><button className="crew-mobile-secondary" type="button" disabled={saving} onClick={() => setConfirming(null)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={saving} onClick={confirm}>{saving ? t("common.saving") : t("cash.confirmReceived")}</button></>} />}</section>; }
 
-function CollectionSheet({ data, token, onClose, onSaved }) {
+function CollectionSheet({ data, token, outletId = null, onClose, onSaved }) {
   const { t } = useTranslation();
   const balance = data.deposit.current_balance;
   // The server still receives its existing canonical purpose constant; it is not a Crew input.
@@ -286,7 +292,7 @@ function CollectionSheet({ data, token, onClose, onSaved }) {
   const handoverReady = Boolean(form.receiver_employee_id) && amountValid;
   async function submit() {
     setSaving(true); setError("");
-    try { await crewService.recordCashCollection(token, form); await onSaved(); }
+    try { await crewService.recordCashCollection(token, form, outletId); await onSaved(); }
     catch (cause) { setError(cause.message); }
     finally { setSaving(false); }
   }

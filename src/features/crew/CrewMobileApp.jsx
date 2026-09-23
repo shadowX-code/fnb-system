@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BookOpen, Gift, Home, Sparkles, UserRound } from "lucide-react";
 import useCrewSession from "./hooks/useCrewSession.js";
@@ -14,6 +14,7 @@ import CrewAttendanceMobile, { CrewClockDialogs } from "./components/CrewAttenda
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
 import CrewManagementTasksMobile from "./components/CrewManagementTasksMobile.jsx";
 import CrewRecoverySurface from "./components/CrewRecoverySurface.jsx";
+import CrewChoicePicker from "./components/CrewChoicePicker.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
 import { CrewBottomNav, CrewRouteLoading } from "./components/CrewMobileUI.jsx";
 import { crewService } from "../../services/crewService.js";
@@ -93,7 +94,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   if (bootstrapFailure) return <CrewRecoverySurface {...bootstrapFailure} onRetry={retryBootstrap} retrying={bootstrapRetrying} onReload={() => window.location.reload()} />;
   if (!outletScope) return <CrewRouteLoading />;
   return <main className="crew-v2-shell"><section className="crew-v2-app">
-    {outletScope.management && <CrewOutletSwitcher outlets={outletScope.outlets} selectedOutletId={selectedOutletId} onSelect={selectOutlet} />}
+    {outletScope.management && outletScope.outlets.length > 1 && <CrewOutletSwitcher outlets={outletScope.outlets} selectedOutletId={selectedOutletId} onSelect={selectOutlet} />}
     <Suspense fallback={<CrewRouteLoading />}>
     {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} management={outletScope.management} />)}
     {screen === "notifications" && <CrewNotificationsMobile token={session.token} onBack={() => navigate("home")} onOpenNotification={openNotification} onUnreadChanged={refreshUnreadCount} />}
@@ -102,7 +103,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading} error={growthError} onRetry={refresh} onNavigate={navigate} onViewChange={(view) => { if (view === "overview" || view === "performance") navigate("growth", { growthInitialView: view }); }} />}
     {screen === "operations" && (outletScope.management ? <CrewManagementTasksMobile data={operations} onBack={() => navigate("home")} /> : <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={refresh} onBack={(returnContext) => { setOperationTarget(null); navigate("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />)}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => navigate("me")} onChanged={refresh} />}
-    {screen === "cash-checkout" && <CrewCashCheckoutMobile token={session.token} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
+    {screen === "cash-checkout" && <CrewCashCheckoutMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
     {screen === "assets" && <CrewAssetsMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} onBack={() => navigate("me")} onFlowChange={setAssetInspectionFlow} />}
     {screen === "employment-records" && <CrewEmploymentRecordsMobile onBack={() => navigate("me")} navigate={navigate} disciplinary={disciplinary} />}
     {screen === "employment-documents" && <CrewEmploymentDocumentsMobile token={session.token} onBack={() => navigate("employment-records")} />}
@@ -110,7 +111,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "disciplinary" && <CrewDisciplinaryMobile token={session.token} onBack={() => navigate("employment-records")} onViewed={refresh} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
     {screen === "attendance" && <CrewAttendanceMobile rows={clock.attendanceMonth} loading={clock.attendanceMonthLoading} selectedMonth={clock.selectedAttendanceMonth} onMonthChange={clock.setSelectedAttendanceMonth} onBack={() => navigate("home")} t={t} />}
-    {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} disciplinary={disciplinary} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
+    {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} cashAvailable={!outletScope.management || Boolean(outletScope.outlets.find((outlet) => outlet.id === selectedOutletId)?.special_access?.can_initiate_handover)} disciplinary={disciplinary} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
     {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
@@ -120,17 +121,10 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
 function CrewOutletSwitcher({ outlets, selectedOutletId, onSelect }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
-  const active = useRef(null);
-  useEffect(() => { active.current?.scrollIntoView?.({ block: "nearest", inline: "nearest" }); }, [selectedOutletId]);
-  if (outlets.length <= 1) return <div className="crew-outlet-context"><span>{t("common.outlet")}</span><strong>{outlets[0]?.name}</strong></div>;
-  return <nav className="crew-outlet-context" aria-label={t("common.outlet")}>
-    <span>{t("common.outlet")}</span>
-    <div className="crew-v2-chips crew-outlet-context-rail">
-      {outlets.map((outlet) => <button key={outlet.id} type="button" ref={outlet.id === selectedOutletId ? active : null}
-        className={outlet.id === selectedOutletId ? "active" : ""} aria-current={outlet.id === selectedOutletId ? "true" : undefined}
-        disabled={busy} title={outlet.name} onClick={async () => { setBusy(true); try { await onSelect(outlet.id); } finally { setBusy(false); } }}>
-        {outlet.name}
-      </button>)}
-    </div>
-  </nav>;
+  return <div className="crew-outlet-context">
+    <CrewChoicePicker label={t("common.outlet")} value={selectedOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} disabled={busy} variant="context" onChange={async (outletId) => {
+      setBusy(true);
+      try { await onSelect(outletId); } finally { setBusy(false); }
+    }} />
+  </div>;
 }

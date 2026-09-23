@@ -28,6 +28,7 @@ Deno.serve(async (request) => {
   if (!url || !anonKey || !serviceRoleKey) return response({ error: "Asset photo service is unavailable." }, 500);
 
   let token = "";
+  let outletId = "";
   let assetId = "";
   let requestId = "";
   let original: File | null = null;
@@ -36,6 +37,7 @@ Deno.serve(async (request) => {
   try {
     const form = await request.formData();
     token = String(form.get("token") || "").trim();
+    outletId = String(form.get("outlet_id") || "").trim();
     assetId = String(form.get("asset_id") || "").trim();
     requestId = String(form.get("request_id") || "").trim();
     const originalValue = form.get("original");
@@ -47,18 +49,18 @@ Deno.serve(async (request) => {
   } catch {
     return response({ error: "Invalid asset photo request." }, 400);
   }
-  if (!token || !assetId || !requestId || !original || !display || !thumbnail || !uuidPattern.test(requestId)) return response({ error: "Crew session, asset, request and photo bundle are required." }, 400);
+  if (!token || !assetId || !requestId || !original || !display || !thumbnail || !uuidPattern.test(requestId) || (outletId && !uuidPattern.test(outletId))) return response({ error: "Crew session, asset, request and photo bundle are required." }, 400);
   if (!allowedOriginalTypes.has(original.type) || original.size === 0 || original.size > maxBytes
     || display.type !== "image/webp" || thumbnail.type !== "image/webp"
     || display.size === 0 || thumbnail.size === 0 || display.size > maxBytes || thumbnail.size > maxBytes) return response({ error: "Choose a JPG, PNG, or WebP image up to 5 MB." }, 400);
 
   const authorization = request.headers.get("Authorization") || `Bearer ${anonKey}`;
   const crewClient = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
-  const { data: prior, error: priorError } = await crewClient.rpc("crew_asset_initial_photo_result", { p_token: token, p_request_id: requestId });
+  const { data: prior, error: priorError } = await crewClient.rpc(outletId ? "crew_management_asset_initial_photo_result" : "crew_asset_initial_photo_result", { p_token: token, p_request_id: requestId, ...(outletId ? { p_outlet_id: outletId } : {}) });
   if (priorError) return response({ error: "Initial asset photo access is unavailable." }, 403);
   if (prior) return response(prior);
   const storageClient = createClient(url, serviceRoleKey);
-  const { data: context, error: contextError } = await crewClient.rpc("crew_asset_initial_photo_context", { p_token: token, p_asset_id: assetId });
+  const { data: context, error: contextError } = await crewClient.rpc(outletId ? "crew_management_asset_initial_photo_context" : "crew_asset_initial_photo_context", { p_token: token, p_asset_id: assetId, ...(outletId ? { p_outlet_id: outletId } : {}) });
   if (contextError || !context?.bucket || context.asset_id !== assetId) return response({ error: "Initial asset photo access is unavailable." }, 403);
 
   const prefix = `asset_master/${context.outlet_id}/${assetId}/${requestId}`;
@@ -82,8 +84,9 @@ Deno.serve(async (request) => {
   }
   const urls = Object.fromEntries(objects.map((object) => [object.key, storageClient.storage.from(context.bucket).getPublicUrl(object.path).data.publicUrl]));
 
-  const { data, error } = await crewClient.rpc("crew_asset_set_initial_photo", {
+  const { data, error } = await crewClient.rpc(outletId ? "crew_management_asset_set_initial_photo" : "crew_asset_set_initial_photo", {
     p_token: token,
+    ...(outletId ? { p_outlet_id: outletId } : {}),
     p_request_id: requestId,
     p_asset_id: assetId,
     p_original_image_url: urls.original,
