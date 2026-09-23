@@ -51,7 +51,7 @@ export default function CrewWorkspacePage({ auth, ui, store, initialTab = "dashb
   });
   const employees = listing.rows;
   const refresh = listingActions.refreshNow;
-  const outletControl = <AdminOutletField value={selectedAccessScope} onChange={setAccessScope} options={[...(canViewManagement ? [{ value: "management", label: "Management" }] : []), ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} />;
+  const outletControl = <AdminOutletField label="Workplace" value={selectedAccessScope} onChange={setAccessScope} options={[...(canViewManagement ? [{ value: "management", label: "Management" }] : []), ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} />;
 
   if (isEmployees) return <div className="space-y-4">
     <PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." />
