@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import CrewWorkspacePage from "../CrewWorkspacePage.jsx";
-import { CrewAdminOutletProvider } from "../../context/CrewAdminOutletContext.jsx";
+import { CREW_ADMIN_OUTLET_STORAGE_KEY, CrewAdminOutletProvider } from "../../context/CrewAdminOutletContext.jsx";
 import { employeeService } from "../../../../services/employeeService.js";
 import { crewService } from "../../../../services/crewService.js";
 
@@ -44,10 +44,12 @@ describe("Crew Access outlet read lifecycle", () => {
     fireEvent.click(screen.getByRole("button", { name: "Workplace" }));
     fireEvent.click(screen.getByRole("button", { name: "Management" }));
     await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenCalledWith(expect.objectContaining({ outletId: null, filters: { query: "", employment_status: "all", workplace_scope: "management" } })));
+    expect(localStorage.getItem(CREW_ADMIN_OUTLET_STORAGE_KEY)).toBe("outlet-a");
     expect(await screen.findByText("2 Outlets")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Workplace" }));
     fireEvent.click(screen.getByRole("button", { name: "Outlet B" }));
     await waitFor(() => expect(employeeService.crewAccessAdminPage).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-b", filters: { query: "", employment_status: "all" } })));
+    await waitFor(() => expect(localStorage.getItem(CREW_ADMIN_OUTLET_STORAGE_KEY)).toBe("outlet-b"));
   });
 
   it("does not offer Management scope to outlet-limited Admins", async () => {
