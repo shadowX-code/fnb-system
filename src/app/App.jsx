@@ -23,16 +23,21 @@ function CrewWebAppMetadata() {
   useEffect(() => {
     const entries = [
       ["link", "manifest", "/crew.webmanifest"],
-      ["link", "apple-touch-icon", "/logo-icon.jpg"],
+      ["link", "icon", "/crew-app-icon-192.png", "192x192"],
+      ["link", "apple-touch-icon", "/crew-app-icon-180.png", "180x180"],
       ["meta", "theme-color", "#0f766e"],
       ["meta", "apple-mobile-web-app-capable", "yes"],
       ["meta", "apple-mobile-web-app-status-bar-style", "default"],
       ["meta", "apple-mobile-web-app-title", "FeedX Crew"],
-    ].map(([tagName, key, value]) => {
+    ].map(([tagName, key, value, sizes]) => {
       const element = document.createElement(tagName);
       if (tagName === "link") {
         element.setAttribute("rel", key);
         element.setAttribute("href", value);
+        if (sizes) {
+          element.setAttribute("sizes", sizes);
+          element.setAttribute("type", "image/png");
+        }
       } else {
         element.setAttribute("name", key);
         element.setAttribute("content", value);

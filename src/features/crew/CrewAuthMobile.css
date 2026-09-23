@@ -1,8 +1,8 @@
 /* Auth-owned Crew mobile composition. Uses shared system primitives. */
 
-.crew-v2-login { box-sizing: border-box; width: min(100%, 430px); min-height: 100dvh; margin: 0 auto; background: var(--crew-color-surface); }
-.crew-v2-login button { -webkit-tap-highlight-color: transparent; }
-.crew-v2-login button:focus-visible, .crew-v2-login input:focus-visible { outline: 3px solid rgb(10 168 117 / .26); outline-offset: 2px; }
+.crew-v2-shell.crew-auth-shell {
+  overflow: visible;
+}
 
 .crew-v2-app, .crew-v2-login {
   box-sizing: border-box;
@@ -25,113 +25,123 @@
 }
 
 .crew-v2-login {
+  --crew-auth-inline-padding: 28px;
+  --crew-auth-canvas: #f5faf8;
+  --crew-auth-foreground: #133c40;
+  --crew-auth-secondary: #526e70;
+  --crew-auth-field: #ffffff;
+  --crew-auth-field-border: #adc9c5;
+  --crew-auth-hover: #e6f4f1;
+  --crew-auth-placeholder: #648184;
+  --crew-auth-accent: #078978;
+  --crew-auth-error-surface: #fbecee;
+  --crew-auth-error-text: #a52e3d;
   position: relative;
   display: flex;
   min-height: 100dvh;
   flex-direction: column;
   overflow: hidden;
-  background: var(--crew-color-surface);
-  padding: max(30px, env(safe-area-inset-top)) 28px max(24px, env(safe-area-inset-bottom));
+  background: var(--crew-auth-canvas);
+  color: var(--crew-auth-foreground);
+  color-scheme: light;
+  padding: max(24px, env(safe-area-inset-top)) var(--crew-auth-inline-padding) env(safe-area-inset-bottom);
 
 }
 
-.crew-v2-login::before {
-  position: absolute;
-  top: -80px;
-  right: -92px;
-  width: 230px;
-  height: 230px;
-  border-radius: 50%;
-  background: var(--crew-color-surface-subtle);
-  content: "";
-  pointer-events: none;
+:root[data-crew-theme="dark"] .crew-v2-login {
+  --crew-auth-canvas: #102b30;
+  --crew-auth-foreground: #effaf8;
+  --crew-auth-secondary: #aec7c7;
+  --crew-auth-field: #17373c;
+  --crew-auth-field-border: #47696c;
+  --crew-auth-hover: #24454a;
+  --crew-auth-placeholder: #a2bdbc;
+  --crew-auth-accent: #62d9c7;
+  --crew-auth-error-surface: #4c3038;
+  --crew-auth-error-text: #ffd6db;
+  color-scheme: dark;
+}
+
+.crew-v2-login:not(.is-passcode) {
+  overflow: visible;
+  padding-bottom: 0;
 
 }
 
-.crew-v2-login:not(.is-passcode)::after {
-  position: absolute;
-  right: -5%;
-  bottom: 0;
-  left: -5%;
-  height: min(24vh, 202px);
-  background: url("/crew-auth-restaurant-line-art.webp") center bottom / contain no-repeat;
-  content: "";
-  opacity: .88;
-  pointer-events: none;
+.crew-v2-login:not(.is-passcode) > .crew-auth-brand,
+.crew-v2-login:not(.is-passcode) > .crew-v2-login-copy,
+.crew-v2-login:not(.is-passcode) > form {
+  flex-shrink: 0;
+
+}
+
+.crew-auth-artwork {
+  flex: 0 0 auto;
+  width: calc(100% + 2 * var(--crew-auth-inline-padding));
+  margin: auto calc(-1 * var(--crew-auth-inline-padding)) 0;
+  padding-top: 16px;
+
+}
+
+.crew-auth-artwork img {
+  display: block;
+  width: 100%;
+  height: auto;
+
+}
+
+.crew-auth-artwork .is-dark,
+:root[data-crew-theme="dark"] .crew-auth-artwork .is-light {
+  display: none;
+
+}
+
+:root[data-crew-theme="dark"] .crew-auth-artwork .is-dark {
+  display: block;
 
 }
 
 .crew-auth-brand {
   position: relative;
   z-index: 1;
-  display: flex;
-  width: fit-content;
-  align-items: center;
-  gap: 11px;
-  color: var(--crew-v2-navy);
-
-}
-
-.crew-auth-logo-mark {
-  position: relative;
-  display: block;
-  width: 43px;
-  height: 43px;
-  flex: 0 0 43px;
+  width: 216px;
+  height: 58px;
   overflow: hidden;
 
 }
 
-.crew-auth-logo-mark img {
+.crew-auth-brand img {
   position: absolute;
-  top: -71px;
-  left: -68px;
-  width: 252px;
+  top: -9px;
+  left: -10px;
+  width: 234px;
   max-width: none;
   height: auto;
-
-}
-
-.crew-auth-brand strong {
-  font-size: 25px;
-  font-weight: 850;
-  letter-spacing: -.035em;
 
 }
 
 .crew-v2-login-copy {
   position: relative;
   z-index: 1;
-  margin-top: clamp(54px, 10vh, 88px);
+  margin-top: clamp(36px, 8vh, 66px);
 
 }
 
 .crew-v2-login-copy h1 {
   margin: 0;
-  color: var(--crew-v2-navy);
-  font-size: clamp(32px, 9vw, 38px);
-  line-height: 1.08;
-  letter-spacing: -.04em;
-  text-wrap: balance;
-
-}
-
-.crew-v2-login-copy h1 span {
-  color: var(--crew-color-success);
+  color: var(--crew-auth-foreground);
+  font-size: 34px;
+  font-weight: 740;
+  line-height: 1.16;
+  overflow-wrap: anywhere;
 
 }
 
 .crew-v2-login-copy p {
-  margin: 24px 0 0;
-  color: var(--crew-color-text-secondary);
-  font-size: 15px;
-  line-height: 1.55;
-
-}
-
-.crew-v2-login-copy .crew-auth-lead {
-  margin-top: 18px;
+  margin: 14px 0 0;
+  color: var(--crew-auth-secondary);
   font-size: 16px;
+  line-height: 1.45;
 
 }
 
@@ -145,7 +155,7 @@
 }
 
 .crew-v2-login form > label {
-  color: var(--crew-color-text);
+  color: var(--crew-auth-foreground);
   font-size: 13px;
   font-weight: 780;
 
@@ -153,104 +163,107 @@
 
 .crew-auth-mobile-field {
   display: grid;
-  grid-template-columns: 92px 1fr;
+  grid-template-columns: auto minmax(0, 1fr);
   min-height: 58px;
-  overflow: hidden;
-  border: 1px solid var(--crew-color-border);
-  border-radius: 14px;
-  background: var(--crew-color-surface);
+  border: 1px solid var(--crew-auth-field-border);
+  border-radius: 12px;
+  background: var(--crew-auth-field);
   transition: border-color .18s ease, box-shadow .18s ease;
 
 }
 
 .crew-auth-mobile-field:focus-within {
-  border-color: var(--crew-color-success);
-  box-shadow: 0 0 0 4px rgb(36 175 102 / .13);
-
-}
-
-.crew-auth-mobile-field select, .crew-auth-mobile-field input {
-  min-width: 0;
-  border: 0;
-  background: transparent;
-  color: var(--crew-v2-ink);
-  font-size: 17px;
-  outline: 0;
-
-}
-
-.crew-auth-country {
-  position: relative;
-  display: grid;
-  grid-template-columns: 1fr auto;
-  align-items: center;
-  border-right: 1px solid var(--crew-v2-border);
-  padding-right: 10px;
-
-}
-
-.crew-auth-country select {
-  width: 100%;
-  height: 100%;
-  appearance: none;
-  padding: 0 0 0 14px;
-  font-weight: 790;
-  cursor: pointer;
-
-}
-
-.crew-auth-country svg {
-  color: var(--crew-v2-navy);
-  pointer-events: none;
+  border-color: var(--crew-auth-accent);
+  box-shadow: 0 0 0 3px rgb(98 217 199 / .18);
 
 }
 
 .crew-auth-mobile-field input {
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: var(--crew-auth-foreground);
+  font-size: 17px;
+  outline: 0;
+  box-shadow: none;
+
+}
+
+.crew-v2-login .crew-auth-mobile-field input:focus-visible {
+  outline: 0;
+  box-shadow: none;
+
+}
+
+.crew-auth-country {
+  align-self: center;
+  border-right: 1px solid var(--crew-auth-field-border);
+  padding: 5px 14px;
+  color: var(--crew-auth-foreground);
+  font-size: 17px;
+  font-weight: 790;
+
+}
+
+.crew-auth-mobile-field input {
+  width: 100%;
   padding: 0 16px;
   font-weight: 620;
 
 }
 
 .crew-auth-mobile-field input::placeholder {
-  color: var(--crew-color-text-muted);
+  color: var(--crew-auth-placeholder);
   opacity: 1;
   font-weight: 520;
 
 }
 
 .crew-v2-login .crew-mobile-primary {
-  margin-top: 13px;
+  margin-top: 10px;
+  background: var(--crew-color-primary-bg);
+  color: #103239;
 
 }
 
 .crew-auth-passcode-header {
   position: relative;
   z-index: 2;
-  display: flex;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  column-gap: 8px;
   min-height: 46px;
   align-items: center;
-  justify-content: center;
+
+}
+
+.crew-auth-passcode-header .crew-auth-brand {
+  justify-self: center;
 
 }
 
 .crew-v2-login-back {
-  position: absolute;
-  top: 0;
-  left: 0;
   display: grid;
   width: 42px;
   height: 42px;
+  align-self: start;
+  justify-self: start;
   place-items: center;
   border: 0;
   border-radius: 50%;
-  background: var(--crew-color-mineral);
-  color: var(--crew-v2-navy);
+  background: var(--crew-auth-field);
+  color: var(--crew-auth-foreground);
   transition: background .18s ease, transform .18s ease;
 
 }
 
+.crew-v2-login-back svg {
+  display: block;
+
+}
+
 .crew-v2-login-back:hover {
-  background: var(--crew-color-divider);
+  background: var(--crew-auth-field-border);
 
 }
 
@@ -260,31 +273,7 @@
 }
 
 .crew-v2-login.is-passcode {
-  background: var(--crew-color-surface);
-
-}
-
-.crew-v2-login.is-passcode::before {
-  display: none;
-
-}
-
-.crew-v2-login.is-passcode .crew-auth-logo-mark {
-  width: 40px;
-  height: 40px;
-  flex-basis: 40px;
-
-}
-
-.crew-v2-login.is-passcode .crew-auth-logo-mark img {
-  top: -66px;
-  left: -63px;
-  width: 234px;
-
-}
-
-.crew-v2-login.is-passcode .crew-auth-brand strong {
-  font-size: 24px;
+  padding-bottom: max(24px, env(safe-area-inset-bottom));
 
 }
 
@@ -295,7 +284,7 @@
 }
 
 .crew-v2-login.is-passcode .crew-v2-login-copy h1 {
-  font-size: clamp(30px, 8vw, 35px);
+  font-size: 32px;
 
 }
 
@@ -308,14 +297,14 @@
 .crew-auth-masked-mobile {
   display: block;
   margin-top: 12px;
-  color: var(--crew-color-text-secondary);
+  color: var(--crew-auth-secondary);
   font-size: 18px;
   letter-spacing: .02em;
 
 }
 
 .crew-auth-masked-mobile::first-letter {
-  color: var(--crew-color-success);
+  color: var(--crew-auth-accent);
 
 }
 
@@ -337,13 +326,14 @@
 }
 
 .crew-v2-keypad button {
+  display: grid;
   width: 76px;
   height: 58px;
-  border: 1px solid var(--crew-color-border);
+  place-items: center;
+  border: 1px solid var(--crew-auth-field-border);
   border-radius: 14px;
-  background: var(--crew-color-surface-raised);
-  color: var(--crew-v2-navy);
-  box-shadow: 0 3px 8px rgb(17 29 61 / .035);
+  background: var(--crew-auth-field);
+  color: var(--crew-auth-foreground);
   font-size: 23px;
   font-weight: 760;
   transition: border-color .16s ease, background .16s ease, color .16s ease, transform .16s ease, box-shadow .16s ease;
@@ -351,17 +341,15 @@
 }
 
 .crew-v2-keypad button:hover {
-  border-color: var(--crew-color-border);
-  background: var(--crew-color-surface-subtle);
-  box-shadow: 0 5px 12px rgb(17 29 61 / .055);
+  border-color: var(--crew-auth-accent);
+  background: var(--crew-auth-hover);
 
 }
 
 .crew-v2-keypad button:active {
   transform: scale(.95);
-  border-color: var(--crew-color-border);
-  background: var(--crew-v2-mint);
-  color: var(--crew-v2-green-dark);
+  border-color: var(--crew-auth-accent);
+  background: var(--crew-auth-field-border);
 
 }
 
@@ -378,14 +366,14 @@
   gap: 8px;
   margin: auto 0 0;
   padding-top: 18px;
-  color: var(--crew-v2-muted);
+  color: var(--crew-auth-secondary);
   font-size:var(--crew-type-helper);
 
 }
 
 .crew-auth-security svg {
   flex: 0 0 auto;
-  color: var(--crew-color-success);
+  color: var(--crew-auth-accent);
 
 }
 
@@ -395,7 +383,7 @@
   align-items: center;
   justify-content: center;
   gap: 8px;
-  color: var(--crew-v2-muted);
+  color: var(--crew-auth-secondary);
   font-size:var(--crew-type-helper);
   font-weight: 700;
 
@@ -403,9 +391,9 @@
 
 .crew-v2-error {
   border-radius: 10px;
-  background: var(--crew-color-danger-surface);
+  background: var(--crew-auth-error-surface);
   padding: 10px 12px;
-  color: var(--crew-color-danger);
+  color: var(--crew-auth-error-text);
   font-size:var(--crew-type-helper);
   font-weight: 680;
 
@@ -419,8 +407,8 @@
 .crew-v2-spinner {
   width: 17px;
   height: 17px;
-  border: 2px solid var(--crew-color-border);
-  border-top-color: var(--crew-v2-green);
+  border: 2px solid var(--crew-auth-field-border);
+  border-top-color: var(--crew-auth-accent);
   border-radius: 50%;
   animation: crew-v2-spin .8s linear infinite;
 
@@ -428,10 +416,13 @@
 
 @media (max-width: 374px) {
 .crew-v2-login {
-  padding-right: 22px;
-  padding-left: 22px;
+  --crew-auth-inline-padding: 22px;
 
 }
+}
+
+@media (max-width: 374px) {
+.crew-v2-login-copy h1 { font-size: 30px; }
 }
 
 @media (max-width: 374px) {
@@ -456,29 +447,8 @@
 }
 
 @media (max-height: 680px) {
-.crew-v2-login-copy p {
-  margin-top: 14px;
-
-}
-}
-
-@media (max-height: 680px) {
-.crew-v2-login-copy .crew-auth-lead {
-  margin-top: 12px;
-
-}
-}
-
-@media (max-height: 680px) {
 .crew-v2-login form {
   margin-top: 20px;
-
-}
-}
-
-@media (max-height: 680px) {
-.crew-v2-login:not(.is-passcode)::after {
-  height: 145px;
 
 }
 }
