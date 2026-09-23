@@ -118,7 +118,8 @@ describe("Crew Mobile redesign", () => {
     expect(await screen.findByText("outlet-1 checklist")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Clock In" })).toBeNull();
     expect(mocks.operationsToday).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Other" }));
+    fireEvent.click(screen.getByRole("button", { name: "Outlet JYMT" }));
+    fireEvent.click(screen.getByRole("option", { name: "Other" }));
     expect(await screen.findByText("outlet-2 checklist")).not.toBeNull();
     expect(screen.queryByText("outlet-1 checklist")).toBeNull();
     fireEvent.click(screen.getByText("outlet-2 checklist"));

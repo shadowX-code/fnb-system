@@ -84,4 +84,5 @@ resources.learn.referenceOnly = "仅供查阅";
 resources.tasks.noOutletTasks = "这家门店今天没有任务。";
 resources.assets.readOnlySubtitle = "查看门店资产";
 resources.leave.managementReadOnly = "申请假期需要指定工作门店。您仍可查看请假记录。";
+resources.cash.managementMeSubtitle = "查看门店现金并交接款项";
 export default resources;

@@ -84,4 +84,5 @@ resources.learn.referenceOnly = "Untuk rujukan sahaja";
 resources.tasks.noOutletTasks = "Tiada tugas di cawangan ini hari ini.";
 resources.assets.readOnlySubtitle = "Lihat aset cawangan";
 resources.leave.managementReadOnly = "Permohonan cuti memerlukan cawangan pekerjaan yang ditetapkan. Sejarah cuti anda masih boleh dilihat.";
+resources.cash.managementMeSubtitle = "Semak tunai outlet dan serahkan wang";
 export default resources;
