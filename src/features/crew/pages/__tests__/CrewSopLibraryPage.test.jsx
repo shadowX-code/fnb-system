@@ -270,9 +270,14 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    await screen.findByRole("textbox", { name: "Content" });
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByText("Crew view · Saved draft preview")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "← Back to Editor" }));
     fireEvent.change(await screen.findByLabelText("Section Title *"), { target: { value: "Unsaved greeting title" } });
     expect(await screen.findByRole("textbox", { name: "Content" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByText("Crew view · Unsaved draft changes included")).not.toBeNull();
     expect(screen.getByLabelText("Preview v2")).not.toBeNull();
     expect(screen.getByRole("button", { name: "← Back to Editor" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Unsaved greeting title" })).not.toBeNull();
