@@ -4,7 +4,7 @@ import { EditorContent, useEditor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import {
   Bold, Eraser, Highlighter, ImagePlus, Italic, Link2, List,
-  ListOrdered, Redo2, Underline, Undo2,
+  ListOrdered, Palette, Redo2, Underline, Undo2,
 } from "lucide-react";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
@@ -118,7 +118,7 @@ export default function CrewAdminRichTextEditor({ value = "", onChange, onImage,
   }
 
   function colorMenu(kind, options, activeValue, apply) {
-    return <ActionMenu open={palette === kind} onOpenChange={(open) => { if (open) selectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }; setPalette(open ? kind : ""); }} align="left" width={184} ariaLabel={kind} trigger={({ toggle }) => <ToolButton label={kind} Icon={kind === "Text Color" ? Bold : Highlighter} active={Boolean(activeValue)} disabled={disabled || !editor} onClick={toggle} />}>
+    return <ActionMenu open={palette === kind} onOpenChange={(open) => { if (open) selectionRef.current = { from: editor.state.selection.from, to: editor.state.selection.to }; setPalette(open ? kind : ""); }} align="left" width={184} ariaLabel={kind} trigger={({ toggle }) => <ToolButton label={kind} Icon={kind === "Text Color" ? Palette : Highlighter} active={Boolean(activeValue)} disabled={disabled || !editor} onClick={toggle} />}>
       <div role="menu" aria-label={kind} className="admin-rich-text-palette">{options.map(({ value: tone, label }) => <button key={label} type="button" role="menuitemradio" aria-checked={activeValue === tone} onMouseDown={(event) => event.preventDefault()} onClick={() => { apply(tone); setPalette(""); }}><span className={`admin-rich-text-swatch ${kind === "Text Color" ? "is-text" : "is-highlight"}`} data-tone={tone || "default"} aria-hidden="true">A</span>{label}</button>)}</div>
     </ActionMenu>;
   }

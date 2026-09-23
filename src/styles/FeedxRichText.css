@@ -6,6 +6,8 @@
 .crew-rich-content mark[data-feedx-highlight="mint"], .admin-rich-text-surface mark[data-feedx-highlight="mint"] { background: #d9f3e9; color: #17493f; }
 .crew-rich-content mark[data-feedx-highlight="red"], .admin-rich-text-surface mark[data-feedx-highlight="red"] { background: #ffe0e4; color: #742332; }
 .crew-rich-content mark[data-feedx-highlight="info"], .admin-rich-text-surface mark[data-feedx-highlight="info"] { background: #dfeeff; color: #194478; }
+.crew-rich-content ul { list-style: disc outside; }
+.crew-rich-content ol { list-style: decimal outside; }
 :root[data-resolved-theme="dark"] .crew-rich-content [data-feedx-text-tone="teal"], :root[data-resolved-theme="dark"] .admin-rich-text-surface [data-feedx-text-tone="teal"] { color: #80e0c8; }
 :root[data-resolved-theme="dark"] .crew-rich-content [data-feedx-text-tone="warning"], :root[data-resolved-theme="dark"] .admin-rich-text-surface [data-feedx-text-tone="warning"] { color: var(--warning-text-dark); }
 :root[data-resolved-theme="dark"] .crew-rich-content [data-feedx-text-tone="danger"], :root[data-resolved-theme="dark"] .admin-rich-text-surface [data-feedx-text-tone="danger"] { color: var(--danger-text-dark); }
