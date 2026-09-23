@@ -88,12 +88,12 @@ export default function CrewAdminRichTextEditor({ value = "", onChange, onImage,
     onTransaction: () => setRevision((current) => current + 1),
   });
 
-  useEffect(() => { if (editor) editor.setEditable(!disabled); }, [editor, disabled]);
+  useEffect(() => { if (editor) editor.setEditable(!disabled, false); }, [editor, disabled]);
   useEffect(() => {
     if (!editor) return;
     const next = sanitizeSopHtml(value);
     if (sanitizeSopHtml(editor.getHTML()) !== next) editor.commands.setContent(next, { emitUpdate: false });
-    lastValueRef.current = next;
+    lastValueRef.current = sanitizeSopHtml(editor.getHTML());
   }, [editor, value]);
 
   function openLink() {
