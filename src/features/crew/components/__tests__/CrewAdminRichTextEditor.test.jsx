@@ -15,6 +15,14 @@ function selectEditorText(surface) {
 }
 
 describe("Crew Admin rich text editor", () => {
+  it("does not mark legacy formatted content changed just by opening the editor", async () => {
+    const onChange = vi.fn();
+    render(<CrewAdminRichTextEditor value="<p>Guest First</p><ul><li>Welcome guests</li><li>Help the team</li></ul>" onChange={onChange} />);
+    expect(await screen.findByRole("textbox", { name: "Content" })).not.toBeNull();
+    await waitFor(() => expect(screen.getByRole("button", { name: "Bold" }).disabled).toBe(false));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("formats a selected passage and emits safe HTML", async () => {
     const onChange = vi.fn();
     render(<CrewAdminRichTextEditor value="<p>Service step</p>" onChange={onChange} />);
