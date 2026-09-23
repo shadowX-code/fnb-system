@@ -1,5 +1,9 @@
 /* Auth-owned Crew mobile composition. Uses shared system primitives. */
 
+.crew-v2-shell.crew-auth-shell {
+  overflow: visible;
+}
+
 .crew-v2-app, .crew-v2-login {
   box-sizing: border-box;
   width: min(100%, 430px);
@@ -59,9 +63,8 @@
 }
 
 .crew-v2-login:not(.is-passcode) {
-  height: 100dvh;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: visible;
+  padding-bottom: 0;
 
 }
 
@@ -73,24 +76,17 @@
 }
 
 .crew-auth-artwork {
-  position: relative;
-  flex: 0 1 auto;
+  flex: 0 0 auto;
   width: calc(100% + 2 * var(--crew-auth-inline-padding));
-  min-height: 0;
-  aspect-ratio: 2;
   margin: auto calc(-1 * var(--crew-auth-inline-padding)) 0;
   padding-top: 16px;
 
 }
 
 .crew-auth-artwork img {
-  position: absolute;
-  inset: 16px 0 0;
   display: block;
   width: 100%;
-  height: calc(100% - 16px);
-  object-fit: contain;
-  object-position: center bottom;
+  height: auto;
 
 }
 
@@ -330,8 +326,10 @@
 }
 
 .crew-v2-keypad button {
+  display: grid;
   width: 76px;
   height: 58px;
+  place-items: center;
   border: 1px solid var(--crew-auth-field-border);
   border-radius: 14px;
   background: var(--crew-auth-field);
