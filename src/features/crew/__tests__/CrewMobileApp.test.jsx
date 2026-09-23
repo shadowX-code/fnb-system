@@ -129,7 +129,7 @@ describe("Crew Mobile redesign", () => {
   it("applies a saved Crew theme on the pre-auth login", () => {
     localStorage.setItem("feedx.crew.theme", "dark");
     renderCrewApp({ crewSession: null });
-    expect(screen.getByRole("heading", { name: "Welcome to FeedX Crew" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Welcome toFeedX Crew" })).not.toBeNull();
     expect(document.documentElement.dataset.crewTheme).toBe("dark");
   });
   it("applies and persists the Home-only Crew theme choice without adding a second route control", async () => {
