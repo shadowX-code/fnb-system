@@ -2266,7 +2266,7 @@ const factoryServiceDefinition = {
     const dueReleaseResult = await supabase.rpc("factory_release_due_job_orders");
     throwSupabaseError("factory.operational_job_orders.release_due", dueReleaseResult.error);
 
-    const { data, error } = await supabase.rpc("factory_get_production_operational_snapshot", {
+    const { data, error } = await supabase.rpc("factory_get_production_operational_pipeline_snapshot", {
       p_operational_date: String(date),
       p_include_productions: Boolean(includeProductions),
     });
