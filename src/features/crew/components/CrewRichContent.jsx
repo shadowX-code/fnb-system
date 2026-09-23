@@ -1,7 +1,8 @@
 import { createElement, Fragment, useMemo } from "react";
 import { sanitizeSopHtml } from "../utils/sopDocumentContent.js";
+import "../../../styles/FeedxRichText.css";
 
-const ALLOWED_ELEMENTS = new Set(["p", "br", "strong", "b", "em", "i", "mark", "ul", "ol", "li", "a"]);
+const ALLOWED_ELEMENTS = new Set(["p", "br", "strong", "b", "em", "i", "u", "span", "mark", "ul", "ol", "li", "a"]);
 
 function safeHref(value = "") {
   const href = String(value || "").trim();
@@ -24,6 +25,8 @@ function toReactNode(node, key) {
       rel: "noopener noreferrer",
     }, children);
   }
+  if (tag === "span") return createElement("span", { key, "data-feedx-text-tone": node.getAttribute("data-feedx-text-tone") }, children);
+  if (tag === "mark") return createElement("mark", { key, "data-feedx-highlight": node.getAttribute("data-feedx-highlight") || undefined }, children);
   return createElement(tag, { key }, children);
 }
 

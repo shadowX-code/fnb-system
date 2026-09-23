@@ -27,4 +27,12 @@ describe("Crew rich learning content", () => {
     expect(container.textContent).not.toContain("unsafe()");
     expect(screen.getByText(/Safe/)).not.toBeNull();
   });
+
+  it("renders only controlled FeedX colour attributes, including on Crew", () => {
+    const { container } = render(<CrewRichContent html={'<p><u>Underline</u><span data-feedx-text-tone="warning">Warning</span><mark data-feedx-highlight="info">Info</mark><span data-feedx-text-tone="purple">Plain</span></p>'} />);
+    expect(container.querySelector("u")?.textContent).toBe("Underline");
+    expect(container.querySelector('[data-feedx-text-tone="warning"]')?.textContent).toBe("Warning");
+    expect(container.querySelector('[data-feedx-highlight="info"]')?.textContent).toBe("Info");
+    expect(container.querySelector('[data-feedx-text-tone="purple"]')).toBeNull();
+  });
 });

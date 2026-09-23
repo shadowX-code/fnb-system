@@ -45,6 +45,7 @@ Admins author SOPs and journeys, configure sequencing and quizzes, publish versi
 Crew view assigned onboarding and learning, read pinned SOP content, acknowledge requirements, complete lessons, and submit quizzes.
 
 The Admin SOP and Onboarding builders share the canonical ordered-list interaction: a dedicated drag handle initiates pointer reordering, visible insertion feedback preserves the destination context, and Arrow Up/Down on the focused handle remains the keyboard fallback. Builder presentation is shared; each domain retains its own draft and publication authority.
+SOP Section Content remains sanitized HTML with a controlled rich-text grammar; optional Key Point remains a separate Section-level field in the versioned content envelope. The shared Crew Admin editor is presentation-only and does not change draft, publication, media, or translation authority.
 
 ## Integrations
 

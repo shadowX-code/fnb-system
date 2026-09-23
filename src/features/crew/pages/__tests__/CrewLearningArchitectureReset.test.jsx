@@ -254,12 +254,13 @@ describe("Crew Learning architecture reset UI", () => {
   });
 
   it("uploads learning images into draft state and persists only durable media metadata", async () => {
-    const { container } = render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Edit Draft" }));
     await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
     fireEvent.click(screen.getByText("Welcome & Workplace essentials", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
     fireEvent.click(screen.getByRole("button", { name: "Edit" }));
-    const input = container.querySelector('input[type="file"][accept="image/jpeg,image/png,image/webp"]');
+    await screen.findByRole("button", { name: "Add or replace lesson image" });
+    const input = document.querySelector('input[type="file"][aria-label="Add or replace lesson image"]');
     fireEvent.change(input, { target: { files: [new File(["image"], "welcome.png", { type: "image/png" })] } });
     expect(await screen.findByAltText("Learning content preview")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Image Caption"), { target: { value: "Welcome example" } });

@@ -1,4 +1,6 @@
-const ALLOWED_TAGS = new Set(["P", "BR", "STRONG", "B", "EM", "I", "MARK", "UL", "OL", "LI", "A"]);
+const ALLOWED_TAGS = new Set(["P", "BR", "STRONG", "B", "EM", "I", "U", "SPAN", "MARK", "UL", "OL", "LI", "A"]);
+export const SOP_TEXT_TONES = ["muted", "teal", "warning", "danger"];
+export const SOP_HIGHLIGHTS = ["mint", "yellow", "red", "info"];
 const DROP_WITH_CONTENT_TAGS = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "META", "LINK"]);
 const KEY_POINT_SELECTOR = 'aside[data-feedx-key-point="true"]';
 
@@ -52,6 +54,8 @@ export function sanitizeSopHtml(value = "") {
         cleanNode(mark);
         return;
       }
+      const tone = child.tagName === "SPAN" ? child.getAttribute("data-feedx-text-tone") : null;
+      const highlight = child.tagName === "MARK" ? child.getAttribute("data-feedx-highlight") : null;
       if (!ALLOWED_TAGS.has(child.tagName)) {
         cleanNode(child);
         child.replaceWith(...child.childNodes);
@@ -59,13 +63,18 @@ export function sanitizeSopHtml(value = "") {
       }
       const originalHref = child.tagName === "A" ? child.getAttribute("href") : "";
       [...child.attributes].forEach((attribute) => child.removeAttribute(attribute.name));
+      if (child.tagName === "SPAN") {
+        if (SOP_TEXT_TONES.includes(tone)) child.setAttribute("data-feedx-text-tone", tone);
+        else { cleanNode(child); child.replaceWith(...child.childNodes); return; }
+      }
+      if (child.tagName === "MARK" && SOP_HIGHLIGHTS.includes(highlight)) child.setAttribute("data-feedx-highlight", highlight);
       if (child.tagName === "A") {
         const href = safeHref(originalHref);
         if (href) {
           child.setAttribute("href", href);
           child.setAttribute("target", "_blank");
           child.setAttribute("rel", "noopener noreferrer");
-        } else child.replaceWith(...child.childNodes);
+        } else { cleanNode(child); child.replaceWith(...child.childNodes); return; }
       }
       cleanNode(child);
     });
@@ -82,7 +91,7 @@ export function parseSopBody(value = "", legacyKeyPoint = false) {
   let template = document.createElement("template");
   template.innerHTML = source;
   let keyPoints = [...template.content.querySelectorAll(KEY_POINT_SELECTOR)];
-  if (!keyPoints.length && /&lt;\/?(?:p|br|strong|b|em|i|mark|ul|ol|li|a|aside)\b/i.test(source)) {
+  if (!keyPoints.length && /&lt;\/?(?:p|br|strong|b|em|i|u|span|mark|ul|ol|li|a|aside)\b/i.test(source)) {
     const decoder = document.createElement("textarea");
     decoder.innerHTML = source;
     source = decoder.value;
