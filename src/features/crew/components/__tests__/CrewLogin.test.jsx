@@ -24,6 +24,9 @@ describe("Crew login presentation", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Mobile Number" }), { target: { value: "12 345 6789" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("heading", { name: "Welcome back" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Back" }).querySelector("svg")?.getAttribute("viewBox")).toBe("0 0 24 24");
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByRole("heading", { name: "Let’s make today a good one." })).not.toBeNull();
   });
 
   it("has one fixed Malaysia prefix and submits the existing normalized number", async () => {

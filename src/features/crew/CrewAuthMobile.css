@@ -233,26 +233,38 @@
 .crew-auth-passcode-header {
   position: relative;
   z-index: 2;
-  display: flex;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  column-gap: 8px;
   min-height: 46px;
   align-items: center;
-  justify-content: center;
+
+}
+
+.crew-auth-passcode-header .crew-auth-brand {
+  justify-self: center;
 
 }
 
 .crew-v2-login-back {
-  position: absolute;
-  top: 0;
-  left: 0;
   display: grid;
   width: 42px;
   height: 42px;
+  align-self: start;
+  justify-self: start;
   place-items: center;
   border: 0;
   border-radius: 50%;
   background: var(--crew-auth-field);
   color: var(--crew-auth-foreground);
   transition: background .18s ease, transform .18s ease;
+
+}
+
+.crew-v2-login-back svg {
+  display: block;
+  /* ArrowLeft's stroke mass sits left of its centered 24px viewBox. */
+  transform: translateX(2px);
 
 }
 
