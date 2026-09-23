@@ -1,9 +1,10 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import i18n from "../../../../i18n/index.js";
+import { crewService } from "../../../../services/crewService.js";
 import CrewLogin from "../CrewLogin.jsx";
 
-afterEach(async () => { cleanup(); await i18n.changeLanguage("en"); });
+afterEach(async () => { cleanup(); vi.restoreAllMocks(); await i18n.changeLanguage("en"); });
 
 describe("Crew login presentation", () => {
   it("uses the new pre-auth hero without guessing an outlet", () => {
@@ -19,6 +20,20 @@ describe("Crew login presentation", () => {
     fireEvent.change(screen.getByRole("textbox", { name: "Mobile Number" }), { target: { value: "12 345 6789" } });
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByRole("heading", { name: "Welcome back" })).not.toBeNull();
+  });
+
+  it("has one fixed Malaysia prefix and submits the existing normalized number", async () => {
+    const signIn = vi.spyOn(crewService, "signIn").mockResolvedValue({ token: "test" });
+    const onSignedIn = vi.fn();
+    render(<CrewLogin onSignedIn={onSignedIn} />);
+    expect(screen.getByText("+60")).not.toBeNull();
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(screen.getByRole("textbox", { name: "Mobile Number" }).getAttribute("aria-describedby")).toBe("crew-auth-country-code");
+    fireEvent.change(screen.getByRole("textbox", { name: "Mobile Number" }), { target: { value: "012 345 6789" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    for (const digit of "1234") fireEvent.click(screen.getByRole("button", { name: digit }));
+    expect(signIn).toHaveBeenCalledWith("+6012 345 6789", "1234");
+    signIn.mockRestore();
   });
 
   it.each([
