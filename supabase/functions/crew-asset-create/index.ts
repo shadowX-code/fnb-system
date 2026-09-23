@@ -29,6 +29,7 @@ Deno.serve(async (request) => {
   if (!url || !anonKey || !serviceRoleKey) return reply({ error: "Asset creation is temporarily unavailable." }, 500);
 
   let token = "";
+  let outletId = "";
   let requestId = "";
   let asset: Record<string, unknown> = {};
   let original: File | null = null;
@@ -37,6 +38,7 @@ Deno.serve(async (request) => {
   try {
     const form = await request.formData();
     token = String(form.get("token") || "").trim();
+    outletId = String(form.get("outlet_id") || "").trim();
     requestId = String(form.get("request_id") || "").trim();
     asset = JSON.parse(String(form.get("asset") || "{}"));
     original = form.get("original") instanceof File ? form.get("original") as File : null;
@@ -57,11 +59,13 @@ Deno.serve(async (request) => {
 
   const authorization = request.headers.get("Authorization") || `Bearer ${anonKey}`;
   const crewClient = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
-  const { data: prior, error: priorError } = await crewClient.rpc("crew_asset_create_result", { p_token: token, p_request_id: requestId });
+  if (outletId && !uuidPattern.test(outletId)) return reply({ error: "Invalid outlet." }, 400);
+  const scope = outletId ? { p_outlet_id: outletId } : {};
+  const { data: prior, error: priorError } = await crewClient.rpc(outletId ? "crew_management_asset_create_result" : "crew_asset_create_result", { p_token: token, p_request_id: requestId, ...scope });
   if (priorError) return reply({ error: "Asset creation access is unavailable." }, 403);
   if (prior) return reply(prior);
 
-  const { data: context, error: contextError } = await crewClient.rpc("crew_asset_create_context", { p_token: token });
+  const { data: context, error: contextError } = await crewClient.rpc(outletId ? "crew_management_asset_create_context" : "crew_asset_create_context", { p_token: token, ...scope });
   if (contextError || !context?.bucket || !context?.outlet_id) return reply({ error: "Asset creation access is unavailable." }, 403);
 
   const storageClient = createClient(url, serviceRoleKey);
@@ -81,8 +85,9 @@ Deno.serve(async (request) => {
       uploaded.push(object.path);
     }
     const urls = objects.map((object) => storageClient.storage.from(context.bucket).getPublicUrl(object.path).data.publicUrl);
-    const { data, error } = await crewClient.rpc("crew_asset_create_with_photo", {
+    const { data, error } = await crewClient.rpc(outletId ? "crew_management_asset_create_with_photo" : "crew_asset_create_with_photo", {
       p_token: token, p_request_id: requestId, p_asset: asset,
+      ...scope,
       p_original_image_url: urls[0], p_image_url: urls[1], p_thumbnail_url: urls[2],
     });
     if (error) throw error;

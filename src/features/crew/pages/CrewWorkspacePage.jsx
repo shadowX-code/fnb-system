@@ -105,7 +105,7 @@ function employeeColumns(canManage, setRequest, setSpecialAccessEmployee, setDis
   { key: "mobile", header: "Mobile", render: (row) => row.crew_access?.mobile_number || row.contact || "—" },
   { key: "crew", header: "Crew Access", render: (row) => { const state = crewAccessState(row.crew_access); return <Badge tone={semanticStatusTone(state)}>{CREW_ACCESS_STATE_LABEL[state]}</Badge>; } },
   ...(managementScope ? [{ key: "role-outlets", header: "Role Outlet Access", render: (row) => <span className="text-sm text-text-secondary">{row.role_outlet_access?.type === "all" ? "All Outlets" : row.role_outlet_access?.count ? `${row.role_outlet_access.count} ${row.role_outlet_access.count === 1 ? "Outlet" : "Outlets"}` : "No Outlet Access"}</span> }] : []),
-  { key: "special", header: "Special Access", render: (row) => row.crew_access?.access_state === "active" ? <span className="text-sm text-text-secondary">{specialAccessSummary(row.crew_access)}</span> : <span className="text-sm text-text-muted">Enable Crew Access first</span> },
+  { key: "special", header: "Special Access", render: (row) => row.crew_access?.access_state === "active" ? <span className="text-sm text-text-secondary">{managementScope ? "By outlet" : specialAccessSummary(row.crew_access)}</span> : <span className="text-sm text-text-muted">Enable Crew Access first</span> },
   { key: "last", header: "Last login", render: (row) => lastLoginCell(row.crew_access?.last_login_at) },
   { key: "action", header: "Actions", align: "right", render: (row) => {
     if (!canManage) return null;

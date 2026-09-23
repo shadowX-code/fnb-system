@@ -20,24 +20,26 @@ Deno.serve(async (request) => {
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   if (!url || !anonKey || !serviceRoleKey) return response({ error: "Asset evidence service is unavailable." }, 500);
   let token = "";
+  let outletId = "";
   let assetId = "";
   let upload: File | null = null;
   try {
     const form = await request.formData();
     token = String(form.get("token") || "").trim();
+    outletId = String(form.get("outlet_id") || "").trim();
     assetId = String(form.get("asset_id") || "").trim();
     const value = form.get("file");
     upload = value instanceof File ? value : null;
   } catch {
     return response({ error: "Invalid asset evidence request." }, 400);
   }
-  if (!token || !assetId || !upload) return response({ error: "Crew session, asset and photo are required." }, 400);
+  if (!token || !assetId || !upload || (outletId && !/^[0-9a-f-]{36}$/i.test(outletId))) return response({ error: "Crew session, asset and photo are required." }, 400);
   if (!allowedTypes.has(upload.type) || upload.size === 0 || upload.size > maxBytes) return response({ error: "Choose a JPG, PNG, or WebP image up to 5 MB." }, 400);
 
   const authorization = request.headers.get("Authorization") || `Bearer ${anonKey}`;
   const crewClient = createClient(url, anonKey, { global: { headers: { Authorization: authorization } } });
   const storageClient = createClient(url, serviceRoleKey);
-  const { data: context, error: contextError } = await crewClient.rpc("crew_asset_evidence_context", { p_token: token, p_asset_id: assetId });
+  const { data: context, error: contextError } = await crewClient.rpc(outletId ? "crew_management_asset_evidence_context" : "crew_asset_evidence_context", { p_token: token, p_asset_id: assetId, ...(outletId ? { p_outlet_id: outletId } : {}) });
   if (contextError || !context?.bucket || context.asset_id !== assetId) return response({ error: "Inspection evidence access is unavailable." }, 403);
   const objectPath = `inspection_evidence/${context.outlet_id}/${context.employee_id}/${assetId}-${crypto.randomUUID()}.webp`;
   const { error: uploadError } = await storageClient.storage.from(context.bucket).upload(objectPath, upload, {

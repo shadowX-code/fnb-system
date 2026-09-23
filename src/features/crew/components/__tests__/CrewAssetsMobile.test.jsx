@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import CrewAssetsMobile from "../CrewAssetsMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), createAssetWithPhoto: vi.fn(), prepareAssetMasterPhoto: vi.fn(), updateAssetDetails: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), archiveAssetInspectionDraft: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { assetsMobile: vi.fn(), managementAssets: vi.fn(), adjustAsset: vi.fn(), createAsset: vi.fn(), createAssetWithPhoto: vi.fn(), prepareAssetMasterPhoto: vi.fn(), updateAssetDetails: vi.fn(), uploadInitialAssetPhoto: vi.fn(), submitAssetInspection: vi.fn(), archiveAssetInspectionDraft: vi.fn(), uploadAssetInspectionEvidence: vi.fn() } }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 
 const payload = {
@@ -15,6 +15,16 @@ const payload = {
 };
 
 describe("Crew Assets Mobile", () => {
+  it("drops Management Asset actions when the selected outlet has no grant", async () => {
+    crewService.managementAssets.mockImplementation(async (_token, outletId) => ({ ...payload, outlet: { id: outletId, name: outletId }, can_add_assets: outletId === "outlet-1", can_adjust_assets: false, can_perform_asset_inspections: false, can_manage_asset_details: false }));
+    const view = render(<CrewAssetsMobile key="outlet-1" token="token" management outletId="outlet-1" onBack={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Add Asset" })).not.toBeNull();
+    view.rerender(<CrewAssetsMobile key="outlet-2" token="token" management outletId="outlet-2" onBack={() => {}} />);
+    await screen.findByText("outlet-2");
+    expect(screen.queryByRole("button", { name: "Add Asset" })).toBeNull();
+    expect(crewService.managementAssets).toHaveBeenCalledWith("token", "outlet-2", undefined);
+    expect(crewService.assetsMobile).not.toHaveBeenCalled();
+  });
   it("renders the safe outlet asset projection and capability actions", async () => {
     crewService.assetsMobile.mockResolvedValue(payload);
     render(<CrewAssetsMobile token="token" onBack={() => {}} />);
@@ -221,7 +231,7 @@ describe("Crew Assets Mobile", () => {
     expect(screen.getByLabelText("Initial quantity").getAttribute("inputmode")).toBe("decimal");
     expect(screen.getByLabelText("Initial quantity").getAttribute("enterkeyhint")).toBe("next");
     fireEvent.click(screen.getByRole("button", { name: "Create Asset" }));
-    await waitFor(() => expect(crewService.createAsset).toHaveBeenCalledWith("token", expect.objectContaining({ asset: expect.objectContaining({ name: "Crew QA Tongs", initial_quantity: 4, category_id: "cat-1" }) })));
+    await waitFor(() => expect(crewService.createAsset).toHaveBeenCalledWith("token", expect.objectContaining({ asset: expect.objectContaining({ name: "Crew QA Tongs", initial_quantity: 4, category_id: "cat-1" }) }), null));
     expect(await screen.findByText("Crew QA Tongs")).not.toBeNull();
   });
 
@@ -240,7 +250,7 @@ describe("Crew Assets Mobile", () => {
     fireEvent.change(screen.getByLabelText("Take Photo"), { target: { files: [prepared.file] } });
     expect(await screen.findByAltText("Asset photo crop preview")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Create Asset" }));
-    await waitFor(() => expect(crewService.createAssetWithPhoto).toHaveBeenCalledWith("token", expect.objectContaining({ asset: expect.objectContaining({ name: "Crew QA Camera" }), preparedPhoto: expect.any(Object) })));
+    await waitFor(() => expect(crewService.createAssetWithPhoto).toHaveBeenCalledWith("token", expect.objectContaining({ asset: expect.objectContaining({ name: "Crew QA Camera" }), preparedPhoto: expect.any(Object) }), null));
     expect(crewService.createAsset).not.toHaveBeenCalled();
     expect(crewService.uploadInitialAssetPhoto).not.toHaveBeenCalled();
     expect(screen.queryByRole("button", { name: /Retry photo/i })).toBeNull();

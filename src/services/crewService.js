@@ -363,6 +363,12 @@ export const crewService = {
     return data || { checkout: null, deposit: { current_balance: 0, recent: [] }, pending_receipts: [], receivers: [] };
   },
 
+  async managementCashMobile(token, outletId, date = localBusinessDate()) {
+    const { data, error } = await supabase.rpc("crew_management_cash_mobile", { p_token: token, p_outlet_id: outletId, p_business_date: date });
+    throwSupabaseError("crew.managementCashMobile", error);
+    return data;
+  },
+
   async cashCheckoutHistory(token, date = localBusinessDate()) {
     const { data, error } = await supabase.rpc("crew_cash_checkout_history", { p_token: token, p_business_date: date });
     throwSupabaseError("crew.cashCheckoutHistory", error);
@@ -375,8 +381,8 @@ export const crewService = {
     return data;
   },
 
-  async recordCashCollection(token, payload) {
-    const { data, error } = await supabase.rpc("crew_cash_record_collection", { p_token: token, p_payload: payload });
+  async recordCashCollection(token, payload, outletId = null) {
+    const { data, error } = await supabase.rpc(outletId ? "crew_management_cash_record_collection" : "crew_cash_record_collection", { p_token: token, ...(outletId ? { p_outlet_id: outletId } : {}), p_payload: payload });
     throwSupabaseError("crew.recordCashCollection", error);
     return data;
   },
@@ -1348,6 +1354,26 @@ export const crewService = {
     return data;
   },
 
+  async managementSpecialAccess(employeeId) {
+    const { data, error } = await supabase.rpc("crew_management_special_access_admin", { p_employee_id: employeeId });
+    throwSupabaseError("crew.managementSpecialAccess", error);
+    return data;
+  },
+
+  async updateManagementSpecialAccess(employeeId, outletId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
+    const { data, error } = await supabase.rpc("crew_update_management_special_access", {
+      p_employee_id: employeeId,
+      p_outlet_id: outletId,
+      p_can_initiate_handover: Boolean(handover),
+      p_can_add_assets: Boolean(addAssets),
+      p_can_manage_asset_details: Boolean(manageAssetDetails),
+      p_can_adjust_assets: Boolean(adjustAssets),
+      p_can_perform_asset_inspections: Boolean(inspectAssets),
+    });
+    throwSupabaseError("crew.updateManagementSpecialAccess", error);
+    return data;
+  },
+
   async assetsMobile(token, assetId = null) {
     const { data, error } = await supabase.rpc("crew_asset_mobile", { p_token: token, p_asset_id: assetId });
     throwSupabaseError("crew.assetsMobile", error);
@@ -1355,14 +1381,15 @@ export const crewService = {
   },
 
   async managementAssets(token, outletId, assetId = null) {
-    const { data, error } = await supabase.rpc("crew_management_asset_mobile", { p_token: token, p_outlet_id: outletId, p_asset_id: assetId });
+    const { data, error } = await supabase.rpc("crew_management_asset_mobile_authorized", { p_token: token, p_outlet_id: outletId, p_asset_id: assetId });
     throwSupabaseError("crew.managementAssets", error);
     return data;
   },
 
-  async adjustAsset(token, payload) {
-    const { data, error } = await supabase.rpc("crew_asset_adjust", {
+  async adjustAsset(token, payload, outletId = null) {
+    const { data, error } = await supabase.rpc(outletId ? "crew_management_asset_adjust" : "crew_asset_adjust", {
       p_token: token,
+      ...(outletId ? { p_outlet_id: outletId } : {}),
       p_request_id: payload.requestId || crypto.randomUUID(),
       p_asset_id: payload.assetId,
       p_adjustment_type: payload.adjustmentType,
@@ -1375,9 +1402,10 @@ export const crewService = {
     return data;
   },
 
-  async createAsset(token, payload) {
-    const { data, error } = await supabase.rpc("crew_asset_create", {
+  async createAsset(token, payload, outletId = null) {
+    const { data, error } = await supabase.rpc(outletId ? "crew_management_asset_create" : "crew_asset_create", {
       p_token: token,
+      ...(outletId ? { p_outlet_id: outletId } : {}),
       p_request_id: payload.requestId || crypto.randomUUID(),
       p_asset: payload.asset,
     });
@@ -1390,11 +1418,12 @@ export const crewService = {
     return { file, crop, bundle, previewUrl: URL.createObjectURL(bundle.display.blob) };
   },
 
-  async createAssetWithPhoto(token, payload) {
+  async createAssetWithPhoto(token, payload, outletId = null) {
     const preparedPhoto = payload.preparedPhoto;
     if (!preparedPhoto?.bundle) throw new Error("Choose a photo before creating this Asset.");
     const body = new FormData();
     body.append("token", token);
+    if (outletId) body.append("outlet_id", outletId);
     body.append("request_id", payload.requestId || crypto.randomUUID());
     body.append("asset", JSON.stringify(payload.asset));
     body.append("original", preparedPhoto.bundle.original.blob, "original.webp");
@@ -1405,9 +1434,10 @@ export const crewService = {
     return data;
   },
 
-  async updateAssetDetails(token, payload) {
+  async updateAssetDetails(token, payload, outletId = null) {
     const body = new FormData();
     body.append("token", token);
+    if (outletId) body.append("outlet_id", outletId);
     body.append("request_id", payload.requestId || crypto.randomUUID());
     body.append("asset_id", payload.assetId);
     body.append("details", JSON.stringify(payload.details || {}));
@@ -1421,11 +1451,12 @@ export const crewService = {
     return data;
   },
 
-  async uploadInitialAssetPhoto(token, assetId, preparedPhoto, requestId = crypto.randomUUID()) {
+  async uploadInitialAssetPhoto(token, assetId, preparedPhoto, requestId = crypto.randomUUID(), outletId = null) {
     const file = preparedPhoto?.file || preparedPhoto;
     const bundle = preparedPhoto?.bundle || await normalizeAssetMasterPhoto(file);
     const body = new FormData();
     body.append("token", token);
+    if (outletId) body.append("outlet_id", outletId);
     body.append("asset_id", assetId);
     body.append("request_id", requestId);
     body.append("original", bundle.original.blob, file.name || `asset.${bundle.original.extension}`);
@@ -1436,9 +1467,10 @@ export const crewService = {
     return data;
   },
 
-  async submitAssetInspection(token, payload) {
-    const { data, error } = await supabase.rpc("crew_asset_submit_inspection", {
+  async submitAssetInspection(token, payload, outletId = null) {
+    const { data, error } = await supabase.rpc(outletId ? "crew_management_asset_submit_inspection" : "crew_asset_submit_inspection", {
       p_token: token,
+      ...(outletId ? { p_outlet_id: outletId } : {}),
       p_request_id: payload.requestId || crypto.randomUUID(),
       p_payload: payload,
     });
@@ -1446,9 +1478,10 @@ export const crewService = {
     return data;
   },
 
-  async archiveAssetInspectionDraft(token, inspectionId, requestId = crypto.randomUUID()) {
-    const { data, error } = await supabase.rpc("crew_asset_archive_inspection_draft", {
+  async archiveAssetInspectionDraft(token, inspectionId, requestId = crypto.randomUUID(), outletId = null) {
+    const { data, error } = await supabase.rpc(outletId ? "crew_management_asset_archive_inspection_draft" : "crew_asset_archive_inspection_draft", {
       p_token: token,
+      ...(outletId ? { p_outlet_id: outletId } : {}),
       p_request_id: requestId,
       p_inspection_id: inspectionId,
     });
@@ -1456,11 +1489,12 @@ export const crewService = {
     return data;
   },
 
-  async uploadAssetInspectionEvidence(token, assetId, file) {
+  async uploadAssetInspectionEvidence(token, assetId, file, outletId = null) {
     validateImageFile(file);
     const optimized = await optimizeImageBlob(file);
     const body = new FormData();
     body.append("token", token);
+    if (outletId) body.append("outlet_id", outletId);
     body.append("asset_id", assetId);
     body.append("file", optimized.blob, "evidence.webp");
     const { data, error } = await supabase.functions.invoke("crew-asset-evidence", { body });
