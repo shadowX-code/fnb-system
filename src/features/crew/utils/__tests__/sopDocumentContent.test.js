@@ -38,4 +38,28 @@ describe("SOP document content safety", () => {
     expect(stored).not.toContain("data:image");
     expect(stored).not.toContain("<img");
   });
+
+  it("cleans nested content before unwrapping an unsafe link", () => {
+    const clean = sanitizeSopHtml('<a href="javascript:alert(1)"><span data-feedx-text-tone="teal" onclick="bad()">Keep</span><script>alert(2)</script></a>');
+    expect(clean).toBe('<span data-feedx-text-tone="teal">Keep</span>');
+  });
+
+  it("converts common formatted paste into the approved HTML grammar", () => {
+    const clean = sanitizeSopHtml('<div style="font-size:24px"><p><span style="background-color:#fff"><b>Step</b></span> <a href="https://feedx.my" style="color:red">link</a></p></div>');
+    expect(clean).toContain('<mark><b>Step</b></mark>');
+    expect(clean).toContain('href="https://feedx.my"');
+    expect(clean).not.toContain('style=');
+  });
+
+  it("retains only approved semantic colours and underline across Section serialization", () => {
+    const stored = serializeSopBody('<p><u>Underlined</u> <span data-feedx-text-tone="teal" style="font-size:44px" onclick="bad()">Teal</span> <span data-feedx-text-tone="purple">Plain</span> <mark data-feedx-highlight="mint" style="color:red">Mint</mark></p>', "Key point");
+    expect(stored).toContain("<u>Underlined</u>");
+    expect(stored).toContain('data-feedx-text-tone="teal"');
+    expect(stored).toContain('data-feedx-highlight="mint"');
+    expect(stored).toContain("Plain");
+    expect(stored).not.toContain("purple");
+    expect(stored).not.toContain("onclick");
+    expect(stored).not.toContain("font-size");
+    expect(parseSopBody(stored).keyPointContent).toBe("Key point");
+  });
 });

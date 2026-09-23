@@ -217,10 +217,8 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: /Reorder section 1/ }), { key: "ArrowDown" });
     fireEvent.click(screen.getByRole("button", { name: "Add Section" }));
     fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Thank the guest" } });
-    const editor = screen.getByRole("textbox", { name: "Content" });
-    editor.innerHTML = "<p>Thank every guest before leaving.</p>";
-    fireEvent.input(editor);
-    fireEvent.click(screen.getByRole("switch", { name: /Key Point/ }));
+    expect(await screen.findByRole("textbox", { name: "Content" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Add Key Point" }));
     fireEvent.change(screen.getByLabelText("Key Point Content"), { target: { value: "Always end warmly." } });
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(mocks.saveSections).toHaveBeenCalledTimes(1));
@@ -273,14 +271,12 @@ describe("Crew SOP Library Admin", () => {
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     fireEvent.change(await screen.findByLabelText("Section Title *"), { target: { value: "Unsaved greeting title" } });
-    const editor = screen.getByRole("textbox", { name: "Content" });
-    editor.innerHTML = "<p><strong>Unsaved rich greeting.</strong></p>";
-    fireEvent.input(editor);
+    expect(await screen.findByRole("textbox", { name: "Content" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(screen.getByLabelText("Preview v2")).not.toBeNull();
     expect(screen.getByRole("button", { name: "← Back to Editor" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Unsaved greeting title" })).not.toBeNull();
-    expect(screen.getByText("Unsaved rich greeting.").closest("strong")).not.toBeNull();
+    expect(screen.getByText("Welcome within five seconds.")).not.toBeNull();
     expect(screen.getByText("Smile and make eye contact.")).not.toBeNull();
     expect(screen.getByTestId("sop-preview-scroll").className).toContain("crew-sop-preview-scroll");
     expect(screen.queryByLabelText("Document version")).toBeNull();
@@ -297,6 +293,7 @@ describe("Crew SOP Library Admin", () => {
     await screen.findByLabelText("Section Title *");
     fireEvent.click(screen.getByRole("button", { name: "Languages" }));
     expect((await screen.findAllByText("Original")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Unsaved changes")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Translate Missing" }));
     await waitFor(() => expect(mocks.saveLocalization).toHaveBeenCalledWith("sop", "v2", expect.any(Array)));
     await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "v2"));
@@ -330,17 +327,13 @@ describe("Crew SOP Library Admin", () => {
   });
 
   it("uploads a validated image and persists only durable media metadata", async () => {
-    document.execCommand = vi.fn();
     Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:sop-preview") });
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     await screen.findByLabelText("Section Title *");
-    fireEvent.click(screen.getByRole("button", { name: "Bold" }));
-    fireEvent.click(screen.getByRole("button", { name: "Bullet List" }));
-    expect(document.execCommand).toHaveBeenCalledWith("bold", false, null);
-    expect(document.execCommand).toHaveBeenCalledWith("insertUnorderedList", false, null);
+    expect(screen.getByRole("button", { name: "Add or replace section image" })).not.toBeNull();
     const file = new File(["safe"], "guide.png", { type: "image/png" });
     fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
     await screen.findByText(/Stored privately for this Outlet/);

@@ -1,7 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import CrewSopDocument from "../CrewSopDocument.jsx";
 import { serializeSopBody } from "../../utils/sopDocumentContent.js";
+
+vi.mock("react-i18next", () => ({ useTranslation: () => ({ t: (key) => ({ "tasks.types.key_point": "Key point", "learn.noContent": "No content yet", "learn.noContentBody": "This SOP has no content in this version." })[key] || key }) }));
 
 afterEach(cleanup);
 
