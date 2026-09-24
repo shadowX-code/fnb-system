@@ -71,9 +71,8 @@ describe("Crew Mobile design system contract", () => {
     expect(mobileApp.indexOf('</Suspense>')).toBeLessThan(mobileApp.indexOf('<CrewBottomNav'));
   });
 
-  it("keeps only the current schedule grid and approved Growth composition, not retired shells", () => {
-    expect(home).toContain('.crew-v2-home .crew-home-schedule-row{grid-template-columns:34px minmax(0,1fr) 16px');
-    expect(home).not.toMatch(/\.crew-home-schedule-row\s*>\s*em/);
+  it("keeps the approved Home and Growth composition without retired shells", () => {
+    expect(home).not.toContain("crew-home-schedule-row");
     for (const retired of ['.crew-v2-attendance-card', '.crew-v3-shift-hero', '.crew-v3-growth-strip']) expect(home).not.toContain(retired);
     for (const retired of ['.crew-growth-final-hero', '.crew-v3-milestone-hero', '.crew-v2-growth-tabs']) expect(growthStyles).not.toContain(retired);
     for (const current of ['.crew-growth-performance-hero', '.crew-performance-final-hero', '.crew-v2-skill-hero', '.crew-v2-path-hero']) expect(growthStyles).toContain(current);
@@ -151,7 +150,6 @@ describe("Crew Mobile design system contract", () => {
   it("keeps Home task reminders data-driven, motion-safe, and free of a separate activity icon", () => {
     expect(homeComponent).toContain('crew-home-task-count is-${homeTaskBadgeState}');
     expect(homeComponent).toContain('homeTasks.every((task) => task.status === "completed") ? "complete" : "alert"');
-    expect(homeComponent).toContain('className="crew-home-shift-status-icon"');
     expect(homeComponent).not.toContain("CrewHomeTaskActivityMotion");
     expect(home).toContain(".crew-home-task-count.is-alert::after");
     expect(home).toContain("animation: crew-home-task-reminder 2s ease-in-out infinite");
@@ -165,11 +163,11 @@ describe("Crew Mobile design system contract", () => {
     expect(home).toContain(".crew-home-task .crew-home-task-due.is-overdue");
   });
 
-  it("keeps Today’s Tasks as an open operational list while Schedule retains its functional surface", () => {
+  it("keeps Today’s Tasks as an open operational list", () => {
     expect(home).toContain(".crew-home-tasks .crew-home-list { overflow: visible; border: 0; border-radius: 0; background: transparent; box-shadow: none; }");
     expect(home).toContain(".crew-home-task { min-height: var(--crew-mobile-row-min);");
     expect(home).toContain("background: transparent; padding: 8px 4px; box-shadow: none;");
-    expect(home).toContain(".crew-home-task:last-child, .crew-home-schedule-row:last-child { border-bottom: 0; }");
+    expect(home).toContain(".crew-home-task:last-child { border-bottom: 0; }");
     expect(home).toContain(".crew-home-list { overflow: hidden; border: 1px solid var(--crew-color-border);");
   });
 

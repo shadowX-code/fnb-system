@@ -1,22 +1,11 @@
 import { useTranslation } from "react-i18next";
-import { Bell, CalendarCheck, CalendarDays, Check, ChevronRight, ClipboardCheck, Clock3, Fingerprint, MapPin, Moon, ShieldCheck, Sun } from "lucide-react";
+import { Bell, CalendarCheck, Check, ChevronRight, ClipboardCheck, Clock3, Fingerprint, MapPin, Moon, ShieldCheck, Sun } from "lucide-react";
 import CrewHomeClockMotion from "../CrewHomeClockMotion.jsx";
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
-import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
+import { translateStatus } from "../utils/crewI18n.js";
 import { formatTime, malaysiaDateKey, formatRosterTime, rosterEntryLabel, formatHomeDate, formatHomeClock, formatDuration } from "../utils/crewMobile.js";
 import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.webp";
 import { CrewInventoryHomeAttention } from "./CrewInventoryOperationsMobile.jsx";
-
-function HomeScheduleRow({ entry, label, onClick }) {
-  const { t } = useTranslation();
-  const away = entry.entry_type !== "working";
-  const outlet = entry.outlet_name || entry.outlet?.name || t("home.yourOutlet");
-  const dateLabel = label || formatCrewDate(`${entry.date}T12:00:00+08:00`, { weekday: "short", day: "numeric", month: "short" });
-  const scheduleLabel = away ? rosterEntryLabel(entry, t) : `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}`;
-  const title = label === "today" ? t("common.today") : dateLabel;
-  return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${scheduleLabel}`}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarDays size={19} /></i><span><strong className="crew-list-primary">{title}</strong>{!away && <small className="crew-home-schedule-time">{scheduleLabel}</small>}<small className="crew-list-secondary">{outlet}</small></span>{away && <CrewStatusBadge tone="warning">{scheduleLabel}</CrewStatusBadge>}<ChevronRight size={18} /></button>;
-}
-
 
 export default function CrewHomeMobile({ session, attendance, context, roster, operations, clock, navigate, onOpenTask, theme, onToggleTheme, notificationUnreadCount = 0, management = false, inventoryOutletId, inventoryGrants, onOpenInventoryList, onOpenInventoryTarget }) {
   const { t } = useTranslation();
@@ -26,7 +15,6 @@ export default function CrewHomeMobile({ session, attendance, context, roster, o
   const greeting = hour < 12 ? t("home.morning") : hour < 18 ? t("home.afternoon") : t("home.evening");
   const { openShift, nowTick, clockTransition, loading, prepareClock } = clock;
   const todayRoster = roster?.today;
-  const upcomingRoster = (roster?.entries || []).filter((entry) => entry.date > (todayRoster?.date || roster?.from)).slice(0, 2);
   const homeTasks = (operations?.tasks || []).map((row) => {
     const progress = row.source === "legacy_daily"
       ? row.description || null
@@ -53,7 +41,7 @@ export default function CrewHomeMobile({ session, attendance, context, roster, o
       : { tone: "is-pending", label: t("locationEvidence.notConfigured"), title: t("locationEvidence.notConfiguredHelp") };
 
   return <section className="crew-v2-home">
-      <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName} <Clock3 className="crew-home-shift-status-icon" size={18} aria-hidden="true" /></h1><small>{employee.position || t("home.crewMember")} · {context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small></div><div><button type="button" className="crew-home-notifications" aria-label={notificationUnreadCount ? t("notifications.unreadCount", { count: notificationUnreadCount }) : t("notifications.title")} onClick={() => navigate("notifications")}><Bell size={18} />{notificationUnreadCount > 0 ? <span className="crew-ui-count" aria-hidden="true">{notificationUnreadCount}</span> : null}</button><button type="button" className="crew-home-theme-toggle" aria-label={theme === "dark" ? t("theme.switchToLight") : t("theme.switchToDark")} onClick={onToggleTheme}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button></div></header>
+      <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName}</h1><small>{employee.position || t("home.crewMember")} · {context?.outlet_name || employee.workplace || t("home.yourOutlet")}</small></div><div><button type="button" className="crew-home-notifications" aria-label={notificationUnreadCount ? t("notifications.unreadCount", { count: notificationUnreadCount }) : t("notifications.title")} onClick={() => navigate("notifications")}><Bell size={18} />{notificationUnreadCount > 0 ? <span className="crew-ui-count" aria-hidden="true">{notificationUnreadCount}</span> : null}</button><button type="button" className="crew-home-theme-toggle" aria-label={theme === "dark" ? t("theme.switchToLight") : t("theme.switchToDark")} onClick={onToggleTheme}>{theme === "dark" ? <Sun size={18} /> : <Moon size={18} />}</button></div></header>
       {(!management || context?.clock_eligible || openShift) && <section className={`crew-home-attendance is-${attendanceMode}`} aria-label={t("locationEvidence.attendanceStatus")}>
         <div className="crew-home-attendance-main">
           <img className="crew-home-attendance-art" src={crewHomeAttendanceMintBackground} alt="" aria-hidden="true" />
@@ -68,12 +56,11 @@ export default function CrewHomeMobile({ session, attendance, context, roster, o
             {attendanceMode !== "completed" && locationEvidence.tone !== "is-exception" && <em className={`crew-home-gps ${locationEvidence.tone}`} title={locationEvidence.title}><ShieldCheck size={13} /><span>{locationEvidence.label}</span></em>}
           </CrewHomeClockMotion>
         </div>
-        <button type="button" className="crew-home-attendance-footer" onClick={() => navigate("attendance")}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck size={18} /></i><small>{t("home.todayShift")}</small><em>{t("home.viewAttendance")} <ChevronRight size={16} /></em><strong>{shiftLabel}</strong></button>
+        <button type="button" className="crew-home-attendance-footer" onClick={() => navigate("schedule")}><i className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck size={18} /></i><small>{t("home.todayShift")}</small><em><span>{t("home.viewSchedule")}</span><ChevronRight size={16} /></em><strong>{shiftLabel}</strong></button>
       </section>}
       <section className="crew-v2-home-section crew-home-tasks"><CrewSectionHeader density="operational" title={<>{t("home.todaysTasks")}<span className={`crew-home-task-count is-${homeTaskBadgeState}`}>{homeTasks.length}</span></>} action={t("common.viewAll")} actionLabel={t("tasks.title")} onAction={() => onOpenTask(null)} /><div className="crew-home-list">
         {homeTasks.length ? homeTasks.map((task) => <button type="button" key={task.id} className={`crew-home-task is-${task.status}`} onClick={() => onOpenTask(management ? null : { kind: task.kind, row: task.row, context: { from: "home", scrollY: window.scrollY } })} aria-label={t("learn.openSop", { title: task.title })}><i className="crew-ui-icon-container crew-ui-icon-container--compact">{task.status === "completed" ? <Check size={19} /> : <ClipboardCheck size={18} />}</i><span className="crew-home-task-copy"><strong className="crew-list-dense-primary">{task.title}</strong>{(task.progress || task.deadline) && <small className="crew-list-secondary crew-home-task-meta">{task.progress && <span className="crew-home-task-progress">{task.progress}</span>}{task.deadline && <span className={`crew-home-task-due${task.deadline.overdue ? " is-overdue" : ""}`}><Clock3 size={13} /><b>{t("tasks.dueLabel")}</b><span>{task.deadline.time}</span></span>}</small>}</span><CrewStatusBadge tone={task.status === "completed" ? "success" : task.status === "overdue" || task.status === "exception" ? "danger" : task.status === "in_progress" ? "info" : "warning"}>{translateStatus(task.status, t)}</CrewStatusBadge><ChevronRight size={18} /></button>) : <div className="crew-home-empty"><Check size={20} /><span><strong>{t("home.allClear")}</strong><small>{t("home.noTasks")}</small></span></div>}
       </div></section>
       <CrewInventoryHomeAttention token={session.token} outletId={inventoryOutletId} grants={inventoryGrants} onOpenStock={() => onOpenInventoryList("stock-check")} onOpenOrders={() => onOpenInventoryList("purchase-orders")} onOpenCheck={(target) => onOpenInventoryTarget("stock-check", target)} onOpenOrder={(target) => onOpenInventoryTarget("purchase-orders", target)} />
-      <section className="crew-v2-home-section crew-home-schedule"><CrewSectionHeader density="operational" title={t("home.mySchedule")} action={t("common.viewAll")} onAction={() => navigate("schedule")} /><div className="crew-home-list">{todayRoster ? <HomeScheduleRow entry={todayRoster} label="today" onClick={() => navigate("schedule")} /> : <div className="crew-home-empty"><CalendarDays size={20} /><span><strong>{t("home.noPublishedShift")}</strong><small>{t("home.scheduleWillAppear")}</small></span></div>}{upcomingRoster.map((entry) => <HomeScheduleRow key={entry.id} entry={entry} onClick={() => navigate("schedule")} />)}</div></section>
     </section>;
 }

@@ -491,10 +491,11 @@ describe("Crew Mobile redesign", () => {
     expect(nav.textContent).not.toContain("Performance");
   });
 
-  it("keeps attendance as a contextual Home action instead of a primary tab", async () => {
+  it("keeps Attendance under Me after Home's shift action opens Schedule", async () => {
     renderCrewApp();
     expect(await screen.findByRole("button", { name: "Clock In" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /View Attendance/ }));
+    fireEvent.click(screen.getByRole("navigation", { name: "Crew navigation" }).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: /Attendance/ }));
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Clock In" })).toBeNull();
   });
@@ -507,7 +508,8 @@ describe("Crew Mobile redesign", () => {
       { id: "attendance-2", clock_in_at: `${currentMonth}-19T17:00:00+08:00`, clock_out_at: `${currentMonth}-20T01:00:00+08:00`, status: "completed", clock_in_location_verified: true },
     ]);
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: /View Attendance/ }));
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: /Attendance/ }));
 
     expect(screen.getByText("Track your shifts and attendance")).not.toBeNull();
     expect(screen.queryByRole("combobox", { name: "Month" })).toBeNull();
@@ -563,15 +565,16 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myRoster.mockResolvedValueOnce({ from: "2026-08-13", to: "2026-08-26", today: null, entries: [] });
     render(<CrewMobileApp />);
-    expect(await screen.findByText("No published shift today")).not.toBeNull();
-    expect(screen.getByText("Not published")).not.toBeNull();
+    expect(await screen.findByText("Not published")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "My Schedule" })).toBeNull();
     expect(screen.queryByText("Working", { exact: true })).toBeNull();
   });
 
   it("shows only the token-bound published roster and opens My Schedule without adding a bottom tab", async () => {
     renderCrewApp();
     expect((await screen.findAllByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/)).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "View all" }));
+    expect(screen.queryByRole("heading", { name: "My Schedule" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /View Schedule/ }));
     expect(screen.getByRole("heading", { name: "My Schedule" })).not.toBeNull();
     expect(screen.getByText(/Hola Hola/)).not.toBeNull();
     expect(screen.getAllByText("OFF").length).toBeGreaterThan(0);
@@ -596,8 +599,9 @@ describe("Crew Mobile redesign", () => {
     });
     render(<CrewMobileApp />);
     await screen.findAllByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/);
-    expect(document.querySelector(".crew-home-schedule-row .crew-list-secondary")?.textContent).toBe("Friends Corner");
-    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    expect(screen.getByRole("button", { name: /View Schedule/ }).textContent).toContain("Today’s shift");
+    expect(document.querySelector(".crew-home-schedule")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: /View Schedule/ }));
     expect(document.querySelector(".crew-schedule-final-day-meta")?.textContent).toContain("Friends Corner");
     expect(document.querySelector(".crew-schedule-final-day-meta .crew-schedule-final-duration")?.textContent).toContain("8 hrs");
     expect(document.querySelector(".crew-schedule-final-row-meta")?.textContent).toContain("Friends Corner");
@@ -620,7 +624,7 @@ describe("Crew Mobile redesign", () => {
       ],
     });
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    fireEvent.click(await screen.findByRole("button", { name: /View Schedule/ }));
     expect(screen.getByRole("heading", { name: "My Schedule" })).not.toBeNull();
     expect(document.querySelector(".crew-schedule-final-day h2").textContent).toBe("Unpaid Leave");
     expect(screen.getAllByText("Annual Leave").length).toBeGreaterThan(0);
@@ -636,7 +640,7 @@ describe("Crew Mobile redesign", () => {
 
   it("keeps one selected date across the inline seven-day and full-month schedule calendar", async () => {
     renderCrewApp();
-    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    fireEvent.click(await screen.findByRole("button", { name: /View Schedule/ }));
     fireEvent.click(screen.getByRole("button", { name: "Expand calendar" }));
     expect(document.querySelector(".crew-schedule-final-calendar.is-expanded")).not.toBeNull();
     expect(screen.getByText("August 2026")).not.toBeNull();
@@ -888,18 +892,17 @@ describe("Crew Mobile redesign", () => {
 
   it("keeps the Home shift footer time on its own readable row", async () => {
     renderCrewApp();
-    const footer = await screen.findByRole("button", { name: /Today’s shift.*View Attendance/ });
+    const footer = await screen.findByRole("button", { name: /Today’s shift.*View Schedule/ });
     expect(footer.querySelector(".crew-ui-icon-container")).not.toBeNull();
     expect(footer.querySelector("small")?.textContent).toBe("Today’s shift");
     expect(footer.querySelector("strong")?.textContent).toMatch(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/);
-    expect(footer.querySelector("em")?.textContent).toContain("View Attendance");
+    expect(footer.querySelector("em")?.textContent).toContain("View Schedule");
   });
 
-  it("uses the compact shift-status icon instead of the decorative hand in the Home header", async () => {
+  it("keeps the employee name free of decorative icons", async () => {
     renderCrewApp();
     await screen.findByText("Today’s Tasks");
-    expect(document.querySelector(".crew-v2-home-header h1 .crew-home-shift-status-icon")).not.toBeNull();
-    expect(document.querySelector(".crew-v2-home-header h1 .lucide-hand")).toBeNull();
+    expect(document.querySelector(".crew-v2-home-header h1 svg")).toBeNull();
   });
 
   it("shows only the signed-in employee's transparent Reward result", async () => {
