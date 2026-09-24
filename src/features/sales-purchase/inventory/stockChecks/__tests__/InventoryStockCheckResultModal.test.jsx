@@ -29,6 +29,12 @@ describe("InventoryStockCheckResultModal", () => {
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual([
       "Item", "Par", "Actual", "Variance", "UOM", "Status", "Stock Value", "Variance Value", "Notes", "Skip Reason",
     ]);
+    const flourRow = screen.getByText("Flour").closest("tr");
+    expect(within(flourRow).getByText("Shortage")).toBeTruthy();
+    expect(within(flourRow).getByText("-3")).toBeTruthy();
+    const oilRow = screen.getByText("Oil").closest("tr");
+    expect(within(oilRow).getByText("Excess")).toBeTruthy();
+    expect(within(oilRow).getByText("2")).toBeTruthy();
     const valuation = screen.getByRole("region", { name: "Full Audit valuation" });
     expect(within(valuation).getByText("RM50.00")).toBeTruthy();
     expect(within(valuation).getByText("RM15.00")).toBeTruthy();

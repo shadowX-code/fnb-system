@@ -8,9 +8,24 @@ import { FactoryDataSurface, FactoryTable } from "../../../factory/components/Fa
 import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
 import { auditStockCheckValuation } from "./auditStockCheckValuation.js";
 
-function resultStatus(row) {
+function auditQuantityVariance(row) {
+  if (row.actualCount === "" || row.actualCount === null || row.actualCount === undefined
+    || row.expectedQty === "" || row.expectedQty === null || row.expectedQty === undefined) return null;
+  const actual = Number(row.actualCount);
+  const par = Number(row.expectedQty);
+  return Number.isFinite(actual) && Number.isFinite(par) ? actual - par : null;
+}
+
+function resultStatus(row, isAuditResult) {
   if (row.skipped) return { label: "Skipped", tone: "neutral" };
   if (row.na) return { label: "Not Available", tone: "neutral" };
+  if (isAuditResult) {
+    const variance = auditQuantityVariance(row);
+    if (variance === null) return { label: "Not Available", tone: "neutral" };
+    if (variance < 0) return { label: "Shortage", tone: "warning" };
+    if (variance > 0) return { label: "Excess", tone: "info" };
+    return { label: "Normal", tone: "success" };
+  }
   const variance = Number(row.variance || 0);
   if (variance > 0) return { label: "Shortage", tone: "warning" };
   if (variance < 0) return { label: "Excess", tone: "info" };
@@ -32,7 +47,7 @@ export default function InventoryStockCheckResultModal({
   const valuation = useMemo(() => auditStockCheckValuation(rows), [rows]);
   const detailedRows = valuation.items.map((row) => {
     const item = itemById.get(row.itemId);
-    return { ...row, item, categoryId: row.categoryId || item?.categoryId, result: resultStatus(row) };
+    return { ...row, item, categoryId: row.categoryId || item?.categoryId, result: resultStatus(row, isAuditResult), displayVariance: isAuditResult ? auditQuantityVariance(row) : row.variance };
   });
   const counts = detailedRows.reduce((acc, row) => {
     acc[row.result.label] += 1;
@@ -69,7 +84,7 @@ export default function InventoryStockCheckResultModal({
     { key: "item", label: "Item", className: "min-w-[210px]", render: (row) => <div className="flex items-center gap-2"><ItemThumbnail item={row.item} category={categoryById.get(row.categoryId)} onPreview={onPhotoPreview} size="sm" /><div className="min-w-0"><div className="break-words font-semibold text-text-primary">{row.item?.name || "Inventory item"}</div><div className="text-xs text-text-secondary">{categoryById.get(row.categoryId)?.name || "Uncategorized"}{row.item?.sku ? ` · ${row.item.sku}` : ""}</div></div></div> },
     { key: "par", label: "Par", align: "right", className: "min-w-[70px] tabular-nums", render: (row) => formatQuantity(row.expectedQty) },
     { key: "actual", label: "Actual", align: "right", className: "min-w-[70px] tabular-nums", render: (row) => row.skipped ? "—" : formatQuantity(row.actualCount) },
-    { key: "variance", label: "Variance", align: "right", className: "min-w-[85px] tabular-nums", render: (row) => row.skipped || row.na ? "—" : formatQuantity(row.variance) },
+    { key: "variance", label: "Variance", align: "right", className: "min-w-[85px] tabular-nums", render: (row) => row.skipped || row.na ? "—" : formatQuantity(row.displayVariance) },
     { key: "uom", label: "UOM", className: "min-w-[65px]", render: (row) => row.unit || row.item?.unit || "—" },
     { key: "status", label: "Status", className: "min-w-[100px]", render: (row) => <FactoryStatusBadge status={row.result.label} tone={row.result.tone}>{row.result.label}</FactoryStatusBadge> },
     ...(isAuditResult ? [
