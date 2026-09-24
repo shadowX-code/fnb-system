@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
+import { formatCrewOperationalDateTime } from "../utils/crewI18n.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
@@ -31,8 +32,9 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   const [tab, setTab] = useState("required"); const [check, setCheck] = useState(null); const [rows, setRows] = useState([]);
   const [review, setReview] = useState(false); const [query, setQuery] = useState(""); const [category, setCategory] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false); const [deleteTarget, setDeleteTarget] = useState(null);
+  const [skipTarget, setSkipTarget] = useState(null); const [skipReason, setSkipReason] = useState("");
   const [auditForm, setAuditForm] = useState({ type: "Spot Check", name: "", date: "", categoryIds: [], notes: "" });
-  const [notice, setNotice] = useState(""); const [purchase, setPurchase] = useState(null); const pendingRequest = useRef(null); const activeRef = useRef(true);
+  const [notice, setNotice] = useState(""); const [purchase, setPurchase] = useState(null); const pendingRequest = useRef(null); const pendingSkipRequest = useRef(null); const activeRef = useRef(true);
   const [dirty, setDirty] = useState(false);
   const [exitOpen, setExitOpen] = useState(false);
   const initialOpened = useRef(false);
@@ -74,7 +76,8 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     (groups[key] ||= []).push(row);
     return groups;
   }, {}));
-  const scheduledDrafts = (data?.checks || []).filter((row) => row.type === "scheduled" && row.status === "draft" && !(data?.due || []).some((group) => group.check_id === row.id)).sort((a, b) => String(b.updated_at || b.check_date).localeCompare(String(a.updated_at || a.check_date)));
+  const required = (data?.due || []).filter((row) => row.status === "due" || row.status === "in_progress");
+  const history = (data?.checks || []).filter((row) => ["completed", "skipped", "missed"].includes(row.status));
 
   async function loadPurchaseResult(id, type) {
     if (type !== "scheduled" || (!grants?.can_manage_purchase_orders && !grants?.can_receive_purchase_orders)) { setPurchase(null); return; }
@@ -97,15 +100,18 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       setCheck({ id: detail.id, stock_check_type: detail.type, status: detail.status, group_id: detail.group_id,
         check_name: detail.check_name, audit_name: detail.audit_name, audit_type: detail.audit_type,
         audit_category_ids: detail.audit_category_ids, check_date: detail.check_date, shift: detail.shift, notes: detail.notes,
-        submitted_at: detail.submitted_at });
+        submitted_at: detail.submitted_at, skipped_at: detail.skipped_at,
+        skipped_by_employee_id: detail.skipped_by_employee_id, skipped_by_name: detail.skipped_by_name,
+        skip_reason: detail.skip_reason });
       setRows((detail.items || []).map(asRow)); setReview(false); setQuery(""); setCategory("all"); pendingRequest.current = null; setDirty(false);
-      if (detail.status === "submitted") void loadPurchaseResult(detail.id, detail.type);
+      if (detail.status === "completed") void loadPurchaseResult(detail.id, detail.type);
     } catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   }
   function startScheduled(group) {
+    if (group.status !== "due" && group.status !== "in_progress") return;
     if (group.check_id) { void openSaved(group.check_id); return; }
-    setCheck({ stock_check_type: "scheduled", status: "draft", group_id: group.group_id, check_name: group.name,
+    setCheck({ stock_check_type: "scheduled", status: "in_progress", group_id: group.group_id, check_name: group.name,
       check_date: group.business_date || data?.business_date, shift: group.shift });
     setRows((group.items || []).map(asRow)); setReview(false); setQuery(""); setCategory("all"); pendingRequest.current = null; setDirty(false);
   }
@@ -134,7 +140,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       setDirty(false);
       if (status === "submitted") {
         const completedId = result.check.id;
-        setCheck((current) => ({ ...current, id: completedId, status: "submitted", submitted_at: result.check.submitted_at })); setReview(false);
+        setCheck((current) => ({ ...current, id: completedId, status: "completed", submitted_at: result.check.submitted_at })); setReview(false);
         setNotice(t("inventory.checkCompleted")); void loadPurchaseResult(completedId, check.stock_check_type);
       }
       else {
@@ -154,9 +160,23 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     } catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   }
+  async function skipScheduled() {
+    if (!skipTarget || busy) return;
+    const signature = JSON.stringify([outletId, skipTarget.group_id, skipReason || null]);
+    if (pendingSkipRequest.current?.signature !== signature) pendingSkipRequest.current = { signature, id: requestId() };
+    setBusy(true); setError("");
+    try {
+      await crewService.skipInventoryStockCheck(token, outletId, pendingSkipRequest.current.id, skipTarget.group_id, skipReason || null);
+      if (!activeRef.current) return;
+      pendingSkipRequest.current = null;
+      setSkipTarget(null); setSkipReason(""); setTab("history"); setNotice(t("inventory.checkSkipped"));
+      await load();
+    } catch (cause) { setError(cause.message || t("inventory.saveError")); }
+    finally { setBusy(false); }
+  }
   const backFromCheck = () => {
     if (busy) return;
-    if (check?.status === "draft" && dirty) {
+    if (["draft", "in_progress"].includes(check?.status) && dirty) {
       setExitOpen(true); return;
     }
     leaveCheck();
@@ -168,15 +188,15 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
 
   if (check) return <section className="crew-inventory-page">
     <CrewMobileDetailHeader title={check.audit_name || check.check_name || t("inventory.stockCheck")} subtitle={check.check_date} onBack={review ? () => setReview(false) : backFromCheck} />
-    <div className="crew-inventory-progress"><span><strong>{t("inventory.progress", { done: completed, total: rows.length })} <em>{rows.length ? Math.round(completed / rows.length * 100) : 0}%</em></strong><CrewStatusBadge tone={check.status === "submitted" ? "success" : "warning"}>{check.status === "submitted" ? t("inventory.completed") : t("inventory.draft")}</CrewStatusBadge></span><CrewProgressBar value={rows.length ? Math.round(completed / rows.length * 100) : 0} /></div>
-    {check.status === "submitted" ? <CompletedResult check={check} rows={rows} itemById={itemById} purchase={purchase} canReviewSuggestions={grants?.can_manage_purchase_orders} onRetry={() => void loadPurchaseResult(check.id, check.stock_check_type)} onReview={() => onReviewSuggestions?.(check.id)} onOpenPurchaseOrder={onOpenPurchaseOrder} t={t} language={i18n.language} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
+    {["draft", "in_progress", "completed"].includes(check.status) && <div className="crew-inventory-progress"><span><strong>{t("inventory.progress", { done: completed, total: rows.length })} <em>{rows.length ? Math.round(completed / rows.length * 100) : 0}%</em></strong><CrewStatusBadge tone={check.status === "completed" ? "success" : "info"}>{t(`inventory.${check.status}`)}</CrewStatusBadge></span><CrewProgressBar value={rows.length ? Math.round(completed / rows.length * 100) : 0} /></div>}
+    {check.status === "completed" ? <CompletedResult check={check} rows={rows} itemById={itemById} purchase={purchase} canReviewSuggestions={grants?.can_manage_purchase_orders} onRetry={() => void loadPurchaseResult(check.id, check.stock_check_type)} onReview={() => onReviewSuggestions?.(check.id)} onOpenPurchaseOrder={onOpenPurchaseOrder} t={t} language={i18n.language} /> : ["skipped", "missed"].includes(check.status) ? <LifecycleResult check={check} t={t} language={i18n.language} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
       <CrewSearchBar value={query} onChange={setQuery} placeholder={t("inventory.searchItems")} />
       <div className="crew-v2-chips crew-inventory-chips" role="group" aria-label={t("inventory.categories")}>{[{ id: "all", name: t("inventory.all") }, ...(catalog?.categories || []).filter((item) => rows.some((row) => row.category_id === item.id))].map((item) => <button key={item.id} type="button" className={category === item.id ? "active" : ""} aria-pressed={category === item.id} onClick={() => setCategory(item.id)}>{item.name}</button>)}</div>
       {grouped.map(([categoryId, groupRows]) => <section className="crew-inventory-count-group" key={categoryId}><h2>{categoryById.get(categoryId) || t("inventory.other")}</h2>{groupRows.map((row) => <CountRow key={row.item_id} row={row} item={itemById.get(row.item_id)} onChange={(patch) => updateRow(row.item_id, patch)} t={t} />)}</section>)}
       {!visibleRows.length && <CrewEmptyState title={t("inventory.noItems")} body={t("inventory.trySearch")} />}
     </>}
     {error && <p className="crew-v2-error" role="alert">{error}</p>}
-    {check.status !== "submitted" && <div className="crew-inventory-sticky"><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button><button className="crew-mobile-primary" type="button" disabled={busy || !canComplete} onClick={() => review ? void save("submitted") : setReview(true)}>{review ? t("inventory.completeCheck") : `${t("inventory.review")} (${completed}/${rows.length})`}</button></div>}
+    {["draft", "in_progress"].includes(check.status) && <div className="crew-inventory-sticky"><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button><button className="crew-mobile-primary" type="button" disabled={busy || !canComplete} onClick={() => review ? void save("submitted") : setReview(true)}>{review ? t("inventory.completeCheck") : `${t("inventory.review")} (${completed}/${rows.length})`}</button></div>}
     {exitOpen && <CrewBottomSheet className="crew-inventory-exit-sheet" title={t("inventory.saveProgressTitle")} description={t("inventory.unsavedCountChanges")} onClose={() => setExitOpen(false)} closeDisabled={busy} footer={<><button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveAndLeave")}</button><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={leaveCheck}>{t("inventory.discardCountChanges")}</button><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => setExitOpen(false)}>{t("inventory.keepCounting")}</button></>}>{error && <p className="crew-v2-error" role="alert">{error}</p>}</CrewBottomSheet>}
   </section>;
 
@@ -186,14 +206,14 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     {error && <p className="crew-v2-error" role="alert">{error}</p>}
     {!grants?.can_perform_stock_check && !grants?.can_create_audit_stock_check ? <CrewEmptyState title={t("inventory.noAccess")} /> : loading ? <p className="crew-inventory-state" role="status">{t("common.loading")}</p> : !data ? <button className="crew-mobile-secondary" type="button" onClick={() => void load()}>{t("common.retry")}</button> : <>
       {tab === "required" && (data.can_perform_stock_check ? <>
-        {(data.due || []).length ? <div className="crew-inventory-list">{data.due.map((group) => <button key={group.group_id} type="button" onClick={() => startScheduled(group)}><CrewInventoryItemThumb item={itemById.get(group.items?.[0]?.item_id)} /><span><strong>{group.name}</strong><small>{group.shift} · {group.items?.length || 0} {t("inventory.items")}</small></span><CrewStatusBadge tone={group.status === "completed" ? "success" : group.status === "draft" ? "info" : "warning"}>{t(`inventory.${group.status}`)}</CrewStatusBadge><ChevronRight size={18} /></button>)}</div> : <CrewEmptyState title={t("inventory.noRequired")} body={t("inventory.noRequiredBody")} />}
-        {scheduledDrafts.length > 0 && <section className="crew-inventory-draft-section"><h2>{t("inventory.resumeDrafts")}</h2><div className="crew-inventory-list">{scheduledDrafts.map((row) => <button key={row.id} type="button" onClick={() => void openSaved(row.id)}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id) || { photo_url: row.cover_photo_url, name: row.name }} /><span><strong>{row.name}</strong><small>{row.check_date} · {row.item_count} {t("inventory.items")}</small>{row.updated_at && <small>{t("inventory.updatedAt", { date: new Intl.DateTimeFormat(i18n.language, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(row.updated_at)) })}</small>}</span><CrewStatusBadge tone="info">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={18} /></button>)}</div></section>}
+        {required.length ? <div className="crew-inventory-list">{required.map((group) => <div className="crew-inventory-scheduled-row" key={group.group_id}><CrewInventoryItemThumb item={itemById.get(group.items?.[0]?.item_id)} /><span className="crew-inventory-scheduled-copy"><strong>{group.name}</strong><small>{[group.shift, `${group.items?.length || 0} ${t("inventory.items")}`].filter(Boolean).join(" · ")}</small></span><CrewStatusBadge tone={group.status === "in_progress" ? "info" : "warning"}>{t(`inventory.${group.status}`)}</CrewStatusBadge><div className="crew-inventory-scheduled-actions"><button type="button" className="crew-mobile-secondary" onClick={() => startScheduled(group)}>{group.status === "in_progress" ? t("inventory.resume") : t("inventory.start")}</button>{group.status === "due" && <button type="button" className="crew-inventory-skip-action" onClick={() => { pendingSkipRequest.current = null; setSkipTarget(group); setSkipReason(""); }}>{t("inventory.skip")}</button>}</div></div>)}</div> : <CrewEmptyState title={t("inventory.noRequired")} body={t("inventory.noRequiredBody")} />}
       </> : <CrewEmptyState title={t("inventory.noAccess")} />)}
-      {tab === "audit" && (data.can_create_audit_stock_check ? <><button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => { setAuditForm({ type: "Spot Check", name: "", date: catalog.business_date, categoryIds: [], notes: "" }); setAuditOpen(true); }}><Plus size={18} />{t("inventory.newAudit")}</button><div className="crew-inventory-list">{(data.checks || []).filter((row) => row.type === "audit" && row.status === "draft").map((row) => <div className="crew-inventory-audit-row" key={row.id}><button type="button" onClick={() => void openSaved(row.id)}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id)} /><span><strong>{row.name}</strong><small>{row.audit_type} · {row.item_count} {t("inventory.items")}</small></span><CrewStatusBadge tone="warning">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={18} /></button><button type="button" aria-label={t("inventory.deleteDraft")} onClick={() => setDeleteTarget(row.id)}><Trash2 size={18} /></button></div>)}</div>{!(data.checks || []).some((row) => row.type === "audit" && row.status === "draft") && <CrewEmptyState title={t("inventory.noAuditDrafts")} />}</> : <CrewEmptyState title={t("inventory.noAccess")} />)}
-      {tab === "history" && <div className="crew-inventory-list">{(data.checks || []).filter((row) => row.status === "submitted").map((row) => <div className="crew-inventory-history-entry" key={row.id}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id) || { photo_url: row.cover_photo_url, name: row.name }} inspectable /><button type="button" onClick={() => void openSaved(row.id)}><span><strong>{row.name}</strong><small>{row.check_date} · {row.item_count} {t("inventory.items")}</small></span><CrewStatusBadge tone="success">{t("inventory.completed")}</CrewStatusBadge><ChevronRight size={18} /></button></div>)}{!(data.checks || []).some((row) => row.status === "submitted") && <CrewEmptyState title={t("inventory.noHistory")} />}</div>}
+      {tab === "audit" && (data.can_create_audit_stock_check ? <><button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => { setAuditForm({ type: "Spot Check", name: "", date: catalog.business_date, categoryIds: [], notes: "" }); setAuditOpen(true); }}><Plus size={18} />{t("inventory.newAudit")}</button><div className="crew-inventory-list">{(data.checks || []).filter((row) => row.type === "audit" && row.status === "draft").map((row) => <div className="crew-inventory-audit-row" key={row.id}><button type="button" onClick={() => void openSaved(row.id)} aria-label={`${t("inventory.homeContinue")}: ${row.name}`}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id)} /><span><strong>{row.name}</strong><small>{row.audit_type} · {row.item_count} {t("inventory.items")}</small><small>{t("inventory.homeContinue")}</small></span><CrewStatusBadge tone="warning">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={16} /></button><button type="button" aria-label={t("inventory.deleteDraft")} onClick={() => setDeleteTarget(row.id)}><Trash2 size={18} /></button></div>)}</div>{!(data.checks || []).some((row) => row.type === "audit" && row.status === "draft") && <CrewEmptyState title={t("inventory.noAuditDrafts")} />}</> : <CrewEmptyState title={t("inventory.noAccess")} />)}
+      {tab === "history" && <div className="crew-inventory-list">{history.map((row) => <div className="crew-inventory-history-entry" key={row.id || `${row.group_id}-${row.check_date}`}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id) || { photo_url: row.cover_photo_url, name: row.name }} inspectable={row.status === "completed"} /><button type="button" onClick={() => row.id ? void openSaved(row.id) : (setCheck({ ...row, stock_check_type: "scheduled", check_name: row.name }), setRows([]))}><span><strong>{row.name}</strong><small>{[row.check_date, t(`inventory.${row.type}`), row.status === "completed" ? `${row.item_count} ${t("inventory.items")}` : null].filter(Boolean).join(" · ")}</small></span><CrewStatusBadge tone={row.status === "completed" ? "success" : row.status === "missed" ? "danger" : "neutral"}>{t(`inventory.${row.status}`)}</CrewStatusBadge><ChevronRight size={18} /></button></div>)}{!history.length && <CrewEmptyState title={t("inventory.noHistory")} />}</div>}
     </>}
     {auditOpen && <CrewBottomSheet title={t("inventory.newAudit")} onClose={() => setAuditOpen(false)} footer={<><button className="crew-mobile-secondary" type="button" onClick={() => setAuditOpen(false)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={!auditForm.name.trim() || !(catalog?.items || []).some((item) => auditForm.categoryIds.includes(item.category_id))} onClick={startAudit}>{t("common.continue")}</button></>}><div className="crew-inventory-form"><CrewChoicePicker label={t("inventory.auditType")} value={auditForm.type} options={auditTypes.map((value) => ({ value, label: t(`inventory.auditTypes.${value}`) }))} onChange={(type) => setAuditForm((current) => ({ ...current, type }))} /><label>{t("inventory.auditName")}<input value={auditForm.name} onChange={(event) => setAuditForm((current) => ({ ...current, name: event.target.value }))} /></label><CrewDatePicker label={t("inventory.checkDate")} value={auditForm.date} onChange={(date) => setAuditForm((current) => ({ ...current, date }))} /><fieldset><legend>{t("inventory.categories")}</legend>{(catalog?.categories || []).map((item) => <label key={item.id}><input type="checkbox" checked={auditForm.categoryIds.includes(item.id)} onChange={(event) => setAuditForm((current) => ({ ...current, categoryIds: event.target.checked ? [...current.categoryIds, item.id] : current.categoryIds.filter((id) => id !== item.id) }))} />{item.name}</label>)}</fieldset><label>{t("inventory.notes")}<textarea value={auditForm.notes} onChange={(event) => setAuditForm((current) => ({ ...current, notes: event.target.value }))} /></label></div></CrewBottomSheet>}
     {deleteTarget && <CrewMobileModal title={t("inventory.deleteDraft")} onClose={() => setDeleteTarget(null)} closeDisabled={busy} footer={<><button className="crew-mobile-secondary" type="button" onClick={() => setDeleteTarget(null)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void deleteDraft()}>{t("inventory.deleteDraft")}</button></>}><p>{t("inventory.deleteDraftBody")}</p></CrewMobileModal>}
+    {skipTarget && <CrewBottomSheet title={t("inventory.skipCheckTitle")} description={t("inventory.skipCheckBody")} onClose={() => setSkipTarget(null)} closeDisabled={busy} footer={<><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => setSkipTarget(null)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void skipScheduled()}>{t("inventory.confirmSkip")}</button></>}><CrewChoicePicker label={t("inventory.optionalReason")} value={skipReason} options={[{ value: "", label: t("inventory.noReason") }, ...["stock_sufficient", "recently_checked", "other"].map((value) => ({ value, label: t(`inventory.skipReasons.${value}`) }))]} onChange={setSkipReason} />{error && <p className="crew-v2-error" role="alert">{error}</p>}</CrewBottomSheet>}
   </section>;
 }
 
@@ -205,6 +225,18 @@ function CountRow({ row, item, onChange, t }) {
 
 function ReviewRows({ rows, itemById, t }) {
   return <div className="crew-inventory-review"><p>{t("inventory.reviewHelp")}</p>{rows.map((row) => <div key={row.item_id}><span><strong>{itemById.get(row.item_id)?.name || row.item_name || t("inventory.item")}</strong><small>{t("inventory.expectedPar")}: {row.par_level_quantity ?? "—"} {row.unit}</small></span><strong>{row.skipped ? t("inventory.skipped") : `${row.actual_count_quantity} ${row.unit}`}</strong>{!row.skipped && row.par_level_quantity != null && Number(row.actual_count_quantity) !== Number(row.par_level_quantity) && <small>{t("inventory.variance", { value: Number(row.actual_count_quantity) - Number(row.par_level_quantity) })}</small>}</div>)}</div>;
+}
+
+function LifecycleResult({ check, t }) {
+  return <div className="crew-inventory-lifecycle-result">
+    <CrewStatusBadge tone={check.status === "missed" ? "danger" : "neutral"}>{t(`inventory.${check.status}`)}</CrewStatusBadge>
+    <p>{t(check.status === "missed" ? "inventory.missedEvidence" : "inventory.skippedEvidence")}</p>
+    <dl><div><dt>{t("inventory.checkDate")}</dt><dd>{check.check_date}</dd></div>
+      {check.skipped_at && <div><dt>{t("inventory.skippedAt")}</dt><dd>{formatCrewOperationalDateTime(check.skipped_at)}</dd></div>}
+      {check.skipped_by_name && <div><dt>{t("inventory.skippedBy")}</dt><dd>{check.skipped_by_name}</dd></div>}
+      {check.skip_reason && <div><dt>{t("inventory.optionalReason")}</dt><dd>{t(`inventory.skipReasons.${check.skip_reason}`)}</dd></div>}
+    </dl>
+  </div>;
 }
 
 function CompletedResult({ check, rows, itemById, purchase, canReviewSuggestions, onRetry, onReview, onOpenPurchaseOrder, t, language }) {

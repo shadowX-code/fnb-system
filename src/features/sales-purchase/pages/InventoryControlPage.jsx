@@ -425,6 +425,7 @@ function draftCheckForGroupRun(group = {}, checks = [], date, shiftFilter = "all
 
 function dueStatus(group, checks, date, shiftFilter = "all") {
   if (submittedCheckForGroupRun(group, checks, date, shiftFilter)) return "Completed";
+  if (checks.some((check) => checkMatchesGroupRun(check, group, date, shiftFilter) && check.status === "skipped")) return "Skipped";
   const draft = draftCheckForGroupRun(group, checks, date, shiftFilter);
   const due = isGroupDue(group, date);
   if (due && isPastBusinessDate(date)) return "Missed";
@@ -435,6 +436,7 @@ function dueStatus(group, checks, date, shiftFilter = "all") {
 
 function dueStatusDescription(status) {
   if (status === "Missed") return "This stock check was not completed on schedule.";
+  if (status === "Skipped") return "Crew reviewed this requirement and skipped the count.";
   if (status === "Completed") return "Stock check completed for this date.";
   if (status === "Draft") return "Draft saved. Continue counting today.";
   if (status === "Due Today") return "Ready to count on the assigned date.";
@@ -446,13 +448,14 @@ function canStartScheduledStockCheckForDate(group, date) {
 }
 
 function isActionableStockCheckStatus(status) {
-  return ["Due Today", "Completed", "Draft", "Missed"].includes(status);
+  return ["Due Today", "Completed", "Draft", "Skipped", "Missed"].includes(status);
 }
 
 function stockCheckCardActionState(status) {
   if (status === "Completed") return "completed";
   if (status === "Draft") return "draft";
   if (status === "Missed") return "missed";
+  if (status === "Skipped") return "skipped";
   if (status === "Due Today") return "start";
   return "none";
 }
@@ -9095,9 +9098,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           </button>
                           <button className="btn-secondary w-full" type="button" onClick={() => openStockCheckResult(latestCheck)}>View Result</button>
                         </>
-                      ) : status === "Missed" ? (
-                        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-800">
-                          This stock check was not completed on schedule.
+                      ) : status === "Missed" || status === "Skipped" ? (
+                        <div className={status === "Missed" ? "rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-800" : "rounded-2xl border border-border bg-surface px-3 py-3 text-sm font-semibold text-text-secondary"}>
+                          {dueStatusDescription(status)}
                         </div>
                       ) : (
                         <button className="btn-primary w-full" type="button" onClick={() => requirePermission(can.createCheck, "start stock checks") && startScheduledStockCheck(group)}>

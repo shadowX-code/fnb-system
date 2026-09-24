@@ -1410,6 +1410,15 @@ export const crewService = {
     return data;
   },
 
+  async skipInventoryStockCheck(token, outletId, requestId, groupId, reason = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_skip_stock_check", {
+      p_token: token, p_outlet_id: outletId, p_request_id: requestId,
+      p_group_id: groupId, p_reason: reason,
+    });
+    throwSupabaseError("crew.skipInventoryStockCheck", error);
+    return data;
+  },
+
   async deleteInventoryAuditDraft(token, outletId, checkId, requestId) {
     const { data, error } = await supabase.rpc("crew_inventory_delete_audit_draft", {
       p_token: token, p_outlet_id: outletId, p_check_id: checkId, p_request_id: requestId,

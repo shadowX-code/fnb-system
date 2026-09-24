@@ -116,4 +116,14 @@ Object.assign(resources.inventory, {
   sourceNoLongerEligible:"Semakan ini tiada cadangan yang masih layak. Pesanan mungkin sudah dicipta."
 });
 Object.assign(resources.inventory, { fromStockCheckHelp:"Isi semula stok daripada kiraan yang baru selesai", manualPoHelp:"Cipta pesanan dari awal", noSuggestions:"Tiada cadangan semakan stok layak dalam 7 hari terkini", restockItems:"Item untuk Stok Semula", reviewPurchaseSuggestions:"Item untuk Stok Semula", suggestionsHelp:"Semak kuantiti sebelum mencipta pesanan belian.", ordered:"Dipesan", receivedNow:"Diterima sekarang", receiveAllRemaining:"Isi Semua Baki", lineComplete:"Diterima sepenuhnya", receivingProgress:"{{received}} / {{ordered}} diterima", receiveHelp:"Masukkan kuantiti diterima sekarang. Tiada rekod dibuat sehingga anda menekan Rekod Penerimaan." });
+Object.assign(resources.inventory, {
+  newAudit: "Audit", scheduled: "Berjadual", in_progress: "Sedang Dibuat", missed: "Terlepas", noHistory: "Tiada sejarah semakan stok",
+  checkSkipped: "Semakan stok dilangkau", skipCheckTitle: "Langkau semakan stok ini?",
+  skipCheckBody: "Ini mengesahkan anda telah menyemak keperluan hari ini dan memutuskan kiraan tidak diperlukan.",
+  confirmSkip: "Langkau Semakan", optionalReason: "Sebab (pilihan)", noReason: "Tiada sebab",
+  skippedAt: "Dilangkau pada", skippedBy: "Dilangkau oleh",
+  skippedEvidence: "Semakan berjadual ini dilangkau. Tiada kiraan atau cadangan belian dibuat.",
+  missedEvidence: "Semakan berjadual ini tidak disiapkan sebelum tamat hari perniagaan. Kiraan telah ditutup.",
+  skipReasons: { stock_sufficient: "Stok mencukupi", recently_checked: "Baru disemak", other: "Lain-lain" },
+});
 export default resources;

@@ -15,13 +15,13 @@ const hasOrders = (grants) => Boolean(grants?.can_manage_purchase_orders || gran
 const recent = (a, b) => String(b.updated_at || b.check_date || b.created_at || "").localeCompare(String(a.updated_at || a.check_date || a.created_at || ""));
 
 export function stockHomeRows(data) {
-  const today = data?.business_date || "";
-  const drafts = (data?.checks || []).filter((check) => check.status === "draft"
-    && (check.type === "scheduled" ? data?.can_perform_stock_check : data?.can_create_audit_stock_check));
-  const draftIds = new Set(drafts.map((check) => check.id));
-  const due = data?.can_perform_stock_check ? (data?.due || []).filter((check) => check.status !== "completed"
-    && !draftIds.has(check.check_id)).map((check) => ({ ...check, homePriority: check.status === "overdue" ? 0 : check.status === "due" ? 1 : 2 })) : [];
-  return [...drafts.map((check) => ({ ...check, homePriority: check.type === "scheduled" && check.check_date && today && check.check_date < today ? 0 : 2 })), ...due]
+  const due = data?.can_perform_stock_check ? (data?.due || [])
+    .filter((check) => check.status === "due" || check.status === "in_progress")
+    .map((check) => ({ ...check, homePriority: check.status === "due" ? 0 : 1 })) : [];
+  const audits = data?.can_create_audit_stock_check ? (data?.checks || [])
+    .filter((check) => check.type === "audit" && check.status === "draft")
+    .map((check) => ({ ...check, homePriority: 2 })) : [];
+  return [...due, ...audits]
     .sort((a, b) => a.homePriority - b.homePriority || recent(a, b) || String(a.id || a.group_id).localeCompare(String(b.id || b.group_id)));
 }
 
@@ -88,19 +88,16 @@ export function CrewInventoryHomeAttention({ token, outletId, grants, onOpenStoc
   if (!hasCrewInventoryAccess(grants)) return null;
   const stock = stockHomeRows(checks);
   const purchase = orderHomeRows(orders);
-  const overdueCount = stock.filter((check) => check.homePriority === 0).length;
-  const dueCount = stock.filter((check) => check.homePriority === 1).length;
-  const stockSummary = overdueCount ? t("inventory.homeOverdueCount", { count: overdueCount })
-    : dueCount ? t("inventory.stockDueCount", { count: dueCount })
+  const dueCount = stock.filter((check) => check.status === "due").length;
+  const stockSummary = dueCount ? t("inventory.stockDueCount", { count: dueCount })
       : stock.length ? t("inventory.draftsCount", { count: stock.length }) : t("inventory.stockAllClear");
   const stockRows = stock.map((check) => ({
     key: check.id || check.check_id || check.group_id,
     source: check,
     title: check.name || t("inventory.stockCheck"),
-    detail: [check.homePriority === 0 ? t("inventory.homeOverdue") : null,
-      check.shift || check.audit_type || (check.homePriority === 1 ? t("inventory.homeDueToday") : t("inventory.draft")),
+    detail: [check.shift || check.audit_type || (check.status === "due" ? t("inventory.homeDueToday") : t("inventory.inProgress")),
       t("inventory.homeItemCount", { count: check.items?.length ?? check.item_count ?? 0 })].filter(Boolean).join(" · "),
-    action: check.id || check.check_id || check.status === "draft" ? t("inventory.resume") : t("inventory.start"),
+    action: check.status === "due" ? t("inventory.start") : t("inventory.resume"),
   }));
   const purchaseRows = purchase.map((order) => ({
     key: order.id,

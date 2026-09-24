@@ -110,4 +110,14 @@ Object.assign(resources.inventory, {
   sourceDraftsCreated_one:"{{count}} draft PO created", sourceDraftsCreated_other:"{{count}} draft POs created",
   sourceNoLongerEligible:"This check has no remaining eligible suggestions. An order may already have been created."
 });
+Object.assign(resources.inventory, {
+  newAudit: "Audit", scheduled: "Scheduled", in_progress: "In Progress", missed: "Missed", noHistory: "No Stock Check history",
+  checkSkipped: "Stock Check skipped", skipCheckTitle: "Skip this stock check?",
+  skipCheckBody: "This confirms you reviewed today’s requirement and decided a count is not needed.",
+  confirmSkip: "Skip Check", optionalReason: "Reason (optional)", noReason: "No reason",
+  skippedAt: "Skipped at", skippedBy: "Skipped by",
+  skippedEvidence: "This scheduled check was skipped. No count or purchase suggestion was created.",
+  missedEvidence: "This scheduled check was not completed by the end of its business date. Counting is closed.",
+  skipReasons: { stock_sufficient: "Stock level sufficient", recently_checked: "Recently checked", other: "Other" },
+});
 export default resources;
