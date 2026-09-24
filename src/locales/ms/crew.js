@@ -115,4 +115,5 @@ Object.assign(resources.inventory, {
   sourceDraftsCreated_one:"{{count}} draf PO dicipta", sourceDraftsCreated_other:"{{count}} draf PO dicipta",
   sourceNoLongerEligible:"Semakan ini tiada cadangan yang masih layak. Pesanan mungkin sudah dicipta."
 });
+Object.assign(resources.inventory, { fromStockCheckHelp:"Isi semula stok daripada kiraan yang baru selesai", manualPoHelp:"Cipta pesanan dari awal", noSuggestions:"Tiada cadangan semakan stok layak dalam 7 hari terkini", restockItems:"Item untuk Stok Semula", reviewPurchaseSuggestions:"Item untuk Stok Semula", suggestionsHelp:"Semak kuantiti sebelum mencipta pesanan belian.", ordered:"Dipesan", receivedNow:"Diterima sekarang", receiveAllRemaining:"Isi Semua Baki", lineComplete:"Diterima sepenuhnya", receivingProgress:"{{received}} / {{ordered}} diterima", receiveHelp:"Masukkan kuantiti diterima sekarang. Tiada rekod dibuat sehingga anda menekan Rekod Penerimaan." });
 export default resources;

@@ -115,4 +115,5 @@ Object.assign(resources.inventory, {
   sourceDraftsCreated_one:"已创建 {{count}} 份订单草稿", sourceDraftsCreated_other:"已创建 {{count}} 份订单草稿",
   sourceNoLongerEligible:"此盘点已无可用建议，可能已创建订单。"
 });
+Object.assign(resources.inventory, { fromStockCheckHelp:"从最近完成的盘点补货", manualPoHelp:"从零开始创建订单", noSuggestions:"最近 7 天没有可用的盘点建议", restockItems:"补货物品", reviewPurchaseSuggestions:"补货物品", suggestionsHelp:"创建采购订单前检查数量。", ordered:"订购", receivedNow:"本次收货", receiveAllRemaining:"填入全部剩余数量", lineComplete:"已全部收货", receivingProgress:"已收 {{received}} / {{ordered}}", receiveHelp:"输入本次实收数量。点击“记录收货”后才会保存。" });
 export default resources;
