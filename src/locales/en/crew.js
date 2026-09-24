@@ -89,7 +89,7 @@ resources.inventory = {
 Object.assign(resources.inventory, {
   saveProgressTitle:"Save your progress?", unsavedCountChanges:"You have unsaved changes.", saveAndLeave:"Save & Leave", keepCounting:"Keep Counting", discardCountChanges:"Discard Changes", viewItemImage:"View {{name}} image",
   resultSummary:"Items {{items}} · Counted {{counted}} · Variances {{variances}} · Skipped {{skipped}}", readOnlyEvidence:"Completed counts cannot be edited.",
-  moreChecks:"+{{count}} more checks", moreOrders:"+{{count}} more orders", poDraftCount:"{{count}} draft orders to continue", continueDraft:"Continue Draft",
+  moreChecks:"+{{count}} more checks", moreOrders:"+{{count}} more orders", poDraftCount_one:"{{count}} draft order to continue", poDraftCount_other:"{{count}} draft orders to continue", continueDraft:"Continue Draft",
   editOrder:"Edit Order", editSubmittedTitle:"Edit this purchase order?", editSubmittedBody:"The order will return to Draft so you can update it. Send the updated order to the supplier again after submitting.", poReopened:"Order returned to Draft",
   loadingSuggestions:"Checking purchase suggestions…", restockSummary:"{{items}} · {{suppliers}}",
   itemsBelowPar_one:"{{count}} item below par", itemsBelowPar_other:"{{count}} items below par",

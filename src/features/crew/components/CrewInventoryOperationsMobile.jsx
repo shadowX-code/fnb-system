@@ -57,7 +57,7 @@ export function CrewInventoryHomeAttention({ token, outletId, grants, onOpenStoc
   const orderDrafts = grants?.can_manage_purchase_orders ? (orders?.orders || []).filter((order) => order.status === "draft") : [];
   const sortedDrafts = [...drafts].sort((a, b) => String(b.updated_at || b.check_date).localeCompare(String(a.updated_at || a.check_date)));
   const priorityCheck = sortedDrafts[0] || due.find((check) => check.status === "draft") || due.find((check) => check.status === "overdue") || due[0];
-  const checkCount = new Set([...due.map((check) => check.group_id || check.check_id), ...drafts.map((check) => check.group_id || check.id)]).size;
+  const checkCount = new Set([...due.map((check) => check.check_id || check.group_id), ...drafts.map((check) => check.id)]).size;
   const actionableReceiving = grants?.can_receive_purchase_orders ? receiving : [];
   const actionableConfirming = grants?.can_manage_purchase_orders ? confirming : [];
   const priorityOrder = actionableReceiving[0] || actionableConfirming[0] || orderDrafts[0];
