@@ -31,6 +31,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   const [supplierId, setSupplierId] = useState(""); const [lines, setLines] = useState([]); const [remark, setRemark] = useState("");
   const [query, setQuery] = useState(""); const [itemPicker, setItemPicker] = useState(false); const [receiveQty, setReceiveQty] = useState({}); const [copyFallback, setCopyFallback] = useState("");
   const [discardOpen, setDiscardOpen] = useState(false);
+  const [reopenOpen, setReopenOpen] = useState(false);
   const [dirty, setDirty] = useState(false); const request = useRef(null); const newPoNo = useRef(null); const sourcePoNos = useRef({}); const active = useRef(true);
   const initialOpened = useRef(false);
   useEffect(() => { active.current = true; return () => { active.current = false; onFlowChange?.(false); }; }, [onFlowChange]);
@@ -55,7 +56,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
           if (check) startFromCheck(check, orders.orders || []);
           else if (existing) void openOrder(existing.id);
           else { setMissingSourceId(initialTarget.stock_check_id); setMode("sources"); }
-        } else if (initialTarget?.id && !initialOpened.current) { initialOpened.current = true; void openOrder(initialTarget.id, { receive: ["supplier_confirmed", "partial_received"].includes(initialTarget.status) }); }
+        } else if (initialTarget?.id && !initialOpened.current) { initialOpened.current = true; void openOrder(initialTarget.id, { receive: ["supplier_confirmed", "partial_received"].includes(initialTarget.status), edit: initialTarget.status === "draft" }); }
       }
     } catch (cause) { if (active.current) setError(cause.message || t("inventory.loadError")); }
     finally { if (active.current) setLoading(false); }
@@ -69,14 +70,16 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   const canReceive = Boolean(data?.can_receive_purchase_orders);
   const filteredOrders = (data?.orders || []).filter((order) => tab === "drafts" ? order.status === "draft" : tab === "completed" ? ["fully_received", "completed", "cancelled"].includes(order.status) : isActive(order.status));
 
-  async function openOrder(id, { receive = false } = {}) {
+  async function openOrder(id, { receive = false, edit = false } = {}) {
     setBusy(true); setError("");
     try {
       const next = await crewService.inventoryPurchaseOrders(token, outletId, id);
       if (active.current) {
         const canStartReceiving = receive && next.can_receive_purchase_orders && ["supplier_confirmed", "partial_received"].includes(next.detail?.status);
-        setDetail(next.detail); setMode(canStartReceiving ? "receive" : "detail"); setDirty(false); request.current = null;
+        const canEdit = edit && next.can_manage_purchase_orders && next.detail?.status === "draft";
+        setDetail(next.detail); setMode(canStartReceiving ? "receive" : canEdit ? "editor" : "detail"); setDirty(false); request.current = null;
         if (canStartReceiving) { setReceiveQty(Object.fromEntries((next.detail.lines || []).map((line) => [line.id, ""]))); setRemark(""); }
+        if (canEdit) { setSource(null); setSupplierId(next.detail.supplier_id); setLines((next.detail.lines || []).map(editableLine)); setRemark(next.detail.remark || ""); }
       }
     } catch (cause) { if (active.current) setError(cause.message); }
     finally { if (active.current) setBusy(false); }
@@ -149,7 +152,9 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
     setBusy(true); setError("");
     try { await crewService.transitionInventoryPurchaseOrder(token, outletId, detail.id, requestFor({ id: detail.id, action }), action);
       if (!active.current) return;
-      request.current = null; setNotice(t(action === "submit" ? "inventory.poSubmitted" : "inventory.poConfirmed")); await load(); await openOrder(detail.id);
+      request.current = null; setReopenOpen(false);
+      setNotice(t(action === "submit" ? "inventory.poSubmitted" : action === "confirm" ? "inventory.poConfirmed" : "inventory.poReopened"));
+      await load(); await openOrder(detail.id, { edit: action === "reopen_draft" });
     } catch (cause) { if (active.current) setError(cause.message); }
     finally { if (active.current) setBusy(false); }
   }
@@ -225,10 +230,11 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   </section>;
   return <section className="crew-inventory-page"><CrewMobileDetailHeader title={displayPoNo(detail) || t("inventory.purchaseOrder")} subtitle={detail.supplier_name} onBack={goBack} action={<CrewStatusBadge tone={detail.status === "completed" ? "success" : "warning"}>{t(`inventory.status.${detail.status}`)}</CrewStatusBadge>} />
     {notice && <p className="crew-inventory-notice" role="status">{notice}</p>}{error && <p className="crew-v2-error" role="alert">{error}</p>}
-    <div className="crew-inventory-detail-actions"><button className="crew-mobile-secondary" type="button" onClick={() => void copyText()}><Copy size={16} />{t("inventory.copyText")}</button>{canManage && detail.status === "draft" && <button className="crew-mobile-secondary" type="button" onClick={editDraft}>{t("inventory.editDraft")}</button>}</div>
+    <div className="crew-inventory-detail-actions"><button className="crew-mobile-secondary" type="button" onClick={() => void copyText()}><Copy size={16} />{t("inventory.copyText")}</button>{canManage && detail.status === "draft" && <button className="crew-mobile-secondary" type="button" onClick={editDraft}>{t("inventory.editDraft")}</button>}{canManage && detail.status === "submitted" && <button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => setReopenOpen(true)}>{t("inventory.editOrder")}</button>}</div>
     <div className="crew-inventory-detail-lines">{detail.lines.map((line) => <article key={line.id}><span><strong>{line.item_name}</strong><small>{line.remark}</small></span><strong>{line.requested_qty} {line.unit}</strong><small>{t("inventory.received")}: {line.received_qty} · {t("inventory.remaining")}: {line.remaining_qty}</small></article>)}</div>
     {detail.receipts?.length > 0 && <section className="crew-inventory-history"><h2>{t("inventory.receiptHistory")}</h2>{detail.receipts.map((receipt) => <article key={receipt.id}><strong>{new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(receipt.received_at))}</strong><small>{receipt.lines.map((line) => `${itemById.get(line.item_id)?.name || t("inventory.item")}: ${line.received_qty} ${line.unit}`).join(" · ")}</small>{receipt.remark && <p>{receipt.remark}</p>}</article>)}</section>}
     <div className="crew-inventory-sticky">{canManage && detail.status === "draft" && <button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void transition("submit")}>{t("inventory.submitPo")}</button>}{canManage && detail.status === "submitted" && <button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void transition("confirm")}>{t("inventory.markConfirmed")}</button>}{canReceive && ["supplier_confirmed", "partial_received"].includes(detail.status) && <button className="crew-mobile-primary" type="button" disabled={busy} onClick={startReceiving}>{detail.status === "partial_received" ? t("inventory.continueReceiving") : t("inventory.receivePo")}</button>}</div>
     {copyFallback && <CrewBottomSheet title={t("inventory.copyText")} onClose={() => setCopyFallback("")}><textarea className="crew-inventory-copy-fallback" readOnly value={copyFallback} onFocus={(event) => event.target.select()} /></CrewBottomSheet>}
+    {reopenOpen && <CrewBottomSheet title={t("inventory.editSubmittedTitle")} description={t("inventory.editSubmittedBody")} onClose={() => setReopenOpen(false)} closeDisabled={busy} footer={<><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => setReopenOpen(false)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={busy} onClick={() => void transition("reopen_draft")}>{busy ? t("common.saving") : t("inventory.editOrder")}</button></>} />}
   </section>;
 }

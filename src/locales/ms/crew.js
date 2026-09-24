@@ -93,6 +93,10 @@ resources.inventory = {
   status:{draft:"Draf",submitted:"Dihantar",supplier_confirmed:"Pembekal Disahkan",partial_received:"Diterima Sebahagian",fully_received:"Diterima Sepenuhnya",completed:"Selesai",cancelled:"Dibatalkan"},auditTypes:{"Month-End Closing":"Penutupan Hujung Bulan","Full Stock Audit":"Audit Stok Penuh","Spot Check":"Semakan Rawak","Category Audit":"Audit Kategori","Custom Audit":"Audit Tersuai"}
 };
 Object.assign(resources.inventory, {
+  saveProgressTitle:"Simpan kemajuan anda?", unsavedCountChanges:"Anda mempunyai perubahan yang belum disimpan.", saveAndLeave:"Simpan & Keluar", keepCounting:"Terus Mengira", discardCountChanges:"Buang Perubahan", viewItemImage:"Lihat imej {{name}}",
+  resultSummary:"{{items}} item · {{counted}} dikira · {{variances}} perbezaan · {{skipped}} dilangkau", readOnlyEvidence:"Kiraan yang selesai tidak boleh diedit.",
+  moreChecks:"+{{count}} semakan lagi", moreOrders:"+{{count}} pesanan lagi", poDraftCount:"{{count}} draf pesanan untuk disambung", continueDraft:"Sambung Draf",
+  editOrder:"Edit Pesanan", editSubmittedTitle:"Edit pesanan belian ini?", editSubmittedBody:"Pesanan akan kembali ke Draf supaya anda boleh mengemas kininya. Hantar semula pesanan yang dikemas kini kepada pembekal selepas menyerahkannya.", poReopened:"Pesanan dikembalikan ke Draf",
   loadingSuggestions:"Menyemak cadangan pembelian…", restockSummary:"{{items}} · {{suppliers}}",
   itemsBelowPar_one:"{{count}} item di bawah paras", itemsBelowPar_other:"{{count}} item di bawah paras",
   supplierCount_one:"{{count}} pembekal", supplierCount_other:"{{count}} pembekal",
