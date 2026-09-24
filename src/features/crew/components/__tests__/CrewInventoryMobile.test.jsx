@@ -86,6 +86,34 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(api.createInventoryStockCheckOrders).toHaveBeenCalledTimes(1));
     expect(api.createInventoryStockCheckOrders.mock.calls[0]).toEqual(["token", "outlet-1", expect.any(String), "check-1", [expect.objectContaining({ source_type: "stock_check", source_stock_check_id: "check-1", supplier_id: "supplier-1", lines: [expect.objectContaining({ item_id: "item-1", source_stock_check_item_id: "count-1", requested_qty: 3 })] })]]);
+    expect(api.createInventoryStockCheckOrders.mock.calls[0][4][0].po_no).toMatch(/^PO-[A-F0-9]{12}$/);
+  });
+
+  it("keeps a new PO reference and request identity stable across a failed-save retry", async () => {
+    api.saveInventoryPurchaseOrder.mockRejectedValueOnce(new Error("Temporary network failure")).mockResolvedValueOnce({ order: { id: "created-po" } });
+    render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create PO" }));
+    fireEvent.click(screen.getByRole("button", { name: /Manual PO/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Supplier" }));
+    fireEvent.click(screen.getByRole("option", { name: "Supplier A" }));
+    fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+    fireEvent.click(screen.getByRole("button", { name: /Rice/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(await screen.findByText("Temporary network failure")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(api.saveInventoryPurchaseOrder).toHaveBeenCalledTimes(2));
+    expect(api.saveInventoryPurchaseOrder.mock.calls[0][2]).toBe(api.saveInventoryPurchaseOrder.mock.calls[1][2]);
+    expect(api.saveInventoryPurchaseOrder.mock.calls[0][3].po_no).toMatch(/^PO-[A-F0-9]{12}$/);
+    expect(api.saveInventoryPurchaseOrder.mock.calls[0][3].po_no).toBe(api.saveInventoryPurchaseOrder.mock.calls[1][3].po_no);
+  });
+
+  it("shows a stable reference for legacy null-number orders and uses it in Copy Text", async () => {
+    const id = "f8a11540-3337-4b95-9426-b3d70a607555";
+    api.inventoryPurchaseOrders.mockImplementation(async (_token, _outlet, selectedId) => selectedId ? { ...orders, detail: { ...poDetail, id, po_no: null } } : { ...orders, orders: [{ id, po_no: null, supplier_name: "Supplier A", line_count: 1, status: "supplier_confirmed" }] });
+    render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: /PO-F8A115403337.*Supplier A/s }));
+    fireEvent.click(await screen.findByRole("button", { name: "Copy Text" }));
+    expect((await screen.findByRole("textbox")).value).toContain("PO No.: PO-F8A115403337");
   });
 
   it("can discard an incomplete manual PO that cannot yet be saved", async () => {
