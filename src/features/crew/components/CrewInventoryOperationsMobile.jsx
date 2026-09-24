@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ClipboardCheck, PackageCheck, ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronRight, ClipboardCheck, Package } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import { CrewEmptyState } from "./CrewMobileUI.jsx";
@@ -12,68 +12,108 @@ export const hasCrewInventoryAccess = (grants = {}) => Boolean(
 
 const hasStock = (grants) => Boolean(grants?.can_perform_stock_check || grants?.can_create_audit_stock_check);
 const hasOrders = (grants) => Boolean(grants?.can_manage_purchase_orders || grants?.can_receive_purchase_orders);
+const recent = (a, b) => String(b.updated_at || b.check_date || b.created_at || "").localeCompare(String(a.updated_at || a.check_date || a.created_at || ""));
+
+export function stockHomeRows(data) {
+  const today = data?.business_date || "";
+  const drafts = (data?.checks || []).filter((check) => check.status === "draft"
+    && (check.type === "scheduled" ? data?.can_perform_stock_check : data?.can_create_audit_stock_check));
+  const draftIds = new Set(drafts.map((check) => check.id));
+  const due = data?.can_perform_stock_check ? (data?.due || []).filter((check) => check.status !== "completed"
+    && !draftIds.has(check.check_id)).map((check) => ({ ...check, homePriority: check.status === "overdue" ? 0 : check.status === "due" ? 1 : 2 })) : [];
+  return [...drafts.map((check) => ({ ...check, homePriority: check.check_date && today && check.check_date < today ? 0 : 2 })), ...due]
+    .sort((a, b) => a.homePriority - b.homePriority || recent(a, b) || String(a.id || a.group_id).localeCompare(String(b.id || b.group_id)));
+}
+
+export function orderHomeRows(data) {
+  const canManage = Boolean(data?.can_manage_purchase_orders);
+  const canReceive = Boolean(data?.can_receive_purchase_orders);
+  const priority = { partial_received: 0, supplier_confirmed: 1, submitted: 2, draft: 3 };
+  return (data?.orders || []).filter((order) =>
+    ((order.status === "draft" || order.status === "submitted") && canManage)
+    || ((order.status === "supplier_confirmed" || order.status === "partial_received") && canReceive))
+    .sort((a, b) => priority[a.status] - priority[b.status] || recent(a, b));
+}
+
+export function orderCategorySummary(order, t) {
+  const names = (order.category_names || []).filter(Boolean);
+  if (!names.length) return t("inventory.homeItemCount", { count: order.line_count || 0 });
+  return names.length === 1 ? names[0] : t("inventory.homeMoreCategories", { name: names[0], count: names.length - 1 });
+}
 
 function useAttention(token, outletId, grants) {
-  const [state, setState] = useState({ outletId: null, loading: true, attention: null, checks: null, orders: null, error: "" });
+  const [state, setState] = useState({ outletId: null, loading: true, checks: null, orders: null, error: "" });
   const [revision, setRevision] = useState(0);
   useEffect(() => {
     if (!hasCrewInventoryAccess(grants) || !outletId) {
-      setState({ outletId, loading: false, attention: null, checks: null, orders: null, error: "" });
+      setState({ outletId, loading: false, checks: null, orders: null, error: "" });
       return undefined;
     }
     let active = true;
-    setState({ outletId, loading: true, attention: null, checks: null, orders: null, error: "" });
+    setState({ outletId, loading: true, checks: null, orders: null, error: "" });
     Promise.all([
-      crewService.inventoryAttention(token, outletId),
       hasStock(grants) ? crewService.inventoryStockChecks(token, outletId) : Promise.resolve(null),
       hasOrders(grants) ? crewService.inventoryPurchaseOrders(token, outletId) : Promise.resolve(null),
-    ]).then(([attention, checks, orders]) => {
-      if (active) setState({ outletId, loading: false, attention, checks, orders, error: "" });
+    ]).then(([checks, orders]) => {
+      if (active) setState({ outletId, loading: false, checks, orders, error: "" });
     }).catch((cause) => {
-      if (active) setState({ outletId, loading: false, attention: null, checks: null, orders: null, error: cause.message });
+      if (active) setState({ outletId, loading: false, checks: null, orders: null, error: cause.message });
     });
     return () => { active = false; };
   }, [token, outletId, grants, revision]);
-  return { ...(state.outletId === outletId ? state : { loading: true, attention: null, checks: null, orders: null, error: "" }), retry: () => setRevision((value) => value + 1) };
+  return { ...(state.outletId === outletId ? state : { loading: true, checks: null, orders: null, error: "" }), retry: () => setRevision((value) => value + 1) };
 }
 
-function AttentionModule({ icon: Icon, title, lines, feature, actionLabel, moreCount, onOpen, onAction, moreLabel }) {
-  return <section className="crew-inventory-home-module">
-    <button type="button" className="crew-inventory-home-heading" onClick={onOpen}><Icon size={19} aria-hidden="true" /><strong>{title}</strong><ChevronRight size={17} aria-hidden="true" /></button>
-    <div className="crew-inventory-home-copy">{lines.map((line) => <span key={line}>{line}</span>)}</div>
-    {feature && <div className="crew-inventory-home-feature"><span><strong>{feature.title}</strong><small>{feature.detail}</small></span><button type="button" onClick={onAction}>{actionLabel}</button></div>}
-    {moreCount > 0 && <button type="button" className="crew-inventory-home-more" onClick={onOpen}>{moreLabel}</button>}
+function SmartOperationsCard({ domain, icon: Icon, title, summary, rows, onOpen, onAction }) {
+  return <section className={`crew-inventory-home-module is-${domain}${rows.length ? "" : " is-clear"}`}>
+    <button type="button" className="crew-inventory-home-heading" onClick={onOpen} aria-label={title}>
+      <span className="crew-inventory-home-icon"><Icon size={22} strokeWidth={1.8} aria-hidden="true" /></span>
+      <span className="crew-inventory-home-heading-copy"><strong>{title}</strong><small>{summary}</small></span>
+      <Icon className="crew-inventory-home-motif" size={88} strokeWidth={1.3} aria-hidden="true" />
+      <ChevronRight className="crew-inventory-home-chevron" size={20} aria-hidden="true" />
+    </button>
+    {rows.length > 0 && <div className="crew-inventory-home-rows">{rows.map((row) =>
+      <div className="crew-inventory-home-row" key={row.key}>
+        <span className="crew-inventory-home-row-copy"><strong>{row.title}</strong><small>{row.detail}</small></span>
+        <button type="button" className="crew-inventory-home-row-action" onClick={() => onAction(row.source)} aria-label={`${row.action}: ${row.title}`}>
+          {row.action}<ArrowRight size={16} aria-hidden="true" />
+        </button>
+      </div>)}</div>}
   </section>;
 }
 
 export function CrewInventoryHomeAttention({ token, outletId, grants, onOpenStock, onOpenOrders, onOpenCheck, onOpenOrder }) {
   const { t } = useTranslation();
-  const { attention, checks, orders, loading, error, retry } = useAttention(token, outletId, grants);
+  const { checks, orders, loading, error, retry } = useAttention(token, outletId, grants);
   if (!hasCrewInventoryAccess(grants)) return null;
-  const drafts = (checks?.checks || []).filter((check) => check.status === "draft" && (check.type === "scheduled" ? grants?.can_perform_stock_check : grants?.can_create_audit_stock_check));
-  const due = (checks?.due || []).filter((check) => check.status !== "completed");
-  const receiving = (orders?.orders || []).filter((order) => ["supplier_confirmed", "partial_received"].includes(order.status));
-  const confirming = (orders?.orders || []).filter((order) => order.status === "submitted");
-  const orderDrafts = grants?.can_manage_purchase_orders ? (orders?.orders || []).filter((order) => order.status === "draft") : [];
-  const sortedDrafts = [...drafts].sort((a, b) => String(b.updated_at || b.check_date).localeCompare(String(a.updated_at || a.check_date)));
-  const priorityCheck = sortedDrafts[0] || due.find((check) => check.status === "draft") || due.find((check) => check.status === "overdue") || due[0];
-  const checkCount = new Set([...due.map((check) => check.check_id || check.group_id), ...drafts.map((check) => check.id)]).size;
-  const actionableReceiving = grants?.can_receive_purchase_orders ? receiving : [];
-  const actionableConfirming = grants?.can_manage_purchase_orders ? confirming : [];
-  const priorityOrder = actionableReceiving[0] || actionableConfirming[0] || orderDrafts[0];
-  const orderCount = actionableReceiving.length + actionableConfirming.length + orderDrafts.length;
+  const stock = stockHomeRows(checks);
+  const purchase = orderHomeRows(orders);
+  const overdueCount = stock.filter((check) => check.homePriority === 0).length;
+  const dueCount = stock.filter((check) => check.homePriority === 1).length;
+  const stockSummary = overdueCount ? t("inventory.homeOverdueCount", { count: overdueCount })
+    : dueCount ? t("inventory.stockDueCount", { count: dueCount })
+      : stock.length ? t("inventory.draftsCount", { count: stock.length }) : t("inventory.stockAllClear");
+  const stockRows = stock.map((check) => ({
+    key: check.id || check.check_id || check.group_id,
+    source: check,
+    title: check.name || t("inventory.stockCheck"),
+    detail: [check.shift || check.audit_type || (check.homePriority === 0 ? t("inventory.homeOverdue") : t("inventory.homeDueToday")),
+      t("inventory.homeItemCount", { count: check.items?.length ?? check.item_count ?? 0 })].join(" · "),
+    action: check.id || check.check_id || check.status === "draft" ? t("inventory.resume") : t("inventory.start"),
+  }));
+  const purchaseRows = purchase.map((order) => ({
+    key: order.id,
+    source: order,
+    title: order.supplier_name || t("inventory.supplier"),
+    detail: [orderCategorySummary(order, t),
+      t(`inventory.homePoState.${order.status}`)].join(" · "),
+    action: order.status === "draft" ? t("inventory.homeContinue")
+      : order.status === "partial_received" || order.status === "supplier_confirmed" ? t("inventory.homeReceive") : t("inventory.review"),
+  }));
   return <section className="crew-v2-home-section crew-inventory-home" aria-label={t("inventory.operations")}>
     {loading ? <p className="crew-inventory-subtle" role="status">{t("common.loading")}</p> : error ? <div className="crew-v2-error" role="alert">{t("inventory.loadError")} <button type="button" onClick={retry}>{t("common.retry")}</button></div> : <div className="crew-inventory-home-modules">
-      {hasStock(grants) && <AttentionModule icon={ClipboardCheck} title={t("inventory.stockCheck")} onOpen={onOpenStock}
-        lines={due.length || drafts.length ? [due.length > 0 && t("inventory.stockDueCount", { count: attention?.stock_checks_due_today ?? due.length }), drafts.length > 0 && t("inventory.draftsCount", { count: drafts.length })].filter(Boolean) : [t("inventory.stockAllClear")]}
-        feature={priorityCheck && { title: priorityCheck.name, detail: `${priorityCheck.shift || priorityCheck.check_date || ""} · ${priorityCheck.items?.length ?? priorityCheck.item_count ?? 0} ${t("inventory.items")}` }}
-        actionLabel={priorityCheck?.status === "draft" ? t("inventory.resume") : t("inventory.start")}
-        onAction={() => onOpenCheck(priorityCheck)} moreCount={checkCount - 1} moreLabel={t("inventory.moreChecks", { count: checkCount - 1 })} />}
-      {hasOrders(grants) && <AttentionModule icon={PackageCheck} title={t("inventory.purchaseOrders")} onOpen={onOpenOrders}
-        lines={orderCount ? [actionableReceiving.length > 0 && t("inventory.receivingCount", { count: attention?.purchase_orders_awaiting_receiving ?? actionableReceiving.length }), actionableConfirming.length > 0 && t("inventory.confirmCount", { count: attention?.purchase_orders_awaiting_confirmation ?? actionableConfirming.length }), orderDrafts.length > 0 && t("inventory.poDraftCount", { count: orderDrafts.length })].filter(Boolean) : [t("inventory.ordersAllClear")]}
-        feature={priorityOrder && { title: priorityOrder.business_po_no || t("inventory.purchaseOrder"), detail: priorityOrder.supplier_name || "" }}
-        actionLabel={["supplier_confirmed", "partial_received"].includes(priorityOrder?.status) ? t("inventory.receivePo") : priorityOrder?.status === "draft" ? t("inventory.continueDraft") : t("inventory.review")}
-        onAction={() => onOpenOrder(priorityOrder)} moreCount={orderCount - 1} moreLabel={t("inventory.moreOrders", { count: orderCount - 1 })} />}
+      {hasStock(grants) && <SmartOperationsCard domain="stock" icon={ClipboardCheck} title={t("inventory.stockCheck")} summary={stockSummary} rows={stockRows} onOpen={onOpenStock} onAction={onOpenCheck} />}
+      {hasOrders(grants) && <SmartOperationsCard domain="orders" icon={Package} title={t("inventory.purchaseOrders")} summary={purchase.length ? t("inventory.homeOrdersAttentionCount", { count: purchase.length }) : t("inventory.ordersAllClear")} rows={purchaseRows} onOpen={onOpenOrders} onAction={onOpenOrder} />}
     </div>}
   </section>;
 }

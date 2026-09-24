@@ -93,6 +93,11 @@ resources.inventory = {
   status:{draft:"Draf",submitted:"Dihantar",supplier_confirmed:"Pembekal Disahkan",partial_received:"Diterima Sebahagian",fully_received:"Diterima Sepenuhnya",completed:"Selesai",cancelled:"Dibatalkan"},auditTypes:{"Month-End Closing":"Penutupan Hujung Bulan","Full Stock Audit":"Audit Stok Penuh","Spot Check":"Semakan Rawak","Category Audit":"Audit Kategori","Custom Audit":"Audit Tersuai"}
 };
 Object.assign(resources.inventory, {
+  homeOverdueCount:"{{count}} semakan tertunggak", homeOverdue:"Tertunggak", homeDueToday:"Perlu dibuat hari ini",
+  homeItemCount:"{{count}} item", homeOrdersAttentionCount:"{{count}} pesanan perlu tindakan",
+  homeMoreCategories:"{{name}} +{{count}}",
+  homeContinue:"Sambung", homeReceive:"Terima",
+  homePoState:{ draft:"Draf", submitted:"Menunggu pengesahan", supplier_confirmed:"Menunggu penerimaan", partial_received:"Sambung penerimaan" },
   saveProgressTitle:"Simpan kemajuan anda?", unsavedCountChanges:"Anda mempunyai perubahan yang belum disimpan.", saveAndLeave:"Simpan & Keluar", keepCounting:"Terus Mengira", discardCountChanges:"Buang Perubahan", viewItemImage:"Lihat imej {{name}}",
   resultSummary:"{{items}} item · {{counted}} dikira · {{variances}} perbezaan · {{skipped}} dilangkau", readOnlyEvidence:"Kiraan yang selesai tidak boleh diedit.",
   moreChecks:"+{{count}} semakan lagi", moreOrders:"+{{count}} pesanan lagi", poDraftCount:"{{count}} draf pesanan untuk disambung", continueDraft:"Sambung Draf",

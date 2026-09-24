@@ -93,6 +93,11 @@ resources.inventory = {
   status:{draft:"草稿",submitted:"已提交",supplier_confirmed:"供应商已确认",partial_received:"部分收货",fully_received:"全部收货",completed:"已完成",cancelled:"已取消"},auditTypes:{"Month-End Closing":"月末结账","Full Stock Audit":"全面库存稽核","Spot Check":"抽查","Category Audit":"分类稽核","Custom Audit":"自定义稽核"}
 };
 Object.assign(resources.inventory, {
+  homeOverdueCount:"{{count}} 项逾期盘点", homeOverdue:"逾期", homeDueToday:"今天到期",
+  homeItemCount:"{{count}} 项物品", homeOrdersAttentionCount:"{{count}} 份订单待处理",
+  homeMoreCategories:"{{name}} +{{count}}",
+  homeContinue:"继续", homeReceive:"收货",
+  homePoState:{ draft:"草稿", submitted:"待供应商确认", supplier_confirmed:"待收货", partial_received:"继续收货" },
   saveProgressTitle:"要保存进度吗？", unsavedCountChanges:"您有尚未保存的更改。", saveAndLeave:"保存并离开", keepCounting:"继续盘点", discardCountChanges:"放弃更改", viewItemImage:"查看{{name}}的图片",
   resultSummary:"{{items}} 项物品 · 已盘 {{counted}} 项 · {{variances}} 项差异 · 跳过 {{skipped}} 项", readOnlyEvidence:"已完成的盘点记录不能修改。",
   moreChecks:"另有 {{count}} 项盘点", moreOrders:"另有 {{count}} 份订单", poDraftCount:"{{count}} 份订单草稿待继续", continueDraft:"继续草稿",

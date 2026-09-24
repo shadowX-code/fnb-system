@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import CrewStockCheckMobile from "../CrewStockCheckMobile.jsx";
 import CrewPurchaseOrdersMobile from "../CrewPurchaseOrdersMobile.jsx";
-import { CrewInventoryHomeAttention, hasCrewInventoryAccess } from "../CrewInventoryOperationsMobile.jsx";
+import { CrewInventoryHomeAttention, hasCrewInventoryAccess, orderHomeRows, stockHomeRows } from "../CrewInventoryOperationsMobile.jsx";
 import "../../../../i18n/index.js";
 
 const api = vi.hoisted(() => ({ inventoryAttention: vi.fn(), inventoryStockChecks: vi.fn(), inventoryPurchaseOrders: vi.fn(), inventoryMobileCatalog: vi.fn(), saveInventoryStockCheck: vi.fn(), saveInventoryPurchaseOrder: vi.fn(), createInventoryStockCheckOrders: vi.fn(), transitionInventoryPurchaseOrder: vi.fn(), receiveInventoryPurchaseOrder: vi.fn() }));
@@ -39,9 +39,9 @@ describe("Crew Inventory mobile authority boundary", () => {
     const onOpenCheck = vi.fn();
     render(<CrewInventoryHomeAttention token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true, can_receive_purchase_orders: true }} onOpenStock={vi.fn()} onOpenOrders={vi.fn()} onOpenCheck={onOpenCheck} onOpenOrder={vi.fn()} />);
     expect(await screen.findByText("1 check due today")).not.toBeNull();
-    expect(screen.getByText("1 awaiting receiving")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Start" }));
-    expect(onOpenCheck).toHaveBeenCalledWith(stock.due[0]);
+    expect(screen.getByText("1 order needs attention")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start: Opening" }));
+    expect(onOpenCheck).toHaveBeenCalledWith(expect.objectContaining(stock.due[0]));
   });
 
   it("uses action-oriented all-clear copy rather than zero KPI pills", async () => {
@@ -53,16 +53,52 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(screen.getByText("No orders need attention")).not.toBeNull();
   });
 
-  it("prioritizes a resumable check and shows one item plus a full-list link", async () => {
+  it("shows every actionable check without a more-link and preserves row targets", async () => {
     api.inventoryStockChecks.mockResolvedValue({ ...stock,
       checks: [{ id: "draft-1", type: "scheduled", status: "draft", name: "Yesterday Opening", check_date: "2026-09-23", item_count: 1, updated_at: "2026-09-24T08:00:00Z" }],
       due: [...stock.due, { ...stock.due[0], group_id: "group-2", name: "Closing" }] });
     const onOpenCheck = vi.fn(); const onOpenStock = vi.fn();
     render(<CrewInventoryHomeAttention token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true }} onOpenStock={onOpenStock} onOpenOrders={vi.fn()} onOpenCheck={onOpenCheck} onOpenOrder={vi.fn()} />);
-    fireEvent.click(await screen.findByRole("button", { name: "Resume" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Resume: Yesterday Opening" }));
     expect(onOpenCheck).toHaveBeenCalledWith(expect.objectContaining({ id: "draft-1" }));
-    fireEvent.click(screen.getByRole("button", { name: "+2 more checks" }));
+    expect(screen.getByText("Opening")).not.toBeNull();
+    expect(screen.getByText("Closing")).not.toBeNull();
+    expect(screen.queryByText(/more checks/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Stock Check" }));
     expect(onOpenStock).toHaveBeenCalled();
+  });
+
+  it("orders overdue, due and drafts and excludes completed checks", () => {
+    const rows = stockHomeRows({ business_date: "2026-09-24", can_perform_stock_check: true, can_create_audit_stock_check: true,
+      checks: [
+        { id: "recent-draft", type: "audit", status: "draft", check_date: "2026-09-24" },
+        { id: "old-draft", type: "scheduled", status: "draft", check_date: "2026-09-22" },
+        { id: "completed", type: "scheduled", status: "submitted", check_date: "2026-09-24" },
+      ],
+      due: [{ group_id: "due", status: "due" }, { group_id: "done", status: "completed" }],
+    });
+    expect(rows.map((row) => row.id || row.group_id)).toEqual(["old-draft", "due", "recent-draft"]);
+  });
+
+  it("shows every actionable PO but never a PO number, completed order, or unauthorized action", async () => {
+    api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, orders: [
+      { id: "draft", business_po_no: "FC-260924-02", supplier_name: "First Supplier", category_names: ["Vegetables", "Dry Goods", "Beverages"], line_count: 2, status: "draft" },
+      { id: "submitted", business_po_no: "FC-260924-03", supplier_name: "Second Supplier", line_count: 1, status: "submitted" },
+      { id: "receiving", business_po_no: "FC-260924-04", supplier_name: "Third Supplier", line_count: 3, status: "partial_received" },
+      { id: "done", business_po_no: "FC-260924-05", supplier_name: "Hidden Supplier", status: "completed" },
+    ] });
+    const onOpenOrder = vi.fn();
+    render(<CrewInventoryHomeAttention token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true, can_receive_purchase_orders: true }} onOpenStock={vi.fn()} onOpenOrders={vi.fn()} onOpenCheck={vi.fn()} onOpenOrder={onOpenOrder} />);
+    expect(await screen.findByText("3 orders need attention")).not.toBeNull();
+    expect(screen.getByText("First Supplier")).not.toBeNull();
+    expect(screen.getByText("Vegetables +2 · Draft")).not.toBeNull();
+    expect(screen.getByText("Second Supplier")).not.toBeNull();
+    expect(screen.getByText("Third Supplier")).not.toBeNull();
+    expect(screen.queryByText("Hidden Supplier")).toBeNull();
+    expect(screen.queryByText(/FC-260924/)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Receive: Third Supplier" }));
+    expect(onOpenOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "receiving" }));
+    expect(orderHomeRows({ ...orders, can_manage_purchase_orders: false, orders: [{ id: "draft", status: "draft" }, { id: "receiving", status: "supplier_confirmed" }] }).map((row) => row.id)).toEqual(["receiving"]);
   });
 
   it("never renders a previous outlet's attention after switching", async () => {
