@@ -21,7 +21,7 @@ export function stockHomeRows(data) {
   const draftIds = new Set(drafts.map((check) => check.id));
   const due = data?.can_perform_stock_check ? (data?.due || []).filter((check) => check.status !== "completed"
     && !draftIds.has(check.check_id)).map((check) => ({ ...check, homePriority: check.status === "overdue" ? 0 : check.status === "due" ? 1 : 2 })) : [];
-  return [...drafts.map((check) => ({ ...check, homePriority: check.check_date && today && check.check_date < today ? 0 : 2 })), ...due]
+  return [...drafts.map((check) => ({ ...check, homePriority: check.type === "scheduled" && check.check_date && today && check.check_date < today ? 0 : 2 })), ...due]
     .sort((a, b) => a.homePriority - b.homePriority || recent(a, b) || String(a.id || a.group_id).localeCompare(String(b.id || b.group_id)));
 }
 
@@ -97,8 +97,9 @@ export function CrewInventoryHomeAttention({ token, outletId, grants, onOpenStoc
     key: check.id || check.check_id || check.group_id,
     source: check,
     title: check.name || t("inventory.stockCheck"),
-    detail: [check.shift || check.audit_type || (check.homePriority === 0 ? t("inventory.homeOverdue") : t("inventory.homeDueToday")),
-      t("inventory.homeItemCount", { count: check.items?.length ?? check.item_count ?? 0 })].join(" · "),
+    detail: [check.homePriority === 0 ? t("inventory.homeOverdue") : null,
+      check.shift || check.audit_type || (check.homePriority === 1 ? t("inventory.homeDueToday") : t("inventory.draft")),
+      t("inventory.homeItemCount", { count: check.items?.length ?? check.item_count ?? 0 })].filter(Boolean).join(" · "),
     action: check.id || check.check_id || check.status === "draft" ? t("inventory.resume") : t("inventory.start"),
   }));
   const purchaseRows = purchase.map((order) => ({

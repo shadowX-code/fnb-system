@@ -71,7 +71,7 @@ describe("Crew Inventory mobile authority boundary", () => {
   it("orders overdue, due and drafts and excludes completed checks", () => {
     const rows = stockHomeRows({ business_date: "2026-09-24", can_perform_stock_check: true, can_create_audit_stock_check: true,
       checks: [
-        { id: "recent-draft", type: "audit", status: "draft", check_date: "2026-09-24" },
+        { id: "recent-draft", type: "audit", status: "draft", check_date: "2026-09-22" },
         { id: "old-draft", type: "scheduled", status: "draft", check_date: "2026-09-22" },
         { id: "completed", type: "scheduled", status: "submitted", check_date: "2026-09-24" },
       ],
