@@ -40,7 +40,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
       const [orders, choices] = await Promise.all([crewService.inventoryPurchaseOrders(token, outletId), crewService.inventoryMobileCatalog(token, outletId)]);
       if (active.current) {
         setData(orders); setCatalog(choices);
-        if (initialTarget?.id && !initialOpened.current) { initialOpened.current = true; void openOrder(initialTarget.id); }
+        if (initialTarget?.id && !initialOpened.current) { initialOpened.current = true; void openOrder(initialTarget.id, { receive: ["supplier_confirmed", "partial_received"].includes(initialTarget.status) }); }
       }
     } catch (cause) { if (active.current) setError(cause.message || t("inventory.loadError")); }
     finally { if (active.current) setLoading(false); }
@@ -54,11 +54,15 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   const canReceive = Boolean(data?.can_receive_purchase_orders);
   const filteredOrders = (data?.orders || []).filter((order) => tab === "drafts" ? order.status === "draft" : tab === "completed" ? ["fully_received", "completed", "cancelled"].includes(order.status) : isActive(order.status));
 
-  async function openOrder(id) {
+  async function openOrder(id, { receive = false } = {}) {
     setBusy(true); setError("");
     try {
       const next = await crewService.inventoryPurchaseOrders(token, outletId, id);
-      if (active.current) { setDetail(next.detail); setMode("detail"); setDirty(false); request.current = null; }
+      if (active.current) {
+        const canStartReceiving = receive && next.can_receive_purchase_orders && ["supplier_confirmed", "partial_received"].includes(next.detail?.status);
+        setDetail(next.detail); setMode(canStartReceiving ? "receive" : "detail"); setDirty(false); request.current = null;
+        if (canStartReceiving) { setReceiveQty(Object.fromEntries((next.detail.lines || []).map((line) => [line.id, ""]))); setRemark(""); }
+      }
     } catch (cause) { if (active.current) setError(cause.message); }
     finally { if (active.current) setBusy(false); }
   }

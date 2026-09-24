@@ -97,6 +97,17 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(api.receiveInventoryPurchaseOrder.mock.calls[0]).toEqual(["token", "outlet-1", "po-1", expect.any(String), "", [{ purchase_order_item_id: "line-1", item_id: "item-1", received_qty: 4, unit: "kg" }]]);
   });
 
+  it("opens Home's Receive shortcut only when the fresh gateway read still permits receiving", async () => {
+    const target = orders.orders[0];
+    const view = render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_receive_purchase_orders: true }} initialTarget={target} onBack={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Record Receipt" })).not.toBeNull();
+    view.unmount();
+    api.inventoryPurchaseOrders.mockImplementation(async (_token, _outlet, id) => id ? { ...orders, can_receive_purchase_orders: false, detail: poDetail } : orders);
+    render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_receive_purchase_orders: true }} initialTarget={target} onBack={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Copy Text" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Record Receipt" })).toBeNull();
+  });
+
   it("blocks over-receiving before the canonical receiving command", async () => {
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_receive_purchase_orders: true }} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: /PO-1.*Supplier A/s }));
