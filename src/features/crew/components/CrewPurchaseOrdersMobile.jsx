@@ -5,6 +5,7 @@ import { crewService } from "../../../services/crewService.js";
 import { formatPurchaseOrderText } from "../../sales-purchase/inventory/purchaseOrders/purchaseOrderText.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
+import CrewMobileModal from "./CrewMobileModal.jsx";
 import CrewChoicePicker from "./CrewChoicePicker.jsx";
 import CrewQuantityStepper from "./CrewQuantityStepper.jsx";
 import { CrewEmptyState, CrewSearchBar, CrewStatusBadge } from "./CrewMobileUI.jsx";
@@ -20,6 +21,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, onBa
   const [tab, setTab] = useState("active"); const [detail, setDetail] = useState(null); const [mode, setMode] = useState("list");
   const [source, setSource] = useState(null); const [supplierId, setSupplierId] = useState(""); const [lines, setLines] = useState([]); const [remark, setRemark] = useState("");
   const [query, setQuery] = useState(""); const [itemPicker, setItemPicker] = useState(false); const [receiveQty, setReceiveQty] = useState({}); const [copyFallback, setCopyFallback] = useState("");
+  const [discardOpen, setDiscardOpen] = useState(false);
   const [dirty, setDirty] = useState(false); const request = useRef(null); const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; onFlowChange?.(false); }; }, [onFlowChange]);
   useEffect(() => { onFlowChange?.(mode !== "list"); }, [mode, onFlowChange]);
@@ -66,11 +68,15 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, onBa
   function updateLine(id, patch) { setLines((current) => current.map((line) => line.item_id === id ? { ...line, ...patch } : line)); setDirty(true); }
   function goBack() {
     if (busy) return;
-    if (dirty) { setError(t("inventory.saveBeforeLeaving")); return; }
+    if (dirty) { setDiscardOpen(true); return; }
+    leaveEditor();
+  }
+  function leaveEditor() {
     if (mode === "editor" && detail) setMode("detail");
     else { setMode("list"); setDetail(null); void load(); }
     setError("");
   }
+  function discardChanges() { setDiscardOpen(false); setDirty(false); setLines([]); request.current = null; leaveEditor(); }
   const validLines = lines.length > 0 && lines.every((line) => Number(line.requested_qty) > 0 && line.unit);
   const sourceSuppliers = source ? (catalog?.suppliers || []).filter((supplier) => (source.shortages || []).some((shortage) => (shortage.suppliers || []).some((candidate) => candidate.id === supplier.id))) : detail?.source_stock_check_id ? (catalog?.suppliers || []).filter((supplier) => supplier.id === supplierId) : catalog?.suppliers || [];
   const requestFor = (payload) => { const signature = JSON.stringify(payload); if (request.current?.signature !== signature) request.current = { signature, id: newId() }; return request.current.id; };
@@ -140,6 +146,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, onBa
       {supplierId && !lines.length && <CrewEmptyState title={t("inventory.noItems")} />}
     </div>{error && <p className="crew-v2-error" role="alert">{error}</p>}
     <div className="crew-inventory-sticky"><button className="crew-mobile-primary" type="button" disabled={busy || !supplierId || !validLines} onClick={() => void saveDraft()}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button></div>
+    {discardOpen && <CrewMobileModal title={t("inventory.discardChanges")} onClose={() => setDiscardOpen(false)} footer={<><button className="crew-mobile-secondary" type="button" onClick={() => setDiscardOpen(false)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" onClick={discardChanges}>{t("inventory.discardChanges")}</button></>}><p>{t("inventory.discardChangesBody")}</p></CrewMobileModal>}
     {itemPicker && <CrewBottomSheet title={t("inventory.addItem")} onClose={() => setItemPicker(false)}><CrewSearchBar value={query} onChange={setQuery} placeholder={t("inventory.searchItems")} /><div className="crew-inventory-picker-list">{(catalog?.items || []).filter((item) => !lines.some((line) => line.item_id === item.id) && `${item.name} ${item.sku}`.toLowerCase().includes(query.toLowerCase())).map((item) => <button type="button" key={item.id} onClick={() => { setLines((current) => [...current, { item_id: item.id, requested_qty: "1", unit: item.unit, remark: "", source_stock_check_item_id: null }]); setDirty(true); setItemPicker(false); setQuery(""); }}><strong>{item.name}</strong><small>{item.sku} · {item.unit}</small></button>)}</div></CrewBottomSheet>}
   </section>;
 

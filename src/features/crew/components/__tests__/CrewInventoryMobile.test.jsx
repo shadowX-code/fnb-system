@@ -43,6 +43,16 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(lines[0]).toMatchObject({ item_id: "item-1", actual_count_quantity: 8, variance: -2 });
   });
 
+  it("keeps older scheduled drafts reachable even when no check is due today", async () => {
+    api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => id ? { ...stock, detail: { id, type: "scheduled", status: "draft", check_name: "Yesterday Opening", check_date: "2026-09-23", items: [] } } : {
+      ...stock, due: [], checks: [{ id: "old-draft", type: "scheduled", status: "draft", name: "Yesterday Opening", check_date: "2026-09-23", item_count: 1 }]
+    });
+    render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true }} onBack={() => {}} />);
+    expect(await screen.findByText("Drafts to continue")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Yesterday Opening/ }));
+    await waitFor(() => expect(api.inventoryStockChecks).toHaveBeenCalledWith("token", "outlet-1", "old-draft"));
+  });
+
   it("receives only requested remaining quantities with canonical line and item IDs", async () => {
     api.receiveInventoryPurchaseOrder.mockResolvedValue({ receipt_id: "receipt-1", status: "partial_received" });
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true, can_receive_purchase_orders: true }} onBack={() => {}} />);
@@ -76,5 +86,19 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(api.createInventoryStockCheckOrders).toHaveBeenCalledTimes(1));
     expect(api.createInventoryStockCheckOrders.mock.calls[0]).toEqual(["token", "outlet-1", expect.any(String), "check-1", [expect.objectContaining({ source_type: "stock_check", source_stock_check_id: "check-1", supplier_id: "supplier-1", lines: [expect.objectContaining({ item_id: "item-1", source_stock_check_item_id: "count-1", requested_qty: 3 })] })]]);
+  });
+
+  it("can discard an incomplete manual PO that cannot yet be saved", async () => {
+    render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Create PO" }));
+    fireEvent.click(screen.getByRole("button", { name: /Manual PO/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Supplier" }));
+    fireEvent.click(screen.getByRole("option", { name: "Supplier A" }));
+    expect(screen.getByRole("button", { name: "Save Draft" }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Unsaved purchase order changes will be lost. Your saved drafts are not affected.")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Discard changes" }));
+    expect(await screen.findByRole("button", { name: "Create PO" })).not.toBeNull();
+    expect(api.saveInventoryPurchaseOrder).not.toHaveBeenCalled();
   });
 });
