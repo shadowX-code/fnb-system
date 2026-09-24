@@ -23,8 +23,8 @@ function CrewWebAppMetadata() {
   useEffect(() => {
     const entries = [
       ["link", "manifest", "/crew.webmanifest"],
-      ["link", "icon", "/crew-app-icon-192.png", "192x192"],
-      ["link", "apple-touch-icon", "/crew-app-icon-180.png", "180x180"],
+      ["link", "icon", "/crew-app-icon-v2-192.png", "192x192"],
+      ["link", "apple-touch-icon", "/crew-app-icon-v2-180.png", "180x180"],
       ["meta", "theme-color", "#0f766e"],
       ["meta", "apple-mobile-web-app-capable", "yes"],
       ["meta", "apple-mobile-web-app-status-bar-style", "default"],
