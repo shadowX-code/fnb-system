@@ -86,4 +86,14 @@ resources.inventory = {
   discardChanges:"Discard changes",discardChangesBody:"Unsaved purchase order changes will be lost. Your saved drafts are not affected.",
   status:{draft:"Draft",submitted:"Submitted",supplier_confirmed:"Supplier Confirmed",partial_received:"Partially Received",fully_received:"Fully Received",completed:"Completed",cancelled:"Cancelled"},auditTypes:{"Month-End Closing":"Month-End Closing","Full Stock Audit":"Full Stock Audit","Spot Check":"Spot Check","Category Audit":"Category Audit","Custom Audit":"Custom Audit"}
 };
+Object.assign(resources.inventory, {
+  loadingSuggestions:"Checking purchase suggestions…", restockSummary:"{{items}} items below par · {{suppliers}} suppliers",
+  suggestedQuantities:"Suggested replenishment: {{quantities}}", reviewPurchaseSuggestions:"Review Purchase Suggestions",
+  purchaseAlreadyCreated:"A purchase order already exists for this check.", noRestockNeeded:"No purchase suggestions for this check.",
+  suggestionsHelp:"Review eligible shortages, suppliers and order quantities. This creates drafts only.",
+  currentQuantity:"Current", parQuantity:"Par", suggestedQuantity:"Suggested", orderQuantity:"Order Qty",
+  supplierUnavailable:"Supplier needed", noEligibleSupplier:"No eligible supplier is available for this item.",
+  createDraftOrders:"Create {{count}} Draft PO(s)", sourceDraftsCreated:"{{count}} draft PO(s) created",
+  sourceNoLongerEligible:"This check has no remaining eligible suggestions. An order may already have been created."
+});
 export default resources;

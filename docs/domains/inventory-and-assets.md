@@ -75,6 +75,8 @@ Crew Inventory Gateway adds token-bound outlet Stock Check, Purchase Order and a
 
 The Crew mobile Operations surface consumes that gateway for Required/Audit/History counts, manual or Stock Check-sourced PO drafts, supplier confirmation, Copy Text and partial/full receiving. It never creates parallel Task, Stock Check or PO records. `crew_inventory_mobile_catalog` is a read-only, token-bound creation-choice projection for the outlet's active categories, items and suppliers; it does not grant item-master mutation or bypass any command validation. `crew_outlet_scope` exposes fixed-outlet inventory grants for action visibility, while every read and mutation still independently revalidates the opaque session, outlet and capability server-side. The PO text uses the same pure formatter as Admin.
 
+After a completed scheduled Stock Check, Crew's completion result uses the existing token-bound PO suggestion projection to offer a direct review of eligible Par-level gaps. That projection also supplies counted quantity, Par quantity and source-linked PO identifiers for display and re-entry; it is not a second suggestion calculator. Crew reviews supplier grouping, item inclusion and requested quantities before invoking the existing atomic source-check-to-draft command. The command retains all source, supplier, duplicate and race checks; no PO is submitted automatically. Audit checks remain ineligible, and a source already represented by a PO resolves to that canonical order rather than creating another.
+
 ## Compatibility And Deferred Scope
 
 Inventory Control and Asset Tracking pages are surfaces within this domain, not separate documentation domains.

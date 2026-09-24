@@ -119,18 +119,90 @@ describe("Crew Inventory mobile authority boundary", () => {
   });
 
   it("creates a Stock Check-sourced draft with server-owned shortage identities", async () => {
-    api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, suggestions: [{ stock_check_id: "check-1", check_name: "Opening", check_date: "2026-09-24", shortages: [{ stock_check_item_id: "count-1", item_id: "item-1", shortage_qty: 3, unit: "kg", suppliers: [{ id: "supplier-1", name: "Supplier A" }] }] }] });
+    api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, suggestions: [{ stock_check_id: "check-1", check_name: "Opening", check_date: "2026-09-24", shortages: [{ stock_check_item_id: "count-1", item_id: "item-1", item_name: "Rice", current_qty: 7, par_qty: 10, shortage_qty: 3, unit: "kg", suppliers: [{ id: "supplier-1", name: "Supplier A" }] }] }] });
     api.createInventoryStockCheckOrders.mockResolvedValue([{ order: { id: "created-po" } }]);
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Create PO" }));
     fireEvent.click(screen.getByRole("button", { name: /From Stock Check/ }));
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
-    fireEvent.click(screen.getByRole("button", { name: "Supplier" }));
-    fireEvent.click(screen.getByRole("option", { name: "Supplier A" }));
-    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    expect(screen.getByText(/Current/)).not.toBeNull();
+    expect(screen.getByText(/Par/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO(s)" }));
     await waitFor(() => expect(api.createInventoryStockCheckOrders).toHaveBeenCalledTimes(1));
     expect(api.createInventoryStockCheckOrders.mock.calls[0]).toEqual(["token", "outlet-1", expect.any(String), "check-1", [expect.objectContaining({ source_type: "stock_check", source_stock_check_id: "check-1", supplier_id: "supplier-1", lines: [expect.objectContaining({ item_id: "item-1", source_stock_check_item_id: "count-1", requested_qty: 3 })] })]]);
     expect(api.createInventoryStockCheckOrders.mock.calls[0][4][0].po_no).toMatch(/^PO-[A-F0-9]{12}$/);
+  });
+
+  it("keeps the completed scheduled check visible and opens its exact gateway suggestion", async () => {
+    api.saveInventoryStockCheck.mockResolvedValue({ check: { id: "check-1" } });
+    api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, suggestions: [{ stock_check_id: "check-1", shortages: [{ stock_check_item_id: "count-1", shortage_qty: 3, unit: "kg", suppliers: [{ id: "supplier-1", name: "Supplier A" }] }] }] });
+    const onReviewSuggestions = vi.fn();
+    render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true, can_manage_purchase_orders: true }} onBack={() => {}} onReviewSuggestions={onReviewSuggestions} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Opening/ }));
+    fireEvent.change(screen.getByRole("spinbutton", { name: /Rice.*Actual count/ }), { target: { value: "7" } });
+    fireEvent.click(screen.getByRole("button", { name: /Review/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Check" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Review Purchase Suggestions" }));
+    expect(onReviewSuggestions).toHaveBeenCalledWith("check-1");
+    expect(api.inventoryPurchaseOrders).toHaveBeenCalledWith("token", "outlet-1");
+  });
+
+  it("shows a successful completed check without forcing PO creation when the gateway returns no suggestions", async () => {
+    api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => id ? { ...stock, detail: { id, type: "scheduled", status: "submitted", check_name: "Opening", items: [{ item_id: "item-1", item_name: "Rice", actual_count_quantity: 10, par_level_quantity: 10, unit: "kg" }] } } : stock);
+    render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true, can_manage_purchase_orders: true }} initialTarget={{ id: "check-1" }} onBack={() => {}} />);
+    expect(await screen.findByText("No purchase suggestions for this check.")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Review Purchase Suggestions" })).toBeNull();
+  });
+
+  it("does not offer purchasing after an ineligible Audit, even with a shortage", async () => {
+    api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => id ? { ...stock, detail: { id, type: "audit", status: "submitted", audit_name: "QA Audit", items: [{ item_id: "item-1", item_name: "Rice", actual_count_quantity: 7, par_level_quantity: 10, unit: "kg" }] } } : stock);
+    render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true, can_manage_purchase_orders: true }} initialTarget={{ id: "audit-1" }} onBack={() => {}} />);
+    expect(await screen.findByText("Completed result · read-only")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Review Purchase Suggestions" })).toBeNull();
+    expect(api.inventoryPurchaseOrders).not.toHaveBeenCalled();
+  });
+
+  it("opens an existing source PO instead of creating another when deep-linked after conversion", async () => {
+    api.inventoryPurchaseOrders.mockImplementation(async (_token, _outlet, id) => id ? { ...orders, detail: poDetail } : { ...orders, suggestions: [], orders: [{ ...orders.orders[0], id: "po-1", source_stock_check_id: "check-1", supplier_id: "supplier-1" }] });
+    render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} initialTarget={{ stock_check_id: "check-1" }} onBack={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Copy Text" })).not.toBeNull();
+    expect(api.createInventoryStockCheckOrders).not.toHaveBeenCalled();
+  });
+
+  it("creates one draft per selected supplier with exact source lines and adjusted quantities", async () => {
+    const suggestions = [{ stock_check_id: "check-1", check_name: "Opening", shortages: [
+      { stock_check_item_id: "count-1", item_id: "item-1", item_name: "Rice", current_qty: 7, par_qty: 10, shortage_qty: 3, unit: "kg", suppliers: [{ id: "supplier-1", name: "Supplier A" }] },
+      { stock_check_item_id: "count-2", item_id: "item-2", item_name: "Flour", current_qty: 2, par_qty: 5, shortage_qty: 3, unit: "kg", suppliers: [{ id: "supplier-2", name: "Supplier B" }] },
+    ] }];
+    api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, suggestions });
+    api.createInventoryStockCheckOrders.mockResolvedValue([{ order: { id: "po-a" } }, { order: { id: "po-b" } }]);
+    render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} initialTarget={{ stock_check_id: "check-1" }} onBack={() => {}} />);
+    expect(await screen.findByRole("heading", { name: "Supplier A" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Supplier B" })).not.toBeNull();
+    fireEvent.change(screen.getAllByRole("spinbutton", { name: "Order Qty" })[0], { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Create 2 Draft PO(s)" }));
+    await waitFor(() => expect(api.createInventoryStockCheckOrders).toHaveBeenCalledTimes(1));
+    const created = api.createInventoryStockCheckOrders.mock.calls[0][4];
+    expect(created).toHaveLength(2);
+    expect(created[0]).toMatchObject({ supplier_id: "supplier-1", status: "draft", lines: [{ source_stock_check_item_id: "count-1", requested_qty: 4 }] });
+    expect(created[1]).toMatchObject({ supplier_id: "supplier-2", status: "draft", lines: [{ source_stock_check_item_id: "count-2", requested_qty: 3 }] });
+  });
+
+  it("excludes unchecked shortages and keeps retry identity stable after a failed source command", async () => {
+    api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, suggestions: [{ stock_check_id: "check-1", check_name: "Opening", shortages: [
+      { stock_check_item_id: "count-1", item_id: "item-1", item_name: "Rice", current_qty: 7, par_qty: 10, shortage_qty: 3, unit: "kg", suppliers: [{ id: "supplier-1", name: "Supplier A" }] },
+      { stock_check_item_id: "count-2", item_id: "item-2", item_name: "Flour", current_qty: 2, par_qty: 5, shortage_qty: 3, unit: "kg", suppliers: [{ id: "supplier-1", name: "Supplier A" }] },
+    ] }] });
+    api.createInventoryStockCheckOrders.mockRejectedValueOnce(new Error("Temporary network failure")).mockResolvedValueOnce([{ order: { id: "po-a" } }]);
+    render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} initialTarget={{ stock_check_id: "check-1" }} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("checkbox", { name: "Flour" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO(s)" }));
+    expect(await screen.findByText("Temporary network failure")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO(s)" }));
+    await waitFor(() => expect(api.createInventoryStockCheckOrders).toHaveBeenCalledTimes(2));
+    expect(api.createInventoryStockCheckOrders.mock.calls[0][2]).toBe(api.createInventoryStockCheckOrders.mock.calls[1][2]);
+    expect(api.createInventoryStockCheckOrders.mock.calls[0][4]).toEqual(api.createInventoryStockCheckOrders.mock.calls[1][4]);
+    expect(api.createInventoryStockCheckOrders.mock.calls[0][4][0].lines).toHaveLength(1);
   });
 
   it("keeps a new PO reference and request identity stable across a failed-save retry", async () => {

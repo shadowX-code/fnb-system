@@ -104,6 +104,20 @@
 .crew-inventory-review>div>span { display: grid; gap: 3px; }
 .crew-inventory-review small { color: var(--crew-color-text-secondary); }
 .crew-inventory-result>p { display: flex; align-items: center; gap: 7px; color: var(--crew-color-success); font-weight: 700; }
+.crew-inventory-purchase-result { display: grid; gap: 8px; margin: 12px 0 18px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-success-surface); padding: 13px; }
+.crew-inventory-purchase-result strong { font-size: var(--crew-type-list-primary); }
+.crew-inventory-purchase-result small { color: var(--crew-color-text-secondary); overflow-wrap: anywhere; }
+.crew-inventory-purchase-result button { min-height: 44px; margin-top: 2px; }
+.crew-inventory-supplier-group { display: grid; gap: 7px; margin: 17px 0; }
+.crew-inventory-supplier-group h2 { margin: 0; font-size: var(--crew-type-section-title); overflow-wrap: anywhere; }
+.crew-inventory-suggestion { display: grid; min-width: 0; gap: 10px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); padding: 12px; }
+.crew-inventory-suggestion-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.crew-inventory-suggestion-name input { width: 19px; height: 19px; flex: 0 0 auto; accent-color: var(--crew-color-success); }
+.crew-inventory-suggestion-name strong { min-width: 0; overflow-wrap: anywhere; font-size: var(--crew-type-list-primary); }
+.crew-inventory-suggestion-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
+.crew-inventory-suggestion-metrics span { display: grid; gap: 2px; min-width: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-suggestion-metrics strong { color: var(--crew-color-text); font-size: var(--crew-type-secondary); overflow-wrap: anywhere; }
+.crew-inventory-suggestion>small { color: var(--crew-color-text-secondary); }
 .crew-inventory-detail-actions { display: flex; gap: 8px; margin: 12px 0; }
 .crew-inventory-detail-actions button { display: flex; align-items: center; gap: 6px; min-height: 44px; }
 .crew-inventory-detail-lines { display: grid; border-top: 1px solid var(--crew-color-divider); }

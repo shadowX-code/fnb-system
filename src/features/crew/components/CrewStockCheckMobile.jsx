@@ -24,7 +24,7 @@ const serializeRows = (rows) => rows.map((row) => ({ item_id: row.item_id, categ
   actual_missing: !row.skipped && row.actual_count_quantity === "", variance: row.skipped || row.actual_count_quantity === "" || row.par_level_quantity == null ? null : Number(row.actual_count_quantity) - Number(row.par_level_quantity),
   unit: row.unit, status: countStatus(row), notes: row.notes || null, skipped: row.skipped, skip_reason: row.skipped ? row.skip_reason.trim() : null }));
 
-export default function CrewStockCheckMobile({ token, outletId, grants, initialTarget, onBack, onFlowChange }) {
+export default function CrewStockCheckMobile({ token, outletId, grants, initialTarget, onBack, onReviewSuggestions, onFlowChange }) {
   const { t, i18n } = useTranslation();
   const [data, setData] = useState(null); const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
@@ -32,7 +32,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   const [review, setReview] = useState(false); const [query, setQuery] = useState(""); const [category, setCategory] = useState("all");
   const [auditOpen, setAuditOpen] = useState(false); const [deleteTarget, setDeleteTarget] = useState(null);
   const [auditForm, setAuditForm] = useState({ type: "Spot Check", name: "", date: "", categoryIds: [], notes: "" });
-  const [notice, setNotice] = useState(""); const pendingRequest = useRef(null); const activeRef = useRef(true);
+  const [notice, setNotice] = useState(""); const [purchase, setPurchase] = useState(null); const pendingRequest = useRef(null); const activeRef = useRef(true);
   const [dirty, setDirty] = useState(false);
   const initialOpened = useRef(false);
   useEffect(() => {
@@ -75,16 +75,29 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
   }, {}));
   const scheduledDrafts = (data?.checks || []).filter((row) => row.type === "scheduled" && row.status === "draft" && !(data?.due || []).some((group) => group.check_id === row.id)).sort((a, b) => String(b.updated_at || b.check_date).localeCompare(String(a.updated_at || a.check_date)));
 
+  async function loadPurchaseResult(id, type) {
+    if (type !== "scheduled" || !grants?.can_manage_purchase_orders) { setPurchase(null); return; }
+    setPurchase({ loading: true });
+    try {
+      const result = await crewService.inventoryPurchaseOrders(token, outletId);
+      if (!activeRef.current) return;
+      setPurchase({ source: (result.suggestions || []).find((entry) => entry.stock_check_id === id) || null,
+        orders: (result.orders || []).filter((order) => order.source_stock_check_id === id && order.status !== "cancelled") });
+    } catch (cause) { if (activeRef.current) setPurchase({ error: cause.message || t("inventory.loadError") }); }
+  }
+
   async function openSaved(id) {
     setBusy(true); setError("");
     try {
       const result = await crewService.inventoryStockChecks(token, outletId, id);
       if (!activeRef.current) return;
       const detail = result.detail;
+      setPurchase(null);
       setCheck({ id: detail.id, stock_check_type: detail.type, status: detail.status, group_id: detail.group_id,
         check_name: detail.check_name, audit_name: detail.audit_name, audit_type: detail.audit_type,
         audit_category_ids: detail.audit_category_ids, check_date: detail.check_date, shift: detail.shift, notes: detail.notes });
       setRows((detail.items || []).map(asRow)); setReview(false); setQuery(""); setCategory("all"); pendingRequest.current = null; setDirty(false);
+      if (detail.status === "submitted") void loadPurchaseResult(detail.id, detail.type);
     } catch (cause) { setError(cause.message); }
     finally { setBusy(false); }
   }
@@ -117,7 +130,11 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
       if (!activeRef.current) return;
       pendingRequest.current = null;
       setDirty(false);
-      if (status === "submitted") { setCheck(null); setRows([]); setReview(false); setNotice(t("inventory.checkCompleted")); await load(); }
+      if (status === "submitted") {
+        const completedId = result.check.id;
+        setCheck((current) => ({ ...current, id: completedId, status: "submitted" })); setReview(false);
+        setNotice(t("inventory.checkCompleted")); void loadPurchaseResult(completedId, check.stock_check_type);
+      }
       else {
         setCheck((current) => ({ ...current, id: result.check.id, status: "draft" }));
         setNotice(t("inventory.draftSaved")); await load();
@@ -140,13 +157,13 @@ export default function CrewStockCheckMobile({ token, outletId, grants, initialT
     if (check?.status === "draft" && dirty) {
       setError(t("inventory.saveBeforeLeaving")); return;
     }
-    setCheck(null); setRows([]); setReview(false); setError(""); void load();
+    setCheck(null); setRows([]); setReview(false); setPurchase(null); setError(""); void load();
   };
 
   if (check) return <section className="crew-inventory-page">
     <CrewMobileDetailHeader title={check.audit_name || check.check_name || t("inventory.stockCheck")} subtitle={check.check_date} onBack={review ? () => setReview(false) : backFromCheck} />
     <div className="crew-inventory-progress"><span><strong>{t("inventory.progress", { done: completed, total: rows.length })} <em>{rows.length ? Math.round(completed / rows.length * 100) : 0}%</em></strong><CrewStatusBadge tone={check.status === "submitted" ? "success" : "warning"}>{check.status === "submitted" ? t("inventory.completed") : t("inventory.draft")}</CrewStatusBadge></span><CrewProgressBar value={rows.length ? Math.round(completed / rows.length * 100) : 0} /></div>
-    {check.status === "submitted" ? <CompletedResult rows={rows} itemById={itemById} t={t} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
+    {check.status === "submitted" ? <CompletedResult rows={rows} itemById={itemById} purchase={purchase} onRetry={() => void loadPurchaseResult(check.id, check.stock_check_type)} onReview={() => onReviewSuggestions?.(check.id)} t={t} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
       <CrewSearchBar value={query} onChange={setQuery} placeholder={t("inventory.searchItems")} />
       <div className="crew-v2-chips crew-inventory-chips" role="group" aria-label={t("inventory.categories")}>{[{ id: "all", name: t("inventory.all") }, ...(catalog?.categories || []).filter((item) => rows.some((row) => row.category_id === item.id))].map((item) => <button key={item.id} type="button" className={category === item.id ? "active" : ""} aria-pressed={category === item.id} onClick={() => setCategory(item.id)}>{item.name}</button>)}</div>
       {grouped.map(([categoryId, groupRows]) => <section className="crew-inventory-count-group" key={categoryId}><h2>{categoryById.get(categoryId) || t("inventory.other")}</h2>{groupRows.map((row) => <CountRow key={row.item_id} row={row} item={itemById.get(row.item_id)} onChange={(patch) => updateRow(row.item_id, patch)} t={t} />)}</section>)}
@@ -183,6 +200,10 @@ function ReviewRows({ rows, itemById, t }) {
   return <div className="crew-inventory-review"><p>{t("inventory.reviewHelp")}</p>{rows.map((row) => <div key={row.item_id}><span><strong>{itemById.get(row.item_id)?.name || row.item_name || t("inventory.item")}</strong><small>{t("inventory.expectedPar")}: {row.par_level_quantity ?? "—"} {row.unit}</small></span><strong>{row.skipped ? t("inventory.skipped") : `${row.actual_count_quantity} ${row.unit}`}</strong>{!row.skipped && row.par_level_quantity != null && Number(row.actual_count_quantity) !== Number(row.par_level_quantity) && <small>{t("inventory.variance", { value: Number(row.actual_count_quantity) - Number(row.par_level_quantity) })}</small>}</div>)}</div>;
 }
 
-function CompletedResult({ rows, itemById, t }) {
-  return <div className="crew-inventory-result"><p><Check size={18} />{t("inventory.immutableResult")}</p><ReviewRows rows={rows} itemById={itemById} t={t} /></div>;
+function CompletedResult({ rows, itemById, purchase, onRetry, onReview, t }) {
+  const shortages = purchase?.source?.shortages || [];
+  const supplierCount = new Set(shortages.flatMap((item) => (item.suppliers || []).map((supplier) => supplier.id))).size;
+  return <div className="crew-inventory-result"><p><Check size={18} />{t("inventory.immutableResult")}</p>
+    {purchase?.loading ? <p role="status">{t("inventory.loadingSuggestions")}</p> : purchase?.error ? <div className="crew-inventory-purchase-result"><p role="alert">{purchase.error}</p><button className="crew-mobile-secondary" type="button" onClick={onRetry}>{t("common.retry")}</button></div> : shortages.length ? <div className="crew-inventory-purchase-result"><strong>{t("inventory.restockSummary", { items: shortages.length, suppliers: supplierCount })}</strong><small>{t("inventory.suggestedQuantities", { quantities: shortages.map((item) => `${item.shortage_qty} ${item.unit}`).join(" · ") })}</small><button className="crew-mobile-primary" type="button" onClick={onReview}>{t("inventory.reviewPurchaseSuggestions")}</button></div> : purchase?.orders?.length ? <p className="crew-inventory-context">{t("inventory.purchaseAlreadyCreated")}</p> : purchase ? <p className="crew-inventory-context">{t("inventory.noRestockNeeded")}</p> : null}
+    <ReviewRows rows={rows} itemById={itemById} t={t} /></div>;
 }

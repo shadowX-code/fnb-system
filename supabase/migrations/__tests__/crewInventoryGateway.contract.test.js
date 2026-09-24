@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924004820_crew_inventory_gateway.sql"), "utf8").toLowerCase();
+const suggestionContext = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924051027_crew_purchase_suggestion_context.sql"), "utf8").toLowerCase();
 
 describe("Crew Inventory Gateway authority contract", () => {
   it("adds four independent fixed and Management outlet grants, default denied", () => {
@@ -36,5 +37,15 @@ describe("Crew Inventory Gateway authority contract", () => {
     expect(sql).toContain("(v_context->>'employee_id')::uuid,'crew'");
     expect(sql).toContain("p_action not in ('submit','confirm')");
     expect(sql).not.toContain("'cancel','complete') then");
+  });
+
+  it("adds read-only counted/par context without widening scheduled-source eligibility", () => {
+    expect(suggestionContext).toContain("'current_qty',ci.actual_count_quantity");
+    expect(suggestionContext).toContain("'par_qty',ci.par_level_quantity");
+    expect(suggestionContext).toContain("'source_stock_check_id',p.source_stock_check_id");
+    expect(suggestionContext).toContain("c.stock_check_type='scheduled' and c.status='submitted'");
+    expect(suggestionContext).toContain("inventory_authority.crew_scope(p_token,p_outlet_id,'order_read')");
+    expect(suggestionContext).not.toContain("insert into");
+    expect(suggestionContext).not.toContain("update public.");
   });
 });

@@ -92,4 +92,14 @@ resources.inventory = {
   discardChanges:"Buang perubahan",discardChangesBody:"Perubahan pesanan belian yang belum disimpan akan hilang. Draf yang telah disimpan tidak terjejas.",
   status:{draft:"Draf",submitted:"Dihantar",supplier_confirmed:"Pembekal Disahkan",partial_received:"Diterima Sebahagian",fully_received:"Diterima Sepenuhnya",completed:"Selesai",cancelled:"Dibatalkan"},auditTypes:{"Month-End Closing":"Penutupan Hujung Bulan","Full Stock Audit":"Audit Stok Penuh","Spot Check":"Semakan Rawak","Category Audit":"Audit Kategori","Custom Audit":"Audit Tersuai"}
 };
+Object.assign(resources.inventory, {
+  loadingSuggestions:"Menyemak cadangan pembelian…", restockSummary:"{{items}} item di bawah paras · {{suppliers}} pembekal",
+  suggestedQuantities:"Cadangan tambah stok: {{quantities}}", reviewPurchaseSuggestions:"Semak Cadangan Pembelian",
+  purchaseAlreadyCreated:"Pesanan belian sudah wujud untuk semakan ini.", noRestockNeeded:"Tiada cadangan pembelian untuk semakan ini.",
+  suggestionsHelp:"Semak kekurangan, pembekal dan kuantiti pesanan. Ini hanya mencipta draf.",
+  currentQuantity:"Semasa", parQuantity:"Paras", suggestedQuantity:"Cadangan", orderQuantity:"Kuantiti Pesanan",
+  supplierUnavailable:"Pembekal diperlukan", noEligibleSupplier:"Tiada pembekal yang layak untuk item ini.",
+  createDraftOrders:"Cipta {{count}} Draf PO", sourceDraftsCreated:"{{count}} draf PO dicipta",
+  sourceNoLongerEligible:"Semakan ini tiada cadangan yang masih layak. Pesanan mungkin sudah dicipta."
+});
 export default resources;
