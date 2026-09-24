@@ -93,13 +93,17 @@ resources.inventory = {
   status:{draft:"草稿",submitted:"已提交",supplier_confirmed:"供应商已确认",partial_received:"部分收货",fully_received:"全部收货",completed:"已完成",cancelled:"已取消"},auditTypes:{"Month-End Closing":"月末结账","Full Stock Audit":"全面库存稽核","Spot Check":"抽查","Category Audit":"分类稽核","Custom Audit":"自定义稽核"}
 };
 Object.assign(resources.inventory, {
-  loadingSuggestions:"正在检查采购建议…", restockSummary:"{{items}} 项低于标准库存 · {{suppliers}} 家供应商",
+  loadingSuggestions:"正在检查采购建议…", restockSummary:"{{items}} · {{suppliers}}",
+  itemsBelowPar_one:"{{count}} 项低于标准库存", itemsBelowPar_other:"{{count}} 项低于标准库存",
+  supplierCount_one:"{{count}} 家供应商", supplierCount_other:"{{count}} 家供应商",
+  shortageCount_one:"{{count}} 项缺货", shortageCount_other:"{{count}} 项缺货",
   suggestedQuantities:"建议补货：{{quantities}}", reviewPurchaseSuggestions:"查看采购建议",
   purchaseAlreadyCreated:"此盘点已有采购订单。", noRestockNeeded:"此盘点没有采购建议。",
   suggestionsHelp:"检查符合条件的缺货项、供应商和订购数量。此操作只创建草稿。",
   currentQuantity:"当前", parQuantity:"标准", suggestedQuantity:"建议", orderQuantity:"订购数量",
   supplierUnavailable:"需要供应商", noEligibleSupplier:"此物品没有可用的合格供应商。",
-  createDraftOrders:"创建 {{count}} 份订单草稿", sourceDraftsCreated:"已创建 {{count}} 份订单草稿",
+  createDraftOrders_one:"创建 {{count}} 份订单草稿", createDraftOrders_other:"创建 {{count}} 份订单草稿",
+  sourceDraftsCreated_one:"已创建 {{count}} 份订单草稿", sourceDraftsCreated_other:"已创建 {{count}} 份订单草稿",
   sourceNoLongerEligible:"此盘点已无可用建议，可能已创建订单。"
 });
 export default resources;

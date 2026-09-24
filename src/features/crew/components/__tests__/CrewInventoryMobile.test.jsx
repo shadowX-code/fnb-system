@@ -127,7 +127,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     fireEvent.click(screen.getByRole("button", { name: /Opening/ }));
     expect(screen.getByText(/Current/)).not.toBeNull();
     expect(screen.getByText(/Par/)).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO(s)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO" }));
     await waitFor(() => expect(api.createInventoryStockCheckOrders).toHaveBeenCalledTimes(1));
     expect(api.createInventoryStockCheckOrders.mock.calls[0]).toEqual(["token", "outlet-1", expect.any(String), "check-1", [expect.objectContaining({ source_type: "stock_check", source_stock_check_id: "check-1", supplier_id: "supplier-1", lines: [expect.objectContaining({ item_id: "item-1", source_stock_check_item_id: "count-1", requested_qty: 3 })] })]]);
     expect(api.createInventoryStockCheckOrders.mock.calls[0][4][0].po_no).toMatch(/^PO-[A-F0-9]{12}$/);
@@ -180,7 +180,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(await screen.findByRole("heading", { name: "Supplier A" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Supplier B" })).not.toBeNull();
     fireEvent.change(screen.getAllByRole("spinbutton", { name: "Order Qty" })[0], { target: { value: "4" } });
-    fireEvent.click(screen.getByRole("button", { name: "Create 2 Draft PO(s)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create 2 Draft POs" }));
     await waitFor(() => expect(api.createInventoryStockCheckOrders).toHaveBeenCalledTimes(1));
     const created = api.createInventoryStockCheckOrders.mock.calls[0][4];
     expect(created).toHaveLength(2);
@@ -196,9 +196,9 @@ describe("Crew Inventory mobile authority boundary", () => {
     api.createInventoryStockCheckOrders.mockRejectedValueOnce(new Error("Temporary network failure")).mockResolvedValueOnce([{ order: { id: "po-a" } }]);
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} initialTarget={{ stock_check_id: "check-1" }} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("checkbox", { name: "Flour" }));
-    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO(s)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO" }));
     expect(await screen.findByText("Temporary network failure")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO(s)" }));
+    fireEvent.click(screen.getByRole("button", { name: "Create 1 Draft PO" }));
     await waitFor(() => expect(api.createInventoryStockCheckOrders).toHaveBeenCalledTimes(2));
     expect(api.createInventoryStockCheckOrders.mock.calls[0][2]).toBe(api.createInventoryStockCheckOrders.mock.calls[1][2]);
     expect(api.createInventoryStockCheckOrders.mock.calls[0][4]).toEqual(api.createInventoryStockCheckOrders.mock.calls[1][4]);

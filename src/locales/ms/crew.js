@@ -93,13 +93,17 @@ resources.inventory = {
   status:{draft:"Draf",submitted:"Dihantar",supplier_confirmed:"Pembekal Disahkan",partial_received:"Diterima Sebahagian",fully_received:"Diterima Sepenuhnya",completed:"Selesai",cancelled:"Dibatalkan"},auditTypes:{"Month-End Closing":"Penutupan Hujung Bulan","Full Stock Audit":"Audit Stok Penuh","Spot Check":"Semakan Rawak","Category Audit":"Audit Kategori","Custom Audit":"Audit Tersuai"}
 };
 Object.assign(resources.inventory, {
-  loadingSuggestions:"Menyemak cadangan pembelian…", restockSummary:"{{items}} item di bawah paras · {{suppliers}} pembekal",
+  loadingSuggestions:"Menyemak cadangan pembelian…", restockSummary:"{{items}} · {{suppliers}}",
+  itemsBelowPar_one:"{{count}} item di bawah paras", itemsBelowPar_other:"{{count}} item di bawah paras",
+  supplierCount_one:"{{count}} pembekal", supplierCount_other:"{{count}} pembekal",
+  shortageCount_one:"{{count}} kekurangan", shortageCount_other:"{{count}} kekurangan",
   suggestedQuantities:"Cadangan tambah stok: {{quantities}}", reviewPurchaseSuggestions:"Semak Cadangan Pembelian",
   purchaseAlreadyCreated:"Pesanan belian sudah wujud untuk semakan ini.", noRestockNeeded:"Tiada cadangan pembelian untuk semakan ini.",
   suggestionsHelp:"Semak kekurangan, pembekal dan kuantiti pesanan. Ini hanya mencipta draf.",
   currentQuantity:"Semasa", parQuantity:"Paras", suggestedQuantity:"Cadangan", orderQuantity:"Kuantiti Pesanan",
   supplierUnavailable:"Pembekal diperlukan", noEligibleSupplier:"Tiada pembekal yang layak untuk item ini.",
-  createDraftOrders:"Cipta {{count}} Draf PO", sourceDraftsCreated:"{{count}} draf PO dicipta",
+  createDraftOrders_one:"Cipta {{count}} Draf PO", createDraftOrders_other:"Cipta {{count}} Draf PO",
+  sourceDraftsCreated_one:"{{count}} draf PO dicipta", sourceDraftsCreated_other:"{{count}} draf PO dicipta",
   sourceNoLongerEligible:"Semakan ini tiada cadangan yang masih layak. Pesanan mungkin sudah dicipta."
 });
 export default resources;
