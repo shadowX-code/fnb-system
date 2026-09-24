@@ -1,12 +1,47 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, CalendarDays, CheckCircle2, ClipboardList, PackagePlus } from "lucide-react";
+import { PackagePlus } from "lucide-react";
 import AdminFilterToolbar, { ALL_FILTER_OPTION, AdminOutletField } from "../../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../../components/forms/AdminSearchField.jsx";
-import FactoryRowActions from "../../../factory/components/FactoryRowActions.jsx";
-import { FactoryDataSurface, FactoryTable } from "../../../factory/components/FactoryDataDisplay.jsx";
-import Badge from "../../../../components/ui/Badge.jsx";
-import MetricCard from "../../../../components/ui/MetricCard.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
+import Modal from "../../../../components/feedback/Modal.jsx";
+import { FactoryDataSurface, FactoryTable } from "../../../factory/components/FactoryDataDisplay.jsx";
+import FactoryRowActions from "../../../factory/components/FactoryRowActions.jsx";
+import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
+
+function scheduleLabel(group, toTitle) {
+  if (group.frequency === "monthly") return "Monthly";
+  if (group.frequency === "custom") {
+    const days = group.checkDays || [];
+    if (days.length === 7) return "Daily";
+    if (days.length === 1) return days[0].slice(0, 3);
+    return days.length ? `${days.length} days` : "Custom";
+  }
+  return toTitle(group.frequency);
+}
+
+function GroupScopeDetails({ group, categoryById, onClose }) {
+  return <Modal title="Scope Details" description={group.name} size="md" onClose={onClose}>
+    <div className="mb-3 text-sm font-semibold text-text-primary">{group.scopeItems.length} {group.scopeItems.length === 1 ? "item" : "items"} in {group.categoryIds.length} {group.categoryIds.length === 1 ? "category" : "categories"}</div>
+    <div className="divide-y divide-border">
+      {group.categoryIds.map((categoryId) => {
+        const categoryItems = group.scopeItems.filter((item) => item.categoryId === categoryId);
+        return <section key={categoryId} className="py-3 first:pt-0">
+          <div className="flex items-center justify-between gap-3 text-sm font-semibold text-text-primary">
+            <h3>{categoryById.get(categoryId)?.name || "Uncategorized"}</h3>
+            <span className="shrink-0 text-xs font-medium text-text-secondary">{categoryItems.length} {categoryItems.length === 1 ? "item" : "items"}</span>
+          </div>
+          {categoryItems.length ? <ul className="mt-2 divide-y divide-border/70">
+            {categoryItems.map((item) => <li key={item.id} className="flex items-start justify-between gap-4 py-2 text-sm">
+              <span className="min-w-0 break-words text-text-primary">{item.name}</span>
+              <span className="max-w-[45%] break-all text-right text-xs text-text-secondary">{item.sku || "No SKU"}{item.unit ? ` · ${item.unit}` : ""}</span>
+            </li>)}
+          </ul> : <p className="mt-1 text-xs text-text-secondary">No active items linked to this outlet.</p>}
+        </section>;
+      })}
+      {!group.categoryIds.length ? <p className="py-3 text-sm text-text-secondary">No categories selected.</p> : null}
+    </div>
+  </Modal>;
+}
 
 export function InventoryGroupsPageActions({ onCreateGroup }) {
   return <button className="btn-primary" type="button" onClick={onCreateGroup}><PackagePlus size={15} /> Add Group</button>;
@@ -15,22 +50,15 @@ export function InventoryGroupsPageActions({ onCreateGroup }) {
 export default function InventoryGroupsPage({
   groups,
   items,
-  checks,
   categories,
-  outlets,
   outletOptions,
   selectedOutletId,
   onSelectedOutletChange,
-  date,
   statuses,
   frequencies,
   toTitle,
-  statusTone,
-  formatDate,
   groupCategoryIds,
   stockCheckItemsForGroup,
-  dueStatus,
-  compactFrequencyLabel,
   onEditGroup,
   onDuplicateGroup,
   onArchiveGroup,
@@ -38,65 +66,44 @@ export default function InventoryGroupsPage({
   const [statusFilter, setStatusFilter] = useState("all");
   const [frequencyFilter, setFrequencyFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
+  const [scopeGroupId, setScopeGroupId] = useState("");
   const categoryById = useMemo(() => new Map(categories.map((category) => [category.id, category])), [categories]);
-  const filteredGroups = groups.filter((group) => {
-    const outlet = outletById.get(group.outletId);
-    const categoryIds = groupCategoryIds(group, items);
-    const categoryNames = categoryIds.map((id) => categoryById.get(id)?.name).join(" ");
-    const matchesOutlet = selectedOutletId === "all" || group.outletId === selectedOutletId;
-    const matchesStatus = statusFilter === "all" || group.status === statusFilter;
-    const matchesFrequency = frequencyFilter === "all" || group.frequency === frequencyFilter;
-    const matchesSearch = !search.trim() || `${group.name} ${group.description} ${outlet?.name || ""} ${categoryNames}`.toLowerCase().includes(search.trim().toLowerCase());
-    return matchesOutlet && matchesStatus && matchesFrequency && matchesSearch;
-  });
-  const dueToday = filteredGroups.filter((group) => dueStatus(group, checks, date) === "Due Today").length;
-  const completedToday = filteredGroups.filter((group) => dueStatus(group, checks, date) === "Completed").length;
-  const inactiveGroups = filteredGroups.filter((group) => group.status !== "active").length;
-  const emptyTitle = selectedOutletId === "all" ? "Create stock check groups so outlets know what to count." : "Create the first stock check group for this outlet.";
-  const accessibleOutletOptions = outletOptions.filter((option) => option.value !== "all");
-  const tableRows = filteredGroups.map((group) => {
-    const categoryIds = groupCategoryIds(group, items);
-    const categoryNames = categoryIds.map((id) => categoryById.get(id)?.name).filter(Boolean);
-    const days = group.checkDays || [];
-    return {
-      ...group,
-      outletName: outletById.get(group.outletId)?.name || "Outlet",
-      categoryIds,
-      categoryNames,
-      itemCount: stockCheckItemsForGroup(group, items).length,
-      checkStatus: dueStatus(group, checks, date),
-      schedule: group.frequency === "custom"
-        ? days.length === 1 ? `Every ${days[0]}` : days.length === 7 ? "Every day" : `Every ${days.length} days`
-        : compactFrequencyLabel(group),
-    };
-  });
+  const tableRows = groups.filter((group) => {
+    const categoryNames = groupCategoryIds(group, items).map((id) => categoryById.get(id)?.name).join(" ");
+    return group.outletId === selectedOutletId
+      && (statusFilter === "all" || group.status === statusFilter)
+      && (frequencyFilter === "all" || group.frequency === frequencyFilter)
+      && (!search.trim() || `${group.name} ${group.description} ${categoryNames}`.toLowerCase().includes(search.trim().toLowerCase()));
+  }).map((group) => ({
+    ...group,
+    categoryIds: groupCategoryIds(group, items),
+    scopeItems: stockCheckItemsForGroup(group, items),
+    schedule: scheduleLabel(group, toTitle),
+  }));
+  const activeCount = tableRows.filter((group) => group.status === "active").length;
+  const selectedScope = tableRows.find((group) => group.id === scopeGroupId);
   const columns = [
-    { key: "group", label: "Group", className: "min-w-[180px] w-[23%]", render: (group) => <div className="min-w-0"><div className="font-semibold text-text-primary break-words">{group.name}</div><div className="mt-0.5 text-xs text-text-secondary">Last checked {group.lastChecked ? formatDate(group.lastChecked) : "Never"}</div></div> },
-    { key: "outlet", label: "Outlet / Shift", className: "min-w-[145px] w-[17%]", render: (group) => <div><div className="font-medium text-text-primary">{group.outletName}</div><div className="mt-0.5 text-xs text-text-secondary">{group.shift}</div></div> },
-    { key: "schedule", label: "Schedule", className: "min-w-[125px] w-[13%]", render: (group) => <span className="font-medium text-text-primary" title={(group.checkDays || []).join(", ")}>{group.schedule}</span> },
-    { key: "checkStatus", label: "Check Status", className: "min-w-[125px] w-[13%]", render: (group) => <Badge tone={statusTone(group.checkStatus.toLowerCase())}>{group.checkStatus === "Due Today" ? "Due" : group.checkStatus}</Badge> },
-    { key: "scope", label: "Scope", className: "min-w-[185px] w-[20%]", render: (group) => <div className="min-w-0"><div className="text-xs font-semibold text-text-secondary">{group.itemCount} items</div><div className="mt-1 flex flex-wrap gap-1" title={group.categoryNames.join(", ")}>{group.categoryNames.slice(0, 2).map((name) => <span key={name} className="max-w-[110px] truncate rounded-full border border-border bg-slate-50 px-2 py-0.5 text-xs font-medium text-text-secondary">{name}</span>)}{group.categoryNames.length > 2 ? <span className="rounded-full border border-border bg-slate-50 px-2 py-0.5 text-xs font-medium text-text-secondary">+{group.categoryNames.length - 2}</span> : null}{!group.categoryNames.length ? <span className="text-xs text-text-muted">No categories</span> : null}</div></div> },
-    { key: "status", label: "Status", className: "min-w-[80px] w-[8%]", render: (group) => <span className="text-xs font-medium text-text-secondary">{toTitle(group.status)}</span> },
-    { key: "actions", label: "Actions", className: "min-w-[80px] w-[6%]", align: "right", render: (group) => <FactoryRowActions secondaryActions={[{ label: "Edit", onClick: () => onEditGroup(group) }, { label: "Duplicate", onClick: () => onDuplicateGroup(group, group.categoryIds) }, group.status === "active" ? { label: "Archive", destructive: true, onClick: () => onArchiveGroup(group) } : null]} /> },
+    { key: "group", label: "Group", className: "min-w-[200px] w-[32%]", render: (group) => <div className="min-w-0"><div className="break-words font-semibold text-text-primary">{group.name}</div>{group.shift ? <div className="mt-0.5 text-xs text-text-secondary">{group.shift}</div> : null}</div> },
+    { key: "schedule", label: "Schedule", className: "min-w-[110px] w-[17%]", render: (group) => <span className="font-medium text-text-primary">{group.schedule}</span> },
+    { key: "scope", label: "Scope", className: "min-w-[110px] w-[16%]", render: (group) => <button className="text-sm font-semibold text-primary hover:underline focus-visible:underline" type="button" aria-label={`View scope for ${group.name}`} onClick={() => setScopeGroupId(group.id)}>{group.scopeItems.length} {group.scopeItems.length === 1 ? "item" : "items"}</button> },
+    { key: "status", label: "Status", className: "min-w-[105px] w-[13%]", render: (group) => <FactoryStatusBadge status={group.status}>{toTitle(group.status)}</FactoryStatusBadge> },
+    { key: "actions", label: "Actions", className: "min-w-[185px] w-[22%]", align: "right", render: (group) => <FactoryRowActions directActions={[{ label: "View", variant: "button", compact: true, onClick: () => setScopeGroupId(group.id) }, { label: "Edit", variant: "button", compact: true, onClick: () => onEditGroup(group) }]} secondaryActions={[{ label: "Duplicate", onClick: () => onDuplicateGroup(group, group.categoryIds) }, group.status === "active" ? { label: "Deactivate", destructive: true, onClick: () => onArchiveGroup(group) } : null]} /> },
   ];
 
-  return (
-    <div className="space-y-4">
-      <AdminFilterToolbar ariaLabel="Stock check group filters" denseFields
-        outlet={<AdminOutletField label="Outlet" value={selectedOutletId} options={accessibleOutletOptions} allowAll searchable onChange={onSelectedOutletChange} />}
-        search={<AdminSearchField label="Search Group" value={search} onChange={setSearch} placeholder="Search group or category" />}
-        filters={<><SelectField label="Status" value={statusFilter} options={[ALL_FILTER_OPTION, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setStatusFilter} /><SelectField label="Frequency" value={frequencyFilter} options={[ALL_FILTER_OPTION, ...frequencies.map((frequency) => ({ value: frequency, label: toTitle(frequency) }))]} onChange={setFrequencyFilter} /></>}
-      />
-      <div className="grid gap-3 sm:grid-cols-4">
-        <MetricCard icon={ClipboardList} label="Total Groups" value={filteredGroups.length} helper="Current filter scope" />
-        <MetricCard icon={CalendarDays} label="Due Today" value={dueToday} helper="Ready to count" tone={dueToday ? "warning" : "success"} />
-        <MetricCard icon={CheckCircle2} label="Completed Today" value={completedToday} helper="Done for selected date" tone="success" />
-        <MetricCard icon={AlertTriangle} label="Inactive Groups" value={inactiveGroups} helper="Archived or inactive" tone={inactiveGroups ? "neutral" : "success"} />
-      </div>
-      <FactoryDataSurface>
-        <FactoryTable columns={columns} rows={tableRows} rowHover="mint" emptyTitle={emptyTitle} emptyDescription="Groups decide which categories appear in custom or monthly checks." />
-      </FactoryDataSurface>
+  return <div className="space-y-4">
+    <AdminFilterToolbar ariaLabel="Stock check group filters" denseFields
+      outlet={<AdminOutletField label="Outlet" value={selectedOutletId} options={outletOptions} searchable onChange={onSelectedOutletChange} />}
+      search={<AdminSearchField label="Search Group" value={search} onChange={setSearch} placeholder="Search group or category" />}
+      filters={<><SelectField label="Status" value={statusFilter} options={[ALL_FILTER_OPTION, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setStatusFilter} /><SelectField label="Frequency" value={frequencyFilter} options={[ALL_FILTER_OPTION, ...frequencies.map((frequency) => ({ value: frequency, label: toTitle(frequency) }))]} onChange={setFrequencyFilter} /></>}
+    />
+    <div className="flex flex-wrap gap-x-5 gap-y-1 px-1 text-sm text-text-secondary" aria-label="Group configuration summary">
+      <span><strong className="text-text-primary">{tableRows.length}</strong> total groups</span>
+      <span><strong className="text-text-primary">{activeCount}</strong> active</span>
+      <span><strong className="text-text-primary">{tableRows.length - activeCount}</strong> inactive / archived</span>
     </div>
-  );
+    <FactoryDataSurface>
+      <FactoryTable columns={columns} rows={tableRows} rowHover="mint" emptyTitle={selectedOutletId ? "No stock check groups for this outlet" : "No accessible outlet"} emptyDescription="Groups configure which items appear in scheduled checks." />
+    </FactoryDataSurface>
+    {selectedScope ? <GroupScopeDetails group={selectedScope} categoryById={categoryById} onClose={() => setScopeGroupId("")} /> : null}
+  </div>;
 }

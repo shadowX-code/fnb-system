@@ -6015,6 +6015,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   useEffect(() => {
     if (!["groups", "waste", "recipes"].includes(activeTab)) return;
+    if (activeTab === "groups") {
+      const accessibleOutlets = getAccessibleOutlets(auth, outlets);
+      if (!accessibleOutlets.some((outlet) => outlet.id === selectedOutletId)) {
+        setSelectedOutletId(accessibleOutlets[0]?.id || "");
+      }
+      return;
+    }
     if (!outlets.length) return;
     if (activeTab === "waste" || activeTab === "recipes") {
       const firstAccessibleOutlet = getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "";
@@ -7002,7 +7009,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function openCreateGroup() {
     if (!requirePermission(can.manageGroups, "create stock check groups")) return;
-    if (selectedOutletId === "all") {
+    if (!getAccessibleOutlets(auth, outlets).some((outlet) => outlet.id === selectedOutletId)) {
       notify("Select an outlet first", "Select an outlet before creating a stock check group.", "warning");
       return;
     }
@@ -7029,11 +7036,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         groups: current.groups.map((group) => group.id === groupId ? savedGroup : group),
       }));
       await refreshInventory();
-      notify("Stock check group archived");
+      notify("Stock check group deactivated");
     } catch (error) {
       console.warn("[InventoryControl] Unable to archive stock check group.", error);
       debugLog("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: null, error });
-      notify("Unable to archive stock check group", error.message || "Please try again.", "error");
+      notify("Unable to deactivate stock check group", error.message || "Please try again.", "error");
     }
   }
 
@@ -9982,22 +9989,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "groups") return <InventoryGroupsPage
       groups={data.groups}
       items={data.items}
-      checks={data.checks}
       categories={data.categories}
-      outlets={outlets}
-      outletOptions={getAccessibleOutletOptions(auth, outlets)}
+      outletOptions={getAccessibleOutletOptions(auth, outlets, { includeAll: false })}
       selectedOutletId={selectedOutletId}
       onSelectedOutletChange={setSelectedOutletId}
-      date={date}
       statuses={statuses}
       frequencies={frequencies}
       toTitle={toTitle}
-      statusTone={statusTone}
-      formatDate={formatDate}
       groupCategoryIds={groupCategoryIds}
       stockCheckItemsForGroup={stockCheckItemsForGroup}
-      dueStatus={dueStatus}
-      compactFrequencyLabel={compactFrequencyLabel}
       onEditGroup={(group) => requirePermission(can.manageGroups, "edit stock check groups") && setModal({ type: "group", group })}
       onDuplicateGroup={(group, categoryIds) => requirePermission(can.manageGroups, "duplicate stock check groups") && setModal({ type: "group", outletId: group.outletId, group: { ...group, id: "", name: `${group.name} Copy`, categoryIds } })}
       onArchiveGroup={(group) => archiveGroup(group.id)}

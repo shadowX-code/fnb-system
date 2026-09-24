@@ -109,6 +109,10 @@ async function ready() { await screen.findByText("Morning Produce Count"); }
 async function dialog(title) { return (await screen.findByRole("heading", { name: title })).closest(".fixed"); }
 function groupRowElement(name) { return screen.getByText(name).closest("tr"); }
 async function clickGroupAction(name, action) {
+  if (["View", "Edit"].includes(action)) {
+    fireEvent.click(within(groupRowElement(name)).getByRole("button", { name: action, exact: true }));
+    return;
+  }
   fireEvent.click(within(groupRowElement(name)).getByRole("button", { name: "More row actions" }));
   fireEvent.click(await screen.findByRole("button", { name: action, exact: true }));
 }
@@ -121,22 +125,39 @@ afterEach(() => {
 });
 
 describe("InventoryControlPage Groups lifecycle", () => {
-  it("renders non-empty Groups data with outlet, category, membership, schedule, and status presentation", async () => {
+  it("renders outlet-scoped configuration without execution status, timing, or category chips", async () => {
     mount(); await ready();
     expect(screen.getByRole("table").className).toContain("admin-data-table");
-    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Group", "Outlet / Shift", "Schedule", "Check Status", "Scope", "Status", "Actions"]);
-    expect(within(groupRowElement("Morning Produce Count")).getByText("KL Central")).toBeTruthy();
+    expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Group", "Schedule", "Scope", "Status", "Actions"]);
+    expect(screen.getByRole("button", { name: "Outlet" }).textContent).toContain("KL Central");
+    expect(screen.queryByText("PJ Hub")).toBeNull();
     expect(within(groupRowElement("Morning Produce Count")).getByText("Opening")).toBeTruthy();
-    expect(within(groupRowElement("Morning Produce Count")).getByText("Last checked Never")).toBeTruthy();
-    expect(screen.getByText("Raw Materials")).toBeTruthy();
-    expect(within(groupRowElement("Morning Produce Count")).getByText("1 items")).toBeTruthy();
-    expect(screen.getByText("Completed")).toBeTruthy();
-    expect(screen.getByText("Legacy Packaging Count")).toBeTruthy();
-    expect(screen.queryByText("No inventory alerts")).toBeNull();
+    expect(within(groupRowElement("Morning Produce Count")).getByText("Sun")).toBeTruthy();
+    expect(within(groupRowElement("Morning Produce Count")).getByRole("button", { name: "View scope for Morning Produce Count" })).toHaveProperty("textContent", "1 item");
+    expect(screen.queryByText(/Last checked/i)).toBeNull();
+    expect(screen.queryByText("Due Today")).toBeNull();
+    expect(screen.queryByText("Completed Today")).toBeNull();
+    expect(screen.queryByText("Raw Materials")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    expect(screen.queryAllByRole("button", { name: "All", exact: true }).filter((button) => !button.hasAttribute("aria-haspopup"))).toHaveLength(0);
+  });
+
+  it("opens read-only Scope Details from the item count and View action", async () => {
+    mount(); await ready();
+    fireEvent.click(within(groupRowElement("Morning Produce Count")).getByRole("button", { name: "View scope for Morning Produce Count" }));
+    const scope = await dialog("Scope Details");
+    expect(within(scope).getByText("Raw Materials")).toBeTruthy();
+    expect(within(scope).getByText("Dried Chilli")).toBeTruthy();
+    expect(within(scope).getByText(/RM-CHILLI/)).toBeTruthy();
+    expect(within(scope).queryByRole("button", { name: /Save/i })).toBeNull();
+    fireEvent.click(within(scope).getByRole("button", { name: "Close modal" }));
+    await clickGroupAction("Morning Produce Count", "View");
+    expect(await dialog("Scope Details")).toBeTruthy();
   });
 
   it("applies current search, outlet, status, and frequency filters", async () => {
     mount(); await ready();
+    await choose("Outlet", "PJ Hub");
     fireEvent.change(screen.getByPlaceholderText("Search group or category"), { target: { value: "Legacy" } });
     expect(screen.queryByText("Morning Produce Count")).toBeNull();
     expect(screen.getByText("Legacy Packaging Count")).toBeTruthy();
@@ -192,13 +213,13 @@ describe("InventoryControlPage Groups lifecycle", () => {
     await waitFor(() => expect(groupWrites("insert")).toHaveLength(1));
   });
 
-  it("archives an active Group through one parent mutation, refresh, notification, and inactive update", async () => {
+  it("deactivates an active Group through the existing mutation without claiming it is archived", async () => {
     mount(); await ready(); const readsBefore = masterReads();
-    await clickGroupAction("Morning Produce Count", "Archive");
+    await clickGroupAction("Morning Produce Count", "Deactivate");
     await waitFor(() => expect(groupWrites("update")).toHaveLength(1));
     expect(groupWrites("update")[0].payload).toEqual(expect.objectContaining({ status: "inactive" }));
     expect(masterReads()).toBe(readsBefore + 1);
-    expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "Stock check group archived" }));
+    expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "Stock check group deactivated" }));
     await waitFor(() => expect(within(groupRowElement("Morning Produce Count")).getByText("Inactive")).toBeTruthy());
   });
 
@@ -220,25 +241,25 @@ describe("InventoryControlPage Groups lifecycle", () => {
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Add Stock Check Group" })).toBeNull());
   });
 
-  it("keeps a failed archive visible for retry without a false refresh", async () => {
+  it("keeps a failed deactivation visible for retry without a false refresh", async () => {
     mount(); await ready();
     mocks.singleResponses.inventory_stock_check_groups = [{ data: null, error: new Error("archive rejected") }];
     const readsBefore = masterReads();
-    await clickGroupAction("Morning Produce Count", "Archive");
+    await clickGroupAction("Morning Produce Count", "Deactivate");
     await waitFor(() => expect(groupWrites("update")).toHaveLength(1));
     expect(masterReads()).toBe(readsBefore);
-    expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "Unable to archive stock check group", tone: "error" }));
-    await clickGroupAction("Morning Produce Count", "Archive");
+    expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "Unable to deactivate stock check group", tone: "error" }));
+    await clickGroupAction("Morning Produce Count", "Deactivate");
     await waitFor(() => expect(groupWrites("update")).toHaveLength(2));
-    expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "Stock check group archived" }));
+    expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "Stock check group deactivated" }));
   });
 
-  it("keeps protected create, edit, duplicate, and archive callbacks inert without Groups permissions", async () => {
+  it("keeps protected create, edit, duplicate, and deactivate callbacks inert without Groups permissions", async () => {
     mount(["inventory_stock_check.view"]); await ready();
     fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
     await clickGroupAction("Morning Produce Count", "Edit");
     await clickGroupAction("Morning Produce Count", "Duplicate");
-    await clickGroupAction("Morning Produce Count", "Archive");
+    await clickGroupAction("Morning Produce Count", "Deactivate");
     expect(screen.queryByText("Add Stock Check Group", { exact: true })).toBeNull();
     expect(screen.queryByText("Edit Stock Check Group", { exact: true })).toBeNull();
     expect(groupWrites("insert")).toHaveLength(0);
