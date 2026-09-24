@@ -51,6 +51,7 @@ Published task/content versions, completion evidence, cash calculations, float a
 
 Admins create and publish operational templates, monitor daily execution, review exceptions, configure outlet cash rules, review Cash Checkouts, coordinate collections, and inspect the Deposit Ledger.
 Crew view assigned daily work, complete tasks with required evidence, perform eligible Cash Checkout steps, and confirm assigned handovers.
+Crew Home also exposes an Operations entry for Restaurant Stock Check and Purchase Orders when the selected outlet has corresponding Special Access. This is an execution surface, not a Daily Task projection: it consumes Restaurant Inventory's token-bound attention, read and lifecycle commands. Fixed-outlet Crew use their workplace outlet; Management must select a Role-authorized outlet and hold each outlet-specific Special Access independently. Inventory screens remount on outlet changes so prior outlet state cannot remain actionable.
 
 ## Integrations
 

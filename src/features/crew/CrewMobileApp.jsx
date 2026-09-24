@@ -16,6 +16,7 @@ import CrewManagementTasksMobile from "./components/CrewManagementTasksMobile.js
 import CrewRecoverySurface from "./components/CrewRecoverySurface.jsx";
 import CrewChoicePicker from "./components/CrewChoicePicker.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
+import CrewInventoryOperationsMobile from "./components/CrewInventoryOperationsMobile.jsx";
 import { CrewBottomNav, CrewRouteLoading } from "./components/CrewMobileUI.jsx";
 import { crewService } from "../../services/crewService.js";
 import "./CrewMobileSystem.css";
@@ -28,6 +29,7 @@ import "./components/CrewScheduleMobile.css";
 import "./components/CrewLearningMobile.css";
 import "./components/CrewOperationsMobile.css";
 import "./components/CrewMeMobile.css";
+import "./components/CrewInventoryMobile.css";
 
 const navItems = [
   { id: "home", label: "Home", icon: Home },
@@ -48,6 +50,9 @@ const CrewDisciplinaryMobile = lazy(() => import("./components/CrewDisciplinaryM
 const CrewEmploymentRecordsMobile = lazy(() => import("./components/CrewEmploymentRecordsMobile.jsx"));
 const CrewEmploymentDocumentsMobile = lazy(() => import("./components/CrewEmploymentDocumentsMobile.jsx"));
 const CrewNotificationsMobile = lazy(() => import("./components/CrewNotificationsMobile.jsx"));
+const CrewStockCheckMobile = lazy(() => import("./components/CrewStockCheckMobile.jsx"));
+const CrewPurchaseOrdersMobile = lazy(() => import("./components/CrewPurchaseOrdersMobile.jsx"));
+const EMPTY_GRANTS = Object.freeze({});
 
 
 export default function CrewMobileApp({ onNotify }) {
@@ -68,6 +73,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   const clock = useCrewAttendance({ session, attendance, context, roster, refresh, screen });
   const [cashCheckoutFlow, setCashCheckoutFlow] = useState(false);
   const [assetInspectionFlow, setAssetInspectionFlow] = useState(false);
+  const [inventoryFlow, setInventoryFlow] = useState(false);
   const [operationTarget, setOperationTarget] = useState(null);
   const homeScrollY = useRef(0);
   const logout = () => { navigate("home"); replaceSession(null); };
@@ -93,10 +99,14 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
 
   if (bootstrapFailure) return <CrewRecoverySurface {...bootstrapFailure} onRetry={retryBootstrap} retrying={bootstrapRetrying} onReload={() => window.location.reload()} />;
   if (!outletScope) return <CrewRouteLoading />;
+  const inventoryGrants = outletScope.outlets.find((outlet) => outlet.id === selectedOutletId)?.special_access || EMPTY_GRANTS;
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     {outletScope.management && outletScope.outlets.length > 1 && <CrewOutletSwitcher outlets={outletScope.outlets} selectedOutletId={selectedOutletId} onSelect={selectOutlet} />}
     <Suspense fallback={<CrewRouteLoading />}>
-    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} management={outletScope.management} />)}
+    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile key={selectedOutletId} session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} management={outletScope.management} inventoryOutletId={selectedOutletId} inventoryGrants={inventoryGrants} />)}
+    {screen === "inventory-operations" && <CrewInventoryOperationsMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} grants={inventoryGrants} onBack={() => navigate("home")} onOpenStock={() => navigate("stock-check")} onOpenOrders={() => navigate("purchase-orders")} />}
+    {screen === "stock-check" && <CrewStockCheckMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} grants={inventoryGrants} onBack={() => navigate("inventory-operations")} onFlowChange={setInventoryFlow} />}
+    {screen === "purchase-orders" && <CrewPurchaseOrdersMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} grants={inventoryGrants} onBack={() => navigate("inventory-operations")} onFlowChange={setInventoryFlow} />}
     {screen === "notifications" && <CrewNotificationsMobile token={session.token} onBack={() => navigate("home")} onOpenNotification={openNotification} onUnreadChanged={refreshUnreadCount} />}
     {screen === "learn" && <CrewLearningMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={refresh} onViewPerformance={() => navigate("growth", { growthInitialView: "performance" })} />}
@@ -114,7 +124,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} cashAvailable={!outletScope.management || Boolean(outletScope.outlets.find((outlet) => outlet.id === selectedOutletId)?.special_access?.can_initiate_handover)} management={outletScope.management} disciplinary={disciplinary} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
-    {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
+    {!cashCheckoutFlow && !assetInspectionFlow && !inventoryFlow && <CrewBottomNav items={navItems} active={["operations", "inventory-operations", "stock-check", "purchase-orders", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;
 }
 

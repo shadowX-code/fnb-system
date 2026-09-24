@@ -103,6 +103,10 @@ describe("FeedX canonical route contract", () => {
     expect(canonicalPathForRoute("crew-mobile-compliance")).toBe("/me/employment-records/food-handling-compliance");
     expect(legacyHashForRoute("crew-mobile-compliance")).toBe("#crew/me/employment-records/documents-compliance");
     expect(resolveAdminLocation({ pathname: "/", hash: "#crew/home" })).toBeNull();
+    expect(resolveCrewMobileHash("#crew/home/operations")).toMatchObject({ routeId: "crew-mobile-inventory-operations" });
+    expect(resolveCrewMobileHash("#crew/home/operations/stock-check")).toMatchObject({ routeId: "crew-mobile-stock-check" });
+    expect(resolveCrewMobileHash("#crew/home/operations/purchase-orders")).toMatchObject({ routeId: "crew-mobile-purchase-orders" });
+    expect(resolveCrewMobilePath("/home/operations/purchase-orders")).toMatchObject({ routeId: "crew-mobile-purchase-orders" });
   });
 
   it("keeps public routes outside this authority", () => {

@@ -1394,6 +1394,14 @@ export const crewService = {
     return data;
   },
 
+  async inventoryMobileCatalog(token, outletId = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_mobile_catalog", {
+      p_token: token, p_outlet_id: outletId,
+    });
+    throwSupabaseError("crew.inventoryMobileCatalog", error);
+    return data;
+  },
+
   async saveInventoryStockCheck(token, outletId, requestId, check, items) {
     const { data, error } = await supabase.rpc("crew_inventory_save_stock_check", {
       p_token: token, p_outlet_id: outletId, p_request_id: requestId, p_check: check, p_items: items,

@@ -5,6 +5,7 @@ import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { formatCrewDate, translateStatus } from "../utils/crewI18n.js";
 import { formatTime, malaysiaDateKey, formatRosterTime, rosterEntryLabel, formatHomeDate, formatHomeClock, formatDuration } from "../utils/crewMobile.js";
 import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.webp";
+import { CrewInventoryHomeAttention } from "./CrewInventoryOperationsMobile.jsx";
 
 function HomeScheduleRow({ entry, label, onClick }) {
   const { t } = useTranslation();
@@ -17,7 +18,7 @@ function HomeScheduleRow({ entry, label, onClick }) {
 }
 
 
-export default function CrewHomeMobile({ session, attendance, context, roster, operations, clock, navigate, onOpenTask, theme, onToggleTheme, notificationUnreadCount = 0, management = false }) {
+export default function CrewHomeMobile({ session, attendance, context, roster, operations, clock, navigate, onOpenTask, theme, onToggleTheme, notificationUnreadCount = 0, management = false, inventoryOutletId, inventoryGrants }) {
   const { t } = useTranslation();
   const employee = session.employee || {};
   const firstName = employee.nickname || employee.full_name?.split(" ")[0] || t("auth.crew");
@@ -72,6 +73,7 @@ export default function CrewHomeMobile({ session, attendance, context, roster, o
       <section className="crew-v2-home-section crew-home-tasks"><CrewSectionHeader density="operational" title={<>{t("home.todaysTasks")}<span className={`crew-home-task-count is-${homeTaskBadgeState}`}>{homeTasks.length}</span></>} action={t("common.viewAll")} actionLabel={t("tasks.title")} onAction={() => onOpenTask(null)} /><div className="crew-home-list">
         {homeTasks.length ? homeTasks.map((task) => <button type="button" key={task.id} className={`crew-home-task is-${task.status}`} onClick={() => onOpenTask(management ? null : { kind: task.kind, row: task.row, context: { from: "home", scrollY: window.scrollY } })} aria-label={t("learn.openSop", { title: task.title })}><i className="crew-ui-icon-container crew-ui-icon-container--compact">{task.status === "completed" ? <Check size={19} /> : <ClipboardCheck size={18} />}</i><span className="crew-home-task-copy"><strong className="crew-list-dense-primary">{task.title}</strong>{(task.progress || task.deadline) && <small className="crew-list-secondary crew-home-task-meta">{task.progress && <span className="crew-home-task-progress">{task.progress}</span>}{task.deadline && <span className={`crew-home-task-due${task.deadline.overdue ? " is-overdue" : ""}`}><Clock3 size={13} /><b>{t("tasks.dueLabel")}</b><span>{task.deadline.time}</span></span>}</small>}</span><CrewStatusBadge tone={task.status === "completed" ? "success" : task.status === "overdue" || task.status === "exception" ? "danger" : task.status === "in_progress" ? "info" : "warning"}>{translateStatus(task.status, t)}</CrewStatusBadge><ChevronRight size={18} /></button>) : <div className="crew-home-empty"><Check size={20} /><span><strong>{t("home.allClear")}</strong><small>{t("home.noTasks")}</small></span></div>}
       </div></section>
+      <CrewInventoryHomeAttention token={session.token} outletId={inventoryOutletId} grants={inventoryGrants} onOpen={() => navigate("inventory-operations")} />
       <section className="crew-v2-home-section crew-home-schedule"><CrewSectionHeader density="operational" title={t("home.mySchedule")} action={t("common.viewAll")} onAction={() => navigate("schedule")} /><div className="crew-home-list">{todayRoster ? <HomeScheduleRow entry={todayRoster} label="today" onClick={() => navigate("schedule")} /> : <div className="crew-home-empty"><CalendarDays size={20} /><span><strong>{t("home.noPublishedShift")}</strong><small>{t("home.scheduleWillAppear")}</small></span></div>}{upcomingRoster.map((entry) => <HomeScheduleRow key={entry.id} entry={entry} onClick={() => navigate("schedule")} />)}</div></section>
     </section>;
 }
