@@ -85,7 +85,7 @@ export default function InventoryGroupsPage({
               const hiddenCategoryCount = Math.max(0, categoryNames.length - visibleCategories.length);
               const due = dueStatus(group, checks, date);
               const schedule = group.frequency === "custom"
-                ? (() => { const count = (group.checkDays || []).length; return count === 7 ? "Every day" : `Every ${count} day${count === 1 ? "" : "s"}`; })()
+                ? (() => { const days = group.checkDays || []; const count = days.length; return count === 1 ? `Every ${days[0]}` : count === 7 ? "Every day" : `Every ${count} days`; })()
                 : compactFrequencyLabel(group);
               return (
                 <div key={group.id} className="rounded-xl border border-border bg-white px-4 py-3 transition hover:border-primary/25 hover:bg-primary/5">
