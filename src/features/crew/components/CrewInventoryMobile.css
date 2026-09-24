@@ -43,7 +43,7 @@
   background: var(--crew-color-surface); padding: 8px 10px; color: var(--crew-color-text); text-align: left;
 }
 .crew-inventory-hub-list>button,.crew-inventory-list>button,.crew-inventory-audit-row>button:first-child { width: 100%; }
-.crew-inventory-hub-list>button>span:not(.crew-inventory-thumb),.crew-inventory-list>button>span:not(.crew-inventory-thumb),.crew-inventory-audit-row>button:first-child>span { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.crew-inventory-hub-list>button>span:not(.crew-inventory-thumb):not(.crew-ui-status),.crew-inventory-list>button>span:not(.crew-inventory-thumb):not(.crew-ui-status),.crew-inventory-audit-row>button:first-child>span:not(.crew-inventory-thumb):not(.crew-ui-status) { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .crew-inventory-hub-list small,.crew-inventory-list small,.crew-inventory-picker-list small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-inventory-hub-list strong,.crew-inventory-list strong,.crew-inventory-picker-list strong { font-size: var(--crew-type-list-primary); overflow-wrap: anywhere; }
 .crew-inventory-audit-row { display: grid; grid-template-columns: minmax(0,1fr) 44px; gap: 4px; }
