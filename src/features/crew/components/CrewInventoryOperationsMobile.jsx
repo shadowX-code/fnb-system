@@ -71,7 +71,7 @@ export function CrewInventoryHomeAttention({ token, outletId, grants, onOpenStoc
         onAction={() => onOpenCheck(priorityCheck)} moreCount={checkCount - 1} moreLabel={t("inventory.moreChecks", { count: checkCount - 1 })} />}
       {hasOrders(grants) && <AttentionModule icon={PackageCheck} title={t("inventory.purchaseOrders")} onOpen={onOpenOrders}
         lines={orderCount ? [actionableReceiving.length > 0 && t("inventory.receivingCount", { count: attention?.purchase_orders_awaiting_receiving ?? actionableReceiving.length }), actionableConfirming.length > 0 && t("inventory.confirmCount", { count: attention?.purchase_orders_awaiting_confirmation ?? actionableConfirming.length }), orderDrafts.length > 0 && t("inventory.poDraftCount", { count: orderDrafts.length })].filter(Boolean) : [t("inventory.ordersAllClear")]}
-        feature={priorityOrder && { title: priorityOrder.po_no || t("inventory.purchaseOrder"), detail: priorityOrder.supplier_name || "" }}
+        feature={priorityOrder && { title: priorityOrder.business_po_no || t("inventory.purchaseOrder"), detail: priorityOrder.supplier_name || "" }}
         actionLabel={["supplier_confirmed", "partial_received"].includes(priorityOrder?.status) ? t("inventory.receivePo") : priorityOrder?.status === "draft" ? t("inventory.continueDraft") : t("inventory.review")}
         onAction={() => onOpenOrder(priorityOrder)} moreCount={orderCount - 1} moreLabel={t("inventory.moreOrders", { count: orderCount - 1 })} />}
     </div>}

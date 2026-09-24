@@ -109,7 +109,9 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
     mount();
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader").map((header) => header.textContent);
-    expect(headers).toEqual(["Business PO No.", "Supplier", "Outlet", "Items", "Received Progress", "Status", "Source", "Created Date", "Actions"]);
+    expect(headers).toEqual(["PO No.", "Supplier", "Outlet", "Items", "Received Progress", "Status", "Source", "Created Date", "Actions"]);
+    expect(screen.getByRole("region", { name: "Purchase order filters" }).contains(table)).toBe(false);
+    expect(screen.queryByRole("option", { name: "All outlets" })).toBeNull();
     const row = within(table).getByTitle("Internal system ID: INT-PO-001").closest("tr");
     expect(within(row).getByText("PO-2026-001")).toBeTruthy();
     expect(within(row).getByText("Chilli Supplier")).toBeTruthy();
@@ -123,14 +125,14 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
 
   it("matches the active PO outlet, supplier, status, source, date, search, and combined filter semantics", () => {
     mount({ orders: filterOrders });
-    expectVisible("INT-PO-001", "INT-PO-002", "INT-PO-003");
+    expectVisible("INT-PO-001", "INT-PO-003");
 
-    select("All outlets", "PJ Hub");
+    select("KL Central", "PJ Hub");
     expectVisible("INT-PO-002");
-    select("PJ Hub", "All outlets");
+    select("PJ Hub", "KL Central");
 
     select("All Suppliers", "Coconut Supplier");
-    expectVisible("INT-PO-002", "INT-PO-003");
+    expectVisible("INT-PO-003");
     select("Coconut Supplier", "All Suppliers");
 
     select("All Status", "Partial Received");
@@ -142,16 +144,16 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
     select("Stock Check", "All Sources");
 
     const [from, to] = screen.getAllByPlaceholderText("28 May 2026");
+    select("KL Central", "PJ Hub");
     fireEvent.change(from, { target: { value: "10 Aug 2026" } });
     fireEvent.change(to, { target: { value: "10 Aug 2026" } });
     expectVisible("INT-PO-002");
     fireEvent.change(from, { target: { value: "" } });
     fireEvent.change(to, { target: { value: "" } });
 
-    fireEvent.change(screen.getByPlaceholderText("Search business PO no, internal ID, supplier or item"), { target: { value: "  coconut cream  " } });
+    fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "  coconut cream  " } });
     expectVisible("INT-PO-002");
-    fireEvent.change(screen.getByPlaceholderText("Search business PO no, internal ID, supplier or item"), { target: { value: "PO-2026-002" } });
-    select("All outlets", "PJ Hub");
+    fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "PO-2026-002" } });
     select("All Sources", "Manual");
     expectVisible("INT-PO-002");
   });
@@ -255,7 +257,7 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
     fireEvent.click(screen.getByRole("button", { name: "Rows per page" }));
     fireEvent.click(screen.getByRole("option", { name: "50" }));
     expect(screen.getByText("Showing 1–21 of 21 records")).toBeTruthy();
-    fireEvent.change(screen.getByPlaceholderText("Search business PO no, internal ID, supplier or item"), { target: { value: "INT-PAGE-021" } });
+    fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "INT-PAGE-021" } });
     expect(screen.getByText("Showing 1–1 of 1 records")).toBeTruthy();
     expect(screen.getAllByTitle("Internal system ID: INT-PAGE-021")).toHaveLength(2);
     expect(callbacks.onSubmit).not.toHaveBeenCalled();

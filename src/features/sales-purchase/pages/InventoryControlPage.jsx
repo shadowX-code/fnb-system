@@ -297,23 +297,6 @@ function outletDisplayName(outlet = {}) {
   return normalized.name || normalized.code || normalized.id || "Unknown outlet";
 }
 
-function businessOutletCode(outlet = {}) {
-  const code = outletDisplayCode(outlet);
-  return String(code || "OUTLET").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "OUTLET";
-}
-
-function businessPoDate(value) {
-  const source = String(value || todayInput()).slice(0, 10);
-  const match = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return todayInput().slice(2).replace(/-/g, "");
-  return `${match[1].slice(2)}${match[2]}${match[3]}`;
-}
-
-function purchaseOrderSortKey(order = {}) {
-  const time = Date.parse(order.createdAt || order.submittedAt || order.updatedAt || "");
-  return Number.isFinite(time) ? time : 0;
-}
-
 function csvEscape(value) {
   const text = String(value ?? "");
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -1372,6 +1355,7 @@ function mapRemotePurchaseOrder(row = {}, lines = [], receipts = []) {
   return {
     id: row.id,
     poNo: row.po_no || "PO",
+    businessPoNo: row.business_po_no || "",
     supplierId: row.supplier_id || "",
     outletId: row.outlet_id || "",
     outletIds: row.outlet_id ? [row.outlet_id] : [],
@@ -6100,20 +6084,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return counts;
   }, [data.items]);
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
-  const businessPoByOrderId = useMemo(() => {
-    const sortedOrders = [...(data.orders || [])].sort((a, b) => (
-      purchaseOrderSortKey(a) - purchaseOrderSortKey(b)
-      || String(a.poNo || a.id || "").localeCompare(String(b.poNo || b.id || ""))
-    ));
-    const sequenceByDate = new Map();
-    return new Map(sortedOrders.map((order) => {
-      const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
-      const dateCode = businessPoDate(order.createdAt || order.submittedAt || order.updatedAt);
-      const nextSequence = (sequenceByDate.get(dateCode) || 0) + 1;
-      sequenceByDate.set(dateCode, nextSequence);
-      return [order.id, `${businessOutletCode(outlet)}-${dateCode}-${String(nextSequence).padStart(3, "0")}`];
-    }));
-  }, [data.orders, outletById]);
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items]);
   const peopleById = useMemo(() => new Map((data.people || []).map((person) => [person.id, person])), [data.people]);
   const peopleByAuthId = useMemo(() => new Map((data.people || []).filter((person) => person.authUserId).map((person) => [person.authUserId, person])), [data.people]);
@@ -6136,7 +6106,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const person = peopleById.get(id) || peopleByAuthId.get(id);
     return person?.name || person?.email || "Unknown User";
   };
-  const businessPoNo = (order = {}) => businessPoByOrderId.get(order.id) || order.poNo || "PO";
+  const businessPoNo = (order = {}) => order.businessPoNo || order.poNo || "PO";
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
     const linkedOutletIds = item.linkedOutletIds || [];
@@ -9196,7 +9166,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       orders={data.orders}
       items={data.items}
       suppliers={suppliers}
-      outletOptions={getAccessibleOutletOptions(auth, outlets)}
+      outletOptions={getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all")}
       outletById={outletById}
       getBusinessPoNo={businessPoNo}
       formatDate={formatDate}

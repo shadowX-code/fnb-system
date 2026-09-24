@@ -13,7 +13,7 @@ import { CrewEmptyState, CrewSearchBar, CrewStatusBadge } from "./CrewMobileUI.j
 const newId = () => crypto.randomUUID();
 const isActive = (status) => ["submitted", "supplier_confirmed", "partial_received"].includes(status);
 const editableLine = (line) => ({ item_id: line.item_id, requested_qty: String(line.requested_qty ?? ""), unit: line.unit || "", remark: line.remark || "", source_stock_check_item_id: line.source_stock_check_item_id || null });
-const displayPoNo = (order) => order?.po_no || (order?.id ? `PO-${order.id.replaceAll("-", "").slice(0, 12).toUpperCase()}` : "");
+const displayPoNo = (order) => order?.business_po_no || "";
 const sourceRows = (check, orders) => {
   const usedSuppliers = new Set(orders.filter((order) => order.source_stock_check_id === check.stock_check_id && order.status !== "cancelled").map((order) => order.supplier_id));
   return (check.shortages || []).map((shortage) => {
@@ -184,7 +184,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
     <div className="crew-ui-tabs crew-inventory-tabs" role="tablist">{["active", "drafts", "completed"].map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{t(`inventory.${value}`)}</button>)}</div>
     {notice && <p className="crew-inventory-notice" role="status">{notice}</p>}{error && <p className="crew-v2-error" role="alert">{error}</p>}
     {!grants?.can_manage_purchase_orders && !grants?.can_receive_purchase_orders ? <CrewEmptyState title={t("inventory.noAccess")} /> : loading ? <p className="crew-inventory-state" role="status">{t("common.loading")}</p> : !data ? <button className="crew-mobile-secondary" type="button" onClick={() => void load()}>{t("common.retry")}</button> : <>
-      {canManage && <button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => setMode("create")}><Plus size={18} />{t("inventory.createPo")}</button>}
+      {canManage && tab !== "completed" && <button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => setMode("create")}><Plus size={18} />{t("inventory.createPo")}</button>}
       <div className="crew-inventory-list">{filteredOrders.map((order) => <button key={order.id} type="button" onClick={() => void openOrder(order.id)}><span><strong>{displayPoNo(order) || t("inventory.purchaseOrder")}</strong><small>{order.supplier_name} · {order.line_count} {t("inventory.items")}</small></span><CrewStatusBadge tone={["fully_received", "completed"].includes(order.status) ? "success" : order.status === "draft" ? "neutral" : "warning"}>{t(`inventory.status.${order.status}`)}</CrewStatusBadge><ChevronRight size={18} /></button>)}</div>
       {!filteredOrders.length && <CrewEmptyState title={t("inventory.noOrders")} />}
     </>}{copyFallback && <CrewBottomSheet title={t("inventory.copyText")} onClose={() => setCopyFallback("")}><textarea className="crew-inventory-copy-fallback" readOnly value={copyFallback} onFocus={(event) => event.target.select()} /></CrewBottomSheet>}

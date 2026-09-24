@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import DashboardSection from "../../../../components/layout/DashboardSection.jsx";
+import AdminFilterToolbar from "../../../../components/layout/AdminFilterToolbar.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../../components/forms/DatePickerField.jsx";
@@ -35,15 +36,17 @@ export default function InventoryPurchaseOrdersPage({
   loadError = "",
   onRetry,
 }) {
-  const [filters, setFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
-  useEffect(() => { onFiltersChange?.(filters); }, [filters, onFiltersChange]);
+  const accessibleOutletOptions = outletOptions.filter((option) => option.value !== "all");
+  const [filters, setFilters] = useState({ outletId: accessibleOutletOptions[0]?.value || "", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
+  const selectedOutletId = accessibleOutletOptions.some((option) => option.value === filters.outletId) ? filters.outletId : accessibleOutletOptions[0]?.value || "";
+  useEffect(() => { onFiltersChange?.({ ...filters, outletId: selectedOutletId }); }, [filters, selectedOutletId, onFiltersChange]);
   const update = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
   const filtered = orders.filter((order) => {
     const outletId = order.outletId || order.outletIds?.[0] || "";
     const supplier = suppliers.find((entry) => entry.id === order.supplierId);
     const created = (order.createdAt || order.submittedAt || "").slice(0, 10);
     const search = [getBusinessPoNo(order), order.poNo, supplier?.name, ...(order.lines || []).map((line) => items.find((item) => item.id === line.itemId)?.name)].join(" ").toLowerCase();
-    return (filters.outletId === "all" || outletId === filters.outletId)
+    return Boolean(selectedOutletId && outletId === selectedOutletId)
       && (filters.supplierId === "all" || order.supplierId === filters.supplierId)
       && (filters.status === "all" || order.status === filters.status)
       && (filters.source === "all" || (order.sourceType || "manual") === filters.source)
@@ -79,16 +82,18 @@ export default function InventoryPurchaseOrdersPage({
           : order.status === "fully_received" ? { label: "Complete PO", tone: "primary", action: () => onComplete(order) }
             : { label: "View", tone: "secondary", action: () => onView(order) };
 
-  return <DashboardSection title="Purchase Orders" subtitle="Draft POs are created from reviewed stock check suggestions or manual purchase planning.">
-    <div className="mb-4 grid gap-3 lg:grid-cols-6">
-      <SelectField label="Outlet" value={filters.outletId} options={outletOptions} onChange={(value) => update("outletId", value)} searchable />
-      <SelectField label="Supplier" value={filters.supplierId} options={[{ value: "all", label: "All Suppliers" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => update("supplierId", value)} searchable />
-      <SelectField label="Status" value={filters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: poStatusLabel(status) }))]} onChange={(value) => update("status", value)} />
-      <SelectField label="Source" value={filters.source} options={[{ value: "all", label: "All Sources" }, ...sources.map((source) => ({ value: source, label: poSourceLabel(source) }))]} onChange={(value) => update("source", value)} />
-      <DatePickerField label="From" value={filters.from} onChange={(value) => update("from", value)} />
-      <DatePickerField label="To" value={filters.to} onChange={(value) => update("to", value)} />
-      <label className="lg:col-span-6"><div className="mb-1 type-caption font-semibold text-text-secondary">Search Business PO / Supplier / Item</div><input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => update("search", event.target.value)} placeholder="Search business PO no, internal ID, supplier or item" /></label>
-    </div>
+  return <div className="space-y-4">
+    <AdminFilterToolbar ariaLabel="Purchase order filters"
+      outlet={<SelectField label="Outlet" value={selectedOutletId} options={accessibleOutletOptions} onChange={(value) => update("outletId", value)} searchable />}
+      search={<label><div className="mb-1 type-caption font-semibold text-text-secondary">Search</div><input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => update("search", event.target.value)} placeholder="Search PO no., supplier or item" /></label>}
+      filters={<>
+        <SelectField label="Supplier" value={filters.supplierId} options={[{ value: "all", label: "All Suppliers" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => update("supplierId", value)} searchable />
+        <SelectField label="Status" value={filters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: poStatusLabel(status) }))]} onChange={(value) => update("status", value)} />
+        <SelectField label="Source" value={filters.source} options={[{ value: "all", label: "All Sources" }, ...sources.map((source) => ({ value: source, label: poSourceLabel(source) }))]} onChange={(value) => update("source", value)} />
+        <DatePickerField label="From" value={filters.from} onChange={(value) => update("from", value)} />
+        <DatePickerField label="To" value={filters.to} onChange={(value) => update("to", value)} />
+      </>} />
+    <DashboardSection title="Purchase Orders" subtitle="Draft POs are created from reviewed stock check suggestions or manual purchase planning.">
     {loadState === "loading" && !orders.length ? <div className="p-8 text-center text-sm font-semibold text-text-secondary" role="status">Loading purchase orders…</div> : loadError ? <div className="p-8 text-center" role="alert"><strong className="text-rose-700">Purchase orders could not load.</strong><p className="mt-1 text-sm text-text-secondary">{loadError}</p>{onRetry ? <button className="btn-secondary mt-3" type="button" onClick={onRetry}>Retry</button> : null}</div> : filtered.length ? <>
       <div className="space-y-3 md:hidden">
         {paginatedOrders.map((order) => {
@@ -127,7 +132,7 @@ export default function InventoryPurchaseOrdersPage({
         <table className="w-full min-w-[1040px] text-left">
           <thead className="text-[11px] uppercase tracking-wide text-text-muted">
             <tr className="border-b border-border">
-              <th className="py-2">Business PO No.</th><th>Supplier</th><th>Outlet</th><th>Items</th><th>Received Progress</th><th>Status</th><th>Source</th><th>Created Date</th><th className="text-right">Actions</th>
+              <th className="py-2">PO No.</th><th>Supplier</th><th>Outlet</th><th>Items</th><th>Received Progress</th><th>Status</th><th>Source</th><th>Created Date</th><th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border text-[13px]">
@@ -152,7 +157,8 @@ export default function InventoryPurchaseOrdersPage({
       </div>
       <FactoryPagination page={pagination.page} pageSize={pagination.pageSize} total={filtered.length} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
     </> : <EmptyState title="No purchase orders found." description="Adjust filters or create Draft POs from scheduled stock check suggestions or manual purchase planning." />}
-  </DashboardSection>;
+    </DashboardSection>
+  </div>;
 }
 
 export { InventoryPurchaseOrderDetail };

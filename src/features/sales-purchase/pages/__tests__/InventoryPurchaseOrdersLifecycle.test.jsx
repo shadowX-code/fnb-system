@@ -146,10 +146,10 @@ describe("InventoryControlPage Purchase Orders lifecycle", () => {
     expect(screen.getAllByText("Chilli Supplier").length).toBeGreaterThan(0);
     expect(screen.getAllByText("4 / 10").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Partial Received").length).toBeGreaterThan(0);
-    fireEvent.change(screen.getByPlaceholderText("Search business PO no, internal ID, supplier or item"), { target: { value: "PO-FULL" } });
+    fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "PO-FULL" } });
     await waitFor(() => expect(screen.getAllByText(/PO-FULL/).length).toBeGreaterThan(0));
     expect(screen.queryByText(/PO-DRAFT/)).toBeNull();
-    fireEvent.change(screen.getByPlaceholderText("Search business PO no, internal ID, supplier or item"), { target: { value: "" } });
+    fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "" } });
     fireEvent.click(screen.getByRole("button", { name: "All Status" }));
     fireEvent.click(await screen.findByRole("button", { name: "Supplier Confirmed" }));
     await waitFor(() => expect(screen.getAllByText(/PO-CONFIRMED/).length).toBeGreaterThan(0));
