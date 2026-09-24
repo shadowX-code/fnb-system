@@ -1,9 +1,10 @@
 import { useMemo, useState } from "react";
-import { PackagePlus } from "lucide-react";
+import { PackagePlus, Pencil } from "lucide-react";
 import AdminFilterToolbar, { ALL_FILTER_OPTION, AdminOutletField } from "../../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../../components/forms/AdminSearchField.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
 import Modal from "../../../../components/feedback/Modal.jsx";
+import AdminSummaryGrid from "../../../../components/ui/AdminSummaryGrid.jsx";
 import { FactoryDataSurface, FactoryTable } from "../../../factory/components/FactoryDataDisplay.jsx";
 import FactoryRowActions from "../../../factory/components/FactoryRowActions.jsx";
 import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
@@ -87,7 +88,7 @@ export default function InventoryGroupsPage({
     { key: "schedule", label: "Schedule", className: "min-w-[110px] w-[17%]", render: (group) => <span className="font-medium text-text-primary">{group.schedule}</span> },
     { key: "scope", label: "Scope", className: "min-w-[110px] w-[16%]", render: (group) => <button className="text-sm font-semibold text-primary hover:underline focus-visible:underline" type="button" aria-label={`View scope for ${group.name}`} onClick={() => setScopeGroupId(group.id)}>{group.scopeItems.length} {group.scopeItems.length === 1 ? "item" : "items"}</button> },
     { key: "status", label: "Status", className: "min-w-[105px] w-[13%]", render: (group) => <FactoryStatusBadge status={group.status}>{toTitle(group.status)}</FactoryStatusBadge> },
-    { key: "actions", label: "Actions", className: "min-w-[185px] w-[22%]", align: "right", render: (group) => <FactoryRowActions directActions={[{ label: "View", variant: "button", compact: true, onClick: () => setScopeGroupId(group.id) }, { label: "Edit", variant: "button", compact: true, onClick: () => onEditGroup(group) }]} secondaryActions={[{ label: "Duplicate", onClick: () => onDuplicateGroup(group, group.categoryIds) }, group.status === "active" ? { label: "Deactivate", destructive: true, onClick: () => onArchiveGroup(group) } : null]} /> },
+    { key: "actions", label: "Actions", className: "min-w-[120px] w-[15%]", align: "right", render: (group) => <FactoryRowActions onView={() => setScopeGroupId(group.id)} viewLabel="View" directActions={[{ label: "Edit", icon: Pencil, onClick: () => onEditGroup(group) }]} secondaryActions={[{ label: "Duplicate", onClick: () => onDuplicateGroup(group, group.categoryIds) }, group.status === "active" ? { label: "Deactivate", destructive: true, onClick: () => onArchiveGroup(group) } : null]} /> },
   ];
 
   return <div className="space-y-4">
@@ -96,11 +97,11 @@ export default function InventoryGroupsPage({
       search={<AdminSearchField label="Search Group" value={search} onChange={setSearch} placeholder="Search group or category" />}
       filters={<><SelectField label="Status" value={statusFilter} options={[ALL_FILTER_OPTION, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setStatusFilter} /><SelectField label="Frequency" value={frequencyFilter} options={[ALL_FILTER_OPTION, ...frequencies.map((frequency) => ({ value: frequency, label: toTitle(frequency) }))]} onChange={setFrequencyFilter} /></>}
     />
-    <div className="flex flex-wrap gap-x-5 gap-y-1 px-1 text-sm text-text-secondary" aria-label="Group configuration summary">
-      <span><strong className="text-text-primary">{tableRows.length}</strong> total groups</span>
-      <span><strong className="text-text-primary">{activeCount}</strong> active</span>
-      <span><strong className="text-text-primary">{tableRows.length - activeCount}</strong> inactive / archived</span>
-    </div>
+    <AdminSummaryGrid variant="compact" ariaLabel="Group configuration summary" items={[
+      { key: "total", label: "Total Groups", value: tableRows.length },
+      { key: "active", label: "Active", value: activeCount },
+      { key: "inactive", label: "Inactive / Archived", value: tableRows.length - activeCount },
+    ]} />
     <FactoryDataSurface>
       <FactoryTable columns={columns} rows={tableRows} rowHover="mint" emptyTitle={selectedOutletId ? "No stock check groups for this outlet" : "No accessible outlet"} emptyDescription="Groups configure which items appear in scheduled checks." />
     </FactoryDataSurface>

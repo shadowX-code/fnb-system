@@ -58,6 +58,7 @@ export default function AdminFilterToolbar({
   compact = false,
   denseFields = false,
   periodAfterFilters = false,
+  searchAfterFilters = false,
   className = "",
   ariaLabel = "Filters",
 }) {
@@ -68,9 +69,10 @@ export default function AdminFilterToolbar({
   const fields = [
     outlet && { field: outlet, slot: "outlet", role: "outlet", width: "w-full sm:w-[230px]" },
     !periodAfterFilters && periodField,
-    search && { field: search, slot: "search", role: "search", width: "w-full min-w-0 sm:flex-[1_1_280px]" },
+    !searchAfterFilters && search && { field: search, slot: "search", role: "search", width: "w-full min-w-0 sm:flex-[1_1_280px]" },
     ...filterFields,
     ...childFields,
+    searchAfterFilters && search && { field: search, slot: "search", role: "search", width: "w-full min-w-0 sm:flex-[1_1_280px]" },
     periodAfterFilters && periodField,
   ].filter(Boolean);
 

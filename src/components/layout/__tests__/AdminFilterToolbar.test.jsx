@@ -70,6 +70,11 @@ describe("AdminFilterToolbar", () => {
     expect(Array.from(container.querySelectorAll("[data-admin-filter-fields] [data-admin-filter-slot]")).map((field) => field.textContent)).toEqual(["Outlet", "Search", "Supplier", "Status", "Date Range"]);
   });
 
+  it("can place shared search after filters for result-table filtering", () => {
+    const { container } = render(<AdminFilterToolbar filters={<><Field label="Category" /><Field label="Status" /></>} search={<Field label="Search Item" />} searchAfterFilters />);
+    expect(Array.from(container.querySelectorAll("[data-admin-filter-fields] [data-admin-filter-slot]")).map((field) => field.textContent)).toEqual(["Category", "Status", "Search Item"]);
+  });
+
   it("uses a shared component-declared role when the period has no label prop", () => {
     render(<AdminFilterToolbar period={<FeedXDateRangePicker from="2026-09-16" to="2026-09-16" today="2026-09-16" onApply={vi.fn()} />} />);
     const range = screen.getByLabelText("Date Range").closest('[data-admin-filter-slot]');

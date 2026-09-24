@@ -51,6 +51,7 @@ import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
 import InventoryMovementsPage from "../inventory/movements/InventoryMovementsPage.jsx";
 import InventoryManualMovementModal from "../inventory/movements/InventoryManualMovementModal.jsx";
 import InventoryGroupsPage, { InventoryGroupsPageActions } from "../inventory/groups/InventoryGroupsPage.jsx";
+import InventoryStockCheckResultModal from "../inventory/stockChecks/InventoryStockCheckResultModal.jsx";
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
 import InventoryPurchaseOrderDetail from "../inventory/purchaseOrders/InventoryPurchaseOrderDetail.jsx";
 import { orderedQty, poProgress, poSourceLabel, poStatusLabel, receivedQty, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
@@ -461,15 +462,6 @@ function varianceStatus(parLevel, count) {
   if (variance <= 0) return { label: variance < 0 ? "Excess" : "Normal", tone: variance < 0 ? "info" : "success", variance };
   if (variance >= Math.max(3, Number(parLevel || 0) * 0.35)) return { label: "Critical", tone: "danger", variance };
   return { label: "Shortage", tone: "warning", variance };
-}
-
-function stockCheckResultStatus(row = {}) {
-  if (row.skipped) return { label: "Skipped", tone: "neutral" };
-  if (row.na) return { label: "Not Available", tone: "neutral" };
-  const variance = Number(row.variance || 0);
-  if (variance > 0) return { label: "Shortage", tone: "warning" };
-  if (variance < 0) return { label: "Excess", tone: "info" };
-  return { label: "Normal", tone: "success" };
 }
 
 function latestActualCount(checks = [], itemId, outletId) {
@@ -1006,6 +998,7 @@ function mapRemoteStockCheckItem(row = {}) {
     expectedQty: row.par_level_quantity === null || row.par_level_quantity === undefined ? "" : Number(row.par_level_quantity),
     actualCount: row.actual_count_quantity === null || row.actual_count_quantity === undefined ? "" : Number(row.actual_count_quantity),
     variance: row.variance === null || row.variance === undefined ? 0 : Number(row.variance),
+    unitCostSnapshot: row.unit_cost_snapshot === null || row.unit_cost_snapshot === undefined ? null : Number(row.unit_cost_snapshot),
     unit: row.unit || "",
     status: row.skipped ? "skipped" : (row.status || "normal"),
     notes: row.notes || "",
@@ -10257,113 +10250,20 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           onViewPurchaseOrder={(order) => setModal({ type: "po-detail", order })}
         />
       ) : null}
-      {modal?.type === "check-result" ? (() => {
-        const stockCheck = modal.stockCheck || {};
-        const isAuditResult = modal.isAudit || stockCheck.stockCheckType === "audit";
-        const rows = stockCheck.rows || [];
-        const summary = rows.reduce((acc, row) => {
-          const result = stockCheckResultStatus(row);
-          acc.total += 1;
-          if (result.label === "Normal") acc.normal += 1;
-          if (result.label === "Shortage") acc.shortage += 1;
-          if (result.label === "Excess") acc.excess += 1;
-          if (result.label === "Skipped") acc.skipped += 1;
-          return acc;
-        }, { total: 0, normal: 0, shortage: 0, excess: 0, skipped: 0 });
-        const submittedByName = stockCheck.submittedBy ? actorNameByEmployeeId(stockCheck.submittedBy) : "Unknown User";
-        const outletName = outletById.get(stockCheck.outletId)?.name || "Outlet";
-        const shiftLabel = isAuditResult ? (stockCheck.auditType || "Audit") : (stockCheck.shift || "Stock Check");
-        return (
-          <Modal
-            title={isAuditResult ? "Audit Stock Check Result" : "Stock Check Result"}
-            description={`${outletName} · ${formatDate(stockCheck.date)} · ${shiftLabel}`}
-            size="xl"
-            onClose={() => setModal(null)}
-            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
-          >
-            <div className="mb-4 rounded-2xl border border-border bg-slate-50 p-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <div className="type-caption font-black uppercase text-text-muted">Checked by</div>
-                  <div className="type-section-title font-black text-text-primary">{submittedByName}</div>
-                </div>
-                <div>
-                  <div className="type-caption font-black uppercase text-text-muted">Submitted at</div>
-                  <div className="type-section-title font-black text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
-                {[
-                  ["Total Items", summary.total, "neutral"],
-                  ["Normal", summary.normal, "success"],
-                  ["Shortage", summary.shortage, "warning"],
-                  ["Excess", summary.excess, "info"],
-                  ["Skipped", summary.skipped, "neutral"],
-                ].map(([label, value, tone]) => (
-                  <div key={label} className="rounded-xl border border-border bg-white p-3">
-                    <div className="type-micro font-black uppercase text-text-muted">{label}</div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className="text-primary-type-kpi-value text-text-primary">{value}</span>
-                      <Badge tone={tone}>{label}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[820px] text-left">
-                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr>
-                    <th className="px-3 py-2">Item</th>
-                    <th>Par</th>
-                    <th>Actual</th>
-                    <th>Variance</th>
-                    <th>UOM</th>
-                    <th>Status</th>
-                    <th>Notes</th>
-                    <th>Skip Reason</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {rows.length ? rows.map((row) => {
-                    const item = itemById.get(row.itemId);
-                    const category = categoryById.get(item?.categoryId);
-                    const result = stockCheckResultStatus(row);
-                    return (
-                      <tr key={row.id || row.itemId}>
-                        <td className="px-3 py-2">
-                          <div className="flex min-w-[240px] items-center gap-3">
-                            <InventoryItemThumbnail item={item} category={category} onPreview={setPhotoPreview} size="sm" />
-                            <div className="min-w-0">
-                              <div className="font-bold text-text-primary">{item?.name || "Inventory item"}</div>
-                              <div className="type-caption text-text-secondary">
-                                {category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td>{row.expectedQty || "-"}</td>
-                        <td>{row.skipped ? "Skipped" : row.actualCount}</td>
-                        <td>{row.skipped ? "Skipped" : row.variance}</td>
-                        <td>{row.unit || item?.unit || "-"}</td>
-                        <td><Badge tone={result.tone}>{result.label}</Badge></td>
-                        <td className="max-w-[220px] whitespace-pre-wrap py-2 pr-3 text-text-secondary">{row.notes || "-"}</td>
-                        <td className="max-w-[220px] whitespace-pre-wrap py-2 pr-3 text-text-secondary">{row.skipReason || "-"}</td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-sm font-semibold text-text-secondary">
-                        No checked items were saved for this stock check.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Modal>
-        );
-      })() : null}
+      {modal?.type === "check-result" ? <InventoryStockCheckResultModal
+        stockCheck={modal.stockCheck || {}}
+        isAuditResult={modal.isAudit || modal.stockCheck?.stockCheckType === "audit"}
+        outletName={outletById.get(modal.stockCheck?.outletId)?.name || "Outlet"}
+        submittedByName={modal.stockCheck?.submittedBy ? actorNameByEmployeeId(modal.stockCheck.submittedBy) : "Unknown User"}
+        itemById={itemById}
+        categoryById={categoryById}
+        formatDate={formatDate}
+        formatDateTimeCompact={formatDateTimeCompact}
+        formatCurrency={formatRestaurantRecipeCurrency}
+        ItemThumbnail={InventoryItemThumbnail}
+        onPhotoPreview={setPhotoPreview}
+        onClose={() => setModal(null)}
+      /> : null}
       {modal?.type === "po-detail" ? <InventoryPurchaseOrderDetail
         order={modal.order}
         getBusinessPoNo={businessPoNo}

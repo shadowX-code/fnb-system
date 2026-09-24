@@ -128,12 +128,19 @@ describe("InventoryControlPage Groups lifecycle", () => {
   it("renders outlet-scoped configuration without execution status, timing, or category chips", async () => {
     mount(); await ready();
     expect(screen.getByRole("table").className).toContain("admin-data-table");
+    const summary = screen.getByRole("region", { name: "Group configuration summary" });
+    expect(within(summary).getByText("Total Groups")).toBeTruthy();
+    expect(within(summary).getByText("Active")).toBeTruthy();
+    expect(within(summary).getByText("Inactive / Archived")).toBeTruthy();
     expect(screen.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Group", "Schedule", "Scope", "Status", "Actions"]);
     expect(screen.getByRole("button", { name: "Outlet" }).textContent).toContain("KL Central");
     expect(screen.queryByText("PJ Hub")).toBeNull();
     expect(within(groupRowElement("Morning Produce Count")).getByText("Opening")).toBeTruthy();
     expect(within(groupRowElement("Morning Produce Count")).getByText("Sun")).toBeTruthy();
     expect(within(groupRowElement("Morning Produce Count")).getByRole("button", { name: "View scope for Morning Produce Count" })).toHaveProperty("textContent", "1 item");
+    expect(within(groupRowElement("Morning Produce Count")).getByRole("button", { name: "View", exact: true })).toBeTruthy();
+    expect(within(groupRowElement("Morning Produce Count")).getByRole("button", { name: "Edit", exact: true })).toBeTruthy();
+    expect(within(groupRowElement("Morning Produce Count")).getByRole("button", { name: "More row actions" })).toBeTruthy();
     expect(screen.queryByText(/Last checked/i)).toBeNull();
     expect(screen.queryByText("Due Today")).toBeNull();
     expect(screen.queryByText("Completed Today")).toBeNull();
