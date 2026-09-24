@@ -83,7 +83,7 @@ export default function InventoryPurchaseOrdersPage({
             : { label: "View", tone: "secondary", action: () => onView(order) };
 
   return <div className="space-y-4">
-    <AdminFilterToolbar ariaLabel="Purchase order filters"
+    <AdminFilterToolbar ariaLabel="Purchase order filters" denseFields
       outlet={<SelectField label="Outlet" value={selectedOutletId} options={accessibleOutletOptions} onChange={(value) => update("outletId", value)} searchable />}
       search={<label><div className="mb-1 type-caption font-semibold text-text-secondary">Search</div><input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => update("search", event.target.value)} placeholder="Search PO no., supplier or item" /></label>}
       filters={<>
