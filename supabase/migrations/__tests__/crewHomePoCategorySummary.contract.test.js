@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924184829_crew_home_po_category_summary.sql"), "utf8").toLowerCase();
+const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924185540_crew_home_po_category_summary.sql"), "utf8").toLowerCase();
 
 describe("Crew Home PO category projection", () => {
   it("derives display categories from canonical PO items without changing token scope", () => {
