@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924200447_crew_stock_check_lifecycle.sql"), "utf8").toLowerCase();
+const historySql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924202520_crew_stock_check_history_dedupe.sql"), "utf8").toLowerCase();
 const purchaseSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924001607_restaurant_inventory_authority_foundation.sql"), "utf8").toLowerCase();
 
 describe("Crew Stock Check lifecycle authority", () => {
@@ -40,5 +41,15 @@ describe("Crew Stock Check lifecycle authority", () => {
     expect(sql).toContain("c.stock_check_type='audit'");
     expect(sql).toContain("'item_count',(select count(*)");
     expect(purchaseSql).toMatch(/stock_check_type<>'scheduled'\s+or v_check.status<>'submitted'/);
+  });
+
+  it("bounds read-derived Missed runs and presents one canonical row for legacy duplicate occurrences", () => {
+    expect(historySql).toContain("(v_today-7)::timestamp");
+    expect(historySql).toContain("c2.group_id=c.group_id");
+    expect(historySql).toContain("c2.check_date=c.check_date");
+    expect(historySql).toContain("c2.shift is not distinct from c.shift");
+    expect(historySql).toContain("case c2.status when 'submitted' then 0 when 'skipped' then 1 else 2 end");
+    expect(historySql).toContain("c.stock_check_type='audit' or c.id=");
+    expect(historySql).toContain("c.submitted_at>=now()-interval '90 days'");
   });
 });

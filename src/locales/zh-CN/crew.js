@@ -118,6 +118,7 @@ Object.assign(resources.inventory, {
 Object.assign(resources.inventory, { fromStockCheckHelp:"从最近完成的盘点补货", manualPoHelp:"从零开始创建订单", noSuggestions:"最近 7 天没有可用的盘点建议", restockItems:"补货物品", reviewPurchaseSuggestions:"补货物品", suggestionsHelp:"创建采购订单前检查数量。", ordered:"订购", receivedNow:"本次收货", receiveAllRemaining:"填入全部剩余数量", lineComplete:"已全部收货", receivingProgress:"已收 {{received}} / {{ordered}}", receiveHelp:"输入本次实收数量。点击“记录收货”后才会保存。" });
 Object.assign(resources.inventory, {
   newAudit: "稽核", scheduled: "计划", in_progress: "进行中", missed: "已错过", noHistory: "暂无盘点记录",
+  stockInProgressCount: "{{count}} 项盘点进行中",
   checkSkipped: "已跳过库存盘点", skipCheckTitle: "跳过这次库存盘点？",
   skipCheckBody: "这表示你已查看今天的盘点要求，并决定无需进行盘点。",
   confirmSkip: "跳过盘点", optionalReason: "原因（选填）", noReason: "不填写原因",

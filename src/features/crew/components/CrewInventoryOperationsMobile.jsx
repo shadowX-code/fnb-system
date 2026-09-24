@@ -89,13 +89,16 @@ export function CrewInventoryHomeAttention({ token, outletId, grants, onOpenStoc
   const stock = stockHomeRows(checks);
   const purchase = orderHomeRows(orders);
   const dueCount = stock.filter((check) => check.status === "due").length;
+  const inProgressCount = stock.filter((check) => check.status === "in_progress").length;
   const stockSummary = dueCount ? t("inventory.stockDueCount", { count: dueCount })
+      : inProgressCount ? t("inventory.stockInProgressCount", { count: inProgressCount })
       : stock.length ? t("inventory.draftsCount", { count: stock.length }) : t("inventory.stockAllClear");
   const stockRows = stock.map((check) => ({
     key: check.id || check.check_id || check.group_id,
     source: check,
     title: check.name || t("inventory.stockCheck"),
-    detail: [check.shift || check.audit_type || (check.status === "due" ? t("inventory.homeDueToday") : t("inventory.inProgress")),
+    detail: [check.status === "due" ? t("inventory.homeDueToday") : check.status === "in_progress" ? t("inventory.in_progress") : check.audit_type,
+      check.shift,
       t("inventory.homeItemCount", { count: check.items?.length ?? check.item_count ?? 0 })].filter(Boolean).join(" · "),
     action: check.status === "due" ? t("inventory.start") : t("inventory.resume"),
   }));

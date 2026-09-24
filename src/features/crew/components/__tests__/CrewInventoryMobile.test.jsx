@@ -69,6 +69,18 @@ describe("Crew Inventory mobile authority boundary", () => {
     expect(onOpenStock).toHaveBeenCalled();
   });
 
+  it("shows a current scheduled draft as In Progress with one Resume action on Home", async () => {
+    api.inventoryStockChecks.mockResolvedValue({ ...stock, due: [{ ...stock.due[0], status: "in_progress", check_id: "check-1" }],
+      checks: [{ id: "check-1", type: "scheduled", status: "in_progress", name: "Opening", check_date: "2026-09-24" }] });
+    const onOpenCheck = vi.fn();
+    render(<CrewInventoryHomeAttention token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true }} onOpenStock={vi.fn()} onOpenOrders={vi.fn()} onOpenCheck={onOpenCheck} onOpenOrder={vi.fn()} />);
+    expect(await screen.findByText("1 check in progress")).not.toBeNull();
+    expect(screen.getByText("In Progress · Morning · 1 item")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Resume: Opening" }));
+    expect(onOpenCheck).toHaveBeenCalledWith(expect.objectContaining({ check_id: "check-1", status: "in_progress" }));
+    expect(screen.getAllByRole("button", { name: "Resume: Opening" })).toHaveLength(1);
+  });
+
   it("orders Due, In Progress and Audit drafts without Missed or terminal checks", () => {
     const rows = stockHomeRows({ business_date: "2026-09-24", can_perform_stock_check: true, can_create_audit_stock_check: true,
       checks: [

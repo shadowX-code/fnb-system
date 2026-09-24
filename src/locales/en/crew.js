@@ -112,6 +112,7 @@ Object.assign(resources.inventory, {
 });
 Object.assign(resources.inventory, {
   newAudit: "Audit", scheduled: "Scheduled", in_progress: "In Progress", missed: "Missed", noHistory: "No Stock Check history",
+  stockInProgressCount_one: "{{count}} check in progress", stockInProgressCount_other: "{{count}} checks in progress",
   checkSkipped: "Stock Check skipped", skipCheckTitle: "Skip this stock check?",
   skipCheckBody: "This confirms you reviewed today’s requirement and decided a count is not needed.",
   confirmSkip: "Skip Check", optionalReason: "Reason (optional)", noReason: "No reason",
