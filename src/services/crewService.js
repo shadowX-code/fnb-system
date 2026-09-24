@@ -1341,14 +1341,18 @@ export const crewService = {
     throwSupabaseError("crew.manageAccess", error);
     return data;
   },
-  async updateSpecialAccess(employeeId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
-    const { data, error } = await supabase.rpc("crew_update_special_access", {
+  async updateSpecialAccess(employeeId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false, performStockCheck = false, createAuditStockCheck = false, managePurchaseOrders = false, receivePurchaseOrders = false } = {}) {
+    const { data, error } = await supabase.rpc("crew_update_inventory_special_access", {
       p_employee_id: employeeId,
       p_can_initiate_handover: Boolean(handover),
       p_can_adjust_assets: Boolean(adjustAssets),
       p_can_perform_asset_inspections: Boolean(inspectAssets),
       p_can_add_assets: Boolean(addAssets),
       p_can_manage_asset_details: Boolean(manageAssetDetails),
+      p_can_perform_stock_check: Boolean(performStockCheck),
+      p_can_create_audit_stock_check: Boolean(createAuditStockCheck),
+      p_can_manage_purchase_orders: Boolean(managePurchaseOrders),
+      p_can_receive_purchase_orders: Boolean(receivePurchaseOrders),
     });
     throwSupabaseError("crew.updateSpecialAccess", error);
     return data;
@@ -1360,8 +1364,87 @@ export const crewService = {
     return data;
   },
 
-  async updateManagementSpecialAccess(employeeId, outletId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
-    const { data, error } = await supabase.rpc("crew_update_management_special_access", {
+  async inventorySpecialAccess(employeeId) {
+    const { data, error } = await supabase.rpc("crew_inventory_special_access_admin", { p_employee_id: employeeId });
+    throwSupabaseError("crew.inventorySpecialAccess", error);
+    return data;
+  },
+
+  async inventoryStockChecks(token, outletId = null, checkId = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_stock_checks", {
+      p_token: token, p_outlet_id: outletId, p_check_id: checkId,
+    });
+    throwSupabaseError("crew.inventoryStockChecks", error);
+    return data;
+  },
+
+  async inventoryPurchaseOrders(token, outletId = null, orderId = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_purchase_orders", {
+      p_token: token, p_outlet_id: outletId, p_order_id: orderId,
+    });
+    throwSupabaseError("crew.inventoryPurchaseOrders", error);
+    return data;
+  },
+
+  async inventoryAttention(token, outletId = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_attention", {
+      p_token: token, p_outlet_id: outletId,
+    });
+    throwSupabaseError("crew.inventoryAttention", error);
+    return data;
+  },
+
+  async saveInventoryStockCheck(token, outletId, requestId, check, items) {
+    const { data, error } = await supabase.rpc("crew_inventory_save_stock_check", {
+      p_token: token, p_outlet_id: outletId, p_request_id: requestId, p_check: check, p_items: items,
+    });
+    throwSupabaseError("crew.saveInventoryStockCheck", error);
+    return data;
+  },
+
+  async deleteInventoryAuditDraft(token, outletId, checkId, requestId) {
+    const { data, error } = await supabase.rpc("crew_inventory_delete_audit_draft", {
+      p_token: token, p_outlet_id: outletId, p_check_id: checkId, p_request_id: requestId,
+    });
+    throwSupabaseError("crew.deleteInventoryAuditDraft", error);
+    return data;
+  },
+
+  async saveInventoryPurchaseOrder(token, outletId, requestId, order, items) {
+    const { data, error } = await supabase.rpc("crew_inventory_save_purchase_order", {
+      p_token: token, p_outlet_id: outletId, p_request_id: requestId, p_order: order, p_items: items,
+    });
+    throwSupabaseError("crew.saveInventoryPurchaseOrder", error);
+    return data;
+  },
+
+  async createInventoryStockCheckOrders(token, outletId, requestId, checkId, orders) {
+    const { data, error } = await supabase.rpc("crew_inventory_create_stock_check_purchase_orders", {
+      p_token: token, p_outlet_id: outletId, p_request_id: requestId, p_check_id: checkId, p_orders: orders,
+    });
+    throwSupabaseError("crew.createInventoryStockCheckOrders", error);
+    return data;
+  },
+
+  async transitionInventoryPurchaseOrder(token, outletId, orderId, requestId, action) {
+    const { data, error } = await supabase.rpc("crew_inventory_transition_purchase_order", {
+      p_token: token, p_outlet_id: outletId, p_order_id: orderId, p_request_id: requestId, p_action: action,
+    });
+    throwSupabaseError("crew.transitionInventoryPurchaseOrder", error);
+    return data;
+  },
+
+  async receiveInventoryPurchaseOrder(token, outletId, orderId, requestId, remark, items) {
+    const { data, error } = await supabase.rpc("crew_inventory_receive_purchase_order", {
+      p_token: token, p_outlet_id: outletId, p_purchase_order_id: orderId,
+      p_request_id: requestId, p_remark: remark, p_items: items,
+    });
+    throwSupabaseError("crew.receiveInventoryPurchaseOrder", error);
+    return data;
+  },
+
+  async updateManagementSpecialAccess(employeeId, outletId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false, performStockCheck = false, createAuditStockCheck = false, managePurchaseOrders = false, receivePurchaseOrders = false } = {}) {
+    const { data, error } = await supabase.rpc("crew_update_management_inventory_special_access", {
       p_employee_id: employeeId,
       p_outlet_id: outletId,
       p_can_initiate_handover: Boolean(handover),
@@ -1369,6 +1452,10 @@ export const crewService = {
       p_can_manage_asset_details: Boolean(manageAssetDetails),
       p_can_adjust_assets: Boolean(adjustAssets),
       p_can_perform_asset_inspections: Boolean(inspectAssets),
+      p_can_perform_stock_check: Boolean(performStockCheck),
+      p_can_create_audit_stock_check: Boolean(createAuditStockCheck),
+      p_can_manage_purchase_orders: Boolean(managePurchaseOrders),
+      p_can_receive_purchase_orders: Boolean(receivePurchaseOrders),
     });
     throwSupabaseError("crew.updateManagementSpecialAccess", error);
     return data;

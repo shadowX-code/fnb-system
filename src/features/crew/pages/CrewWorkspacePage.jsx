@@ -86,6 +86,10 @@ function specialAccessSummary(access) {
     access?.can_manage_asset_details && "Manage Asset Details",
     access?.can_adjust_assets && "Adjust Assets",
     access?.can_perform_asset_inspections && "Asset Inspections",
+    access?.can_perform_stock_check && "Perform Stock Check",
+    access?.can_create_audit_stock_check && "Create Audit Stock Check",
+    access?.can_manage_purchase_orders && "Manage Purchase Orders",
+    access?.can_receive_purchase_orders && "Receive Purchase Orders",
   ].filter(Boolean);
   if (!permissions.length) return "None";
   return permissions.length === 1 ? permissions[0] : `${permissions.length} permissions`;

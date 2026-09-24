@@ -55,7 +55,7 @@ Admins configure source data, enter or import records, resolve validation issues
 There is no direct Crew mobile mutation surface owned by this domain.
 Purchasing may hand off accepted quantities to inventory through existing contracts.
 People/RBAC supplies identity and scope; product analytics and dashboards consume canonical read models.
-Purchase Order draft, suggestion conversion, submit, supplier confirmation, cancel and completion commands share the trusted Restaurant Inventory lifecycle boundary. Receipt posting remains the Inventory authority and creates canonical receipt and Purchase movement evidence. Admin and future Crew surfaces consume the same server business transition core; no Crew PO surface is exposed yet.
+Purchase Order draft, suggestion conversion, submit, supplier confirmation, cancel and completion commands share the trusted Restaurant Inventory lifecycle boundary. Receipt posting remains the Inventory authority and creates canonical receipt and Purchase movement evidence. The token-bound Crew Inventory Gateway delegates its permitted PO actions to the same core; PO cancellation and manual closure remain Admin-only. There is no Crew PO mobile UI yet.
 
 ## Compatibility And Deferred Scope
 
