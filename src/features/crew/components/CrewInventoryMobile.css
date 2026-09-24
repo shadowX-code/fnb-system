@@ -163,7 +163,9 @@
 .crew-inventory-detail-lines article>span strong { overflow-wrap: anywhere; }
 .crew-inventory-detail-lines article small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-inventory-po-list>button { min-height: 70px; }
-.crew-inventory-po-list .crew-ui-status { flex: 0 0 auto; }
+.crew-inventory-po-primary { display: flex !important; align-items: flex-start; gap: 6px; min-width: 0; }
+.crew-inventory-po-primary strong { flex: 1; min-width: 0; }
+.crew-inventory-po-primary .crew-ui-status { flex: 0 0 auto; }
 .crew-inventory-po-choices { gap: 10px; }
 .crew-inventory-po-choices>button { min-height: 76px; }
 .crew-inventory-receive-heading { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin: 9px 0; }
