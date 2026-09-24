@@ -54,6 +54,7 @@ import InventoryGroupsPage, { InventoryGroupsPageActions } from "../inventory/gr
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
 import InventoryPurchaseOrderDetail from "../inventory/purchaseOrders/InventoryPurchaseOrderDetail.jsx";
 import { orderedQty, poProgress, poSourceLabel, poStatusLabel, receivedQty, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
+import { formatPurchaseOrderText } from "../inventory/purchaseOrders/purchaseOrderText.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { resolveAdminLocation } from "../../../app/routeOwnership.js";
@@ -2091,123 +2092,11 @@ async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft",
     })),
   });
   return mapRemoteStockCheck(result.check || {}, result.items || []);
-
-  const action = status === "submitted" ? "submit" : "save-draft";
-  const logLabel = isAudit ? "[AuditStockCheckDebug]" : status === "submitted" ? "[StockCheckSubmitDebug]" : "[StockCheckSaveDebug]";
-  const debug = { action, payload, rows, checkResult: null, deleteItemsResult: null, insertItemsResult: null, groupUpdateResult: null, error: null };
-
-  const checkResult = existingId
-    ? await supabase
-      .from("inventory_stock_checks")
-      .update(payload)
-      .eq("id", existingId)
-      .select("*")
-      .single()
-    : await supabase
-      .from("inventory_stock_checks")
-      .insert({ ...payload, created_by: userId || null })
-      .select("*")
-      .single();
-  debug.checkResult = { data: checkResult.data, error: checkResult.error };
-  if (checkResult.error) {
-    debug.error = checkResult.error;
-    debugLog(logLabel, debug);
-    throw checkResult.error;
-  }
-
-  const checkId = checkResult.data.id;
-  const deleteItemsResult = await supabase
-    .from("inventory_stock_check_items")
-    .delete()
-    .eq("stock_check_id", checkId);
-  debug.deleteItemsResult = { data: deleteItemsResult.data || null, error: deleteItemsResult.error };
-  if (deleteItemsResult.error) {
-    debug.error = deleteItemsResult.error;
-    debugLog(logLabel, debug);
-    throw deleteItemsResult.error;
-  }
-
-  const itemPayload = rows.map((row) => {
-    const actualMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
-    return {
-      stock_check_id: checkId,
-      item_id: isUuid(row.itemId) ? row.itemId : null,
-      category_id: isUuid(row.categoryId) ? row.categoryId : null,
-      par_level_quantity: row.expectedQty === "" || row.expectedQty === null || row.expectedQty === undefined ? null : Number(row.expectedQty),
-      actual_count_quantity: row.skipped || actualMissing ? null : Number(row.actualCount),
-      variance: row.skipped || row.na ? null : Number(row.variance || 0),
-      unit: row.unit || null,
-      status: row.skipped ? "skipped" : (row.na ? "na" : row.status || "normal"),
-      notes: row.notes || null,
-      skipped: Boolean(row.skipped),
-      skip_reason: row.skipped ? (row.skipReason || null) : null,
-      updated_at: new Date().toISOString(),
-    };
-  });
-
-  if (itemPayload.length) {
-    const insertItemsResult = await supabase
-      .from("inventory_stock_check_items")
-      .insert(itemPayload)
-      .select("*");
-    debug.insertItemsResult = { data: insertItemsResult.data, error: insertItemsResult.error };
-    if (insertItemsResult.error) {
-      debug.error = insertItemsResult.error;
-      debugLog(logLabel, debug);
-      throw insertItemsResult.error;
-    }
-  } else {
-    debug.insertItemsResult = { data: [], error: null };
-  }
-
-  if (!isAudit && status === "submitted") {
-    const groupUpdateResult = await supabase
-      .from("inventory_stock_check_groups")
-      .update({ last_checked_at: checkResult.data.submitted_at || new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", payload.group_id);
-    debug.groupUpdateResult = { data: groupUpdateResult.data || null, error: groupUpdateResult.error };
-    if (groupUpdateResult.error) {
-      debug.error = groupUpdateResult.error;
-      debugLog(logLabel, debug);
-      throw groupUpdateResult.error;
-    }
-  }
-
-  debugLog(logLabel, debug);
-  const savedItemsResult = await supabase
-    .from("inventory_stock_check_items")
-    .select("*")
-    .eq("stock_check_id", checkId)
-    .order("created_at", { ascending: true });
-  if (savedItemsResult.error) throw savedItemsResult.error;
-  return mapRemoteStockCheck(checkResult.data, savedItemsResult.data || []);
 }
 
 async function deleteRemoteStockCheckDraft(checkId) {
   if (!isUuid(checkId)) throw new Error("This audit draft has not been saved to Supabase yet.");
-  const checkResult = await supabase
-    .from("inventory_stock_checks")
-    .select("id,status,stock_check_type")
-    .eq("id", checkId)
-    .single();
-  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-read", checkId, result: { data: checkResult.data, error: checkResult.error }, error: checkResult.error });
-  if (checkResult.error) throw checkResult.error;
-  if (checkResult.data?.status !== "draft") throw new Error("Only draft audit stock checks can be deleted.");
-  if (checkResult.data?.stock_check_type !== "audit") throw new Error("Only audit drafts can be deleted from this action.");
-
-  const deleteItemsResult = await supabase
-    .from("inventory_stock_check_items")
-    .delete()
-    .eq("stock_check_id", checkId);
-  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-items", checkId, result: { data: deleteItemsResult.data || null, error: deleteItemsResult.error }, error: deleteItemsResult.error });
-  if (deleteItemsResult.error) throw deleteItemsResult.error;
-
-  const deleteCheckResult = await supabase
-    .from("inventory_stock_checks")
-    .delete()
-    .eq("id", checkId);
-  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-check", checkId, result: { data: deleteCheckResult.data || null, error: deleteCheckResult.error }, error: deleteCheckResult.error });
-  if (deleteCheckResult.error) throw deleteCheckResult.error;
+  await inventoryLifecycleService.deleteStockCheckDraft({ checkId });
   return true;
 }
 
@@ -2250,47 +2139,12 @@ async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [],
   const missingSupplier = includedRows.find((row) => !isUuid(row.selectedSupplierId));
   if (missingSupplier) throw new Error("Choose a supplier for every included item before creating Draft PO.");
 
-  const existingOrders = await fetchRemotePurchaseOrdersForStockCheck(stockCheck.id);
-  if (existingOrders.length) {
-    const error = new Error("Draft PO already created for this stock check.");
-    error.existingOrders = existingOrders;
-    throw error;
-  }
-
-  const stockCheckItemIds = uniqueIds(includedRows.map((row) => row.stockCheckItemId).filter(isUuid));
-  if (stockCheckItemIds.length) {
-    const duplicateItemsResult = await supabase
-      .from("inventory_purchase_order_items")
-      .select("id, source_stock_check_item_id, purchase_order_id")
-      .in("source_stock_check_item_id", stockCheckItemIds);
-    debugLog("[CreateDraftPODebug]", { action: "duplicate-item-check", stockCheckId: stockCheck.id, stockCheckItemIds, result: { data: duplicateItemsResult.data, error: duplicateItemsResult.error }, error: duplicateItemsResult.error });
-    if (duplicateItemsResult.error) throw duplicateItemsResult.error;
-    const duplicateOrderIds = uniqueIds((duplicateItemsResult.data || []).map((row) => row.purchase_order_id).filter(isUuid));
-    if (duplicateOrderIds.length) {
-      const duplicateOrdersResult = await supabase
-        .from("inventory_purchase_orders")
-        .select("*")
-        .in("id", duplicateOrderIds)
-        .neq("status", "cancelled");
-      debugLog("[CreateDraftPODebug]", { action: "duplicate-order-check", stockCheckId: stockCheck.id, duplicateOrderIds, result: { data: duplicateOrdersResult.data, error: duplicateOrdersResult.error }, error: duplicateOrdersResult.error });
-      if (duplicateOrdersResult.error) throw duplicateOrdersResult.error;
-      if ((duplicateOrdersResult.data || []).length) {
-        const error = new Error("Draft PO already created for this stock check.");
-        error.existingOrders = existingOrders;
-        throw error;
-      }
-    }
-  }
-
   const supplierGroups = includedRows.reduce((groups, row) => {
     if (!groups.has(row.selectedSupplierId)) groups.set(row.selectedSupplierId, []);
     groups.get(row.selectedSupplierId).push(row);
     return groups;
   }, new Map());
-  const createdOrders = [];
-  const createdAt = new Date().toISOString();
-
-  for (const [supplierId, rows] of supplierGroups.entries()) {
+  const orderIntents = [...supplierGroups.entries()].map(([supplierId, rows]) => {
     const poNo = `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`;
     const itemPayload = rows.map((row) => ({
       item_id: isUuid(row.itemId) ? row.itemId : null,
@@ -2299,7 +2153,7 @@ async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [],
       remark: row.remark || null,
       source_stock_check_item_id: isUuid(row.stockCheckItemId) ? row.stockCheckItemId : null,
     }));
-    const result = await inventoryLifecycleService.savePurchaseOrder({ order: {
+    return {
       po_no: poNo,
       outlet_id: stockCheck.outletId,
       supplier_id: supplierId,
@@ -2307,9 +2161,10 @@ async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [],
       source_type: "stock_check",
       source_stock_check_id: stockCheck.id,
       lines: itemPayload,
-    } });
-    createdOrders.push(mapRemotePurchaseOrder(result.order || {}, result.items || []));
-  }
+    };
+  });
+  const results = await inventoryLifecycleService.createStockCheckPurchaseOrders({ stockCheckId: stockCheck.id, orders: orderIntents });
+  const createdOrders = results.map((result) => mapRemotePurchaseOrder(result.order || {}, result.items || []));
 
   debugLog("[CreateDraftPODebug]", { action: "created-draft-pos", stockCheckId: stockCheck.id, createdOrders, error: null });
   return createdOrders;
@@ -2342,18 +2197,9 @@ async function fetchRemotePurchaseOrder(orderId) {
 
 async function persistRemotePurchaseOrderStatus(orderId, status) {
   if (!isUuid(orderId)) throw new Error("Valid purchase order is required.");
-  const timestamp = new Date().toISOString();
-  const payload = { status, updated_at: timestamp };
-  if (status === "submitted") payload.submitted_at = timestamp;
-  if (status === "supplier_confirmed") payload.confirmed_at = timestamp;
-  const result = await supabase
-    .from("inventory_purchase_orders")
-    .update(payload)
-    .eq("id", orderId)
-    .select("*")
-    .single();
-  debugLog("[POSubmitDebug]", { action: "update-status", orderId, status, payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
+  const action = status === "submitted" ? "submit" : status === "supplier_confirmed" ? "confirm" : "";
+  if (!action) throw new Error("Unsupported purchase order status transition.");
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId, action });
   return fetchRemotePurchaseOrder(orderId);
 }
 
@@ -2366,6 +2212,8 @@ async function persistRemotePurchaseOrderEdit(order = {}) {
       outlet_id: order.outletId || order.outletIds?.[0] || null,
       supplier_id: order.supplierId || null,
       status: order.status,
+      source_type: order.sourceType || "manual",
+      source_stock_check_id: order.sourceStockCheckId || null,
       lines: (order.lines || []).map((line) => ({
         item_id: line.itemId,
         requested_qty: Number(line.requestedQty || 0),
@@ -2377,98 +2225,17 @@ async function persistRemotePurchaseOrderEdit(order = {}) {
     requestId: undefined,
   });
   return mapRemotePurchaseOrder(result.order || {}, result.items || [], []);
-  const timestamp = new Date().toISOString();
-  const orderPayload = {
-    supplier_id: isUuid(order.supplierId) ? order.supplierId : null,
-    updated_at: timestamp,
-  };
-  const orderResult = await supabase
-    .from("inventory_purchase_orders")
-    .update(orderPayload)
-    .eq("id", order.id)
-    .eq("status", "draft")
-    .select("*")
-    .single();
-  debugLog("[POSubmitDebug]", { action: "edit-order", orderId: order.id, payload: orderPayload, result: { data: orderResult.data, error: orderResult.error }, error: orderResult.error });
-  if (orderResult.error) throw orderResult.error;
-
-  const deleteResult = await supabase
-    .from("inventory_purchase_order_items")
-    .delete()
-    .eq("purchase_order_id", order.id);
-  debugLog("[POSubmitDebug]", { action: "replace-order-items-delete", orderId: order.id, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
-  if (deleteResult.error) throw deleteResult.error;
-
-  const itemPayload = (order.lines || [])
-    .filter((line) => isUuid(line.itemId) && Number(line.requestedQty || 0) > 0)
-    .map((line) => ({
-      purchase_order_id: order.id,
-      item_id: line.itemId,
-      requested_qty: Number(line.requestedQty || 0),
-      received_qty: 0,
-      unit: line.unit || null,
-      remark: line.remark || null,
-      source_stock_check_item_id: isUuid(line.sourceStockCheckItemId) ? line.sourceStockCheckItemId : null,
-      created_at: line.createdAt || timestamp,
-      updated_at: timestamp,
-    }));
-  if (!itemPayload.length) throw new Error("Purchase order requires at least one item.");
-  const itemsResult = await supabase
-    .from("inventory_purchase_order_items")
-    .insert(itemPayload)
-    .select("*");
-  debugLog("[POSubmitDebug]", { action: "replace-order-items-insert", orderId: order.id, payload: itemPayload, result: { data: itemsResult.data, error: itemsResult.error }, error: itemsResult.error });
-  if (itemsResult.error) throw itemsResult.error;
-  return mapRemotePurchaseOrder(orderResult.data, itemsResult.data || [], []);
 }
 
 async function persistRemotePurchaseOrderCancel(order = {}, reason = "") {
   if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
-  const hasReceived = receivedQty(order) > 0;
-  const cancellableStatus = ["draft", "submitted", "supplier_confirmed"].includes(order.status);
-  if (!cancellableStatus || hasReceived) throw new Error("PO cannot be cancelled after receiving has started.");
-  const timestamp = new Date().toISOString();
-  const payload = {
-    status: "cancelled",
-    cancellation_reason: reason,
-    cancelled_at: timestamp,
-    updated_at: timestamp,
-  };
-  const result = await supabase
-    .from("inventory_purchase_orders")
-    .update(payload)
-    .eq("id", order.id)
-    .select("*")
-    .single();
-  debugLog("[POCancelDebug]", { action: "cancel-po", orderId: order.id, payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId: order.id, action: "cancel", reason });
   return fetchRemotePurchaseOrder(order.id);
 }
 
 async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
   if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
-  if (!["partial_received", "fully_received"].includes(order.status)) throw new Error("Only received purchase orders can be completed.");
-  const progress = poProgress(order);
-  const remaining = Math.max(0, progress.ordered - progress.received);
-  const completionType = remaining > 0 ? "partial" : "full";
-  if (completionType === "partial" && !String(reason || "").trim()) throw new Error("Completion reason is required for partially fulfilled POs.");
-  const timestamp = new Date().toISOString();
-  const payload = {
-    status: "completed",
-    completed_at: timestamp,
-    completion_type: completionType,
-    completion_reason: reason || null,
-    unfulfilled_qty: remaining,
-    updated_at: timestamp,
-  };
-  const result = await supabase
-    .from("inventory_purchase_orders")
-    .update(payload)
-    .eq("id", order.id)
-    .select("*")
-    .single();
-  debugLog("[POCompleteDebug]", { action: "complete-po", orderId: order.id, payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId: order.id, action: "complete", reason });
   return fetchRemotePurchaseOrder(order.id);
 }
 
@@ -2612,6 +2379,7 @@ async function archiveRemoteRecipe(recipeId) {
 // Existing persistence contracts exposed for focused lifecycle tests; runtime ownership remains in InventoryControlPage.
 export const inventoryLifecycleContracts = {
   persistRemoteStockCheck,
+  deleteRemoteStockCheckDraft,
   persistRemotePurchaseOrderStatus,
   persistRemotePurchaseOrderEdit,
   persistRemotePurchaseOrderCancel,
@@ -7149,40 +6917,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Purchase orders exported", `${rows.length} PO${rows.length === 1 ? "" : "s"} exported.`);
   }
 
-  function formatPurchaseOrderText(order) {
-    const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-    const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
-    const supplierName = supplier?.name || "Supplier";
-    const statusLine = ["cancelled", "completed"].includes(order.status) ? [`Status: ${poStatusLabel(order.status)}`] : [];
-    const itemLines = (order.lines || []).map((line, index) => {
-      const item = itemById.get(line.itemId);
-      const base = `${index + 1}. ${item?.name || "Inventory item"} — ${Number(line.requestedQty || 0)} ${line.unit || item?.unit || ""}`.trim();
-      return line.remark ? `${base}\n   Remark: ${line.remark}` : base;
-    });
-    const remarks = order.remark || order.notes || "";
-    return [
-      `Hi ${supplierName},`,
-      "",
-      "Please arrange the following order:",
-      "",
-      `PO No.: ${businessPoNo(order) || "-"}`,
-      `Date: ${formatDate(order.createdAt || todayInput())}`,
-      `Outlet: ${outlet?.name || "Outlet"}`,
-      ...statusLine,
-      "",
-      "Items:",
-      ...(itemLines.length ? itemLines : ["1. No items listed"]),
-      ...(remarks ? ["", "Remarks:", remarks] : []),
-      "",
-      "Please confirm stock availability and delivery date.",
-      "",
-      "Thank you.",
-    ].join("\n");
-  }
-
   async function copyPurchaseOrderText(order) {
     if (!requirePermission(can.viewPo, "view purchase orders")) return;
-    const text = formatPurchaseOrderText(order);
+    const text = formatPurchaseOrderText(order, {
+      supplierName: suppliers.find((entry) => entry.id === order.supplierId)?.name,
+      outletName: outletById.get(order.outletId || order.outletIds?.[0])?.name,
+      itemById,
+      businessPoNo,
+      formatDate,
+      today: todayInput(),
+    });
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
       await navigator.clipboard.writeText(text);

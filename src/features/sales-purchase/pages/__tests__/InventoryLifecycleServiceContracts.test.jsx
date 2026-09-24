@@ -132,6 +132,26 @@ describe("Inventory lifecycle persistence contracts", () => {
     expect(mutation("inventory_stock_check_items", "insert")).toHaveLength(0);
   });
 
+  it("deletes an audit draft through one trusted command without table deletes", async () => {
+    rpcResponse("inventory_delete_stock_check_draft", { data: { stock_check_id: ids.check, deleted: true } });
+    await inventoryLifecycleContracts.deleteRemoteStockCheckDraft(ids.check);
+    expect(mocks.operations).toEqual([expect.objectContaining({ kind: "rpc", name: "inventory_delete_stock_check_draft", payload: { p_check_id: ids.check, p_request_id: expect.any(String) } })]);
+    expect(mutation("inventory_stock_checks", "delete")).toHaveLength(0);
+    expect(mutation("inventory_stock_check_items", "delete")).toHaveLength(0);
+  });
+
+  it("keeps a rejected PO transition and suggestion conversion inside their single RPC boundaries", async () => {
+    const { inventoryLifecycleService } = await import("../../../../services/inventoryLifecycleService.js");
+    rpcResponse("inventory_transition_purchase_order", { data: null, error: new Error("state changed") });
+    await expect(inventoryLifecycleService.transitionPurchaseOrder({ orderId: ids.order, action: "submit" })).rejects.toThrow("state changed");
+    rpcResponse("inventory_create_stock_check_purchase_orders", { data: [{ order: { id: ids.order }, items: [] }] });
+    const results = await inventoryLifecycleService.createStockCheckPurchaseOrders({ stockCheckId: ids.check, orders: [{ source_stock_check_id: ids.check, lines: [] }] });
+    expect(results).toHaveLength(1);
+    expect(mocks.operations.map((entry) => entry.name)).toEqual(["inventory_transition_purchase_order", "inventory_create_stock_check_purchase_orders"]);
+    expect(mutation("inventory_purchase_orders", "update")).toHaveLength(0);
+    expect(mutation("inventory_purchase_orders", "insert")).toHaveLength(0);
+  });
+
   it("sends a signed manual movement through one trusted RPC without a balance-table write", async () => {
     rpcResponse("inventory_save_manual_movement", { data: { movement: { id: ids.movement, outlet_id: ids.outlet, inventory_item_id: ids.item, movement_type: "Waste", quantity: -2, unit: "kg", reference_type: "manual" } } });
 

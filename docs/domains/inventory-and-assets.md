@@ -24,6 +24,8 @@ Stock changes occur through established lifecycle authorities that validate scop
 The canonical balance is server-derived from accepted evidence or the established read model; the browser must not manufacture final stock.
 Corrections use explicit adjustments or controlled reversal behavior rather than rewriting posted history.
 
+Restaurant Stock Check drafts (scheduled and audit) are saved through `inventory_save_stock_check`; a submitted check and its item evidence are immutable. The server owns request idempotency, outlet/group validation, submission time and actor, and a completed scheduled check's group timestamp. Audit draft deletion uses `inventory_delete_stock_check_draft` and records server audit evidence. Stock Check completion records a count; it does not itself post an inventory movement or adjust a balance. The private `inventory_authority` cores accept a server-derived Admin or future Crew employee actor, while the current public wrappers enforce Admin Auth, permission and outlet scope. Existing historical rows remain readable.
+
 Asset creation and lifecycle transitions use the existing asset authorities.
 Status, location, assignment, and retirement history must remain traceable.
 Inventory and asset records are related operational concerns but retain their own entity lifecycles.
@@ -64,6 +66,8 @@ Restaurant finance may consume valuation or usage projections without taking inv
 People/RBAC supplies identity and scope.
 
 The Purchase Orders route owns a focused authenticated read model for PO headers, lines, receipts, receipt items, and the inventory-item/outlet context required by its existing actions. It does not wait for unrelated Inventory Master metadata such as item-supplier links; full Inventory Control reads remain the owner for the other inventory routes. The PO read paginates canonical rows and verifies its header count so a row-limit cannot silently truncate the list.
+
+Draft PO persistence and completed Stock Check suggestion conversion use trusted commands; the latter creates supplier drafts atomically and validates source, shortage line, supplier link and duplicate eligibility under a source lock. Submit, supplier confirmation, cancellation and completion use `inventory_transition_purchase_order` with server-derived state, time, scope, retry identity and audit evidence. Receiving retains `inventory_receive_purchase_order` as the receipt and Purchase movement authority through the same private actor-explicit lifecycle core. Current Crew Stock Check and PO read/command wrappers are not exposed; Crew receives no direct table grants for these lifecycles.
 
 ## Compatibility And Deferred Scope
 

@@ -39,6 +39,7 @@ vi.mock("../../../../lib/supabase.ts", () => {
     const queued = mocks.rpcResponses[name]?.shift();
     if (queued) return queued;
     if (name === "inventory_save_purchase_order") return { data: { order: mocks.tables.inventory_purchase_orders[0], items: mocks.tables.inventory_purchase_order_items.filter((line) => line.purchase_order_id === mocks.tables.inventory_purchase_orders[0].id) }, error: null };
+    if (name === "inventory_create_stock_check_purchase_orders") return { data: [{ order: { ...mocks.tables.inventory_purchase_orders[0], id: "created-from-check", status: "draft" }, items: [{ ...mocks.tables.inventory_purchase_order_items[0], purchase_order_id: "created-from-check" }] }], error: null };
     if (name === "inventory_receive_purchase_order") return { data: { receipt_id: ids.receipt, purchase_order_id: payload.p_purchase_order_id, status: "partial_received" }, error: null };
     return { data: {}, error: null };
   });
@@ -197,49 +198,52 @@ describe("InventoryControlPage Purchase Orders lifecycle", () => {
     await waitFor(() => expect(screen.queryByRole("heading", { name: "Edit Draft PO" })).toBeNull());
   });
 
-  it("keeps status actions status-specific and uses the current direct status mutation path", async () => {
+  it("submits through the trusted transition command without a direct table mutation", async () => {
     mount(); await ready();
     expect(screen.getAllByRole("button", { name: "Submit Order" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Mark Confirmed" }).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("button", { name: "Complete PO" }).length).toBeGreaterThan(0);
     fireEvent.click(screen.getAllByRole("button", { name: "Submit Order" })[0]);
-    await waitFor(() => expect(mutations("inventory_purchase_orders")).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ status: "submitted" }) })));
+    await waitFor(() => expect(rpcCalls("inventory_transition_purchase_order")).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ p_order_id: ids.draft, p_action: "submit", p_request_id: expect.any(String) }) })));
+    expect(mutations("inventory_purchase_orders")).toHaveLength(0);
     expect(rpcCalls("inventory_save_purchase_order")).toHaveLength(0);
     expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "PO submitted" }));
   });
 
-  it("characterizes Supplier Confirm, Complete, and Cancel as their current status-gated direct mutation flows", async () => {
+  it("uses trusted commands for Supplier Confirm, Complete, and Cancel", async () => {
     mount(); await ready();
     fireEvent.click(within(orderCard("PO-SUBMITTED")).getByRole("button", { name: "Mark Confirmed" }));
-    await waitFor(() => expect(mutations("inventory_purchase_orders")).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ status: "supplier_confirmed" }) })));
+    await waitFor(() => expect(rpcCalls("inventory_transition_purchase_order")).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ p_action: "confirm", p_order_id: ids.submitted }) })));
     expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "PO supplier confirmed" }));
 
     fireEvent.click(within(orderTableRow("PO-PARTIAL")).getByRole("button", { name: "Complete PO" }));
     const complete = await modal("Complete Purchase Order?");
     fireEvent.change(within(complete).getByLabelText("Completion Reason"), { target: { value: "Supplier cannot fulfill the balance" } });
     fireEvent.click(within(complete).getByRole("button", { name: "Complete PO" }));
-    await waitFor(() => expect(mutations("inventory_purchase_orders")).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ status: "completed", completion_reason: "Supplier cannot fulfill the balance" }) })));
+    await waitFor(() => expect(rpcCalls("inventory_transition_purchase_order")).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ p_action: "complete", p_order_id: ids.partial, p_reason: "Supplier cannot fulfill the balance" }) })));
     expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "PO completed" }));
 
     fireEvent.click(within(orderCard("PO-DRAFT")).getByRole("button", { name: "Cancel" }));
     const cancel = await modal("Cancel Purchase Order");
     fireEvent.change(within(cancel).getByLabelText("Cancellation Reason"), { target: { value: "Ordering no longer needed" } });
     fireEvent.click(within(cancel).getByRole("button", { name: "Cancel PO" }));
-    await waitFor(() => expect(mutations("inventory_purchase_orders")).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ status: "cancelled", cancellation_reason: "Ordering no longer needed" }) })));
+    await waitFor(() => expect(rpcCalls("inventory_transition_purchase_order")).toContainEqual(expect.objectContaining({ payload: expect.objectContaining({ p_action: "cancel", p_order_id: ids.draft, p_reason: "Ordering no longer needed" }) })));
     expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "PO cancelled" }));
     expect(rpcCalls("inventory_save_purchase_order")).toHaveLength(0);
     expect(rpcCalls("inventory_receive_purchase_order")).toHaveLength(0);
+    expect(mutations("inventory_purchase_orders")).toHaveLength(0);
   });
 
   it("keeps a rejected Submit status transition visible for retry and does not report false success", async () => {
     mount(); await ready();
-    mocks.singleResponses.inventory_purchase_orders = [{ data: null, error: new Error("submit rejected") }];
+    mocks.rpcResponses.inventory_transition_purchase_order = [{ data: null, error: new Error("submit rejected") }, { data: { order: mocks.tables.inventory_purchase_orders[0] }, error: null }];
     fireEvent.click(within(orderCard("PO-DRAFT")).getByRole("button", { name: "Submit Order" }));
-    await waitFor(() => expect(mutations("inventory_purchase_orders")).toHaveLength(1));
+    await waitFor(() => expect(rpcCalls("inventory_transition_purchase_order")).toHaveLength(1));
     expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "Failed to submit PO", tone: "error" }));
     expect(within(orderCard("PO-DRAFT")).getByRole("button", { name: "Submit Order" })).toBeTruthy();
     fireEvent.click(within(orderCard("PO-DRAFT")).getByRole("button", { name: "Submit Order" }));
-    await waitFor(() => expect(mutations("inventory_purchase_orders")).toHaveLength(2));
+    await waitFor(() => expect(rpcCalls("inventory_transition_purchase_order")).toHaveLength(2));
+    expect(mutations("inventory_purchase_orders")).toHaveLength(0);
     expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: "PO submitted" }));
   });
 
@@ -301,7 +305,7 @@ describe("InventoryControlPage Purchase Orders lifecycle", () => {
     expect(mutations("inventory_purchase_orders")).toHaveLength(0);
   });
 
-  it("hands a submitted shortage check to one per-supplier trusted draft-PO intent", async () => {
+  it("hands a submitted shortage check to one atomic trusted supplier-order intent", async () => {
     window.history.replaceState(null, "", "#inventory_stock_check?date=2026-08-10");
     mount({ tab: "stock-check", includeCheck: true });
     await screen.findByText("Daily Count");
@@ -310,7 +314,7 @@ describe("InventoryControlPage Purchase Orders lifecycle", () => {
     expect(within(dialog).getAllByText("Chilli Supplier").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("6")).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Create Draft PO" }));
-    await waitFor(() => expect(rpcCalls("inventory_save_purchase_order")).toHaveLength(1));
-    expect(rpcCalls("inventory_save_purchase_order")[0].payload).toEqual(expect.objectContaining({ p_order: expect.objectContaining({ outlet_id: ids.outlet, supplier_id: ids.supplierA, status: "draft", source_type: "stock_check", source_stock_check_id: ids.check }), p_items: [expect.objectContaining({ item_id: ids.item, requested_qty: 6, unit: "kg", source_stock_check_item_id: ids.checkItem })] }));
+    await waitFor(() => expect(rpcCalls("inventory_create_stock_check_purchase_orders")).toHaveLength(1));
+    expect(rpcCalls("inventory_create_stock_check_purchase_orders")[0].payload).toEqual(expect.objectContaining({ p_check_id: ids.check, p_request_id: expect.any(String), p_orders: [expect.objectContaining({ outlet_id: ids.outlet, supplier_id: ids.supplierA, status: "draft", source_type: "stock_check", source_stock_check_id: ids.check, lines: [expect.objectContaining({ item_id: ids.item, requested_qty: 6, unit: "kg", source_stock_check_item_id: ids.checkItem })] })] }));
   });
 });
