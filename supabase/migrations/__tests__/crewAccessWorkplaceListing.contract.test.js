@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260923100000_crew_access_workplace_listing.sql"), "utf8");
+const restoredSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924040846_restore_management_crew_access_page.sql"), "utf8");
 
 describe("Crew Access Employee Workplace listing", () => {
   it("keeps the canonical paged contract and authenticated grant", () => {
@@ -21,5 +22,20 @@ describe("Crew Access Employee Workplace listing", () => {
     expect(sql).not.toContain("p_outlet_id=any(public.crew_authorized_outlet_ids(e.id))");
     expect(sql).toContain("'role_outlet_access',jsonb_build_object");
     expect(sql).toContain("where ro.role_id=r.id and o.is_active");
+  });
+});
+
+describe("Crew Inventory gateway paging compatibility", () => {
+  it("restores Management-only provisioning while retaining the inventory flags", () => {
+    expect(restoredSql).toContain("v_scope = 'management'");
+    expect(restoredSql).toContain("public.current_user_has_all_outlet_access()");
+    expect(restoredSql).toContain("public.current_user_can_access_outlet(p_outlet_id)");
+    expect(restoredSql).toContain("public.crew_resolve_employee_outlet(e.id) = p_outlet_id");
+    expect(restoredSql).not.toContain("p_outlet_id=any(public.crew_authorized_outlet_ids(e.id))");
+    expect(restoredSql).toContain("'role_outlet_access', jsonb_build_object(");
+    for (const capability of [
+      "can_perform_stock_check", "can_create_audit_stock_check",
+      "can_manage_purchase_orders", "can_receive_purchase_orders",
+    ]) expect(restoredSql).toContain(`'${capability}', crew_${capability}`);
   });
 });
