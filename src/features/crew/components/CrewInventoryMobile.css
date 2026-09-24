@@ -3,6 +3,7 @@
   padding: 0 var(--crew-mobile-page-inline) var(--crew-mobile-page-bottom);
   color: var(--crew-color-text);
 }
+.crew-inventory-page:has(.crew-inventory-sticky:not(:empty)) { padding-bottom: calc(var(--crew-mobile-page-bottom) + 72px); }
 .crew-inventory-home { min-width: 0; }
 .crew-inventory-home-modules { display: grid; gap: 10px; }
 .crew-inventory-home-module {
@@ -94,7 +95,7 @@
 .crew-inventory-form fieldset legend { margin-bottom: 8px; font-weight: 700; }
 .crew-inventory-form fieldset label { display: flex; align-items: center; gap: 10px; min-height: 42px; color: var(--crew-color-text); font-size: var(--crew-type-secondary); }
 .crew-inventory-form fieldset input { width: 19px; height: 19px; accent-color: var(--crew-color-success); }
-.crew-inventory-sticky { position: sticky; z-index: 5; bottom: 0; display: flex; gap: 8px; margin: 16px calc(-1 * var(--crew-mobile-page-inline)) calc(-1 * var(--crew-mobile-page-bottom)); border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface-raised); padding: 9px var(--crew-mobile-page-inline) calc(9px + env(safe-area-inset-bottom)); }
+.crew-inventory-sticky { position: fixed; z-index: 5; right: 0; bottom: var(--crew-mobile-keyboard-inset, 0px); left: 0; display: flex; gap: 8px; box-sizing: border-box; width: min(100%, var(--crew-mobile-content-max)); margin: 0 auto; border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface-raised); padding: 9px var(--crew-mobile-page-inline) calc(9px + env(safe-area-inset-bottom)); }
 .crew-inventory-sticky:empty { display: none; }
 .crew-inventory-sticky button { min-width: 0; min-height: 48px; flex: 1; }
 .crew-inventory-review { display: grid; gap: 8px; }
