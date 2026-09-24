@@ -3,9 +3,11 @@ import { SlidersHorizontal, X } from "lucide-react";
 import ActionMenu from "../ui/ActionMenu.jsx";
 import SelectField from "../forms/SelectField.jsx";
 
-export function AdminOutletField({ value, onChange, options = [], allowAll = false, allValue = "all", label = "Outlet", ariaLabel = label }) {
+export const ALL_FILTER_OPTION = Object.freeze({ value: "all", label: "All" });
+
+export function AdminOutletField({ value, onChange, options = [], allowAll = false, allValue = "all", label = "Outlet", ariaLabel = label, searchable = false }) {
   const outletOptions = allowAll ? [{ value: allValue, label: "All" }, ...options] : options;
-  return <SelectField label={label} ariaLabel={ariaLabel} value={value} onChange={onChange} options={outletOptions} />;
+  return <SelectField label={label} ariaLabel={ariaLabel} value={value} onChange={onChange} options={outletOptions} searchable={searchable} />;
 }
 
 function labelForField(field) {
@@ -55,23 +57,28 @@ export default function AdminFilterToolbar({
   sortChildren = false,
   compact = false,
   denseFields = false,
+  periodAfterFilters = false,
   className = "",
   ariaLabel = "Filters",
 }) {
   const [moreOpen, setMoreOpen] = useState(false);
+  const filterFields = slotItems(filters).map((field) => ({ field, slot: "filter", role: roleForField(field), width: widthForField(field) }));
+  const childFields = (sortChildren ? slotItems(children).sort((left, right) => standardFieldOrder(left) - standardFieldOrder(right)) : slotItems(children)).map((field) => ({ field, slot: "filter", role: roleForField(field), width: widthForField(field) }));
+  const periodField = period && { field: period, slot: "period", role: roleForField(period), width: periodWidth || widthForField(period) };
   const fields = [
     outlet && { field: outlet, slot: "outlet", role: "outlet", width: "w-full sm:w-[230px]" },
-    period && { field: period, slot: "period", role: roleForField(period), width: periodWidth || widthForField(period) },
+    !periodAfterFilters && periodField,
     search && { field: search, slot: "search", role: "search", width: "w-full min-w-0 sm:flex-[1_1_280px]" },
-    ...slotItems(filters).map((field) => ({ field, slot: "filter", role: roleForField(field), width: widthForField(field) })),
-    ...(sortChildren ? slotItems(children).sort((left, right) => standardFieldOrder(left) - standardFieldOrder(right)) : slotItems(children)).map((field) => ({ field, slot: "filter", role: roleForField(field), width: widthForField(field) })),
+    ...filterFields,
+    ...childFields,
+    periodAfterFilters && periodField,
   ].filter(Boolean);
 
   return (
     <section className={`admin-filter-toolbar rounded-lg border border-border bg-surface/80 shadow-sm ${compact ? "admin-filter-toolbar-compact" : ""} ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar>
       <div className="admin-filter-toolbar-row flex flex-wrap items-end">
         <div className="flex min-w-0 flex-[1_1_640px] flex-wrap items-end" data-admin-filter-fields>
-          {fields.map(({ field, slot, role, width }, index) => <div className={`${denseFields ? role === "outlet" ? "w-full sm:w-[200px]" : role === "search" ? "w-full min-w-0 sm:flex-[1_1_240px]" : "w-full sm:w-[150px]" : width} ${role === "search" ? "min-w-0" : "min-w-0 shrink-0"} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{field}</div>)}
+          {fields.map(({ field, slot, role, width }, index) => <div className={`${denseFields ? role === "outlet" ? "w-full sm:w-[200px]" : role === "search" ? "w-full min-w-0 sm:flex-[1_1_240px]" : role === "date-range" ? "w-full sm:w-[220px]" : "w-full sm:w-[150px]" : width} ${role === "search" ? "min-w-0" : "min-w-0 shrink-0"} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{field}</div>)}
         </div>
         {moreFilters || activeFilters.length || secondaryActions || primaryActions ? <div className="flex w-full flex-wrap items-end sm:w-auto sm:justify-end" data-admin-filter-actions>
           {moreFilters ? <ActionMenu open={moreOpen} onOpenChange={setMoreOpen} align="right" width={340} ariaLabel="More filters" trigger={({ toggle, ariaLabel: menuLabel }) => <button className={`btn-secondary h-10 shrink-0 px-3 text-sm ${moreOpen ? "border-primary/40 bg-primary/5 text-primary" : ""}`} type="button" aria-label={menuLabel} aria-expanded={moreOpen} onClick={toggle}><SlidersHorizontal size={15} /> Filters</button>}><div className="grid gap-3 p-1">{moreFilters}</div></ActionMenu> : null}

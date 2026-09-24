@@ -16,7 +16,7 @@ export default function FactoryRowActions({ onView, viewLabel = "View details", 
     {onView ? <FactoryRowAction label={viewLabel} onClick={onView} /> : null}
     {visibleActions.map((action) => {
       const Icon = action.icon || Pencil;
-      const buttonClass = action.compact ? "btn-secondary h-7 gap-1 px-2 text-xs" : "btn-secondary h-8 px-2.5 text-xs";
+      const buttonClass = `${action.compact ? "btn-secondary h-7 gap-1 px-2 text-xs" : "btn-secondary h-8 px-2.5 text-xs"} ${action.destructive ? "text-rose-700 hover:border-rose-200 hover:bg-rose-50" : ""}`;
       const responsiveClass = action.desktopOnly ? "hidden md:inline-flex" : "";
       return action.variant === "button"
         ? <button key={action.key || action.label} className={`${buttonClass} ${responsiveClass}`} type="button" disabled={action.disabled} onClick={action.onClick}>{action.icon ? <Icon size={14} /> : null}{action.label}</button>

@@ -69,9 +69,10 @@ function mount({ orders = [order] } = {}) {
   return callbacks;
 }
 
-function select(currentLabel, optionLabel) {
-  fireEvent.click(screen.getByRole("button", { name: currentLabel }));
-  fireEvent.click(screen.getByRole("button", { name: optionLabel }));
+function select(fieldLabel, optionLabel) {
+  const field = screen.getAllByText(fieldLabel, { exact: true }).map((label) => label.parentElement).find((container) => container?.querySelector("button[aria-haspopup='listbox']"));
+  fireEvent.click(within(field).getByRole("button"));
+  fireEvent.click(screen.getAllByRole("button", { name: optionLabel }).find((button) => !button.hasAttribute("aria-haspopup")));
 }
 
 function expectVisible(...poNos) {
@@ -127,34 +128,34 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
     mount({ orders: filterOrders });
     expectVisible("INT-PO-001", "INT-PO-003");
 
-    select("KL Central", "PJ Hub");
+    select("Outlet", "PJ Hub");
     expectVisible("INT-PO-002");
-    select("PJ Hub", "KL Central");
+    select("Outlet", "KL Central");
 
-    select("All Suppliers", "Coconut Supplier");
+    select("Supplier", "Coconut Supplier");
     expectVisible("INT-PO-003");
-    select("Coconut Supplier", "All Suppliers");
+    select("Supplier", "All");
 
-    select("All Status", "Partial Received");
+    select("Status", "Partial Received");
     expectVisible("INT-PO-001");
-    select("Partial Received", "All Status");
+    select("Status", "All");
 
-    select("All Sources", "Stock Check");
+    select("Source", "Stock Check");
     expectVisible("INT-PO-001");
-    select("Stock Check", "All Sources");
+    select("Source", "All");
 
-    const [from, to] = screen.getAllByPlaceholderText("28 May 2026");
-    select("KL Central", "PJ Hub");
-    fireEvent.change(from, { target: { value: "10 Aug 2026" } });
-    fireEvent.change(to, { target: { value: "10 Aug 2026" } });
+    select("Outlet", "PJ Hub");
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Today" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     expectVisible("INT-PO-002");
-    fireEvent.change(from, { target: { value: "" } });
-    fireEvent.change(to, { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
 
     fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "  coconut cream  " } });
     expectVisible("INT-PO-002");
     fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "PO-2026-002" } });
-    select("All Sources", "Manual");
+    select("Source", "Manual");
     expectVisible("INT-PO-002");
   });
 

@@ -155,6 +155,7 @@ export default function CrewAttendanceDateRangePicker({ from, to, today, onApply
 
   function cancel() { setDraftFrom(effectiveFrom); setDraftTo(effectiveTo); setSelectingEnd(false); setOpen(false); }
   function apply() { onApply({ from: draftFrom, to: draftTo }); setOpen(false); }
+  function clear() { onApply({ from: "", to: "" }); setOpen(false); }
 
   return <div className="crew-attendance-range-field">
     <span>{label}</span>
@@ -171,7 +172,7 @@ export default function CrewAttendanceDateRangePicker({ from, to, today, onApply
           </div>
         </main>
       </div>
-      <footer><button className="btn-secondary" type="button" onClick={cancel}>Cancel</button><button className="btn-primary" type="button" onClick={apply}>Apply</button></footer>
+      <footer><button className="btn-secondary" type="button" onClick={cancel}>Cancel</button>{from || to ? <button className="btn-secondary" type="button" onClick={clear}>Clear</button> : null}<button className="btn-primary" type="button" onClick={apply}>Apply</button></footer>
     </FloatingLayer>
   </div>;
 }

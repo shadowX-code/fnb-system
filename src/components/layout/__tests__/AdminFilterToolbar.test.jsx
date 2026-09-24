@@ -65,6 +65,11 @@ describe("AdminFilterToolbar", () => {
     expect(range.className).toContain("shrink-0");
   });
 
+  it("can place a shared date range after its primary filters without changing the default order", () => {
+    const { container } = render(<AdminFilterToolbar outlet={<Field label="Outlet" />} search={<Field label="Search" />} filters={<><Field label="Supplier" /><Field label="Status" /></>} period={<Field label="Date Range" />} periodAfterFilters />);
+    expect(Array.from(container.querySelectorAll("[data-admin-filter-fields] [data-admin-filter-slot]")).map((field) => field.textContent)).toEqual(["Outlet", "Search", "Supplier", "Status", "Date Range"]);
+  });
+
   it("uses a shared component-declared role when the period has no label prop", () => {
     render(<AdminFilterToolbar period={<FeedXDateRangePicker from="2026-09-16" to="2026-09-16" today="2026-09-16" onApply={vi.fn()} />} />);
     const range = screen.getByLabelText("Date Range").closest('[data-admin-filter-slot]');

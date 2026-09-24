@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { Copy } from "lucide-react";
 import DashboardSection from "../../../../components/layout/DashboardSection.jsx";
-import AdminFilterToolbar from "../../../../components/layout/AdminFilterToolbar.jsx";
+import AdminFilterToolbar, { ALL_FILTER_OPTION } from "../../../../components/layout/AdminFilterToolbar.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
-import DatePickerField from "../../../../components/forms/DatePickerField.jsx";
+import FeedXDateRangePicker from "../../../../components/ui/FeedXDateRangePicker.jsx";
 import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import { poProgress, poSourceLabel, poStatusLabel } from "./inventoryPurchaseOrderHelpers.js";
 import InventoryPurchaseOrderDetail from "./InventoryPurchaseOrderDetail.jsx";
@@ -83,16 +83,16 @@ export default function InventoryPurchaseOrdersPage({
             : { label: "View", tone: "secondary", action: () => onView(order) };
 
   return <div className="space-y-4">
-    <AdminFilterToolbar ariaLabel="Purchase order filters" denseFields
+    <AdminFilterToolbar ariaLabel="Purchase order filters" denseFields periodAfterFilters
       outlet={<SelectField label="Outlet" value={selectedOutletId} options={accessibleOutletOptions} onChange={(value) => update("outletId", value)} searchable />}
       search={<label><div className="mb-1 type-caption font-semibold text-text-secondary">Search</div><input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => update("search", event.target.value)} placeholder="Search PO no., supplier or item" /></label>}
       filters={<>
-        <SelectField label="Supplier" value={filters.supplierId} options={[{ value: "all", label: "All Suppliers" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => update("supplierId", value)} searchable />
-        <SelectField label="Status" value={filters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: poStatusLabel(status) }))]} onChange={(value) => update("status", value)} />
-        <SelectField label="Source" value={filters.source} options={[{ value: "all", label: "All Sources" }, ...sources.map((source) => ({ value: source, label: poSourceLabel(source) }))]} onChange={(value) => update("source", value)} />
-        <DatePickerField label="From" value={filters.from} onChange={(value) => update("from", value)} />
-        <DatePickerField label="To" value={filters.to} onChange={(value) => update("to", value)} />
-      </>} />
+        <SelectField label="Supplier" value={filters.supplierId} options={[ALL_FILTER_OPTION, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => update("supplierId", value)} searchable />
+        <SelectField label="Status" value={filters.status} options={[ALL_FILTER_OPTION, ...statuses.map((status) => ({ value: status, label: poStatusLabel(status) }))]} onChange={(value) => update("status", value)} />
+        <SelectField label="Source" value={filters.source} options={[ALL_FILTER_OPTION, ...sources.map((source) => ({ value: source, label: poSourceLabel(source) }))]} onChange={(value) => update("source", value)} />
+      </>}
+      period={<FeedXDateRangePicker from={filters.from} to={filters.to} today={todayInput()} onApply={({ from, to }) => setFilters((current) => ({ ...current, from, to }))} />}
+    />
     <DashboardSection title="Purchase Orders" subtitle="Draft POs are created from reviewed stock check suggestions or manual purchase planning.">
     {loadState === "loading" && !orders.length ? <div className="p-8 text-center text-sm font-semibold text-text-secondary" role="status">Loading purchase orders…</div> : loadError ? <div className="p-8 text-center" role="alert"><strong className="text-rose-700">Purchase orders could not load.</strong><p className="mt-1 text-sm text-text-secondary">{loadError}</p>{onRetry ? <button className="btn-secondary mt-3" type="button" onClick={onRetry}>Retry</button> : null}</div> : filtered.length ? <>
       <div className="space-y-3 md:hidden">

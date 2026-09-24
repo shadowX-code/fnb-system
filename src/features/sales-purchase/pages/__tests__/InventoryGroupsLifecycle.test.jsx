@@ -107,8 +107,8 @@ const groupWrites = (kind) => mocks.operations.filter((entry) => entry.table ===
 const masterReads = () => mocks.from.mock.calls.filter(([table]) => table === "inventory_items").length;
 async function ready() { await screen.findByText("Morning Produce Count"); }
 async function dialog(title) { return (await screen.findByRole("heading", { name: title })).closest(".fixed"); }
-function groupCard(name) { return screen.getByText(name).closest(".rounded-2xl.border"); }
-async function choose(label, option) { fireEvent.click(screen.getByRole("button", { name: label })); fireEvent.click(await screen.findByRole("button", { name: option })); }
+function groupCard(name) { return screen.getByText(name).closest(".rounded-xl.border"); }
+async function choose(fieldLabel, option) { const field = screen.getAllByText(fieldLabel, { exact: true }).map((label) => label.parentElement).find((container) => container?.querySelector("button[aria-haspopup='listbox']")); fireEvent.click(within(field).getByRole("button")); fireEvent.click((await screen.findAllByRole("button", { name: option })).find((button) => !button.hasAttribute("aria-haspopup"))); }
 
 beforeEach(() => { seed(); mocks.operations.length = 0; mocks.notifications.length = 0; mocks.singleResponses = {}; mocks.from.mockClear(); });
 afterEach(() => {
@@ -133,17 +133,17 @@ describe("InventoryControlPage Groups lifecycle", () => {
     expect(screen.queryByText("Morning Produce Count")).toBeNull();
     expect(screen.getByText("Legacy Packaging Count")).toBeTruthy();
     fireEvent.change(screen.getByPlaceholderText("Search group or category"), { target: { value: "" } });
-    await choose("All Outlets", "KL Central");
+    await choose("Outlet", "KL Central");
     expect(screen.getByText("Morning Produce Count")).toBeTruthy();
     expect(screen.queryByText("Legacy Packaging Count")).toBeNull();
-    await choose("All Status", "Active");
+    await choose("Status", "Active");
     expect(screen.getByText("Morning Produce Count")).toBeTruthy();
-    await choose("All Frequency", "Custom");
+    await choose("Frequency", "Custom");
     expect(screen.getByText("Morning Produce Count")).toBeTruthy();
   });
 
   it("creates a Group through one parent persistence path, refresh, notification, and close", async () => {
-    mount(); await ready(); await choose("All Outlets", "KL Central");
+    mount(); await ready(); await choose("Outlet", "KL Central");
     const readsBefore = masterReads();
     fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
     const modal = await dialog("Add Stock Check Group");
@@ -195,7 +195,7 @@ describe("InventoryControlPage Groups lifecycle", () => {
   });
 
   it("keeps a failed Group save modal open and permits a successful retry without a false refresh", async () => {
-    mount(); await ready(); await choose("All Outlets", "KL Central");
+    mount(); await ready(); await choose("Outlet", "KL Central");
     mocks.singleResponses.inventory_stock_check_groups = [{ data: null, error: new Error("group rejected") }];
     const readsBefore = masterReads();
     fireEvent.click(screen.getByRole("button", { name: "Add Group" }));
