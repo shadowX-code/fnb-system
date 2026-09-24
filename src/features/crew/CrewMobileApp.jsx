@@ -74,6 +74,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   const [cashCheckoutFlow, setCashCheckoutFlow] = useState(false);
   const [assetInspectionFlow, setAssetInspectionFlow] = useState(false);
   const [inventoryFlow, setInventoryFlow] = useState(false);
+  const [inventoryTarget, setInventoryTarget] = useState(null);
   const [operationTarget, setOperationTarget] = useState(null);
   const homeScrollY = useRef(0);
   const logout = () => { navigate("home"); replaceSession(null); };
@@ -103,10 +104,10 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     {outletScope.management && outletScope.outlets.length > 1 && <CrewOutletSwitcher outlets={outletScope.outlets} selectedOutletId={selectedOutletId} onSelect={selectOutlet} />}
     <Suspense fallback={<CrewRouteLoading />}>
-    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile key={selectedOutletId} session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} management={outletScope.management} inventoryOutletId={selectedOutletId} inventoryGrants={inventoryGrants} />)}
+    {screen === "home" && (pageLoading ? <CrewRouteLoading /> : <CrewHomeMobile key={selectedOutletId} session={session} attendance={attendance} context={context} roster={roster} operations={operations} clock={clock} navigate={navigate} onOpenTask={openTask} theme={theme} onToggleTheme={toggleTheme} notificationUnreadCount={unreadCount} management={outletScope.management} inventoryOutletId={selectedOutletId} inventoryGrants={inventoryGrants} onOpenInventoryList={(screenId) => { setInventoryTarget(null); navigate(screenId); }} onOpenInventoryTarget={(screenId, target) => { setInventoryTarget({ screenId, outletId: selectedOutletId, target }); navigate(screenId); }} />)}
     {screen === "inventory-operations" && <CrewInventoryOperationsMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} grants={inventoryGrants} onBack={() => navigate("home")} onOpenStock={() => navigate("stock-check")} onOpenOrders={() => navigate("purchase-orders")} />}
-    {screen === "stock-check" && <CrewStockCheckMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} grants={inventoryGrants} onBack={() => navigate("inventory-operations")} onFlowChange={setInventoryFlow} />}
-    {screen === "purchase-orders" && <CrewPurchaseOrdersMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} grants={inventoryGrants} onBack={() => navigate("inventory-operations")} onFlowChange={setInventoryFlow} />}
+    {screen === "stock-check" && <CrewStockCheckMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} grants={inventoryGrants} initialTarget={inventoryTarget?.screenId === "stock-check" && inventoryTarget.outletId === selectedOutletId ? inventoryTarget.target : null} onBack={() => { setInventoryTarget(null); navigate("home"); }} onFlowChange={setInventoryFlow} />}
+    {screen === "purchase-orders" && <CrewPurchaseOrdersMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} grants={inventoryGrants} initialTarget={inventoryTarget?.screenId === "purchase-orders" && inventoryTarget.outletId === selectedOutletId ? inventoryTarget.target : null} onBack={() => { setInventoryTarget(null); navigate("home"); }} onFlowChange={setInventoryFlow} />}
     {screen === "notifications" && <CrewNotificationsMobile token={session.token} onBack={() => navigate("home")} onOpenNotification={openNotification} onUnreadChanged={refreshUnreadCount} />}
     {screen === "learn" && <CrewLearningMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={refresh} onViewPerformance={() => navigate("growth", { growthInitialView: "performance" })} />}

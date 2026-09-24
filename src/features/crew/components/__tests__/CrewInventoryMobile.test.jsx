@@ -2,10 +2,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import CrewStockCheckMobile from "../CrewStockCheckMobile.jsx";
 import CrewPurchaseOrdersMobile from "../CrewPurchaseOrdersMobile.jsx";
-import { hasCrewInventoryAccess } from "../CrewInventoryOperationsMobile.jsx";
+import { CrewInventoryHomeAttention, hasCrewInventoryAccess } from "../CrewInventoryOperationsMobile.jsx";
 import "../../../../i18n/index.js";
 
-const api = vi.hoisted(() => ({ inventoryStockChecks: vi.fn(), inventoryPurchaseOrders: vi.fn(), inventoryMobileCatalog: vi.fn(), saveInventoryStockCheck: vi.fn(), saveInventoryPurchaseOrder: vi.fn(), createInventoryStockCheckOrders: vi.fn(), transitionInventoryPurchaseOrder: vi.fn(), receiveInventoryPurchaseOrder: vi.fn() }));
+const api = vi.hoisted(() => ({ inventoryAttention: vi.fn(), inventoryStockChecks: vi.fn(), inventoryPurchaseOrders: vi.fn(), inventoryMobileCatalog: vi.fn(), saveInventoryStockCheck: vi.fn(), saveInventoryPurchaseOrder: vi.fn(), createInventoryStockCheckOrders: vi.fn(), transitionInventoryPurchaseOrder: vi.fn(), receiveInventoryPurchaseOrder: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: api }));
 
 const catalog = { outlet_id: "outlet-1", outlet_name: "Test Outlet", business_date: "2026-09-24", categories: [{ id: "cat-1", name: "Dry Goods" }], items: [{ id: "item-1", name: "Rice", sku: "RICE", category_id: "cat-1", unit: "kg", par_level: 10 }], suppliers: [{ id: "supplier-1", name: "Supplier A" }] };
@@ -15,6 +15,7 @@ const poDetail = { id: "po-1", po_no: "PO-1", supplier_id: "supplier-1", supplie
 beforeEach(() => {
   Object.values(api).forEach((mock) => mock.mockReset());
   api.inventoryMobileCatalog.mockResolvedValue(catalog);
+  api.inventoryAttention.mockResolvedValue({ stock_checks_due_today: 1, purchase_orders_awaiting_confirmation: 0, purchase_orders_awaiting_receiving: 1 });
   api.inventoryStockChecks.mockResolvedValue(stock);
   api.inventoryPurchaseOrders.mockImplementation(async (_token, _outlet, id) => id ? { ...orders, detail: poDetail } : orders);
 });
@@ -22,6 +23,38 @@ afterEach(cleanup);
 const orders = { can_manage_purchase_orders: true, can_receive_purchase_orders: true, orders: [{ id: "po-1", po_no: "PO-1", supplier_name: "Supplier A", line_count: 1, status: "supplier_confirmed" }], suggestions: [] };
 
 describe("Crew Inventory mobile authority boundary", () => {
+  it("shows direct Home modules with canonical attention and opens the priority check", async () => {
+    const onOpenCheck = vi.fn();
+    render(<CrewInventoryHomeAttention token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true, can_receive_purchase_orders: true }} onOpenStock={vi.fn()} onOpenOrders={vi.fn()} onOpenCheck={onOpenCheck} onOpenOrder={vi.fn()} />);
+    expect(await screen.findByText("1 check due today")).not.toBeNull();
+    expect(screen.getByText("1 awaiting receiving")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(onOpenCheck).toHaveBeenCalledWith(stock.due[0]);
+  });
+
+  it("uses action-oriented all-clear copy rather than zero KPI pills", async () => {
+    api.inventoryAttention.mockResolvedValue({ stock_checks_due_today: 0, purchase_orders_awaiting_confirmation: 0, purchase_orders_awaiting_receiving: 0 });
+    api.inventoryStockChecks.mockResolvedValue({ ...stock, due: [], checks: [] });
+    api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, orders: [] });
+    render(<CrewInventoryHomeAttention token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true, can_receive_purchase_orders: true }} onOpenStock={vi.fn()} onOpenOrders={vi.fn()} onOpenCheck={vi.fn()} onOpenOrder={vi.fn()} />);
+    expect(await screen.findByText("All clear today · No checks due")).not.toBeNull();
+    expect(screen.getByText("No orders need attention")).not.toBeNull();
+  });
+
+  it("never renders a previous outlet's attention after switching", async () => {
+    let resolveFirst;
+    api.inventoryStockChecks.mockImplementation((_token, outlet) => outlet === "outlet-1" ? new Promise((resolve) => { resolveFirst = resolve; }) : Promise.resolve({ ...stock, due: [], checks: [] }));
+    api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, orders: [] });
+    const grants = { can_perform_stock_check: true, can_receive_purchase_orders: true };
+    const props = { token: "token", grants, onOpenStock: vi.fn(), onOpenOrders: vi.fn(), onOpenCheck: vi.fn(), onOpenOrder: vi.fn() };
+    const view = render(<CrewInventoryHomeAttention {...props} outletId="outlet-1" />);
+    await waitFor(() => expect(resolveFirst).toBeTypeOf("function"));
+    view.rerender(<CrewInventoryHomeAttention {...props} outletId="outlet-2" />);
+    resolveFirst(stock);
+    expect(await screen.findByText("All clear today · No checks due")).not.toBeNull();
+    expect(screen.queryByText("Opening")).toBeNull();
+  });
+
   it("shows no direct-route data or actions without an outlet grant", async () => {
     expect(hasCrewInventoryAccess({})).toBe(false);
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{}} onBack={() => {}} />);

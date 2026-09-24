@@ -15,7 +15,7 @@ const isActive = (status) => ["submitted", "supplier_confirmed", "partial_receiv
 const editableLine = (line) => ({ item_id: line.item_id, requested_qty: String(line.requested_qty ?? ""), unit: line.unit || "", remark: line.remark || "", source_stock_check_item_id: line.source_stock_check_item_id || null });
 const displayPoNo = (order) => order?.po_no || (order?.id ? `PO-${order.id.replaceAll("-", "").slice(0, 12).toUpperCase()}` : "");
 
-export default function CrewPurchaseOrdersMobile({ token, outletId, grants, onBack, onFlowChange }) {
+export default function CrewPurchaseOrdersMobile({ token, outletId, grants, initialTarget, onBack, onFlowChange }) {
   const { t, i18n } = useTranslation();
   const [data, setData] = useState(null); const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState(""); const [notice, setNotice] = useState("");
@@ -24,6 +24,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, onBa
   const [query, setQuery] = useState(""); const [itemPicker, setItemPicker] = useState(false); const [receiveQty, setReceiveQty] = useState({}); const [copyFallback, setCopyFallback] = useState("");
   const [discardOpen, setDiscardOpen] = useState(false);
   const [dirty, setDirty] = useState(false); const request = useRef(null); const newPoNo = useRef(null); const active = useRef(true);
+  const initialOpened = useRef(false);
   useEffect(() => { active.current = true; return () => { active.current = false; onFlowChange?.(false); }; }, [onFlowChange]);
   useEffect(() => { onFlowChange?.(mode !== "list"); }, [mode, onFlowChange]);
   useEffect(() => {
@@ -37,7 +38,10 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, onBa
     setLoading(true); setError("");
     try {
       const [orders, choices] = await Promise.all([crewService.inventoryPurchaseOrders(token, outletId), crewService.inventoryMobileCatalog(token, outletId)]);
-      if (active.current) { setData(orders); setCatalog(choices); }
+      if (active.current) {
+        setData(orders); setCatalog(choices);
+        if (initialTarget?.id && !initialOpened.current) { initialOpened.current = true; void openOrder(initialTarget.id); }
+      }
     } catch (cause) { if (active.current) setError(cause.message || t("inventory.loadError")); }
     finally { if (active.current) setLoading(false); }
   }

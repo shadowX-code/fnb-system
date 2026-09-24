@@ -8,6 +8,7 @@ import CrewMobileModal from "./CrewMobileModal.jsx";
 import CrewChoicePicker from "./CrewChoicePicker.jsx";
 import CrewDatePicker from "./CrewDatePicker.jsx";
 import CrewQuantityStepper from "./CrewQuantityStepper.jsx";
+import CrewInventoryItemThumb from "./CrewInventoryItemThumb.jsx";
 import { CrewEmptyState, CrewProgressBar, CrewSearchBar, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
@@ -23,8 +24,8 @@ const serializeRows = (rows) => rows.map((row) => ({ item_id: row.item_id, categ
   actual_missing: !row.skipped && row.actual_count_quantity === "", variance: row.skipped || row.actual_count_quantity === "" || row.par_level_quantity == null ? null : Number(row.actual_count_quantity) - Number(row.par_level_quantity),
   unit: row.unit, status: countStatus(row), notes: row.notes || null, skipped: row.skipped, skip_reason: row.skipped ? row.skip_reason.trim() : null }));
 
-export default function CrewStockCheckMobile({ token, outletId, grants, onBack, onFlowChange }) {
-  const { t } = useTranslation();
+export default function CrewStockCheckMobile({ token, outletId, grants, initialTarget, onBack, onFlowChange }) {
+  const { t, i18n } = useTranslation();
   const [data, setData] = useState(null); const [catalog, setCatalog] = useState(null);
   const [loading, setLoading] = useState(true); const [busy, setBusy] = useState(false); const [error, setError] = useState("");
   const [tab, setTab] = useState("required"); const [check, setCheck] = useState(null); const [rows, setRows] = useState([]);
@@ -33,6 +34,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, onBack, 
   const [auditForm, setAuditForm] = useState({ type: "Spot Check", name: "", date: "", categoryIds: [], notes: "" });
   const [notice, setNotice] = useState(""); const pendingRequest = useRef(null); const activeRef = useRef(true);
   const [dirty, setDirty] = useState(false);
+  const initialOpened = useRef(false);
   useEffect(() => {
     if (!dirty) return undefined;
     const warn = (event) => { event.preventDefault(); event.returnValue = ""; };
@@ -48,6 +50,12 @@ export default function CrewStockCheckMobile({ token, outletId, grants, onBack, 
       const [nextData, nextCatalog] = await Promise.all([crewService.inventoryStockChecks(token, outletId), crewService.inventoryMobileCatalog(token, outletId)]);
       if (!activeRef.current) return;
       setData(nextData); setCatalog(nextCatalog);
+      if (initialTarget && !initialOpened.current) {
+        initialOpened.current = true;
+        const target = (nextData.due || []).find((group) => group.group_id === initialTarget.group_id);
+        if (initialTarget.id || initialTarget.check_id) void openSaved(initialTarget.id || initialTarget.check_id);
+        else if (target) startScheduled({ ...target, business_date: nextData.business_date });
+      }
     } catch (cause) { if (activeRef.current) setError(cause.message || t("inventory.loadError")); }
     finally { if (activeRef.current) setLoading(false); }
   }
@@ -65,7 +73,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, onBack, 
     (groups[key] ||= []).push(row);
     return groups;
   }, {}));
-  const scheduledDrafts = (data?.checks || []).filter((row) => row.type === "scheduled" && row.status === "draft" && !(data?.due || []).some((group) => group.check_id === row.id));
+  const scheduledDrafts = (data?.checks || []).filter((row) => row.type === "scheduled" && row.status === "draft" && !(data?.due || []).some((group) => group.check_id === row.id)).sort((a, b) => String(b.updated_at || b.check_date).localeCompare(String(a.updated_at || a.check_date)));
 
   async function openSaved(id) {
     setBusy(true); setError("");
@@ -83,7 +91,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, onBack, 
   function startScheduled(group) {
     if (group.check_id) { void openSaved(group.check_id); return; }
     setCheck({ stock_check_type: "scheduled", status: "draft", group_id: group.group_id, check_name: group.name,
-      check_date: data.business_date, shift: group.shift });
+      check_date: group.business_date || data?.business_date, shift: group.shift });
     setRows((group.items || []).map(asRow)); setReview(false); setQuery(""); setCategory("all"); pendingRequest.current = null; setDirty(false);
   }
   function startAudit() {
@@ -137,7 +145,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, onBack, 
 
   if (check) return <section className="crew-inventory-page">
     <CrewMobileDetailHeader title={check.audit_name || check.check_name || t("inventory.stockCheck")} subtitle={check.check_date} onBack={review ? () => setReview(false) : backFromCheck} />
-    <div className="crew-inventory-progress"><span><strong>{t("inventory.progress", { done: completed, total: rows.length })}</strong><CrewStatusBadge tone={check.status === "submitted" ? "success" : "warning"}>{check.status === "submitted" ? t("inventory.completed") : t("inventory.draft")}</CrewStatusBadge></span><CrewProgressBar value={rows.length ? Math.round(completed / rows.length * 100) : 0} /></div>
+    <div className="crew-inventory-progress"><span><strong>{t("inventory.progress", { done: completed, total: rows.length })} <em>{rows.length ? Math.round(completed / rows.length * 100) : 0}%</em></strong><CrewStatusBadge tone={check.status === "submitted" ? "success" : "warning"}>{check.status === "submitted" ? t("inventory.completed") : t("inventory.draft")}</CrewStatusBadge></span><CrewProgressBar value={rows.length ? Math.round(completed / rows.length * 100) : 0} /></div>
     {check.status === "submitted" ? <CompletedResult rows={rows} itemById={itemById} t={t} /> : review ? <ReviewRows rows={rows} itemById={itemById} t={t} /> : <>
       <CrewSearchBar value={query} onChange={setQuery} placeholder={t("inventory.searchItems")} />
       <div className="crew-v2-chips crew-inventory-chips" role="group" aria-label={t("inventory.categories")}>{[{ id: "all", name: t("inventory.all") }, ...(catalog?.categories || []).filter((item) => rows.some((row) => row.category_id === item.id))].map((item) => <button key={item.id} type="button" className={category === item.id ? "active" : ""} aria-pressed={category === item.id} onClick={() => setCategory(item.id)}>{item.name}</button>)}</div>
@@ -145,7 +153,7 @@ export default function CrewStockCheckMobile({ token, outletId, grants, onBack, 
       {!visibleRows.length && <CrewEmptyState title={t("inventory.noItems")} body={t("inventory.trySearch")} />}
     </>}
     {error && <p className="crew-v2-error" role="alert">{error}</p>}
-    {check.status !== "submitted" && <div className="crew-inventory-sticky"><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button><button className="crew-mobile-primary" type="button" disabled={busy || !canComplete} onClick={() => review ? void save("submitted") : setReview(true)}>{review ? t("inventory.completeCheck") : t("inventory.review")}</button></div>}
+    {check.status !== "submitted" && <div className="crew-inventory-sticky"><button className="crew-mobile-secondary" type="button" disabled={busy} onClick={() => void save("draft")}>{busy ? t("common.saving") : t("inventory.saveDraft")}</button><button className="crew-mobile-primary" type="button" disabled={busy || !canComplete} onClick={() => review ? void save("submitted") : setReview(true)}>{review ? t("inventory.completeCheck") : `${t("inventory.review")} (${completed}/${rows.length})`}</button></div>}
   </section>;
 
   return <section className="crew-inventory-page"><CrewMobileDetailHeader title={t("inventory.stockCheck")} onBack={onBack} />
@@ -154,10 +162,10 @@ export default function CrewStockCheckMobile({ token, outletId, grants, onBack, 
     {error && <p className="crew-v2-error" role="alert">{error}</p>}
     {!grants?.can_perform_stock_check && !grants?.can_create_audit_stock_check ? <CrewEmptyState title={t("inventory.noAccess")} /> : loading ? <p className="crew-inventory-state" role="status">{t("common.loading")}</p> : !data ? <button className="crew-mobile-secondary" type="button" onClick={() => void load()}>{t("common.retry")}</button> : <>
       {tab === "required" && (data.can_perform_stock_check ? <>
-        {(data.due || []).length ? <div className="crew-inventory-list">{data.due.map((group) => <button key={group.group_id} type="button" onClick={() => startScheduled(group)}><span><strong>{group.name}</strong><small>{group.shift} · {group.items?.length || 0} {t("inventory.items")}</small></span><CrewStatusBadge tone={group.status === "completed" ? "success" : group.status === "draft" ? "info" : "warning"}>{t(`inventory.${group.status}`)}</CrewStatusBadge><ChevronRight size={18} /></button>)}</div> : <CrewEmptyState title={t("inventory.noRequired")} body={t("inventory.noRequiredBody")} />}
-        {scheduledDrafts.length > 0 && <section className="crew-inventory-draft-section"><h2>{t("inventory.resumeDrafts")}</h2><div className="crew-inventory-list">{scheduledDrafts.map((row) => <button key={row.id} type="button" onClick={() => void openSaved(row.id)}><span><strong>{row.name}</strong><small>{row.check_date} · {row.item_count} {t("inventory.items")}</small></span><CrewStatusBadge tone="info">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={18} /></button>)}</div></section>}
+        {(data.due || []).length ? <div className="crew-inventory-list">{data.due.map((group) => <button key={group.group_id} type="button" onClick={() => startScheduled(group)}><CrewInventoryItemThumb item={itemById.get(group.items?.[0]?.item_id)} /><span><strong>{group.name}</strong><small>{group.shift} · {group.items?.length || 0} {t("inventory.items")}</small></span><CrewStatusBadge tone={group.status === "completed" ? "success" : group.status === "draft" ? "info" : "warning"}>{t(`inventory.${group.status}`)}</CrewStatusBadge><ChevronRight size={18} /></button>)}</div> : <CrewEmptyState title={t("inventory.noRequired")} body={t("inventory.noRequiredBody")} />}
+        {scheduledDrafts.length > 0 && <section className="crew-inventory-draft-section"><h2>{t("inventory.resumeDrafts")}</h2><div className="crew-inventory-list">{scheduledDrafts.map((row) => <button key={row.id} type="button" onClick={() => void openSaved(row.id)}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id)} /><span><strong>{row.name}</strong><small>{row.check_date} · {row.item_count} {t("inventory.items")}</small>{row.updated_at && <small>{t("inventory.updatedAt", { date: new Intl.DateTimeFormat(i18n.language, { day: "numeric", month: "short", hour: "numeric", minute: "2-digit", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(row.updated_at)) })}</small>}</span><CrewStatusBadge tone="info">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={18} /></button>)}</div></section>}
       </> : <CrewEmptyState title={t("inventory.noAccess")} />)}
-      {tab === "audit" && (data.can_create_audit_stock_check ? <><button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => { setAuditForm({ type: "Spot Check", name: "", date: catalog.business_date, categoryIds: [], notes: "" }); setAuditOpen(true); }}><Plus size={18} />{t("inventory.newAudit")}</button><div className="crew-inventory-list">{(data.checks || []).filter((row) => row.type === "audit" && row.status === "draft").map((row) => <div className="crew-inventory-audit-row" key={row.id}><button type="button" onClick={() => void openSaved(row.id)}><span><strong>{row.name}</strong><small>{row.audit_type} · {row.item_count} {t("inventory.items")}</small></span><CrewStatusBadge tone="warning">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={18} /></button><button type="button" aria-label={t("inventory.deleteDraft")} onClick={() => setDeleteTarget(row.id)}><Trash2 size={18} /></button></div>)}</div>{!(data.checks || []).some((row) => row.type === "audit" && row.status === "draft") && <CrewEmptyState title={t("inventory.noAuditDrafts")} />}</> : <CrewEmptyState title={t("inventory.noAccess")} />)}
+      {tab === "audit" && (data.can_create_audit_stock_check ? <><button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => { setAuditForm({ type: "Spot Check", name: "", date: catalog.business_date, categoryIds: [], notes: "" }); setAuditOpen(true); }}><Plus size={18} />{t("inventory.newAudit")}</button><div className="crew-inventory-list">{(data.checks || []).filter((row) => row.type === "audit" && row.status === "draft").map((row) => <div className="crew-inventory-audit-row" key={row.id}><button type="button" onClick={() => void openSaved(row.id)}><CrewInventoryItemThumb item={itemById.get(row.cover_item_id)} /><span><strong>{row.name}</strong><small>{row.audit_type} · {row.item_count} {t("inventory.items")}</small></span><CrewStatusBadge tone="warning">{t("inventory.draft")}</CrewStatusBadge><ChevronRight size={18} /></button><button type="button" aria-label={t("inventory.deleteDraft")} onClick={() => setDeleteTarget(row.id)}><Trash2 size={18} /></button></div>)}</div>{!(data.checks || []).some((row) => row.type === "audit" && row.status === "draft") && <CrewEmptyState title={t("inventory.noAuditDrafts")} />}</> : <CrewEmptyState title={t("inventory.noAccess")} />)}
       {tab === "history" && <div className="crew-inventory-list">{(data.checks || []).filter((row) => row.status === "submitted").map((row) => <button key={row.id} type="button" onClick={() => void openSaved(row.id)}><span><strong>{row.name}</strong><small>{row.check_date} · {row.item_count} {t("inventory.items")}</small></span><CrewStatusBadge tone="success">{t("inventory.completed")}</CrewStatusBadge><ChevronRight size={18} /></button>)}{!(data.checks || []).some((row) => row.status === "submitted") && <CrewEmptyState title={t("inventory.noHistory")} />}</div>}
     </>}
     {auditOpen && <CrewBottomSheet title={t("inventory.newAudit")} onClose={() => setAuditOpen(false)} footer={<><button className="crew-mobile-secondary" type="button" onClick={() => setAuditOpen(false)}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" disabled={!auditForm.name.trim() || !(catalog?.items || []).some((item) => auditForm.categoryIds.includes(item.category_id))} onClick={startAudit}>{t("common.continue")}</button></>}><div className="crew-inventory-form"><CrewChoicePicker label={t("inventory.auditType")} value={auditForm.type} options={auditTypes.map((value) => ({ value, label: t(`inventory.auditTypes.${value}`) }))} onChange={(type) => setAuditForm((current) => ({ ...current, type }))} /><label>{t("inventory.auditName")}<input value={auditForm.name} onChange={(event) => setAuditForm((current) => ({ ...current, name: event.target.value }))} /></label><CrewDatePicker label={t("inventory.checkDate")} value={auditForm.date} onChange={(date) => setAuditForm((current) => ({ ...current, date }))} /><fieldset><legend>{t("inventory.categories")}</legend>{(catalog?.categories || []).map((item) => <label key={item.id}><input type="checkbox" checked={auditForm.categoryIds.includes(item.id)} onChange={(event) => setAuditForm((current) => ({ ...current, categoryIds: event.target.checked ? [...current.categoryIds, item.id] : current.categoryIds.filter((id) => id !== item.id) }))} />{item.name}</label>)}</fieldset><label>{t("inventory.notes")}<textarea value={auditForm.notes} onChange={(event) => setAuditForm((current) => ({ ...current, notes: event.target.value }))} /></label></div></CrewBottomSheet>}
@@ -167,7 +175,8 @@ export default function CrewStockCheckMobile({ token, outletId, grants, onBack, 
 
 function CountRow({ row, item, onChange, t }) {
   const status = countStatus(row); const expected = row.par_level_quantity;
-  return <article className="crew-inventory-count-row"><div className="crew-inventory-row-head"><span><strong>{item?.name || row.item_name || t("inventory.item")}</strong><small>{item?.sku || row.sku_code || ""}</small></span><CrewStatusBadge tone={status === "pending" ? "neutral" : status === "shortage" ? "warning" : "success"}>{t(`inventory.${status}`)}</CrewStatusBadge></div><p>{t("inventory.expectedPar")}: <strong>{expected ?? "—"} {row.unit}</strong></p>{row.skipped ? <div className="crew-inventory-form"><label>{t("inventory.skipReason")}<input value={row.skip_reason} onChange={(event) => onChange({ skip_reason: event.target.value })} /></label><button className="crew-mobile-secondary" type="button" onClick={() => onChange({ skipped: false, skip_reason: "" })}>{t("inventory.undoSkip")}</button></div> : <><CrewQuantityStepper value={String(row.actual_count_quantity)} onChange={(value) => onChange({ actual_count_quantity: value })} label={`${item?.name || row.item_name || t("inventory.item")} · ${t("inventory.actualCount")}`} unit={row.unit} /><div className="crew-inventory-row-actions"><small>{isDone(row) && expected != null ? t("inventory.variance", { value: Number(row.actual_count_quantity) - Number(expected) }) : ""}</small><button type="button" onClick={() => onChange({ skipped: true, actual_count_quantity: "" })}>{t("inventory.skip")}</button></div></> }</article>;
+  const name = item?.name || row.item_name || t("inventory.item");
+  return <article className={`crew-inventory-count-row is-${status}`}><div className="crew-inventory-row-head"><CrewInventoryItemThumb item={item} /><span><strong>{name}</strong><small>{item?.sku || row.sku_code || ""}</small></span><span className="crew-inventory-count-state">{t(`inventory.${status}`)}</span></div><p>{t("inventory.expectedPar")}: <strong>{expected ?? "—"} {row.unit}</strong></p>{row.skipped ? <div className="crew-inventory-form"><label>{t("inventory.skipReason")}<input value={row.skip_reason} onChange={(event) => onChange({ skip_reason: event.target.value })} /></label><button className="crew-mobile-secondary" type="button" onClick={() => onChange({ skipped: false, skip_reason: "" })}>{t("inventory.undoSkip")}</button></div> : <><CrewQuantityStepper value={String(row.actual_count_quantity)} onChange={(value) => onChange({ actual_count_quantity: value })} label={t("inventory.actualCount")} ariaLabel={`${name} · ${t("inventory.actualCount")}`} unit={row.unit} /><div className="crew-inventory-row-actions"><small>{isDone(row) && expected != null ? t("inventory.variance", { value: Number(row.actual_count_quantity) - Number(expected) }) : ""}</small><button type="button" onClick={() => onChange({ skipped: true, actual_count_quantity: "" })}>{t("inventory.skip")}</button></div></> }</article>;
 }
 
 function ReviewRows({ rows, itemById, t }) {
