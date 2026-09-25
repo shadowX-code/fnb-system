@@ -126,6 +126,19 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.queryByText("Conduct")).toBeNull();
   });
 
+  it("does not give an unscored V2 month a final denominator or band", () => {
+    const performance = { period_start: "2026-09-01", status: "review_required", calculation_version: "performance-v2",
+      score_state: "unavailable", score: null, current_score: 0, total_score: null,
+      scored_components: 0, pending_components: 5, total_components: 5,
+      pending_component_names: ["attendance", "service", "customer", "knowledge", "peer"], trend: [] };
+    const { rerender } = render(<CrewGrowthMobile data={data} performance={performance} />);
+    expect(document.querySelector(".crew-growth-performance-score-readout b")).toBeNull();
+    expect(screen.getByText("0 of 5 components scored · 5 pending")).not.toBeNull();
+    rerender(<CrewGrowthMobile data={data} performance={performance} initialView="performance" />);
+    expect(document.querySelector(".crew-performance-final-total span")).toBeNull();
+    expect(screen.queryByText("Below Standard")).toBeNull();
+  });
+
   it.each([0, 1, 50, 87, 100])("renders exactly %s active score segments", (score) => {
     render(<CrewGrowthMobile data={data} performance={{ score, trend: [] }} />);
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(score);

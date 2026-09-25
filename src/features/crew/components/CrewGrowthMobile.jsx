@@ -230,7 +230,7 @@ function GrowthPerformanceScore({ score, label, showDenominator = true }) {
 function GrowthPerformanceHero({ performance, onOpen }) {
   const { t } = useTranslation();
   const presentation = getPerformanceScorePresentation(performance);
-  const v2Partial = performance?.calculation_version === "performance-v2" && presentation.isPartial;
+  const v2Incomplete = performance?.calculation_version === "performance-v2" && performance?.status !== "finalized";
   const score = presentation.score == null ? null : Math.round(presentation.score);
   const comparison = presentation.isComparable ? getPerformanceScoreComparison({ ...performance, score: presentation.score }) : null;
   const trendCopy = comparison
@@ -240,12 +240,12 @@ function GrowthPerformanceHero({ performance, onOpen }) {
   return <article className="crew-growth-performance-hero" style={{ "--crew-growth-performance-background": `url(${growthPerformanceHeroBackground})` }}>
     <div className="crew-growth-performance-copy">
       <small>{t("growth.performance")}</small>
-      <h2>{v2Partial ? t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScore") : performanceLevel(score, t)}</h2>
-      <p>{presentation.isPartial ? progressCopy : t("growth.thisMonth")}</p>
-      <span className={`crew-growth-performance-trend is-${presentation.isPartial ? "neutral" : comparison?.direction || "neutral"}`}><span><strong>{presentation.isPartial ? t("performance.reviewProgress") : trendCopy.value}</strong>{presentation.isPartial ? <small>{v2Partial ? t("performance.pendingNames", { names: (performance.pending_component_names || []).map((key) => t(`performance.components.${key}`)).join(", ") }) : t("performance.currentScorePending", { pending: presentation.pendingComponents })}</small> : trendCopy.context ? <small>{trendCopy.context}</small> : null}</span></span>
+      <h2>{v2Incomplete ? score == null ? t("performance.awaitingData") : t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScore") : performanceLevel(score, t)}</h2>
+      <p>{v2Incomplete || presentation.isPartial ? progressCopy : t("growth.thisMonth")}</p>
+      <span className={`crew-growth-performance-trend is-${v2Incomplete || presentation.isPartial ? "neutral" : comparison?.direction || "neutral"}`}><span><strong>{v2Incomplete || presentation.isPartial ? t("performance.reviewProgress") : trendCopy.value}</strong>{v2Incomplete || presentation.isPartial ? <small>{v2Incomplete ? t("performance.pendingNames", { names: (performance.pending_component_names || []).map((key) => t(`performance.components.${key}`)).join(", ") }) : t("performance.currentScorePending", { pending: presentation.pendingComponents })}</small> : trendCopy.context ? <small>{trendCopy.context}</small> : null}</span></span>
       <button type="button" className="crew-mobile-secondary" onClick={onOpen}>{t("growth.viewPerformance")} <ChevronRight size={18} /></button>
     </div>
-    <GrowthPerformanceScore score={score} showDenominator={!v2Partial} label={v2Partial ? t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScoreLabel", { score }) : score == null ? t("performance.awaitingData") : `${score} / 100`} />
+    <GrowthPerformanceScore score={score} showDenominator={!v2Incomplete} label={v2Incomplete ? score == null ? t("performance.awaitingData") : t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScoreLabel", { score }) : score == null ? t("performance.awaitingData") : `${score} / 100`} />
   </article>;
 }
 
@@ -416,17 +416,17 @@ function PerformanceComponentModal({ component, onClose, onNavigate }) {
 function PerformanceHero({ performance }) {
   const { t } = useTranslation();
   const presentation = getPerformanceScorePresentation(performance);
-  const v2Partial = performance?.calculation_version === "performance-v2" && presentation.isPartial;
+  const v2Incomplete = performance?.calculation_version === "performance-v2" && performance?.status !== "finalized";
   const score = presentation.score == null ? null : Math.round(presentation.score);
   const comparison = presentation.isComparable ? getPerformanceScoreComparison({ ...performance, score: presentation.score }) : null;
   const deltaLabel = comparison?.direction === "up" ? t("performance.trendUp", { points: comparison.points }) : comparison?.direction === "down" ? t("performance.trendDown", { points: comparison.points }) : comparison ? t("performance.trendNoChange") : null;
   return <article className="crew-performance-final-hero" style={{ "--crew-performance-detail-background": `url(${performanceDetailHeroBackground})` }}>
     <div className="crew-performance-final-hero-copy">
       <div className="crew-performance-final-period"><strong>{monthLabel(performance.period_start, "long", t)}</strong><span className={`is-${performance.status}`}>{performanceStatus(performance.status, t)}</span></div>
-      <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong>{!v2Partial && <span>/100</span>}</div>
-      <h2>{v2Partial ? t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScore") : score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
-      <p>{presentation.isPartial ? t("performance.currentScoreProgress", { scored: presentation.scoredComponents, total: presentation.totalComponents, pending: presentation.pendingComponents }) : score == null ? t("performance.evidenceReview") : performanceMessage(score, t)}</p>
-      {v2Partial && <p>{t("performance.pendingNames", { names: (performance.pending_component_names || []).map((key) => t(`performance.components.${key}`)).join(", ") })}</p>}
+      <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong>{!v2Incomplete && <span>/100</span>}</div>
+      <h2>{v2Incomplete ? score == null ? t("performance.reviewProgress") : t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScore") : score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
+      <p>{v2Incomplete || presentation.isPartial ? t("performance.currentScoreProgress", { scored: presentation.scoredComponents, total: presentation.totalComponents, pending: presentation.pendingComponents }) : score == null ? t("performance.evidenceReview") : performanceMessage(score, t)}</p>
+      {v2Incomplete && <p>{t("performance.pendingNames", { names: (performance.pending_component_names || []).map((key) => t(`performance.components.${key}`)).join(", ") })}</p>}
       {comparison ? <small className={`is-${comparison.direction}`}><span><strong>{deltaLabel}</strong><span>{t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) })}</span></span></small> : null}
     </div>
   </article>;
