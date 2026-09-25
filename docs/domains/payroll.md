@@ -13,9 +13,11 @@ Phase 1 provides profiles, effective-dated history, component definitions,
 holiday context and Legal-Entity-owned run state. Phase 2 adds payable-time
 evidence and exception decisions. Phase 3 adds server-owned, pre-statutory RM
 calculation from approved time, effective compensation, components and sourced
-pay rules. It does **not** calculate EPF/SOCSO/EIS/PCB, net pay, employer
-statutory cost, payment or payslips. Historical finalized foundation runs keep
-`foundation_only=true`; open and new calculation runs use the Phase 3 contract.
+pay rules. Phase 4 adds an effective-dated statutory calculation boundary and
+Finalization gate. Official schedule rows and tax calculation are **not** yet
+validated or seeded, so applicable employees remain Review Required; a Net Pay
+amount is only emitted for a complete result. Historical finalized foundation
+runs keep `foundation_only=true`; open and new runs use the stricter contract.
 
 ## Profile and Compensation Authority
 
@@ -131,6 +133,21 @@ revision. The draft Run UI exposes per-employee lines and rule explanations.
 
 ## Deferred
 
-Later phases need verified Malaysian statutory calculation and wage bases,
-immutable payslips, settlement and Finance labour-cost projections. No current
-Operating Expenses or Reporting value is changed by Phase 3.
+The Phase 4 authority keeps reviewed applicability separate from reviewed
+statutory category and tax inputs. `payroll_statutory_input_versions` is
+append-only and effective-dated. Each EPF/SOCSO/EIS official schedule version
+has independently sourced contribution bands. Phase 3 lines are classified
+per scheme using component treatment; unknown treatment, category, schedule,
+or a stale Phase 3 result blocks Ready. PCB stays explicitly unresolved until
+the current HASiL specification and official tests are implemented, including
+required YTD and prior-employer inputs. An unresolved scheme never becomes
+RM0. A reviewed not-applicable decision is the only zero-contribution path.
+Phase 4 results and employer/employee shares are append-only; Finalization
+pins the exact result, input, band and schedule evidence. Total Employer Cost
+includes gross earnings, reimbursements and employer statutory contributions.
+The official source authorities to reconcile before schedule publication are
+[KWSP Third Schedule](https://www.kwsp.gov.my/en/epf-act-1991-third-schedule),
+[PERKESO contribution schedules](https://www.perkeso.gov.my/en/contribution-rate/),
+and [HASiL PCB specifications and test cases](https://www.hasil.gov.my/majikan/jadual-pcb-dan-spesifikasi-data/).
+No current Operating Expenses or Reporting value is changed. Payslips,
+settlement and Finance labour-cost projections remain deferred.

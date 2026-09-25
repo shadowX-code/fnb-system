@@ -221,6 +221,7 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
     Promise.all(runs.map(async (run) => [run.id, {
       time: await payrollService.runTimeReadiness(run.id),
       calculation: run.foundation_only ? null : await payrollService.calculationReadiness(run.id),
+      statutory: run.foundation_only ? null : await payrollService.statutoryReadiness(run.id),
     }]))
       .then((results) => { if (active) setReadiness(Object.fromEntries(results)); })
       .catch(() => { if (active) setReadiness({}); });
@@ -256,7 +257,7 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
   };
   return <div className="space-y-4">
     <div className="rounded-xl border border-border bg-surface-muted p-4 text-sm text-text-secondary">
-      <strong className="text-text-primary">Pre-statutory Payroll.</strong> Calculations use effective compensation, approved payable time and sourced pay rules. EPF, SOCSO, EIS, PCB, net pay, payment and payslips are not calculated here.
+      <strong className="text-text-primary">Payroll calculation.</strong> Effective compensation and approved time feed statutory review. Unverified schedules, categories or tax inputs block Ready and Finalize; unresolved amounts are never treated as zero. Payslips and payments are not available.
     </div>
     {canManage && <Card className="p-4"><div className="grid gap-3 sm:grid-cols-4">
       <AdminFormField label="Legal Entity"><Select value={entityId} onChange={setEntityId} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></AdminFormField>
@@ -275,12 +276,13 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
         <span>Revision {run.revision} {run.supersedes_run_id ? "· Correction" : ""} <Badge tone={run.status === "finalized" ? "success" : "neutral"}>{label(run.status)}</Badge>
           {readiness[run.id]?.time && <small className="block text-text-secondary">Hourly time: {readiness[run.id].time.ready ? "Ready" : `${readiness[run.id].time.unresolved} unresolved · ${readiness[run.id].time.unreconciled} unreconciled · ${readiness[run.id].time.stale} stale${readiness[run.id].time.period_in_progress ? " · period in progress" : ""}`}</small>}
-          {readiness[run.id]?.calculation && <small className="block text-text-secondary">Calculation: {readiness[run.id].calculation.ready ? "Ready" : `${readiness[run.id].calculation.review_required} review · ${readiness[run.id].calculation.uncalculated} uncalculated · ${readiness[run.id].calculation.stale} stale`}</small>}</span>
+          {readiness[run.id]?.calculation && <small className="block text-text-secondary">Calculation: {readiness[run.id].calculation.ready ? "Ready" : `${readiness[run.id].calculation.review_required} review · ${readiness[run.id].calculation.uncalculated} uncalculated · ${readiness[run.id].calculation.stale} stale`}</small>}
+          {readiness[run.id]?.statutory && <small className="block text-text-secondary">Statutory: {readiness[run.id].statutory.ready ? "Ready" : `${readiness[run.id].statutory.review_required} review · ${readiness[run.id].statutory.uncalculated} uncalculated · ${readiness[run.id].statutory.stale} stale`}</small>}</span>
         <div className="flex flex-wrap gap-2">{canManage && run.status === "draft" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Send to Review</button>}
-          {canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy || !readiness[run.id]?.time?.ready || !readiness[run.id]?.calculation?.ready} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
+          {canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy || !readiness[run.id]?.time?.ready || !readiness[run.id]?.calculation?.ready || !readiness[run.id]?.statutory?.ready} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
           {canManage && run.status === "ready" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Return to Review</button>}
           {canFinalize && run.status === "ready" && <button className="btn-primary" type="button"
-            disabled={busy || !readiness[run.id]?.time?.ready || (!run.foundation_only && !readiness[run.id]?.calculation?.ready)}
+            disabled={busy || !readiness[run.id]?.time?.ready || (!run.foundation_only && (!readiness[run.id]?.calculation?.ready || !readiness[run.id]?.statutory?.ready))}
             onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}
           {!run.foundation_only && <button className="btn-secondary" type="button" onClick={() => setSelectedRunId((id) => id === run.id ? "" : run.id)}>{selectedRunId === run.id ? "Hide Calculation" : "View Calculation"}</button>}</div>
         </div>
@@ -288,7 +290,7 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
       </div>)}</div>
     </Card>) : <Card className="p-8 text-center text-sm text-text-secondary">No Payroll Runs for this Legal Entity.</Card>}</div>
     {pendingTransition && <Modal title={`${label(pendingTransition.status)} Payroll Run`}
-      description="Record the reason for this audited lifecycle change. No statutory calculation or payment occurs."
+      description="Record the reason for this audited lifecycle change. Ready and Finalize require complete payable-time, calculation and statutory evidence; no payment occurs."
       onClose={() => !busy && setPendingTransition(null)}
       footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setPendingTransition(null)}>Cancel</button>
         <button className="btn-primary" type="button" disabled={busy || !transitionReason.trim()} onClick={transition}>{busy ? "Saving..." : "Confirm"}</button></>}>
@@ -371,7 +373,7 @@ export default function PayrollPage({ auth }) {
     openRuns: (data?.periods || []).flatMap((period) => period.runs || []).filter((run) => ["draft","review_required","ready"].includes(run.status)).length,
   }), [data]);
   return <div className="space-y-4">
-    <PageHeader section="People" title="Payroll" description="Manage compensation, payable time and pre-statutory payroll calculations." />
+    <PageHeader section="People" title="Payroll" description="Manage compensation, payable time and statutory payroll review." />
     {!canView ? <Card className="p-8 text-center text-sm text-text-secondary">Payroll permission is required. Employee access alone does not reveal compensation.</Card>
       : loading && !data ? <Card className="p-8 text-center text-sm text-text-secondary">Loading Payroll...</Card>
         : error ? <Card className="p-8 text-sm font-semibold text-rose-700" role="alert">{error}<button className="btn-secondary ml-3" type="button" onClick={reload}>Retry</button></Card>
@@ -383,7 +385,7 @@ export default function PayrollPage({ auth }) {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
               ["Payroll Profiles", counts.profiles],["Monthly Basis", counts.monthly],["Hourly Basis", counts.hourly],["Open Runs", counts.openRuns],
             ].map(([title,value]) => <Card key={title} className="p-4"><p className="text-sm text-text-secondary">{title}</p><p className="mt-1 text-2xl font-bold">{value}</p></Card>)}</div>
-            <Card className="p-5"><div className="flex items-start gap-3"><Wallet size={20} className="text-teal-700" /><div><h2 className="font-bold">Pre-statutory Payroll</h2><p className="mt-1 text-sm text-text-secondary">Effective-dated compensation, approved payable time, components and published pay rules produce explainable RM calculation lines. Missing policy remains Review Required. Statutory amounts, net pay, payments and payslips are not calculated here.</p></div></div></Card>
+            <Card className="p-5"><div className="flex items-start gap-3"><Wallet size={20} className="text-teal-700" /><div><h2 className="font-bold">Payroll calculation</h2><p className="mt-1 text-sm text-text-secondary">Effective-dated compensation and approved payable time produce explainable RM lines. Statutory results remain Review Required until employee categories and official schedules are verified. No payslip or payment is created.</p></div></div></Card>
           </div>}
           {tab === "profiles" && <ProfilesTab data={data} canManage={canManage} reload={reload} />}
           {tab === "time" && <PayrollTimeExceptionsTab data={data} canManage={canManage} />}

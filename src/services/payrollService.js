@@ -96,6 +96,9 @@ export const payrollService = {
   calculateRun: (runId) => command("payroll_run_calculate", { p_run_id: runId }),
   readCalculation: (runId) => command("payroll_run_calculation_read", { p_run_id: runId }),
   calculationReadiness: (runId) => command("payroll_run_calculation_readiness", { p_run_id: runId }),
+  calculateStatutory: (runId) => command("payroll_run_statutory_calculate", { p_run_id: runId }),
+  readStatutory: (runId) => command("payroll_run_statutory_read", { p_run_id: runId }),
+  statutoryReadiness: (runId) => command("payroll_run_statutory_readiness", { p_run_id: runId }),
   readRules: () => command("payroll_rule_read", {}),
   publishRule: (input) => command("payroll_rule_publish", {
     p_rule_code: input.ruleCode,

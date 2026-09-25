@@ -51,7 +51,7 @@ describe("People Payroll Phase 1 foundation", () => {
     expect(migration).toContain("current_finalized_run_id uuid");
     expect(migration).toContain("supersedes_run_id uuid references public.payroll_runs");
     expect(migration).toContain("No Paid transition until settlement authority exists");
-    expect(page).toContain("Statutory amounts, net pay, payments and payslips are not calculated here.");
+    expect(page).toContain("No payslip or payment is created.");
     expect(page).toContain("Adjust Compensation");
     expect(page).toContain("Compensation History");
     expect(page).toContain("Record the reason for this audited lifecycle change.");

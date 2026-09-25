@@ -12,7 +12,7 @@ const rm = (value) => new Intl.NumberFormat("en-MY", {
 const title = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const issueLabel = (value) => title(String(value).replace(/:\d{4}-\d{2}-\d{2}$/, ""));
 
-function ResultDetail({ result, onClose }) {
+function ResultDetail({ result, statutory, onClose }) {
   const compensation = result.inputs?.compensation_start;
   const time = result.inputs?.time || [];
   const earnings = result.lines.filter((line) => line.kind === "earning");
@@ -32,7 +32,7 @@ function ResultDetail({ result, onClose }) {
       </div>)}
     </div> : <p className="text-sm text-text-secondary">None.</p>}
   </section>;
-  return <Modal title={`${result.employee_name} · Calculation`} description="Pre-statutory Payroll result. No contribution, net-pay or payment amount is included."
+  return <Modal title={`${result.employee_name} · Calculation`} description="Approved earnings, statutory evidence and unresolved inputs. This is not a payslip or payment instruction."
     onClose={onClose} size="xl" footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-3">
@@ -49,6 +49,21 @@ function ResultDetail({ result, onClose }) {
       {section("Earnings", earnings)}
       {section("Deductions", deductions)}
       {section("Reimbursements · outside gross wages", reimbursements)}
+      <section className="space-y-2"><h4 className="text-sm font-bold text-text-primary">Malaysian statutory calculation</h4>
+        {!statutory ? <p className="text-sm text-text-secondary">Not calculated. Calculate statutory results after the pre-statutory result.</p> : <>
+          {statutory.issues?.length > 0 && <p className="text-sm font-semibold text-amber-800">Review Required: {statutory.issues.map(issueLabel).join(" · ")}</p>}
+          <div className="divide-y divide-border rounded-xl border border-border">{(statutory.lines || []).map((line) => <div key={line.scheme} className="grid grid-cols-3 gap-2 px-3 py-2 text-sm">
+            <div><strong>{line.scheme.toUpperCase()}</strong><small className="block text-text-secondary">{line.applicable === false ? "Reviewed: not applicable" : line.category || "Category unresolved"}{line.source_row ? ` · ${line.source_row}` : ""}</small></div>
+            <div className="text-right tabular-nums"><small className="block text-text-secondary">Employee</small>{line.employee_amount == null ? "—" : rm(line.employee_amount)}</div>
+            <div className="text-right tabular-nums"><small className="block text-text-secondary">Employer</small>{line.employer_amount == null ? "—" : rm(line.employer_amount)}</div>
+            {line.wage_base != null && <small className="col-span-3 text-text-secondary">Statutory wage base: {rm(line.wage_base)}</small>}
+          </div>)}</div>
+          {(statutory.inputs?.wage_base_lines || []).length > 0 && <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Included / excluded wage components</summary>
+            <ul className="mt-1 space-y-1">{statutory.inputs.wage_base_lines.map((line, index) => <li key={`${line.scheme}-${line.line_code}-${index}`}>{line.scheme.toUpperCase()} · {title(line.line_code)} · {rm(line.amount)} · {title(line.treatment)}</li>)}</ul>
+          </details>}
+          <dl className="grid grid-cols-2 gap-2 rounded-xl bg-surface-muted p-3 text-sm"><div><dt className="text-text-secondary">Net Pay</dt><dd className="font-bold tabular-nums">{statutory.net_pay == null ? "—" : rm(statutory.net_pay)}</dd></div>
+            <div><dt className="text-text-secondary">Total Employer Cost</dt><dd className="font-bold tabular-nums">{statutory.total_employer_cost == null ? "—" : rm(statutory.total_employer_cost)}</dd></div></dl>
+        </>}</section>
       <dl className="grid grid-cols-2 gap-2 rounded-xl bg-surface-muted p-3 text-sm sm:grid-cols-4">
         <div><dt className="text-text-secondary">Gross Earnings</dt><dd className="font-bold tabular-nums">{rm(result.gross_earnings)}</dd></div>
         <div><dt className="text-text-secondary">Non-statutory Deductions</dt><dd className="font-bold tabular-nums">{rm(result.non_statutory_deductions)}</dd></div>
@@ -61,6 +76,7 @@ function ResultDetail({ result, onClose }) {
 
 export default function PayrollRunCalculationPanel({ run, components, canManage }) {
   const [data, setData] = useState(null);
+  const [statutory, setStatutory] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
@@ -71,7 +87,12 @@ export default function PayrollRunCalculationPanel({ run, components, canManage 
     setForm(mode);
   };
   const load = useCallback(async () => {
-    try { setData(await payrollService.readCalculation(run.id)); setError(""); }
+    try {
+      const [calculation, statutoryResult] = await Promise.all([
+        payrollService.readCalculation(run.id), payrollService.readStatutory(run.id),
+      ]);
+      setData(calculation); setStatutory(statutoryResult); setError("");
+    }
     catch (cause) { setError(cause.message || "Unable to read Payroll calculations."); }
   }, [run.id]);
   useEffect(() => { load(); }, [load]);
@@ -79,6 +100,12 @@ export default function PayrollRunCalculationPanel({ run, components, canManage 
     setBusy(true); setError("");
     try { await payrollService.calculateRun(run.id); await load(); }
     catch (cause) { setError(cause.message || "Unable to calculate Run."); }
+    finally { setBusy(false); }
+  };
+  const calculateStatutory = async () => {
+    setBusy(true); setError("");
+    try { await payrollService.calculateStatutory(run.id); await load(); }
+    catch (cause) { setError(cause.message || "Unable to calculate statutory results."); }
     finally { setBusy(false); }
   };
   const saveAdjustment = async () => {
@@ -97,6 +124,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage 
     finally { setBusy(false); }
   };
   const rows = data?.results || [];
+  const statutoryRows = statutory?.results || [];
   const columns = [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
     { key: "basis", header: "Pay Basis", render: (row) => title(row.pay_basis || "Missing") },
@@ -104,6 +132,10 @@ export default function PayrollRunCalculationPanel({ run, components, canManage 
     { key: "earnings", header: "Earnings", align: "right", render: (row) => <span className="tabular-nums">{rm(row.gross_earnings)}</span> },
     { key: "deductions", header: "Deductions", align: "right", render: (row) => <span className="tabular-nums">{rm(row.non_statutory_deductions)}</span> },
     { key: "pay", header: "Pre-statutory Pay", align: "right", render: (row) => <strong className="tabular-nums">{rm(row.pre_statutory_pay)}</strong> },
+    { key: "net", header: "Net Pay", align: "right", render: (row) => {
+      const value = statutoryRows.find((item) => item.employee_id === row.employee_id);
+      return <strong className="tabular-nums">{value?.net_pay == null || value.is_stale ? "—" : rm(value.net_pay)}</strong>;
+    } },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "ready" && !row.is_stale ? "success" : "warning"}>{row.is_stale ? "Stale" : title(row.status)}</Badge> },
   ];
   const canEdit = canManage && ["draft", "review_required"].includes(run.status);
@@ -114,6 +146,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage 
         <p className="text-sm text-text-secondary">{data?.readiness ?
           `${data.readiness.employees} employees · ${data.readiness.review_required} review required · ${data.readiness.uncalculated} uncalculated · ${data.readiness.stale} stale${data.readiness.period_in_progress ? " · period in progress" : ""}` : "Loading calculation evidence…"}</p></div>
       {canEdit && <div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => openAdjustment("add")}>Add variable line</button>
+        <button className="btn-secondary" type="button" disabled={busy || !rows.length} onClick={calculateStatutory}>{busy ? "Calculating…" : "Calculate Statutory"}</button>
         <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Run"}</button></div>}
     </div>
     {error && <p role="alert" className="px-4 pt-3 text-sm font-semibold text-rose-700">{error}</p>}
@@ -126,7 +159,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage 
         <span className="flex items-center gap-2"><strong className="tabular-nums">{rm(item.amount)}</strong>
           {canEdit && <button className="btn-secondary" type="button" onClick={() => openAdjustment("reverse", { adjustmentId: item.id })}>Reverse</button>}</span>
       </div>)}</div></div>}
-    {selected && <ResultDetail result={selected} onClose={() => setSelected(null)} />}
+    {selected && <ResultDetail result={selected} statutory={statutoryRows.find((item) => item.employee_id === selected.employee_id)} onClose={() => setSelected(null)} />}
     {form && <Modal title={form === "reverse" ? "Reverse variable line" : "Add variable Payroll line"}
       description="This is audited Run evidence. Recalculate after changing variable lines."
       onClose={() => !busy && setForm(null)} footer={<><button className="btn-secondary" type="button" onClick={() => setForm(null)}>Cancel</button>
