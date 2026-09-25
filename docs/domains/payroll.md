@@ -1,4 +1,4 @@
-# Payroll Foundation
+# Payroll
 
 ## Ownership and Phase
 
@@ -7,14 +7,15 @@ employment and Legal Employer assignment. Employment Documents own immutable
 agreement evidence. Payroll Profiles own approved pay basis, rates, recurring
 components and statutory applicability for later calculation. Duty Roster
 remains scheduled work, Attendance remains actual evidence, and neither becomes
-payable time until Payroll explicitly approves a result in a later phase.
+payable time until Payroll explicitly approves a result.
 
 Phase 1 provides profiles, effective-dated history, component definitions,
 holiday context and Legal-Entity-owned run state. Phase 2 adds payable-time
-evidence and exception decisions. It does **not** calculate gross/net wages,
-EPF/SOCSO/EIS/PCB amounts, employer cost, payment, or payslips. Runs remain
-`foundation_only`; a Phase 1 finalized run pins profile inputs only, while
-later finalized runs also pin approved time versions. Neither is a paid run.
+evidence and exception decisions. Phase 3 adds server-owned, pre-statutory RM
+calculation from approved time, effective compensation, components and sourced
+pay rules. It does **not** calculate EPF/SOCSO/EIS/PCB, net pay, employer
+statutory cost, payment or payslips. Historical finalized foundation runs keep
+`foundation_only=true`; open and new calculation runs use the Phase 3 contract.
 
 ## Profile and Compensation Authority
 
@@ -69,7 +70,7 @@ permission/scope/state, and write server-timestamped events. Direct deletion
 and historical-version mutation are rejected. Crew has no Phase 1 Payroll
 authority.
 
-## Deferred
+## Payable Time (Phase 2)
 
 Phase 2 stores append-only employee/day time versions. Reconciliation reads
 the attendance-pinned published roster revision where available, original
@@ -93,7 +94,38 @@ requires review. The 10-minute clock-noise threshold is aligned with existing
 Crew punctuality evidence, and only suppresses an extra-time exception; it
 never awards extra payable minutes.
 
-Later phases need versioned pay rules,
-verified Malaysian statutory calculation, monetary run lines, immutable
-payslips, settlement and Finance labour-cost projections. No current
-Operating Expenses or Reporting value is changed by Phase 2.
+## Pre-statutory Calculation (Phase 3)
+
+`payroll_pay_rule_versions` is append-only and effective-dated by rule code and
+pay basis. Only arithmetic identity rules (Monthly Basic Salary, Hourly Regular,
+Non-payable) are seeded. Premium rates and Monthly divisor/proration policy are
+not guessed: a protected Owner/Admin with Payroll manage authority must publish
+a reviewed, sourced rule version. Missing or ambiguous rules leave the employee
+in Review Required. A Monthly partial period or mid-period salary/component
+change likewise requires an approved policy instead of silent proration.
+
+`payroll_calculation_project` resolves the effective compensation for each work
+date, current approved Payable Time evidence, effective recurring components,
+reviewed Run-specific variable lines, and the applicable rule version. Hourly
+regular pay uses approved Regular minutes × the effective Hourly rate; raw
+Attendance duration is never wage input. Monthly Basic Salary is a separate
+line. Approved premium classifications and unpaid time are priced only when a
+rule exists. Reimbursements remain outside Gross Earnings, with their own line.
+Each result contains named earnings/deduction lines, source IDs, rule IDs,
+input fingerprint, issues, Gross Earnings, Non-statutory Deductions and
+Pre-statutory Pay. No result labels this as net pay.
+
+`payroll_run_calculation_versions` records append-only recalculations; a changed
+input fingerprint marks the prior result stale. Variable component additions
+and reversals use retry-safe request IDs, reasons and server audit events.
+Ready/Finalized transitions require current Ready calculations in addition to
+the Phase 2 time gate. Finalization pins calculation versions in
+`payroll_run_calculation_snapshots` alongside existing profile/time evidence;
+prior finalized revisions are never rewritten. A correction is a new Run
+revision. The draft Run UI exposes per-employee lines and rule explanations.
+
+## Deferred
+
+Later phases need verified Malaysian statutory calculation and wage bases,
+immutable payslips, settlement and Finance labour-cost projections. No current
+Operating Expenses or Reporting value is changed by Phase 3.

@@ -93,4 +93,31 @@ export const payrollService = {
       p_extra_minutes: extraMinutes, p_classification: classification, p_reason: reason,
     }),
   runTimeReadiness: (runId) => command("payroll_run_time_readiness", { p_run_id: runId }),
+  calculateRun: (runId) => command("payroll_run_calculate", { p_run_id: runId }),
+  readCalculation: (runId) => command("payroll_run_calculation_read", { p_run_id: runId }),
+  calculationReadiness: (runId) => command("payroll_run_calculation_readiness", { p_run_id: runId }),
+  readRules: () => command("payroll_rule_read", {}),
+  publishRule: (input) => command("payroll_rule_publish", {
+    p_rule_code: input.ruleCode,
+    p_pay_basis: input.payBasis,
+    p_effective_from: input.effectiveFrom,
+    p_multiplier: Number(input.multiplier),
+    p_monthly_divisor_minutes: input.payBasis === "monthly" && !["monthly_basic", "non_payable"].includes(input.ruleCode)
+      ? Number(input.monthlyDivisorMinutes) : null,
+    p_source_note: input.sourceNote,
+    p_reason: input.reason,
+  }),
+  addRunComponent: (input) => command("payroll_run_component_add", {
+    p_request_id: input.requestId,
+    p_run_id: input.runId,
+    p_employee_id: input.employeeId,
+    p_component_id: input.componentId,
+    p_amount: Number(input.amount),
+    p_reason: input.reason,
+  }),
+  reverseRunComponent: (input) => command("payroll_run_component_reverse", {
+    p_request_id: input.requestId,
+    p_adjustment_id: input.adjustmentId,
+    p_reason: input.reason,
+  }),
 };
