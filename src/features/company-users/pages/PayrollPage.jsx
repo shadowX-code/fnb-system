@@ -344,7 +344,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, month, step, 
   const statutoryRows = totals?.results || [];
   const total = (key) => statutoryRows.length && statutoryRows.every((item) => item[key] != null) ? money(statutoryRows.reduce((sum, item) => sum + Number(item[key]), 0)) : "—";
   const allReady = Boolean(state?.time?.ready && (run.foundation_only || (state?.calculation?.ready && state?.statutory?.ready)));
-  const approverName = (data.employees || []).find((item) => item.id === run?.finalized_by_employee_id)?.name || "Authorized approver";
+  const approverName = run?.finalized_by_name || (data.employees || []).find((item) => item.id === run?.finalized_by_employee_id)?.name || "Authorized approver";
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">{entityName(data.legal_entities || [], entityId)} · {month}</h2>
       <p className="text-sm text-text-secondary">{run ? `Revision ${run.revision}${run.supersedes_run_id ? " · Correction" : ""} · ${label(run.status)}` : "No Payroll Run started for this period"}</p></div>

@@ -33,7 +33,10 @@ Payroll; Ready and Finalize still rely on the canonical server gates. Settings
 shows operational statutory methods, holidays, and pay components by default,
 with technical rule publication and version history disclosed on demand.
 Finalized Run revisions are read-only, and historical corrections create a new
-revision rather than editing final evidence.
+revision rather than editing final evidence. The authorized Payroll read
+projection includes the finalized approver's display name with the Run, even
+when that actor is outside the selected Legal Entity's employee setup list;
+this is presentation of existing finalization evidence, not a new authority.
 
 ## Profile and Compensation Authority
 

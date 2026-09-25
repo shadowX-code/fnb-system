@@ -62,6 +62,7 @@ describe("Payroll Control Center", () => {
   it("opens a finalized revision on its immutable summary, not preparation", async () => {
     mocks.read.mockResolvedValueOnce({ ...fixture, periods: [{ ...fixture.periods[0], runs: [{
       id: "run-final", status: "finalized", revision: 2, finalized_at: "2026-09-30T12:00:00Z",
+      finalized_by_employee_id: "employee-outside-entity", finalized_by_name: "QA Approver",
     }] }] });
     render(<PayrollPage auth={{}} />);
     await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
@@ -69,7 +70,7 @@ describe("Payroll Control Center", () => {
     expect(screen.getByText("Payroll finalized. The current revision is read-only; any correction creates a new revision.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /2026-09 · Revision 2/ }));
     await screen.findByText("Revision 2 is immutable. Corrections require a new revision; this evidence is retained.");
-    expect(screen.getByText(/Authorized approver/)).not.toBeNull();
+    expect(screen.getByText(/QA Approver/)).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Finalize Payroll" })).toBeNull();
   });
 });

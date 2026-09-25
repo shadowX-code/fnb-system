@@ -7,6 +7,7 @@ import { getAdminRouteDefinition, resolveCanonicalPath } from "../../../../app/r
 import PayrollPage from "../PayrollPage.jsx";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925083003_payroll_foundation.sql"), "utf8");
+const approverProjection = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925160342_payroll_run_approver_projection.sql"), "utf8");
 const service = readFileSync(resolve(process.cwd(), "src/services/payrollService.js"), "utf8");
 const page = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollPage.jsx"), "utf8");
 
@@ -57,5 +58,13 @@ describe("People Payroll Phase 1 foundation", () => {
     expect(page).toContain("Ready and Finalize require complete time, pay and statutory evidence");
     expect(page).not.toContain("window.prompt");
     expect(page).toContain('rate: previous.payBasis === value ? previous.rate : ""');
+  });
+
+  it("projects finalized approver identity only through the scoped Payroll read", () => {
+    expect(approverProjection).toContain("perform public.payroll_admin_actor()");
+    expect(approverProjection).toContain("public.payroll_can_manage_entity(p.legal_entity_id,'payroll.view')");
+    expect(approverProjection).toContain("'finalized_by_name', actor.full_name");
+    expect(approverProjection).toContain("actor.id=r.finalized_by_employee_id");
+    expect(approverProjection).toContain("revoke all on function public.payroll_foundation_read(uuid,uuid) from public,anon");
   });
 });
