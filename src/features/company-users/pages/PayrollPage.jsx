@@ -388,9 +388,10 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, month, step, 
 }
 
 function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun, onOpenEmployees }) {
+  const finalized = run?.status === "finalized";
   const employees = (data.employees || []).filter((item) => item.legal_entity_id === entityId);
   const withoutProfile = employees.filter((item) => !(data.profiles || []).some((profile) => profile.employee_id === item.id));
-  const attention = [
+  const attention = finalized ? [] : [
     withoutProfile.length > 0 && { label: `${withoutProfile.length} employee${withoutProfile.length === 1 ? " needs" : "s need"} pay setup`, action: "Set up employees", open: onOpenEmployees },
     readiness?.error && { label: "Run readiness could not be checked", action: "Open run", open: () => onOpenRun(0) },
     readiness?.time && !readiness.time.ready && { label: timeBlocker(readiness.time), action: "Review time", open: () => onOpenRun(1) },
@@ -400,17 +401,16 @@ function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun,
   const recent = (data.periods || []).flatMap((period) => (period.runs || []).map((item) => ({ ...item, period })))
     .filter((item) => item.period.legal_entity_id === entityId)
     .sort((a, b) => b.period.period_start.localeCompare(a.period.period_start) || Number(b.revision) - Number(a.revision)).slice(0, 5);
-  const finalized = run?.status === "finalized";
   const completedSteps = [Boolean(run), finalized || Boolean(readiness?.time?.ready), finalized || Boolean(readiness?.calculation?.ready), finalized || Boolean(readiness?.statutory?.ready), finalized];
   return <div className="space-y-4">
     <Card className="p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-xs font-bold uppercase tracking-wide text-text-secondary">Current payroll period</p><h2 className="mt-1 text-2xl font-bold">{entityName(data.legal_entities || [], entityId)} <span className="text-text-secondary">· {month}</span></h2>
+      <div><p className="text-xs font-bold uppercase tracking-wide text-text-secondary">{month === currentMonth() ? "Current payroll period" : "Selected pay period"}</p><h2 className="mt-1 text-2xl font-bold">{entityName(data.legal_entities || [], entityId)} <span className="text-text-secondary">· {month}</span></h2>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><Badge tone={run?.status === "finalized" ? "success" : run ? "warning" : "neutral"}>{run ? label(run.status) : "Not started"}</Badge><span>{employees.length} employees</span><span>{attention.length} area{attention.length === 1 ? "" : "s"} needing attention</span></div></div>
-      <button className="btn-primary" type="button" disabled={!canManage && !run} onClick={() => onOpenRun(0)}>{run ? "Continue Payroll" : "Start Payroll"} <ChevronRight size={16} /></button></div>
+      <button className="btn-primary" type="button" disabled={!canManage && !run} onClick={() => onOpenRun(finalized ? 4 : 0)}>{finalized ? "View Finalized Payroll" : run ? "Continue Payroll" : "Start Payroll"} <ChevronRight size={16} /></button></div>
       <div className="mt-6 grid gap-2 border-t border-border pt-4 sm:grid-cols-5">{runSteps.map((name, index) => <button key={name} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold ${completedSteps[index] ? "bg-primary/10 text-primary" : "bg-surface-muted text-text-secondary hover:text-primary"}`} type="button" onClick={() => onOpenRun(index)}>{completedSteps[index] ? <Check size={14} aria-hidden="true" /> : <span className="text-xs">{index + 1}.</span>}{name}</button>)}</div>
     </Card>
     <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]"><Card className="p-5"><h3 className="text-base font-bold">Needs Attention</h3><p className="mt-1 text-sm text-text-secondary">Open the exact step or employee setup to resolve a blocker.</p>
-      <div className="mt-4 divide-y divide-border">{attention.length ? attention.map((item) => <div key={item.label} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"><span>{item.label}</span><button className="font-semibold text-primary" type="button" onClick={item.open}>{item.action} →</button></div>) : <p className="py-4 text-sm text-text-secondary">{run ? "No known blockers for this period. Review the run before finalization." : "Start a run to assess payable time, calculations and statutory readiness."}</p>}</div></Card>
+      <div className="mt-4 divide-y divide-border">{attention.length ? attention.map((item) => <div key={item.label} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"><span>{item.label}</span><button className="font-semibold text-primary" type="button" onClick={item.open}>{item.action} →</button></div>) : <p className="py-4 text-sm text-text-secondary">{finalized ? "Payroll finalized. The current revision is read-only; any correction creates a new revision." : run ? "No known blockers for this period. Review the run before finalization." : "Start a run to assess payable time, calculations and statutory readiness."}</p>}</div></Card>
       <Card className="p-5"><h3 className="text-base font-bold">Recent Payroll Runs</h3><div className="mt-3 divide-y divide-border">{recent.length ? recent.map((item) => <button key={item.id} className="flex w-full items-center justify-between gap-2 py-3 text-left text-sm" type="button" onClick={() => onOpenRun(item.status === "finalized" ? 4 : 0, item.period, item.id)}><span><strong>{item.period.period_start.slice(0, 7)} · Revision {item.revision}</strong><small className="block text-text-secondary">{item.supersedes_run_id ? "Correction" : "Monthly run"}</small></span><Badge tone={item.status === "finalized" ? "success" : "neutral"}>{label(item.status)}</Badge></button>) : <p className="py-4 text-sm text-text-secondary">No previous runs for this Legal Entity.</p>}</div></Card></div>
   </div>;
 }

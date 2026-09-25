@@ -65,6 +65,8 @@ describe("Payroll Control Center", () => {
     }] }] });
     render(<PayrollPage auth={{}} />);
     await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
+    expect(screen.getByRole("button", { name: /View Finalized Payroll/ })).not.toBeNull();
+    expect(screen.getByText("Payroll finalized. The current revision is read-only; any correction creates a new revision.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /2026-09 · Revision 2/ }));
     await screen.findByText("Revision 2 is immutable. Corrections require a new revision; this evidence is retained.");
     expect(screen.getByText(/Authorized approver/)).not.toBeNull();
