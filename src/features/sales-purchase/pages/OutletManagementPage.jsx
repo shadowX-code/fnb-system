@@ -7,6 +7,7 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import { outletService } from "../../../services/outletService.js";
 import { getOutletTaxConfig } from "../utils/analytics.js";
+import { MALAYSIA_STATES } from "../../../constants/malaysiaStates.js";
 
 function latestPeriod(store) {
   const latest = [...store.salesRecords, ...store.purchaseRecords]
@@ -50,6 +51,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
     { name: "name", label: "Outlet Name", placeholder: "Outlet name" },
     { name: "code", label: "Outlet Code", placeholder: "HIPB" },
     { name: "location", label: "Location", placeholder: "City / area" },
+    { name: "state_code", label: "State / Federal Territory", type: "select", options: [{ value: "", label: "Not confirmed" }, ...MALAYSIA_STATES.map(([value, label]) => ({ value, label }))] },
     { name: "outlet_logo", label: "Outlet Logo", render: ({ values, setValues }) => {
       const current = values.logo_path ? outletService.logoPublicUrl(values.logo_path, values.logo_version) : "";
       const preview = values.logoFile ? URL.createObjectURL(values.logoFile) : current;

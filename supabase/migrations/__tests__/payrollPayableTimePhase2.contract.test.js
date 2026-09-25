@@ -42,7 +42,7 @@ describe("Payroll Phase 2 payable-time authority", () => {
     for (const rpc of ["payroll_time_read", "payroll_time_reconcile", "payroll_time_decide", "payroll_run_time_readiness"])
       expect(service).toContain(rpc);
     expect(service).not.toContain('.from("crew_attendance_records")');
-    expect(page).toContain('"Time Exceptions"');
+    expect(page).toContain('"Review Time"');
     expect(workspace).toContain("Reconcile Evidence");
     expect(workspace).toContain("Record Decision");
     expect(workspace).toContain("Original Roster, Attendance and Leave evidence is never edited.");

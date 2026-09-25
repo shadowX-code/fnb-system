@@ -34,13 +34,13 @@ describe("Payroll Phase 4 statutory safety boundary", () => {
     expect(migration).toContain("payroll_can_manage_entity(v_period.legal_entity_id,'payroll.manage')");
     expect(service).toContain("payroll_run_statutory_calculate");
     expect(service).toContain("payroll_run_statutory_read");
-    expect(page).toContain("readiness[run.id]?.statutory?.ready");
+    expect(page).toContain("state?.statutory?.ready");
   });
 
   it("never presents a pre-statutory Ready result as payroll Ready", () => {
     expect(calculationPanel).toContain('if (!statutory) return "Statutory Not Calculated"');
     expect(calculationPanel).toContain("return title(statutory.status)");
     expect(calculationPanel).toContain("overallStatus(row, statutoryRows.find");
-    expect(calculationPanel).toContain("Pre-statutory:");
+    expect(calculationPanel).toContain("Pre-statutory Pay");
   });
 });

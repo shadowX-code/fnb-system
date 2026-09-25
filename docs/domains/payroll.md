@@ -32,6 +32,12 @@ confirmation remains an authorized per-employee, per-Run action in Review
 Payroll; Ready and Finalize still rely on the canonical server gates. Settings
 shows operational statutory methods, holidays, and pay components by default,
 with technical rule publication and version history disclosed on demand.
+Payroll Settings uses the shared Admin underline-tab pattern below the four
+primary destinations. Employee setup opens in a read-only detail drawer from a
+Legal-Entity-scoped filter/list; explicit actions open the existing effective-
+dated commands. Pay Components use List → View → Edit with audited changes;
+their immutable technical code is normally generated from the name and shown
+under Advanced information.
 Finalized Run revisions are read-only, and historical corrections create a new
 revision rather than editing final evidence. The authorized Payroll read
 projection includes the finalized approver's display name with the Run, even
@@ -63,9 +69,25 @@ version.
 ## Holiday and Run Foundation
 
 `payroll_public_holidays` records dated national/state/outlet context under
-a Legal Entity and a source note. The later pay engine must establish which
-holidays and statutory rules apply to each shift; this calendar alone is not
-a holiday-pay calculation.
+shared geographic ownership and a source note. New definitions have no Legal
+Entity ID: National applies across Malaysia, State uses a canonical Outlet
+state code, and an explicit Outlet override applies only there. Older
+Legal-Entity-scoped rows remain immutable/readable as historical overrides;
+they are not silently deleted or deduplicated. The Staging preflight for this
+consolidation found zero existing holiday rows. Outlet state is maintained in
+the existing Outlet master and captured as append-only, date-effective
+`payroll_outlet_state_versions` evidence. Earlier dates are not backfilled from
+today's free-text address or state. If a State holiday exists but outlet
+geography is unknown, Payable Time stays Review Required. Holiday context can
+classify a shift, but does not itself establish a monetary holiday-pay rule.
+The `MY-01`–`MY-16` state/federal-territory list follows the [Department of
+Statistics Malaysia state-code listing](https://www.dosm.gov.my/uploads/release-content/file_20260319123633.pdf).
+
+Pay Component name and wage-treatment changes are audited with before/after
+snapshots. If any finalized Payroll calculation used the definition, changing
+its name or treatments is blocked: create a new definition instead. Status may
+be deactivated for new use without rewriting existing final evidence. The
+component code and type remain immutable identity.
 
 `payroll_periods` own one Legal Entity and complete calendar month.
 `payroll_runs` have Draft → Review Required → Ready → Finalized states in
@@ -109,8 +131,8 @@ become Ready. An in-progress hourly pay period cannot be marked Ready. A
 finalized period requires an open correction Run before time decisions change;
 the prior Run's time snapshot remains immutable. Monthly employees may have
 time evidence, but it does not yet drive wage calculation. State holiday
-applicability without a canonical workplace-state mapping is an exception,
-not an assumed paid holiday. Paid leave without a scheduled duration likewise
+applicability uses the date-effective canonical Outlet state where recorded;
+unknown geography remains an exception, not an assumed paid holiday. Paid leave without a scheduled duration likewise
 requires review. The 10-minute clock-noise threshold is aligned with existing
 Crew punctuality evidence, and only suppresses an extra-time exception; it
 never awards extra payable minutes.

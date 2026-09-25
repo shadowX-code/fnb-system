@@ -3,6 +3,7 @@ import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import Drawer from "../../../components/ui/Drawer.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 
@@ -38,8 +39,8 @@ function ResultDetail({ result, statutory, pcb, onClose }) {
       </div>)}
     </div> : <p className="text-sm text-text-secondary">None.</p>}
   </section>;
-  return <Modal title={`${result.employee_name} · Calculation`} description="Approved earnings, statutory evidence and unresolved inputs. This is not a payslip or payment instruction."
-    onClose={onClose} size="xl" footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+  return <Drawer title={result.employee_name} eyebrow="Payroll result" description="Approved earnings, statutory evidence and unresolved inputs. This is not a payslip or payment instruction."
+    onClose={onClose} width="xl">
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-3">
         <div><span className="text-xs text-text-secondary">Compensation used</span><p className="font-bold">{compensation ?
@@ -81,7 +82,7 @@ function ResultDetail({ result, statutory, pcb, onClose }) {
         <div><dt className="text-text-secondary">Pre-statutory Pay</dt><dd className="font-bold tabular-nums">{rm(result.pre_statutory_pay)}</dd></div>
       </dl>
     </div>
-  </Modal>;
+  </Drawer>;
 }
 
 export default function PayrollRunCalculationPanel({ run, components, canManage, onChanged, stage = "calculate" }) {

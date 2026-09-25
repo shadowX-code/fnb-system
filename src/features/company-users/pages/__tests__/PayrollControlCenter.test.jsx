@@ -4,12 +4,16 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), time: vi.fn(), calculation: vi.fn(), statutory: vi.fn(),
   readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readRules: vi.fn(),
+  readComponentHistory: vi.fn(),
+  readHolidayApplicability: vi.fn(),
 }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   read: mocks.read, runTimeReadiness: mocks.time, calculationReadiness: mocks.calculation,
   statutoryReadiness: mocks.statutory, readTime: mocks.readTime,
   readCalculation: mocks.readCalculation, readStatutory: mocks.readStatutory,
   readPcb: mocks.readPcb, readRules: mocks.readRules,
+  readComponentHistory: mocks.readComponentHistory,
+  readHolidayApplicability: mocks.readHolidayApplicability,
 } }));
 vi.mock("../../../../utils/accessControl.js", () => ({ hasPermission: () => true }));
 
@@ -32,6 +36,8 @@ beforeEach(() => {
   mocks.readStatutory.mockReset().mockResolvedValue({ results: [] });
   mocks.readPcb.mockReset().mockResolvedValue({ results: [] });
   mocks.readRules.mockReset().mockResolvedValue([]);
+  mocks.readComponentHistory.mockReset().mockResolvedValue([]);
+  mocks.readHolidayApplicability.mockReset().mockResolvedValue({ outlets: [], legal_entities: [] });
 });
 afterEach(cleanup);
 
@@ -72,5 +78,21 @@ describe("Payroll Control Center", () => {
     await screen.findByText("Revision 2 is immutable. Corrections require a new revision; this evidence is retained.");
     expect(screen.getByText(/QA Approver/)).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Finalize Payroll" })).toBeNull();
+  });
+
+  it("filters employees and opens setup-required employees in read-only detail", async () => {
+    mocks.read.mockResolvedValueOnce({ ...fixture, employees: [
+      ...fixture.employees, { id: "employee-2", name: "Another Employee", employee_code: "QA-002", legal_entity_id: "entity-1" },
+    ] });
+    render(<PayrollPage auth={{}} />);
+    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
+    fireEvent.click(screen.getByRole("button", { name: "Employees" }));
+    fireEvent.change(screen.getByRole("searchbox", { name: "Search" }), { target: { value: "QA-001" } });
+    expect(screen.getByText("QA Employee")).not.toBeNull();
+    expect(screen.queryByText("Another Employee")).toBeNull();
+    fireEvent.click(screen.getByText("QA Employee"));
+    expect(screen.getByRole("dialog")).not.toBeNull();
+    expect(screen.getByText(/Pay has not been set up/)).not.toBeNull();
+    expect(screen.queryByRole("textbox", { name: "Reason / provenance" })).toBeNull();
   });
 });

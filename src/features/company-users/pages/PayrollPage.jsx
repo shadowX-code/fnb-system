@@ -6,11 +6,17 @@ import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
+import Drawer from "../../../components/ui/Drawer.jsx";
+import AdminUnderlineTabs from "../../../components/navigation/AdminUnderlineTabs.jsx";
 import { hasPermission } from "../../../utils/accessControl.js";
 import { payrollService } from "../../../services/payrollService.js";
 import PayrollTimeExceptionsTab from "./PayrollTimeExceptionsTab.jsx";
 import PayrollRunCalculationPanel from "./PayrollRunCalculationPanel.jsx";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
+import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
 
 const today = () => new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit",
@@ -211,7 +217,11 @@ function ProfilesTab({ data, canManage, reload }) {
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState("");
   const [setupEmployeeId, setSetupEmployeeId] = useState("");
+  const [entityFilter, setEntityFilter] = useState(data.legal_entities?.[0]?.id || "");
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const selected = data.profiles?.find((profile) => profile.employee_id === selectedId);
+  const selectedEmployee = data.employees?.find((employee) => employee.id === selectedId);
   const entities = data.legal_entities || [];
   const rows = (data.employees || []).map((employee) => ({ ...employee,
     profile: (data.profiles || []).find((profile) => profile.employee_id === employee.id) || null }));
@@ -221,14 +231,16 @@ function ProfilesTab({ data, canManage, reload }) {
     return ["epf", "socso", "eis", "pcb"].some((key) => statutory?.[`${key}_applicable`] == null)
       ? "Review Required" : "Ready";
   };
+  const visibleRows = rows.filter((row) => row.legal_entity_id === entityFilter
+    && (statusFilter === "all" || setupState(row) === statusFilter)
+    && (!search.trim() || `${row.name} ${row.employee_code || ""}`.toLowerCase().includes(search.trim().toLowerCase())));
   const columns = [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><div className="text-xs text-text-secondary">{row.employee_code || row.workplace || "—"}</div></div> },
-    { key: "employer", header: "Legal Employer", render: (row) => entityName(entities, row.legal_entity_id) },
     { key: "basis", header: "Pay Basis", render: (row) => effective(row.profile?.compensation) ? label(effective(row.profile.compensation).pay_basis) : "Not set" },
     { key: "rate", header: "Current Pay", align: "right", render: (row) => { const c = effective(row.profile?.compensation); return c ? <strong className="tabular-nums">{money(c.basic_salary || c.hourly_rate, c.currency)}{c.pay_basis === "hourly" ? " / hour" : ""}</strong> : "—"; } },
     { key: "statutory", header: "Statutory Readiness", render: (row) => <span className="text-sm">{row.profile ? (setupState(row) === "Ready" ? "Applicability reviewed" : "Review applicability") : "Not set"}</span> },
     { key: "status", header: "Status", render: (row) => <Badge tone={setupState(row) === "Ready" ? "success" : "warning"}>{setupState(row)}</Badge> },
-    { key: "open", header: "", align: "right", render: (row) => canManage && !row.profile ? <button className="btn-secondary" type="button" onClick={() => { setSetupEmployeeId(row.id); setForm("create"); }}>Set Up Employee</button> : <button className="text-primary" type="button" aria-label={`View ${row.name} payroll setup`} onClick={() => setSelectedId(row.id)}><ChevronRight size={16} /></button> },
+    { key: "open", header: "", align: "right", render: (row) => <button className="text-primary" type="button" aria-label={`View ${row.name} payroll setup`} onClick={() => setSelectedId(row.id)}><ChevronRight size={16} /></button> },
   ];
   const versions = selected?.compensation || [];
   const current = effective(versions);
@@ -238,19 +250,19 @@ function ProfilesTab({ data, canManage, reload }) {
     item.id === effective((selected?.recurring || []).filter((other) => other.component_id === item.component_id))?.id && item.is_active);
 
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-sm text-text-secondary">Set up pay separately from the Employee record. Changes take effect by date and retain history.</p>
-      {canManage && rows.some((row) => !row.profile) && <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(""); setForm("create"); }}><Plus size={16} /> Set Up Employee</button>}</div>
-    <Card>{rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id}
-      density="compact" onRowClick={(row) => {
-        if (row.profile) setSelectedId(row.id);
-        else if (canManage) { setSetupEmployeeId(row.id); setForm("create"); }
-      }} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees with a Legal Employer are in your Payroll scope.</div>}</Card>
-    {selected && <Card className="p-5 space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><h3 className="text-lg font-bold text-text-primary">{selected.employee_name}</h3>
-          <p className="text-sm text-text-secondary">{entityName(entities, current?.legal_entity_id)} · {selected.workplace || "Workplace not set"}</p></div>
-        <button className="btn-secondary" type="button" onClick={() => setSelectedId("")}>Close detail</button>
-      </div>
+    <AdminFilterToolbar ariaLabel="Payroll employee filters"
+      outlet={<SelectField label="Legal Entity" value={entityFilter} onChange={(value) => { setEntityFilter(value); setSelectedId(""); }} options={entities.map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
+      search={<AdminSearchField label="Search" value={search} onChange={setSearch} placeholder="Employee name or code" />}
+      filters={<SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, ...["Ready", "Setup Required", "Review Required"].map((value) => ({ value, label: value }))]} />}
+      primaryActions={canManage && rows.some((row) => !row.profile) ? <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(""); setForm("create"); }}><Plus size={16} /> Set Up Employee</button> : null} />
+    <Card>{visibleRows.length ? <DataTable columns={columns} rows={visibleRows} getRowKey={(row) => row.id}
+      density="compact" onRowClick={(row) => setSelectedId(row.id)} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees match these filters.</div>}</Card>
+    <Drawer open={Boolean(selectedEmployee)} title={selectedEmployee?.name} eyebrow="Payroll employee" description={`${entityName(entities, selectedEmployee?.legal_entity_id)} · ${selectedEmployee?.workplace || "Workplace not set"}`} onClose={() => setSelectedId("")}
+      footer={canManage && selectedEmployee ? <div className="flex flex-wrap justify-end gap-2">{selected ? <><button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Edit Pay</button><button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Edit Statutory</button><button className="btn-primary" type="button" onClick={() => setForm("recurring")}>Manage Components</button></> : <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(selectedEmployee.id); setForm("create"); }}>Set Up Employee</button>}</div> : null}>
+      {selectedEmployee && <div className="space-y-5">
+      <Badge tone={selected ? setupState({ profile: selected }) === "Ready" ? "success" : "warning" : "warning"}>{setupState({ profile: selected })}</Badge>
+      {!selected && <p className="text-sm text-text-secondary">Pay has not been set up for this employee. Open Set Up Employee to create the first effective-dated profile.</p>}
+      {selected && <>
       <div className="grid gap-5 border-y border-border py-4 lg:grid-cols-2">
         <section><h4 className="font-bold">Employment & Pay</h4>
           <p className="mt-2 text-xl font-bold tabular-nums">{current ? money(current.basic_salary || current.hourly_rate, current.currency) : "Not effective yet"}</p>
@@ -262,12 +274,7 @@ function ProfilesTab({ data, canManage, reload }) {
               {key.toUpperCase()}: {statutory?.[`${key}_applicable`] == null ? "Unreviewed" : statutory[`${key}_applicable`] ? "Yes" : "No"}
             </Badge>)}</div></section>
       </div>
-      {canManage && <div className="flex flex-wrap gap-2">
-        <button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Adjust Compensation</button>
-        <button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Review Applicability</button>
-        <button className="btn-secondary" type="button" onClick={() => setForm("categories")}>Review Statutory Categories</button>
-        <button className="btn-secondary" type="button" onClick={() => setForm("recurring")}>Adjust Allowance / Deduction</button>
-      </div>}
+      {canManage && <button className="text-sm font-semibold text-primary" type="button" onClick={() => setForm("categories")}>Review statutory categories →</button>}
       <div className="grid gap-5 lg:grid-cols-2">
         <section><h4 className="mb-2 font-bold">Compensation History</h4>
           <div className="divide-y divide-border rounded-xl border border-border">{versions.map((item) =>
@@ -277,7 +284,9 @@ function ProfilesTab({ data, canManage, reload }) {
           <div className="divide-y divide-border rounded-xl border border-border">{currentComponents.length ? currentComponents.map((item) =>
             <div key={item.id} className="flex justify-between gap-3 px-3 py-2 text-sm"><span>{data.components?.find((component) => component.id === item.component_id)?.name || "Component"}<small className="block text-text-muted">From {item.effective_from}</small></span><strong>{money(item.amount)}</strong></div>) : <p className="p-3 text-sm text-text-secondary">No active recurring components.</p>}</div></section>
       </div>
-    </Card>}
+      </>}
+      </div>}
+    </Drawer>
     {form === "categories" ? <StatutoryCategoryForm profile={selected} onClose={() => setForm("")} />
       : form && <FoundationForm mode={form} profile={selected} initialEmployeeId={setupEmployeeId} data={data} onClose={() => setForm("")} onSaved={reload} />}
   </div>;
@@ -416,20 +425,50 @@ function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun,
 }
 
 function SettingsTab({ data, canManage, reload }) {
+  const canManageComponents = canManage && data.settings_authority?.components === true;
+  const canManageHolidays = canManage && data.settings_authority?.holidays === true;
   const [mode, setMode] = useState("rules");
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [adding, setAdding] = useState(false);
-  const [holidayEntityId, setHolidayEntityId] = useState(data.legal_entities?.[0]?.id || "");
+  const [selectedComponentId, setSelectedComponentId] = useState("");
+  const [editingComponent, setEditingComponent] = useState(false);
+  const [componentEditDraft, setComponentEditDraft] = useState(null);
+  const [componentHistory, setComponentHistory] = useState(null);
+  const [selectedHolidayId, setSelectedHolidayId] = useState("");
+  const [holidayApplicability, setHolidayApplicability] = useState(null);
+  const [holidayState, setHolidayState] = useState("all");
   const [holidayYear, setHolidayYear] = useState(today().slice(0, 4));
   const [draft, setDraft] = useState({ code: "", name: "", type: "allowance", epf: "undetermined", socso: "undetermined", eis: "undetermined", pcb: "undetermined",
-    legalEntityId: data.legal_entities?.[0]?.id || "", date: today(), scope: "national", stateCode: "", sourceNote: "", reason: "" });
+    date: today(), scope: "national", stateCode: "", outletId: "", sourceNote: "", reason: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  useEffect(() => {
+    if (!selectedComponentId) { setComponentHistory(null); return; }
+    let active = true;
+    setComponentHistory(null);
+    payrollService.readComponentHistory(selectedComponentId)
+      .then((history) => { if (active) setComponentHistory(history); })
+      .catch(() => { if (active) setComponentHistory({ error: true }); });
+    return () => { active = false; };
+  }, [selectedComponentId]);
+  useEffect(() => {
+    if (!selectedHolidayId) { setHolidayApplicability(null); return; }
+    let active = true;
+    setHolidayApplicability(null);
+    payrollService.readHolidayApplicability(selectedHolidayId)
+      .then((result) => { if (active) setHolidayApplicability(result); })
+      .catch(() => { if (active) setHolidayApplicability({ error: true }); });
+    return () => { active = false; };
+  }, [selectedHolidayId]);
   const patch = (key, value) => setDraft((previous) => ({ ...previous, [key]: value }));
   const save = async () => {
     setBusy(true); setError("");
     try {
-      if (mode === "components") await payrollService.createComponent(draft);
+      if (mode === "components") {
+        const code = draft.code.trim() || draft.name.trim().toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^[^a-z]+/, "");
+        if (!code) throw new Error("Enter a system code under Advanced for this name.");
+        await payrollService.createComponent({ ...draft, code });
+      }
       else await payrollService.addHoliday(draft);
       await reload();
       setDraft((previous) => ({ ...previous, code: "", name: "", sourceNote: "", reason: "" }));
@@ -437,39 +476,99 @@ function SettingsTab({ data, canManage, reload }) {
     } catch (cause) { setError(cause.message || "Unable to save setting."); }
     finally { setBusy(false); }
   };
-  const holidays = (data.holidays || []).filter((item) => item.legal_entity_id === holidayEntityId && item.holiday_date?.startsWith(holidayYear))
+  const holidays = (data.holidays || []).filter((item) => item.holiday_date?.startsWith(holidayYear)
+    && (holidayState === "all" || item.scope === "national" || item.state_code === holidayState))
     .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
+  const selectedHoliday = (data.holidays || []).find((item) => item.id === selectedHolidayId);
   const components = data.components || [];
+  const selectedComponent = components.find((item) => item.id === selectedComponentId);
+  const beginComponentEdit = () => {
+    if (!selectedComponent) return;
+    setComponentEditDraft({ id: selectedComponent.id, name: selectedComponent.name,
+      epf: selectedComponent.epf_treatment, socso: selectedComponent.socso_treatment,
+      eis: selectedComponent.eis_treatment, pcb: selectedComponent.pcb_treatment,
+      active: selectedComponent.is_active, sourceNote: "", reason: "" });
+    setError(""); setEditingComponent(true);
+  };
+  const saveComponentEdit = async () => {
+    setBusy(true); setError("");
+    try {
+      await payrollService.updateComponent(componentEditDraft);
+      await reload();
+      setEditingComponent(false);
+      setComponentHistory(await payrollService.readComponentHistory(componentEditDraft.id));
+    } catch (cause) { setError(cause.message || "Unable to update Pay Component."); }
+    finally { setBusy(false); }
+  };
   const undetermined = (item) => ["epf", "socso", "eis", "pcb"].some((key) => item[`${key}_treatment`] === "undetermined");
   return <div className="space-y-4">
-    <div className="flex flex-wrap gap-2">{[["rules", "Statutory & Pay Rules"], ["holidays", "Public Holidays"], ["components", "Pay Components"]].map(([key, name]) =>
-      <button key={key} className={mode === key ? "btn-primary" : "btn-secondary"} type="button" onClick={() => { setMode(key); setAdding(false); setError(""); }}>{name}</button>)}</div>
+    <AdminUnderlineTabs value={mode} onChange={(value) => { setMode(value); setAdding(false); setError(""); }}
+      tabs={[["rules", "Statutory & Pay Rules"], ["holidays", "Public Holidays"], ["components", "Pay Components"]].map(([value, text]) => ({ value, label: text }))} ariaLabel="Payroll settings" />
     {mode === "rules" ? <div className="space-y-4"><Card className="p-5"><h3 className="text-lg font-bold">Statutory & Pay Rules</h3><p className="mt-1 text-sm text-text-secondary">Current calculation methods. Each run retains the applicable versions and source evidence.</p>
       <div className="mt-4 divide-y divide-border">{[["EPF", "Automatic", "KWSP reviewed schedule"], ["SOCSO", "Automatic", "PERKESO reviewed schedule"], ["EIS", "Automatic", "PERKESO reviewed schedule"], ["PCB / MTD", "Manual confirmation", "Confirmed by an authorized Admin per employee and pay period"]].map(([name, method, note]) =>
         <div key={name} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"><div><strong>{name}</strong><small className="block text-text-secondary">{note}</small></div><Badge tone={method === "Automatic" ? "success" : "warning"}>{method}</Badge></div>)}</div></Card>
       <div className="rounded-xl border border-border bg-surface p-4"><button className="w-full text-left font-semibold" type="button" aria-expanded={advancedOpen} onClick={() => setAdvancedOpen((value) => !value)}>Advanced / Version History <span className="font-normal text-text-secondary">· technical rules and publishing</span></button>{advancedOpen && <div className="mt-4"><PayrollPayRulesPanel canManage={canManage} /></div>}</div></div>
       : mode === "components" ? <Card className="overflow-hidden"><div className="flex flex-wrap items-start justify-between gap-3 border-b border-border p-4"><div><h3 className="text-lg font-bold">Allowances & Deductions</h3><p className="text-sm text-text-secondary">Statutory wage treatment must be explicit before a run is ready.</p></div>
-        {canManage && <button className="btn-primary" type="button" onClick={() => setAdding(true)}><Plus size={16} /> Add Component</button>}</div>
-        <div className="divide-y divide-border">{components.length ? components.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm"><div><strong>{item.name}</strong><small className="block text-text-secondary">{item.code} · {label(item.component_type)}</small></div><div className="flex flex-wrap items-center gap-2">{undetermined(item) && <Badge tone="warning">Treatment undetermined</Badge>}<Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge></div></div>) : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</div></Card>
-      : <Card className="overflow-hidden"><div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4"><div><h3 className="text-lg font-bold">Public Holidays</h3><p className="text-sm text-text-secondary">Managed calendar evidence by Legal Entity and year.</p></div>{canManage && <button className="btn-primary" type="button" onClick={() => { patch("legalEntityId", holidayEntityId); setAdding(true); }}><Plus size={16} /> Add Holiday</button>}</div>
-        <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2"><AdminFormField label="Legal Entity"><Select value={holidayEntityId} onChange={setHolidayEntityId} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></AdminFormField><AdminFormField label="Year"><input className="control" type="number" min="2000" max="2100" value={holidayYear} onChange={(event) => setHolidayYear(event.target.value)} /></AdminFormField></div>
-        <div className="divide-y divide-border">{holidays.length ? holidays.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-2 px-4 py-3 text-sm"><span><strong>{item.name}</strong><small className="block text-text-secondary">{label(item.scope)} {item.state_code || ""}</small></span><time className="tabular-nums">{item.holiday_date}</time></div>) : <p className="p-6 text-sm text-text-secondary">No holidays in this calendar.</p>}</div></Card>}
-    {adding && <Modal title={mode === "components" ? "Add Pay Component" : "Add Public Holiday"} size="lg" onClose={() => !busy && setAdding(false)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setAdding(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.name || (mode === "components" ? !draft.code || !draft.reason : !draft.legalEntityId || !draft.sourceNote)} onClick={save}>{busy ? "Saving…" : mode === "components" ? "Add Component" : "Add Holiday"}</button></>}>
+        {canManageComponents && <button className="btn-primary" type="button" onClick={() => setAdding(true)}><Plus size={16} /> Add Component</button>}</div>
+        {components.length ? <DataTable density="compact" columns={[
+          { key: "name", header: "Name", render: (item) => <strong>{item.name}</strong> },
+          { key: "type", header: "Type", render: (item) => label(item.component_type) },
+          { key: "treatment", header: "Statutory Treatment", render: (item) => undetermined(item) ? <Badge tone="warning">Treatment undetermined</Badge> : <span className="text-sm text-text-secondary">Reviewed</span> },
+          { key: "status", header: "Status", render: (item) => <Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge> },
+        ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
+      : <Card className="overflow-hidden"><div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4"><div><h3 className="text-lg font-bold">Public Holidays</h3><p className="text-sm text-text-secondary">One shared calendar by geography. Existing company-specific evidence is retained as an override.</p></div>{canManageHolidays && <button className="btn-primary" type="button" onClick={() => setAdding(true)}><Plus size={16} /> Add Holiday</button>}</div>
+        <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-2"><AdminFormField label="Year"><input className="control" type="number" min="2000" max="2100" value={holidayYear} onChange={(event) => setHolidayYear(event.target.value)} /></AdminFormField><AdminFormField label="Country / State"><Select value={holidayState} onChange={setHolidayState} options={[{ value: "all", label: "Malaysia · All" }, ...MALAYSIA_STATES.map(([value, name]) => ({ value, label: name }))]} /></AdminFormField></div>
+        {holidays.length ? <DataTable density="compact" columns={[
+          { key: "date", header: "Date", render: (item) => <time className="tabular-nums">{item.holiday_date}</time> },
+          { key: "name", header: "Holiday", render: (item) => <strong>{item.name}</strong> },
+          { key: "scope", header: "Scope", render: (item) => `${label(item.scope)}${item.state_code ? ` · ${malaysiaStateName(item.state_code)}` : ""}` },
+          { key: "applies", header: "Applies To", render: (item) => item.legal_entity_id ? `Legacy · ${entityName(data.legal_entities || [], item.legal_entity_id)}` : item.scope === "outlet" ? data.outlets?.find((outlet) => outlet.id === item.outlet_id)?.name || "Outlet" : "Matching Malaysia workplaces" },
+          { key: "status", header: "Status", render: (item) => <Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge> },
+        ]} rows={holidays} getRowKey={(item) => item.id} onRowClick={(item) => setSelectedHolidayId(item.id)} /> : <p className="p-6 text-sm text-text-secondary">No holidays in this calendar.</p>}</Card>}
+    {adding && <Modal title={mode === "components" ? "Add Pay Component" : "Add Public Holiday"} size="lg" onClose={() => !busy && setAdding(false)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setAdding(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.name || (mode === "components" ? !draft.reason : !draft.sourceNote || (draft.scope === "state" && !draft.stateCode) || (draft.scope === "outlet" && !draft.outletId))} onClick={save}>{busy ? "Saving…" : mode === "components" ? "Add Component" : "Add Holiday"}</button></>}>
       {mode === "components" ? <div className="grid gap-3 sm:grid-cols-2">
-        <AdminFormField label="Code"><input className="control" value={draft.code} onChange={(event) => patch("code", event.target.value)} placeholder="meal_allowance" /></AdminFormField>
         <AdminFormField label="Name"><input className="control" value={draft.name} onChange={(event) => patch("name", event.target.value)} /></AdminFormField>
         <AdminFormField label="Type"><Select value={draft.type} onChange={(value) => patch("type", value)} options={["earning", "allowance", "deduction", "reimbursement"].map((value) => ({ value, label: label(value) }))} /></AdminFormField>
         {["epf", "socso", "eis", "pcb"].map((key) => <AdminFormField key={key} label={`${key.toUpperCase()} wage treatment`}><Select value={draft[key]} onChange={(value) => patch(key, value)} options={["undetermined", "included", "excluded"].map((value) => ({ value, label: label(value) }))} /></AdminFormField>)}
-        <AdminFormField label="Reason"><input className="control" value={draft.reason} onChange={(event) => patch("reason", event.target.value)} /></AdminFormField></div>
-        : <div className="grid gap-3 sm:grid-cols-2"><AdminFormField label="Legal Entity"><Select value={draft.legalEntityId} onChange={(value) => patch("legalEntityId", value)} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></AdminFormField>
+        <AdminFormField label="Reason / source"><input className="control" value={draft.reason} onChange={(event) => patch("reason", event.target.value)} /></AdminFormField>
+        <details className="sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">Advanced / System Information</summary><AdminFormField label="Immutable System Code"><input className="control" value={draft.code} onChange={(event) => patch("code", event.target.value)} placeholder="Generated from name" /></AdminFormField></details></div>
+        : <div className="grid gap-3 sm:grid-cols-2">
           <AdminFormField label="Date"><input className="control" type="date" value={draft.date} onChange={(event) => patch("date", event.target.value)} /></AdminFormField>
           <AdminFormField label="Holiday Name"><input className="control" value={draft.name} onChange={(event) => patch("name", event.target.value)} /></AdminFormField>
-          <AdminFormField label="Scope"><Select value={draft.scope} onChange={(value) => patch("scope", value)} options={[{ value: "national", label: "National" }, { value: "state", label: "State" }]} /></AdminFormField>
-          {draft.scope === "state" && <AdminFormField label="State Code"><input className="control" value={draft.stateCode} onChange={(event) => patch("stateCode", event.target.value)} placeholder="MY-10" /></AdminFormField>}
+          <AdminFormField label="Scope"><Select value={draft.scope} onChange={(value) => patch("scope", value)} options={[{ value: "national", label: "National" }, { value: "state", label: "State" }, { value: "outlet", label: "Outlet override" }]} /></AdminFormField>
+          {draft.scope === "state" && <AdminFormField label="State"><Select value={draft.stateCode} onChange={(value) => patch("stateCode", value)} options={[{ value: "", label: "Select state" }, ...MALAYSIA_STATES.map(([value, name]) => ({ value, label: name }))]} /></AdminFormField>}
+          {draft.scope === "outlet" && <AdminFormField label="Outlet"><Select value={draft.outletId} onChange={(value) => patch("outletId", value)} options={[{ value: "", label: "Select outlet" }, ...(data.outlets || []).map((outlet) => ({ value: outlet.id, label: outlet.name }))]} /></AdminFormField>}
           <AdminFormField label="Source"><input className="control" value={draft.sourceNote} onChange={(event) => patch("sourceNote", event.target.value)} placeholder="Gazette / approved calendar" /></AdminFormField></div>}
       {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
     </Modal>}
+    <Drawer open={Boolean(selectedHoliday)} title={selectedHoliday?.name} eyebrow="Public Holiday" description={selectedHoliday?.holiday_date} onClose={() => setSelectedHolidayId("")}>
+      {selectedHoliday && <div className="space-y-5 text-sm"><section><h3 className="font-bold">Applicability</h3><p className="mt-1 text-text-secondary">{selectedHoliday.scope === "national" ? "National · Malaysia" : selectedHoliday.scope === "state" ? `State · ${malaysiaStateName(selectedHoliday.state_code)}` : "Outlet override"}</p>
+        {selectedHoliday.legal_entity_id && <p className="mt-2 text-amber-700">Historical Legal Entity override: {entityName(data.legal_entities || [], selectedHoliday.legal_entity_id)}</p>}
+        <p className="mt-2 font-semibold">Affected outlets in your access</p><p className="text-text-secondary">{holidayApplicability?.error ? "Unable to load applicability." : holidayApplicability ? holidayApplicability.outlets?.map((outlet) => outlet.name).join(", ") || "None resolved; confirm Outlet state where applicable." : "Resolving…"}</p>
+        <p className="mt-2 font-semibold">Linked Legal Entities</p><p className="text-text-secondary">{holidayApplicability?.error ? "Unable to load applicability." : holidayApplicability ? holidayApplicability.legal_entities?.map((entity) => entity.name).join(", ") || "No current employee workplace link in your access." : "Resolving…"}</p>
+        <p className="mt-2 text-xs text-text-muted">Current workplace links are indicative; each Payroll shift uses its pinned date-effective evidence.</p></section>
+        <section><h3 className="font-bold">Evidence</h3><p className="mt-1 text-text-secondary">{selectedHoliday.source_note}</p><p className="mt-2 text-xs text-text-muted">Created {selectedHoliday.created_at?.slice(0, 10)} · {selectedHoliday.is_active ? "Active" : "Inactive"}</p></section></div>}
+    </Drawer>
     {!adding && error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
+    <Drawer open={Boolean(selectedComponent)} title={selectedComponent?.name} eyebrow="Pay Component" description={selectedComponent ? `${label(selectedComponent.component_type)} · ${selectedComponent.is_active ? "Active" : "Inactive"}` : ""}
+      onClose={() => { setSelectedComponentId(""); setEditingComponent(false); }}
+      footer={canManageComponents && selectedComponent ? <div className="flex justify-end"><button className="btn-primary" type="button" onClick={beginComponentEdit}>Edit Component</button></div> : null}>
+      {selectedComponent && <div className="space-y-5 text-sm">
+        <section><h3 className="font-bold">Statutory Treatment</h3><div className="mt-2 divide-y divide-border rounded-xl border border-border">{["epf", "socso", "eis", "pcb"].map((scheme) => <div key={scheme} className="flex justify-between px-3 py-2"><span>{scheme.toUpperCase()}</span><Badge tone={selectedComponent[`${scheme}_treatment`] === "undetermined" ? "warning" : "neutral"}>{label(selectedComponent[`${scheme}_treatment`])}</Badge></div>)}</div></section>
+        <section><h3 className="font-bold">History & source</h3><p className="mt-1 text-text-secondary">Created {selectedComponent.created_at?.slice(0, 10) || "—"}.</p>
+          {Array.isArray(componentHistory) ? <div className="mt-2 divide-y divide-border">{componentHistory.map((event, index) => <div key={`${event.occurred_at}-${index}`} className="py-2"><strong>{label(event.event_type)}</strong><span className="ml-2 text-text-muted">{event.occurred_at?.slice(0, 16).replace("T", " ")} · {event.actor_name}</span><p className="text-text-secondary">{event.reason || event.details?.source || "—"}</p></div>)}</div> : <p className="mt-2 text-text-secondary">{componentHistory?.error ? "History could not be loaded." : "Loading history…"}</p>}</section>
+        <details className="rounded-xl border border-border p-3"><summary className="cursor-pointer font-semibold">Advanced / System Information</summary><p className="mt-2 text-text-secondary">Immutable code: <code>{selectedComponent.code}</code><br />ID: <code>{selectedComponent.id}</code></p></details>
+      </div>}
+    </Drawer>
+    {editingComponent && componentEditDraft && <Modal title={`Edit ${selectedComponent?.name || "Pay Component"}`} description="Changes are audited. A component used by finalized Payroll cannot change its name or wage treatment; create a successor component instead." size="lg" onClose={() => !busy && setEditingComponent(false)}
+      footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setEditingComponent(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !componentEditDraft.name.trim() || !componentEditDraft.reason.trim() || !componentEditDraft.sourceNote.trim()} onClick={saveComponentEdit}>{busy ? "Saving…" : "Save Changes"}</button></>}>
+      <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><AdminFormField label="Name" required><input className="control" value={componentEditDraft.name} onChange={(event) => setComponentEditDraft((current) => ({ ...current, name: event.target.value }))} /></AdminFormField><AdminFormField label="Type"><p className="control flex items-center bg-surface-muted text-text-secondary">{label(selectedComponent?.component_type)} · fixed identity</p></AdminFormField></div>
+        <div><h3 className="mb-2 text-sm font-bold">Statutory wage treatment</h3><div className="grid gap-3 sm:grid-cols-2">{["epf", "socso", "eis", "pcb"].map((scheme) => <AdminFormField key={scheme} label={scheme.toUpperCase()}><Select value={componentEditDraft[scheme]} onChange={(value) => setComponentEditDraft((current) => ({ ...current, [scheme]: value }))} options={["undetermined", "included", "excluded"].map((value) => ({ value, label: label(value) }))} /></AdminFormField>)}</div></div>
+        <label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={componentEditDraft.active} onChange={(event) => setComponentEditDraft((current) => ({ ...current, active: event.target.checked }))} /> Active for new use</label>
+        <div className="grid gap-3 sm:grid-cols-2"><AdminFormField label="Source / reference" required><input className="control" value={componentEditDraft.sourceNote} onChange={(event) => setComponentEditDraft((current) => ({ ...current, sourceNote: event.target.value }))} /></AdminFormField><AdminFormField label="Reason" required><input className="control" value={componentEditDraft.reason} onChange={(event) => setComponentEditDraft((current) => ({ ...current, reason: event.target.value }))} /></AdminFormField></div>
+        {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
+      </div>
+    </Modal>}
   </div>;
 }
 
