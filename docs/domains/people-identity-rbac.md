@@ -100,5 +100,5 @@ All Restaurant, Crew, and Factory domains consume role/permission/outlet decisio
 
 Employee Directory, Roles, Permissions, and audit-oriented views remain grouped here.
 Legacy fields or labels must not become competing role or Auth-link authorities.
-External identity providers, HRIS synchronization, and payroll identity are deferred unless explicitly introduced.
+External identity providers and HRIS synchronization remain deferred. Payroll now owns its separate effective-dated profile and foundation run authority in [Payroll](payroll.md); Employee Master remains its identity and legal-employer source, not its rate table.
 An explicit UUID employee-outlet assignment is planned as a future compatibility hardening phase. Until then, the established Employee Master workplace resolver remains the canonical relationship consumed by Crew Workforce.

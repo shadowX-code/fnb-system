@@ -29,6 +29,7 @@ The shared Admin shell composes workspace navigation, route visibility, and comm
 | Reporting | Active | Server-authoritative, outlet-scoped financial and product-performance read contracts power the Restaurant Admin Reports preview and permission-gated same-renderer PNG/PDF downloads; history, sharing, scheduling, and AI insights remain deferred. |
 | Inventory and assets | Active | Restaurant stock evidence, reconciliation, recipes/usage, and asset lifecycle. |
 | People, identity, and RBAC | Active | Employee master, Admin identity, roles, permissions, and outlet scope. |
+| Payroll | Foundation on Staging | People-owned effective-dated pay profiles, statutory applicability, holiday context and Legal Entity run evidence; no wage calculation, payslip or payment yet. |
 | Crew workforce | Active | Crew Access, roster, attendance, leave, entitlement, and workforce context. |
 | Crew operations and cash | Active | Tasks, Daily Operations, Cash Checkout, ledger, collection, and handover. |
 | Crew learning and SOP | Active | Onboarding, SOP Library, versioned content, quizzes, and progress evidence. |
@@ -44,6 +45,7 @@ The shared Admin shell composes workspace navigation, route visibility, and comm
 | Restaurant finance and purchasing | Finance, purchasing, imports, periods, reports, and alerts | `docs/domains/restaurant-finance-and-purchasing.md` |
 | Inventory and assets | Restaurant inventory and asset lifecycle | `docs/domains/inventory-and-assets.md` |
 | People, identity, and RBAC | Employee, Admin identity, permissions, and scope | `docs/domains/people-identity-rbac.md` |
+| Payroll | Compensation profile and Legal Entity payroll foundation authority | `docs/domains/payroll.md` |
 | Crew workforce | Crew Access, roster, attendance, and leave | `docs/domains/crew-workforce.md` |
 | Crew operations | Tasks, Daily Operations, and cash lifecycles | `docs/domains/crew-operations.md` |
 | Crew learning | Onboarding, SOP, learning, and progress | `docs/domains/crew-learning.md` |

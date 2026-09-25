@@ -17,6 +17,7 @@ import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
 import LegalEntitiesPage from "../features/company-users/pages/LegalEntitiesPage.jsx";
+import PayrollPage from "../features/company-users/pages/PayrollPage.jsx";
 import EmployeeCompliancePage from "../features/company-users/pages/EmployeeCompliancePage.jsx";
 import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.jsx";
 import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
@@ -135,6 +136,11 @@ export const routeDetails = {
     description: "Manage legal employing entities referenced by employee records and employment documents.",
     component: LegalEntitiesPage,
     permission: "legal_entities.view",
+  },
+  payroll: {
+    description: "Legal Entity Payroll Profiles, foundation Runs and settings.",
+    component: PayrollPage,
+    permission: "payroll.view",
   },
   "job-positions": {
     description: "Manage HR job titles used in employee profiles.",

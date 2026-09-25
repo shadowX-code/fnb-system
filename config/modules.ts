@@ -368,6 +368,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, manage: true },
   },
   {
+    id: "payroll",
+    section: "People",
+    label: "Payroll",
+    route: "/people/payroll",
+    icon: "wallet",
+    sidebar: true,
+    permissions: { view: true, manage: true, finalize: true },
+  },
+  {
     id: "employee_compliance",
     section: "People",
     label: "Food Handling Compliance",

@@ -13,8 +13,8 @@ const migrationSource = readFileSync(resolve(process.cwd(), "supabase/migrations
 describe("Legal Entities People module", () => {
   it("registers Legal Entities directly after Employees with its canonical permission codes", () => {
     const people = getSidebarSections("restaurant").find((section) => section.label === "People");
-    expect(people.items.map((item) => item.id).slice(0, 6)).toEqual([
-      "employees", "legal-entities", "employee_compliance", "job-positions", "departments", "roles",
+    expect(people.items.map((item) => item.id).slice(0, 7)).toEqual([
+      "employees", "legal-entities", "payroll", "employee_compliance", "job-positions", "departments", "roles",
     ]);
     expect(moduleRegistry.find((module) => module.id === "legal-entities")?.permissions).toEqual({ view: true, manage: true });
     expect(routeDetails["legal-entities"]?.component).toBe(LegalEntitiesPage);
