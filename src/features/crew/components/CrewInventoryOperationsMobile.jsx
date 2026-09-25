@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { ArrowRight, ChevronRight, ClipboardCheck, Package } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
-import { CrewEmptyState } from "./CrewMobileUI.jsx";
+import { CrewEmptyState, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 export const hasCrewInventoryAccess = (grants = {}) => Boolean(
   grants.can_perform_stock_check || grants.can_create_audit_stock_check
@@ -74,7 +74,7 @@ function SmartOperationsCard({ domain, icon: Icon, title, summary, rows, onOpen,
     </button>
     {rows.length > 0 && <div className="crew-inventory-home-rows">{rows.map((row) =>
       <div className="crew-inventory-home-row" key={row.key}>
-        <span className="crew-inventory-home-row-copy"><strong>{row.title}</strong><small>{row.detail}</small></span>
+        <span className="crew-inventory-home-row-copy"><span className="crew-inventory-home-row-title"><strong>{row.title}</strong><CrewStatusBadge tone={row.tone}>{row.status}</CrewStatusBadge></span><small>{row.detail}</small></span>
         <button type="button" className="crew-inventory-home-row-action" onClick={() => onAction(row.source)} aria-label={`${row.action}: ${row.title}`}>
           {row.action}<ArrowRight size={16} aria-hidden="true" />
         </button>
@@ -97,8 +97,9 @@ export function CrewInventoryHomeAttention({ token, outletId, grants, onOpenStoc
     key: check.id || check.check_id || check.group_id,
     source: check,
     title: check.name || t("inventory.stockCheck"),
-    detail: [check.status === "due" ? t("inventory.homeDueToday") : check.status === "in_progress" ? t("inventory.in_progress") : check.audit_type,
-      check.shift,
+    status: check.status === "due" ? t("inventory.homeDueToday") : check.status === "in_progress" ? t("inventory.in_progress") : t("inventory.draft"),
+    tone: check.status === "due" ? "warning" : "info",
+    detail: [check.type === "audit" ? check.audit_type : check.shift,
       t("inventory.homeItemCount", { count: check.items?.length ?? check.item_count ?? 0 })].filter(Boolean).join(" · "),
     action: check.status === "due" ? t("inventory.start") : t("inventory.resume"),
   }));
@@ -106,8 +107,9 @@ export function CrewInventoryHomeAttention({ token, outletId, grants, onOpenStoc
     key: order.id,
     source: order,
     title: order.supplier_name || t("inventory.supplier"),
-    detail: [orderCategorySummary(order, t),
-      t(`inventory.homePoState.${order.status}`)].join(" · "),
+    status: t(`inventory.homePoState.${order.status}`),
+    tone: order.status === "submitted" ? "warning" : order.status === "draft" ? "info" : "mint",
+    detail: orderCategorySummary(order, t),
     action: order.status === "draft" ? t("inventory.homeContinue")
       : order.status === "partial_received" || order.status === "supplier_confirmed" ? t("inventory.homeReceive") : t("inventory.review"),
   }));

@@ -54,11 +54,11 @@
 .crew-home-attendance-copy > .crew-home-location-exception { display: flex; width: 100%; min-width: 0; align-items: flex-start; gap: 4px; margin-top: 2px; color: var(--crew-color-warning); font-size: var(--crew-type-badge); font-style: normal; font-weight: 650; line-height: 1.3; text-align: left; }
 .crew-home-location-exception svg { flex: 0 0 auto; margin-top: 1px; }
 .crew-home-location-exception span { min-width: 0; overflow-wrap: anywhere; }
-.crew-home-attendance-footer { display: grid; width: 100%; min-height: 70px; grid-template-columns: 36px minmax(0, 1fr) auto; grid-template-areas: "icon label action" "icon time time"; align-items: center; gap: 3px 9px; border: 0; border-top: 1px solid color-mix(in srgb, var(--crew-color-divider) 64%, transparent); background: color-mix(in srgb, var(--crew-color-surface) 86%, var(--crew-color-mist-mint)); padding: 10px 14px; color: var(--crew-color-deep-teal); text-align: left; }
-.crew-home-attendance-footer > .crew-ui-icon-container { grid-area: icon; }
-.crew-home-attendance-footer small { grid-area: label; min-width: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
-.crew-home-attendance-footer strong { grid-area: time; color: var(--crew-color-deep-teal); font-size: var(--crew-type-body); font-weight: 650; line-height: 1.2; white-space: nowrap; }
-.crew-home-attendance-footer em { display: inline-flex; grid-area: action; align-items: center; justify-self: end; gap: 2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-style: normal; font-weight: 650; white-space: nowrap; }
+.crew-home-attendance-footer { display: grid; width: 100%; min-height: 70px; grid-template-columns: 36px minmax(0, 1fr) auto; align-items: center; gap: 9px; border: 0; border-top: 1px solid color-mix(in srgb, var(--crew-color-divider) 64%, transparent); background: color-mix(in srgb, var(--crew-color-surface) 86%, var(--crew-color-mist-mint)); padding: 10px 14px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-home-attendance-shift { display: grid; min-width: 0; gap: 3px; }
+.crew-home-attendance-footer small { min-width: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-meta); }
+.crew-home-attendance-footer strong { color: var(--crew-color-deep-teal); font-size: var(--crew-type-body); font-weight: 650; line-height: 1.2; }
+.crew-home-attendance-footer em { display: inline-flex; align-items: center; justify-self: end; gap: 2px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-meta); font-style: normal; font-weight: 650; white-space: nowrap; }
 .crew-home-attendance-footer em span { display: inline-flex; min-height: 18px; align-items: center; line-height: 18px; }
 .crew-home-attendance-footer em svg { flex: 0 0 auto; }
 

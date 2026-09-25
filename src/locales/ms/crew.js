@@ -97,7 +97,7 @@ Object.assign(resources.inventory, {
   homeItemCount:"{{count}} item", homeOrdersAttentionCount:"{{count}} pesanan perlu tindakan",
   homeMoreCategories:"{{name}} +{{count}}",
   homeContinue:"Sambung", homeReceive:"Terima",
-  homePoState:{ draft:"Draf", submitted:"Menunggu pengesahan", supplier_confirmed:"Menunggu penerimaan", partial_received:"Sambung penerimaan" },
+  homePoState:{ draft:"Draf", submitted:"Menunggu pengesahan", supplier_confirmed:"Menunggu penerimaan", partial_received:"Sebahagian diterima" },
   saveProgressTitle:"Simpan kemajuan anda?", unsavedCountChanges:"Anda mempunyai perubahan yang belum disimpan.", saveAndLeave:"Simpan & Keluar", keepCounting:"Terus Mengira", discardCountChanges:"Buang Perubahan", viewItemImage:"Lihat imej {{name}}",
   resultSummary:"{{items}} item · {{counted}} dikira · {{variances}} perbezaan · {{skipped}} dilangkau", readOnlyEvidence:"Kiraan yang selesai tidak boleh diedit.",
   moreChecks:"+{{count}} semakan lagi", moreOrders:"+{{count}} pesanan lagi", poDraftCount:"{{count}} draf pesanan untuk disambung", continueDraft:"Sambung Draf",

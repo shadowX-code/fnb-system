@@ -75,7 +75,8 @@ describe("Crew Inventory mobile authority boundary", () => {
     const onOpenCheck = vi.fn();
     render(<CrewInventoryHomeAttention token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true }} onOpenStock={vi.fn()} onOpenOrders={vi.fn()} onOpenCheck={onOpenCheck} onOpenOrder={vi.fn()} />);
     expect(await screen.findByText("1 check in progress")).not.toBeNull();
-    expect(screen.getByText("In Progress · Morning · 1 item")).not.toBeNull();
+    expect(screen.getByText("In Progress").classList.contains("crew-ui-status")).toBe(true);
+    expect(screen.getByText("Morning · 1 item")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Resume: Opening" }));
     expect(onOpenCheck).toHaveBeenCalledWith(expect.objectContaining({ check_id: "check-1", status: "in_progress" }));
     expect(screen.getAllByRole("button", { name: "Resume: Opening" })).toHaveLength(1);
@@ -104,7 +105,10 @@ describe("Crew Inventory mobile authority boundary", () => {
     render(<CrewInventoryHomeAttention token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true, can_receive_purchase_orders: true }} onOpenStock={vi.fn()} onOpenOrders={vi.fn()} onOpenCheck={vi.fn()} onOpenOrder={onOpenOrder} />);
     expect(await screen.findByText("3 orders need attention")).not.toBeNull();
     expect(screen.getByText("First Supplier")).not.toBeNull();
-    expect(screen.getByText("Vegetables +2 · Draft")).not.toBeNull();
+    expect(screen.getByText("Vegetables +2")).not.toBeNull();
+    expect(screen.getByText("Draft").classList.contains("crew-ui-status")).toBe(true);
+    expect(screen.getByText("Awaiting Confirm")).not.toBeNull();
+    expect(screen.getByText("Partially Received")).not.toBeNull();
     expect(screen.getByText("Second Supplier")).not.toBeNull();
     expect(screen.getByText("Third Supplier")).not.toBeNull();
     expect(screen.queryByText("Hidden Supplier")).toBeNull();

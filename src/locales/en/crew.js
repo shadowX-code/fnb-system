@@ -87,12 +87,12 @@ resources.inventory = {
   status:{draft:"Draft",submitted:"Submitted",supplier_confirmed:"Supplier Confirmed",partial_received:"Partially Received",fully_received:"Fully Received",completed:"Completed",cancelled:"Cancelled"},auditTypes:{"Month-End Closing":"Month-End Closing","Full Stock Audit":"Full Stock Audit","Spot Check":"Spot Check","Category Audit":"Category Audit","Custom Audit":"Custom Audit"}
 };
 Object.assign(resources.inventory, {
-  homeOverdueCount_one:"{{count}} overdue check", homeOverdueCount_other:"{{count}} overdue checks", homeOverdue:"Overdue", homeDueToday:"Due today",
+  homeOverdueCount_one:"{{count}} overdue check", homeOverdueCount_other:"{{count}} overdue checks", homeOverdue:"Overdue", homeDueToday:"Due Today",
   homeItemCount_one:"{{count}} item", homeItemCount_other:"{{count}} items",
   homeMoreCategories:"{{name}} +{{count}}",
   homeOrdersAttentionCount_one:"{{count}} order needs attention", homeOrdersAttentionCount_other:"{{count}} orders need attention",
   homeContinue:"Continue", homeReceive:"Receive",
-  homePoState:{ draft:"Draft", submitted:"Awaiting confirmation", supplier_confirmed:"Awaiting receiving", partial_received:"Continue receiving" },
+  homePoState:{ draft:"Draft", submitted:"Awaiting Confirm", supplier_confirmed:"Awaiting Receive", partial_received:"Partially Received" },
   saveProgressTitle:"Save your progress?", unsavedCountChanges:"You have unsaved changes.", saveAndLeave:"Save & Leave", keepCounting:"Keep Counting", discardCountChanges:"Discard Changes", viewItemImage:"View {{name}} image",
   resultSummary:"Items {{items}} · Counted {{counted}} · Variances {{variances}} · Skipped {{skipped}}", readOnlyEvidence:"Completed counts cannot be edited.",
   moreChecks:"+{{count}} more checks", moreOrders:"+{{count}} more orders", poDraftCount_one:"{{count}} draft order to continue", poDraftCount_other:"{{count}} draft orders to continue", continueDraft:"Continue Draft",

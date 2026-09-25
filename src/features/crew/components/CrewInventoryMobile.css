@@ -42,7 +42,9 @@
 .crew-inventory-home-rows { padding: 0 16px 2px 17px; }
 .crew-inventory-home-row { display: flex; min-width: 0; min-height: 64px; align-items: center; gap: 10px; border-top: 1px solid var(--crew-color-divider); padding: 9px 0; }
 .crew-inventory-home-row-copy { display: grid; flex: 1; min-width: 0; gap: 2px; }
-.crew-inventory-home-row-copy strong { overflow-wrap: anywhere; color: var(--crew-color-text); font-size: var(--crew-type-list-primary); line-height: 1.25; }
+.crew-inventory-home-row-title { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.crew-inventory-home-row-title strong { min-width: 0; overflow: hidden; color: var(--crew-color-text); font-size: var(--crew-type-list-primary); line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.crew-inventory-home-row-title .crew-ui-status { min-height: 20px; padding: 2px 6px; font-size: var(--crew-type-badge); }
 .crew-inventory-home-row-copy small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); line-height: 1.3; }
 .crew-inventory-home-row-action { display: inline-flex; min-width: 84px; min-height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: var(--crew-radius-control); background: var(--crew-inventory-home-tint); padding: 7px 10px; color: var(--crew-inventory-home-accent); font-size: var(--crew-type-secondary); font-weight: 700; white-space: nowrap; }
 .crew-inventory-home-row-action:hover { background: color-mix(in srgb, var(--crew-inventory-home-tint) 70%, var(--crew-inventory-home-accent)); }
