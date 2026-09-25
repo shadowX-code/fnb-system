@@ -93,7 +93,7 @@ function GrowthSkillSummary({ summary }) {
   </section>;
 }
 
-function GrowthPerformanceScore({ score, label }) {
+function GrowthPerformanceScore({ score, label, showDenominator = true }) {
   const root = useRef(null);
   const scoreLabel = useRef(null);
   const previousScore = useRef(Number.isFinite(Number(score)) ? Math.max(0, Math.min(100, Math.round(Number(score)))) : 0);
@@ -223,13 +223,14 @@ function GrowthPerformanceScore({ score, label }) {
         />)}
       </g>
     </svg>
-    <span className="crew-growth-performance-score-readout"><strong ref={scoreLabel}>{score == null ? "—" : safeScore}</strong><b>/100</b></span>
+    <span className="crew-growth-performance-score-readout"><strong ref={scoreLabel}>{score == null ? "—" : safeScore}</strong>{showDenominator && <b>/100</b>}</span>
   </div>;
 }
 
 function GrowthPerformanceHero({ performance, onOpen }) {
   const { t } = useTranslation();
   const presentation = getPerformanceScorePresentation(performance);
+  const v2Partial = performance?.calculation_version === "performance-v2" && presentation.isPartial;
   const score = presentation.score == null ? null : Math.round(presentation.score);
   const comparison = presentation.isComparable ? getPerformanceScoreComparison({ ...performance, score: presentation.score }) : null;
   const trendCopy = comparison
@@ -239,12 +240,12 @@ function GrowthPerformanceHero({ performance, onOpen }) {
   return <article className="crew-growth-performance-hero" style={{ "--crew-growth-performance-background": `url(${growthPerformanceHeroBackground})` }}>
     <div className="crew-growth-performance-copy">
       <small>{t("growth.performance")}</small>
-      <h2>{presentation.isPartial ? t("performance.currentScore") : performanceLevel(score, t)}</h2>
+      <h2>{v2Partial ? t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScore") : performanceLevel(score, t)}</h2>
       <p>{presentation.isPartial ? progressCopy : t("growth.thisMonth")}</p>
-      <span className={`crew-growth-performance-trend is-${presentation.isPartial ? "neutral" : comparison?.direction || "neutral"}`}><span><strong>{presentation.isPartial ? t("performance.reviewProgress") : trendCopy.value}</strong>{presentation.isPartial ? <small>{t("performance.currentScorePending", { pending: presentation.pendingComponents })}</small> : trendCopy.context ? <small>{trendCopy.context}</small> : null}</span></span>
+      <span className={`crew-growth-performance-trend is-${presentation.isPartial ? "neutral" : comparison?.direction || "neutral"}`}><span><strong>{presentation.isPartial ? t("performance.reviewProgress") : trendCopy.value}</strong>{presentation.isPartial ? <small>{v2Partial ? t("performance.pendingNames", { names: (performance.pending_component_names || []).map((key) => t(`performance.components.${key}`)).join(", ") }) : t("performance.currentScorePending", { pending: presentation.pendingComponents })}</small> : trendCopy.context ? <small>{trendCopy.context}</small> : null}</span></span>
       <button type="button" className="crew-mobile-secondary" onClick={onOpen}>{t("growth.viewPerformance")} <ChevronRight size={18} /></button>
     </div>
-    <GrowthPerformanceScore score={score} label={presentation.isPartial ? t("performance.currentScoreLabel", { score }) : score == null ? t("performance.awaitingData") : `${score} / 100`} />
+    <GrowthPerformanceScore score={score} showDenominator={!v2Partial} label={v2Partial ? t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScoreLabel", { score }) : score == null ? t("performance.awaitingData") : `${score} / 100`} />
   </article>;
 }
 
@@ -266,12 +267,12 @@ function GrowthSkillList({ skills, onOpen }) {
   </section>;
 }
 
-const performanceComponents = (t) => [
+const performanceComponents = (t, v2 = false) => [
   { key: "attendance", label: t("performance.components.attendance"), max: 30, weight: 30, icon: CalendarCheck2, strength: t("performance.strengths.attendance") },
   { key: "service", label: t("performance.components.service"), max: 30, weight: 30, icon: ShieldCheck, strength: t("performance.strengths.service") },
-  { key: "customer", label: t("performance.components.customer"), max: 15, weight: 15, icon: SmilePlus, strength: t("performance.strengths.customer") },
+  { key: "customer", label: t("performance.components.customer"), max: v2 ? 20 : 15, weight: v2 ? 20 : 15, icon: SmilePlus, strength: t("performance.strengths.customer") },
   { key: "knowledge", label: t("performance.components.knowledge"), max: 15, weight: 15, icon: BookOpenCheck, strength: t("performance.strengths.knowledge") },
-  { key: "conduct", label: t("performance.components.conduct"), max: 10, weight: 10, icon: Star, strength: t("performance.strengths.conduct") },
+  v2 ? { key: "peer", label: t("performance.components.peer"), max: 5, weight: 5, icon: Star, strength: t("performance.strengths.peer") } : { key: "conduct", label: t("performance.components.conduct"), max: 10, weight: 10, icon: Star, strength: t("performance.strengths.conduct") },
 ];
 
 const performanceStatus = (status, t) => status === "finalized" ? t("status.finalized") : status === "draft" ? t("performance.draft") : t("performance.inReview");
@@ -284,6 +285,16 @@ const percentLabel = (value, t) => value == null ? t("performanceGuidance.eviden
 
 function buildComponentGuidance(component, t) {
   const { key, item, value, max } = component;
+  if (key === "peer") return {
+    why: [{ label: t("peerReview.title"), value: t("peerReview.progress", { completed: item?.completed || 0, total: item?.required || 0 }), tone: "neutral" }, ...Object.entries(item?.dimensions || {}).map(([name, rating]) => ({ label: t(`peerReview.dimensions.${name}`), value: String(rating), tone: "neutral" }))],
+    improve: [], whatCounts: t("peerReview.help"), cta: null,
+    level: value == null ? t("performance.awaitingEvidence") : t("status.completed"),
+  };
+  if (key === "customer" && item?.calculation_version === "performance-v2") return {
+    why: [{ label: t("performance.components.customer"), value: t("performance.awaitingEvidence"), tone: "neutral" }],
+    improve: [], whatCounts: t("performance.awaitingEvidence"), cta: null,
+    level: t("performance.awaitingEvidence"),
+  };
   const evidence = item?.evidence && typeof item.evidence === "object" && !Array.isArray(item.evidence) ? item.evidence : {};
   const fullScore = value != null && value >= max;
   const criteriaLabel = (criteriaKey) => t(`performanceGuidance.criteria.${criteriaKey}`, { defaultValue: readableTag(criteriaKey) });
@@ -405,15 +416,17 @@ function PerformanceComponentModal({ component, onClose, onNavigate }) {
 function PerformanceHero({ performance }) {
   const { t } = useTranslation();
   const presentation = getPerformanceScorePresentation(performance);
+  const v2Partial = performance?.calculation_version === "performance-v2" && presentation.isPartial;
   const score = presentation.score == null ? null : Math.round(presentation.score);
   const comparison = presentation.isComparable ? getPerformanceScoreComparison({ ...performance, score: presentation.score }) : null;
   const deltaLabel = comparison?.direction === "up" ? t("performance.trendUp", { points: comparison.points }) : comparison?.direction === "down" ? t("performance.trendDown", { points: comparison.points }) : comparison ? t("performance.trendNoChange") : null;
   return <article className="crew-performance-final-hero" style={{ "--crew-performance-detail-background": `url(${performanceDetailHeroBackground})` }}>
     <div className="crew-performance-final-hero-copy">
       <div className="crew-performance-final-period"><strong>{monthLabel(performance.period_start, "long", t)}</strong><span className={`is-${performance.status}`}>{performanceStatus(performance.status, t)}</span></div>
-      <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong><span>/100</span></div>
-      <h2>{presentation.isPartial ? t("performance.currentScore") : score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
+      <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong>{!v2Partial && <span>/100</span>}</div>
+      <h2>{v2Partial ? t("performance.earnedPoints", { score }) : presentation.isPartial ? t("performance.currentScore") : score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
       <p>{presentation.isPartial ? t("performance.currentScoreProgress", { scored: presentation.scoredComponents, total: presentation.totalComponents, pending: presentation.pendingComponents }) : score == null ? t("performance.evidenceReview") : performanceMessage(score, t)}</p>
+      {v2Partial && <p>{t("performance.pendingNames", { names: (performance.pending_component_names || []).map((key) => t(`performance.components.${key}`)).join(", ") })}</p>}
       {comparison ? <small className={`is-${comparison.direction}`}><span><strong>{deltaLabel}</strong><span>{t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) })}</span></span></small> : null}
     </div>
   </article>;
@@ -423,10 +436,11 @@ function PerformanceBreakdown({ performance, onSelect }) {
   const { t } = useTranslation();
   const presentationScore = getPerformanceScorePresentation(performance).score;
   const total = presentationScore == null ? null : Math.round(presentationScore);
+  const v2Partial = performance?.calculation_version === "performance-v2" && performance?.score_state !== "finalized";
   return <section className="crew-performance-final-breakdown">
-    <header className="crew-performance-final-breakdown-head"><h2 className="crew-type-section-title">{t("performance.scoreBreakdown")}</h2><strong aria-hidden="true">{total == null ? "— / 100" : `${total} / 100`}</strong></header>
+    <header className="crew-performance-final-breakdown-head"><h2 className="crew-type-section-title">{t("performance.scoreBreakdown")}</h2><strong aria-hidden="true">{v2Partial ? t("performance.earnedPoints", { score: total ?? "—" }) : total == null ? "— / 100" : `${total} / 100`}</strong></header>
     <div className="crew-performance-final-breakdown-card">
-      {performanceComponents(t).map(({ key, label, max, weight, icon: Icon }) => {
+      {performanceComponents(t, performance?.calculation_version === "performance-v2").map(({ key, label, max, weight, icon: Icon }) => {
         const item = performance.breakdown?.[key] || {};
         const value = item.score == null ? null : Math.round(Number(item.score));
         const progress = value == null ? 0 : Math.min(100, value * 100 / max);
@@ -444,7 +458,7 @@ function PerformanceBreakdown({ performance, onSelect }) {
 function PerformanceStrengths({ performance }) {
   const { t } = useTranslation();
   if (!getPerformanceScorePresentation(performance).isComparable) return null;
-  const strengths = performanceComponents(t).map((definition) => {
+  const strengths = performanceComponents(t, performance?.calculation_version === "performance-v2").map((definition) => {
     const item = performance.breakdown?.[definition.key] || {};
     const score = item.score == null ? null : Number(item.score);
     return score === definition.max && item.status !== "review_required" ? { ...definition, body: definition.strength } : null;

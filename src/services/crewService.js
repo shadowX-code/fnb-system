@@ -193,6 +193,18 @@ export const crewService = {
     return data;
   },
 
+  async peerReviewMobile(token, period) {
+    const { data, error } = await supabase.rpc("crew_peer_review_mobile", { p_token: token, ...(period ? { p_period: period } : {}) });
+    throwSupabaseError("crew.peerReviewMobile", error);
+    return data;
+  },
+
+  async submitPeerReview(token, assignmentId, criteria) {
+    const { data, error } = await supabase.rpc("crew_peer_review_submit", { p_token: token, p_assignment_id: assignmentId, p_criteria: criteria });
+    throwSupabaseError("crew.submitPeerReview", error);
+    return data;
+  },
+
   async rewardMobile(token, period = new Date().toISOString().slice(0, 10)) {
     const { data, error } = await supabase.rpc("crew_reward_mobile", { p_token: token, p_period: period });
     throwSupabaseError("crew.rewardMobile", error);
@@ -542,6 +554,24 @@ export const crewService = {
     const { data, error } = await supabase.rpc("crew_performance_admin_data", { p_outlet_id: outletId, p_period: period });
     throwSupabaseError("crew.performanceAdminData", error);
     return data || { summary: {}, crew: [], reviews: [], feedback: [] };
+  },
+
+  async peerReviewAdmin(outletId, period) {
+    const { data, error } = await supabase.rpc("crew_peer_review_admin", { p_outlet_id: outletId, p_period: period });
+    throwSupabaseError("crew.peerReviewAdmin", error);
+    return data || { assignments: [] };
+  },
+
+  async openPeerReviewMonth(outletId, period) {
+    const { data, error } = await supabase.rpc("crew_peer_open_month", { p_outlet_id: outletId, p_period: period });
+    throwSupabaseError("crew.openPeerReviewMonth", error);
+    return data;
+  },
+
+  async excludePeerReview(assignmentId, reason) {
+    const { data, error } = await supabase.rpc("crew_peer_review_exclude", { p_assignment_id: assignmentId, p_reason: reason });
+    throwSupabaseError("crew.excludePeerReview", error);
+    return data;
   },
 
   async performanceAdminPage({ outletId, period, listing, filters = {}, page = 1, pageSize = 20 }) {

@@ -104,6 +104,28 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.queryByText("vs August 2026")).toBeNull();
   });
 
+  it("presents V2 earned points and named pending components without a final denominator", () => {
+    const performance = {
+      period_start: "2026-09-01", status: "review_required", calculation_version: "performance-v2",
+      score_state: "partial", score: 45, current_score: 45, total_score: null,
+      scored_components: 3, pending_components: 2, total_components: 5,
+      pending_component_names: ["customer", "peer"],
+      breakdown: { attendance: { score: 25, max_score: 30 }, service: { score: 12, max_score: 30 },
+        customer: { score: null, max_score: 20, status: "pending" }, knowledge: { score: 8, max_score: 15 },
+        peer: { score: null, max_score: 5, status: "pending", completed: 1, required: 3 } },
+      trend: [{ period_start: "2026-08-01", status: "finalized", score: 88 }],
+    };
+    const { rerender } = render(<CrewGrowthMobile data={data} performance={performance} />);
+    expect(screen.getByText("45 points assessed")).not.toBeNull();
+    expect(screen.getByText(/Customer.*Peer Review/)).not.toBeNull();
+    expect(screen.queryByText("Final Score /100")).toBeNull();
+    expect(screen.queryByText("Below Standard")).toBeNull();
+    rerender(<CrewGrowthMobile data={data} performance={performance} initialView="performance" />);
+    expect(screen.getAllByText("45 points assessed").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Peer Review").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Conduct")).toBeNull();
+  });
+
   it.each([0, 1, 50, 87, 100])("renders exactly %s active score segments", (score) => {
     render(<CrewGrowthMobile data={data} performance={{ score, trend: [] }} />);
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(score);
