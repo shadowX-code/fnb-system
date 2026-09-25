@@ -14,8 +14,8 @@ holiday context and Legal-Entity-owned run state. Phase 2 adds payable-time
 evidence and exception decisions. Phase 3 adds server-owned, pre-statutory RM
 calculation from approved time, effective compensation, components and sourced
 pay rules. Phase 4 adds an effective-dated statutory calculation boundary and
-Finalization gate. Official schedule rows and tax calculation are **not** yet
-validated or seeded, so applicable employees remain Review Required; a Net Pay
+Finalization gate. Phase 4A seeds bounded official KWSP and PERKESO table rows;
+this does **not** validate every employee category or implement PCB. A Net Pay
 amount is only emitted for a complete result. Historical finalized foundation
 runs keep `foundation_only=true`; open and new runs use the stricter contract.
 
@@ -149,11 +149,35 @@ The official source authorities to reconcile before schedule publication are
 [KWSP Third Schedule](https://www.kwsp.gov.my/en/epf-act-1991-third-schedule),
 [PERKESO contribution schedules](https://www.perkeso.gov.my/en/contribution-rate/),
 and [HASiL PCB specifications and test cases](https://www.hasil.gov.my/majikan/jadual-pcb-dan-spesifikasi-data/).
-The official schedules are not yet published into FeedX or reconciled across
-all supported employee categories. Thus EPF, SOCSO and EIS remain blocked;
-PCB remains blocked pending specification implementation and official-case
-validation. The existing Run cannot become Ready or Finalized with unresolved
-statutory evidence. No current Operating Expenses or Reporting value is changed.
+Phase 4A's conservative reconciliation boundary:
+
+- KWSP Third Schedule Part A (Malaysian under 60) and Part E (Malaysian 60–74),
+  effective October 2025: 401 continuous official bands each through RM20,000;
+  the published RM3,250 example and RM5,000 boundary are checked. Above
+  RM20,000, fraction allocation between employee/employer shares is not yet
+  reconciled. The Part A bonus exception and unsupported citizenship categories
+  need more precise component/category evidence. EPF is not yet complete.
+- PERKESO Act 4 base SOCSO first/second categories, effective October 2024:
+  65 bands per category with an RM6,000 ceiling. For 2026, local employee
+  LINDUNG 24 JAM participation is voluntary and employee-funded, but current
+  Employee/Payroll data has no reviewed election. The base table must not be
+  treated as a complete 2026 SOCSO result. The projection blocks 2026 SOCSO.
+- PERKESO Act 800 EIS, effective October 2024: 65 independent bands with an
+  RM6,000 ceiling. The supported automatic category is a Malaysian employee
+  age 18–56 with reviewed applicability; ages 57–59 require prior-contribution
+  evidence that FeedX does not yet own. EIS is bounded to this category.
+- HASiL computerized MTD specification 2026 and its official testing questions
+  require tax residence, family/child relief category, current and prior-
+  employer YTD taxable remuneration/EPF/MTD, TP1/TP3 deductions and rebates,
+  zakat and additional-remuneration classification. The current `pcb_inputs`
+  JSON has no complete validated schema or official-case engine. PCB stays
+  Review Required, never an inferred RM0.
+
+Nationality and birthdate are checked against selected contribution categories;
+an arbitrary reviewed category string cannot override those facts. Unresolved
+component wage treatment or missing source evidence also blocks Ready. The
+Run cannot become Ready or Finalized with unresolved statutory evidence. No
+current Operating Expenses or Reporting value is changed.
 
 ## Deferred
 
