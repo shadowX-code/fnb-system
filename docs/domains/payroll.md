@@ -131,7 +131,7 @@ Finalization pins calculation versions in
 prior finalized revisions are never rewritten. A correction is a new Run
 revision. The draft Run UI exposes per-employee lines and rule explanations.
 
-## Deferred
+## Statutory Calculation (Phase 4 — guarded, not validated)
 
 The Phase 4 authority keeps reviewed applicability separate from reviewed
 statutory category and tax inputs. `payroll_statutory_input_versions` is
@@ -149,5 +149,12 @@ The official source authorities to reconcile before schedule publication are
 [KWSP Third Schedule](https://www.kwsp.gov.my/en/epf-act-1991-third-schedule),
 [PERKESO contribution schedules](https://www.perkeso.gov.my/en/contribution-rate/),
 and [HASiL PCB specifications and test cases](https://www.hasil.gov.my/majikan/jadual-pcb-dan-spesifikasi-data/).
-No current Operating Expenses or Reporting value is changed. Payslips,
-settlement and Finance labour-cost projections remain deferred.
+The official schedules are not yet published into FeedX or reconciled across
+all supported employee categories. Thus EPF, SOCSO and EIS remain blocked;
+PCB remains blocked pending specification implementation and official-case
+validation. The existing Run cannot become Ready or Finalized with unresolved
+statutory evidence. No current Operating Expenses or Reporting value is changed.
+
+## Deferred
+
+Payslips, settlement and Finance labour-cost projections remain deferred.
