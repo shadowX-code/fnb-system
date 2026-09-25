@@ -89,6 +89,7 @@ const iconMap = {
   "crew-performance": Gauge,
   "crew-performance-reviews": ClipboardCheck,
   "crew-feedback": MessageSquareText,
+  "crew-google-reviews": MessageSquareText,
   "crew-reward": Wallet,
   "crew-reward-cycles": CalendarDays,
   "crew-cash-checkout": Wallet,
