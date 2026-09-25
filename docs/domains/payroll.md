@@ -19,6 +19,22 @@ this does **not** validate every employee category or implement PCB. A Net Pay
 amount is only emitted for a complete result. Historical finalized foundation
 runs keep `foundation_only=true`; open and new runs use the stricter contract.
 
+## Admin Payroll Control Center
+
+The People Payroll UI has four destinations: Overview, Employees, Payroll Runs,
+and Settings. Overview is scoped to a Legal Entity and pay period and links
+readiness blockers to their owning resolution step. Employees manages the
+effective-dated Payroll setup without changing Employee or Contract authority.
+Payroll Runs is the monthly working surface: Prepare → Review Time → Calculate
+→ Review Payroll → Finalize. Payable-time exceptions are reviewed inside the
+selected Run rather than in a separate top-level destination. PCB/MTD
+confirmation remains an authorized per-employee, per-Run action in Review
+Payroll; Ready and Finalize still rely on the canonical server gates. Settings
+shows operational statutory methods, holidays, and pay components by default,
+with technical rule publication and version history disclosed on demand.
+Finalized Run revisions are read-only, and historical corrections create a new
+revision rather than editing final evidence.
+
 ## Profile and Compensation Authority
 
 One `payroll_profiles` row identifies an employee's Payroll relationship.

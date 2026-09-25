@@ -71,9 +71,12 @@ function DecisionModal({ row, onClose, onSaved }) {
   </Modal>;
 }
 
-export default function PayrollTimeExceptionsTab({ data, canManage }) {
-  const [entityId, setEntityId] = useState(data.legal_entities?.[0]?.id || "");
-  const [month, setMonth] = useState(localDate().slice(0, 7));
+export default function PayrollTimeExceptionsTab({ data, canManage, legalEntityId, payMonth, onChanged }) {
+  const [localEntityId, setLocalEntityId] = useState(data.legal_entities?.[0]?.id || "");
+  const [localMonth, setLocalMonth] = useState(localDate().slice(0, 7));
+  const embedded = Boolean(legalEntityId && payMonth);
+  const entityId = embedded ? legalEntityId : localEntityId;
+  const month = embedded ? payMonth : localMonth;
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
   const [showAll, setShowAll] = useState(false);
@@ -92,7 +95,7 @@ export default function PayrollTimeExceptionsTab({ data, canManage }) {
   const reconcile = async () => {
     setBusy(true); setError("");
     try { await payrollService.reconcileTime(entityId, range.from,
-      range.to < localDate() ? range.to : localDate()); await reload(); }
+      range.to < localDate() ? range.to : localDate()); await reload(); await onChanged?.(); }
     catch (cause) { setError(cause.message || "Unable to reconcile time evidence."); }
     finally { setBusy(false); }
   };
@@ -109,17 +112,17 @@ export default function PayrollTimeExceptionsTab({ data, canManage }) {
   const exceptions = rows.filter((row) => row.status === "review_required");
   const displayedRows = showAll ? [...exceptions, ...rows.filter((row) => row.status !== "review_required")] : exceptions;
   return <div className="space-y-4">
-    <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Time Exceptions</h2><p className="text-sm text-text-secondary">Only meaningful discrepancies require review. Approved time is Payroll evidence; source records stay unchanged.</p></div>
+    <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">{embedded ? "Review Time" : "Time Exceptions"}</h2><p className="text-sm text-text-secondary">Review only shifts with meaningful discrepancies. Source Roster and Attendance records stay unchanged.</p></div>
       {canManage && <button className="btn-primary" type="button" disabled={busy || loading || !entityId || range.from > localDate()} onClick={reconcile}>{busy ? "Reconciling..." : "Reconcile Evidence"}</button>}</div>
-    <Card className="grid gap-3 p-4 sm:grid-cols-2"><AdminFormField label="Legal Entity"><select className="control" value={entityId} onChange={(event) => setEntityId(event.target.value)}>
+    {!embedded && <Card className="grid gap-3 p-4 sm:grid-cols-2"><AdminFormField label="Legal Entity"><select className="control" value={entityId} onChange={(event) => setLocalEntityId(event.target.value)}>
       {(data.legal_entities || []).map((item) => <option key={item.id} value={item.id}>{item.display_name || item.name}</option>)}</select></AdminFormField>
-      <AdminFormField label="Month"><input className="control" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></AdminFormField></Card>
+      <AdminFormField label="Month"><input className="control" type="month" value={month} onChange={(event) => setLocalMonth(event.target.value)} /></AdminFormField></Card>}
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     <Card><div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 text-sm font-semibold"><span>{exceptions.length} exception{exceptions.length === 1 ? "" : "s"} requiring review · {rows.length} time result{rows.length === 1 ? "" : "s"}</span>
       {rows.length > exceptions.length && <button className="text-teal-700 underline-offset-2 hover:underline" type="button" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show exceptions only" : "Show all results"}</button>}</div>
       {loading ? <p className="p-6 text-sm text-text-secondary">Loading payable-time evidence...</p>
         : displayedRows.length ? <DataTable columns={columns} rows={displayedRows} getRowKey={(row) => row.id} density="compact" />
           : <p className="p-6 text-sm text-text-secondary">{rows.length ? "No Time Exceptions require review." : "No time results for this month. Reconcile source evidence to evaluate payable time."}</p>}</Card>
-    {selected && <DecisionModal row={selected} onClose={() => setSelected(null)} onSaved={reload} />}
+    {selected && <DecisionModal row={selected} onClose={() => setSelected(null)} onSaved={async () => { await reload(); await onChanged?.(); }} />}
   </div>;
 }

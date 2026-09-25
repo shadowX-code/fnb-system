@@ -84,7 +84,7 @@ function ResultDetail({ result, statutory, pcb, onClose }) {
   </Modal>;
 }
 
-export default function PayrollRunCalculationPanel({ run, components, canManage, onChanged }) {
+export default function PayrollRunCalculationPanel({ run, components, canManage, onChanged, stage = "calculate" }) {
   const [data, setData] = useState(null);
   const [statutory, setStatutory] = useState(null);
   const [pcb, setPcb] = useState(null);
@@ -155,7 +155,38 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
   const rows = data?.results || [];
   const statutoryRows = statutory?.results || [];
   const pcbRows = pcb?.results || [];
-  const columns = [
+  const statutoryFor = (row) => statutoryRows.find((item) => item.employee_id === row.employee_id);
+  const schemeAmount = (row, scheme) => {
+    const result = statutoryFor(row);
+    const line = result?.lines?.find((item) => item.scheme === scheme);
+    return !result || result.is_stale || line?.employee_amount == null ? "—" : rm(line.employee_amount);
+  };
+  const allowanceTotal = (row) => (row.lines || []).filter((line) => {
+    const componentId = line.source?.component_definition_id;
+    return componentId && components.find((item) => item.id === componentId)?.component_type === "allowance";
+  }).reduce((total, line) => total + Number(line.amount || 0), 0);
+  const columns = stage === "review" ? [
+    { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
+    { key: "gross", header: "Gross", align: "right", render: (row) => <span className="tabular-nums">{rm(row.gross_earnings)}</span> },
+    { key: "allowances", header: "Allowances", align: "right", render: (row) => <span className="tabular-nums">{rm(allowanceTotal(row))}</span> },
+    { key: "deductions", header: "Deductions", align: "right", render: (row) => <span className="tabular-nums">{rm(row.non_statutory_deductions)}</span> },
+    ...["epf", "socso", "eis"].map((scheme) => ({ key: scheme, header: scheme.toUpperCase(), align: "right", render: (row) => <span className="tabular-nums">{schemeAmount(row, scheme)}</span> })),
+    { key: "pcb", header: "PCB / MTD", align: "right", render: (row) => {
+      const evidence = pcbRows.find((item) => item.employee_id === row.employee_id);
+      return <div className="flex flex-col items-end gap-1 text-xs">
+        <span className="tabular-nums">{evidence?.applicable === false ? "Not applicable" : evidence?.confirmation ? rm(evidence.confirmation.amount) : "Not confirmed"}</span>
+        {canEdit && evidence?.applicable === true && <button className="btn-secondary" type="button" disabled={busy}
+          onClick={(event) => { event.stopPropagation(); openPcb(row); }}>{evidence.confirmation ? "Correct" : "Confirm PCB"}</button>}
+      </div>;
+    } },
+    { key: "net", header: "Net Pay", align: "right", render: (row) => <strong className="tabular-nums">{statutoryFor(row)?.net_pay == null || statutoryFor(row)?.is_stale ? "—" : rm(statutoryFor(row).net_pay)}</strong> },
+    { key: "status", header: "Status", render: (row) => {
+      const result = statutoryFor(row);
+      const status = overallStatus(row, result);
+      return <div><Badge tone={status === "Ready" ? "success" : "warning"}>{status}</Badge>
+        {status !== "Ready" && <small className="mt-1 block max-w-48 text-text-secondary">{(result?.issues || row.issues || []).map(issueLabel).join(" · ") || "Open details to resolve"}</small>}</div>;
+    } },
+  ] : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
     { key: "basis", header: "Pay Basis", render: (row) => title(row.pay_basis || "Missing") },
     { key: "base", header: "Basic / Hours", render: (row) => row.basic_or_hours || "—" },
@@ -181,18 +212,18 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
   ];
   const canEdit = canManage && ["draft", "review_required"].includes(run.status);
   const options = components.filter((item) => item.is_active && ["earning", "allowance", "deduction", "reimbursement"].includes(item.component_type));
-  return <Card className="mt-3 overflow-hidden">
+  return <Card className="overflow-hidden">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
-      <div><h4 className="font-bold text-text-primary">Payroll Calculation</h4>
+      <div><h4 className="font-bold text-text-primary">{stage === "review" ? "Review Payroll" : "Calculate Payroll"}</h4>
         <p className="text-sm text-text-secondary">{data?.readiness ?
-          `Pre-statutory: ${data.readiness.employees} employees · ${data.readiness.review_required} review required · ${data.readiness.uncalculated} uncalculated · ${data.readiness.stale} stale${data.readiness.period_in_progress ? " · period in progress" : ""}` : "Loading calculation evidence…"}</p></div>
-      {canEdit && <div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => openAdjustment("add")}>Add variable line</button>
+          `${data.readiness.employees} employees · ${data.readiness.review_required} review required · ${data.readiness.uncalculated} not calculated · ${data.readiness.stale} needs refresh${data.readiness.period_in_progress ? " · period in progress" : ""}` : "Loading payroll evidence…"}</p></div>
+      {canEdit && <div className="flex flex-wrap gap-2">{stage === "calculate" && <button className="btn-secondary" type="button" onClick={() => openAdjustment("add")}>Add variable line</button>}
         <button className="btn-secondary" type="button" disabled={busy || !rows.length} onClick={calculateStatutory}>{busy ? "Calculating…" : "Calculate Statutory"}</button>
-        <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Run"}</button></div>}
+        {stage === "calculate" && <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Payroll"}</button>}</div>}
     </div>
     {error && <p role="alert" className="px-4 pt-3 text-sm font-semibold text-rose-700">{error}</p>}
     {rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} density="compact" onRowClick={setSelected} /> :
-      <p className="p-6 text-sm text-text-secondary">No calculations yet. Calculate the open Run to identify ready results and exceptions.</p>}
+      <p className="p-6 text-sm text-text-secondary">No payroll results yet. Use Calculate to prepare the employee breakdown.</p>}
     {data?.adjustments?.length > 0 && <div className="border-t border-border p-4"><h5 className="mb-2 text-sm font-bold">Approved variable lines</h5>
       <div className="divide-y divide-border">{data.adjustments.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
         <span>{rows.find((row) => row.employee_id === item.employee_id)?.employee_name || "Employee"} · {item.component_name}

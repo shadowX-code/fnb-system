@@ -54,7 +54,7 @@ describe("People Payroll Phase 1 foundation", () => {
     expect(page).toContain("No payslip or payment is created.");
     expect(page).toContain("Adjust Compensation");
     expect(page).toContain("Compensation History");
-    expect(page).toContain("Record the reason for this audited lifecycle change.");
+    expect(page).toContain("Ready and Finalize require complete time, pay and statutory evidence");
     expect(page).not.toContain("window.prompt");
     expect(page).toContain('rate: previous.payBasis === value ? previous.rate : ""');
   });
