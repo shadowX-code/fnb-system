@@ -119,7 +119,9 @@ Pre-statutory Pay. No result labels this as net pay.
 input fingerprint marks the prior result stale. Variable component additions
 and reversals use retry-safe request IDs, reasons and server audit events.
 Ready/Finalized transitions require current Ready calculations in addition to
-the Phase 2 time gate. Finalization pins calculation versions in
+the Phase 2 time gate. A Ready Run with later input changes returns to Review
+Required before recalculation; the server rejects stale finalization.
+Finalization pins calculation versions in
 `payroll_run_calculation_snapshots` alongside existing profile/time evidence;
 prior finalized revisions are never rewritten. A correction is a new Run
 revision. The draft Run UI exposes per-employee lines and rule explanations.

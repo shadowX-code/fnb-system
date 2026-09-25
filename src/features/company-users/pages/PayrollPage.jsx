@@ -278,7 +278,10 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
           {readiness[run.id]?.calculation && <small className="block text-text-secondary">Calculation: {readiness[run.id].calculation.ready ? "Ready" : `${readiness[run.id].calculation.review_required} review · ${readiness[run.id].calculation.uncalculated} uncalculated · ${readiness[run.id].calculation.stale} stale`}</small>}</span>
         <div className="flex flex-wrap gap-2">{canManage && run.status === "draft" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Send to Review</button>}
           {canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy || !readiness[run.id]?.time?.ready || !readiness[run.id]?.calculation?.ready} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
-          {canFinalize && run.status === "ready" && <button className="btn-primary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}
+          {canManage && run.status === "ready" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Return to Review</button>}
+          {canFinalize && run.status === "ready" && <button className="btn-primary" type="button"
+            disabled={busy || !readiness[run.id]?.time?.ready || (!run.foundation_only && !readiness[run.id]?.calculation?.ready)}
+            onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}
           {!run.foundation_only && <button className="btn-secondary" type="button" onClick={() => setSelectedRunId((id) => id === run.id ? "" : run.id)}>{selectedRunId === run.id ? "Hide Calculation" : "View Calculation"}</button>}</div>
         </div>
         {selectedRunId === run.id && <PayrollRunCalculationPanel run={run} components={data.components || []} canManage={canManage} />}

@@ -41,6 +41,7 @@ describe("Payroll Phase 3 pre-statutory calculation authority", () => {
   it("exposes explanation and sourced rule management without statutory amounts", () => {
     expect(page).toContain("View Calculation");
     expect(page).toContain("Pay Rules");
+    expect(page).toContain("Return to Review");
     expect(calculationPanel).toContain("Compensation used");
     expect(calculationPanel).toContain("Non-statutory Deductions");
     expect(calculationPanel).toContain("Pre-statutory Pay");
