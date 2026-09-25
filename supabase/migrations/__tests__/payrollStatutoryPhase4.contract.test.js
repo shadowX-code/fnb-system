@@ -6,6 +6,7 @@ const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260
 const correction = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925125642_payroll_phase4_pcb_null_fix.sql"), "utf8");
 const service = readFileSync(resolve(process.cwd(), "src/services/payrollService.js"), "utf8");
 const page = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollPage.jsx"), "utf8");
+const calculationPanel = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollRunCalculationPanel.jsx"), "utf8");
 
 describe("Payroll Phase 4 statutory safety boundary", () => {
   it("versions statutory inputs, official bands, calculations and immutable final snapshots", () => {
@@ -34,5 +35,12 @@ describe("Payroll Phase 4 statutory safety boundary", () => {
     expect(service).toContain("payroll_run_statutory_calculate");
     expect(service).toContain("payroll_run_statutory_read");
     expect(page).toContain("readiness[run.id]?.statutory?.ready");
+  });
+
+  it("never presents a pre-statutory Ready result as payroll Ready", () => {
+    expect(calculationPanel).toContain('if (!statutory) return "Statutory Not Calculated"');
+    expect(calculationPanel).toContain("return title(statutory.status)");
+    expect(calculationPanel).toContain("overallStatus(row, statutoryRows.find");
+    expect(calculationPanel).toContain("Pre-statutory:");
   });
 });

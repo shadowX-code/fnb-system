@@ -11,6 +11,12 @@ const rm = (value) => new Intl.NumberFormat("en-MY", {
 }).format(Number(value || 0));
 const title = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const issueLabel = (value) => title(String(value).replace(/:\d{4}-\d{2}-\d{2}$/, ""));
+const overallStatus = (calculation, statutory) => {
+  if (calculation.is_stale || statutory?.is_stale) return "Stale";
+  if (calculation.status !== "ready") return title(calculation.status);
+  if (!statutory) return "Statutory Not Calculated";
+  return title(statutory.status);
+};
 
 function ResultDetail({ result, statutory, onClose }) {
   const compensation = result.inputs?.compensation_start;
@@ -41,7 +47,7 @@ function ResultDetail({ result, statutory, onClose }) {
           <p className="text-xs text-text-secondary">{compensation?.effective_from ? `Effective ${compensation.effective_from}` : "No effective version"}</p></div>
         <div><span className="text-xs text-text-secondary">Payable time evidence</span><p className="font-bold">{time.length} day{time.length === 1 ? "" : "s"}</p>
           <p className="text-xs text-text-secondary">Approved decisions only are priced.</p></div>
-        <div><span className="text-xs text-text-secondary">Status</span><p><Badge tone={result.status === "ready" ? "success" : "warning"}>{result.is_stale ? "Stale · recalculate" : title(result.status)}</Badge></p></div>
+        <div><span className="text-xs text-text-secondary">Overall status</span><p><Badge tone={overallStatus(result, statutory) === "Ready" ? "success" : "warning"}>{overallStatus(result, statutory)}</Badge></p></div>
       </div>
       {result.issues?.length > 0 && <section className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950">
         <strong>Review required</strong><ul className="mt-1 list-disc pl-5">{result.issues.map((issue, index) => <li key={`${issue}-${index}`}>{issueLabel(issue)}</li>)}</ul>
@@ -136,7 +142,10 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
       const value = statutoryRows.find((item) => item.employee_id === row.employee_id);
       return <strong className="tabular-nums">{value?.net_pay == null || value.is_stale ? "—" : rm(value.net_pay)}</strong>;
     } },
-    { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "ready" && !row.is_stale ? "success" : "warning"}>{row.is_stale ? "Stale" : title(row.status)}</Badge> },
+    { key: "status", header: "Status", render: (row) => {
+      const status = overallStatus(row, statutoryRows.find((item) => item.employee_id === row.employee_id));
+      return <Badge tone={status === "Ready" ? "success" : "warning"}>{status}</Badge>;
+    } },
   ];
   const canEdit = canManage && ["draft", "review_required"].includes(run.status);
   const options = components.filter((item) => item.is_active && ["earning", "allowance", "deduction", "reimbursement"].includes(item.component_type));
@@ -144,7 +153,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
       <div><h4 className="font-bold text-text-primary">Payroll Calculation</h4>
         <p className="text-sm text-text-secondary">{data?.readiness ?
-          `${data.readiness.employees} employees · ${data.readiness.review_required} review required · ${data.readiness.uncalculated} uncalculated · ${data.readiness.stale} stale${data.readiness.period_in_progress ? " · period in progress" : ""}` : "Loading calculation evidence…"}</p></div>
+          `Pre-statutory: ${data.readiness.employees} employees · ${data.readiness.review_required} review required · ${data.readiness.uncalculated} uncalculated · ${data.readiness.stale} stale${data.readiness.period_in_progress ? " · period in progress" : ""}` : "Loading calculation evidence…"}</p></div>
       {canEdit && <div className="flex gap-2"><button className="btn-secondary" type="button" onClick={() => openAdjustment("add")}>Add variable line</button>
         <button className="btn-secondary" type="button" disabled={busy || !rows.length} onClick={calculateStatutory}>{busy ? "Calculating…" : "Calculate Statutory"}</button>
         <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Run"}</button></div>}
