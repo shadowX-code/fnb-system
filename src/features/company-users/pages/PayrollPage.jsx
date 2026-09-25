@@ -107,7 +107,9 @@ function FoundationForm({ mode, profile, data, onClose, onSaved }) {
             ...candidates.map((item) => ({ value: item.id, label: `${item.name} · ${entityName(data.legal_entities || [], item.legal_entity_id)}` }))]} />
       </AdminFormField>}
       {isProfile && <div className="grid gap-4 sm:grid-cols-2">
-        <AdminFormField label="Pay Basis" required><Select value={draft.payBasis} onChange={(value) => patch("payBasis", value)}
+        <AdminFormField label="Pay Basis" required><Select value={draft.payBasis} onChange={(value) => setDraft((previous) => ({
+          ...previous, payBasis: value, rate: previous.payBasis === value ? previous.rate : "",
+        }))}
           options={[{ value: "monthly", label: "Monthly" }, { value: "hourly", label: "Hourly" }]} /></AdminFormField>
         <AdminFormField label={draft.payBasis === "monthly" ? "Basic Salary (MYR)" : "Hourly Rate (MYR)"} required>
           <input className="control" type="number" min="0.01" step={draft.payBasis === "monthly" ? "0.01" : "0.0001"}

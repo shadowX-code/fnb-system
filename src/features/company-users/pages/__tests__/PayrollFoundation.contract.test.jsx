@@ -56,5 +56,6 @@ describe("People Payroll Phase 1 foundation", () => {
     expect(page).toContain("Compensation History");
     expect(page).toContain("Record the reason for this audited lifecycle change.");
     expect(page).not.toContain("window.prompt");
+    expect(page).toContain('rate: previous.payBasis === value ? previous.rate : ""');
   });
 });
