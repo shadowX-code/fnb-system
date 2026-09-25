@@ -58,4 +58,16 @@ describe("Payroll Control Center", () => {
     fireEvent.click(screen.getByRole("button", { name: /Advanced \/ Version History/ }));
     await waitFor(() => expect(mocks.readRules).toHaveBeenCalled());
   });
+
+  it("opens a finalized revision on its immutable summary, not preparation", async () => {
+    mocks.read.mockResolvedValueOnce({ ...fixture, periods: [{ ...fixture.periods[0], runs: [{
+      id: "run-final", status: "finalized", revision: 2, finalized_at: "2026-09-30T12:00:00Z",
+    }] }] });
+    render(<PayrollPage auth={{}} />);
+    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
+    fireEvent.click(screen.getByRole("button", { name: /2026-09 · Revision 2/ }));
+    await screen.findByText("Revision 2 is immutable. Corrections require a new revision; this evidence is retained.");
+    expect(screen.getByText(/Authorized approver/)).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Finalize Payroll" })).toBeNull();
+  });
 });

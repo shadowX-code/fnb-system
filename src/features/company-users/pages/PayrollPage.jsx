@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, Plus } from "lucide-react";
+import { Check, ChevronRight, Plus } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -23,6 +23,9 @@ const effective = (versions, date = today()) =>
   [...(versions || [])].filter((item) => item.effective_from <= date)
     .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0] || null;
 const label = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+const timeBlocker = (time) => time?.period_in_progress && !time.unresolved && !time.unreconciled && !time.stale
+  ? "Pay period is still in progress"
+  : `${time?.unresolved || 0} time exceptions · ${time?.unreconciled || 0} unreconciled${time?.stale ? ` · ${time.stale} stale` : ""}${time?.period_in_progress ? " · period in progress" : ""}`;
 const entityName = (entities, id) => entities.find((item) => item.id === id)?.display_name
   || entities.find((item) => item.id === id)?.name || "Legal Entity";
 
@@ -334,13 +337,14 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, month, step, 
   const missingSetup = employeeRows.filter((employee) => !(data.profiles || []).some((profile) => profile.employee_id === employee.id));
   const blockers = [
     missingSetup.length && `${missingSetup.length} employee${missingSetup.length === 1 ? "" : "s"} need payroll setup`,
-    state?.time && !state.time.ready && `${state.time.unresolved || 0} time exceptions · ${state.time.unreconciled || 0} unreconciled${state.time.period_in_progress ? " · period in progress" : ""}`,
+    state?.time && !state.time.ready && timeBlocker(state.time),
     state?.calculation && !state.calculation.ready && `${state.calculation.review_required || 0} calculations need review · ${state.calculation.uncalculated || 0} not calculated`,
     state?.statutory && !state.statutory.ready && `${state.statutory.review_required || 0} statutory results need review · ${state.statutory.uncalculated || 0} not calculated`,
   ].filter(Boolean);
   const statutoryRows = totals?.results || [];
   const total = (key) => statutoryRows.length && statutoryRows.every((item) => item[key] != null) ? money(statutoryRows.reduce((sum, item) => sum + Number(item[key]), 0)) : "—";
   const allReady = Boolean(state?.time?.ready && (run.foundation_only || (state?.calculation?.ready && state?.statutory?.ready)));
+  const approverName = (data.employees || []).find((item) => item.id === run?.finalized_by_employee_id)?.name || "Authorized approver";
   return <div className="space-y-4">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-lg font-bold">{entityName(data.legal_entities || [], entityId)} · {month}</h2>
       <p className="text-sm text-text-secondary">{run ? `Revision ${run.revision}${run.supersedes_run_id ? " · Correction" : ""} · ${label(run.status)}` : "No Payroll Run started for this period"}</p></div>
@@ -354,7 +358,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, month, step, 
     {run && <><nav aria-label="Payroll Run steps" className="grid gap-1 rounded-xl border border-border bg-surface p-1 sm:grid-cols-5">{runSteps.map((name, index) => <button key={name} type="button" onClick={() => setStep(index)}
       className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${step === index ? "bg-primary text-white" : "text-text-secondary hover:bg-surface-muted"}`}><span className="mr-2 text-xs opacity-70">{index + 1}.</span>{name}</button>)}</nav>
       {step === 0 && <Card className="p-5 space-y-4"><div><h3 className="text-lg font-bold">Prepare this run</h3><p className="text-sm text-text-secondary">{employeeRows.length} employees linked to this Legal Employer · {run.supersedes_run_id ? "Correction revision retains the prior final result." : "Confirm setup and inclusion before review."}</p></div>
-        {blockers.length ? <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><strong>Needs attention</strong>{blockers.map((item) => <p key={item}>{item}</p>)}</div> : <p className="text-sm text-text-secondary">No known preparation blockers. Continue through each evidence step.</p>}
+        {run.status === "finalized" ? <p className="text-sm text-text-secondary">This revision is final. Its employee, pay and statutory evidence is pinned for review.</p> : blockers.length ? <div className="space-y-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950"><strong>Needs attention</strong>{blockers.map((item) => <p key={item}>{item}</p>)}</div> : <p className="text-sm text-text-secondary">No known preparation blockers. Continue through each evidence step.</p>}
         {missingSetup.length > 0 && <p className="text-sm text-text-secondary">Setup needed: {missingSetup.map((item) => item.name).join(", ")}</p>}
         <div className="flex flex-wrap gap-2">{canManage && run.status === "draft" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Send to Review</button>}
           <button className="btn-primary" type="button" onClick={() => setStep(1)}>Review Time <ChevronRight size={16} /></button></div></Card>}
@@ -364,7 +368,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, month, step, 
       {step === 3 && <PayrollRunCalculationPanel run={run} components={data.components || []} canManage={canManage && mutable} onChanged={reload} stage="review" />}
       {step === 4 && <Card className="space-y-4 p-5"><div><h3 className="text-lg font-bold">Finalize Payroll</h3><p className="text-sm text-text-secondary">Review current revision totals and required evidence before the irreversible finalization step.</p></div>
         {totals?.error ? <p role="alert" className="text-sm text-rose-700">Unable to load final totals. Retry this step before finalizing.</p> : !totals ? <p className="text-sm text-text-secondary">Loading final evidence…</p> : <div className="grid gap-3 sm:grid-cols-3"><div><p className="text-xs text-text-secondary">Employees calculated</p><strong>{statutoryRows.length}</strong></div><div><p className="text-xs text-text-secondary">Net Pay</p><strong className="tabular-nums">{total("net_pay")}</strong></div><div><p className="text-xs text-text-secondary">Total Employer Cost</p><strong className="tabular-nums">{total("total_employer_cost")}</strong></div></div>}
-        {run.status === "finalized" ? <div className="rounded-xl bg-surface-muted p-4 text-sm"><Badge tone="success">Finalized</Badge><p className="mt-2">Revision {run.revision} is immutable. Corrections require a new revision; this evidence is retained.</p><p className="text-text-secondary">{run.finalized_at ? `Finalized ${new Date(run.finalized_at).toLocaleString()}` : "Finalized evidence retained"}{run.finalized_by_employee_id ? ` · Actor ${run.finalized_by_employee_id}` : ""}</p></div> : <>
+        {run.status === "finalized" ? <div className="rounded-xl bg-surface-muted p-4 text-sm"><Badge tone="success">Finalized</Badge><p className="mt-2">Revision {run.revision} is immutable. Corrections require a new revision; this evidence is retained.</p><p className="text-text-secondary">{run.finalized_at ? `Finalized ${new Date(run.finalized_at).toLocaleString()}` : "Finalized evidence retained"} · {approverName}</p></div> : <>
           <p className="text-sm text-text-secondary">Time: {state?.time?.ready ? "Ready" : "Review required"} · Calculation: {state?.calculation?.ready ? "Ready" : "Review required"} · Statutory: {state?.statutory?.ready ? "Ready" : "Review required"}</p>
           <div className="flex flex-wrap gap-2">{canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy || !allReady} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
             {canManage && run.status === "ready" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Return to Review</button>}
@@ -389,23 +393,25 @@ function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun,
   const attention = [
     withoutProfile.length > 0 && { label: `${withoutProfile.length} employee${withoutProfile.length === 1 ? " needs" : "s need"} pay setup`, action: "Set up employees", open: onOpenEmployees },
     readiness?.error && { label: "Run readiness could not be checked", action: "Open run", open: () => onOpenRun(0) },
-    readiness?.time && !readiness.time.ready && { label: `${readiness.time.unresolved || 0} time exceptions · ${readiness.time.unreconciled || 0} unreconciled${readiness.time.period_in_progress ? " · period in progress" : ""}`, action: "Review time", open: () => onOpenRun(1) },
+    readiness?.time && !readiness.time.ready && { label: timeBlocker(readiness.time), action: "Review time", open: () => onOpenRun(1) },
     readiness?.calculation && !readiness.calculation.ready && { label: `${readiness.calculation.review_required || 0} results need review · ${readiness.calculation.uncalculated || 0} not calculated`, action: "Calculate", open: () => onOpenRun(2) },
     readiness?.statutory && !readiness.statutory.ready && { label: `${readiness.statutory.review_required || 0} statutory results need review · ${readiness.statutory.uncalculated || 0} not calculated`, action: "Review payroll", open: () => onOpenRun(3) },
   ].filter(Boolean);
   const recent = (data.periods || []).flatMap((period) => (period.runs || []).map((item) => ({ ...item, period })))
     .filter((item) => item.period.legal_entity_id === entityId)
     .sort((a, b) => b.period.period_start.localeCompare(a.period.period_start) || Number(b.revision) - Number(a.revision)).slice(0, 5);
+  const finalized = run?.status === "finalized";
+  const completedSteps = [Boolean(run), finalized || Boolean(readiness?.time?.ready), finalized || Boolean(readiness?.calculation?.ready), finalized || Boolean(readiness?.statutory?.ready), finalized];
   return <div className="space-y-4">
     <Card className="p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4">
       <div><p className="text-xs font-bold uppercase tracking-wide text-text-secondary">Current payroll period</p><h2 className="mt-1 text-2xl font-bold">{entityName(data.legal_entities || [], entityId)} <span className="text-text-secondary">· {month}</span></h2>
         <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><Badge tone={run?.status === "finalized" ? "success" : run ? "warning" : "neutral"}>{run ? label(run.status) : "Not started"}</Badge><span>{employees.length} employees</span><span>{attention.length} area{attention.length === 1 ? "" : "s"} needing attention</span></div></div>
       <button className="btn-primary" type="button" disabled={!canManage && !run} onClick={() => onOpenRun(0)}>{run ? "Continue Payroll" : "Start Payroll"} <ChevronRight size={16} /></button></div>
-      <div className="mt-6 grid gap-2 border-t border-border pt-4 sm:grid-cols-5">{runSteps.map((name, index) => <button key={name} className="rounded-lg bg-surface-muted px-3 py-2 text-left text-sm font-semibold hover:text-primary" type="button" onClick={() => onOpenRun(index)}><span className="mr-1 text-text-muted">{index + 1}.</span>{name}</button>)}</div>
+      <div className="mt-6 grid gap-2 border-t border-border pt-4 sm:grid-cols-5">{runSteps.map((name, index) => <button key={name} className={`flex items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold ${completedSteps[index] ? "bg-primary/10 text-primary" : "bg-surface-muted text-text-secondary hover:text-primary"}`} type="button" onClick={() => onOpenRun(index)}>{completedSteps[index] ? <Check size={14} aria-hidden="true" /> : <span className="text-xs">{index + 1}.</span>}{name}</button>)}</div>
     </Card>
     <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]"><Card className="p-5"><h3 className="text-base font-bold">Needs Attention</h3><p className="mt-1 text-sm text-text-secondary">Open the exact step or employee setup to resolve a blocker.</p>
       <div className="mt-4 divide-y divide-border">{attention.length ? attention.map((item) => <div key={item.label} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"><span>{item.label}</span><button className="font-semibold text-primary" type="button" onClick={item.open}>{item.action} →</button></div>) : <p className="py-4 text-sm text-text-secondary">{run ? "No known blockers for this period. Review the run before finalization." : "Start a run to assess payable time, calculations and statutory readiness."}</p>}</div></Card>
-      <Card className="p-5"><h3 className="text-base font-bold">Recent Payroll Runs</h3><div className="mt-3 divide-y divide-border">{recent.length ? recent.map((item) => <button key={item.id} className="flex w-full items-center justify-between gap-2 py-3 text-left text-sm" type="button" onClick={() => onOpenRun(0, item.period, item.id)}><span><strong>{item.period.period_start.slice(0, 7)} · Revision {item.revision}</strong><small className="block text-text-secondary">{item.supersedes_run_id ? "Correction" : "Monthly run"}</small></span><Badge tone={item.status === "finalized" ? "success" : "neutral"}>{label(item.status)}</Badge></button>) : <p className="py-4 text-sm text-text-secondary">No previous runs for this Legal Entity.</p>}</div></Card></div>
+      <Card className="p-5"><h3 className="text-base font-bold">Recent Payroll Runs</h3><div className="mt-3 divide-y divide-border">{recent.length ? recent.map((item) => <button key={item.id} className="flex w-full items-center justify-between gap-2 py-3 text-left text-sm" type="button" onClick={() => onOpenRun(item.status === "finalized" ? 4 : 0, item.period, item.id)}><span><strong>{item.period.period_start.slice(0, 7)} · Revision {item.revision}</strong><small className="block text-text-secondary">{item.supersedes_run_id ? "Correction" : "Monthly run"}</small></span><Badge tone={item.status === "finalized" ? "success" : "neutral"}>{label(item.status)}</Badge></button>) : <p className="py-4 text-sm text-text-secondary">No previous runs for this Legal Entity.</p>}</div></Card></div>
   </div>;
 }
 
