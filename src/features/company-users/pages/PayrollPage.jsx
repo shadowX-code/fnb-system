@@ -286,7 +286,7 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
             onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}
           {!run.foundation_only && <button className="btn-secondary" type="button" onClick={() => setSelectedRunId((id) => id === run.id ? "" : run.id)}>{selectedRunId === run.id ? "Hide Calculation" : "View Calculation"}</button>}</div>
         </div>
-        {selectedRunId === run.id && <PayrollRunCalculationPanel run={run} components={data.components || []} canManage={canManage} />}
+        {selectedRunId === run.id && <PayrollRunCalculationPanel run={run} components={data.components || []} canManage={canManage} onChanged={reload} />}
       </div>)}</div>
     </Card>) : <Card className="p-8 text-center text-sm text-text-secondary">No Payroll Runs for this Legal Entity.</Card>}</div>
     {pendingTransition && <Modal title={`${label(pendingTransition.status)} Payroll Run`}

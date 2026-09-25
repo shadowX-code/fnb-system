@@ -74,7 +74,7 @@ function ResultDetail({ result, statutory, onClose }) {
   </Modal>;
 }
 
-export default function PayrollRunCalculationPanel({ run, components, canManage }) {
+export default function PayrollRunCalculationPanel({ run, components, canManage, onChanged }) {
   const [data, setData] = useState(null);
   const [statutory, setStatutory] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -98,13 +98,13 @@ export default function PayrollRunCalculationPanel({ run, components, canManage 
   useEffect(() => { load(); }, [load]);
   const calculate = async () => {
     setBusy(true); setError("");
-    try { await payrollService.calculateRun(run.id); await load(); }
+    try { await payrollService.calculateRun(run.id); await load(); await onChanged?.(); }
     catch (cause) { setError(cause.message || "Unable to calculate Run."); }
     finally { setBusy(false); }
   };
   const calculateStatutory = async () => {
     setBusy(true); setError("");
-    try { await payrollService.calculateStatutory(run.id); await load(); }
+    try { await payrollService.calculateStatutory(run.id); await load(); await onChanged?.(); }
     catch (cause) { setError(cause.message || "Unable to calculate statutory results."); }
     finally { setBusy(false); }
   };
@@ -119,7 +119,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage 
         componentId: draft.componentId, amount: draft.amount, reason: draft.reason.trim(),
       });
       setForm(null); setDraft({ employeeId: "", componentId: "", amount: "", reason: "" });
-      await load();
+      await load(); await onChanged?.();
     } catch (cause) { setError(cause.message || "Unable to save component."); }
     finally { setBusy(false); }
   };
