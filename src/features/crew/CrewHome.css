@@ -317,3 +317,19 @@
 .crew-home-success-content dd { min-width: 0; margin: 0; color: var(--crew-color-deep-teal); font-weight: 800; text-align: right; overflow-wrap: anywhere; }
 
 .crew-v2-home .crew-home-task > .crew-ui-status { max-width: 96px; justify-self: end; white-space: normal; text-align: center; overflow-wrap: anywhere; }
+
+.crew-peer-home-entry { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 58px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 10px 12px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-peer-home-entry > span { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.crew-peer-home-entry strong { font-size: var(--crew-type-secondary); }
+.crew-peer-home-entry small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-peer-home-entry em { font-style: normal; font-size: var(--crew-type-helper); font-weight: 650; }
+.crew-peer-home-entry > svg { flex: 0 0 auto; }
+.crew-peer-home-entry:focus-visible { outline: 2px solid var(--crew-color-cyan); outline-offset: 2px; }
+.crew-peer-form { display: grid; gap: 16px; }
+.crew-peer-form > p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
+.crew-peer-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.crew-peer-form legend { margin-bottom: 8px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-label); font-weight: 650; }
+.crew-peer-form fieldset > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.crew-peer-form fieldset button { min-width: 0; min-height: 44px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); color: var(--crew-color-deep-teal); font: inherit; }
+.crew-peer-form fieldset button.is-active { border-color: var(--crew-color-success); background: var(--crew-color-mist-mint); font-weight: 700; }
+.crew-peer-form fieldset button:focus-visible { outline: 2px solid var(--crew-color-cyan); outline-offset: 2px; }

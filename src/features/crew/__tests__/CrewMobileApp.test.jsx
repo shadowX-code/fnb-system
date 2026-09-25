@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   learningHome: vi.fn(),
   growthMobile: vi.fn(),
   performanceMobile: vi.fn(),
+  peerReviewMobile: vi.fn(),
   rewardMobile: vi.fn(),
   operationsToday: vi.fn(),
   operationsAllTasks: vi.fn(),
@@ -76,6 +77,7 @@ beforeEach(() => {
   mocks.learningHome.mockReset().mockResolvedValue({ assignment: { id: "assignment-1", progress_percentage: 25, lessons_completed: 2, lessons_total: 8 }, required_sops: [] });
   mocks.growthMobile.mockReset().mockResolvedValue(growth);
   mocks.performanceMobile.mockReset().mockResolvedValue(performance);
+  mocks.peerReviewMobile.mockReset().mockResolvedValue({ assignments: [], completed: 0, total: 0, open: false });
   mocks.rewardMobile.mockReset().mockResolvedValue(reward);
   mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, tasks: [{ id: "ops-1", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", block_count: 2, completed_count: 0 }, { id: "task-1", source: "legacy_daily", name: "Check reservation board", status: "pending", priority: "normal" }] });
   mocks.operationsAllTasks.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, tasks: [{ id: "ops-1", template_id: "template-opening", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", business_date: currentBusinessDate(), schedule_type: "recurring", schedule_config: { frequency: "every_day" }, available_from: "2026-08-13T02:00:00Z", due_at: "2026-08-13T10:00:00Z", block_count: 2, completed_count: 0 }] });
