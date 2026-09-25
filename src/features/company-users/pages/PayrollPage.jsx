@@ -449,7 +449,7 @@ export default function PayrollPage({ auth }) {
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
               ["Payroll Profiles", counts.profiles],["Monthly Basis", counts.monthly],["Hourly Basis", counts.hourly],["Open Runs", counts.openRuns],
             ].map(([title,value]) => <Card key={title} className="p-4"><p className="text-sm text-text-secondary">{title}</p><p className="mt-1 text-2xl font-bold">{value}</p></Card>)}</div>
-            <Card className="p-5"><div className="flex items-start gap-3"><Wallet size={20} className="text-teal-700" /><div><h2 className="font-bold">Payroll calculation</h2><p className="mt-1 text-sm text-text-secondary">Effective-dated compensation and approved payable time produce explainable RM lines. Statutory results remain Review Required until employee categories and official schedules are verified. No payslip or payment is created.</p></div></div></Card>
+            <Card className="p-5"><div className="flex items-start gap-3"><Wallet size={20} className="text-teal-700" /><div><h2 className="font-bold">Payroll calculation</h2><p className="mt-1 text-sm text-text-secondary">Effective-dated compensation and approved payable time produce explainable RM lines. EPF, SOCSO and EIS use reviewed schedules; applicable PCB / MTD needs a confirmed amount before Ready. No payslip or payment is created.</p></div></div></Card>
           </div>}
           {tab === "profiles" && <ProfilesTab data={data} canManage={canManage} reload={reload} />}
           {tab === "time" && <PayrollTimeExceptionsTab data={data} canManage={canManage} />}
