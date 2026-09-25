@@ -1101,6 +1101,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, moderate: true },
   },
   {
+    id: "crew_google_reviews",
+    section: "Performance",
+    label: "Google Reviews",
+    route: "/crew/performance/google-reviews",
+    icon: "crew-google-reviews",
+    sidebar: true,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
     id: "crew_reward",
     section: "Reward",
     label: "Reward Overview",

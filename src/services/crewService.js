@@ -556,6 +556,18 @@ export const crewService = {
     return data || { summary: {}, crew: [], reviews: [], feedback: [] };
   },
 
+  async googleReviewsAdminContext(outletId, period) {
+    const { data, error } = await supabase.rpc("crew_google_reviews_admin_context", { p_outlet_id: outletId, p_period: period });
+    throwSupabaseError("crew.googleReviewsAdminContext", error);
+    return data;
+  },
+
+  async setGoogleMonthlyTarget(outletId, period, positiveTarget) {
+    const { data, error } = await supabase.rpc("crew_google_set_monthly_target", { p_outlet_id: outletId, p_period: period, p_positive_target: positiveTarget });
+    throwSupabaseError("crew.setGoogleMonthlyTarget", error);
+    return data;
+  },
+
   async peerReviewAdmin(outletId, period) {
     const { data, error } = await supabase.rpc("crew_peer_review_admin", { p_outlet_id: outletId, p_period: period });
     throwSupabaseError("crew.peerReviewAdmin", error);

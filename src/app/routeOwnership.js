@@ -84,6 +84,7 @@ const canonicalPathByModuleId = Object.freeze({
   crew_growth_skills: "/crew/growth/skills",
   crew_performance: "/crew/performance",
   crew_customer_feedback: "/crew/performance/customer-feedback",
+  crew_google_reviews: "/crew/performance/google-reviews",
   crew_reward: "/crew/reward/overview",
 });
 

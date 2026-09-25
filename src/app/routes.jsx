@@ -28,6 +28,7 @@ import CrewLearningAdminResetPage from "../features/crew/pages/CrewLearningAdmin
 import CrewSopLibraryPage from "../features/crew/pages/CrewSopLibraryPage.jsx";
 import CrewGrowthAdminPage from "../features/crew/pages/CrewGrowthAdminPage.jsx";
 import CrewPerformanceAdminPage from "../features/crew/pages/CrewPerformanceAdminPage.jsx";
+import CrewGoogleReviewsAdminPage from "../features/crew/pages/CrewGoogleReviewsAdminPage.jsx";
 import CrewRewardAdminPage from "../features/crew/pages/CrewRewardAdminPage.jsx";
 import CrewOperationsAdminPage from "../features/crew/pages/CrewOperationsAdminPage.jsx";
 import CrewLeaveAdminPage from "../features/crew/pages/CrewLeaveAdminPage.jsx";
@@ -552,6 +553,11 @@ export const routeDetails = {
     component: CrewPerformanceAdminPage,
     permission: "crew_feedback.view",
     props: { initialTab: "feedback" },
+  },
+  crew_google_reviews: {
+    description: "Review Google reputation context and configure outlet monthly targets.",
+    component: CrewGoogleReviewsAdminPage,
+    permission: "crew_performance.view",
   },
   crew_reward: {
     description: "Manage transparent outlet monthly Reward Pools and Crew payouts.",

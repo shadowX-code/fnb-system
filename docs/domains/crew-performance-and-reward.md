@@ -1,5 +1,13 @@
 # Crew Performance And Reward
 
+## Google Reviews Foundation (Performance V2 Phase B)
+
+Google Reviews is a separate Admin reputation workspace under Performance. It owns future Google Business Profile connection, verified account/location discovery, explicit outlet-to-location mapping, and outlet/month review evidence. Customer Feedback remains a distinct first-party domain. V1 Performance continues to use its existing Customer Feedback authority; V2 Customer is pending, never falls back to first-party feedback, and blocks V2 finalization. No V2 month is activated by this foundation.
+
+The outlet/month Admin context is permission- and outlet-scoped. While GBP API access is pending, new/positive/negative reviews, average rating, negative rate, trend, breakdown, feed, and Customer points are unavailable rather than zero. No Google review text, reviewer identity, rating, or derived scoring evidence is stored. Connection and location mapping controls remain unavailable until a server-side provider adapter can obtain verified accounts and locations. Credentials must remain server-side; browser code must never receive OAuth tokens. The configuration tables hold only connection status, verified location resource names, outlet mapping, and targets, with no review payloads.
+
+An authorized Performance reviewer may set a positive monthly target greater than zero for an accessible outlet and whole performance month. Each change records the previous/new value, actor, and server time. Once any Performance result for that outlet/month is finalized, the target is locked. Provider data must eventually use each review's creation time to assign its month, classify 4–5 stars as positive, 3 as neutral, and 1–2 as negative. The future V2 Customer contract has Positive Target `min(positive reviews / monthly target, 1) × 15` and Quality up to 5 from the current-month negative rate (negative reviews / eligible reviews): at most 2% → 5, >2–5% → 4, >5–10% → 3, >10–15% → 2, >15–20% → 1, >20% → 0. Neither calculation is enabled in Phase B. Future integration must resolve Google retention/policy requirements and snapshot finalized evidence without changing V1 history.
+
 ## Crew Mobile Explanatory Help
 
 Crew Mobile uses the shared `CrewHelpTrigger` and `CrewHelpSheet` primitives for explanatory, non-mutating help. Pages provide only title, body, and optional structured content; the helper owns the one-layer icon treatment while `CrewBottomSheet` owns accessible bottom-sheet behavior, focus handling, backdrop close, and reduced-motion presentation. Selectable action flows may reuse the shell without adopting the helper content model. Operation, confirmation, and error dialogs remain owned by their existing workflows.
