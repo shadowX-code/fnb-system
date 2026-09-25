@@ -154,9 +154,23 @@ Phase 4A's conservative reconciliation boundary:
 - KWSP Third Schedule Part A (Malaysian under 60) and Part E (Malaysian 60–74),
   effective October 2025: 401 continuous official bands each through RM20,000;
   the published RM3,250 example and RM5,000 boundary are checked. Above
-  RM20,000, fraction allocation between employee/employer shares is not yet
-  reconciled. The Part A bonus exception and unsupported citizenship categories
-  need more precise component/category evidence. EPF is not yet complete.
+  RM20,000, the official percentages are applied to the total monthly EPF wage
+  base and their aggregate is rounded up to the next ringgit. The individual
+  percentage shares and the remittance-rounding residual are retained
+  separately. Where a fractional residual exists, Payroll remains Review
+  Required until its employee/employer allocation is governed; it is not
+  silently assigned to either side or mislabelled as an increased statutory
+  rate. The same percentage
+  treatment applies to the Part A bonus exception when reviewed ordinary wages
+  are at most RM5,000 and a reviewed bonus raises monthly wages above it.
+  Component bonus/ordinary classifications are append-only, effective-dated,
+  source-reviewed versions; an ambiguous threshold stays Review Required.
+  EPF excludes overtime, including pay for rest-day/public-holiday work as
+  defined in the EPF Act. The supported categories remain bounded to Malaysian
+  under-60 and ages 60–74 with reviewed applicability; other categories fail
+  closed. Published KWSP examples validate the percentage/total rule, but
+  Payroll cent-allocation policy for the remittance residual must be confirmed
+  before calling the entire EPF implementation production-ready.
 - PERKESO Act 4 base SOCSO first/second categories, effective October 2024:
   65 bands per category with an RM6,000 ceiling. LINDUNG 24 JAM is a separate
   voluntary, employee-funded non-employment injury scheme for Malaysian
