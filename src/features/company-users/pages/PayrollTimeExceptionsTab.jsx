@@ -76,6 +76,7 @@ export default function PayrollTimeExceptionsTab({ data, canManage }) {
   const [month, setMonth] = useState(localDate().slice(0, 7));
   const [rows, setRows] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [showAll, setShowAll] = useState(false);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -106,6 +107,7 @@ export default function PayrollTimeExceptionsTab({ data, canManage }) {
     { key: "actions", header: "Actions", render: (row) => row.status === "review_required" && canManage ? <button className="btn-secondary" type="button" onClick={() => setSelected(row)}>Review</button> : "—" },
   ];
   const exceptions = rows.filter((row) => row.status === "review_required");
+  const displayedRows = showAll ? [...exceptions, ...rows.filter((row) => row.status !== "review_required")] : exceptions;
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">Time Exceptions</h2><p className="text-sm text-text-secondary">Only meaningful discrepancies require review. Approved time is Payroll evidence; source records stay unchanged.</p></div>
       {canManage && <button className="btn-primary" type="button" disabled={busy || loading || !entityId || range.from > localDate()} onClick={reconcile}>{busy ? "Reconciling..." : "Reconcile Evidence"}</button>}</div>
@@ -113,10 +115,11 @@ export default function PayrollTimeExceptionsTab({ data, canManage }) {
       {(data.legal_entities || []).map((item) => <option key={item.id} value={item.id}>{item.display_name || item.name}</option>)}</select></AdminFormField>
       <AdminFormField label="Month"><input className="control" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></AdminFormField></Card>
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
-    <Card><div className="border-b border-border px-4 py-3 text-sm font-semibold">{exceptions.length} exception{exceptions.length === 1 ? "" : "s"} requiring review · {rows.length} time result{rows.length === 1 ? "" : "s"}</div>
+    <Card><div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 text-sm font-semibold"><span>{exceptions.length} exception{exceptions.length === 1 ? "" : "s"} requiring review · {rows.length} time result{rows.length === 1 ? "" : "s"}</span>
+      {rows.length > exceptions.length && <button className="text-teal-700 underline-offset-2 hover:underline" type="button" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show exceptions only" : "Show all results"}</button>}</div>
       {loading ? <p className="p-6 text-sm text-text-secondary">Loading payable-time evidence...</p>
-        : rows.length ? <DataTable columns={columns} rows={[...exceptions, ...rows.filter((row) => row.status !== "review_required")]} getRowKey={(row) => row.id} density="compact" />
-          : <p className="p-6 text-sm text-text-secondary">No time results for this month. Reconcile source evidence to evaluate payable time.</p>}</Card>
+        : displayedRows.length ? <DataTable columns={columns} rows={displayedRows} getRowKey={(row) => row.id} density="compact" />
+          : <p className="p-6 text-sm text-text-secondary">{rows.length ? "No Time Exceptions require review." : "No time results for this month. Reconcile source evidence to evaluate payable time."}</p>}</Card>
     {selected && <DecisionModal row={selected} onClose={() => setSelected(null)} onSaved={reload} />}
   </div>;
 }
