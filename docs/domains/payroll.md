@@ -103,6 +103,9 @@ not guessed: a protected Owner/Admin with Payroll manage authority must publish
 a reviewed, sourced rule version. Missing or ambiguous rules leave the employee
 in Review Required. A Monthly partial period or mid-period salary/component
 change likewise requires an approved policy instead of silent proration.
+Run membership is bounded by the employee's known joining/resignation dates.
+An unknown joining date stays visible but requires calculation review rather
+than silently treating an unverified month as payable.
 
 `payroll_calculation_project` resolves the effective compensation for each work
 date, current approved Payable Time evidence, effective recurring components,
