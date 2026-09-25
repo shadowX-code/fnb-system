@@ -158,10 +158,13 @@ Phase 4A's conservative reconciliation boundary:
   reconciled. The Part A bonus exception and unsupported citizenship categories
   need more precise component/category evidence. EPF is not yet complete.
 - PERKESO Act 4 base SOCSO first/second categories, effective October 2024:
-  65 bands per category with an RM6,000 ceiling. For 2026, local employee
-  LINDUNG 24 JAM participation is voluntary and employee-funded, but current
-  Employee/Payroll data has no reviewed election. The base table must not be
-  treated as a complete 2026 SOCSO result. The projection blocks 2026 SOCSO.
+  65 bands per category with an RM6,000 ceiling. LINDUNG 24 JAM is a separate
+  voluntary, employee-funded non-employment injury scheme for Malaysian
+  employees; its election does not change ordinary Act 4 contribution. The
+  2026 Act 4 projection therefore does not require a LINDUNG election. It
+  remains bounded by reviewed applicability, supported age/citizenship and
+  contribution-history categories, and resolved component wage treatment.
+  Optional LINDUNG collection is outside the current Payroll calculation.
 - PERKESO Act 800 EIS, effective October 2024: 65 independent bands with an
   RM6,000 ceiling. The supported automatic category is a Malaysian employee
   age 18–56 with reviewed applicability; ages 57–59 require prior-contribution
@@ -171,7 +174,13 @@ Phase 4A's conservative reconciliation boundary:
   employer YTD taxable remuneration/EPF/MTD, TP1/TP3 deductions and rebates,
   zakat and additional-remuneration classification. The current `pcb_inputs`
   JSON has no complete validated schema or official-case engine. PCB stays
-  Review Required, never an inferred RM0.
+  Review Required, never an inferred RM0. The published 2026 testing questions
+  cover special company/director/returning-expert/expatriate/knowledge-worker
+  cases and do not provide a general ordinary-employee answer key. None of
+  those special statuses can currently be derived safely from Employee Master.
+  PCB inputs belong to Payroll-owned effective/YTD evidence, not Employee
+  identity; a supported case and independent official reconciliation are
+  required before enabling a PCB result.
 
 Nationality and birthdate are checked against selected contribution categories;
 an arbitrary reviewed category string cannot override those facts. Unresolved

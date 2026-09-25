@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925134633_payroll_statutory_official_packs.sql"), "utf8");
 const hourlyGuard = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925135058_payroll_epf_hourly_bonus_guard.sql"), "utf8");
+const socsoClosure = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925140129_payroll_socso_act4_independent_of_lindung24jam.sql"), "utf8");
 
 function schedule(category) {
   const start = migration.indexOf(`values ('${category === "standard" ? "eis" : category.startsWith("malaysian") ? "epf" : "socso"}','${category}'`);
@@ -52,7 +53,9 @@ describe("issuer-published statutory tables and safe category boundary", () => {
   });
 
   it("blocks unsupported category assumptions and preserves the unvalidated PCB gate", () => {
-    expect(migration).toContain("socso_2026_lindung24jam_election_unmodeled");
+    expect(socsoClosure).not.toContain("socso_2026_lindung24jam_election_unmodeled");
+    expect(socsoClosure).toContain("socso_prior_contribution_history_unverified");
+    expect(socsoClosure).toContain("socso_category_mismatch");
     expect(migration).toContain("eis_prior_contribution_history_unverified");
     expect(migration).toContain("epf_category_mismatch");
     expect(migration).toContain("epf_above_20000_split_unreconciled");
