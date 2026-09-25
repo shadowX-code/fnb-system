@@ -78,6 +78,19 @@ describe("Payroll Control Center", () => {
     expect(screen.getByText("Pay Calculation Rules")).not.toBeNull();
   });
 
+  it("replaces the rule detail dialog with the new-version form", async () => {
+    mocks.readRules.mockResolvedValueOnce([{ id: "rule-1", rule_code: "monthly_basic", pay_basis: "monthly",
+      effective_from: "2000-01-01", multiplier: 1, source_note: "Approved policy" }]);
+    render(<PayrollPage auth={{}} />);
+    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByText("Basic Salary");
+    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Create New Version" }));
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    expect(screen.getByRole("dialog").textContent).toContain("Effective From");
+  });
+
   it("opens a finalized revision on its immutable summary, not preparation", async () => {
     mocks.read.mockResolvedValueOnce({ ...fixture, periods: [{ ...fixture.periods[0], runs: [{
       id: "run-final", status: "finalized", revision: 2, finalized_at: "2026-09-30T12:00:00Z",

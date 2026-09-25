@@ -65,7 +65,7 @@ export default function PayrollPayRulesPanel({ canManage }) {
       { key: "action", header: "Action", render: (row) => <button className="font-semibold text-primary" type="button" onClick={() => setSelected(row)}>View</button> },
     ]} onRowClick={setSelected} />}</Card>
     {selected && <Modal title={`${selected.name} · ${selected.basis === "monthly" ? "Monthly" : "Hourly"}`} description={selected.explanation} onClose={() => setSelected(null)}
-      footer={<><button className="btn-secondary" type="button" onClick={() => setSelected(null)}>Close</button>{canManage && <button className="btn-primary" type="button" onClick={() => openDraft(selected)}>Create New Version</button>}</>}>
+      footer={<><button className="btn-secondary" type="button" onClick={() => setSelected(null)}>Close</button>{canManage && <button className="btn-primary" type="button" onClick={() => { openDraft(selected); setSelected(null); }}>Create New Version</button>}</>}>
       <div className="space-y-4 text-sm"><div className="grid gap-3 sm:grid-cols-2"><div><span className="text-text-secondary">Current rule</span><p className="font-bold">{selected.current ? `${selected.current.multiplier}×` : "Not configured"}</p></div>
         <div><span className="text-text-secondary">Effective from</span><p className="font-bold">{selected.current?.effective_from || "—"}</p></div></div>
         <div><strong>Source / evidence</strong><p className="text-text-secondary">{selected.current?.source_note || "No approved rule published."}</p></div>

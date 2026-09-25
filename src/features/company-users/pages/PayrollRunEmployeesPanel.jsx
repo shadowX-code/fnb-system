@@ -104,7 +104,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     <Card>{!evidence && !error ? <p className="p-6 text-sm text-text-secondary">Loading monthly employee evidence…</p>
       : visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.id} density="compact" onRowClick={(row) => setEmployeeId(row.id)} />
         : <p className="p-6 text-sm text-text-secondary">No employees in this filter.</p>}</Card>
-    {selected && <Modal title={selected.name} description={`${month} · Monthly Payroll review. Permanent compensation changes belong in Employees.`}
+    {selected && !decision && !pcbDraft && !adjustment && <Modal title={selected.name} description={`${month} · Monthly Payroll review. Permanent compensation changes belong in Employees.`}
       size="xl" onClose={() => setEmployeeId("")} footer={<button className="btn-secondary" type="button" onClick={() => setEmployeeId("")}>Close</button>}>
       <div className="space-y-5 text-sm">
         <div className="grid gap-3 sm:grid-cols-3"><div><small className="text-text-secondary">Current pay</small><p className="font-bold">{selected.pay ? `${human(selected.pay.pay_basis)} · ${money(selected.pay.basic_salary || selected.pay.hourly_rate)}` : "Setup required in Employees"}</p></div>
