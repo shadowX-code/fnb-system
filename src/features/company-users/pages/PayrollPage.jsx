@@ -205,6 +205,8 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [pendingTransition, setPendingTransition] = useState(null);
+  const [transitionReason, setTransitionReason] = useState("");
   const periods = (data.periods || []).filter((item) => !entityId || item.legal_entity_id === entityId);
   const create = async (supersedesRunId = null, period = null) => {
     setBusy(true); setError("");
@@ -217,13 +219,22 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
     } catch (cause) { setError(cause.message || "Unable to create run."); }
     finally { setBusy(false); }
   };
-  const transition = async (runId, status) => {
-    const transitionReason = window.prompt(`Reason for moving this foundation run to ${label(status)}:`);
-    if (!transitionReason?.trim()) return;
+  const transition = async () => {
+    if (!pendingTransition || !transitionReason.trim()) return;
     setBusy(true); setError("");
-    try { await payrollService.transitionRun(runId, status, transitionReason); await reload(); }
+    try {
+      await payrollService.transitionRun(pendingTransition.runId, pendingTransition.status, transitionReason.trim());
+      await reload();
+      setPendingTransition(null);
+      setTransitionReason("");
+    }
     catch (cause) { setError(cause.message || "Unable to transition run."); }
     finally { setBusy(false); }
+  };
+  const requestTransition = (runId, status) => {
+    setError("");
+    setTransitionReason("");
+    setPendingTransition({ runId, status });
   };
   return <div className="space-y-4">
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
@@ -244,11 +255,20 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
       </div>
       <div className="mt-3 divide-y divide-border">{(period.runs || []).map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
         <span>Revision {run.revision} {run.supersedes_run_id ? "· Correction" : ""} <Badge tone={run.status === "finalized" ? "success" : "neutral"}>{label(run.status)}</Badge></span>
-        <div className="flex flex-wrap gap-2">{canManage && run.status === "draft" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => transition(run.id, "review_required")}>Send to Review</button>}
-          {canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => transition(run.id, "ready")}>Mark Ready</button>}
-          {canFinalize && run.status === "ready" && <button className="btn-primary" type="button" disabled={busy} onClick={() => transition(run.id, "finalized")}>Finalize Foundation</button>}</div>
+        <div className="flex flex-wrap gap-2">{canManage && run.status === "draft" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Send to Review</button>}
+          {canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
+          {canFinalize && run.status === "ready" && <button className="btn-primary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "finalized")}>Finalize Foundation</button>}</div>
       </div>)}</div>
     </Card>) : <Card className="p-8 text-center text-sm text-text-secondary">No Payroll Runs for this Legal Entity.</Card>}</div>
+    {pendingTransition && <Modal title={`${label(pendingTransition.status)} foundation run`}
+      description="Record the reason for this audited lifecycle change. No pay calculation or payment occurs."
+      onClose={() => !busy && setPendingTransition(null)}
+      footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setPendingTransition(null)}>Cancel</button>
+        <button className="btn-primary" type="button" disabled={busy || !transitionReason.trim()} onClick={transition}>{busy ? "Saving..." : "Confirm"}</button></>}>
+      <AdminFormField label="Reason" required><input className="control" value={transitionReason}
+        onChange={(event) => setTransitionReason(event.target.value)} placeholder="Reason for this run transition" /></AdminFormField>
+      {error && <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">{error}</p>}
+    </Modal>}
   </div>;
 }
 

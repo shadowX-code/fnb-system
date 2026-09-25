@@ -54,5 +54,7 @@ describe("People Payroll Phase 1 foundation", () => {
     expect(page).toContain("No statutory calculation, payment or payslip is available");
     expect(page).toContain("Adjust Compensation");
     expect(page).toContain("Compensation History");
+    expect(page).toContain("Record the reason for this audited lifecycle change.");
+    expect(page).not.toContain("window.prompt");
   });
 });
