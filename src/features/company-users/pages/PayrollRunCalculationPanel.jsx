@@ -18,7 +18,7 @@ const overallStatus = (calculation, statutory) => {
   return title(statutory.status);
 };
 
-function ResultDetail({ result, statutory, onClose }) {
+function ResultDetail({ result, statutory, pcb, onClose }) {
   const compensation = result.inputs?.compensation_start;
   const time = result.inputs?.time || [];
   const earnings = result.lines.filter((line) => line.kind === "earning");
@@ -59,11 +59,15 @@ function ResultDetail({ result, statutory, onClose }) {
         {!statutory ? <p className="text-sm text-text-secondary">Not calculated. Calculate statutory results after the pre-statutory result.</p> : <>
           {statutory.issues?.length > 0 && <p className="text-sm font-semibold text-amber-800">Review Required: {statutory.issues.map(issueLabel).join(" · ")}</p>}
           <div className="divide-y divide-border rounded-xl border border-border">{(statutory.lines || []).map((line) => <div key={line.scheme} className="grid grid-cols-3 gap-2 px-3 py-2 text-sm">
-            <div><strong>{line.scheme.toUpperCase()}</strong><small className="block text-text-secondary">{line.applicable === false ? "Reviewed: not applicable" : line.category || "Category unresolved"}{line.source_row ? ` · ${line.source_row}` : ""}</small></div>
+            <div><strong>{line.scheme.toUpperCase()}</strong><small className="block text-text-secondary">{line.applicable === false ? "Reviewed: not applicable" : line.method === "manual_confirmed" ? "Admin confirmed" : line.category || "Category unresolved"}{line.source_row ? ` · ${line.source_row}` : ""}</small></div>
             <div className="text-right tabular-nums"><small className="block text-text-secondary">Employee</small>{line.employee_amount == null ? "—" : rm(line.employee_amount)}</div>
             <div className="text-right tabular-nums"><small className="block text-text-secondary">Employer</small>{line.employer_amount == null ? "—" : rm(line.employer_amount)}</div>
             {line.wage_base != null && <small className="col-span-3 text-text-secondary">Statutory wage base: {rm(line.wage_base)}</small>}
+            {Number(line.remittance_rounding || 0) !== 0 && <small className="col-span-3 text-text-secondary">KWSP remittance rounding · employer-funded: {rm(line.remittance_rounding)}</small>}
           </div>)}</div>
+          {pcb?.history?.length > 0 && <details className="text-xs text-text-secondary"><summary className="cursor-pointer">PCB confirmation history · Admin/Audit</summary>
+            <ol className="mt-2 space-y-1">{pcb.history.map((entry) => <li key={entry.id}>Revision {entry.revision} · {rm(entry.amount)} · {new Date(entry.confirmed_at).toLocaleString()} · {entry.reason}{entry.source_reference ? ` · ${entry.source_reference}` : ""}</li>)}</ol>
+          </details>}
           {(statutory.inputs?.wage_base_lines || []).length > 0 && <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Included / excluded wage components</summary>
             <ul className="mt-1 space-y-1">{statutory.inputs.wage_base_lines.map((line, index) => <li key={`${line.scheme}-${line.line_code}-${index}`}>{line.scheme.toUpperCase()} · {title(line.line_code)} · {rm(line.amount)} · {title(line.treatment)}</li>)}</ul>
           </details>}
@@ -83,6 +87,9 @@ function ResultDetail({ result, statutory, onClose }) {
 export default function PayrollRunCalculationPanel({ run, components, canManage, onChanged }) {
   const [data, setData] = useState(null);
   const [statutory, setStatutory] = useState(null);
+  const [pcb, setPcb] = useState(null);
+  const [pcbForm, setPcbForm] = useState(null);
+  const [pcbDraft, setPcbDraft] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
@@ -94,10 +101,10 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
   };
   const load = useCallback(async () => {
     try {
-      const [calculation, statutoryResult] = await Promise.all([
-        payrollService.readCalculation(run.id), payrollService.readStatutory(run.id),
+      const [calculation, statutoryResult, pcbResult] = await Promise.all([
+        payrollService.readCalculation(run.id), payrollService.readStatutory(run.id), payrollService.readPcb(run.id),
       ]);
-      setData(calculation); setStatutory(statutoryResult); setError("");
+      setData(calculation); setStatutory(statutoryResult); setPcb(pcbResult); setError("");
     }
     catch (cause) { setError(cause.message || "Unable to read Payroll calculations."); }
   }, [run.id]);
@@ -129,8 +136,25 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     } catch (cause) { setError(cause.message || "Unable to save component."); }
     finally { setBusy(false); }
   };
+  const openPcb = (row) => {
+    const current = pcb?.results?.find((item) => item.employee_id === row.employee_id)?.confirmation;
+    setPcbDraft({ requestId: crypto.randomUUID(), employeeId: row.employee_id,
+      amount: current?.amount == null ? "" : String(current.amount),
+      sourceReference: current?.source_reference || "", note: current?.note || "", reason: "" });
+    setPcbForm(row);
+  };
+  const savePcb = async () => {
+    setBusy(true); setError("");
+    try {
+      await payrollService.confirmPcb({ ...pcbDraft, runId: run.id, reason: pcbDraft.reason.trim() });
+      setPcbForm(null); setPcbDraft(null);
+      await load(); await onChanged?.();
+    } catch (cause) { setError(cause.message || "Unable to confirm PCB / MTD."); }
+    finally { setBusy(false); }
+  };
   const rows = data?.results || [];
   const statutoryRows = statutory?.results || [];
+  const pcbRows = pcb?.results || [];
   const columns = [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
     { key: "basis", header: "Pay Basis", render: (row) => title(row.pay_basis || "Missing") },
@@ -141,6 +165,14 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     { key: "net", header: "Net Pay", align: "right", render: (row) => {
       const value = statutoryRows.find((item) => item.employee_id === row.employee_id);
       return <strong className="tabular-nums">{value?.net_pay == null || value.is_stale ? "—" : rm(value.net_pay)}</strong>;
+    } },
+    { key: "pcb", header: "PCB / MTD", align: "right", render: (row) => {
+      const evidence = pcbRows.find((item) => item.employee_id === row.employee_id);
+      return <div className="flex flex-col items-end gap-1 text-xs">
+        <span className="tabular-nums">{evidence?.applicable === false ? "Not applicable" : evidence?.confirmation ? rm(evidence.confirmation.amount) : "Not confirmed"}</span>
+        {canEdit && evidence?.applicable === true && <button className="btn-secondary" type="button" disabled={busy}
+          onClick={(event) => { event.stopPropagation(); openPcb(row); }}>{evidence.confirmation ? "Correct" : "Confirm"}</button>}
+      </div>;
     } },
     { key: "status", header: "Status", render: (row) => {
       const status = overallStatus(row, statutoryRows.find((item) => item.employee_id === row.employee_id));
@@ -168,7 +200,25 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
         <span className="flex items-center gap-2"><strong className="tabular-nums">{rm(item.amount)}</strong>
           {canEdit && <button className="btn-secondary" type="button" onClick={() => openAdjustment("reverse", { adjustmentId: item.id })}>Reverse</button>}</span>
       </div>)}</div></div>}
-    {selected && <ResultDetail result={selected} statutory={statutoryRows.find((item) => item.employee_id === selected.employee_id)} onClose={() => setSelected(null)} />}
+    {selected && <ResultDetail result={selected} statutory={statutoryRows.find((item) => item.employee_id === selected.employee_id)}
+      pcb={pcbRows.find((item) => item.employee_id === selected.employee_id)} onClose={() => setSelected(null)} />}
+    {pcbForm && pcbDraft && <Modal title={`${pcbDraft.amount === "" ? "Confirm" : "Correct"} PCB / MTD · ${pcbForm.employee_name}`}
+      description="Enter the confirmed statutory PCB amount for this employee and pay period. Draft corrections retain audit history."
+      onClose={() => !busy && setPcbForm(null)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setPcbForm(null)}>Cancel</button>
+        <button className="btn-primary" type="button" disabled={busy || pcbDraft.amount === "" || !Number.isFinite(Number(pcbDraft.amount)) || Number(pcbDraft.amount) < 0 || !pcbDraft.reason.trim()}
+          onClick={savePcb}>{busy ? "Saving…" : "Confirm PCB / MTD"}</button></>}>
+      <div className="space-y-3">
+        <AdminFormField label="Confirmed PCB / MTD (RM)" required><input className="control" type="number" inputMode="decimal" min="0" step="0.01"
+          value={pcbDraft.amount} onChange={(event) => setPcbDraft((value) => ({ ...value, amount: event.target.value }))} /></AdminFormField>
+        <AdminFormField label="Source / Reference (optional)"><input className="control" value={pcbDraft.sourceReference}
+          onChange={(event) => setPcbDraft((value) => ({ ...value, sourceReference: event.target.value }))} /></AdminFormField>
+        <AdminFormField label="Note (optional)"><input className="control" value={pcbDraft.note}
+          onChange={(event) => setPcbDraft((value) => ({ ...value, note: event.target.value }))} /></AdminFormField>
+        <AdminFormField label="Reason" required><input className="control" value={pcbDraft.reason}
+          onChange={(event) => setPcbDraft((value) => ({ ...value, reason: event.target.value }))} /></AdminFormField>
+        {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
+      </div>
+    </Modal>}
     {form && <Modal title={form === "reverse" ? "Reverse variable line" : "Add variable Payroll line"}
       description="This is audited Run evidence. Recalculate after changing variable lines."
       onClose={() => !busy && setForm(null)} footer={<><button className="btn-secondary" type="button" onClick={() => setForm(null)}>Cancel</button>

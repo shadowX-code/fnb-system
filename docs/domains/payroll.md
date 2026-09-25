@@ -131,17 +131,28 @@ Finalization pins calculation versions in
 prior finalized revisions are never rewritten. A correction is a new Run
 revision. The draft Run UI exposes per-employee lines and rule explanations.
 
-## Statutory Calculation (Phase 4 — guarded, not validated)
+## Statutory Calculation (Phase 4 V1 — guarded)
 
 The Phase 4 authority keeps reviewed applicability separate from reviewed
 statutory category and tax inputs. `payroll_statutory_input_versions` is
 append-only and effective-dated. Each EPF/SOCSO/EIS official schedule version
 has independently sourced contribution bands. Phase 3 lines are classified
 per scheme using component treatment; unknown treatment, category, schedule,
-or a stale Phase 3 result blocks Ready. PCB stays explicitly unresolved until
-the current HASiL specification and official tests are implemented, including
-required YTD and prior-employer inputs. An unresolved scheme never becomes
-RM0. A reviewed not-applicable decision is the only zero-contribution path.
+or a stale Phase 3 result blocks Ready. Payroll V1 deliberately treats PCB/MTD
+as a separately confirmed statutory employee deduction, not a generic pay
+component or an automatic tax estimate. For each applicable employee and Run,
+an authorized Admin confirms a nonnegative RM amount with reason and optional
+source/reference/note. `payroll_run_pcb_confirmations` is append-only and
+retry-safe; Draft corrections add a revision and audit event. The latest
+confirmation is included in the statutory input fingerprint and PCB result
+line, so recalculation is required after a correction. The confirmation and
+result are pinned at Finalization. A correction Run must receive its own
+confirmation; the original finalized evidence remains immutable. The PCB
+result line retains `scheme='pcb'`, employee amount and method/evidence metadata,
+so a future automatic method can replace the authority without changing the
+Run or future Payslip-facing amount contract. Missing applicable PCB stays
+Review Required, never inferred RM0. A reviewed not-applicable decision is
+the only zero-contribution path without confirmation.
 Phase 4 results and employer/employee shares are append-only; Finalization
 pins the exact result, input, band and schedule evidence. Total Employer Cost
 includes gross earnings, reimbursements and employer statutory contributions.
@@ -157,10 +168,11 @@ Phase 4A's conservative reconciliation boundary:
   RM20,000, the official percentages are applied to the total monthly EPF wage
   base and their aggregate is rounded up to the next ringgit. The individual
   percentage shares and the remittance-rounding residual are retained
-  separately. Where a fractional residual exists, Payroll remains Review
-  Required until its employee/employer allocation is governed; it is not
-  silently assigned to either side or mislabelled as an increased statutory
-  rate. The same percentage
+  separately. The V1 product decision allocates any fractional remittance
+  residual to employer cost, while the employee deduction remains the
+  calculated employee share. This is an explicit accounting allocation of
+  KWSP's rounded total, not an increased statutory employer percentage; the
+  policy identity is pinned in the statutory result. The same percentage
   treatment applies to the Part A bonus exception when reviewed ordinary wages
   are at most RM5,000 and a reviewed bonus raises monthly wages above it.
   Component bonus/ordinary classifications are append-only, effective-dated,
@@ -168,9 +180,8 @@ Phase 4A's conservative reconciliation boundary:
   EPF excludes overtime, including pay for rest-day/public-holiday work as
   defined in the EPF Act. The supported categories remain bounded to Malaysian
   under-60 and ages 60–74 with reviewed applicability; other categories fail
-  closed. Published KWSP examples validate the percentage/total rule, but
-  Payroll cent-allocation policy for the remittance residual must be confirmed
-  before calling the entire EPF implementation production-ready.
+  closed. Published KWSP examples validate the percentage/total rule; the V1
+  employer-funded residual decision governs the remittance allocation.
 - PERKESO Act 4 base SOCSO first/second categories, effective October 2024:
   65 bands per category with an RM6,000 ceiling. LINDUNG 24 JAM is a separate
   voluntary, employee-funded non-employment injury scheme for Malaysian
@@ -183,18 +194,11 @@ Phase 4A's conservative reconciliation boundary:
   RM6,000 ceiling. The supported automatic category is a Malaysian employee
   age 18–56 with reviewed applicability; ages 57–59 require prior-contribution
   evidence that FeedX does not yet own. EIS is bounded to this category.
-- HASiL computerized MTD specification 2026 and its official testing questions
-  require tax residence, family/child relief category, current and prior-
-  employer YTD taxable remuneration/EPF/MTD, TP1/TP3 deductions and rebates,
-  zakat and additional-remuneration classification. The current `pcb_inputs`
-  JSON has no complete validated schema or official-case engine. PCB stays
-  Review Required, never an inferred RM0. The published 2026 testing questions
-  cover special company/director/returning-expert/expatriate/knowledge-worker
-  cases and do not provide a general ordinary-employee answer key. None of
-  those special statuses can currently be derived safely from Employee Master.
-  PCB inputs belong to Payroll-owned effective/YTD evidence, not Employee
-  identity; a supported case and independent official reconciliation are
-  required before enabling a PCB result.
+- Automatic HASiL computerized MTD calculation and its TP1/TP3/YTD input
+  machinery are explicitly deferred. Payroll V1 requires a confirmed manual
+  PCB amount instead; an unconfirmed applicable employee cannot reach Ready.
+  Future automation requires separate official validation and must preserve
+  the statutory result-line contract and immutable historical evidence.
 
 Nationality and birthdate are checked against selected contribution categories;
 an arbitrary reviewed category string cannot override those facts. Unresolved

@@ -257,7 +257,7 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
   };
   return <div className="space-y-4">
     <div className="rounded-xl border border-border bg-surface-muted p-4 text-sm text-text-secondary">
-      <strong className="text-text-primary">Payroll calculation.</strong> Effective compensation and approved time feed statutory review. Unverified schedules, categories or tax inputs block Ready and Finalize; unresolved amounts are never treated as zero. Payslips and payments are not available.
+      <strong className="text-text-primary">Payroll calculation.</strong> Effective compensation and approved time feed statutory review. EPF/SOCSO/EIS use reviewed schedules; applicable PCB / MTD requires an Admin-confirmed amount for each employee and Run. Missing evidence blocks Ready and Finalize. Payslips and payments are not available.
     </div>
     {canManage && <Card className="p-4"><div className="grid gap-3 sm:grid-cols-4">
       <AdminFormField label="Legal Entity"><Select value={entityId} onChange={setEntityId} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></AdminFormField>
