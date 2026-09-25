@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readRules: vi.fn(),
   readComponentHistory: vi.fn(),
   readHolidayApplicability: vi.fn(),
+  readHolidayHistory: vi.fn(), readRunHistory: vi.fn(),
 }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   read: mocks.read, runTimeReadiness: mocks.time, calculationReadiness: mocks.calculation,
@@ -14,6 +15,7 @@ vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   readPcb: mocks.readPcb, readRules: mocks.readRules,
   readComponentHistory: mocks.readComponentHistory,
   readHolidayApplicability: mocks.readHolidayApplicability,
+  readHolidayHistory: mocks.readHolidayHistory, readRunHistory: mocks.readRunHistory,
 } }));
 vi.mock("../../../../utils/accessControl.js", () => ({ hasPermission: () => true }));
 
@@ -38,31 +40,42 @@ beforeEach(() => {
   mocks.readRules.mockReset().mockResolvedValue([]);
   mocks.readComponentHistory.mockReset().mockResolvedValue([]);
   mocks.readHolidayApplicability.mockReset().mockResolvedValue({ outlets: [], legal_entities: [] });
+  mocks.readHolidayHistory.mockReset().mockResolvedValue({ events: [], editable: false });
+  mocks.readRunHistory.mockReset().mockResolvedValue([{ run_id: "run-1", period_start: "2026-09-01", revision: 1,
+    status: "review_required", employee_count: 1, gross: null, net_pay: null }]);
 });
 afterEach(cleanup);
 
 describe("Payroll Control Center", () => {
+  it("opens Payroll Runs on history rather than the selected month workflow", async () => {
+    render(<PayrollPage auth={{}} />);
+    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
+    fireEvent.click(screen.getByRole("button", { name: "Payroll Runs" }));
+    await screen.findByText("2026-09");
+    expect(screen.queryByRole("navigation", { name: "Payroll Run stages" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Start Payroll" })).not.toBeNull();
+    expect(mocks.readRunHistory).toHaveBeenCalledWith("entity-1");
+  });
   it("uses four user-facing destinations and routes a time blocker into the run", async () => {
     render(<PayrollPage auth={{}} />);
     await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
     expect(screen.getByRole("navigation", { name: "Payroll sections" }).textContent).toBe("OverviewEmployeesPayroll RunsSettings");
     await screen.findByText("1 time exceptions · 0 unreconciled");
-    fireEvent.click(screen.getByRole("button", { name: /Review time →/ }));
-    expect(screen.getByRole("navigation", { name: "Payroll Run steps" })).not.toBeNull();
-    await screen.findByText("No time results for this month. Reconcile source evidence to evaluate payable time.");
+    fireEvent.click(screen.getByRole("button", { name: /Review employees →/ }));
+    expect(screen.getByRole("navigation", { name: "Payroll Run stages" })).not.toBeNull();
+    await screen.findByRole("heading", { name: "Review Employees" });
     expect(mocks.readTime).toHaveBeenCalledWith("entity-1", "2026-09-01", "2026-09-30");
   });
 
-  it("keeps employee setup and advanced rule publishing progressively disclosed", async () => {
+  it("keeps employee setup separate and shows pay rules as managed versions", async () => {
     render(<PayrollPage auth={{}} />);
     await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
     fireEvent.click(screen.getByRole("button", { name: "Employees" }));
     expect(screen.getAllByText("Set Up Employee").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByText("Manual confirmation")).not.toBeNull();
-    expect(mocks.readRules).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: /Advanced \/ Version History/ }));
     await waitFor(() => expect(mocks.readRules).toHaveBeenCalled());
+    expect(screen.getByText("Pay Calculation Rules")).not.toBeNull();
   });
 
   it("opens a finalized revision on its immutable summary, not preparation", async () => {
@@ -74,7 +87,7 @@ describe("Payroll Control Center", () => {
     await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
     expect(screen.getByRole("button", { name: /View Finalized Payroll/ })).not.toBeNull();
     expect(screen.getByText("Payroll finalized. The current revision is read-only; any correction creates a new revision.")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /2026-09 · Revision 2/ }));
+    fireEvent.click(screen.getByRole("button", { name: /View Finalized Payroll/ }));
     await screen.findByText("Revision 2 is immutable. Corrections require a new revision; this evidence is retained.");
     expect(screen.getByText(/QA Approver/)).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Finalize Payroll" })).toBeNull();

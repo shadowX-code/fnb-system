@@ -3,8 +3,8 @@ import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import Drawer from "../../../components/ui/Drawer.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 
 const rm = (value) => new Intl.NumberFormat("en-MY", {
@@ -39,8 +39,8 @@ function ResultDetail({ result, statutory, pcb, onClose }) {
       </div>)}
     </div> : <p className="text-sm text-text-secondary">None.</p>}
   </section>;
-  return <Drawer title={result.employee_name} eyebrow="Payroll result" description="Approved earnings, statutory evidence and unresolved inputs. This is not a payslip or payment instruction."
-    onClose={onClose} width="xl">
+  return <Modal title={result.employee_name} description="Payroll result · approved earnings, statutory evidence and unresolved inputs. This is not a payslip or payment instruction."
+    onClose={onClose} size="xl" footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
     <div className="space-y-5">
       <div className="grid gap-3 sm:grid-cols-3">
         <div><span className="text-xs text-text-secondary">Compensation used</span><p className="font-bold">{compensation ?
@@ -82,10 +82,10 @@ function ResultDetail({ result, statutory, pcb, onClose }) {
         <div><dt className="text-text-secondary">Pre-statutory Pay</dt><dd className="font-bold tabular-nums">{rm(result.pre_statutory_pay)}</dd></div>
       </dl>
     </div>
-  </Drawer>;
+  </Modal>;
 }
 
-export default function PayrollRunCalculationPanel({ run, components, canManage, onChanged, stage = "calculate" }) {
+export default function PayrollRunCalculationPanel({ run, components, canManage, onChanged, onReviewEmployee, stage = "calculate" }) {
   const [data, setData] = useState(null);
   const [statutory, setStatutory] = useState(null);
   const [pcb, setPcb] = useState(null);
@@ -153,8 +153,8 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     } catch (cause) { setError(cause.message || "Unable to confirm PCB / MTD."); }
     finally { setBusy(false); }
   };
-  const rows = data?.results || [];
-  const statutoryRows = statutory?.results || [];
+  const rows = (data?.results || []).map((row) => run.status === "finalized" ? { ...row, is_stale: false } : row);
+  const statutoryRows = (statutory?.results || []).map((row) => run.status === "finalized" ? { ...row, is_stale: false } : row);
   const pcbRows = pcb?.results || [];
   const statutoryFor = (row) => statutoryRows.find((item) => item.employee_id === row.employee_id);
   const schemeAmount = (row, scheme) => {
@@ -162,24 +162,15 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     const line = result?.lines?.find((item) => item.scheme === scheme);
     return !result || result.is_stale || line?.employee_amount == null ? "—" : rm(line.employee_amount);
   };
-  const allowanceTotal = (row) => (row.lines || []).filter((line) => {
-    const componentId = line.source?.component_definition_id;
-    return componentId && components.find((item) => item.id === componentId)?.component_type === "allowance";
-  }).reduce((total, line) => total + Number(line.amount || 0), 0);
   const columns = stage === "review" ? [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
     { key: "gross", header: "Gross", align: "right", render: (row) => <span className="tabular-nums">{rm(row.gross_earnings)}</span> },
-    { key: "allowances", header: "Allowances", align: "right", render: (row) => <span className="tabular-nums">{rm(allowanceTotal(row))}</span> },
-    { key: "deductions", header: "Deductions", align: "right", render: (row) => <span className="tabular-nums">{rm(row.non_statutory_deductions)}</span> },
     ...["epf", "socso", "eis"].map((scheme) => ({ key: scheme, header: scheme.toUpperCase(), align: "right", render: (row) => <span className="tabular-nums">{schemeAmount(row, scheme)}</span> })),
     { key: "pcb", header: "PCB / MTD", align: "right", render: (row) => {
       const evidence = pcbRows.find((item) => item.employee_id === row.employee_id);
-      return <div className="flex flex-col items-end gap-1 text-xs">
-        <span className="tabular-nums">{evidence?.applicable === false ? "Not applicable" : evidence?.confirmation ? rm(evidence.confirmation.amount) : "Not confirmed"}</span>
-        {canEdit && evidence?.applicable === true && <button className="btn-secondary" type="button" disabled={busy}
-          onClick={(event) => { event.stopPropagation(); openPcb(row); }}>{evidence.confirmation ? "Correct" : "Confirm PCB"}</button>}
-      </div>;
+      return <span className="tabular-nums">{evidence?.applicable === false ? "Not applicable" : evidence?.confirmation ? rm(evidence.confirmation.amount) : "Not confirmed"}</span>;
     } },
+    { key: "deductions", header: "Other Deductions", align: "right", render: (row) => <span className="tabular-nums">{rm(row.non_statutory_deductions)}</span> },
     { key: "net", header: "Net Pay", align: "right", render: (row) => <strong className="tabular-nums">{statutoryFor(row)?.net_pay == null || statutoryFor(row)?.is_stale ? "—" : rm(statutoryFor(row).net_pay)}</strong> },
     { key: "status", header: "Status", render: (row) => {
       const result = statutoryFor(row);
@@ -187,6 +178,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
       return <div><Badge tone={status === "Ready" ? "success" : "warning"}>{status}</Badge>
         {status !== "Ready" && <small className="mt-1 block max-w-48 text-text-secondary">{(result?.issues || row.issues || []).map(issueLabel).join(" · ") || "Open details to resolve"}</small>}</div>;
     } },
+    { key: "action", header: "Action", render: (row) => <button className="font-semibold text-primary" type="button" onClick={(event) => { event.stopPropagation(); onReviewEmployee?.(row.employee_id); }}>{overallStatus(row, statutoryFor(row)) === "Ready" ? "View" : "Resolve"}</button> },
   ] : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
     { key: "basis", header: "Pay Basis", render: (row) => title(row.pay_basis || "Missing") },
@@ -218,10 +210,15 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
       <div><h4 className="font-bold text-text-primary">{stage === "review" ? "Review Payroll" : "Calculate Payroll"}</h4>
         <p className="text-sm text-text-secondary">{data?.readiness ?
           `${data.readiness.employees} employees · ${data.readiness.review_required} review required · ${data.readiness.uncalculated} not calculated · ${data.readiness.stale} needs refresh${data.readiness.period_in_progress ? " · period in progress" : ""}` : "Loading payroll evidence…"}</p></div>
-      {canEdit && <div className="flex flex-wrap gap-2">{stage === "calculate" && <button className="btn-secondary" type="button" onClick={() => openAdjustment("add")}>Add variable line</button>}
+      {canEdit && <div className="flex flex-wrap gap-2">
         <button className="btn-secondary" type="button" disabled={busy || !rows.length} onClick={calculateStatutory}>{busy ? "Calculating…" : "Calculate Statutory"}</button>
-        {stage === "calculate" && <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Payroll"}</button>}</div>}
+        <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Payroll"}</button></div>}
     </div>
+    {stage === "review" && rows.length > 0 && <div className="grid gap-3 border-b border-border p-4 text-sm sm:grid-cols-3">
+      <div><span className="text-text-secondary">Gross Earnings</span><strong className="block tabular-nums">{rm(rows.reduce((sum, row) => sum + Number(row.gross_earnings || 0), 0))}</strong></div>
+      <div><span className="text-text-secondary">Net Pay</span><strong className="block tabular-nums">{statutoryRows.length === rows.length && statutoryRows.every((row) => row.net_pay != null && !row.is_stale) ? rm(statutoryRows.reduce((sum, row) => sum + Number(row.net_pay), 0)) : "Pending review"}</strong></div>
+      <div><span className="text-text-secondary">Employees</span><strong className="block">{rows.length}</strong></div>
+    </div>}
     {error && <p role="alert" className="px-4 pt-3 text-sm font-semibold text-rose-700">{error}</p>}
     {rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} density="compact" onRowClick={setSelected} /> :
       <p className="p-6 text-sm text-text-secondary">No payroll results yet. Use Calculate to prepare the employee breakdown.</p>}
@@ -257,12 +254,10 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
         <button className="btn-primary" type="button" disabled={busy || !draft.reason?.trim() || (form === "add" && (!draft.employeeId || !draft.componentId || Number(draft.amount) <= 0))}
           onClick={saveAdjustment}>{busy ? "Saving…" : form === "reverse" ? "Reverse Line" : "Add Line"}</button></>}>
       <div className="space-y-3">{form === "add" && <>
-        <AdminFormField label="Employee" required><select className="control" value={draft.employeeId} onChange={(event) => setDraft((value) => ({ ...value, employeeId: event.target.value }))}>
-          <option value="">Select employee</option>{rows.map((row) => <option key={row.employee_id} value={row.employee_id}>{row.employee_name}</option>)}
-        </select></AdminFormField>
-        <AdminFormField label="Pay Component" required><select className="control" value={draft.componentId} onChange={(event) => setDraft((value) => ({ ...value, componentId: event.target.value }))}>
-          <option value="">Select component</option>{options.map((item) => <option key={item.id} value={item.id}>{item.name} · {title(item.component_type)}</option>)}
-        </select></AdminFormField>
+        <SelectField label="Employee" required searchable value={draft.employeeId} onChange={(employeeId) => setDraft((value) => ({ ...value, employeeId }))}
+          options={rows.map((row) => ({ value: row.employee_id, label: row.employee_name }))} placeholder="Select employee" />
+        <SelectField label="Pay Component" required searchable value={draft.componentId} onChange={(componentId) => setDraft((value) => ({ ...value, componentId }))}
+          options={options.map((item) => ({ value: item.id, label: `${item.name} · ${title(item.component_type)}` }))} placeholder="Select component" />
         <AdminFormField label="Amount (RM)" required><input className="control" type="number" min="0.01" step="0.01" value={draft.amount} onChange={(event) => setDraft((value) => ({ ...value, amount: event.target.value }))} /></AdminFormField>
       </>}
         <AdminFormField label="Reason" required><input className="control" value={draft.reason || ""} onChange={(event) => setDraft((value) => ({ ...value, reason: event.target.value }))} /></AdminFormField>

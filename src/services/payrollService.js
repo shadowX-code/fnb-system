@@ -74,6 +74,13 @@ export const payrollService = {
     p_outlet_id: input.outletId || null,
   }),
   readHolidayApplicability: (id) => command("payroll_holiday_applicability_read", { p_holiday_id: id }),
+  readHolidayHistory: (id) => command("payroll_holiday_history_read", { p_holiday_id: id }),
+  updateHoliday: (input) => command("payroll_holiday_update", {
+    p_holiday_id: input.id, p_holiday_date: input.date, p_name: input.name,
+    p_scope: input.scope, p_source_note: input.sourceNote,
+    p_state_code: input.stateCode || null, p_outlet_id: input.outletId || null,
+    p_is_active: input.active, p_reason: input.reason,
+  }),
   createComponent: (input) => command("payroll_component_create", {
     p_code: input.code,
     p_name: input.name,
@@ -103,6 +110,7 @@ export const payrollService = {
     p_reason: input.reason,
     p_supersedes_run_id: input.supersedesRunId || null,
   }),
+  readRunHistory: (legalEntityId) => command("payroll_run_history_read", { p_legal_entity_id: legalEntityId }),
   transitionRun: (runId, nextStatus, reason) =>
     command("payroll_run_transition", { p_run_id: runId, p_next_status: nextStatus, p_reason: reason }),
   readTime: (legalEntityId, from, to) => command("payroll_time_read", {

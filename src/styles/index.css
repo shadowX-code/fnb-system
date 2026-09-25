@@ -744,6 +744,9 @@
     background-color: var(--theme-input-bg);
     border-color: var(--theme-input-border);
   }
+  .control[type="number"] { appearance: textfield; }
+  .control[type="number"]::-webkit-inner-spin-button,
+  .control[type="number"]::-webkit-outer-spin-button { appearance: none; margin: 0; }
 
   .admin-form-field {
     display: grid;

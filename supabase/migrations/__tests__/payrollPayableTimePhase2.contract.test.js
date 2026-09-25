@@ -7,6 +7,7 @@ const sourceGuard = readFileSync(resolve(process.cwd(), "supabase/migrations/202
 const service = readFileSync(resolve(process.cwd(), "src/services/payrollService.js"), "utf8");
 const page = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollPage.jsx"), "utf8");
 const workspace = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollTimeExceptionsTab.jsx"), "utf8");
+const employeeReview = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollRunEmployeesPanel.jsx"), "utf8");
 
 describe("Payroll Phase 2 payable-time authority", () => {
   it("owns append-only decisions and final-run snapshots without editing source evidence", () => {
@@ -38,11 +39,12 @@ describe("Payroll Phase 2 payable-time authority", () => {
     expect(migration).toContain("payroll_time_snapshot_finalized_run");
   });
 
-  it("exposes only Payroll commands and an exception-only review workspace", () => {
+  it("exposes only Payroll commands and embeds exception decisions in monthly employee review", () => {
     for (const rpc of ["payroll_time_read", "payroll_time_reconcile", "payroll_time_decide", "payroll_run_time_readiness"])
       expect(service).toContain(rpc);
     expect(service).not.toContain('.from("crew_attendance_records")');
-    expect(page).toContain('"Review Time"');
+    expect(page).toContain('"Review Employees"');
+    expect(employeeReview).toContain("<DecisionModal");
     expect(workspace).toContain("Reconcile Evidence");
     expect(workspace).toContain("Record Decision");
     expect(workspace).toContain("Original Roster, Attendance and Leave evidence is never edited.");

@@ -4,6 +4,8 @@ import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
+import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 
 const localDate = () => new Intl.DateTimeFormat("en-CA", {
@@ -19,7 +21,7 @@ const monthRange = (month) => ({
   to: new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10),
 });
 
-function DecisionModal({ row, onClose, onSaved }) {
+export function DecisionModal({ row, onClose, onSaved }) {
   const [action, setAction] = useState("approve");
   const [minutes, setMinutes] = useState(row.proposed_minutes ?? "");
   const [extra, setExtra] = useState(0);
@@ -53,12 +55,11 @@ function DecisionModal({ row, onClose, onSaved }) {
       </div>
       <div><strong>Issues requiring review</strong><p className="text-text-secondary">{row.issue_codes?.map(titleCase).join(" · ") || "—"}</p></div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <AdminFormField label="Decision"><select className="control" value={action} onChange={(event) => setAction(event.target.value)}>
-          <option value="approve">Approve proposed time</option><option value="adjust">Adjust payable time</option><option value="reject">Reject / Non-payable</option>
-        </select></AdminFormField>
-        {action !== "reject" && <AdminFormField label="Classification"><select className="control" value={classification} onChange={(event) => setClassification(event.target.value)}>
-          {["regular", "overtime", "rest_day", "public_holiday", "public_holiday_ot", "leave", "non_payable"].map((value) => <option key={value} value={value}>{titleCase(value)}</option>)}
-        </select></AdminFormField>}
+        <SelectField label="Decision" value={action} onChange={setAction} options={[
+          { value: "approve", label: "Approve proposed time" }, { value: "adjust", label: "Adjust payable time" }, { value: "reject", label: "Reject / Non-payable" },
+        ]} />
+        {action !== "reject" && <SelectField label="Classification" value={classification} onChange={setClassification}
+          options={["regular", "overtime", "rest_day", "public_holiday", "public_holiday_ot", "leave", "non_payable"].map((value) => ({ value, label: titleCase(value) }))} />}
         {action !== "reject" && <AdminFormField label="Approved payable minutes" required><input className="control" type="number" min="0" max="1440" step="1" value={minutes} onChange={(event) => setMinutes(event.target.value)} /></AdminFormField>}
         {action !== "reject" && <AdminFormField label="Approved extra / OT minutes"><input className="control" type="number" min="0" max="1440" step="1" value={extra} onChange={(event) => setExtra(event.target.value)} /></AdminFormField>}
       </div>
@@ -114,9 +115,9 @@ export default function PayrollTimeExceptionsTab({ data, canManage, legalEntityI
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3"><div><h2 className="text-lg font-bold">{embedded ? "Review Time" : "Time Exceptions"}</h2><p className="text-sm text-text-secondary">Review only shifts with meaningful discrepancies. Source Roster and Attendance records stay unchanged.</p></div>
       {canManage && <button className="btn-primary" type="button" disabled={busy || loading || !entityId || range.from > localDate()} onClick={reconcile}>{busy ? "Reconciling..." : "Reconcile Evidence"}</button>}</div>
-    {!embedded && <Card className="grid gap-3 p-4 sm:grid-cols-2"><AdminFormField label="Legal Entity"><select className="control" value={entityId} onChange={(event) => setLocalEntityId(event.target.value)}>
-      {(data.legal_entities || []).map((item) => <option key={item.id} value={item.id}>{item.display_name || item.name}</option>)}</select></AdminFormField>
-      <AdminFormField label="Month"><input className="control" type="month" value={month} onChange={(event) => setLocalMonth(event.target.value)} /></AdminFormField></Card>}
+    {!embedded && <Card className="grid gap-3 p-4 sm:grid-cols-2"><SelectField label="Legal Entity" value={entityId} onChange={setLocalEntityId}
+      options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />
+      <MonthPickerField label="Month" value={month} onChange={setLocalMonth} /></Card>}
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     <Card><div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3 text-sm font-semibold"><span>{exceptions.length} exception{exceptions.length === 1 ? "" : "s"} requiring review · {rows.length} time result{rows.length === 1 ? "" : "s"}</span>
       {rows.length > exceptions.length && <button className="text-teal-700 underline-offset-2 hover:underline" type="button" onClick={() => setShowAll((value) => !value)}>{showAll ? "Show exceptions only" : "Show all results"}</button>}</div>

@@ -22,22 +22,28 @@ runs keep `foundation_only=true`; open and new runs use the stricter contract.
 ## Admin Payroll Control Center
 
 The People Payroll UI has four destinations: Overview, Employees, Payroll Runs,
-and Settings. Overview is scoped to a Legal Entity and pay period and links
-readiness blockers to their owning resolution step. Employees manages the
+and Settings. Overview is scoped to a Legal Entity and pay period, summarizes
+available financial totals and links readiness blockers to their owning
+resolution step. It does not execute the Run workflow. Employees manages the
 effective-dated Payroll setup without changing Employee or Contract authority.
-Payroll Runs is the monthly working surface: Prepare → Review Time → Calculate
-→ Review Payroll → Finalize. Payable-time exceptions are reviewed inside the
-selected Run rather than in a separate top-level destination. PCB/MTD
-confirmation remains an authorized per-employee, per-Run action in Review
-Payroll; Ready and Finalize still rely on the canonical server gates. Settings
-shows operational statutory methods, holidays, and pay components by default,
-with technical rule publication and version history disclosed on demand.
+Payroll Runs opens on a server-scoped history table with current/superseded
+revisions and available totals. Opening a Run enters Review Employees → Review
+Payroll → Finalize. Preflight and calculation are system actions, not extra
+navigation stages. Payable-time exceptions, one-period adjustments and
+PCB/MTD confirmation are resolved through centered monthly employee review;
+permanent setup remains in Employees. Ready and Finalize still rely on the
+canonical server gates. Settings presents operational statutory methods,
+shared-geography holidays, Pay Components and current supported Pay Calculation
+Rules; rule publication opens only from a selected append-only rule version.
 Payroll Settings uses the shared Admin underline-tab pattern below the four
 primary destinations. Employee setup opens in a read-only detail drawer from a
 Legal-Entity-scoped filter/list; explicit actions open the existing effective-
-dated commands. Pay Components use List → View → Edit with audited changes;
+dated commands. Pay Components use List → View Modal → Edit/Create Modal with audited changes;
 their immutable technical code is normally generated from the name and shown
-under Advanced information.
+under Advanced information. Their `undetermined` backend treatment remains
+fail-closed but appears as Not configured, never as a normal selectable choice.
+Payroll forms use the shared FeedX Select, Date Picker and Month Picker; Pay
+Period is month-only, while Public Holiday and effective dates use dates.
 Finalized Run revisions are read-only, and historical corrections create a new
 revision rather than editing final evidence. The authorized Payroll read
 projection includes the finalized approver's display name with the Run, even
@@ -80,6 +86,11 @@ the existing Outlet master and captured as append-only, date-effective
 today's free-text address or state. If a State holiday exists but outlet
 geography is unknown, Payable Time stays Review Required. Holiday context can
 classify a shift, but does not itself establish a monetary holiday-pay rule.
+Shared future holidays may be edited only while unconsumed by payable-time
+evidence. The server enforces Owner/Admin authority, a reason, valid geography,
+and an audited before/after event; past, legacy Legal-Entity-specific or
+consumed definitions remain read-only. Finalized Payroll snapshots are never
+edited by this command.
 The `MY-01`–`MY-16` state/federal-territory list follows the [Department of
 Statistics Malaysia state-code listing](https://www.dosm.gov.my/uploads/release-content/file_20260319123633.pdf).
 
