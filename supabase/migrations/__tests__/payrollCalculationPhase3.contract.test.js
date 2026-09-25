@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925115140_payroll_calculation_phase3.sql"), "utf8");
-const hourlyFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925120000_payroll_hourly_midperiod_effective_fix.sql"), "utf8");
+const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925120914_payroll_calculation_phase3.sql"), "utf8");
+const hourlyFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925121036_payroll_hourly_midperiod_effective_fix.sql"), "utf8");
 const page = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollPage.jsx"), "utf8");
 const calculationPanel = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollRunCalculationPanel.jsx"), "utf8");
 const rulesPanel = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollPayRulesPanel.jsx"), "utf8");
