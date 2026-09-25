@@ -8,6 +8,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import { hasPermission } from "../../../utils/accessControl.js";
 import { payrollService } from "../../../services/payrollService.js";
+import PayrollTimeExceptionsTab from "./PayrollTimeExceptionsTab.jsx";
 
 const today = () => new Intl.DateTimeFormat("en-CA", {
   timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit",
@@ -209,7 +210,16 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
   const [error, setError] = useState("");
   const [pendingTransition, setPendingTransition] = useState(null);
   const [transitionReason, setTransitionReason] = useState("");
+  const [readiness, setReadiness] = useState({});
   const periods = (data.periods || []).filter((item) => !entityId || item.legal_entity_id === entityId);
+  useEffect(() => {
+    const runs = periods.flatMap((period) => period.runs || []).filter((run) => ["draft", "review_required", "ready"].includes(run.status));
+    let active = true;
+    Promise.all(runs.map(async (run) => [run.id, await payrollService.runTimeReadiness(run.id)]))
+      .then((results) => { if (active) setReadiness(Object.fromEntries(results)); })
+      .catch(() => { if (active) setReadiness({}); });
+    return () => { active = false; };
+  }, [data.periods, entityId]);
   const create = async (supersedesRunId = null, period = null) => {
     setBusy(true); setError("");
     try {
@@ -240,7 +250,7 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
   };
   return <div className="space-y-4">
     <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
-      <strong>Foundation only.</strong> These runs pin profile/version evidence, not wage amounts. No statutory calculation, payment or payslip is available. “Paid” cannot be entered in Phase 1.
+      <strong>Time evidence, not wages.</strong> These runs pin profile/version and approved payable-time evidence, not wage amounts. No statutory calculation, payment or payslip is available. “Paid” remains unavailable.
     </div>
     {canManage && <Card className="p-4"><div className="grid gap-3 sm:grid-cols-4">
       <AdminFormField label="Legal Entity"><Select value={entityId} onChange={setEntityId} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} /></AdminFormField>
@@ -256,9 +266,10 @@ function RunsTab({ data, canManage, canFinalize, reload }) {
           <button className="btn-secondary" type="button" disabled={busy || !reason.trim()} onClick={() => create(period.current_finalized_run_id, period)}>Create Correction Draft</button>}
       </div>
       <div className="mt-3 divide-y divide-border">{(period.runs || []).map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
-        <span>Revision {run.revision} {run.supersedes_run_id ? "· Correction" : ""} <Badge tone={run.status === "finalized" ? "success" : "neutral"}>{label(run.status)}</Badge></span>
+        <span>Revision {run.revision} {run.supersedes_run_id ? "· Correction" : ""} <Badge tone={run.status === "finalized" ? "success" : "neutral"}>{label(run.status)}</Badge>
+          {readiness[run.id] && <small className="block text-text-secondary">Hourly time: {readiness[run.id].ready ? "Ready" : `${readiness[run.id].unresolved} unresolved · ${readiness[run.id].unreconciled} unreconciled · ${readiness[run.id].stale} stale${readiness[run.id].period_in_progress ? " · period in progress" : ""}`}</small>}</span>
         <div className="flex flex-wrap gap-2">{canManage && run.status === "draft" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Send to Review</button>}
-          {canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
+          {canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy || !readiness[run.id]?.ready} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
           {canFinalize && run.status === "ready" && <button className="btn-primary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "finalized")}>Finalize Foundation</button>}</div>
       </div>)}</div>
     </Card>) : <Card className="p-8 text-center text-sm text-text-secondary">No Payroll Runs for this Legal Entity.</Card>}</div>
@@ -350,16 +361,17 @@ export default function PayrollPage({ auth }) {
       : loading && !data ? <Card className="p-8 text-center text-sm text-text-secondary">Loading Payroll...</Card>
         : error ? <Card className="p-8 text-sm font-semibold text-rose-700" role="alert">{error}<button className="btn-secondary ml-3" type="button" onClick={reload}>Retry</button></Card>
           : <><nav aria-label="Payroll sections" className="flex flex-wrap gap-2">
-            {[["overview","Overview"],["profiles","Profiles"],["runs","Runs"],["settings","Settings"]].map(([key,title]) =>
+            {[["overview","Overview"],["profiles","Profiles"],["time","Time Exceptions"],["runs","Runs"],["settings","Settings"]].map(([key,title]) =>
               <button key={key} type="button" className={tab === key ? "btn-primary" : "btn-secondary"} onClick={() => setTab(key)}>{title}</button>)}
           </nav>
           {tab === "overview" && <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
               ["Payroll Profiles", counts.profiles],["Monthly Basis", counts.monthly],["Hourly Basis", counts.hourly],["Open Runs", counts.openRuns],
             ].map(([title,value]) => <Card key={title} className="p-4"><p className="text-sm text-text-secondary">{title}</p><p className="mt-1 text-2xl font-bold">{value}</p></Card>)}</div>
-            <Card className="p-5"><div className="flex items-start gap-3"><Wallet size={20} className="text-teal-700" /><div><h2 className="font-bold">Payroll Foundation</h2><p className="mt-1 text-sm text-text-secondary">Compensation versions, statutory applicability, recurring components, holiday context and Legal Entity runs are available. Payable time, statutory amounts, payments and payslips are deliberately not calculated in Phase 1.</p></div></div></Card>
+            <Card className="p-5"><div className="flex items-start gap-3"><Wallet size={20} className="text-teal-700" /><div><h2 className="font-bold">Payroll Time Evidence</h2><p className="mt-1 text-sm text-text-secondary">Compensation remains effective-dated. Published Roster, Attendance, approved Leave and public-holiday context now produce payable-time proposals and exceptions for review. Wages, statutory amounts, payments and payslips are not calculated here.</p></div></div></Card>
           </div>}
           {tab === "profiles" && <ProfilesTab data={data} canManage={canManage} reload={reload} />}
+          {tab === "time" && <PayrollTimeExceptionsTab data={data} canManage={canManage} />}
           {tab === "runs" && <RunsTab data={data} canManage={canManage} canFinalize={canFinalize} reload={reload} />}
           {tab === "settings" && <SettingsTab data={data} canManage={canManage} reload={reload} />}
         </>}

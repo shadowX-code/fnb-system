@@ -10,11 +10,11 @@ remains scheduled work, Attendance remains actual evidence, and neither becomes
 payable time until Payroll explicitly approves a result in a later phase.
 
 Phase 1 provides profiles, effective-dated history, component definitions,
-holiday context and Legal-Entity-owned run state. It does **not** calculate
-payable hours, gross/net wages, EPF/SOCSO/EIS/PCB amounts, employer cost,
-payment, or payslips. A Phase 1 finalized run is marked `foundation_only`
-and pins input-profile evidence only; it must not be represented as a payable
-or paid payroll.
+holiday context and Legal-Entity-owned run state. Phase 2 adds payable-time
+evidence and exception decisions. It does **not** calculate gross/net wages,
+EPF/SOCSO/EIS/PCB amounts, employer cost, payment, or payslips. Runs remain
+`foundation_only`; a Phase 1 finalized run pins profile inputs only, while
+later finalized runs also pin approved time versions. Neither is a paid run.
 
 ## Profile and Compensation Authority
 
@@ -71,8 +71,29 @@ authority.
 
 ## Deferred
 
-Phase 2 must define and approve payable time from published roster, original
-attendance and leave evidence. Later phases need versioned pay rules,
+Phase 2 stores append-only employee/day time versions. Reconciliation reads
+the attendance-pinned published roster revision where available, original
+Attendance, approved Leave, effective compensation context and the Payroll
+holiday calendar. Normal completed shifts use the published duration less its
+unpaid break; small clock noise does not add payable time. Late/early time,
+extra time, missing punches, unscheduled work, mismatch, leave and holiday
+ambiguity require review. A reviewer records approved minutes, any extra/OT
+minutes, classification and a reason without editing source evidence. The
+latest source fingerprint is rechecked before a decision; a changed source
+requires reconciliation. Decisions and audit events are append-only.
+
+Hourly employees require reconciled, approved time evidence before a Run can
+become Ready. An in-progress hourly pay period cannot be marked Ready. A
+finalized period requires an open correction Run before time decisions change;
+the prior Run's time snapshot remains immutable. Monthly employees may have
+time evidence, but it does not yet drive wage calculation. State holiday
+applicability without a canonical workplace-state mapping is an exception,
+not an assumed paid holiday. Paid leave without a scheduled duration likewise
+requires review. The 10-minute clock-noise threshold is aligned with existing
+Crew punctuality evidence, and only suppresses an extra-time exception; it
+never awards extra payable minutes.
+
+Later phases need versioned pay rules,
 verified Malaysian statutory calculation, monetary run lines, immutable
 payslips, settlement and Finance labour-cost projections. No current
-Operating Expenses or Reporting value is changed by Phase 1.
+Operating Expenses or Reporting value is changed by Phase 2.

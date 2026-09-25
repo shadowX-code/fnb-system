@@ -81,4 +81,16 @@ export const payrollService = {
   }),
   transitionRun: (runId, nextStatus, reason) =>
     command("payroll_run_transition", { p_run_id: runId, p_next_status: nextStatus, p_reason: reason }),
+  readTime: (legalEntityId, from, to) => command("payroll_time_read", {
+    p_legal_entity_id: legalEntityId, p_from: from, p_to: to,
+  }),
+  reconcileTime: (legalEntityId, from, to) => command("payroll_time_reconcile", {
+    p_legal_entity_id: legalEntityId, p_from: from, p_to: to,
+  }),
+  decideTime: ({ id, action, approvedMinutes, extraMinutes, classification, reason }) =>
+    command("payroll_time_decide", {
+      p_time_version_id: id, p_action: action, p_approved_minutes: approvedMinutes,
+      p_extra_minutes: extraMinutes, p_classification: classification, p_reason: reason,
+    }),
+  runTimeReadiness: (runId) => command("payroll_run_time_readiness", { p_run_id: runId }),
 };
