@@ -142,6 +142,68 @@ function FoundationForm({ mode, profile, data, onClose, onSaved }) {
   </Modal>;
 }
 
+function StatutoryCategoryForm({ profile, onClose }) {
+  const [versions, setVersions] = useState(null);
+  const [draft, setDraft] = useState({ effectiveFrom: today(), epfCategory: "", socsoCategory: "",
+    eisCategory: "", sourceNote: "", reason: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true;
+    payrollService.readStatutoryInput(profile.id).then((result) => {
+      if (!active) return;
+      const rows = result.versions || [];
+      setVersions(rows);
+      if (rows[0]) setDraft((value) => ({ ...value,
+        epfCategory: rows[0].epf_category || "", socsoCategory: rows[0].socso_category || "",
+        eisCategory: rows[0].eis_category || "" }));
+    }).catch((cause) => { if (active) setError(cause.message || "Unable to read statutory categories."); });
+    return () => { active = false; };
+  }, [profile.id]);
+  const patch = (key, value) => setDraft((old) => ({ ...old, [key]: value }));
+  const save = async () => {
+    setBusy(true); setError("");
+    try {
+      await payrollService.reviewStatutoryInput({ ...draft, profileId: profile.id });
+      onClose();
+    } catch (cause) { setError(cause.message || "Unable to review statutory categories."); }
+    finally { setBusy(false); }
+  };
+  const allowed = versions && draft.effectiveFrom && (!versions[0] || draft.effectiveFrom > versions[0].effective_from)
+    && draft.sourceNote.trim().length >= 8 && draft.reason.trim().length >= 3;
+  return <Modal title={`Review Statutory Categories · ${profile.employee_name}`}
+    description="Select only verified categories. Unsupported or missing employee evidence remains Review Required. PCB / MTD is confirmed per Run."
+    size="lg" onClose={onClose} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={onClose}>Cancel</button>
+      <button className="btn-primary" type="button" disabled={!allowed || busy} onClick={save}>{busy ? "Saving…" : "Save Review"}</button></>}>
+    <div className="space-y-4">
+      {versions === null && !error && <p className="text-sm text-text-secondary">Loading reviewed categories…</p>}
+      {versions?.[0] && <p className="text-sm text-text-secondary">Latest review: {versions[0].effective_from}. New evidence must have a later effective date.</p>}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <AdminFormField label="EPF category"><Select value={draft.epfCategory} onChange={(value) => patch("epfCategory", value)} options={[
+          { value: "", label: "Unreviewed" }, { value: "malaysian_under_60", label: "Malaysian · under 60" },
+          { value: "malaysian_60_to_74", label: "Malaysian · 60–74" },
+        ]} /></AdminFormField>
+        <AdminFormField label="SOCSO category"><Select value={draft.socsoCategory} onChange={(value) => patch("socsoCategory", value)} options={[
+          { value: "", label: "Unreviewed" }, { value: "first_category_base", label: "Act 4 · First Category" },
+          { value: "second_category_base", label: "Act 4 · Second Category" },
+        ]} /></AdminFormField>
+        <AdminFormField label="EIS category"><Select value={draft.eisCategory} onChange={(value) => patch("eisCategory", value)} options={[
+          { value: "", label: "Unreviewed" }, { value: "standard", label: "Standard" },
+        ]} /></AdminFormField>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <AdminFormField label="Effective From" required><input className="control" type="date" value={draft.effectiveFrom}
+          onChange={(event) => patch("effectiveFrom", event.target.value)} /></AdminFormField>
+        <AdminFormField label="Official/source reference" required><input className="control" value={draft.sourceNote}
+          onChange={(event) => patch("sourceNote", event.target.value)} /></AdminFormField>
+      </div>
+      <AdminFormField label="Review reason" required><input className="control" value={draft.reason}
+        onChange={(event) => patch("reason", event.target.value)} /></AdminFormField>
+      {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
+    </div>
+  </Modal>;
+}
+
 function ProfilesTab({ data, canManage, reload }) {
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState("");
@@ -188,6 +250,7 @@ function ProfilesTab({ data, canManage, reload }) {
       {canManage && <div className="flex flex-wrap gap-2">
         <button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Adjust Compensation</button>
         <button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Review Applicability</button>
+        <button className="btn-secondary" type="button" onClick={() => setForm("categories")}>Review Statutory Categories</button>
         <button className="btn-secondary" type="button" onClick={() => setForm("recurring")}>Adjust Recurring Component</button>
       </div>}
       <div className="grid gap-5 lg:grid-cols-2">
@@ -200,7 +263,8 @@ function ProfilesTab({ data, canManage, reload }) {
             <div key={item.id} className="flex justify-between gap-3 px-3 py-2 text-sm"><span>{data.components?.find((component) => component.id === item.component_id)?.name || "Component"}<small className="block text-text-muted">From {item.effective_from}</small></span><strong>{money(item.amount)}</strong></div>) : <p className="p-3 text-sm text-text-secondary">No active recurring components.</p>}</div></section>
       </div>
     </Card>}
-    {form && <FoundationForm mode={form} profile={selected} data={data} onClose={() => setForm("")} onSaved={reload} />}
+    {form === "categories" ? <StatutoryCategoryForm profile={selected} onClose={() => setForm("")} />
+      : form && <FoundationForm mode={form} profile={selected} data={data} onClose={() => setForm("")} onSaved={reload} />}
   </div>;
 }
 

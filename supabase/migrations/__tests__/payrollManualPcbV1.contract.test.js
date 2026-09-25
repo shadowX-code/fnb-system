@@ -6,6 +6,10 @@ const migration = readFileSync(resolve(process.cwd(),
   "supabase/migrations/20260925143613_payroll_manual_pcb_v1.sql"), "utf8");
 const scope = readFileSync(resolve(process.cwd(),
   "supabase/migrations/20260925144113_payroll_pcb_read_employee_scope.sql"), "utf8");
+const guard = readFileSync(resolve(process.cwd(),
+  "supabase/migrations/20260925144939_payroll_command_guard_table_scope_fix.sql"), "utf8");
+const categories = readFileSync(resolve(process.cwd(),
+  "supabase/migrations/20260925145221_payroll_statutory_input_scoped_read.sql"), "utf8");
 const service = readFileSync(resolve(process.cwd(), "src/services/payrollService.js"), "utf8");
 const panel = readFileSync(resolve(process.cwd(),
   "src/features/company-users/pages/PayrollRunCalculationPanel.jsx"), "utf8");
@@ -37,6 +41,8 @@ describe("Payroll V1 manual PCB statutory authority", () => {
     expect(migration).toContain("enable row level security");
     expect(migration).toContain("revoke all on public.payroll_run_pcb_confirmations");
     expect(scope).toContain("payroll_can_access_employee(member.employee_id,'payroll.view')");
+    expect(guard).toContain("if tg_op='UPDATE' and tg_table_name='payroll_runs' then\n    if old.status");
+    expect(categories).toContain("payroll_can_access_employee(v_employee_id,'payroll.view')");
     expect(service).toContain('command("payroll_run_pcb_confirm"');
     expect(service).toContain('command("payroll_run_pcb_read"');
     expect(panel).toContain("PCB confirmation history · Admin/Audit");

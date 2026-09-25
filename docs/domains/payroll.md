@@ -153,6 +153,12 @@ so a future automatic method can replace the authority without changing the
 Run or future Payslip-facing amount contract. Missing applicable PCB stays
 Review Required, never inferred RM0. A reviewed not-applicable decision is
 the only zero-contribution path without confirmation.
+The Profile detail exposes a scoped Admin category review backed by the
+existing `payroll_statutory_input_adjust` command; it lists only supported
+categories and keeps unsupported/unknown evidence unreviewed. A scoped read
+returns prior versions. The shared Payroll trigger guard checks `OLD.status`
+only on `payroll_runs` updates, so creating a Profile or other record is not
+blocked by unrelated row shapes.
 Phase 4 results and employer/employee shares are append-only; Finalization
 pins the exact result, input, band and schedule evidence. Total Employer Cost
 includes gross earnings, reimbursements and employer statutory contributions.

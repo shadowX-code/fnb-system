@@ -45,6 +45,17 @@ export const payrollService = {
     p_pcb: input.pcb ?? null,
     p_reason: input.reason,
   }),
+  readStatutoryInput: (profileId) => command("payroll_statutory_input_read", { p_profile_id: profileId }),
+  reviewStatutoryInput: (input) => command("payroll_statutory_input_adjust", {
+    p_profile_id: input.profileId,
+    p_effective_from: input.effectiveFrom,
+    p_epf_category: input.epfCategory || null,
+    p_socso_category: input.socsoCategory || null,
+    p_eis_category: input.eisCategory || null,
+    p_pcb_inputs: {},
+    p_source_note: input.sourceNote,
+    p_reason: input.reason,
+  }),
   adjustRecurring: (input) => command("payroll_recurring_adjust", {
     p_profile_id: input.profileId,
     p_component_id: input.componentId,
