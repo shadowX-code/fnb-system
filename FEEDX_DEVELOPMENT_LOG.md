@@ -595,3 +595,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Added bounded private source PDF/hash evidence and revision-locked import candidates ahead of the existing Annual Calendar publisher. Verified transcription, exception-only diff/review, explicit complete-source approval and publication retain server actor/time and append-only history.
 - Matched entries need no repetitive review; missing entries are retained, uncertainty blocks publication, and source updates never advance Company Paid Holiday assignments. Required paid status is never inferred by the importer.
 - No unattended fetch/parser/publication or Payroll/Leave calculation change. Synthetic QA imports are explicitly opt-in and cannot replace live operational calendars.
+
+# 2026-09-27 — Guided Public Holidays Admin Workflow
+
+- Prepared calendar review/publication, inline company paid-holiday selection and inline PH benefit setup now lead to one operational readiness state. Source capture, exceptions and technical history remain progressive disclosure; no calculation authority changed.
+- Authenticated isolated synthetic Staging workflow passed from empty year through Ready and refresh. QA company deactivated and calendars/import retired through canonical commands; immutable evidence retained. See `qa/staging/payrollHolidayWorkflow.closure.md`.
