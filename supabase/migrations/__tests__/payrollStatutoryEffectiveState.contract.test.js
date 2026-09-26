@@ -1,6 +1,7 @@
 import {readFileSync} from 'node:fs';
 import {describe,it,expect} from 'vitest';
 const sql=readFileSync('supabase/migrations/20260926043815_payroll_statutory_effective_state.sql','utf8');
+const finalRead=readFileSync('supabase/migrations/20260926044154_payroll_statutory_summary_read_fix.sql','utf8');
 describe('Statutory effective setup projection',()=>{
   it('distinguishes recommendation from confirmation without making it complete',()=>{
     expect(sql).toContain("issue is not null and recommendation is not null then 'confirmation_required'");
@@ -17,5 +18,7 @@ describe('Statutory effective setup projection',()=>{
     expect(sql).not.toMatch(/create or replace function public\.payroll_(statutory_project|run_finalize|statutory_setup_confirm)/);
     expect(sql).not.toMatch(/\b(update|delete from|insert into) public\.payroll_/i);
     expect(sql).toContain('from public,anon,authenticated');
+    expect(finalRead).toContain("public.payroll_statutory_setup_summary(p.id,(clock_timestamp() at time zone 'Asia/Kuala_Lumpur')::date)");
+    expect(finalRead).not.toContain('::date,null)');
   });
 });
