@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), reverseRunComponent: vi.fn(), addRunComponent: vi.fn(), decideTime: vi.fn() }));
+const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), saveDraftAdjustment: vi.fn(), decideTime: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
 import PayrollRunEmployeesPanel from "../PayrollRunEmployeesPanel.jsx";
 afterEach(cleanup);
@@ -14,7 +14,7 @@ beforeEach(() => {
 const props = { run: { id: "run", status: "draft" }, entityId: "entity", month: "2026-09", canManage: true, data: { employees: [{ id: "employee", name: "QA Employee" }], profiles: [{ employee_id: "employee", compensation: [{ effective_from: "2026-01-01", pay_basis: "monthly", basic_salary: 2000 }], statutory: [{ effective_from: "2026-01-01", pcb_applicable: false }] }] } };
 it("keeps monthly time irrelevant and displays persisted deductions before calculation", async () => {
   render(<PayrollRunEmployeesPanel {...props} />);
-  fireEvent.click(screen.getByRole("button", { name: "All", exact: true }));
+  expect(screen.queryByRole("button", { name: "All", exact: true })).toBeNull();
   await screen.findByText("QA Employee");
   expect(screen.getByText("Not required")).toBeTruthy();
   expect(screen.getByText(/1 adjustment/)).toBeTruthy();
@@ -41,7 +41,6 @@ it("resolves period-effective categories and PCB N/A beside current amounts", as
     pcb:{state:"not_applicable",applicable:false},
   }},projection:{status:"ready",inputs:{compensation_start:{id:"pay",pay_basis:"monthly",basic_salary:2000,effective_from:"2026-01-01"}}}}]});
   render(<PayrollRunEmployeesPanel {...props} />);
-  fireEvent.click(screen.getByRole("button", {name:"All",exact:true}));
   await screen.findByText("Ready · EPF / SOCSO / EIS");
   fireEvent.click(screen.getByRole("button",{name:"Review",exact:true}));
   expect(screen.getByText("Malaysian · under 60")).toBeTruthy();
@@ -50,17 +49,18 @@ it("resolves period-effective categories and PCB N/A beside current amounts", as
   expect(screen.getAllByText(/1,766.35/).length).toBe(2);
   expect(screen.queryByRole("heading",{name:"Time & Attendance"})).toBeNull();
 });
-it("reverses an adjustment then refreshes only that employee's calculations", async () => {
-  mocks.reverseRunComponent.mockResolvedValue({});
+it("removes a Draft adjustment without required remark and refreshes only that employee", async () => {
+  mocks.saveDraftAdjustment.mockResolvedValue({});
   mocks.recalculateEmployee.mockResolvedValue({});
   render(<PayrollRunEmployeesPanel {...props} />);
   await screen.findByText("QA Employee");
   fireEvent.click(screen.getByRole("button",{name:"Review",exact:true}));
-  fireEvent.click(screen.getByRole("button",{name:"Reverse",exact:true}));
-  fireEvent.change(screen.getByRole("textbox",{name:/Reason/}),{target:{value:"QA reversal"}});
-  fireEvent.click(screen.getByRole("button",{name:"Reverse Adjustment"}));
+  fireEvent.click(screen.getByRole("button",{name:"Remove",exact:true}));
+  expect(screen.queryByRole("textbox",{name:/Reason/})).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:"Remove Adjustment"}));
   await waitFor(()=>expect(mocks.recalculateEmployee).toHaveBeenCalledWith("run","employee"));
-  expect(mocks.reverseRunComponent.mock.invocationCallOrder.at(-1)).toBeLessThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1));
+  expect(mocks.saveDraftAdjustment).toHaveBeenCalledWith(expect.objectContaining({action:"remove",adjustmentId:"line",reason:""}));
+  expect(mocks.saveDraftAdjustment.mock.invocationCallOrder.at(-1)).toBeLessThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1));
 });
 it("still exposes time-dependent employee evidence", async () => {
   mocks.readPreparation.mockResolvedValue({ results: [{ employee_id: "employee", time_relevant: true, projection: { status: "review_required", issues: ["unreconciled_time:2026-09-01"], lines: [] } }] });
@@ -69,6 +69,21 @@ it("still exposes time-dependent employee evidence", async () => {
   expect(screen.getByText("Time evidence required")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Review", exact: true }));
   expect(screen.getByRole("heading", { name: "Time & Attendance" })).toBeTruthy();
+});
+it("edits an existing Draft input and recalculates after the atomic save", async () => {
+  mocks.readCalculation.mockResolvedValue({results:[],adjustments:[{id:"line",employee_id:"employee",component_id:"component",component_name:"QA allowance",component_type:"allowance",amount:50,reason:"Previous evidence"}]});
+  mocks.saveDraftAdjustment.mockResolvedValue("replacement");
+  mocks.recalculateEmployee.mockResolvedValue({});
+  render(<PayrollRunEmployeesPanel {...props} data={{...props.data,components:[{id:"component",name:"QA allowance",component_type:"allowance",is_active:true,epf_treatment:"excluded",socso_treatment:"excluded",eis_treatment:"excluded",pcb_treatment:"excluded"}]}} />);
+  await screen.findByText("QA Employee");
+  fireEvent.click(screen.getByRole("button",{name:"Review",exact:true}));
+  fireEvent.click(screen.getByRole("button",{name:"Edit",exact:true}));
+  const input=screen.getByRole("spinbutton",{name:/Amount/});
+  expect(input.value).toBe("50");
+  fireEvent.change(input,{target:{value:"54"}});
+  fireEvent.click(screen.getByRole("button",{name:"Edit Adjustment",exact:true}));
+  await waitFor(()=>expect(mocks.saveDraftAdjustment).toHaveBeenCalledWith(expect.objectContaining({action:"edit",adjustmentId:"line",componentId:"component",amount:"54",reason:""})));
+  await waitFor(()=>expect(mocks.recalculateEmployee).toHaveBeenLastCalledWith("run","employee"));
 });
 it("shows calculated adjustment provenance once and derives the chosen component type", async () => {
   mocks.readCalculation.mockResolvedValue({ results: [{ employee_id: "employee", status: "ready", gross_earnings: 2050, lines: [

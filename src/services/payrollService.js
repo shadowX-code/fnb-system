@@ -79,7 +79,8 @@ export const payrollService = {
     p_state_code: input.stateCode || null, p_outlet_id: input.outletId || null,
     p_is_active: input.active, p_reason: input.reason,
   }),
-  createComponent: (input) => command("payroll_component_create", {
+  createComponent: (input) => command("payroll_component_save", {
+    p_component_id: null,
     p_code: input.code,
     p_name: input.name,
     p_component_type: input.type,
@@ -87,19 +88,28 @@ export const payrollService = {
     p_socso_treatment: input.socso,
     p_eis_treatment: input.eis,
     p_pcb_treatment: input.pcb,
-    p_reason: input.reason,
+    p_is_active: input.active ?? true,
+    p_remark: input.reason || null,
   }),
-  updateComponent: (input) => command("payroll_component_update", {
+  updateComponent: (input) => command("payroll_component_save", {
     p_component_id: input.id,
+    p_code: null,
+    p_component_type: null,
     p_name: input.name,
     p_epf_treatment: input.epf,
     p_socso_treatment: input.socso,
     p_eis_treatment: input.eis,
     p_pcb_treatment: input.pcb,
     p_is_active: input.active,
-    p_source_note: input.sourceNote,
-    p_reason: input.reason,
+    p_remark: input.reason || null,
   }),
+  saveDraftAdjustment: (input) => command("payroll_draft_adjustment_save", {
+    p_request_id: input.requestId, p_run_id: input.runId, p_employee_id: input.employeeId,
+    p_action: input.action || "add", p_adjustment_id: input.adjustmentId || null,
+    p_component_id: input.componentId || null, p_amount: input.amount === "" ? null : Number(input.amount),
+    p_remark: input.reason || null,
+  }),
+  readFinalizedRecord: (runId) => command("payroll_finalized_record_read", { p_run_id: runId }),
   readComponentHistory: (id) => command("payroll_component_history_read", { p_component_id: id }),
   createRun: (input) => command("payroll_run_create", {
     p_legal_entity_id: input.legalEntityId,

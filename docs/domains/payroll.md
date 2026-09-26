@@ -1,5 +1,28 @@
 # Payroll
 
+## Operational draft and finalized-record presentation
+
+Prepare Payroll uses one exception-first employee table; status is not duplicated
+by review tabs. A Draft or Review Required revision permits Add, Edit and Remove
+of this-period adjustments with an optional remark. `payroll_draft_adjustment_save`
+delegates to the canonical append-only add/reverse commands: Edit atomically
+retires the prior input and appends a replacement, while Remove retains history.
+Request identities protect retries and stale edits are rejected. The client
+recalculates only the affected employee and refreshes the canonical earnings and
+statutory projections after success. Finalized revisions expose no editing path.
+
+`payroll_component_save` delegates to existing component create/update authority,
+records system source and actor/time for ordinary configuration, and requires
+explicit Included/Excluded wage treatment for all schemes. Available for use
+controls future assignment only; fixed Type and finalized-use guards remain.
+
+Finalized Payroll is a read-only Payroll Record, with employee rows and statements
+read through `payroll_finalized_record_read` from profile, calculation and statutory
+snapshots. Names and financial values never fall back to current employee setup.
+Older foundation revisions without financial snapshots explicitly show unavailable
+evidence rather than inventing values. Corrections remain separate revisions;
+this presentation does not create a payslip or payment authority.
+
 Employee monthly review exposes **Review Hours** only for time-dependent employees (all Hourly employees, and Monthly employees whose canonical preparation projection identifies relevant time). The centered review reads `payroll_time_read` snapshots, displays roster/clock/proposed/approved evidence and exception-first rows, and uses `payroll_time_decide` for unresolved exceptions. Clean days require no repeated confirmation. A successful decision runs `payroll_employee_recalculate` (earnings and statutory core together) then refreshes employee, preparation and review projections. If refresh fails after persistence, retry refresh only—not the decision. Regular earnings and effective rates shown here come from persisted calculation lines, not a second UI wage calculator. Original work evidence and finalized snapshots remain under their existing immutable authorities.
 
 ## Ownership and Phase

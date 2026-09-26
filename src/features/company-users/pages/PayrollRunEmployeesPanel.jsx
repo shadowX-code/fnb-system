@@ -24,7 +24,6 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const [evidence, setEvidence] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const [filter, setFilter] = useState("review");
   const [employeeId, setEmployeeId] = useState("");
   const [reviewHours, setReviewHours] = useState(false);
   const [pcbDraft, setPcbDraft] = useState(null);
@@ -61,17 +60,21 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       || (pcb?.applicable === true && !pcb?.confirmation);
     return { ...employee, profile, time, calculation, statutory, result: payrollEmployeeResult(calculation, statutory), pcb, adjustments, pay, preparation, projection, timeRelevant, timeNeedsReview, needsReview };
   }), [data, entityId, evidence, month]);
-  const visible = rows.filter((row) => filter === "all" || (filter === "review" ? row.needsReview : !row.needsReview))
+  const visible = [...rows]
     .sort((a, b) => Number(b.needsReview) - Number(a.needsReview) || a.name.localeCompare(b.name));
   const selected = rows.find((row) => row.id === employeeId);
   const adjustmentComponent = (data.components || []).find((item) => item.id === adjustment?.componentId);
   const active = canManage && ["draft", "review_required"].includes(run.status);
+  const adjustmentActions = (item) => active && <span className="ml-3 inline-flex gap-3">
+    {["edit", "remove"].map(action => <button key={action} type="button" className="font-semibold text-primary" disabled={busy}
+      onClick={() => setAdjustment({ requestId: crypto.randomUUID(), action, adjustmentId: item.id, componentId: item.component_id, amount: String(item.amount), reason: "" })}>{human(action)}</button>)}
+  </span>;
   const financialLine = (line, index) => {
     const saved = selected.adjustments.find(item => item.id === line.source?.run_adjustment_id);
     return <div key={`${line.code}-${index}`} className="flex justify-between gap-3 py-2"><span>{line.label}
       <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)} · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
       <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsCurrent ? `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
-        {saved && active && <button type="button" className="ml-3 font-semibold text-primary" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), adjustmentId: saved.id, reason: "" })}>Reverse</button>}</span></div>;
+        {saved && adjustmentActions(saved)}</span></div>;
   };
   const refresh = async () => { await load(); await onChanged?.(); };
   const reconcile = async () => {
@@ -94,8 +97,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   };
   const saveAdjustment = async () => {
     setBusy(true); setError("");
-    try { if (adjustment.adjustmentId) await payrollService.reverseRunComponent({ ...adjustment, reason: adjustment.reason.trim() });
-      else await payrollService.addRunComponent({ ...adjustment, runId: run.id, employeeId: selected.id, reason: adjustment.reason.trim() });
+    try { await payrollService.saveDraftAdjustment({ ...adjustment, runId: run.id, employeeId: selected.id, reason: adjustment.reason.trim() });
       setAdjustment(null);
       await payrollService.recalculateEmployee(run.id, selected.id);
       await refresh(); }
@@ -128,23 +130,21 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     <Card className="flex flex-wrap items-center justify-between gap-3 p-4"><div><h3 className="text-lg font-bold">Prepare Payroll</h3>
       <p className="text-sm text-text-secondary">{rows.length} included · {rows.filter((row) => row.needsReview).length} need attention. Resolve only exceptions; clean evidence needs no manual approval.</p></div>
       {active && <button type="button" className="btn-secondary" disabled={busy} onClick={reconcile}>{busy ? "Reconciling…" : "Refresh time evidence"}</button>}</Card>
-    <div className="admin-segmented-control" aria-label="Employee review filter">{[["all", "All"], ["review", "Need Review"], ["ready", "Ready"]].map(([value, text]) =>
-      <button key={value} type="button" className={filter === value ? "is-active" : ""} onClick={() => setFilter(value)}>{text}</button>)}</div>
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     <Card>{!evidence && !error ? <p className="p-6 text-sm text-text-secondary">Loading monthly employee evidence…</p>
       : visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.id} density="compact" onRowClick={(row) => setEmployeeId(row.id)} />
-        : <p className="p-6 text-sm text-text-secondary">No employees in this filter.</p>}</Card>
+        : <p className="p-6 text-sm text-text-secondary">No employees included in this payroll revision.</p>}</Card>
     {selected && !reviewHours && !pcbDraft && !adjustment && <Modal title={selected.name} description={`${month} · Monthly Payroll review. Permanent compensation changes belong in Employees.`}
       size="xl" onClose={() => setEmployeeId("")} footer={<button className="btn-secondary" type="button" onClick={() => setEmployeeId("")}>Close</button>}>
       <div className="space-y-5 text-sm">
         <div className="flex items-center justify-between border-b border-border pb-3">
           <span>{month}-01 – {periodEnd(month)}</span><Badge tone={selected.needsReview ? "warning" : "success"}>{selected.result.status}</Badge>
         </div>
-        <dl className="grid grid-cols-3 gap-3 border-b border-border pb-4">
+        <dl className="grid grid-cols-3 gap-3 rounded-xl bg-surface-muted p-4">
           {[["Gross Earnings", selected.result.gross], ["Total Deductions", selected.result.deductions], ["Net Pay", selected.result.net]].map(([label, value]) =>
             <div key={label}><dt className="text-xs text-text-secondary">{label}</dt><dd className="mt-1 text-lg font-bold tabular-nums">{value == null ? "Pending" : money(value)}</dd></div>)}
         </dl>
-        <section><div className="flex items-center justify-between gap-3"><h4 className="text-base font-bold">Earnings</h4>
+        <section className="border-b border-border pb-4"><div className="flex items-center justify-between gap-3"><h4 className="text-lg font-bold">Earnings</h4>
           {active && <button className="font-semibold text-primary" type="button" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), componentId: "", amount: "", reason: "" })}>Add Adjustment</button>}</div>
           <p className="mt-1 text-xs text-text-secondary">{selected.pay ? `${human(selected.pay.pay_basis)} · Pay effective ${selected.pay.effective_from}` : "Complete Employee pay setup"}</p>
           <div className="mt-2 divide-y divide-border">{(selected.calculation?.lines || []).filter((line) => line.kind === "earning").map(financialLine)}
@@ -153,7 +153,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         </section>
         <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Gross Earnings</span><span className="tabular-nums">{money(selected.result.gross)}</span></div>
         {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map(financialLine)}</div></section>}
-        {selected.adjustments.some(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)) && <section><h4 className="font-semibold">Awaiting Calculation</h4>{selected.adjustments.filter(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)).map(item => <div key={item.id} className="flex justify-between py-2"><span>{item.component_name}<small className="block text-text-secondary">Saved adjustment · {item.reason}</small></span>{active && <button type="button" className="text-primary font-semibold" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), adjustmentId: item.id, reason: "" })}>Reverse</button>}</div>)}</section>}
+        {selected.adjustments.some(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)) && <section><h4 className="font-semibold">Awaiting Calculation</h4>{selected.adjustments.filter(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)).map(item => <div key={item.id} className="flex justify-between py-2"><span>{item.component_name}<small className="block text-text-secondary">Saved adjustment · {item.reason}</small></span>{adjustmentActions(item)}</div>)}</section>}
         {selected.timeRelevant && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4><button type="button" className="font-semibold text-primary" onClick={()=>setReviewHours(true)}>Review Hours</button></div><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
@@ -201,12 +201,13 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       <div className="space-y-3"><AdminFormField label="Confirmed PCB (RM)" required><input className="control" type="number" min="0" step="0.01" value={pcbDraft.amount} onChange={(event) => setPcbDraft((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField>
         <AdminFormField label="Source / reference"><input className="control" value={pcbDraft.sourceReference} onChange={(event) => setPcbDraft((old) => ({ ...old, sourceReference: event.target.value }))} /></AdminFormField>
         <AdminFormField label="Reason" required><input className="control" value={pcbDraft.reason} onChange={(event) => setPcbDraft((old) => ({ ...old, reason: event.target.value }))} /></AdminFormField></div></Modal>}
-    {adjustment && selected && <Modal title={`${adjustment.adjustmentId ? "Reverse" : "Add"} Adjustment · ${selected.name}`} description="This changes this Payroll Run only; permanent employee setup is unchanged." onClose={() => !busy && setAdjustment(null)}
-      footer={<><button className="btn-secondary" type="button" onClick={() => setAdjustment(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || (!adjustment.adjustmentId && (!adjustment.componentId || !Number.isFinite(Number(adjustment.amount)) || Number(adjustment.amount) <= 0)) || !adjustment.reason.trim()} onClick={saveAdjustment}>{busy ? "Saving…" : adjustment.adjustmentId ? "Reverse Adjustment" : "Add Adjustment"}</button></>}>
-      <div className="space-y-3">{!adjustment.adjustmentId && <><SelectField label="Pay Component" searchable required value={adjustment.componentId} onChange={(componentId) => setAdjustment((old) => ({ ...old, componentId }))}
+    {adjustment && selected && <Modal title={`${human(adjustment.action || "add")} Adjustment · ${selected.name}`} description="This changes this Draft Payroll Run only; permanent employee setup and previous evidence are retained." onClose={() => !busy && setAdjustment(null)}
+      footer={<><button className="btn-secondary" type="button" onClick={() => setAdjustment(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || (adjustment.action !== "remove" && (!adjustment.componentId || !Number.isFinite(Number(adjustment.amount)) || Number(adjustment.amount) <= 0))} onClick={saveAdjustment}>{busy ? "Saving…" : `${human(adjustment.action || "add")} Adjustment`}</button></>}>
+      <div className="space-y-3">{adjustment.action !== "remove" && <><SelectField label="Pay Component" searchable required value={adjustment.componentId} onChange={(componentId) => setAdjustment((old) => ({ ...old, componentId }))}
         options={(data.components || []).filter((item) => item.is_active).map((item) => ({ value: item.id, label: `${item.name} · ${human(item.component_type)}${payComponentIsConfigured(item) ? "" : " · Setup required"}`, disabled: !payComponentIsConfigured(item) }))} />
         <AdminFormField label="Type"><p>{adjustmentComponent ? human(adjustmentComponent.component_type) : "Select a Pay Component"}</p></AdminFormField>
         <AdminFormField label="Amount (RM)" required><input className="control" type="number" min="0.01" step="0.01" value={adjustment.amount} onChange={(event) => setAdjustment((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField></>}
-        <AdminFormField label="Reason" required><input className="control" value={adjustment.reason} onChange={(event) => setAdjustment((old) => ({ ...old, reason: event.target.value }))} /></AdminFormField>{error && <p role="alert" className="text-rose-700">{error}</p>}</div></Modal>}
+        {adjustment.action === "remove" && <p>Remove this adjustment from the current Draft? Its history will be retained.</p>}
+        <AdminFormField label="Remark (Optional)"><input className="control" value={adjustment.reason} onChange={(event) => setAdjustment((old) => ({ ...old, reason: event.target.value }))} /></AdminFormField>{error && <p role="alert" className="text-rose-700">{error}</p>}</div></Modal>}
   </div>;
 }

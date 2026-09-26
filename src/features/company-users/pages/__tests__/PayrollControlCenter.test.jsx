@@ -4,7 +4,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), time: vi.fn(), calculation: vi.fn(), statutory: vi.fn(),
   readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readRules: vi.fn(), readPreparation: vi.fn(),
-  readComponentHistory: vi.fn(),
+  readComponentHistory: vi.fn(), readFinalizedRecord: vi.fn(),
   readHolidayApplicability: vi.fn(),
   readHolidayHistory: vi.fn(), readRunHistory: vi.fn(),
 }));
@@ -14,7 +14,7 @@ vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   readCalculation: mocks.readCalculation, readStatutory: mocks.readStatutory,
   readPcb: mocks.readPcb, readRules: mocks.readRules,
   readPreparation: mocks.readPreparation,
-  readComponentHistory: mocks.readComponentHistory,
+  readComponentHistory: mocks.readComponentHistory, readFinalizedRecord: mocks.readFinalizedRecord,
   readHolidayApplicability: mocks.readHolidayApplicability,
   readHolidayHistory: mocks.readHolidayHistory, readRunHistory: mocks.readRunHistory,
 } }));
@@ -41,6 +41,7 @@ beforeEach(() => {
   mocks.readPreparation.mockReset().mockResolvedValue({ results: [] });
   mocks.readRules.mockReset().mockResolvedValue([]);
   mocks.readComponentHistory.mockReset().mockResolvedValue([]);
+  mocks.readFinalizedRecord.mockReset().mockResolvedValue({run:{id:"run-final",revision:2,finalized_at:"2026-09-30T12:00:00Z"},period:{period_start:"2026-09-01"},finalized_by_name:"QA Approver",results:[]});
   mocks.readHolidayApplicability.mockReset().mockResolvedValue({ outlets: [], legal_entities: [] });
   mocks.readHolidayHistory.mockReset().mockResolvedValue({ events: [], editable: false });
   mocks.readRunHistory.mockReset().mockResolvedValue([{ run_id: "run-1", period_start: "2026-09-01", revision: 1,
@@ -119,7 +120,8 @@ describe("Payroll Control Center", () => {
     expect(screen.getByRole("button", { name: /View Finalized Payroll/ })).not.toBeNull();
     expect(screen.getByText("Payroll finalized. The current revision is read-only; any correction creates a new revision.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /View Finalized Payroll/ }));
-    await screen.findByText("Revision 2 is immutable. Corrections require a new revision; this evidence is retained.");
+    await screen.findByRole("heading",{name:"Payroll Record"});
+    expect(mocks.readFinalizedRecord).toHaveBeenCalledWith("run-final");
     expect(screen.getByText(/QA Approver/)).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Finalize Payroll" })).toBeNull();
   });
