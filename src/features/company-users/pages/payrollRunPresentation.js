@@ -1,4 +1,20 @@
 // Display explanations only; calculation and readiness stay server-owned.
+export function payrollEmployeeResult(calculation, statutory) {
+  const earningsCurrent = calculation?.status === "ready" && !calculation.is_stale;
+  const statutoryCurrent = earningsCurrent && statutory?.status === "ready" && !statutory.is_stale;
+  return {
+    earningsCurrent,
+    statutoryCurrent,
+    gross: earningsCurrent ? calculation.gross_earnings : null,
+    deductions: statutoryCurrent ? Number(statutory.non_statutory_deductions || 0)
+      + (statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null,
+    net: statutoryCurrent ? statutory.net_pay : null,
+    status: calculation?.is_stale || statutory?.is_stale ? "Refresh Payroll"
+      : !earningsCurrent ? calculation ? "Needs Attention" : "Complete Calculation"
+        : !statutory ? "Complete Calculation" : statutoryCurrent ? "Ready" : "Needs Attention",
+  };
+}
+
 export function payrollIssueLabel(issue) {
   const [code, detail] = String(issue).split(":");
   const labels = {

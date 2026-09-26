@@ -6,7 +6,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
-import { payrollIssueLabel } from "./payrollRunPresentation.js";
+import { payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
 
 const rm = (value) => new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -14,10 +14,7 @@ const rm = (value) => new Intl.NumberFormat("en-MY", {
 const title = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const issueLabel = payrollIssueLabel;
 const overallStatus = (calculation, statutory) => {
-  if (calculation.is_stale || statutory?.is_stale) return "Refresh Payroll";
-  if (calculation.status !== "ready") return "Needs Attention";
-  if (!statutory) return "Complete Calculation";
-  return title(statutory.status);
+  return payrollEmployeeResult(calculation, statutory).status;
 };
 
 function ResultDetail({ result, statutory, pcb, onClose }) {
@@ -135,6 +132,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
         requestId: draft.requestId, runId: run.id, employeeId: draft.employeeId,
         componentId: draft.componentId, amount: draft.amount, reason: draft.reason.trim(),
       });
+      await payrollService.recalculateEmployee(run.id, draft.employeeId);
       setForm(null); setDraft({ employeeId: "", componentId: "", amount: "", reason: "" });
       await load(); await onChanged?.();
     } catch (cause) { setError(cause.message || "Unable to save component."); }
@@ -151,6 +149,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     setBusy(true); setError("");
     try {
       await payrollService.confirmPcb({ ...pcbDraft, runId: run.id, reason: pcbDraft.reason.trim() });
+      await payrollService.recalculateEmployee(run.id, pcbDraft.employeeId);
       setPcbForm(null); setPcbDraft(null);
       await load(); await onChanged?.();
     } catch (cause) { setError(cause.message || "Unable to confirm PCB / MTD."); }
@@ -171,7 +170,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
   const schemeAmount = (row, scheme) => {
     const result = statutoryFor(row);
     const line = result?.lines?.find((item) => item.scheme === scheme);
-    return line?.applicable === false ? "N/A" : !result || result.is_stale || line?.employee_amount == null ? "Pending" : rm(line.employee_amount);
+    return line?.applicable === false ? "N/A" : !payrollEmployeeResult(row, result).statutoryCurrent || line?.employee_amount == null ? "Pending" : rm(line.employee_amount);
   };
   const columns = stage === "review" ? [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
@@ -186,14 +185,21 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
       const evidence = pcbRows.find((item) => item.employee_id === row.employee_id);
       return <span className="tabular-nums">{evidence?.applicable === false ? "N/A" : evidence?.applicable == null ? "Period setup required" : evidence?.confirmation ? rm(evidence.confirmation.amount) : "Confirmation required"}</span>;
     } },
-    { key: "net", header: "Net Pay", align: "right", render: (row) => <strong className="tabular-nums">{statutoryFor(row)?.net_pay == null || statutoryFor(row)?.is_stale ? "Pending review" : rm(statutoryFor(row).net_pay)}</strong> },
+    { key: "deductions", header: "Deductions", align: "right", render: (row) => {
+      const value = payrollEmployeeResult(row, statutoryFor(row)).deductions;
+      return <span className="tabular-nums">{value == null ? "Pending review" : rm(value)}</span>;
+    } },
+    { key: "net", header: "Net Pay", align: "right", render: (row) => {
+      const value = payrollEmployeeResult(row, statutoryFor(row)).net;
+      return <strong className="tabular-nums">{value == null ? "Pending review" : rm(value)}</strong>;
+    } },
     { key: "status", header: "Status", render: (row) => {
       const result = statutoryFor(row);
       const status = overallStatus(row, result);
       return <div><Badge tone={status === "Ready" ? "success" : "warning"}>{status}</Badge>
         {status !== "Ready" && <small className="mt-1 block max-w-48 text-text-secondary">{(result?.issues || row.issues || []).map(issueLabel).join(" · ") || "Open details to resolve"}</small>}</div>;
     } },
-    { key: "action", header: "Action", render: (row) => <button className="font-semibold text-primary" type="button" onClick={(event) => { event.stopPropagation(); overallStatus(row, statutoryFor(row)) === "Ready" ? setSelected(row) : onReviewEmployee?.(row.employee_id); }}>{overallStatus(row, statutoryFor(row)) === "Ready" ? "View" : "Resolve"}</button> },
+    { key: "action", header: "Action", render: (row) => <button className="font-semibold text-primary" type="button" onClick={(event) => { event.stopPropagation(); onReviewEmployee ? onReviewEmployee(row.employee_id) : setSelected(row); }}>Review</button> },
   ] : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
     { key: "basis", header: "Pay Basis", render: (row) => title(row.pay_basis || "Missing") },
@@ -237,7 +243,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
       <div><span className="text-text-secondary">Employees Ready / Need Attention</span><strong className="block">{rows.filter((row) => overallStatus(row, statutoryFor(row)) === "Ready").length} / {rows.filter((row) => overallStatus(row, statutoryFor(row)) !== "Ready").length}</strong></div>
     </div>}
     {error && <p role="alert" className="px-4 pt-3 text-sm font-semibold text-rose-700">{error}</p>}
-    {rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id || row.employee_id} density="compact" onRowClick={(row) => overallStatus(row, statutoryFor(row)) === "Ready" ? setSelected(row) : onReviewEmployee?.(row.employee_id)} /> :
+    {rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id || row.employee_id} density="compact" onRowClick={(row) => onReviewEmployee ? onReviewEmployee(row.employee_id) : setSelected(row)} /> :
       <p className="p-6 text-sm text-text-secondary">No payroll results yet. Use Calculate to prepare the employee breakdown.</p>}
     {stage !== "review" && data?.adjustments?.length > 0 && <div className="border-t border-border p-4"><h5 className="mb-2 text-sm font-bold">Approved variable lines</h5>
       <div className="divide-y divide-border">{data.adjustments.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">

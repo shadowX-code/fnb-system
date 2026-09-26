@@ -39,6 +39,15 @@ for time relevance and blockers, and resolves statutory setup at period start.
 Later setup never supplies missing earlier evidence. Persisted one-off lines
 read back independently of calculated lines; recurring components remain separate.
 Review includes every Run member, including precise blockers before calculation.
+Monthly employee review and Review Payroll consume the same persisted calculation
+and statutory results. Stale/incomplete results do not present contributions or
+Net Pay as current. Run setup labels consume period-start resolved scheme state,
+not today's Employee setup. One-period adjustment/PCB confirmation read-back
+refreshes only the affected employee through `payroll_employee_recalculate`,
+which delegates to shared earnings/statutory calculation cores under the Run
+lock. Bulk calculation uses those same cores. Changed fingerprints append
+versions/audit evidence; retries with unchanged inputs create no extra versions.
+Permanent setup changes do not trigger this refresh automatically.
 Settings presents operational statutory methods, shared-geography holidays,
 Pay Components and current supported Pay Calculation
 Rules; rule publication opens only from a selected append-only rule version.

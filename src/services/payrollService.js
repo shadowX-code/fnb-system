@@ -116,6 +116,9 @@ export const payrollService = {
     }),
   runTimeReadiness: (runId) => command("payroll_run_time_readiness", { p_run_id: runId }),
   calculateRun: (runId) => command("payroll_run_calculate", { p_run_id: runId }),
+  recalculateEmployee: (runId, employeeId) => command("payroll_employee_recalculate", {
+    p_run_id: runId, p_employee_id: employeeId,
+  }),
   readCalculation: (runId) => command("payroll_run_calculation_read", { p_run_id: runId }),
   readPreparation: (runId) => command("payroll_run_preparation_read", { p_run_id: runId }),
   calculationReadiness: (runId) => command("payroll_run_calculation_readiness", { p_run_id: runId }),
