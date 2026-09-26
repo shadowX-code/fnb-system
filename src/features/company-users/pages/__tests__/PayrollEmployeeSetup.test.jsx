@@ -10,6 +10,28 @@ beforeEach(()=>{
 });
 afterEach(cleanup);
 describe('Payroll employee setup',()=>{
+  it('blocks stale confirmation until an explicit same-modal refresh',async()=>{
+    mocks.confirmStatutorySetup.mockRejectedValueOnce(Object.assign(new Error('stale'),{cause:{code:'40001'}})).mockResolvedValueOnce({});
+    const close=vi.fn();
+    render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={close} />);
+    await screen.findByText(/Act 4 · First Category/);
+    fireEvent.click(screen.getByRole('button',{name:'Confirm Statutory Setup'}));
+    await screen.findByText('Statutory information was updated');
+    expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button',{name:'Refresh Setup'}));
+    await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false));
+    fireEvent.click(screen.getByRole('button',{name:'Confirm Statutory Setup'}));
+    await vi.waitFor(()=>expect(close).toHaveBeenCalled());
+  });
+  it('accepts a later historical date rather than imposing today as a minimum',async()=>{
+    mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:false,socso:false,eis:false,pcb:false},schemes:{},next_effective_from:'2026-08-02',latest_effective_from:'2026-08-01',minimum_effective_from:'2026-08-02',fingerprint:'trusted'});
+    render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
+    await screen.findByText('Latest effective date: 2026-08-01');
+    expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false);
+    fireEvent.change(screen.getByRole('textbox',{name:/Effective From/}),{target:{value:'1 Aug 2026'}});
+    await screen.findByText('Choose a later effective date');
+    expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(true);
+  });
   it('confirms server recommendation without repetitive source/reason inputs',async()=>{
     const saved=vi.fn(),close=vi.fn();
     render(<StatutorySetup profile={{id:'p',employee_name:'QA'}} onSaved={saved} onClose={close} />);

@@ -93,6 +93,7 @@ export default function DatePickerField({
   yearFirst = false,
   placeholder = "28 May 2026",
   className = "",
+  minDate,
 }) {
   const [open, setOpen] = useState(false);
   const [displayValue, setDisplayValue] = useState(toDisplayDate(value));
@@ -138,6 +139,7 @@ export default function DatePickerField({
   }
 
   function selectDate(nextValue) {
+    if (minDate && nextValue < minDate) return;
     onChange(nextValue);
     setOpen(false);
   }
@@ -165,7 +167,8 @@ export default function DatePickerField({
     const currentDate = parseIsoDate(value);
     if (!currentDate) return;
     const nextDay = clampDay(visibleYear, monthIndex, currentDate.getDate());
-    onChange(`${visibleYear}-${pad(monthIndex + 1)}-${pad(nextDay)}`);
+    const nextValue = `${visibleYear}-${pad(monthIndex + 1)}-${pad(nextDay)}`;
+    if (!minDate || nextValue >= minDate) onChange(nextValue);
   }
 
   function handleInputKeyDown(event) {
@@ -347,6 +350,8 @@ export default function DatePickerField({
                           : "text-text-secondary hover:bg-primary/10 hover:text-primary"
                     }`}
                     type="button"
+                    disabled={Boolean(minDate && item.value < minDate)}
+                    style={minDate && item.value < minDate ? { opacity: 0.35, cursor: "not-allowed" } : undefined}
                     onClick={() => selectDate(item.value)}
                     onKeyDown={(event) => handleCalendarKeyDown(event, item.value)}
                     aria-label={toDisplayDate(item.value)}

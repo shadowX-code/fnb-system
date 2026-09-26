@@ -296,6 +296,12 @@ unsupported canonical evidence and directs identity corrections to Employee
 Master; free text cannot establish unsupported eligibility. Only a deliberate
 change from a valid recommendation expands supporting source/override reason.
 Earlier evidence and finalized snapshots remain immutable.
+Setup confirmation distinguishes a stale evidence fingerprint from an invalid
+effective date. Stale information requires explicit same-modal Refresh Setup;
+the fingerprint includes latest applicability/category versions, including
+future changes. The date must follow both latest versions, not today's suggested
+default. Historical later dates remain subject to existing finalized-period
+guards. The shared Date Picker disables days below the server-provided minimum.
 The suggested date follows both latest applicability/category versions, never
 an inferred historical entitlement. Settings exposes schedule sources read-only.
 

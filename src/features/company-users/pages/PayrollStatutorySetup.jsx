@@ -41,6 +41,8 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
   const [reason,setReason]=useState('');
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
+  const [stale,setStale]=useState(false);
+  const [refreshing,setRefreshing]=useState(false);
   useEffect(()=>{
     let active=true;
     payrollService.readStatutorySetup(profile.id).then(r=>payrollService.readStatutorySetup(profile.id,r.next_effective_from)).then(r=>{
@@ -53,13 +55,14 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
     if(!draft) return;
     let active=true;setReview(null);setError('');
     payrollService.readStatutorySetup(profile.id,draft.effectiveFrom,draft.applicability)
-      .then(r=>{if(active)setReview(r);}).catch(e=>{if(active)setError(e.message);});
+      .then(r=>{if(active){setReview(r);setHistory(r.history);}}).catch(e=>{if(active)setError(e.message);});
     return ()=>{active=false;};
   },[profile.id,draft]);
   const applicable=schemes.filter(s=>s!=='pcb' && draft?.applicability[s]===true);
   const chosen=Object.fromEntries(applicable.map(s=>[s,overrides[s] ?? review?.schemes[s]?.recommendation ?? review?.schemes[s]?.category ?? null]));
   const manual=applicable.some(s=>review?.schemes[s]?.recommendation && chosen[s]!==review.schemes[s].recommendation);
-  const allowed=review && schemes.every(s=>draft.applicability[s]!=null)
+  const invalidDate=review?.latest_effective_from && draft?.effectiveFrom<=review.latest_effective_from;
+  const allowed=review && !stale && !refreshing && draft.effectiveFrom && !invalidDate && schemes.every(s=>draft.applicability[s]!=null)
     && applicable.every(s=>chosen[s])
     && (!manual || (sourceNote.trim().length>=8 && reason.trim().length>=3));
   async function save() {
@@ -68,8 +71,20 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
       await payrollService.confirmStatutorySetup({profileId:profile.id,...draft,categories:chosen,
         fingerprint:review.fingerprint,sourceNote,reason});
       await onSaved();onClose();
-    } catch(e) {setError(e.message || 'Unable to save statutory setup.');}
+    } catch(e) {
+      if(e.cause?.code==='40001' || e.code==='40001') {setStale(true);setError('Statutory information was updated');}
+      else if(e.cause?.message==='Choose a later effective date') setError('Choose a later effective date');
+      else setError(e.message || 'Unable to save statutory setup.');
+    }
     finally {setBusy(false);}
+  }
+  async function refreshSetup() {
+    setRefreshing(true);setError('');setReview(null);
+    try {
+      const r=await payrollService.readStatutorySetup(profile.id,draft.effectiveFrom,draft.applicability);
+      setHistory(r.history);setReview(r);setOverrides({});setExpanded({});setSourceNote('');setReason('');setStale(false);
+    } catch(e) {setError(e.message || 'Unable to refresh setup.');}
+    finally {setRefreshing(false);}
   }
   return <Modal title={`Manage Statutory Setup · ${profile.employee_name}`} size="lg" onClose={onClose}
     description="Confirm applicability, then contribution categories where required. Earlier effective-dated evidence is retained."
@@ -105,7 +120,11 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
             </>}
           </div></div>;
         })}</section>
-        <DatePickerField label="Effective From" required value={draft.effectiveFrom} onChange={v=>{setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:v}));}} />
+        <DatePickerField label="Effective From" required value={draft.effectiveFrom} minDate={review?.minimum_effective_from}
+          error={invalidDate?'Choose a later effective date':null}
+          helper={review?.latest_effective_from ? `Latest effective date: ${review.latest_effective_from}` : null}
+          onChange={v=>{setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:v}));}} />
+        {invalidDate && <p className="text-sm text-text-secondary">Latest effective date: {review.latest_effective_from}</p>}
         {!review && !error && <p role="status">Resolving setup…</p>}
         {review && manual && <div className="space-y-3"><p className="text-sm text-text-secondary">Explain the change from FeedX's recommendation. The server still validates the selected category against employee evidence.</p>
           <AdminFormField label="Supporting evidence / source" required><input className="control" value={sourceNote} onChange={e=>setSourceNote(e.target.value)} /></AdminFormField>
@@ -116,6 +135,7 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
           {history?.categories.map(v=><p key={v.id} className="mt-2 text-text-secondary">Category evidence · {v.effective_from} · {v.reason}</p>)}</details>
       </>}
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
+      {stale && <button type="button" className="btn-secondary" disabled={busy || refreshing} onClick={refreshSetup}>{refreshing?'Refreshing…':'Refresh Setup'}</button>}
     </div>
   </Modal>;
 }
