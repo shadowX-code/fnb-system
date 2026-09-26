@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { expect, it } from "vitest";
-const sql = readFileSync(new URL("../20260926051250_payroll_run_preparation_read.sql", import.meta.url), "utf8");
+const sql = readFileSync("supabase/migrations/20260926051250_payroll_run_preparation_read.sql", "utf8");
 it("uses existing authority and scoped reads without changing readiness or evidence", () => {
   expect(sql).toContain("payroll_admin_actor()");
   expect(sql).toContain("payroll_can_manage_entity(v_period.legal_entity_id,'payroll.view')");
