@@ -20,7 +20,7 @@ import { hasPermission } from "../../../utils/accessControl.js";
 import { payrollService } from "../../../services/payrollService.js";
 import PayrollRunCalculationPanel from "./PayrollRunCalculationPanel.jsx";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
-import { payrollIssueLabel } from "./payrollRunPresentation.js";
+import { payComponentIsConfigured, payrollIssueLabel } from "./payrollRunPresentation.js";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
 import PayrollEmployeeComponents, { ComponentSummary, componentTimeline } from "./PayrollEmployeeComponents.jsx";
 import PayrollStatutorySetup, { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
@@ -519,7 +519,7 @@ function SettingsTab({ data, canManage, reload }) {
     } catch (cause) { setError(cause.message || "Unable to update Pay Component."); }
     finally { setBusy(false); }
   };
-  const undetermined = (item) => ["epf", "socso", "eis", "pcb"].some((key) => item[`${key}_treatment`] === "undetermined");
+  const undetermined = (item) => !payComponentIsConfigured(item);
   return <div className="space-y-4">
     <AdminUnderlineTabs value={mode} onChange={(value) => { setMode(value); setAdding(false); setError(""); }}
       tabs={[["rules", "Statutory & Pay Rules"], ["holidays", "Public Holidays"], ["components", "Pay Components"]].map(([value, text]) => ({ value, label: text }))} ariaLabel="Payroll settings" />

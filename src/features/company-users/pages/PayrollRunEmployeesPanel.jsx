@@ -8,7 +8,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
-import { payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
+import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
 
 const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -204,7 +204,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     {adjustment && selected && <Modal title={`${adjustment.adjustmentId ? "Reverse" : "Add"} Adjustment · ${selected.name}`} description="This changes this Payroll Run only; permanent employee setup is unchanged." onClose={() => !busy && setAdjustment(null)}
       footer={<><button className="btn-secondary" type="button" onClick={() => setAdjustment(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || (!adjustment.adjustmentId && (!adjustment.componentId || !Number.isFinite(Number(adjustment.amount)) || Number(adjustment.amount) <= 0)) || !adjustment.reason.trim()} onClick={saveAdjustment}>{busy ? "Saving…" : adjustment.adjustmentId ? "Reverse Adjustment" : "Add Adjustment"}</button></>}>
       <div className="space-y-3">{!adjustment.adjustmentId && <><SelectField label="Pay Component" searchable required value={adjustment.componentId} onChange={(componentId) => setAdjustment((old) => ({ ...old, componentId }))}
-        options={(data.components || []).filter((item) => item.is_active).map((item) => ({ value: item.id, label: `${item.name} · ${human(item.component_type)}` }))} />
+        options={(data.components || []).filter((item) => item.is_active).map((item) => ({ value: item.id, label: `${item.name} · ${human(item.component_type)}${payComponentIsConfigured(item) ? "" : " · Setup required"}`, disabled: !payComponentIsConfigured(item) }))} />
         <AdminFormField label="Type"><p>{adjustmentComponent ? human(adjustmentComponent.component_type) : "Select a Pay Component"}</p></AdminFormField>
         <AdminFormField label="Amount (RM)" required><input className="control" type="number" min="0.01" step="0.01" value={adjustment.amount} onChange={(event) => setAdjustment((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField></>}
         <AdminFormField label="Reason" required><input className="control" value={adjustment.reason} onChange={(event) => setAdjustment((old) => ({ ...old, reason: event.target.value }))} /></AdminFormField>{error && <p role="alert" className="text-rose-700">{error}</p>}</div></Modal>}

@@ -1,4 +1,7 @@
 // Display explanations only; calculation and readiness stay server-owned.
+export const payComponentIsConfigured = (component) => ["epf", "socso", "eis", "pcb"]
+  .every(scheme => ["included", "excluded"].includes(component?.[`${scheme}_treatment`]));
+
 export function payrollEmployeeResult(calculation, statutory) {
   const earningsCurrent = calculation?.status === "ready" && !calculation.is_stale;
   const statutoryCurrent = earningsCurrent && statutory?.status === "ready" && !statutory.is_stale;

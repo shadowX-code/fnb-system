@@ -78,7 +78,7 @@ it("shows calculated adjustment provenance once and derives the chosen component
     {kind:"reimbursement",label:"QA Reimbursement",amount:10},
   ],reimbursements:10 }], adjustments: [{id:"adjustment",employee_id:"employee",component_name:"QA Allowance",component_type:"allowance",amount:50,reason:"Approved QA expense"}] });
   mocks.readStatutory.mockResolvedValue({results:[{employee_id:"employee",status:"ready",non_statutory_deductions:20,net_pay:2040,employer_statutory_cost:0,total_employer_cost:2060,lines:[]}]});
-  render(<PayrollRunEmployeesPanel {...props} data={{...props.data,components:[{id:"ded",name:"QA Deduction",component_type:"deduction",is_active:true}]}} />);
+  render(<PayrollRunEmployeesPanel {...props} data={{...props.data,components:[{id:"ded",name:"QA Deduction",component_type:"deduction",is_active:true,epf_treatment:"excluded",socso_treatment:"excluded",eis_treatment:"excluded",pcb_treatment:"excluded"},{id:"unresolved",name:"Unresolved component",component_type:"allowance",is_active:true}]}} />);
   await screen.findByText("QA Employee");
   fireEvent.click(screen.getByRole("button",{name:"Review",exact:true}));
   expect(screen.getAllByText("QA Allowance")).toHaveLength(1);
@@ -89,6 +89,7 @@ it("shows calculated adjustment provenance once and derives the chosen component
   fireEvent.click(screen.getByRole("button",{name:"Add Adjustment",exact:true}));
   expect(screen.queryByRole("button",{name:"Earning"})).toBeNull();
   fireEvent.click(screen.getByRole("button",{name:"Select"}));
+  expect(screen.getByRole("button",{name:"Unresolved component · Allowance · Setup required"}).disabled).toBe(true);
   fireEvent.click(screen.getByRole("button",{name:"QA Deduction · Deduction"}));
   expect(screen.getByText("Deduction")).toBeTruthy();
 });
