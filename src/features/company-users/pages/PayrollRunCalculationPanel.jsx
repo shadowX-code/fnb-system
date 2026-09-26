@@ -250,7 +250,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
         <span>{rows.find((row) => row.employee_id === item.employee_id)?.employee_name || "Employee"} · {item.component_name}
           <small className="block text-text-secondary">{item.reason}</small></span>
         <span className="flex items-center gap-2"><strong className="tabular-nums">{rm(item.amount)}</strong>
-          {canEdit && <button className="btn-secondary" type="button" onClick={() => openAdjustment("reverse", { adjustmentId: item.id })}>Reverse</button>}</span>
+          {canEdit && <button className="btn-secondary" type="button" onClick={() => openAdjustment("reverse", { adjustmentId: item.id, employeeId: item.employee_id })}>Reverse</button>}</span>
       </div>)}</div></div>}
     {selected && <ResultDetail result={selected} statutory={statutoryRows.find((item) => item.employee_id === selected.employee_id)}
       pcb={pcbRows.find((item) => item.employee_id === selected.employee_id)} onClose={() => setSelected(null)} />}
@@ -271,8 +271,8 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
         {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
       </div>
     </Modal>}
-    {form && <Modal title={form === "reverse" ? "Reverse variable line" : "Add variable Payroll line"}
-      description="This is audited Run evidence. Recalculate after changing variable lines."
+    {form && <Modal title={form === "reverse" ? "Reverse Adjustment" : "Add Adjustment"}
+      description="This changes this period only. Employee payroll refreshes after saving."
       onClose={() => !busy && setForm(null)} footer={<><button className="btn-secondary" type="button" onClick={() => setForm(null)}>Cancel</button>
         <button className="btn-primary" type="button" disabled={busy || !draft.reason?.trim() || (form === "add" && (!draft.employeeId || !draft.componentId || Number(draft.amount) <= 0))}
           onClick={saveAdjustment}>{busy ? "Saving…" : form === "reverse" ? "Reverse Line" : "Add Line"}</button></>}>

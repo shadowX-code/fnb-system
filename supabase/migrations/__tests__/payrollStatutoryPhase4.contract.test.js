@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { payrollEmployeeResult } from "../../../src/features/company-users/pages/payrollRunPresentation.js";
 
 const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925125338_payroll_statutory_phase4.sql"), "utf8");
 const correction = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925125642_payroll_phase4_pcb_null_fix.sql"), "utf8");
@@ -38,8 +39,11 @@ describe("Payroll Phase 4 statutory safety boundary", () => {
   });
 
   it("never presents a pre-statutory Ready result as payroll Ready", () => {
-    expect(calculationPanel).toContain('if (!statutory) return "Complete Calculation"');
-    expect(calculationPanel).toContain("return title(statutory.status)");
+    expect(calculationPanel).toContain("payrollEmployeeResult(calculation, statutory).status");
+    expect(payrollEmployeeResult({status:"ready"}, null).status).toBe("Complete Calculation");
+    expect(payrollEmployeeResult({status:"ready"}, {status:"review_required"}).status).toBe("Needs Attention");
+    expect(payrollEmployeeResult({status:"ready"}, {status:"ready"}).status).toBe("Ready");
+    expect(payrollEmployeeResult({status:"ready"}, {status:"ready",is_stale:true,net_pay:2000}).net).toBeNull();
     expect(calculationPanel).toContain("overallStatus(row, statutoryRows.find");
     expect(calculationPanel).toContain("Pre-statutory Pay");
   });
