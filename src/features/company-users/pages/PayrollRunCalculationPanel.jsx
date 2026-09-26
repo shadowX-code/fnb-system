@@ -7,6 +7,7 @@ import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
+import PayrollMonthlyBasicBreakdown from "./PayrollMonthlyBasicBreakdown.jsx";
 
 const rm = (value) => new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -23,8 +24,9 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose }) {
   const deductions = statutory ? Number(result.non_statutory_deductions || 0) + (statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null;
   const amount = value => value == null ? "—" : rm(value);
   const row = (name, value, note, key = name) => <div key={key} className="flex justify-between gap-4 py-2 text-sm"><span>{name}{note && <small className="block text-text-secondary">{note}</small>}</span><strong className="shrink-0 tabular-nums">{typeof value === "string" ? value : amount(value)}</strong></div>;
-  const financialLines = kind => (result.lines || []).filter(line => line.kind === kind).map((line, index) => row(line.label, line.amount,
-    line.minutes != null ? `${(line.minutes / 60).toFixed(2)} h · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : line.source?.run_adjustment_id ? "This period adjustment" : null, `${kind}-${index}`));
+  const financialLines = kind => (result.lines || []).filter(line => line.kind === kind).map((line, index) => <div key={`${kind}-${index}`}>
+    {row(line.label, line.amount, line.minutes != null ? `${(line.minutes / 60).toFixed(2)} h · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : line.source?.run_adjustment_id ? "This period adjustment" : null)}
+    <PayrollMonthlyBasicBreakdown line={line} /></div>);
   const statutoryRows = employer => (statutory?.lines || []).filter(line => !employer || line.scheme !== "pcb").map(line => row(line.scheme === "pcb" ? "PCB / MTD" : line.scheme.toUpperCase(),
     line.applicable === false ? "N/A" : employer ? line.employer_amount : line.employee_amount,
     line.applicable === false ? "Not Applicable" : line.category ? statutorySchemeLabel(line.scheme,{state:"confirmed",applicable:true,category:line.category}) : line.method === "manual_confirmed" ? "Confirmed" : null));

@@ -45,7 +45,7 @@ describe("Payroll V1 manual PCB statutory authority", () => {
     expect(categories).toContain("payroll_can_access_employee(v_employee_id,'payroll.view')");
     expect(service).toContain('command("payroll_run_pcb_confirm"');
     expect(service).toContain('command("payroll_run_pcb_read"');
-    expect(panel).toContain("PCB confirmation history · Admin/Audit");
+    expect(panel).toContain("Draft corrections retain audit history.");
     expect(panel).toContain("Confirm PCB / MTD");
   });
 });

@@ -154,6 +154,7 @@ export const payrollService = {
     p_reason: input.reason,
   }),
   readRules: () => command("payroll_rule_read", {}),
+  confirmMonthlyRule: () => command("payroll_monthly_rule_confirm", {}),
   publishRule: (input) => command("payroll_rule_publish", {
     p_rule_code: input.ruleCode,
     p_pay_basis: input.payBasis,

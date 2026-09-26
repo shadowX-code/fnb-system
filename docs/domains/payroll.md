@@ -201,11 +201,11 @@ never awards extra payable minutes.
 
 `payroll_pay_rule_versions` is append-only and effective-dated by rule code and
 pay basis. Only arithmetic identity rules (Monthly Basic Salary, Hourly Regular,
-Non-payable) are seeded. Premium rates and Monthly divisor/proration policy are
+Non-payable) are seeded. Premium rates and Monthly ordinary-rate divisor policy are
 not guessed: a protected Owner/Admin with Payroll manage authority must publish
 a reviewed, sourced rule version. Missing or ambiguous rules leave the employee
-in Review Required. A Monthly partial period or mid-period salary/component
-change likewise requires an approved policy instead of silent proration.
+in Review Required. Mid-period salary/component changes still require an approved
+policy instead of rate blending or silent proration.
 Run membership is bounded by the employee's known joining/resignation dates.
 An unknown joining date stays visible but requires calculation review rather
 than silently treating an unverified month as payable.
@@ -233,6 +233,50 @@ prior finalized revisions are never rewritten. A correction is a new Run
 revision. The draft Run UI exposes per-employee lines and rule explanations.
 
 ## Statutory Calculation (Phase 4 V1 — guarded)
+
+### Monthly Basic entitlement / approved Unpaid Leave
+
+`payroll_monthly_rule_confirm` records a real authorized Owner/Admin's audited,
+retry-safe confirmation of the fixed `ea18a_calendar_days_v1` formula. It is not
+an editable premium multiplier. Effective from 1 January 2023, the formula is
+Monthly Basic Salary / calendar days in the wage period × eligible calendar days,
+under [Employment Act 1955 s18A](https://jtksm.mohr.gov.my/sites/default/files/2023-11/Akta%20Kerja%201955%20%28Akta%20265%29.pdf)
+and [JTKSM BPP2026 guidance](https://jtksm.mohr.gov.my/sites/default/files/2026-04/BPP2026%20-%20Pembayaran%20Upah.pdf).
+The private `payroll_monthly_entitlement` helper is consumed by the existing
+calculation projection, not a second calculator. It intersects inclusive
+joining/last-employment dates with the month and removes distinct approved
+full-day Unpaid Leave dates inside that employment window. Roster minutes are
+not needed; a Payroll time decision cannot erase canonical approved leave.
+The final Basic amount is rounded once to RM0.01. Its earning line retains
+salary, date/day counts, approved leave snapshots and rule/geography versions.
+Employee Review and frozen statements display nominal salary, reductions and
+payable Basic without creating a second deduction.
+
+For Monthly mid-month joiners, contribution applicability/category evidence,
+PCB applicability and Run preparation use the first eligible employment day
+through the shared private `payroll_employee_period_start` cutoff. They do not
+require an invented pre-employment setup date. Later category/applicability
+changes still require review; official schedules retain their monthly period
+resolution and historical finalized snapshots remain unchanged.
+
+The supported geography is Peninsular Malaysia/Labuan, established through the
+compensation workplace/outlet snapshot and effective outlet-state evidence.
+Unknown/out-of-scope geography, half-day leave, overlapping approved leave,
+attendance conflicting with unpaid leave, salary blending and incomplete-month
+recurring component entitlements remain Review Required. No arbitrary final-RM
+override or generic absence/late deduction is introduced. Source corrections
+remain in their canonical owning workflow and require Payroll recalculation.
+
+Actual payable Basic feeds the existing EPF/SOCSO/EIS `monthly_basic` wage-base
+treatment. This follows [KWSP salary/wage guidance](https://www.kwsp.gov.my/en/employer/responsibilities/mandatory-contribution)
+and [PERKESO wages payable definition](https://www.perkeso.gov.my/uncategorised/774-employer-eligibility.html),
+with EIS wages under [Act 800](https://perkeso.gov.my/images/akta/ACT%20800/Akta%20800_EMPLOYMENT%20INSURANCE%20SYSTEM%20ACT%202017.pdf).
+It does not classify approved Unpaid Leave as the unresolved generic
+`unpaid_time` deduction or subtract nominal salary again. Monthly lateness/early
+departure remains separate and requires its own approved treatment. PCB retains
+V1 manual confirmation. Premium, paid-leave pricing, payslip and payment
+authorities are unchanged. Finalization pins this calculation as usual; changes
+after finalization require a correction revision, never snapshot rewrites.
 
 The Phase 4 authority keeps reviewed applicability separate from reviewed
 statutory category and tax inputs. `payroll_statutory_input_versions` is

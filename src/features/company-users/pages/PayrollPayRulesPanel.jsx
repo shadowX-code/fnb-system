@@ -50,12 +50,25 @@ export default function PayrollPayRulesPanel({ canManage }) {
     catch (cause) { setError(cause.message || "Unable to publish Pay Rule version."); }
     finally { setBusy(false); }
   };
+  const monthlyRule = rules?.find(item => item.rule_code === "monthly_proration");
+  const confirmMonthly = async () => {
+    setBusy(true); setError("");
+    try { await payrollService.confirmMonthlyRule(); await load(); }
+    catch (cause) { setError(cause.message || "Unable to confirm Monthly salary rule."); }
+    finally { setBusy(false); }
+  };
   const needDivisor = draft?.payBasis === "monthly" && !["monthly_basic", "non_payable"].includes(draft?.ruleCode);
   const valid = draft && draft.effectiveFrom && draft.multiplier !== "" && Number(draft.multiplier) >= 0
     && (!needDivisor || Number(draft.monthlyDivisorMinutes) > 0) && draft.sourceNote.trim() && draft.reason.trim();
   return <div className="space-y-3">
     <div><h3 className="text-lg font-bold">Pay Calculation Rules</h3><p className="text-sm text-text-secondary">Current approved rules for supported pay types. Missing rules remain Review Required in a Run.</p></div>
     {error && !draft && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
+    <Card className="p-4"><h4 className="font-semibold">Monthly Basic Salary · Incomplete month / Unpaid Leave</h4>
+      <p className="mt-1 text-sm text-text-secondary">Employment Act 1955 s18A: Monthly Salary ÷ wage-period calendar days × eligible days. Supported full-day leave and employment dates; not the overtime divisor.</p>
+      <a className="mt-2 inline-block text-sm font-semibold text-primary" href="https://jtksm.mohr.gov.my/sites/default/files/2026-04/BPP2026%20-%20Pembayaran%20Upah.pdf" target="_blank" rel="noreferrer">View official formula</a>
+      <p className="mt-2 text-sm">{monthlyRule ? `Confirmed · Effective ${monthlyRule.effective_from}` : "Rule confirmation required before incomplete-month calculation"}</p>
+      {!monthlyRule && canManage && rules && <button className="btn-secondary mt-3" type="button" disabled={busy} onClick={confirmMonthly}>{busy ? "Confirming…" : "Confirm Official Monthly Formula"}</button>}
+    </Card>
     <Card>{rules === null && !error ? <p className="p-6 text-sm text-text-secondary">Loading rules…</p> : <DataTable density="compact" rows={rows} getRowKey={(row) => `${row.code}:${row.basis}`} columns={[
       { key: "type", header: "Pay Type", render: (row) => <strong>{row.name}</strong> },
       { key: "basis", header: "Applies To", render: (row) => row.basis === "monthly" ? "Monthly" : "Hourly" },

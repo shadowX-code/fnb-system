@@ -7,6 +7,7 @@ import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
+import PayrollMonthlyBasicBreakdown from "./PayrollMonthlyBasicBreakdown.jsx";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
 
@@ -71,10 +72,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   </span>;
   const financialLine = (line, index) => {
     const saved = selected.adjustments.find(item => item.id === line.source?.run_adjustment_id);
-    return <div key={`${line.code}-${index}`} className="flex justify-between gap-3 py-2"><span>{line.label}
+    return <div key={`${line.code}-${index}`} className="py-2"><div className="flex justify-between gap-3"><span>{line.label}
       <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)} · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
       <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsCurrent ? `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
-        {saved && adjustmentActions(saved)}</span></div>;
+        {saved && adjustmentActions(saved)}</span></div>
+      {selected.result.earningsCurrent && <PayrollMonthlyBasicBreakdown line={line} />}</div>;
   };
   const refresh = async () => { await load(); await onChanged?.(); };
   const reconcile = async () => {
