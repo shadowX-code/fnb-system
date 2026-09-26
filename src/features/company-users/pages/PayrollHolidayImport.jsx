@@ -6,10 +6,10 @@ import Badge from "../../../components/ui/Badge.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 import { malaysiaStateName } from "../../../constants/malaysiaStates.js";
 
-export function holidayDiffSummary(rows = []) {
+export function holidayDiffSummary(rows = [], decisions = {}) {
   return { imported: rows.filter(r => r.state !== "missing").length,
     matched: rows.filter(r => r.state === "matched").length,
-    review: rows.filter(r => ["new", "changed", "missing"].includes(r.state)).length,
+    review: rows.filter(r => ["new", "changed", "missing"].includes(r.state) && (decisions[r.key]?.action !== (r.state === "missing" ? "retain" : "accept") || (r.state === "changed" && !decisions[r.key]?.remark?.trim()))).length,
     blocked: rows.filter(r => r.state === "blocked").length };
 }
 const jurisdiction = r => r.scope === "national" ? "National" : malaysiaStateName(r.state_code);
@@ -70,7 +70,7 @@ export default function PayrollHolidayImport({ year, onPublished }) {
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   });
   const changeDecision = (r, patch) => setDecisions(old => ({ ...old, [r.key]: { ...old[r.key], ...patch } }));
-  const summary = holidayDiffSummary(selected?.rows);
+  const summary = holidayDiffSummary(selected?.rows, decisions);
   const exceptions = (selected?.rows || []).filter(r => r.state !== "matched");
   const allReviewed = !summary.blocked && exceptions.every(r => decisions[r.key]?.action === (r.state === "missing" ? "retain" : "accept") && (r.state !== "changed" || decisions[r.key]?.remark?.trim()));
   const reviewable = selected?.status === "needs_review";
@@ -84,8 +84,8 @@ export default function PayrollHolidayImport({ year, onPublished }) {
     {!candidates && !error && <p className="text-sm text-text-secondary">Loading imports…</p>}
     {!!candidates?.length && <DataTable density="compact" rows={candidates} getRowKey={c => c.id} columns={[
       { key: "source", header: "Import", render: c => <div><strong>{title(c)}</strong><p className="text-xs text-text-secondary">{c.created_at?.slice(0, 10)}</p></div> },
-      { key: "status", header: "Status", render: c => <Badge tone={c.status === "published" ? "success" : "neutral"}>{c.status === "fetched" ? "Source captured" : c.status.replaceAll("_", " ")}</Badge> },
-      { key: "diff", header: "Review", render: c => { const s = holidayDiffSummary(c.rows); return c.status === "fetched" ? "Transcription required" : `${s.matched} matched · ${s.review} need review · ${s.blocked} blocked`; } },
+      { key: "status", header: "Status", render: c => <Badge tone={c.status === "published" ? "success" : "neutral"}>{{ fetched: "Source captured", needs_review: "Needs Review", approved: "Approved", published: "Published" }[c.status] || c.status}</Badge> },
+      { key: "diff", header: "Review", render: c => { const s = holidayDiffSummary(c.rows, c.decisions); return c.status === "fetched" ? "Transcription required" : `${s.matched} matched · ${s.review} need review · ${s.blocked} blocked`; } },
       { key: "action", header: "Action", render: c => <button type="button" className="text-primary" onClick={() => open(c)}>{c.status === "published" ? "View" : "Review"}</button> },
     ]} />}
     <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Import history / QA visibility</summary><label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={includeQa} onChange={e => setIncludeQa(e.target.checked)} />Include clearly labelled QA imports (never official sources)</label></details>

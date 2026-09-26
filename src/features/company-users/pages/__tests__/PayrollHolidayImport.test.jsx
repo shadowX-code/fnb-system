@@ -6,7 +6,23 @@ import PayrollHolidayImport, { holidayDiffSummary } from "../PayrollHolidayImpor
 const row = { key: "1", state: "new", row: { date: "2027-01-10", name: "QA ONLY holiday", scope: "state", state_code: "MY-08" } };
 const candidate = { id: "candidate", status: "needs_review", revision: 2, source_reference: "Verified source", rows: [row], history: [] };
 beforeEach(() => { vi.clearAllMocks(); service.readHolidayCandidates.mockResolvedValue([candidate]); });
-afterEach(cleanup);
+afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("captures an uploaded source artifact with retry identity but never publishes from capture", async () => {
+  vi.stubGlobal("FileReader", class { readAsDataURL() { this.result = "data:application/pdf;base64,JVBERi0="; this.onload(); } });
+  render(<PayrollHolidayImport year="2027" />);
+  fireEvent.click(screen.getByRole("button", { name: "Import Official Calendar" }));
+  fireEvent.change(screen.getByLabelText(/Official source URL/), { target: { value: "https://www.kabinet.gov.my/verified-source.pdf" } });
+  fireEvent.change(screen.getByLabelText(/Source reference/), { target: { value: "Verified document reference" } });
+  fireEvent.change(screen.getByLabelText(/Official PDF/), { target: { files: [new File(["%PDF-"], "source.pdf", { type: "application/pdf" })] } });
+  fireEvent.click(screen.getByRole("button", { name: "Capture Source" }));
+  await waitFor(() => expect(service.captureHolidaySource).toHaveBeenCalledWith(expect.objectContaining({ year: "2027", filename: "source.pdf", base64: "JVBERi0=", requestId: expect.any(String) })));
+  expect(service.parseHolidayCandidate).not.toHaveBeenCalled();
+  expect(service.publishHolidayCandidate).not.toHaveBeenCalled();
+});
+it("stops counting accepted exceptions as needing review after approval", () => {
+  expect(holidayDiffSummary([row], { 1: { action: "accept" } }).review).toBe(0);
+  expect(holidayDiffSummary([{ ...row, state: "changed" }], { 1: { action: "accept" } }).review).toBe(1);
+});
 it("requires exception review and complete-source confirmation before approval, then separate publication", async () => {
   const published = vi.fn(); render(<PayrollHolidayImport year="2027" onPublished={published} />);
   fireEvent.click(await screen.findByRole("button", { name: "Review", exact: true }));
