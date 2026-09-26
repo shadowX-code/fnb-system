@@ -140,22 +140,13 @@ function ProfilesTab({ data, canManage, reload }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const selected = data.profiles?.find((profile) => profile.employee_id === selectedId);
-  const [categoryRead, setCategoryRead] = useState(null);
-  useEffect(() => {
-    let active = true;
-    setCategoryRead(null);
-    if (selected?.id) payrollService.readStatutoryInput(selected.id).then(result=>{
-      if (active) setCategoryRead(result.versions || []);
-    }).catch(()=>{ if(active) setCategoryRead({error:true}); });
-    return ()=>{active=false;};
-  }, [selected]);
   const selectedEmployee = data.employees?.find((employee) => employee.id === selectedId);
   const entities = data.legal_entities || [];
   const rows = (data.employees || []).map((employee) => ({ ...employee,
     profile: (data.profiles || []).find((profile) => profile.employee_id === employee.id) || null }));
   const setupState = (row) => {
     if (!row.profile || !effective(row.profile.compensation)) return "Setup Required";
-    return row.profile.statutory_setup?.complete ? "Ready" : "Review Required";
+    return row.profile.statutory_setup?.status === "Complete" ? "Ready" : row.profile.statutory_setup?.status || "Setup Required";
   };
   const visibleRows = rows.filter((row) => row.legal_entity_id === entityFilter
     && (statusFilter === "all" || setupState(row) === statusFilter)
@@ -164,7 +155,7 @@ function ProfilesTab({ data, canManage, reload }) {
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><div className="text-xs text-text-secondary">{row.employee_code || row.workplace || "—"}</div></div> },
     { key: "basis", header: "Pay Basis", render: (row) => effective(row.profile?.compensation) ? label(effective(row.profile.compensation).pay_basis) : "Not set" },
     { key: "rate", header: "Current Pay", align: "right", render: (row) => { const c = effective(row.profile?.compensation); return c ? <strong className="tabular-nums">{money(c.basic_salary || c.hourly_rate, c.currency)}{c.pay_basis === "hourly" ? " / hour" : ""}</strong> : "—"; } },
-    { key: "statutory", header: "Statutory Readiness", render: (row) => <span className="text-sm">{row.profile ? (row.profile.statutory_setup?.complete ? "Complete" : "Review Required") : "Not set"}</span> },
+    { key: "statutory", header: "Statutory Readiness", render: (row) => <span className="text-sm">{row.profile ? row.profile.statutory_setup?.status || "Setup Required" : "Not set"}</span> },
     { key: "status", header: "Status", render: (row) => <Badge tone={setupState(row) === "Ready" ? "success" : "warning"}>{setupState(row)}</Badge> },
     { key: "open", header: "", align: "right", render: (row) => <button className="text-primary" type="button" aria-label={`View ${row.name} payroll setup`} onClick={() => setSelectedId(row.id)}><ChevronRight size={16} /></button> },
   ];
@@ -177,7 +168,7 @@ function ProfilesTab({ data, canManage, reload }) {
     <AdminFilterToolbar ariaLabel="Payroll employee filters"
       outlet={<SelectField label="Legal Entity" value={entityFilter} onChange={(value) => { setEntityFilter(value); setSelectedId(""); }} options={entities.map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
       search={<AdminSearchField label="Search" value={search} onChange={setSearch} placeholder="Employee name or code" />}
-      filters={<SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, ...["Ready", "Setup Required", "Review Required"].map((value) => ({ value, label: value }))]} />}
+      filters={<SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, ...["Ready", "Scheduled Change", "Confirmation Required", "Setup Required"].map((value) => ({ value, label: value }))]} />}
       primaryActions={canManage && rows.some((row) => !row.profile) ? <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(""); setForm("create"); }}><Plus size={16} /> Set Up Employee</button> : null} />
     <Card>{visibleRows.length ? <DataTable columns={columns} rows={visibleRows} getRowKey={(row) => row.id}
       density="compact" onRowClick={(row) => setSelectedId(row.id)} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees match these filters.</div>}</Card>
@@ -194,11 +185,11 @@ function ProfilesTab({ data, canManage, reload }) {
           {upcoming[0] && <p className="mt-2 text-sm text-text-secondary">Next change: {money(upcoming[0].basic_salary || upcoming[0].hourly_rate)} from {upcoming[0].effective_from}</p>}</section>
         <section><h4 className="font-bold">Statutory</h4>
           <div className="mt-2 flex flex-wrap gap-2">{["epf", "socso", "eis", "pcb"].map((key) =>
-            <Badge key={key} tone={statutory?.schemes[key]?.state === "setup_required" ? "warning" : "neutral"}>
-              {key.toUpperCase()} — {statutorySchemeLabel(key,statutory?.schemes[key])}
+            <Badge key={key} tone={["setup_required","confirmation_required"].includes(statutory?.display_schemes?.[key]?.state) ? "warning" : "neutral"}>
+              {key.toUpperCase()} — {statutorySchemeLabel(key,statutory?.display_schemes?.[key])}
+              {statutory?.display_schemes?.[key]?.state === "scheduled" && <> · Effective {statutory.display_schemes[key].effective_from} · Scheduled</>}
             </Badge>)}</div>
-          <p className="mt-2 text-xs text-text-secondary">{statutory?.complete ? "Complete" : "Review Required"}</p>
-          {Array.isArray(categoryRead) && categoryRead.filter(v=>v.effective_from>today()).map(v=><p key={v.id} className="mt-2 text-xs text-text-secondary">Setup evidence scheduled from {v.effective_from}</p>)}</section>
+          <p className="mt-2 text-xs text-text-secondary">{statutory?.status || "Setup Required"}</p></section>
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <section><h4 className="mb-2 font-bold">History</h4>

@@ -12,8 +12,10 @@ const categories = {
   eis: [{value:'standard',label:'Standard'}],
 };
 export const statutorySchemeLabel = (scheme, state) => {
+  if (state?.state === 'confirmation_required') return 'Confirmation Required';
   if (state?.state === 'not_applicable') return 'Not Applicable';
-  if (state?.state !== 'confirmed') return 'Setup Required';
+  if (state?.state !== 'confirmed' && state?.state !== 'scheduled') return 'Setup Required';
+  if (state.applicable === false) return 'Not Applicable';
   if (scheme === 'pcb') return 'Applicable · monthly confirmation';
   return categories[scheme]?.find(c=>c.value===state.category)?.label || 'Confirmed';
 };

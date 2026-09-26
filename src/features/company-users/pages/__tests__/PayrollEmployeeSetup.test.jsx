@@ -62,6 +62,8 @@ describe('Payroll employee setup',()=>{
     expect(statutorySetupHelp('epf_citizenship_category_unverified',{nationality:'Other'})).toContain('outside the currently supported');
   });
   it('Not Applicable is terminal and PCB has no category concept',()=>{
+    expect(statutorySchemeLabel('socso',{state:'confirmation_required',recommendation:'first_category_base'})).toBe('Confirmation Required');
+    expect(statutorySchemeLabel('socso',{state:'scheduled',applicable:true,category:'first_category_base',effective_from:'2026-09-27'})).toBe('Act 4 · First Category');
     expect(statutorySchemeLabel('epf',{state:'not_applicable'})).toBe('Not Applicable');
     expect(statutorySchemeLabel('pcb',{state:'not_applicable'})).toBe('Not Applicable');
     expect(statutorySchemeLabel('pcb',{state:'confirmed'})).toBe('Applicable · monthly confirmation');

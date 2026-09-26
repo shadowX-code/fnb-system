@@ -271,7 +271,12 @@ applicable → confirmed setup. The server-resolved projection evaluates explici
 Not Applicable as a terminal resolved state, never as a missing category. PCB
 has no category; Applicable PCB retains the separate manual Run confirmation.
 Applicable EPF/SOCSO/EIS require supported confirmed category evidence. Missing
-applicability/evidence remains Setup Required. Employee list and detail consume
+applicability/evidence remains Setup Required. A valid recommendation without
+confirmation is Confirmation Required. Employee summary resolves upcoming
+confirmed changes separately as Scheduled Change, with category and effective
+date per scheme; it retains the current resolved evidence and completeness
+separately. This summary never promotes future evidence into a Payroll period.
+Employee list and detail consume
 this same projection; it does not replace the date-effective Run calculation
 gates. The centered Manage Statutory Setup flow recommends from canonical
 nationality/birthdate using the existing supported-category guard. One atomic
