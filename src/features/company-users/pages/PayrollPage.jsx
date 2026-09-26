@@ -23,6 +23,7 @@ import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
 import PayrollFinalizedRecord from "./PayrollFinalizedRecord.jsx";
 import { payComponentIsConfigured, payrollIssueLabel } from "./payrollRunPresentation.js";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
+import PayrollAnnualHolidays from "./PayrollAnnualHolidays.jsx";
 import PayrollEmployeeComponents, { ComponentSummary, componentTimeline } from "./PayrollEmployeeComponents.jsx";
 import PayrollStatutorySetup, { statutorySchemeLabel, statutorySetupHelp, statutoryCategories } from "./PayrollStatutorySetup.jsx";
 import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
@@ -478,9 +479,6 @@ function SettingsTab({ data, canManage, reload }) {
   const [selectedHolidayId, setSelectedHolidayId] = useState("");
   const [holidayApplicability, setHolidayApplicability] = useState(null);
   const [holidayHistory, setHolidayHistory] = useState(null);
-  const [holidayState, setHolidayState] = useState("all");
-  const [holidayScope, setHolidayScope] = useState("all");
-  const [holidayYear, setHolidayYear] = useState(today().slice(0, 4));
   const [draft, setDraft] = useState({ code: "", name: "", type: "allowance", epf: "undetermined", socso: "undetermined", eis: "undetermined", pcb: "undetermined",
     date: today(), scope: "national", stateCode: "", outletId: "", sourceNote: "", reason: "", active: true });
   const [busy, setBusy] = useState(false);
@@ -520,13 +518,6 @@ function SettingsTab({ data, canManage, reload }) {
     } catch (cause) { setError(cause.message || "Unable to save setting."); }
     finally { setBusy(false); }
   };
-  const holidays = (data.holidays || []).filter((item) => item.holiday_date?.startsWith(holidayYear)
-    && (holidayState === "all" || item.scope === "national" || item.state_code === holidayState)
-    && (holidayScope === "all" || item.scope === holidayScope))
-    .sort((a, b) => a.holiday_date.localeCompare(b.holiday_date));
-  const holidayYearOptions = [...new Set([String(new Date().getFullYear()),
-    String(new Date().getFullYear() + 1), ...(data.holidays || []).map((item) => item.holiday_date?.slice(0, 4)).filter(Boolean)])]
-    .sort((a, b) => Number(b) - Number(a)).map((value) => ({ value, label: value }));
   const selectedHoliday = (data.holidays || []).find((item) => item.id === selectedHolidayId);
   const beginHolidayEdit = (item) => {
     setDraft((previous) => ({ ...previous, date: item.holiday_date, name: item.name, scope: item.scope,
@@ -575,18 +566,8 @@ function SettingsTab({ data, canManage, reload }) {
           { key: "status", header: "Status", render: (item) => <Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge> },
           { key: "actions", header: "Actions", render: (item) => <button className="font-semibold text-primary" type="button" onClick={() => setSelectedComponentId(item.id)}>View</button> },
         ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
-      : <Card className="overflow-hidden"><div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4"><div><h3 className="text-lg font-bold">Public Holidays</h3><p className="text-sm text-text-secondary">One shared calendar by geography. Existing company-specific evidence is retained as an override.</p></div>{canManageHolidays && <button className="btn-primary" type="button" onClick={() => { setEditingHolidayId(""); setAdding(true); }}><Plus size={16} /> Add Holiday</button>}</div>
-        <div className="grid gap-3 border-b border-border p-4 sm:grid-cols-3"><SelectField label="Year" value={holidayYear} onChange={setHolidayYear} options={holidayYearOptions} />
-          <SelectField label="Country / State" value={holidayState} onChange={setHolidayState} options={[{ value: "all", label: "All" }, ...MALAYSIA_STATES.map(([value, name]) => ({ value, label: name }))]} />
-          <SelectField label="Scope" value={holidayScope} onChange={setHolidayScope} options={[{ value: "all", label: "All" }, ...["national", "state", "outlet"].map((value) => ({ value, label: label(value) }))]} /></div>
-        {holidays.length ? <DataTable density="compact" columns={[
-          { key: "date", header: "Date", render: (item) => <time className="tabular-nums">{item.holiday_date}</time> },
-          { key: "name", header: "Holiday", render: (item) => <strong>{item.name}</strong> },
-          { key: "scope", header: "Scope", render: (item) => `${label(item.scope)}${item.state_code ? ` · ${malaysiaStateName(item.state_code)}` : ""}` },
-          { key: "applies", header: "Applies To", render: (item) => item.legal_entity_id ? `Legacy · ${entityName(data.legal_entities || [], item.legal_entity_id)}` : item.scope === "outlet" ? data.outlets?.find((outlet) => outlet.id === item.outlet_id)?.name || "Outlet" : "Matching Malaysia workplaces" },
-          { key: "status", header: "Status", render: (item) => <Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge> },
-          { key: "actions", header: "Actions", render: (item) => <button className="font-semibold text-primary" type="button" onClick={() => setSelectedHolidayId(item.id)}>View</button> },
-        ]} rows={holidays} getRowKey={(item) => item.id} onRowClick={(item) => setSelectedHolidayId(item.id)} /> : <p className="p-6 text-sm text-text-secondary">No holidays in this calendar.</p>}</Card>}
+      : <PayrollAnnualHolidays data={data} canManage={canManageHolidays}
+        onAddHoliday={() => { setEditingHolidayId(""); setAdding(true); }} onViewHoliday={setSelectedHolidayId} />}
     {adding && <Modal title={mode === "components" ? "Add Pay Component" : editingHolidayId ? "Edit Public Holiday" : "Add Public Holiday"} size="lg" onClose={() => !busy && setAdding(false)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setAdding(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.name || (mode === "components" ? ["epf", "socso", "eis", "pcb"].some((key) => draft[key] === "undetermined") : !draft.sourceNote || (editingHolidayId && !draft.reason) || (draft.scope === "state" && !draft.stateCode) || (draft.scope === "outlet" && !draft.outletId))} onClick={save}>{busy ? "Saving…" : mode === "components" ? "Add Component" : editingHolidayId ? "Save Changes" : "Add Holiday"}</button></>}>
       {mode === "components" ? <div className="grid gap-3 sm:grid-cols-2">
         <h3 className="sm:col-span-2 text-sm font-bold">Basic Information</h3>

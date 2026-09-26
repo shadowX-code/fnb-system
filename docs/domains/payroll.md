@@ -123,6 +123,37 @@ version.
 
 ## Holiday and Run Foundation
 
+### Annual Company Paid Holiday authority
+
+Shared National/State holiday definitions are source-reviewed into append-only
+`payroll_holiday_calendar_versions`; no dates or classifications are guessed or
+seeded. Publication requires an explicit complete-source review. Each entry pins
+the holiday definition, required/gazetted/special/substitute classification,
+source and optional original-holiday link. Published sources cannot be edited;
+previously published required holidays cannot be removed or downgraded.
+
+`payroll_paid_holiday_policy_versions` separately selects paid holidays from an
+exact published calendar. One policy may cover multiple Legal Entities; an
+explicit, reasoned outlet override wins over the shared company assignment.
+Publication atomically advances assignment pointers, retaining prior versions
+and audit evidence. Required holidays cannot be deselected. Draft saving and
+publication have payload-bound retry identities and stale-version checks.
+
+Settings → Public Holidays follows Annual Calendar → Company Selection →
+Published. Add Holiday remains the sourced-definition command, not a company
+selection or automatic publication. Historical outlet/entity-specific definitions
+remain readable and do not silently become selected annual paid holidays.
+
+`payroll_paid_holiday_resolve` is the sole date/company/outlet/geography authority
+consumed by payable time. A gazetted but non-selected date stays ordinary work.
+A potentially applicable holiday without a published policy, or a selected State
+holiday with unknown effective geography, remains Review Required. Selected
+holiday evidence pins calendar/policy versions; reads never create records.
+Normal unrelated time fingerprints and all finalized snapshots are preserved.
+Company observation is not a statutory premium rule or a claim that company
+benefits discharge statutory PH obligations. Benefit treatment remains gated on
+verification of this upstream authority.
+
 `payroll_public_holidays` records dated national/state/outlet context under
 shared geographic ownership and a source note. New definitions have no Legal
 Entity ID: National applies across Malaysia, State uses a canonical Outlet
