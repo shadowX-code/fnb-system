@@ -1,5 +1,36 @@
 # Payroll
 
+## Company paid-holiday work benefit
+
+Company Paid Holiday selection, confirmed work and company benefit are separate
+authorities. The annual published policy supplies applicability; published working
+roster, complete Attendance and current approved PH Payable Time supply work evidence.
+`payroll_ph_work_project` / scoped `payroll_ph_work_read` are side-effect-free.
+An effective Legal-Entity company benefit policy recommends Additional Pay or
+Replacement Leave. No statutory baseline/premium is inferred from this policy.
+
+`payroll_ph_work_confirm` locks the Draft/Correction Run and employee Leave scope,
+rechecks the source fingerprint, appends a request-bound decision, reconciles the
+source-linked Leave grant and recalculates only that employee in one transaction.
+Monthly Basic continues: the separate company benefit is effective Monthly Basic
+/ 26 × 1 day. Hourly ordinary earnings reuse Regular pricing for approved PH hours;
+the additional company benefit is effective Hourly Rate × those approved hours.
+Raw clocks never price wages. PH OT remains blocked. A missing policy, confirmation,
+or stale decision blocks calculation readiness, rather than guessing a premium.
+
+The distinguishable `company_ph_benefit` line excludes EPF under KWSP's additional
+PH-work/overtime definition and includes ordinary Act 4/800 PH-work wage treatment;
+ordinary Monthly Basic / Hourly Regular retains its existing inclusion. Sources and
+formula/policy/time/compensation/decision identities are pinned with the calculation.
+PCB remains manual-confirmed. Finalization freezes PH evidence inside existing
+calculation snapshots; finalized statements never resolve it from live policies.
+Post-finalization monetary changes require the existing Correction Revision.
+
+Replacement Leave belongs to canonical Crew Leave, not a Payroll balance. Draft
+Pay ↔ Leave changes append decisions and signed Leave adjustments. A used source
+grant or insufficient unreserved balance blocks switching to Pay. No source
+Holiday, published roster, Attendance or historical decision is rewritten.
+
 ## Operational draft and finalized-record presentation
 
 Prepare Payroll uses one exception-first employee table; status is not duplicated

@@ -39,6 +39,11 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose }) {
         {Number(result.reimbursements) > 0 && <div className="mt-3 divide-y divide-border">{financialLines("reimbursement")}</div>}
       </section>
       {(compensation?.pay_basis === "hourly" || time.length > 0) && <section className="border-t border-border pt-4"><h4 className="font-bold">Time & Attendance</h4><p className="text-sm text-text-secondary">{time.length} days · approved payable-time evidence retained in this result.</p></section>}
+      {result.inputs?.ph_work?.filter(Boolean).length > 0 && <section className="border-t border-border pt-4"><h4 className="font-bold">Public Holiday Work · Company Benefit</h4>
+        <div className="divide-y divide-border">{result.inputs.ph_work.filter(Boolean).map(ph => row(ph.work_date,
+          ph.decision?.treatment === "replacement_leave" ? "Replacement Leave · 1 day granted" : amount(ph.additional_amount),
+          ph.decision?.treatment === "replacement_leave" ? "Expires 31 December; no carry-forward. Frozen source-linked grant." : ph.formula,
+          ph.work_date))}</div><p className="text-xs text-text-secondary">Company benefit, not statutory PH entitlement. This statement reads the pinned revision only.</p></section>}
       <section className="border-t border-border pt-4"><h4 className="text-base font-bold">Employee Deductions</h4><div className="mt-2 divide-y divide-border">{statutoryRows(false)}{financialLines("deduction")}{row("Total Deductions",deductions)}</div></section>
       <section className="rounded-xl bg-primary/5 p-4"><h4 className="text-lg font-bold">Net Pay</h4><div className="mt-2 divide-y divide-border">{row("Gross Earnings",result.gross_earnings)}{row("− Total Deductions",deductions)}
         {Number(result.reimbursements)>0 && row("+ Reimbursements",result.reimbursements,"Outside Gross Earnings")}

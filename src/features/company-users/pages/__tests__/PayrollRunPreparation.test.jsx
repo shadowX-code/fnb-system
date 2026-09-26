@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), saveDraftAdjustment: vi.fn(), decideTime: vi.fn() }));
+const mocks = vi.hoisted(() => ({ readPhWork: vi.fn(), readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), saveDraftAdjustment: vi.fn(), decideTime: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
 import PayrollRunEmployeesPanel from "../PayrollRunEmployeesPanel.jsx";
 afterEach(cleanup);
 beforeEach(() => {
+  mocks.readPhWork.mockResolvedValue([]);
   mocks.readTime.mockResolvedValue([]);
   mocks.readCalculation.mockResolvedValue({ results: [], adjustments: [{ id: "line", employee_id: "employee", component_name: "Deduction", component_type: "deduction", amount: 50, reason: "Approved period adjustment" }] });
   mocks.readStatutory.mockResolvedValue({ results: [] });

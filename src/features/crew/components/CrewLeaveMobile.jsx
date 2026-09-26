@@ -17,7 +17,7 @@ const dayUnit = (value, t) => t("common.day", { count: Number(value) });
 
 export default function CrewLeaveMobile({ token, onBack, onChanged }) {
   const { t } = useTranslation();
-  const typeLabel = { annual: t("leave.annual"), medical: t("leave.medical"), unpaid: t("leave.unpaid"), other: t("leave.other") };
+  const typeLabel = { annual: t("leave.annual"), medical: t("leave.medical"), unpaid: t("leave.unpaid"), other: t("leave.other"), replacement: t("leave.replacement") };
   const [data, setData] = useState({ balances: [], requests: [], upcoming: [] });
   const [tab, setTab] = useState("upcoming");
   const [step, setStep] = useState(0);

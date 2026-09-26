@@ -16,7 +16,7 @@ import { crewService } from "../../../services/crewService.js";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { formatLeaveDate, formatLeaveDateRange } from "../utils/leaveFormatters.js";
 
-const typeLabel = { annual: "Annual Leave", medical: "Medical Leave / MC", unpaid: "Unpaid Leave", other: "Other Leave" };
+const typeLabel = { annual: "Annual Leave", medical: "Medical Leave / MC", unpaid: "Unpaid Leave", other: "Other Leave", replacement: "Replacement Leave" };
 const monthOptions = Array.from({ length: 12 }, (_, index) => ({ value: String(index + 1), label: new Date(2026, index, 1).toLocaleDateString("en-MY", { month: "long" }) }));
 const dayOptions = Array.from({ length: 31 }, (_, index) => ({ value: String(index + 1), label: String(index + 1) }));
 const formatTime = (value) => value ? new Date(`2026-01-01T${String(value).slice(0, 5)}:00`).toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit" }) : "—";
@@ -124,6 +124,7 @@ function BalancesPanel({ rows, listing, actions, filtered, onManage }) {
     { key: "medical", header: "Medical / MC", render: (row) => balanceCell(row, "medical") },
     { key: "unpaid", header: "Unpaid Leave", render: (row) => balanceCell(row, "unpaid") },
     { key: "other", header: "Other Leave", render: (row) => balanceCell(row, "other") },
+    { key: "replacement", header: "Replacement Leave", render: (row) => balanceCell(row, "replacement") },
     { key: "period", header: "Period", render: (row) => <span className="whitespace-nowrap text-text-secondary">{formatLeaveDateRange(row.period_start, row.period_end)}</span> },
     { key: "action", header: "Action", align: "right", render: (row) => <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onManage(row)}>Manage</button> },
   ]} /><AdminPagination {...listing} onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize} noun="Crew balances" /></AsyncDataSurface></Card>;

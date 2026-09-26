@@ -10,6 +10,13 @@ async function command(name, args) {
 // Payroll is the only owner of compensation and run commands. Employee and
 // Employment Document services remain read/provenance sources, not writers here.
 export const payrollService = {
+  readPhPolicy: (entityId) => command("payroll_ph_policy_read", { p_legal_entity_id: entityId }),
+  savePhPolicy: (input) => command("payroll_ph_policy_save", { p_legal_entity_id: input.entityId,
+    p_effective_from: input.date, p_treatment: input.treatment, p_remark: input.remark || null }),
+  readPhWork: (runId, employeeId) => command("payroll_ph_work_read", { p_run_id: runId, p_employee_id: employeeId }),
+  confirmPhWork: (input) => command("payroll_ph_work_confirm", { p_run_id: input.runId,
+    p_employee_id: input.employeeId, p_work_date: input.workDate, p_treatment: input.treatment,
+    p_source_fingerprint: input.fingerprint, p_request_id: input.requestId, p_remark: input.remark || null }),
   readAnnualHolidays: (year) => command("payroll_annual_holiday_read", { p_year: Number(year) }),
   saveAnnualCalendar: (input) => command("payroll_holiday_calendar_save", {
     p_year: Number(input.year), p_entries: input.entries, p_source_reference: input.source,

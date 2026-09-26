@@ -24,6 +24,7 @@ import PayrollFinalizedRecord from "./PayrollFinalizedRecord.jsx";
 import { payComponentIsConfigured, payrollIssueLabel } from "./payrollRunPresentation.js";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
 import PayrollAnnualHolidays from "./PayrollAnnualHolidays.jsx";
+import { PayrollPhPolicy } from "./PayrollPhWork.jsx";
 import PayrollEmployeeComponents, { ComponentSummary, componentTimeline } from "./PayrollEmployeeComponents.jsx";
 import PayrollStatutorySetup, { statutorySchemeLabel, statutorySetupHelp, statutoryCategories } from "./PayrollStatutorySetup.jsx";
 import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
@@ -566,8 +567,9 @@ function SettingsTab({ data, canManage, reload }) {
           { key: "status", header: "Status", render: (item) => <Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge> },
           { key: "actions", header: "Actions", render: (item) => <button className="font-semibold text-primary" type="button" onClick={() => setSelectedComponentId(item.id)}>View</button> },
         ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
-      : <PayrollAnnualHolidays data={data} canManage={canManageHolidays}
-        onAddHoliday={() => { setEditingHolidayId(""); setAdding(true); }} onViewHoliday={setSelectedHolidayId} />}
+      : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays}
+        onAddHoliday={() => { setEditingHolidayId(""); setAdding(true); }} onViewHoliday={setSelectedHolidayId} />
+        <PayrollPhPolicy entities={data.legal_entities || []} canManage={canManageHolidays} /></div>}
     {adding && <Modal title={mode === "components" ? "Add Pay Component" : editingHolidayId ? "Edit Public Holiday" : "Add Public Holiday"} size="lg" onClose={() => !busy && setAdding(false)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setAdding(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.name || (mode === "components" ? ["epf", "socso", "eis", "pcb"].some((key) => draft[key] === "undetermined") : !draft.sourceNote || (editingHolidayId && !draft.reason) || (draft.scope === "state" && !draft.stateCode) || (draft.scope === "outlet" && !draft.outletId))} onClick={save}>{busy ? "Saving…" : mode === "components" ? "Add Component" : editingHolidayId ? "Save Changes" : "Add Holiday"}</button></>}>
       {mode === "components" ? <div className="grid gap-3 sm:grid-cols-2">
         <h3 className="sm:col-span-2 text-sm font-bold">Basic Information</h3>

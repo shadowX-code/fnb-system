@@ -41,12 +41,12 @@ describe("Crew Leave v1 UI contracts", () => {
   });
 
   it("uses only controlled leave RPCs from the frontend", () => {
-    for (const rpc of ["crew_leave_mobile", "crew_leave_submit", "crew_leave_cancel", "crew_leave_admin_data", "crew_leave_review", "crew_leave_policy_save", "crew_leave_adjust", "crew_leave_adjustment_history"]) expect(service).toContain(`rpc("${rpc}"`);
+    for (const rpc of ["crew_leave_mobile", "crew_leave_submit", "crew_leave_cancel", "crew_leave_requests_admin_page", "crew_leave_balances_admin_page", "crew_leave_admin_policies", "crew_leave_review", "crew_leave_policy_save", "crew_leave_adjust", "crew_leave_adjustment_history"]) expect(service).toContain(`rpc("${rpc}"`);
     expect(service).not.toContain('from("crew_leave_requests")');
   });
 
   it("adds manager balance, adjustment and policy contexts without a second sidebar route", () => {
-    for (const copy of ["Balances", "Settings", "Balance summary", "Adjust Leave Balance", "Adjustment History", "Leave Policy", "One employee per row", "Expiry month"]) expect(admin).toContain(copy);
+    for (const copy of ["Balances", "Settings", "Balance summary", "Adjust Leave Balance", "Adjustment History", "Leave Policy", "Expiry month", "Replacement Leave"]) expect(admin).toContain(copy);
     expect(admin).toContain('auth.hasPermission("crew_leave_balance.adjust")');
     expect(admin).toContain('auth.hasPermission("crew_leave_settings.manage")');
   });

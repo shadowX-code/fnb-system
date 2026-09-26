@@ -21,6 +21,12 @@ export function payrollEmployeeResult(calculation, statutory) {
 export function payrollIssueLabel(issue) {
   const [code, detail] = String(issue).split(":");
   const labels = {
+    ph_treatment_confirmation_required: "Review and confirm the company PH work treatment in Employee Review",
+    ph_company_policy_required: "Confirm a company PH Work Policy in Public Holidays Settings",
+    ph_treatment_evidence_changed: "PH work evidence changed; review and confirm its treatment again",
+    ph_confirmed_work_evidence_required: "Confirm published PH work and approved payable time before pricing",
+    public_holiday_ot_unsupported: "PH overtime is unsupported; a separate approved authority is required",
+    replacement_leave_grant_required: "The source-linked Replacement Leave grant requires review",
     missing_effective_compensation_or_proration_policy: "Pay is not established for the full period; an approved proration policy is required.",
     partial_month_requires_approved_proration: "Partial-month pay requires an approved proration policy.",
     monthly_rate_change_requires_proration_policy: "The salary changed during this period; an approved proration policy is required.",

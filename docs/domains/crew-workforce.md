@@ -49,6 +49,15 @@ Crew Access, Leave Requests, and grouped Leave Balances use separate server-page
 Crew Dashboard is a permission-aware, outlet-scoped daily operational projection. It summarizes published roster attendance, approved leave, today’s task instances, and a next-30-day timeline of birthdays, approved leave, and verified compliance expiry where the current Admin may view those authorities. Its bounded staffing rows expose only published shift timing and the current attendance/leave state; its bounded task rows expose current task occurrences and their authoritative status. Its deterministic operational brief and prioritized attention items deep-link to their owning workflows; it intentionally does not create a cross-domain activity log, duplicate lifecycle, or mutate source evidence.
 
 Leave balances are server-derived from policy, entitlement, approved usage, pending reservations, adjustments, carry-forward, and expiry evidence.
+Replacement Leave is a distinct canonical type funded only by confirmed company
+paid-holiday work. Each employee/work-date grants one day through existing Leave
+entitlement/adjustment authority; it expires on 31 December of that year and has
+no carry-forward. Source grants and revocations are append-only and linked to
+Payroll's frozen work/policy decision. Ordinary balance adjustments cannot create
+this type. Existing request/review/approval consumes source grants under the same
+employee Leave lock, preserving approved Leave and roster-projection history.
+A consumed grant cannot be revoked by changing a Draft PH treatment. Payroll is
+only the grant consumer/initiator, never a second leave balance or approval owner.
 Request, approval, rejection, cancellation, and adjustment transitions must preserve balance integrity and audit history.
 Roster projections may display approved leave without transferring leave ownership to the roster.
 

@@ -14,6 +14,7 @@ vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   readCalculation: mocks.readCalculation, readStatutory: mocks.readStatutory,
   readPcb: mocks.readPcb, readRules: mocks.readRules,
   readPreparation: mocks.readPreparation,
+  readPhWork: vi.fn().mockResolvedValue([]),
   readComponentHistory: mocks.readComponentHistory, readFinalizedRecord: mocks.readFinalizedRecord,
   readHolidayApplicability: mocks.readHolidayApplicability,
   readHolidayHistory: mocks.readHolidayHistory, readRunHistory: mocks.readRunHistory,

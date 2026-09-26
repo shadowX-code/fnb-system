@@ -23,7 +23,7 @@ export const formatRosterTime = (value) => {
   const [hours, minutes] = String(value).split(":").map(Number);
   return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString(crewLocale(), { hour: "numeric", minute: "2-digit" });
 };
-export const rosterEntryLabel = (entry, t) => ({ off: t("schedule.off"), leave: t("schedule.annualLeave"), medical: "MC", annual_leave: t("schedule.annualLeave"), medical_leave: t("schedule.medicalLeave"), unpaid_leave: t("schedule.unpaidLeave"), other_leave: t("schedule.otherLeave") }[entry?.entry_type] || entry?.template?.name || t("schedule.working"));
+export const rosterEntryLabel = (entry, t) => ({ off: t("schedule.off"), leave: t("schedule.annualLeave"), medical: "MC", annual_leave: t("schedule.annualLeave"), medical_leave: t("schedule.medicalLeave"), unpaid_leave: t("schedule.unpaidLeave"), other_leave: t("schedule.otherLeave"), replacement_leave: t("leave.replacement") }[entry?.entry_type] || entry?.template?.name || t("schedule.working"));
 export const distanceMeters = (a, b, c, d) => {
   const radians = (value) => value * Math.PI / 180;
   const latitude = radians(c - a);
