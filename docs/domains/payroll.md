@@ -315,6 +315,14 @@ The suggested date follows both latest applicability/category versions, never
 an inferred historical entitlement. Settings exposes schedule sources read-only.
 
 Employee Manage Components owns assignment/amount, distinct from Settings
+definitions and one-period Run adjustments. The Employee registry reads Joined
+from the existing scoped Employee projection, current pay and last effective
+pay change from compensation history, and active component counts from the
+same effective-dated selector as Manage Components. Individual scheme icons
+consume the server setup summary, with focus/hover details; secondary columns
+collapse at narrower Admin widths while detail retains complete evidence.
+
+Employee Manage Components owns assignment/amount, distinct from Settings
 definitions and one-period Run adjustments. Add, Change Amount and Stop append
 versions through `payroll_recurring_adjust`; a stop writes an inactive zero
 version, never deletes history. Future starts/changes/stops remain visible.

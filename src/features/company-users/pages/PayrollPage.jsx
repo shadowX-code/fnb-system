@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Plus, Check, Minus, TriangleAlert, Clock } from "lucide-react";
+import InfoTooltip from "../../../components/ui/InfoTooltip.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -20,7 +21,7 @@ import PayrollRunCalculationPanel from "./PayrollRunCalculationPanel.jsx";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
 import { payrollIssueLabel } from "./payrollRunPresentation.js";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
-import PayrollEmployeeComponents, { ComponentSummary } from "./PayrollEmployeeComponents.jsx";
+import PayrollEmployeeComponents, { ComponentSummary, componentTimeline } from "./PayrollEmployeeComponents.jsx";
 import PayrollStatutorySetup, { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
 
@@ -133,7 +134,21 @@ function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, 
   </Modal>;
 }
 
-function ProfilesTab({ data, canManage, reload }) {
+const registryDate = value => value ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${value.slice(0,10)}T12:00:00`)) : "—";
+export function lastPayChange(versions, date) {
+  const history = [...(versions || [])].filter(v => v.effective_from <= date).sort((a,b) => a.effective_from.localeCompare(b.effective_from));
+  return history.filter((v,i) => !i || ["pay_basis", "basic_salary", "hourly_rate", "currency"].some(key => v[key] !== history[i-1][key])).at(-1)?.effective_from;
+}
+function RegistryScheme({ scheme, state }) {
+  const scheduled = state?.state === "scheduled";
+  const resolved = state?.state === "confirmed";
+  const notApplicable = state?.state === "not_applicable" || (!scheduled && state?.applicable === false);
+  const Icon = scheduled ? Clock : notApplicable ? Minus : resolved ? Check : TriangleAlert;
+  const description = `${scheme.toUpperCase()} — ${statutorySchemeLabel(scheme, state)}${scheduled ? ` · Scheduled · Effective ${registryDate(state.effective_from)}` : ""}`;
+  return <InfoTooltip label={description}><Icon size={16} aria-hidden="true" className={scheduled ? "text-primary" : notApplicable ? "text-text-secondary" : resolved ? "text-emerald-700" : "text-amber-700"} /></InfoTooltip>;
+}
+
+export function ProfilesTab({ data, canManage, reload }) {
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState("");
   const [setupEmployeeId, setSetupEmployeeId] = useState("");
@@ -153,12 +168,26 @@ function ProfilesTab({ data, canManage, reload }) {
     && (statusFilter === "all" || setupState(row) === statusFilter)
     && (!search.trim() || `${row.name} ${row.employee_code || ""}`.toLowerCase().includes(search.trim().toLowerCase())));
   const columns = [
-    { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><div className="text-xs text-text-secondary">{row.employee_code || row.workplace || "—"}</div></div> },
-    { key: "basis", header: "Pay Basis", render: (row) => effective(row.profile?.compensation) ? label(effective(row.profile.compensation).pay_basis) : "Not set" },
+    { key: "employee", header: "Employee", render: (row) => <div className="min-w-28 max-w-48"><strong>{row.name}</strong><div className="text-xs text-text-secondary">{[row.employee_code, row.workplace].filter(Boolean).join(" · ") || "—"}</div></div> },
+    { key: "joined", header: "Joined", className: "hidden 2xl:table-cell whitespace-nowrap", headerClassName: "hidden 2xl:table-cell", render: row => registryDate(row.joined_date) },
+    { key: "basis", header: "Pay Basis", className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell", render: (row) => effective(row.profile?.compensation) ? label(effective(row.profile.compensation).pay_basis) : "Not set" },
     { key: "rate", header: "Current Pay", align: "right", render: (row) => { const c = effective(row.profile?.compensation); return c ? <strong className="tabular-nums">{money(c.basic_salary || c.hourly_rate, c.currency)}{c.pay_basis === "hourly" ? " / hour" : ""}</strong> : "—"; } },
-    { key: "statutory", header: "Statutory Readiness", render: (row) => <span className="text-sm">{row.profile ? row.profile.statutory_setup?.status || "Setup Required" : "Not set"}</span> },
+    ...["epf", "socso", "eis", "pcb"].map(scheme => ({ key: scheme, header: scheme.toUpperCase(), className: "hidden xl:table-cell text-center", headerClassName: "hidden xl:table-cell text-center",
+      render: row => <RegistryScheme scheme={scheme} state={row.profile?.statutory_setup?.display_schemes?.[scheme]} /> })),
+    { key: "components", header: "Components", className: "hidden xl:table-cell", headerClassName: "hidden xl:table-cell", render: row => {
+      const active = [...new Set((row.profile?.recurring || []).map(v => v.component_id))].map(id => ({
+        value: componentTimeline(row.profile.recurring.filter(v => v.component_id === id), today()).current,
+        definition: data.components?.find(c => c.id === id),
+      })).filter(c => c.value?.is_active);
+      const deductions = active.filter(c => c.definition?.component_type === "deduction").length;
+      const earnings = active.length - deductions;
+      return active.length ? <InfoTooltip label={active.map(c => `${c.definition?.name || "Component"}: ${c.definition?.component_type === "deduction" ? "−" : "+"}${money(c.value.amount)}`).join("\n")}>
+        <span className="whitespace-nowrap tabular-nums">{deductions ? `+${earnings} / −${deductions}` : `${active.length} active`}</span>
+      </InfoTooltip> : <span className="text-text-secondary">None</span>;
+    } },
+    { key: "pay_change", header: "Last Pay Change", className: "hidden 2xl:table-cell whitespace-nowrap", headerClassName: "hidden 2xl:table-cell", render: row => registryDate(lastPayChange(row.profile?.compensation, today())) },
     { key: "status", header: "Status", render: (row) => <Badge tone={setupState(row) === "Ready" ? "success" : "warning"}>{setupState(row)}</Badge> },
-    { key: "open", header: "", align: "right", render: (row) => <button className="text-primary" type="button" aria-label={`View ${row.name} payroll setup`} onClick={() => setSelectedId(row.id)}><ChevronRight size={16} /></button> },
+    { key: "open", header: "Action", align: "right", render: (row) => <button className="text-primary" type="button" aria-label={`View ${row.name} payroll setup`} onClick={() => setSelectedId(row.id)}><ChevronRight size={16} /></button> },
   ];
   const versions = selected?.compensation || [];
   const current = effective(versions);
@@ -172,7 +201,7 @@ function ProfilesTab({ data, canManage, reload }) {
       filters={<SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, ...["Ready", "Scheduled Change", "Confirmation Required", "Setup Required"].map((value) => ({ value, label: value }))]} />}
       primaryActions={canManage && rows.some((row) => !row.profile) ? <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(""); setForm("create"); }}><Plus size={16} /> Set Up Employee</button> : null} />
     <Card>{visibleRows.length ? <DataTable columns={columns} rows={visibleRows} getRowKey={(row) => row.id}
-      density="compact" onRowClick={(row) => setSelectedId(row.id)} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees match these filters.</div>}</Card>
+      density="compact" tableClassName="!min-w-0" onRowClick={(row) => setSelectedId(row.id)} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees match these filters.</div>}</Card>
     <Drawer open={Boolean(selectedEmployee) && !form} title={selectedEmployee?.name} eyebrow="Payroll employee" description={`${entityName(entities, selectedEmployee?.legal_entity_id)} · ${selectedEmployee?.workplace || "Workplace not set"}`} onClose={() => setSelectedId("")}
       footer={canManage && selectedEmployee ? <div className="flex flex-wrap justify-end gap-2">{selected ? <><button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Edit Pay</button><button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Manage Statutory Setup</button><button className="btn-primary" type="button" onClick={() => setForm("recurring")}>Manage Components</button></> : <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(selectedEmployee.id); setForm("create"); }}>Set Up Employee</button>}</div> : null}>
       {selectedEmployee && <div className="space-y-5">
@@ -183,6 +212,7 @@ function ProfilesTab({ data, canManage, reload }) {
         <section><h4 className="font-bold">Employment & Pay</h4>
           <p className="mt-2 text-xl font-bold tabular-nums">{current ? money(current.basic_salary || current.hourly_rate, current.currency) : "Not effective yet"}</p>
           <p className="text-sm text-text-secondary">{current ? `${label(current.pay_basis)}${current.pay_basis === "hourly" ? " / hour" : ""} · from ${current.effective_from}` : "—"}</p>
+          <p className="mt-2 text-xs text-text-secondary">Joined {registryDate(selectedEmployee.joined_date)} · Last Pay Change {registryDate(lastPayChange(versions, today()))}</p>
           {upcoming[0] && <p className="mt-2 text-sm text-text-secondary">Next change: {money(upcoming[0].basic_salary || upcoming[0].hourly_rate)} from {upcoming[0].effective_from}</p>}</section>
         <section><h4 className="font-bold">Statutory</h4>
           <div className="mt-2 flex flex-wrap gap-2">{["epf", "socso", "eis", "pcb"].map((key) =>
