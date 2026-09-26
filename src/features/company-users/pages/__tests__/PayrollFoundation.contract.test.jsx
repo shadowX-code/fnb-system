@@ -54,7 +54,7 @@ describe("People Payroll Phase 1 foundation", () => {
     expect(migration).toContain("No Paid transition until settlement authority exists");
     expect(page).toContain("No payslip or payment is created.");
     expect(page).toContain("Adjust Compensation");
-    expect(page).toContain("Compensation History");
+    expect(page).toContain("History");
     expect(page).toContain("Ready and Finalize require complete time, pay and statutory evidence");
     expect(page).not.toContain("window.prompt");
     expect(page).toContain('rate: previous.payBasis === value ? previous.rate : ""');

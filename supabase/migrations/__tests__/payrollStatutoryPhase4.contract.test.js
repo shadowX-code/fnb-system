@@ -38,7 +38,7 @@ describe("Payroll Phase 4 statutory safety boundary", () => {
   });
 
   it("never presents a pre-statutory Ready result as payroll Ready", () => {
-    expect(calculationPanel).toContain('if (!statutory) return "Statutory Not Calculated"');
+    expect(calculationPanel).toContain('if (!statutory) return "Complete Calculation"');
     expect(calculationPanel).toContain("return title(statutory.status)");
     expect(calculationPanel).toContain("overallStatus(row, statutoryRows.find");
     expect(calculationPanel).toContain("Pre-statutory Pay");

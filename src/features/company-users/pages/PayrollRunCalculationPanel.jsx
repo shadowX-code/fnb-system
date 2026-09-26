@@ -13,9 +13,9 @@ const rm = (value) => new Intl.NumberFormat("en-MY", {
 const title = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const issueLabel = (value) => title(String(value).replace(/:\d{4}-\d{2}-\d{2}$/, ""));
 const overallStatus = (calculation, statutory) => {
-  if (calculation.is_stale || statutory?.is_stale) return "Stale";
-  if (calculation.status !== "ready") return title(calculation.status);
-  if (!statutory) return "Statutory Not Calculated";
+  if (calculation.is_stale || statutory?.is_stale) return "Refresh Payroll";
+  if (calculation.status !== "ready") return "Needs Attention";
+  if (!statutory) return "Complete Calculation";
   return title(statutory.status);
 };
 
@@ -89,6 +89,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
   const [data, setData] = useState(null);
   const [statutory, setStatutory] = useState(null);
   const [pcb, setPcb] = useState(null);
+  const [preparation, setPreparation] = useState(null);
   const [pcbForm, setPcbForm] = useState(null);
   const [pcbDraft, setPcbDraft] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -102,10 +103,11 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
   };
   const load = useCallback(async () => {
     try {
-      const [calculation, statutoryResult, pcbResult] = await Promise.all([
+      const [calculation, statutoryResult, pcbResult, preparationResult] = await Promise.all([
         payrollService.readCalculation(run.id), payrollService.readStatutory(run.id), payrollService.readPcb(run.id),
+        payrollService.readPreparation(run.id),
       ]);
-      setData(calculation); setStatutory(statutoryResult); setPcb(pcbResult); setError("");
+      setData(calculation); setStatutory(statutoryResult); setPcb(pcbResult); setPreparation(preparationResult); setError("");
     }
     catch (cause) { setError(cause.message || "Unable to read Payroll calculations."); }
   }, [run.id]);
@@ -153,32 +155,44 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     } catch (cause) { setError(cause.message || "Unable to confirm PCB / MTD."); }
     finally { setBusy(false); }
   };
-  const rows = (data?.results || []).map((row) => run.status === "finalized" ? { ...row, is_stale: false } : row);
+  const rows = (preparation?.results || []).map((member) => {
+    const result = data?.results?.find((row) => row.employee_id === member.employee_id);
+    return result ? (run.status === "finalized" ? { ...result, is_stale: false } : result) : {
+      ...member.projection, id: member.employee_id, employee_id: member.employee_id,
+      uncalculated: true, gross_earnings: null, non_statutory_deductions: null,
+      issues: member.projection?.issues?.length ? member.projection.issues : ["Calculate payroll after preparing inputs"],
+      status: "review_required",
+    };
+  });
   const statutoryRows = (statutory?.results || []).map((row) => run.status === "finalized" ? { ...row, is_stale: false } : row);
   const pcbRows = pcb?.results || [];
   const statutoryFor = (row) => statutoryRows.find((item) => item.employee_id === row.employee_id);
   const schemeAmount = (row, scheme) => {
     const result = statutoryFor(row);
     const line = result?.lines?.find((item) => item.scheme === scheme);
-    return !result || result.is_stale || line?.employee_amount == null ? "—" : rm(line.employee_amount);
+    return line?.applicable === false ? "N/A" : !result || result.is_stale || line?.employee_amount == null ? "Pending" : rm(line.employee_amount);
   };
   const columns = stage === "review" ? [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
-    { key: "gross", header: "Gross", align: "right", render: (row) => <span className="tabular-nums">{rm(row.gross_earnings)}</span> },
+    { key: "gross", header: "Gross", align: "right", render: (row) => <span className="tabular-nums">{row.uncalculated ? "Pending calculation" : rm(row.gross_earnings)}</span> },
+    { key: "adjustments", header: "Adjustments", align: "right", render: (row) => {
+      const items = (data?.adjustments || []).filter((item) => item.employee_id === row.employee_id);
+      const amount = items.reduce((sum, item) => sum + Number(item.amount) * (item.component_type === "deduction" ? -1 : 1), 0);
+      return items.length ? `${amount < 0 ? "−" : "+"}${rm(Math.abs(amount))}` : "None";
+    } },
     ...["epf", "socso", "eis"].map((scheme) => ({ key: scheme, header: scheme.toUpperCase(), align: "right", render: (row) => <span className="tabular-nums">{schemeAmount(row, scheme)}</span> })),
     { key: "pcb", header: "PCB / MTD", align: "right", render: (row) => {
       const evidence = pcbRows.find((item) => item.employee_id === row.employee_id);
-      return <span className="tabular-nums">{evidence?.applicable === false ? "Not applicable" : evidence?.confirmation ? rm(evidence.confirmation.amount) : "Not confirmed"}</span>;
+      return <span className="tabular-nums">{evidence?.applicable === false ? "N/A" : evidence?.applicable == null ? "Period setup required" : evidence?.confirmation ? rm(evidence.confirmation.amount) : "Confirmation required"}</span>;
     } },
-    { key: "deductions", header: "Other Deductions", align: "right", render: (row) => <span className="tabular-nums">{rm(row.non_statutory_deductions)}</span> },
-    { key: "net", header: "Net Pay", align: "right", render: (row) => <strong className="tabular-nums">{statutoryFor(row)?.net_pay == null || statutoryFor(row)?.is_stale ? "—" : rm(statutoryFor(row).net_pay)}</strong> },
+    { key: "net", header: "Net Pay", align: "right", render: (row) => <strong className="tabular-nums">{statutoryFor(row)?.net_pay == null || statutoryFor(row)?.is_stale ? "Pending review" : rm(statutoryFor(row).net_pay)}</strong> },
     { key: "status", header: "Status", render: (row) => {
       const result = statutoryFor(row);
       const status = overallStatus(row, result);
       return <div><Badge tone={status === "Ready" ? "success" : "warning"}>{status}</Badge>
         {status !== "Ready" && <small className="mt-1 block max-w-48 text-text-secondary">{(result?.issues || row.issues || []).map(issueLabel).join(" · ") || "Open details to resolve"}</small>}</div>;
     } },
-    { key: "action", header: "Action", render: (row) => <button className="font-semibold text-primary" type="button" onClick={(event) => { event.stopPropagation(); onReviewEmployee?.(row.employee_id); }}>{overallStatus(row, statutoryFor(row)) === "Ready" ? "View" : "Resolve"}</button> },
+    { key: "action", header: "Action", render: (row) => <button className="font-semibold text-primary" type="button" onClick={(event) => { event.stopPropagation(); overallStatus(row, statutoryFor(row)) === "Ready" ? setSelected(row) : onReviewEmployee?.(row.employee_id); }}>{overallStatus(row, statutoryFor(row)) === "Ready" ? "View" : "Resolve"}</button> },
   ] : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
     { key: "basis", header: "Pay Basis", render: (row) => title(row.pay_basis || "Missing") },
@@ -209,18 +223,20 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
       <div><h4 className="font-bold text-text-primary">{stage === "review" ? "Review Payroll" : "Calculate Payroll"}</h4>
         <p className="text-sm text-text-secondary">{data?.readiness ?
-          `${data.readiness.employees} employees · ${data.readiness.review_required} review required · ${data.readiness.uncalculated} not calculated · ${data.readiness.stale} needs refresh${data.readiness.period_in_progress ? " · period in progress" : ""}` : "Loading payroll evidence…"}</p></div>
+          `${data.readiness.employees} employees · ${data.readiness.review_required + data.readiness.uncalculated + data.readiness.stale} need attention${data.readiness.period_in_progress ? " · pay period still in progress" : ""}` : "Loading payroll evidence…"}</p></div>
       {canEdit && <div className="flex flex-wrap gap-2">
         <button className="btn-secondary" type="button" disabled={busy || !rows.length} onClick={calculateStatutory}>{busy ? "Calculating…" : "Calculate Statutory"}</button>
         <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Payroll"}</button></div>}
     </div>
-    {stage === "review" && rows.length > 0 && <div className="grid gap-3 border-b border-border p-4 text-sm sm:grid-cols-3">
-      <div><span className="text-text-secondary">Gross Earnings</span><strong className="block tabular-nums">{rm(rows.reduce((sum, row) => sum + Number(row.gross_earnings || 0), 0))}</strong></div>
-      <div><span className="text-text-secondary">Net Pay</span><strong className="block tabular-nums">{statutoryRows.length === rows.length && statutoryRows.every((row) => row.net_pay != null && !row.is_stale) ? rm(statutoryRows.reduce((sum, row) => sum + Number(row.net_pay), 0)) : "Pending review"}</strong></div>
-      <div><span className="text-text-secondary">Employees</span><strong className="block">{rows.length}</strong></div>
+    {stage === "review" && rows.length > 0 && <div className="grid gap-3 border-b border-border p-4 text-sm sm:grid-cols-5">
+      <div><span className="text-text-secondary">Gross Payroll</span><strong className="block tabular-nums">{rows.some((row) => row.is_stale || row.uncalculated) ? "Calculation required" : rm(rows.reduce((sum, row) => sum + Number(row.gross_earnings || 0), 0))}</strong></div>
+      <div><span className="text-text-secondary">Employee Deductions</span><strong className="block tabular-nums">{statutoryRows.length === rows.length && statutoryRows.every((row) => row.net_pay != null && !row.is_stale) ? rm(rows.reduce((sum, row) => sum + Number(row.non_statutory_deductions), 0) + statutoryRows.reduce((sum, row) => sum + (row.lines || []).reduce((subtotal, line) => subtotal + Number(line.employee_amount || 0), 0), 0)) : "Pending review"}</strong></div>
+      <div><span className="text-text-secondary">Employer Contributions</span><strong className="block tabular-nums">{statutoryRows.length === rows.length && statutoryRows.every((row) => row.net_pay != null && !row.is_stale) ? rm(statutoryRows.reduce((sum, row) => sum + (row.lines || []).reduce((subtotal, line) => subtotal + Number(line.employer_amount || 0) + Number(line.remittance_rounding || 0), 0), 0)) : "Pending review"}</strong></div>
+      <div><span className="text-text-secondary">Net Payroll</span><strong className="block tabular-nums">{statutoryRows.length === rows.length && statutoryRows.every((row) => row.net_pay != null && !row.is_stale) ? rm(statutoryRows.reduce((sum, row) => sum + Number(row.net_pay), 0)) : "Pending review"}</strong></div>
+      <div><span className="text-text-secondary">Employees Ready / Need Attention</span><strong className="block">{rows.filter((row) => overallStatus(row, statutoryFor(row)) === "Ready").length} / {rows.filter((row) => overallStatus(row, statutoryFor(row)) !== "Ready").length}</strong></div>
     </div>}
     {error && <p role="alert" className="px-4 pt-3 text-sm font-semibold text-rose-700">{error}</p>}
-    {rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} density="compact" onRowClick={setSelected} /> :
+    {rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id || row.employee_id} density="compact" onRowClick={(row) => overallStatus(row, statutoryFor(row)) === "Ready" ? setSelected(row) : onReviewEmployee?.(row.employee_id)} /> :
       <p className="p-6 text-sm text-text-secondary">No payroll results yet. Use Calculate to prepare the employee breakdown.</p>}
     {data?.adjustments?.length > 0 && <div className="border-t border-border p-4"><h5 className="mb-2 text-sm font-bold">Approved variable lines</h5>
       <div className="divide-y divide-border">{data.adjustments.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">

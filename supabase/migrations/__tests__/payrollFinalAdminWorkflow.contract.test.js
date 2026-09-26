@@ -22,7 +22,7 @@ describe("Payroll final Admin workflow and shared controls", () => {
   });
 
   it("separates history and monthly exception review without another calculation authority", () => {
-    expect(page).toContain('"Review Employees", "Review Payroll", "Finalize"');
+    expect(page).toContain('"Prepare Payroll", "Review Payroll", "Finalize"');
     expect(page).toContain("readRunHistory");
     expect(page).toContain("PayrollRunEmployeesPanel");
     expect(time).toContain("payrollService.decideTime");

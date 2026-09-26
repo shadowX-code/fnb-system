@@ -50,7 +50,7 @@ describe("Payroll Phase 3 pre-statutory calculation authority", () => {
 
   it("exposes explanation and sourced rule management without statutory amounts", () => {
     expect(page).toContain('stage="review"');
-    expect(page).toContain('"Review Employees", "Review Payroll", "Finalize"');
+    expect(page).toContain('"Prepare Payroll", "Review Payroll", "Finalize"');
     expect(calculationPanel).toContain('description="Payroll result');
     expect(page).toContain("Pay Rules");
     expect(page).toContain("Return to Review");

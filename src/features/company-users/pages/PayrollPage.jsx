@@ -208,7 +208,7 @@ function ProfilesTab({ data, canManage, reload }) {
   </div>;
 }
 
-const runSteps = ["Review Employees", "Review Payroll", "Finalize"];
+const runSteps = ["Prepare Payroll", "Review Payroll", "Finalize"];
 
 function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, month, setMonth, step, setStep, openRunId, setOpenRunId, readiness }) {
   const [reason, setReason] = useState("");
@@ -278,7 +278,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
     state?.statutory && !state.statutory.ready && `${state.statutory.review_required || 0} statutory results need review · ${state.statutory.uncalculated || 0} not calculated`,
   ].filter(Boolean);
   const statutoryRows = totals?.results || [];
-  const total = (key) => statutoryRows.length && statutoryRows.every((item) => item[key] != null) ? money(statutoryRows.reduce((sum, item) => sum + Number(item[key]), 0)) : "—";
+  const total = (key) => statutoryRows.length && statutoryRows.every((item) => item[key] != null && !item.is_stale && item.status === "ready") ? money(statutoryRows.reduce((sum, item) => sum + Number(item[key]), 0)) : "Pending review";
   const allReady = Boolean(state?.time?.ready && (run.foundation_only || (state?.calculation?.ready && state?.statutory?.ready)));
   const approverName = run?.finalized_by_name || (data.employees || []).find((item) => item.id === run?.finalized_by_employee_id)?.name || "Authorized approver";
   const yearOptions = [...new Set([String(new Date().getFullYear()), ...(history || []).map((item) => item.period_start?.slice(0, 4)).filter(Boolean)])]
@@ -327,9 +327,10 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
         <div className="flex justify-end"><button className="btn-primary" type="button" onClick={() => setStep(1)}>Review Payroll <ChevronRight size={16} /></button></div></>}
       {step === 1 && <PayrollRunCalculationPanel run={run} components={data.components || []} canManage={canManage && mutable} onChanged={reload} stage="review" onReviewEmployee={(id) => { setFocusEmployeeId(id); setStep(0); }} />}
       {step === 2 && <Card className="space-y-4 p-5"><div><h3 className="text-lg font-bold">Finalize Payroll</h3><p className="text-sm text-text-secondary">Review current revision totals and required evidence before the irreversible finalization step.</p></div>
-        {totals?.error ? <p role="alert" className="text-sm text-rose-700">Unable to load final totals. Retry this step before finalizing.</p> : !totals ? <p className="text-sm text-text-secondary">Loading final evidence…</p> : <div className="grid gap-3 sm:grid-cols-3"><div><p className="text-xs text-text-secondary">Employees calculated</p><strong>{statutoryRows.length}</strong></div><div><p className="text-xs text-text-secondary">Net Pay</p><strong className="tabular-nums">{total("net_pay")}</strong></div><div><p className="text-xs text-text-secondary">Total Employer Cost</p><strong className="tabular-nums">{total("total_employer_cost")}</strong></div></div>}
+        {totals?.error ? <p role="alert" className="text-sm text-rose-700">Unable to load final totals. Retry this step before finalizing.</p> : !totals ? <p className="text-sm text-text-secondary">Loading final evidence…</p> : <div className="grid gap-3 sm:grid-cols-5"><div><p className="text-xs text-text-secondary">Employees</p><strong>{employeeCount ?? statutoryRows.length}</strong></div><div><p className="text-xs text-text-secondary">Gross Payroll</p><strong>{total("gross_earnings")}</strong></div><div><p className="text-xs text-text-secondary">Employee Deductions</p><strong>{statutoryRows.length && statutoryRows.every((row) => row.status === "ready" && !row.is_stale) ? money(statutoryRows.reduce((sum, row) => sum + Number(row.non_statutory_deductions || 0) + (row.lines || []).reduce((subtotal, line) => subtotal + Number(line.employee_amount || 0), 0), 0)) : "Pending review"}</strong></div><div><p className="text-xs text-text-secondary">Employer Contributions</p><strong>{total("employer_statutory_cost")}</strong></div><div><p className="text-xs text-text-secondary">Net Payroll</p><strong className="tabular-nums">{total("net_pay")}</strong></div></div>}
         {run.status === "finalized" ? <div className="rounded-xl bg-surface-muted p-4 text-sm"><Badge tone="success">Finalized</Badge><p className="mt-2">Revision {run.revision} is immutable. Corrections require a new revision; this evidence is retained.</p><p className="text-text-secondary">{run.finalized_at ? `Finalized ${new Date(run.finalized_at).toLocaleString()}` : "Finalized evidence retained"} · {approverName}</p></div> : <>
           <p className="text-sm text-text-secondary">Time: {state?.time?.ready ? "Ready" : "Review required"} · Calculation: {state?.calculation?.ready ? "Ready" : "Review required"} · Statutory: {state?.statutory?.ready ? "Ready" : "Review required"}</p>
+          {!allReady && <div className="divide-y divide-border">{blockers.map((blocker) => <div key={blocker} className="flex items-center justify-between gap-3 py-2 text-sm"><span>{blocker}</span><button type="button" className="font-semibold text-primary" onClick={() => setStep(0)}>Resolve in Prepare Payroll →</button></div>)}</div>}
           <div className="flex flex-wrap gap-2">{canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy || !allReady} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
             {canManage && run.status === "ready" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Return to Review</button>}
             {canFinalize && run.status === "ready" && <button className="btn-primary" type="button" disabled={busy || !allReady || !totals || totals.error} onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}</div></>}

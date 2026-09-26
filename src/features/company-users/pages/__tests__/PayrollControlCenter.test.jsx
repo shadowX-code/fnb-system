@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 
 const mocks = vi.hoisted(() => ({
   read: vi.fn(), time: vi.fn(), calculation: vi.fn(), statutory: vi.fn(),
-  readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readRules: vi.fn(),
+  readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readRules: vi.fn(), readPreparation: vi.fn(),
   readComponentHistory: vi.fn(),
   readHolidayApplicability: vi.fn(),
   readHolidayHistory: vi.fn(), readRunHistory: vi.fn(),
@@ -13,6 +13,7 @@ vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   statutoryReadiness: mocks.statutory, readTime: mocks.readTime,
   readCalculation: mocks.readCalculation, readStatutory: mocks.readStatutory,
   readPcb: mocks.readPcb, readRules: mocks.readRules,
+  readPreparation: mocks.readPreparation,
   readComponentHistory: mocks.readComponentHistory,
   readHolidayApplicability: mocks.readHolidayApplicability,
   readHolidayHistory: mocks.readHolidayHistory, readRunHistory: mocks.readRunHistory,
@@ -37,6 +38,7 @@ beforeEach(() => {
   mocks.readCalculation.mockReset().mockResolvedValue({ results: [], adjustments: [] });
   mocks.readStatutory.mockReset().mockResolvedValue({ results: [] });
   mocks.readPcb.mockReset().mockResolvedValue({ results: [] });
+  mocks.readPreparation.mockReset().mockResolvedValue({ results: [] });
   mocks.readRules.mockReset().mockResolvedValue([]);
   mocks.readComponentHistory.mockReset().mockResolvedValue([]);
   mocks.readHolidayApplicability.mockReset().mockResolvedValue({ outlets: [], legal_entities: [] });
@@ -63,7 +65,7 @@ describe("Payroll Control Center", () => {
     await screen.findByText("1 time exceptions · 0 unreconciled");
     fireEvent.click(screen.getByRole("button", { name: /Review employees →/ }));
     expect(screen.getByRole("navigation", { name: "Payroll Run stages" })).not.toBeNull();
-    await screen.findByRole("heading", { name: "Review Employees" });
+    await screen.findByRole("heading", { name: "Prepare Payroll" });
     expect(mocks.readTime).toHaveBeenCalledWith("entity-1", "2026-09-01", "2026-09-30");
   });
 

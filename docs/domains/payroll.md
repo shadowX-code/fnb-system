@@ -27,12 +27,17 @@ available financial totals and links readiness blockers to their owning
 resolution step. It does not execute the Run workflow. Employees manages the
 effective-dated Payroll setup without changing Employee or Contract authority.
 Payroll Runs opens on a server-scoped history table with current/superseded
-revisions and available totals. Opening a Run enters Review Employees → Review
+revisions and available totals. Opening a Run enters Prepare Payroll → Review
 Payroll → Finalize. Preflight and calculation are system actions, not extra
 navigation stages. Payable-time exceptions, one-period adjustments and
 PCB/MTD confirmation are resolved through centered monthly employee review;
 permanent setup remains in Employees. Ready and Finalize still rely on the
 canonical server gates. Settings presents operational statutory methods,
+The scoped Run preparation read consumes the canonical calculation projection
+for time relevance and blockers, and resolves statutory setup at period start.
+Later setup never supplies missing earlier evidence. Persisted one-off lines
+read back independently of calculated lines; recurring components remain separate.
+Review includes every Run member, including precise blockers before calculation.
 shared-geography holidays, Pay Components and current supported Pay Calculation
 Rules; rule publication opens only from a selected append-only rule version.
 Payroll Settings uses the shared Admin underline-tab pattern below the four
