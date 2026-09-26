@@ -44,6 +44,8 @@ it("identifies the next task and requires benefit setup as well as published sel
   service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [policy], can_manage: true, benefit_ready: false });
   const view = render(<PayrollAnnualHolidays data={data} canManage />);
   expect(await screen.findByText("PH Work Benefit not configured")).toBeTruthy();
+  expect(screen.getByText("Paid holiday selection published")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: "Publish Paid Holiday Selection" })).toBeNull();
   service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [policy], can_manage: true, benefit_ready: true });
   view.rerender(<PayrollAnnualHolidays data={{ ...data }} canManage />);
   expect(await screen.findByText("Ready")).toBeTruthy();

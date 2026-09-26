@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -69,7 +69,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const selection = defaultPolicy?.selected_holiday_ids || [];
   const publishedEntries = published?.entries || [];
   const paidSelection = selectionDraft || [...new Set([...publishedEntries.filter(e => e.kind === "required").map(e => e.holiday_id), ...selection.filter(id => publishedEntries.some(e => e.holiday_id === id))])];
-  useEffect(() => { setSelectionDraft(null); selectionRequest.current = null; }, [year, company, published?.id, defaultPolicy?.id]);
+  useLayoutEffect(() => { setSelectionDraft(null); selectionRequest.current = null; }, [year, company, published?.id, defaultPolicy?.id]);
   const required = entries.filter(e => e.kind === "required");
   const optional = entries.filter(e => e.kind !== "required");
   const benefitReady = company === "all" ? annual?.benefit_ready : companyBenefit;
@@ -150,7 +150,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
           <div><dt className="text-text-secondary">Calendar Status</dt><dd>{published ? "Published" : candidate ? "Review Required" : "Not available"}</dd></div>
         </dl>
         {defaultPolicy && published && defaultPolicy.calendar_version_id !== published.id && <p role="status" className="mb-3 text-sm text-amber-800">Calendar updated. Review and publish the company selection; the existing policy has not changed.</p>}
-        {candidate && <DataTable density="compact" rows={(candidate.rows || []).filter(r => r.state !== "missing").map(r => ({ ...r.row, key: r.key, state: r.state }))} getRowKey={r => r.key} columns={[
+        {candidate && <DataTable density="compact" rows={(candidate.rows || []).filter(r => r.state !== "missing").map(r => ({ ...r.row, key: r.key, state: r.state })).filter(h => !geography || (geography === "national" ? h.scope === "national" : h.scope === "national" || h.state_code === geography))} getRowKey={r => r.key} columns={[
           { key: "date", header: "Date", render: r => r.date }, { key: "name", header: "Holiday", render: r => r.name }, { key: "scope", header: "Scope", render: scopeLabel },
           { key: "status", header: "Status", render: r => r.state === "matched" || candidate.decisions?.[r.key]?.action === "accept" ? r.kind === "required" ? "Required" : "Available" : "Review Required" },
         ]} />}
