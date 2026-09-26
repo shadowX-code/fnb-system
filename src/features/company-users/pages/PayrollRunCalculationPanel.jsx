@@ -175,7 +175,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
   };
   const columns = stage === "review" ? [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.employee_name}</strong><div className="text-xs text-text-secondary">{row.employee_code || "—"}</div></div> },
-    { key: "gross", header: "Gross", align: "right", render: (row) => <span className="tabular-nums">{row.uncalculated ? "Pending calculation" : rm(row.gross_earnings)}</span> },
+    { key: "gross", header: "Gross", align: "right", render: (row) => <span className="tabular-nums">{row.uncalculated ? "Pending calculation" : row.status !== "ready" || row.is_stale ? "Pending review" : rm(row.gross_earnings)}</span> },
     { key: "adjustments", header: "Adjustments", align: "right", render: (row) => {
       const items = (data?.adjustments || []).filter((item) => item.employee_id === row.employee_id);
       const amount = items.reduce((sum, item) => sum + Number(item.amount) * (item.component_type === "deduction" ? -1 : 1), 0);
@@ -230,7 +230,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
         <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Payroll"}</button></div>}
     </div>
     {stage === "review" && rows.length > 0 && <div className="grid gap-3 border-b border-border p-4 text-sm sm:grid-cols-5">
-      <div><span className="text-text-secondary">Gross Payroll</span><strong className="block tabular-nums">{rows.some((row) => row.is_stale || row.uncalculated) ? "Calculation required" : rm(rows.reduce((sum, row) => sum + Number(row.gross_earnings || 0), 0))}</strong></div>
+      <div><span className="text-text-secondary">Gross Payroll</span><strong className="block tabular-nums">{rows.some((row) => row.is_stale || row.uncalculated || row.status !== "ready") ? "Pending review" : rm(rows.reduce((sum, row) => sum + Number(row.gross_earnings || 0), 0))}</strong></div>
       <div><span className="text-text-secondary">Employee Deductions</span><strong className="block tabular-nums">{statutoryRows.length === rows.length && statutoryRows.every((row) => row.net_pay != null && !row.is_stale) ? rm(rows.reduce((sum, row) => sum + Number(row.non_statutory_deductions), 0) + statutoryRows.reduce((sum, row) => sum + (row.lines || []).reduce((subtotal, line) => subtotal + Number(line.employee_amount || 0), 0), 0)) : "Pending review"}</strong></div>
       <div><span className="text-text-secondary">Employer Contributions</span><strong className="block tabular-nums">{statutoryRows.length === rows.length && statutoryRows.every((row) => row.net_pay != null && !row.is_stale) ? rm(statutoryRows.reduce((sum, row) => sum + (row.lines || []).reduce((subtotal, line) => subtotal + Number(line.employer_amount || 0) + Number(line.remittance_rounding || 0), 0), 0)) : "Pending review"}</strong></div>
       <div><span className="text-text-secondary">Net Payroll</span><strong className="block tabular-nums">{statutoryRows.length === rows.length && statutoryRows.every((row) => row.net_pay != null && !row.is_stale) ? rm(statutoryRows.reduce((sum, row) => sum + Number(row.net_pay), 0)) : "Pending review"}</strong></div>
@@ -239,7 +239,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     {error && <p role="alert" className="px-4 pt-3 text-sm font-semibold text-rose-700">{error}</p>}
     {rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id || row.employee_id} density="compact" onRowClick={(row) => overallStatus(row, statutoryFor(row)) === "Ready" ? setSelected(row) : onReviewEmployee?.(row.employee_id)} /> :
       <p className="p-6 text-sm text-text-secondary">No payroll results yet. Use Calculate to prepare the employee breakdown.</p>}
-    {data?.adjustments?.length > 0 && <div className="border-t border-border p-4"><h5 className="mb-2 text-sm font-bold">Approved variable lines</h5>
+    {stage !== "review" && data?.adjustments?.length > 0 && <div className="border-t border-border p-4"><h5 className="mb-2 text-sm font-bold">Approved variable lines</h5>
       <div className="divide-y divide-border">{data.adjustments.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
         <span>{rows.find((row) => row.employee_id === item.employee_id)?.employee_name || "Employee"} · {item.component_name}
           <small className="block text-text-secondary">{item.reason}</small></span>

@@ -18,6 +18,7 @@ import { hasPermission } from "../../../utils/accessControl.js";
 import { payrollService } from "../../../services/payrollService.js";
 import PayrollRunCalculationPanel from "./PayrollRunCalculationPanel.jsx";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
+import { payrollIssueLabel } from "./payrollRunPresentation.js";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
 import PayrollEmployeeComponents, { ComponentSummary } from "./PayrollEmployeeComponents.jsx";
 import PayrollStatutorySetup, { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
@@ -237,7 +238,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
     if (!run?.id || step !== 2) { setTotals(null); return; }
     let active = true;
     setTotals(null);
-    payrollService.readStatutory(run.id).then((result) => { if (active) setTotals(result); })
+    Promise.all([payrollService.readStatutory(run.id), payrollService.readPreparation(run.id)]).then(([result, preparation]) => { if (active) setTotals({ ...result, preparation }); })
       .catch(() => { if (active) setTotals({ error: true }); });
     return () => { active = false; };
   }, [run?.id, step, data]);
@@ -331,6 +332,12 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
         {run.status === "finalized" ? <div className="rounded-xl bg-surface-muted p-4 text-sm"><Badge tone="success">Finalized</Badge><p className="mt-2">Revision {run.revision} is immutable. Corrections require a new revision; this evidence is retained.</p><p className="text-text-secondary">{run.finalized_at ? `Finalized ${new Date(run.finalized_at).toLocaleString()}` : "Finalized evidence retained"} · {approverName}</p></div> : <>
           <p className="text-sm text-text-secondary">Time: {state?.time?.ready ? "Ready" : "Review required"} · Calculation: {state?.calculation?.ready ? "Ready" : "Review required"} · Statutory: {state?.statutory?.ready ? "Ready" : "Review required"}</p>
           {!allReady && <div className="divide-y divide-border">{blockers.map((blocker) => <div key={blocker} className="flex items-center justify-between gap-3 py-2 text-sm"><span>{blocker}</span><button type="button" className="font-semibold text-primary" onClick={() => setStep(0)}>Resolve in Prepare Payroll →</button></div>)}</div>}
+          {!allReady && <div className="divide-y divide-border">{(totals?.preparation?.results || []).map((member) => {
+            const result = statutoryRows.find((item) => item.employee_id === member.employee_id);
+            const issues = [...new Set([...(member.projection?.issues || []), ...(result?.issues || [])])];
+            if (!issues.length && result?.status === "ready" && !result?.is_stale) return null;
+            return <div key={member.employee_id} className="flex items-center justify-between gap-3 py-3 text-sm"><div><strong>{member.projection?.employee_name || "Employee"}</strong><p className="text-text-secondary">{issues.length ? issues.map(payrollIssueLabel).join(" · ") : "Refresh payroll to complete this employee's result."}</p></div><button type="button" className="shrink-0 font-semibold text-primary" onClick={() => { setFocusEmployeeId(member.employee_id); setStep(0); }}>Resolve →</button></div>;
+          })}</div>}
           <div className="flex flex-wrap gap-2">{canManage && run.status === "review_required" && <button className="btn-secondary" type="button" disabled={busy || !allReady} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
             {canManage && run.status === "ready" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Return to Review</button>}
             {canFinalize && run.status === "ready" && <button className="btn-primary" type="button" disabled={busy || !allReady || !totals || totals.error} onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}</div></>}
