@@ -10,6 +10,9 @@ async function command(name, args) {
 // Payroll is the only owner of compensation and run commands. Employee and
 // Employment Document services remain read/provenance sources, not writers here.
 export const payrollService = {
+  saveDefaultPhPolicy: ({ date, treatment, remark }) => command("payroll_ph_default_policy_save", { p_effective_from: date, p_treatment: treatment, p_remark: remark || null }),
+  importHolidayCalendar: ({ year, manifest, publish, previousId, requestId }) => command("payroll_holiday_import", { p_year: Number(year), p_manifest: manifest, p_publish: publish, p_previous_id: previousId || null, p_request_id: requestId }),
+  saveDefaultPaidHolidays: ({ calendarId, selected, previousId, requestId }) => command("payroll_paid_holiday_default_save", { p_calendar_id: calendarId, p_selected: selected, p_previous_id: previousId || null, p_request_id: requestId }),
   readPhPolicy: (entityId) => command("payroll_ph_policy_read", { p_legal_entity_id: entityId }),
   savePhPolicy: (input) => command("payroll_ph_policy_save", { p_legal_entity_id: input.entityId,
     p_effective_from: input.date, p_treatment: input.treatment, p_remark: input.remark || null }),

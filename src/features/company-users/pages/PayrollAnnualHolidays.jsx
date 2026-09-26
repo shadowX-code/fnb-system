@@ -48,22 +48,26 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const latest = calendars[0];
   const published = calendars.find(c => c.status === "published");
   const policies = (annual?.policies || []).filter((p, i, list) => list.findIndex(x => x.policy_id === p.policy_id) === i);
-  const entries = annualCalendarEntries(data.holidays || [], year, latest?.entries);
+  const defaultPolicy = policies.find(p => p.is_default);
+  const entries = latest?.entries || [];
+  const selection = defaultPolicy?.selected_holiday_ids || [];
+  const required = entries.filter(e => e.kind === "required");
+  const optional = entries.filter(e => e.kind !== "required");
+  const ready = latest?.status === "published" && defaultPolicy?.status === "published" && defaultPolicy.calendar_version_id === published?.id;
   const exceptional = (data.holidays || []).filter(h => h.holiday_date?.startsWith(year)
     && (h.legal_entity_id || h.scope === "outlet"));
-  const years = [...new Set([String(currentYear - 1), String(currentYear), String(currentYear + 1),
-    ...(data.holidays || []).map(h => h.holiday_date?.slice(0, 4)).filter(Boolean)])].sort().reverse();
+  const years = [String(currentYear + 1), String(currentYear), String(currentYear - 1)];
   const editCalendar = () => {
-    setDraft({ entries, source: latest?.source_reference || "", complete: latest?.source_complete || false,
-      previousId: latest?.id, requestId: crypto.randomUUID() });
+    setDraft({ entries: annualCalendarEntries(data.holidays || [], year, latest?.entries), source: latest?.source_reference || "", complete: latest?.source_complete || false,
+      previousId: annual?.previous_calendar_id || latest?.id, requestId: crypto.randomUUID() });
     setEditing("calendar"); setError("");
   };
-  const editPolicy = (policy) => {
-    const calendar = calendars.find(c => c.id === policy?.calendar_version_id) || published;
+  const editPolicy = (policy, exception = false) => {
+    const calendar = published;
     setDraft({ name: policy?.name || `${year} Company Paid Holidays`, calendarId: calendar?.id,
       selected: policy?.selected_holiday_ids || (calendar?.entries || []).filter(e => e.kind === "required").map(e => e.holiday_id),
       entities: policy?.legal_entity_ids || [], outlets: policy?.outlet_ids || [], reason: policy?.override_reason || "",
-      previousId: policy?.id, requestId: crypto.randomUUID(), fixedScope: !!policy });
+      previousId: policy?.id, requestId: crypto.randomUUID(), fixedScope: !!policy, exception });
     setEditing("policy"); setError("");
   };
   const patch = (key, value) => setDraft(({ saveRequestId, publishRequestId, ...d }) => ({ ...d, [key]: value, requestId: crypto.randomUUID() }));
@@ -76,7 +80,9 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       setDraft(d => ({ ...d, [`${publish ? "publish" : "save"}RequestId`]: input.requestId }));
       if (editing === "calendar") await payrollService.saveAnnualCalendar({ ...input, year,
         entries: input.entries.map(({ holiday, ...entry }) => ({ ...entry, substitutes_holiday_id: entry.substitutes_holiday_id || null })) });
-      else await payrollService.savePaidHolidayPolicy(input);
+      else if (editing === "import") await payrollService.importHolidayCalendar({ ...input, year, previousId: annual?.previous_calendar_id || latest?.id });
+      else if (draft.exception) await payrollService.savePaidHolidayPolicy(input);
+      else await payrollService.saveDefaultPaidHolidays(input);
       setEditing(null); setRefresh(n => n + 1);
     } catch (e) { setError(e.message || "Unable to save annual holiday evidence."); }
     finally { setBusy(false); }
@@ -85,41 +91,68 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const calendarReady = draft.entries?.length > 0 && draft.entries.every(e => e.kind && e.source_reference.trim()
     && (e.kind !== "substitute" || e.substitutes_holiday_id));
   const policyCalendar = calendars.find(c => c.id === draft.calendarId);
-  const policyReady = !!draft.name?.trim() && draft.entities?.length > 0 && !!draft.calendarId
+  const policyReady = !!draft.name?.trim() && (!draft.exception || draft.entities?.length > 0) && !!draft.calendarId
     && (!draft.outlets?.length || !!draft.reason?.trim());
+  const importFile = async (file) => {
+    setError("");
+    try {
+      if (!file || file.size > 1024 * 1024) throw new Error("Choose a JSON manifest smaller than 1 MB.");
+      const manifest = JSON.parse(await file.text());
+      if (!manifest.source_reference || !Array.isArray(manifest.holidays) || !manifest.holidays.length) throw new Error("The manifest needs source_reference and reviewed holidays.");
+      setDraft({ manifest, requestId: crypto.randomUUID() });
+    } catch (cause) { setDraft({}); setError(cause.message); }
+  };
+  const canSave = editing === "import" ? !!draft.manifest : editing === "calendar" ? calendarReady && !!draft.source?.trim() : policyReady;
   return <Card className="overflow-hidden">
     <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4">
-      <div><h3 className="text-lg font-bold">Annual Paid Holidays</h3><p className="text-sm text-text-secondary">Official calendar → company selection → published paid holidays.</p></div>
+      <div><h3 className="text-lg font-bold">Public Holidays</h3><p className="text-sm text-text-secondary">Holiday Calendar · Company Policy</p></div>
       <div className="flex flex-wrap items-end gap-3"><SelectField label="Year" value={year} onChange={setYear} options={years.map(value => ({ value, label: value }))} />
-        {editable && <button type="button" className="btn-secondary" onClick={onAddHoliday}>Add Holiday</button>}</div>
+        <Badge tone={ready ? "success" : "warning"}>{ready ? "Ready" : "Setup Required"}</Badge></div>
     </div>
     {error && !editing && <div role="alert" className="p-4 text-sm text-rose-700">{error}<button type="button" className="ml-3 text-primary" onClick={() => setRefresh(n => n + 1)}>Retry</button></div>}
     {!annual && !error ? <p className="p-4 text-sm text-text-secondary">Loading annual calendar…</p> : annual && <>
-      <section className="border-b border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">1. Annual Calendar</h4>
-        <p className="text-sm text-text-secondary">{latest ? `${latest.entries.length} source-reviewed holidays · Version ${latest.revision}` : "Official annual source not yet reviewed. No dates have been generated."}</p></div>
-        <div className="flex items-center gap-3"><Badge tone={latest?.status === "published" ? "success" : "warning"}>{latest?.status === "published" ? "Published" : "Review Required"}</Badge>
-          {editable && <button type="button" className="btn-secondary" onClick={editCalendar}>Review Calendar</button>}</div></div>
-        {latest && <p className="mt-2 text-xs text-text-secondary">Source: {latest.source_reference}</p>}
+      <section className="border-b border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">Holiday Calendar</h4>
+        <p className="text-sm text-text-secondary">{latest ? "Review holidays, then confirm the company selection." : "Import a reviewed official annual calendar. No dates have been generated."}</p></div>
+        {editable && <button type="button" className="btn-secondary" onClick={() => { setDraft({}); setEditing("import"); setError(""); }}>Import Calendar</button>}</div>
+        <dl className="my-4 grid gap-3 text-sm sm:grid-cols-4">
+          <div><dt className="text-text-secondary">Required holidays</dt><dd className="font-semibold">{required.filter(e => selection.includes(e.holiday_id)).length}/{required.length}</dd></div>
+          <div><dt className="text-text-secondary">Company selected</dt><dd className="font-semibold">{optional.filter(e => selection.includes(e.holiday_id)).length}/{optional.length}</dd></div>
+          <div><dt className="text-text-secondary">Total paid holidays</dt><dd className="font-semibold">{selection.length}</dd></div>
+          <div><dt className="text-text-secondary">Geography</dt><dd>Malaysia · applicable states</dd></div>
+        </dl>
+        {defaultPolicy && published && defaultPolicy.calendar_version_id !== published.id && <p role="status" className="mb-3 text-sm text-amber-800">Calendar updated. Review and publish the company selection; the existing policy has not changed.</p>}
         {entries.length > 0 && <div className="mt-3"><DataTable density="compact" rows={entries} getRowKey={e => e.holiday_id} columns={[
           { key: "date", header: "Date", render: e => e.holiday.holiday_date },
           { key: "name", header: "Holiday", render: e => <strong>{e.holiday.name}</strong> },
           { key: "scope", header: "Scope", render: e => scopeLabel(e.holiday) },
-          { key: "kind", header: "Classification", render: e => kinds.find(k => k.value === e.kind)?.label || "Review required" },
+          { key: "kind", header: "Company Status", render: e => e.kind === "required" ? "Required" : !e.kind ? "Review Required" : selection.includes(e.holiday_id) ? "Selected" : "Not Selected" },
           { key: "view", header: "Action", render: e => <button type="button" className="text-primary" onClick={() => onViewHoliday(e.holiday_id)}>View</button> },
         ]} /></div>}
       </section>
-      <section className="p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">2. Company Paid Holiday Policy</h4><p className="text-sm text-text-secondary">Gazetted holidays trigger payroll treatment only when selected in an applicable published policy.</p></div>
-        {editable && <button type="button" className="btn-primary" disabled={!published} onClick={() => editPolicy(null)}>Select Paid Holidays</button>}</div>
-        {!policies.length ? <p className="mt-3 text-sm text-text-secondary">{published ? "Select the company paid holidays and applicable Legal Entities. Required holidays remain selected." : "Publish the source-reviewed annual calendar first."}</p>
-          : <div className="mt-3 divide-y divide-border">{policies.map(p => <div key={p.id} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm"><div><strong>{p.name}</strong><p className="text-text-secondary">{p.selected_holiday_ids.length} selected · {p.legal_entity_ids.map(id => entityName((data.legal_entities || []).find(e => e.id === id) || {})).join(", ")}{p.outlet_ids.length ? " · Explicit outlet override" : " · Shared company calendar"}</p></div><div className="flex items-center gap-3"><Badge tone={p.status === "published" ? "success" : "warning"}>{p.status === "published" ? "Ready · Published" : "Draft · Review Required"}</Badge>{editable && <button type="button" className="text-primary font-semibold" onClick={() => editPolicy(p)}>Review</button>}</div></div>)}</div>}
+      <section className="p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">Company Policy</h4><p className="text-sm text-text-secondary">Applies to: All applicable companies</p></div>
+        {editable && <button type="button" className="btn-primary" disabled={!published} onClick={() => editPolicy(defaultPolicy)}>Select Paid Holidays</button>}</div>
+        <p className="mt-2 text-sm text-text-secondary">{published ? "Required holidays stay selected. Choose additional company-observed holidays, then publish." : "Publish the reviewed annual calendar first."}</p>
+        <details className="mt-3 text-sm"><summary className="cursor-pointer text-primary">Manage exceptions</summary><p className="my-2 text-text-secondary">Explicit company/outlet calendars retain their own scope. Changing an existing scope requires a separate policy; it is never silently reassigned.</p>
+          {policies.filter(p => !p.is_default).map(p => <div key={p.id} className="flex justify-between gap-3 py-2"><span>{p.legal_entity_ids.map(id => entityName((data.legal_entities || []).find(e => e.id === id) || {})).join(", ")} · {p.selected_holiday_ids.length} selected</span>{editable && <button className="text-primary" onClick={() => editPolicy(p, true)}>Review</button>}</div>)}
+          {editable && <button className="btn-secondary" disabled={!published} onClick={() => editPolicy(null, true)}>Add Exception</button>}
+        </details>
       </section>
+      <details className="border-t border-border p-4 text-sm"><summary className="cursor-pointer text-text-secondary">View details / History</summary>
+        {calendars.map(c => <p key={c.id} className="py-2">Calendar {c.revision} · {c.status} · {c.source_reference}</p>)}
+        {(annual.history || []).map(e => <p key={e.id} className="py-1 text-xs text-text-secondary">{e.occurred_at} · {e.event_type.replaceAll("_", " ")}</p>)}
+        {editable && <div className="mt-3 flex gap-3"><button className="btn-secondary" onClick={editCalendar}>Resolve Calendar Exceptions</button><button className="btn-secondary" onClick={onAddHoliday}>Add Sourced Holiday</button></div>}
+      </details>
       {!!exceptional.length && <details className="border-t border-border p-4"><summary className="cursor-pointer text-sm text-text-secondary">Historical / exceptional definitions ({exceptional.length})</summary><p className="my-2 text-xs text-text-secondary">Retained source evidence. These are not automatically selected Company Paid Holidays.</p><div className="divide-y divide-border">{exceptional.map(h => <div key={h.id} className="flex items-center justify-between gap-3 py-2 text-sm"><div><strong>{h.name}</strong><p className="text-text-secondary">{h.holiday_date} · {h.scope === "outlet" ? "Outlet definition" : "Historical company definition"}</p></div><button type="button" className="text-primary" onClick={() => onViewHoliday(h.id)}>View</button></div>)}</div></details>}
     </>}
-    {editing && <Modal size="xl" title={editing === "calendar" ? `Review ${year} Annual Calendar` : "Select Company Paid Holidays"}
+    {editing && <Modal size="xl" title={editing === "import" ? "Import Holiday Calendar" : editing === "calendar" ? `Review ${year} Calendar Exceptions` : "Select Paid Holidays"}
       onClose={() => !busy && setEditing(null)} footer={<><button className="btn-secondary" disabled={busy} onClick={() => setEditing(null)}>Cancel</button>
-        <button className="btn-secondary" disabled={busy || (editing === "calendar" ? !calendarReady || !draft.source?.trim() : !policyReady)} onClick={() => save(false)}>Save Draft</button>
-        <button className="btn-primary" disabled={busy || (editing === "calendar" ? !calendarReady || !draft.source?.trim() || !draft.complete : !policyReady)} onClick={() => save(true)}>{busy ? "Saving…" : "Publish"}</button></>}>
-      {editing === "calendar" ? <div className="space-y-4">
+        {(editing !== "policy" || draft.exception) && <button className="btn-secondary" disabled={busy || !canSave} onClick={() => save(false)}>Save Draft</button>}
+        <button className="btn-primary" disabled={busy || !canSave || (editing === "calendar" && !draft.complete) || (editing === "import" && !draft.manifest?.source_complete)} onClick={() => save(true)}>{busy ? "Saving…" : "Publish"}</button></>}>
+      {editing === "import" ? <div className="space-y-4"><p className="text-sm text-text-secondary">Upload a reviewed JSON manifest transcribed from the official JPM annual calendar and applicable gazettes. FeedX does not scrape, generate or certify official dates. Imported source updates never publish company selections.</p>
+        <AdminFormField label="Reviewed calendar manifest"><input type="file" accept="application/json,.json" disabled={busy} onChange={e => importFile(e.target.files[0])} /></AdminFormField>
+        <details className="text-sm"><summary>Manifest format</summary><p className="mt-2">source_reference, source_complete and holidays. Each holiday requires date, name, scope (national/state), state_code for State, kind (required/gazetted/special/substitute), and source_reference where different. Substitute requires the canonical substitutes_holiday_id. Unresolved classification must be reviewed before import.</p></details>
+        {draft.manifest && <><p className="text-sm">{draft.manifest.source_reference} · {draft.manifest.holidays.length} reviewed holidays</p><DataTable density="compact" rows={draft.manifest.holidays} getRowKey={(r, i) => `${r.date}-${r.name}-${i}`} columns={[{ key: "date", header: "Date" }, { key: "name", header: "Holiday" }, { key: "scope", header: "Scope" }]} /><label className="flex gap-2 text-sm"><input type="checkbox" checked={!!draft.manifest.source_complete} onChange={e => patch("manifest", { ...draft.manifest, source_complete: e.target.checked })} />Complete annual source and applicable special/substitute gazettes reviewed</label></>}
+      </div> : editing === "calendar" ? <div className="space-y-4">
         <p className="text-sm text-text-secondary">Classify each holiday from its authoritative source. This review does not generate official dates or certify statutory compliance.</p>
         <AdminFormField label="Official calendar / gazette reference" required><input className="control" value={draft.source} onChange={e => patch("source", e.target.value)} /></AdminFormField>
         {!draft.entries.length && <p className="text-sm text-text-secondary">No shared National/State holidays for this year. Add sourced definitions first.</p>}
@@ -130,14 +163,15 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
         </div>)}</div>
         <label className="flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 accent-primary" checked={draft.complete} onChange={e => patch("complete", e.target.checked)} />I have reviewed the complete official annual source and all applicable National/State holidays and classifications.</label>
       </div> : <div className="space-y-4">
-        <AdminFormField label="Policy name" required><input className="control" value={draft.name} onChange={e => patch("name", e.target.value)} /></AdminFormField>
-        <SelectField label="Published calendar" value={draft.calendarId} options={calendars.filter(c => c.status === "published").map(c => ({ value: c.id, label: `Version ${c.revision} · ${c.source_reference}` }))}
-          onChange={id => { const c = calendars.find(x => x.id === id); patch("calendarId", id); patch("selected", (c?.entries || []).filter(e => e.kind === "required").map(e => e.holiday_id)); }} />
-        <p className="text-sm text-text-secondary">Calendar version {policyCalendar?.revision} · {policyCalendar?.source_reference}. Required holidays cannot be deselected.</p>
-        <fieldset><legend className="mb-2 font-semibold">Applicable Legal Entities</legend><div className="flex flex-wrap gap-4">{(data.legal_entities || []).map(e => <label key={e.id} className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" disabled={draft.fixedScope} checked={draft.entities.includes(e.id)} onChange={event => select("entities", e.id, event.target.checked)} />{entityName(e)}</label>)}</div></fieldset>
-        <details><summary className="cursor-pointer text-sm text-text-secondary">Explicit outlet calendar override</summary><p className="my-2 text-xs text-text-secondary">Leave empty to share this policy across all company outlets. Use only for a genuinely different calendar.</p>
+        {!draft.exception && <p className="text-sm font-semibold">Applies to: All applicable companies</p>}
+        {draft.exception && <AdminFormField label="Exception name" required><input className="control" value={draft.name} onChange={e => patch("name", e.target.value)} /></AdminFormField>}
+        {draft.exception && <SelectField label="Published calendar" value={draft.calendarId} options={calendars.filter(c => c.status === "published").map(c => ({ value: c.id, label: `Version ${c.revision} · ${c.source_reference}` }))}
+          onChange={id => { const c = calendars.find(x => x.id === id); patch("calendarId", id); patch("selected", (c?.entries || []).filter(e => e.kind === "required").map(e => e.holiday_id)); }} />}
+        <p className="text-sm text-text-secondary">Required holidays cannot be deselected.</p>
+        {draft.exception && <fieldset><legend className="mb-2 font-semibold">Applicable Legal Entities</legend><div className="flex flex-wrap gap-4">{(data.legal_entities || []).map(e => <label key={e.id} className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" disabled={draft.fixedScope} checked={draft.entities.includes(e.id)} onChange={event => select("entities", e.id, event.target.checked)} />{entityName(e)}</label>)}</div></fieldset>}
+        {draft.exception && <details><summary className="cursor-pointer text-sm text-text-secondary">Explicit outlet calendar override</summary><p className="my-2 text-xs text-text-secondary">Leave empty to share this policy across all company outlets. Use only for a genuinely different calendar.</p>
           <div className="flex flex-wrap gap-4">{(data.outlets || []).map(o => <label key={o.id} className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" disabled={draft.fixedScope} checked={draft.outlets.includes(o.id)} onChange={e => select("outlets", o.id, e.target.checked)} />{o.name}</label>)}</div>
-          {!!draft.outlets.length && <AdminFormField label="Calendar override reason" required><input className="control" value={draft.reason} onChange={e => patch("reason", e.target.value)} /></AdminFormField>}</details>
+          {!!draft.outlets.length && <AdminFormField label="Calendar override reason" required><input className="control" value={draft.reason} onChange={e => patch("reason", e.target.value)} /></AdminFormField>}</details>}
         <div className="divide-y divide-border">{(policyCalendar?.entries || []).map(e => <label key={e.holiday_id} className="flex items-start gap-3 py-3 text-sm"><input type="checkbox" className="mt-1 accent-primary" disabled={e.kind === "required"} checked={draft.selected.includes(e.holiday_id)} onChange={event => select("selected", e.holiday_id, event.target.checked)} /><div><strong>{e.holiday.name}</strong><p className="text-text-secondary">{e.holiday.holiday_date} · {scopeLabel(e.holiday)}{e.kind === "required" ? " · Required" : ""}</p></div></label>)}</div>
       </div>}
       {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}

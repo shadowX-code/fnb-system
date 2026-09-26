@@ -170,8 +170,30 @@ Publication atomically advances assignment pointers, retaining prior versions
 and audit evidence. Required holidays cannot be deselected. Draft saving and
 publication have payload-bound retry identities and stale-version checks.
 
-Settings → Public Holidays follows Annual Calendar → Company Selection →
-Published. Add Holiday remains the sourced-definition command, not a company
+Settings → Public Holidays exposes Holiday Calendar and Company Policy.
+The operational table shows Required / Selected / Not Selected; technical source,
+classification and publication evidence stays in Details/History. The default
+selection command derives active Legal Entities server-side and delegates to the
+existing publication authority. Explicit company/outlet exceptions retain their
+scope/collision guards; changing a frozen scope is not an implicit reassignment.
+The compact Working on a Paid Holiday section delegates shared confirmation
+atomically to each company's existing date-effective PH-benefit command. Its
+formula, Payroll/Leave decisions and finalization boundaries are unchanged.
+
+Official-source ingestion is reviewed import, not unattended synchronization.
+JPM/BKPP publishes [annual calendars](https://www.kabinet.gov.my/hari-kelepasan-am/)
+and separate [special-holiday gazettes](https://www.kabinet.gov.my/akta-dan-warta/).
+No verified machine-readable provider exists in the repository. A reviewed JSON
+manifest supplies actual dates, National/State scope, explicit classifications,
+source references and substitute linkage; unresolved rows cannot be imported.
+The server pins the manifest SHA-256, source, actor/time and retry identity,
+reuses canonical holiday creation/calendar publication and never advances company
+assignments during source import. Automated official import remains blocked
+pending a verified maintained annual/special/substitute source contract.
+An inactive-company calendar can be explicitly retired with append-only evidence;
+retirement excludes it from future authoring/default reads, never historical
+resolution, definitions or finalized snapshots. Required holidays from active
+calendars still cannot be downgraded. Add Holiday remains the sourced-definition command, not a company
 selection or automatic publication. Historical outlet/entity-specific definitions
 remain readable and do not silently become selected annual paid holidays.
 
