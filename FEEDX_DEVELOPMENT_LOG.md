@@ -582,3 +582,10 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added a reusable Malaysian Employment Agreement V1 template starter to the existing People-owned Contract Builder V2, with bounded identity/term tokens and server-rendered leave-table/signature blocks.
 - Added optional Employee residential address master data for immutable contract render-manifest use; no separate contract lifecycle, storage authority, or signature claim was introduced.
+
+# 2026-09-26 — Annual Paid Holidays and Company PH Work Benefit
+
+- Added source-reviewed, versioned annual holiday calendar and published company paid-holiday selection with required-holiday locking, National/State applicability and explicit outlet override evidence. Payroll consumes selected policy, not every calendar date.
+- Added effective company PH benefit decisions from published roster, complete Attendance and approved Payable Time. Monthly Basic/26 and Hourly approved-hours benefits remain separate from statutory PH obligations; OT/PH OT/rest-day premiums stay unsupported.
+- Replacement Leave uses canonical Leave entitlements/adjustments and source allocations, expires at year-end without carry-forward, prevents unsafe consumed-grant reversal, and retains append-only history. Employee-only recalculation and existing finalization freeze exact policy/source/decision evidence.
+- Authenticated isolated Staging publication, Pay/Leave switching, consumed-leave guard and Ready/Finalize gates passed; no-access QA masters retired and immutable evidence retained. Official annual operational import remains required. See `qa/staging/payrollPhWork.closure.md`.
