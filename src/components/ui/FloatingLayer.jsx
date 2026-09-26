@@ -130,6 +130,8 @@ export default function FloatingLayer({
         {children}
       </div>
     </div>,
-    document.body,
+    // Keep popovers within their modal's accessible tree. A body-level portal
+    // outside aria-modal is visually present but hidden to assistive technology.
+    anchorRef?.current?.closest('[role="dialog"]') || document.body,
   );
 }
