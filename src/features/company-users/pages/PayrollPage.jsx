@@ -23,7 +23,7 @@ import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
 import { payComponentIsConfigured, payrollIssueLabel } from "./payrollRunPresentation.js";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
 import PayrollEmployeeComponents, { ComponentSummary, componentTimeline } from "./PayrollEmployeeComponents.jsx";
-import PayrollStatutorySetup, { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
+import PayrollStatutorySetup, { statutorySchemeLabel, statutorySetupHelp, statutoryCategories } from "./PayrollStatutorySetup.jsx";
 import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
 
 const today = () => new Intl.DateTimeFormat("en-CA", {
@@ -47,19 +47,25 @@ function WageTreatment({ scheme, value, onChange }) {
   return <AdminFormField as="div" label={`${scheme.toUpperCase()} wage base`}><AdminSegmentedControl label={`${scheme.toUpperCase()} wage base`} value={value} onChange={onChange} options={treatmentOptions} />{!["included", "excluded"].includes(value) && <p className="text-xs text-amber-700">Choose Included or Excluded.</p>}</AdminFormField>;
 }
 
-function StatutoryChecks({ value, onChange }) {
+function StatutoryChecks({ value, onChange, review, loading }) {
   return <fieldset className="rounded-xl border border-border p-3">
     <legend className="px-1 text-sm font-bold text-text-primary">Statutory applicability</legend>
     <p className="mb-3 text-xs text-text-secondary">Choose which schemes apply to this employee. PCB / MTD is confirmed for each Payroll Run.</p>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {["epf", "socso", "eis", "pcb"].map((key) => <SelectField key={key} label={key.toUpperCase()}
+      {["epf", "socso", "eis", "pcb"].map((key) => <div key={key}><SelectField label={key.toUpperCase()} ariaLabel={key.toUpperCase()}
         value={value[key]==null?'':String(value[key])} onChange={(v)=>onChange({...value,[key]:v===''?null:v==='true'})}
-        options={[{value:'',label:'Choose applicability'},{value:'true',label:'Applicable'},{value:'false',label:'Not Applicable'}]} />)}
+        options={[{value:'',label:'Choose applicability'},{value:'true',label:'Applicable'},{value:'false',label:'Not Applicable'}]} />
+        {value[key] === false && <p className="mt-2 text-xs text-text-secondary">Not Applicable · resolved</p>}
+        {value[key] === true && (key === "pcb" ? <p className="mt-2 text-xs text-text-secondary">Confirm the amount in each Payroll Run.</p>
+          : loading ? <p className="mt-2 text-xs text-text-secondary">Checking Employee evidence…</p>
+          : review?.schemes?.[key]?.recommendation ? <p className="mt-2 text-xs text-teal-700">{statutoryCategories[key].find(c=>c.value===review.schemes[key].recommendation)?.label} · Recommended</p>
+          : review && <div className="mt-2 text-xs text-amber-700"><p className="font-semibold">Additional information required</p><p>{statutorySetupHelp(review.schemes?.[key]?.issue, review.evidence)}</p></div>)}
+      </div>)}
     </div>
   </fieldset>;
 }
 
-function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, onSaved }) {
+export function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, onSaved }) {
   const current = effective(profile?.compensation);
   const currentStatutory = effective(profile?.statutory);
   const [draft, setDraft] = useState(() => ({
@@ -77,6 +83,23 @@ function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, 
   }));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [setup, setSetup] = useState(null);
+  const [setupLoading, setSetupLoading] = useState(false);
+  const [setupError, setSetupError] = useState("");
+  const [refresh, setRefresh] = useState(0);
+  const { employeeId, effectiveFrom, epf, socso, eis, pcb } = draft;
+  useEffect(() => {
+    if (mode !== "create") return;
+    let active = true;
+    setSetup(null); setSetupError("");
+    if (!employeeId || !effectiveFrom) { setSetupLoading(false); return; }
+    setSetupLoading(true);
+    payrollService.readInitialSetup(employeeId, effectiveFrom, { epf, socso, eis, pcb })
+      .then(result => { if (active) setSetup(result); })
+      .catch(cause => { if (active) setSetupError(cause.message || "Unable to check statutory setup."); })
+      .finally(() => { if (active) setSetupLoading(false); });
+    return () => { active = false; };
+  }, [mode, employeeId, effectiveFrom, epf, socso, eis, pcb, refresh]);
   const patch = (key, value) => setDraft((previous) => ({ ...previous, [key]: value }));
   const isProfile = mode === "create" || mode === "compensation";
   const title = {
@@ -89,26 +112,29 @@ function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, 
     setError("");
     try {
       const input = { ...draft, rate: Number(draft.rate) };
-      if (mode === "create") await payrollService.createProfile(input);
+      if (mode === "create") await payrollService.confirmInitialSetup({
+        ...input, applicability: { epf, socso, eis, pcb }, fingerprint: setup.fingerprint,
+      });
       if (mode === "compensation") await payrollService.adjustCompensation(input);
-      await onSaved();
+      await onSaved(mode === "create" ? draft.employeeId : undefined);
       onClose();
     } catch (cause) {
       setError(cause.message || "Unable to save Payroll change.");
+      if (mode === "create") setSetup(null);
     } finally {
       setBusy(false);
     }
   }
   const candidates = (data.employees || []).filter((employee) =>
     !(data.profiles || []).some((item) => item.employee_id === employee.id));
-  const allowed = draft.reason.trim() && draft.effectiveFrom && (
-    mode === "create" ? draft.employeeId && Number(draft.rate) > 0
+  const allowed = draft.effectiveFrom && (
+    mode === "create" ? draft.employeeId && Number(draft.rate) > 0 && setup && !setupLoading && [epf,socso,eis,pcb].every(v=>v != null)
       : mode === "compensation" ? Number(draft.rate) > 0
-        : true);
+        : true) && (mode === "create" || draft.reason.trim());
 
   return <Modal title={title} description="Changes apply from the selected date. Previous pay records remain available in history."
     onClose={onClose} size="lg"
-    footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={!allowed || busy} onClick={save}>{busy ? "Saving..." : "Save"}</button></>}>
+    footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={!allowed || busy} onClick={save}>{busy ? "Saving..." : mode === "create" ? "Confirm Employee Setup" : "Save"}</button></>}>
     <div className="space-y-4">
       {mode === "create" && <AdminFormField label="Employee" required>
         <SelectField value={draft.employeeId} onChange={(value) => patch("employeeId", value)} searchable
@@ -125,14 +151,18 @@ function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, 
             value={draft.rate} onChange={(event) => patch("rate", event.target.value)} />
         </AdminFormField>
       </div>}
-      {mode === "create" ? <StatutoryChecks value={draft} onChange={setDraft} /> : null}
+      {mode === "create" ? <><StatutoryChecks value={draft} onChange={setDraft} review={setup} loading={setupLoading} />
+        <p className="text-xs text-text-secondary">Save confirms the recommended categories with canonical Employee evidence, Admin and time. Unresolved schemes remain Setup Required; pay setup can still be saved.</p>
+        {(setupError || (error && !setup)) && <div role="alert"><p>{setupError || error}</p><button type="button" className="btn-secondary" onClick={()=>{setError("");setRefresh(v=>v+1);}}>Refresh Setup</button></div>}
+      </> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <DatePickerField label="Effective From" required value={draft.effectiveFrom} onChange={(value) => patch("effectiveFrom", value)} />
-        <AdminFormField label="Reason / provenance" required><input className="control" value={draft.reason}
+        {mode !== "create" && <AdminFormField label="Reason / provenance" required><input className="control" value={draft.reason}
           onChange={(event) => patch("reason", event.target.value)} placeholder="Reviewed compensation change" /></AdminFormField>
+        }
       </div>
       {mode === "compensation" && <p className="text-xs text-text-secondary">The new version applies from this date. It does not update an Employment Contract or rewrite earlier versions.</p>}
-      {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
+      {error && mode !== "create" && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     </div>
   </Modal>;
 }
@@ -223,7 +253,10 @@ export function ProfilesTab({ data, canManage, reload }) {
               {key.toUpperCase()} — {statutorySchemeLabel(key,statutory?.display_schemes?.[key])}
               {statutory?.display_schemes?.[key]?.state === "scheduled" && <> · Effective {statutory.display_schemes[key].effective_from} · Scheduled</>}
             </Badge>)}</div>
-          <p className="mt-2 text-xs text-text-secondary">{statutory?.status || "Setup Required"}</p></section>
+          <p className="mt-2 text-xs text-text-secondary">{statutory?.status || "Setup Required"}</p>
+          {["epf","socso","eis"].filter(key=>statutory?.display_schemes?.[key]?.state === "setup_required").map(key=>
+            <p key={key} className="mt-2 text-xs text-amber-700">{key.toUpperCase()} · {statutorySetupHelp(statutory.display_schemes[key].issue,statutory.evidence)}</p>)}
+        </section>
       </div>
       <div className="grid gap-5 lg:grid-cols-2">
         <section><h4 className="mb-2 font-bold">History</h4>
@@ -238,7 +271,7 @@ export function ProfilesTab({ data, canManage, reload }) {
     </Drawer>
     {form === "statutory" ? <PayrollStatutorySetup profile={selected} onSaved={reload} onClose={() => setForm("")} />
       : form === "recurring" ? <PayrollEmployeeComponents profile={selected} components={data.components || []} date={today()} onSaved={reload} onClose={() => setForm("")} />
-      : form && <FoundationForm mode={form} profile={selected} initialEmployeeId={setupEmployeeId} data={data} onClose={() => setForm("")} onSaved={reload} />}
+      : form && <FoundationForm mode={form} profile={selected} initialEmployeeId={setupEmployeeId} data={data} onClose={() => setForm("")} onSaved={async employeeId=>{await reload();if(employeeId)setSelectedId(employeeId);}} />}
   </div>;
 }
 

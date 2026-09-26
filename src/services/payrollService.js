@@ -12,6 +12,14 @@ async function command(name, args) {
 export const payrollService = {
   read: (profileId = null, periodId = null) =>
     command("payroll_foundation_read", { p_profile_id: profileId, p_period_id: periodId }),
+  readInitialSetup: (employeeId, date, applicability) => command("payroll_initial_setup_read", {
+    p_employee_id: employeeId, p_date: date, p_applicability: applicability,
+  }),
+  confirmInitialSetup: (input) => command("payroll_initial_setup_confirm", {
+    p_employee_id: input.employeeId, p_effective_from: input.effectiveFrom,
+    p_pay_basis: input.payBasis, p_rate: input.rate, p_currency: input.currency || "MYR",
+    p_applicability: input.applicability, p_fingerprint: input.fingerprint,
+  }),
   createProfile: (input) => command("payroll_profile_create", {
     p_employee_id: input.employeeId,
     p_effective_from: input.effectiveFrom,

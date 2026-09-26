@@ -292,6 +292,17 @@ current Operating Expenses or Reporting value is changed.
 
 ## Employee setup
 
+Initial Set Up Employee uses the same private statutory recommendation core as
+Manage Statutory Setup before a Payroll Profile exists. Employee/applicability/
+effective-date changes reload the scoped server recommendation. One initial
+confirmation locks the Employee, rechecks its evidence fingerprint and delegates
+to the existing profile and category append commands in one transaction.
+Supported recommendations are confirmed without manual provenance; source,
+Admin and time are recorded automatically. Unsupported applicable schemes stay
+Setup Required with their canonical reason, while compensation and other resolved
+schemes are saved. PCB is applicability-only. Existing override/completion,
+period-effective calculation and finalized evidence boundaries are unchanged.
+
 Employee Statutory Setup is one workflow: applicability → category only where
 applicable → confirmed setup. The server-resolved projection evaluates explicit
 Not Applicable as a terminal resolved state, never as a missing category. PCB

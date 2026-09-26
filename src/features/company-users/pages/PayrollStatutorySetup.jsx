@@ -6,11 +6,12 @@ import DatePickerField from '../../../components/forms/DatePickerField.jsx';
 import { payrollService } from '../../../services/payrollService.js';
 
 const schemes = ['epf', 'socso', 'eis', 'pcb'];
-const categories = {
+export const statutoryCategories = {
   epf: [{value:'malaysian_under_60',label:'Malaysian · under 60'},{value:'malaysian_60_to_74',label:'Malaysian · 60–74'}],
   socso: [{value:'first_category_base',label:'Act 4 · First Category'},{value:'second_category_base',label:'Act 4 · Second Category'}],
   eis: [{value:'standard',label:'Standard'}],
 };
+const categories = statutoryCategories;
 export const statutorySchemeLabel = (scheme, state) => {
   if (state?.state === 'confirmation_required') return 'Confirmation Required';
   if (state?.state === 'not_applicable') return 'Not Applicable';
