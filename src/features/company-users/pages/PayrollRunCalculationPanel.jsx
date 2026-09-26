@@ -6,12 +6,13 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
+import { payrollIssueLabel } from "./payrollRunPresentation.js";
 
 const rm = (value) => new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(Number(value || 0));
 const title = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-const issueLabel = (value) => title(String(value).replace(/:\d{4}-\d{2}-\d{2}$/, ""));
+const issueLabel = payrollIssueLabel;
 const overallStatus = (calculation, statutory) => {
   if (calculation.is_stale || statutory?.is_stale) return "Refresh Payroll";
   if (calculation.status !== "ready") return "Needs Attention";

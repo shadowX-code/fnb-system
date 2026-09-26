@@ -8,6 +8,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 import { DecisionModal } from "./PayrollTimeExceptionsTab.jsx";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
+import { payrollIssueLabel } from "./payrollRunPresentation.js";
 
 const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -51,16 +52,13 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     const preparation = evidence?.preparation?.results?.find((item) => item.employee_id === employee.id);
     const projection = preparation?.projection;
     const adjustments = (evidence?.calculation?.adjustments || []).filter((item) => item.employee_id === employee.id);
-    const pay = [...(profile?.compensation || [])].filter((item) => item.effective_from <= periodEnd(month))
-      .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0];
-    const applicability = [...(profile?.statutory || [])].filter((item) => item.effective_from <= periodEnd(month))
-      .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0];
+    const pay = projection?.inputs?.compensation_start?.id ? projection.inputs.compensation_start : projection?.inputs?.compensation_end;
     const timeRelevant = preparation?.time_relevant === true;
     const timeNeedsReview = timeRelevant && time.some((item) => item.status === "review_required");
-    const needsReview = !pay || !applicability || timeNeedsReview || projection?.status === "review_required"
+    const needsReview = !pay || preparation?.statutory_setup?.complete !== true || timeNeedsReview || projection?.status === "review_required"
       || calculation?.status === "review_required" || calculation?.is_stale
       || statutory?.status === "review_required" || statutory?.is_stale
-      || (applicability?.pcb_applicable && !pcb?.confirmation);
+      || (pcb?.applicable === true && !pcb?.confirmation);
     return { ...employee, profile, time, calculation, statutory, pcb, adjustments, pay, preparation, projection, timeRelevant, timeNeedsReview, needsReview };
   }), [data, entityId, evidence, month]);
   const visible = rows.filter((row) => filter === "all" || (filter === "review" ? row.needsReview : !row.needsReview))
@@ -114,9 +112,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     {selected && !decision && !pcbDraft && !adjustment && <Modal title={selected.name} description={`${month} · Monthly Payroll review. Permanent compensation changes belong in Employees.`}
       size="xl" onClose={() => setEmployeeId("")} footer={<button className="btn-secondary" type="button" onClick={() => setEmployeeId("")}>Close</button>}>
       <div className="space-y-5 text-sm">
-        <div className="grid gap-3 sm:grid-cols-3"><div><small className="text-text-secondary">Current pay</small><p className="font-bold">{selected.pay ? `${human(selected.pay.pay_basis)} · ${money(selected.pay.basic_salary || selected.pay.hourly_rate)}` : "Setup required in Employees"}</p></div>
-          <div><small className="text-text-secondary">Estimated gross</small><p className="font-bold tabular-nums">{money(selected.calculation?.gross_earnings)}</p></div>
-          <div><small className="text-text-secondary">Estimated net</small><p className="font-bold tabular-nums">{money(selected.statutory?.net_pay)}</p></div></div>
+        <section><h4 className="font-bold">Pay</h4><p className="mt-2 font-semibold">{selected.pay ? `${human(selected.pay.pay_basis)} · ${money(selected.pay.basic_salary || selected.pay.hourly_rate)}${selected.pay.pay_basis === "hourly" ? " / hour" : ""}` : "Setup required in Employees"}</p><p className="text-text-secondary">{month}-01 – {periodEnd(month)}{selected.pay?.effective_from ? ` · Pay effective ${selected.pay.effective_from}` : ""}</p></section>
         {selected.timeRelevant && <section><h4 className="font-bold">Time & Attendance</h4><div className="mt-2 divide-y divide-border">{selected.time.length ? selected.time.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2"><span><strong>{item.work_date}</strong> · {human(item.classification)}<small className="block text-text-secondary">{item.issue_codes?.map(human).join(" · ") || "No exception"} · proposed {hours(item.proposed_minutes)} · approved {hours(item.approved_minutes)}</small></span>
             {item.status === "review_required" && active && <button className="btn-secondary" type="button" onClick={() => setDecision(item)}>Resolve</button>}</div>) : <p className="py-2 text-text-secondary">Refresh time evidence to prepare this employee's payable time.</p>}</div></section>}
         <section><div className="flex justify-between gap-3"><h4 className="font-bold">This-period allowances, deductions & OT</h4>{active && <button className="font-semibold text-primary" type="button" onClick={() => setAdjustment({ requestId: crypto.randomUUID(), componentId: "", amount: "", reason: "" })}>Add monthly line</button>}</div>
@@ -126,8 +122,8 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <section><div className="flex justify-between gap-3"><h4 className="font-bold">Statutory & PCB / MTD</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button" onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
           <div className="mt-2 grid gap-2 sm:grid-cols-4">{["epf", "socso", "eis", "pcb"].map((scheme) => { const line = selected.statutory?.lines?.find((item) => item.scheme === scheme); const setup = selected.preparation?.statutory_setup?.schemes?.[scheme]; return <div key={scheme}><small className="text-text-secondary">{scheme.toUpperCase()}</small><p className="font-semibold">{setup?.applicable === false || line?.applicable === false ? "N/A" : setup ? statutorySchemeLabel(setup) : "Period setup required"}</p>{line?.applicable && line.employee_amount != null && <p className="tabular-nums">{money(line.employee_amount)}</p>}</div>; })}</div>
           {selected.pcb?.applicable == null && <p className="mt-2 text-amber-800">Statutory applicability is missing for the start of this payroll period. Later setup cannot establish earlier entitlement.</p>}
-          {selected.statutory?.issues?.length > 0 && <p className="mt-2 text-amber-800">{selected.statutory.issues.map(human).join(" · ")}</p>}</section>
-        <section><h4 className="font-bold">Estimated Pay</h4>{selected.projection?.issues?.length > 0 ? <ul className="mt-2 list-disc pl-5 text-amber-800">{selected.projection.issues.map((issue) => <li key={issue}>{human(issue)}</li>)}</ul> : <p className="mt-2 text-text-secondary">{!selected.calculation ? "Calculate Payroll after preparing inputs to see Gross, deductions and Net Pay." : selected.calculation.is_stale ? "Inputs changed. Refresh the payroll calculation to update estimated pay." : !selected.statutory ? "Calculate statutory contributions to complete Net Pay." : "Calculated from this period's approved evidence."}</p>}</section>
+          {selected.statutory?.issues?.length > 0 && <p className="mt-2 text-amber-800">{selected.statutory.issues.map(payrollIssueLabel).join(" · ")}</p>}</section>
+        <section><h4 className="font-bold">Estimated Pay</h4><div className="mt-2 grid gap-3 sm:grid-cols-3">{[["Gross",selected.calculation?.gross_earnings],["Deductions",selected.calculation?.non_statutory_deductions],["Net",selected.statutory?.net_pay]].map(([label,value]) => <div key={label}><small className="text-text-secondary">{label}</small><p className="font-semibold tabular-nums">{value == null || selected.calculation?.is_stale || selected.statutory?.is_stale ? "Pending review" : money(value)}</p></div>)}</div>{selected.projection?.issues?.length > 0 ? <ul className="mt-2 list-disc pl-5 text-amber-800">{selected.projection.issues.map((issue) => <li key={issue}>{payrollIssueLabel(issue)}</li>)}</ul> : <p className="mt-2 text-text-secondary">{!selected.calculation ? "Calculate Payroll after preparing inputs to see Gross, deductions and Net Pay." : selected.calculation.is_stale ? "Inputs changed. Refresh the payroll calculation to update estimated pay." : !selected.statutory ? "Calculate statutory contributions to complete Net Pay." : "Calculated from this period's approved evidence."}</p>}</section>
       </div></Modal>}
     {decision && <DecisionModal row={decision} onClose={() => setDecision(null)} onSaved={refresh} />}
     {pcbDraft && <Modal title="Confirm PCB / MTD" description="The confirmed amount is statutory evidence for this employee and period." onClose={() => !busy && setPcbDraft(null)}
