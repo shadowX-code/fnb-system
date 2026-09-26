@@ -39,7 +39,7 @@ export default function PayrollFinalizedRecord({ run }) {
   return <div className="space-y-4">
     <Card className="p-5"><h3 className="text-lg font-bold">Payroll Record</h3>
       <p className="mt-1 text-sm text-text-secondary">Revision {record.run.revision} · Finalized {record.run.finalized_at ? new Date(record.run.finalized_at).toLocaleString() : "—"} · {record.finalized_by_name || "Authorized approver"}. Changes require a Correction Revision.</p>
-      <dl className="mt-5 grid gap-4 sm:grid-cols-3 xl:grid-cols-6">
+      <dl className="mt-5 grid gap-4 sm:grid-cols-3 xl:grid-cols-5">
         {[["Employees", rows.length], ["Gross Payroll", total(row => row.calculation?.gross_earnings)], ["Employee Deductions", total(deductionTotal)], ["Employer Contributions", total(row => row.statutory?.employer_statutory_cost)], ["Net Payroll", total(row => row.statutory?.net_pay)]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{value}</dd></div>)}
       </dl>
     </Card>

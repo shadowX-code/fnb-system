@@ -5,6 +5,7 @@ import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
+import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
 
 const rm = (value) => new Intl.NumberFormat("en-MY", {
@@ -26,7 +27,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose }) {
     line.minutes != null ? `${(line.minutes / 60).toFixed(2)} h · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : line.source?.run_adjustment_id ? "This period adjustment" : null, `${kind}-${index}`));
   const statutoryRows = employer => (statutory?.lines || []).filter(line => !employer || line.scheme !== "pcb").map(line => row(line.scheme === "pcb" ? "PCB / MTD" : line.scheme.toUpperCase(),
     line.applicable === false ? "N/A" : employer ? line.employer_amount : line.employee_amount,
-    line.applicable === false ? "Not Applicable" : line.category ? title(line.category) : null));
+    line.applicable === false ? "Not Applicable" : line.category ? statutorySchemeLabel(line.scheme,{state:"confirmed",applicable:true,category:line.category}) : line.method === "manual_confirmed" ? "Confirmed" : null));
   return <Modal title={result.employee_name} description={frozenPeriod ? `${frozenPeriod} · Finalized read-only Payroll statement` : "Employee Payroll statement"}
     onClose={onClose} size="xl" footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
     <div className="space-y-6">
@@ -44,7 +45,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose }) {
         {(statutory?.lines || []).some(line=>Number(line.remittance_rounding)>0) && row("Employer-funded remittance rounding",statutory.lines.reduce((sum,line)=>sum+Number(line.remittance_rounding || 0),0))}
         {row("Total Employer Contributions",statutory?.employer_statutory_cost)}{row("Total Employer Cost",statutory?.total_employer_cost)}</div><p className="text-xs">Employer contributions do not reduce employee Net Pay.</p></section>
       <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Calculation evidence</summary><p className="mt-2">Calculation revision {result.revision} · {result.calculated_at ? new Date(result.calculated_at).toLocaleString() : "Pinned evidence"}</p>
-        {(statutory?.lines || []).map(line=><p key={line.scheme} className="mt-2">{line.scheme.toUpperCase()} · {line.source_version || line.method || "Not Applicable"}{line.wage_base != null ? ` · Wage base ${rm(line.wage_base)}` : ""}</p>)}
+        {(statutory?.lines || []).map(line=><p key={line.scheme} className="mt-2">{line.scheme.toUpperCase()} · {line.applicable === false ? "Not Applicable" : line.method === "manual_confirmed" ? "Admin confirmed" : line.source_row || line.source_version || "Pinned contribution schedule"}{line.wage_base != null ? ` · Wage base ${rm(line.wage_base)}` : ""}{line.schedule_version_id && <small className="block">Schedule version {line.schedule_version_id}</small>}</p>)}
       </details>
       {(result.issues?.length || statutory?.issues?.length) > 0 && <p role="alert" className="text-sm text-amber-800">{[...(result.issues || []),...(statutory?.issues || [])].map(issueLabel).join(" · ")}</p>}
     </div>
