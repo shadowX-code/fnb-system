@@ -73,13 +73,13 @@ export default function PayrollPhWork({ runId, employeeId, canManage, onChanged 
     {rows === null && !error && <p role="status">Loading PH work…</p>}
     {rows?.map(row => { const decision = row.decision; const treatment = decision?.treatment || row.recommended_treatment;
       const unresolved = !!row.issue; const edit = editing?.date === row.work_date;
-      return <div key={row.work_date} className="space-y-2 border-b border-border pb-3"><div className="flex justify-between gap-3"><strong>{row.work_date} · {(row.source?.paid_holiday_policy?.holidays || []).map(h => h.name).join(" / ") || "Company Paid Holiday"}</strong>
+      return <div key={row.work_date} className="space-y-2 border-b border-border pb-3"><div className="flex justify-between gap-3"><strong>{row.work_date} · {(row.source?.paid_holiday_policy?.holidays || []).map(h => h.holiday?.name).filter(Boolean).join(" / ") || "Company Paid Holiday"}</strong>
         <Badge tone={unresolved ? "warning" : "success"}>{unresolved ? "Review Required" : "Confirmed"}</Badge></div>
         <dl className="grid gap-2 text-xs sm:grid-cols-3"><div><dt className="text-text-secondary">Published Roster</dt><dd>{range(row.source?.scheduled_start_at, row.source?.scheduled_end_at)}</dd></div>
           <div><dt className="text-text-secondary">Clock In–Out</dt><dd>{range(row.source?.clock_in_at, row.source?.clock_out_at)}</dd></div>
           <div><dt className="text-text-secondary">Approved Payable Time</dt><dd>{(Number(row.time?.approved_minutes || 0) / 60).toFixed(2)} h</dd></div></dl>
         <p><strong>{label(treatment)}</strong> · {treatment === "replacement_leave" ? row.grant_id && !unresolved ? "1 day granted" : "1 day · expires 31 December" : money(row.additional_amount)}
-          {!decision && row.recommended_treatment && <small className="ml-2 text-text-secondary">Recommended</small>}</p>
+          {!decision?.id && row.recommended_treatment && <small className="ml-2 text-text-secondary">Recommended</small>}</p>
         {treatment === "additional_pay" && <p className="text-xs text-text-secondary">{row.formula} · {row.compensation?.pay_basis === "monthly" ? `${money(row.compensation.basic_salary)} / 26` : `${money(row.compensation?.hourly_rate)} × ${(Number(row.time?.approved_minutes) / 60).toFixed(2)} h`}</p>}
         {row.issue && <p className="text-xs text-amber-800">{row.issue === "ph_treatment_confirmation_required" ? "Confirm the company treatment." : row.issue === "ph_treatment_evidence_changed" ? "Source evidence changed. Review and confirm again." : row.issue === "ph_company_policy_required" ? "Set a date-effective company policy in Public Holidays Settings." : "Supported approved PH hours and company policy are required."}</p>}
         {canManage && row.policy?.id && row.issue !== "public_holiday_ot_unsupported" && <div className="space-y-2">

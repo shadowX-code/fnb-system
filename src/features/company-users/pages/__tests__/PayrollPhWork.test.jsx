@@ -7,11 +7,13 @@ afterEach(cleanup);
 const work = { work_date: "2026-08-31", source_fingerprint: "exact-evidence", recommended_treatment: "additional_pay",
   policy: { id: "policy" }, time: { approved_minutes: 300 }, compensation: { pay_basis: "hourly", hourly_rate: 15 },
   additional_amount: 75, formula: "Effective Hourly Rate × approved PH hours", issue: "ph_treatment_confirmation_required",
-  source: { paid_holiday_policy: { holidays: [{ name: "QA PH" }] }, scheduled_start_at: "2026-08-31T01:00Z", scheduled_end_at: "2026-08-31T07:00Z", clock_in_at: "2026-08-31T01:00Z", clock_out_at: "2026-08-31T07:00Z" } };
+  decision: { id: null, treatment: null },
+  source: { paid_holiday_policy: { holidays: [{ holiday: { name: "QA PH" } }] }, scheduled_start_at: "2026-08-31T01:00Z", scheduled_end_at: "2026-08-31T07:00Z", clock_in_at: "2026-08-31T01:00Z", clock_out_at: "2026-08-31T07:00Z" } };
 beforeEach(() => { vi.clearAllMocks(); mocks.readPhWork.mockResolvedValue([work]); mocks.confirmPhWork.mockResolvedValue("decision"); });
 it("uses approved hours, retains source evidence and submits only treatment intent", async () => {
  const changed = vi.fn(); render(<PayrollPhWork runId="run" employeeId="employee" canManage onChanged={changed} />);
  await screen.findByText(/QA PH/); expect(screen.getByText("5.00 h")).toBeTruthy();
+ expect(screen.getByText("Recommended")).toBeTruthy();
  expect(screen.getByText(/RM\s*75/)).toBeTruthy();
  fireEvent.click(screen.getByRole("button", { name: "Use Recommended Treatment" }));
  await waitFor(() => expect(changed).toHaveBeenCalledOnce());
