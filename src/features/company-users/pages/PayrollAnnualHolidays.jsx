@@ -65,7 +65,8 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const editPolicy = (policy, exception = false) => {
     const calendar = published;
     setDraft({ name: policy?.name || `${year} Company Paid Holidays`, calendarId: calendar?.id,
-      selected: policy?.selected_holiday_ids || (calendar?.entries || []).filter(e => e.kind === "required").map(e => e.holiday_id),
+      selected: [...new Set([...(calendar?.entries || []).filter(e => e.kind === "required").map(e => e.holiday_id),
+        ...(policy?.selected_holiday_ids || []).filter(id => calendar?.entries.some(e => e.holiday_id === id))])],
       entities: policy?.legal_entity_ids || [], outlets: policy?.outlet_ids || [], reason: policy?.override_reason || "",
       previousId: policy?.id, requestId: crypto.randomUUID(), fixedScope: !!policy, exception });
     setEditing("policy"); setError("");

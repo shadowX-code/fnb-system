@@ -36,6 +36,16 @@ it("uses the selected immutable calendar snapshot and surfaces source changes wi
   expect(screen.queryByText("Mutable changed name")).toBeNull();
   expect(service.saveDefaultPaidHolidays).not.toHaveBeenCalled();
 });
+it("selects newly required holidays only in the review draft and removes superseded selections", async () => {
+  const newRequired = { ...required, id: "new-required", name: "New required holiday" };
+  service.readAnnualHolidays.mockResolvedValue({ calendars: [{ ...calendar, id: "new-calendar", entries: [...calendar.entries, { holiday_id: newRequired.id, kind: "required", holiday: newRequired }] }], policies: [{ id: "policy", policy_id: "family", is_default: true, status: "published", calendar_version_id: "old-calendar", selected_holiday_ids: ["required", "removed"], legal_entity_ids: ["entity"], outlet_ids: [] }], can_manage: true });
+  render(<PayrollAnnualHolidays data={data} canManage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Select Paid Holidays" }));
+  expect(screen.getAllByRole("checkbox").filter(c => c.disabled && c.checked)).toHaveLength(2);
+  expect(service.saveDefaultPaidHolidays).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button", { name: "Publish", exact: true }));
+  await waitFor(() => expect(service.saveDefaultPaidHolidays).toHaveBeenCalledWith(expect.objectContaining({ selected: ["required", "new-required"] })));
+});
 it("keeps company and outlet scope behind the explicit exception action", async () => {
   render(<PayrollAnnualHolidays data={data} canManage />);
   fireEvent.click(await screen.findByRole("button", { name: "Add Exception" }));
