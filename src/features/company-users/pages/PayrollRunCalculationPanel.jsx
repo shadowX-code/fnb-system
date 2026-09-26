@@ -230,7 +230,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
       <div><h4 className="font-bold text-text-primary">{stage === "review" ? "Review Payroll" : "Calculate Payroll"}</h4>
         <p className="text-sm text-text-secondary">{data?.readiness ?
-          `${data.readiness.employees} employees · ${data.readiness.review_required + data.readiness.uncalculated + data.readiness.stale} need attention${data.readiness.period_in_progress ? " · pay period still in progress" : ""}` : "Loading payroll evidence…"}</p></div>
+          `${rows.length} employees · ${rows.filter((row) => overallStatus(row, statutoryFor(row)) !== "Ready").length} need attention${data.readiness.period_in_progress ? " · pay period still in progress" : ""}` : "Loading payroll evidence…"}</p></div>
       {canEdit && <div className="flex flex-wrap gap-2">
         <button className="btn-secondary" type="button" disabled={busy || !rows.length} onClick={calculateStatutory}>{busy ? "Calculating…" : "Calculate Statutory"}</button>
         <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Payroll"}</button></div>}
@@ -243,6 +243,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
       <div><span className="text-text-secondary">Employees Ready / Need Attention</span><strong className="block">{rows.filter((row) => overallStatus(row, statutoryFor(row)) === "Ready").length} / {rows.filter((row) => overallStatus(row, statutoryFor(row)) !== "Ready").length}</strong></div>
     </div>}
     {error && <p role="alert" className="px-4 pt-3 text-sm font-semibold text-rose-700">{error}</p>}
+    {stage === "review" && <p className="px-4 py-2 text-xs text-text-secondary">Adjustments are included in Gross or Deductions, not added twice. Employer contributions are separate from employee Net Pay.</p>}
     {rows.length ? <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id || row.employee_id} density="compact" onRowClick={(row) => onReviewEmployee ? onReviewEmployee(row.employee_id) : setSelected(row)} /> :
       <p className="p-6 text-sm text-text-secondary">No payroll results yet. Use Calculate to prepare the employee breakdown.</p>}
     {stage !== "review" && data?.adjustments?.length > 0 && <div className="border-t border-border p-4"><h5 className="mb-2 text-sm font-bold">Approved variable lines</h5>
