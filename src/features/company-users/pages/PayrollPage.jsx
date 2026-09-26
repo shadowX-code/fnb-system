@@ -642,7 +642,7 @@ function SettingsTab({ data, canManage, reload }) {
     </Modal>}
     {scheduleOpen && <Modal title="Calculation Basis / Schedule" size="xl" onClose={()=>setScheduleOpen(false)} footer={<button className="btn-secondary" onClick={()=>setScheduleOpen(false)}>Close</button>}>
       <p className="mb-4 text-sm text-text-secondary">Canonical schedule versions active today. Historical Runs retain the version actually used.</p>
-      {scheduleError ? <p role="alert">{scheduleError}</p> : schedules === null ? <p>Loading schedules…</p> : <div className="divide-y divide-border">{schedules.filter(s=>s.effective_from<=today() && (!s.effective_to || s.effective_to>=today())).map(s=><section key={s.id} className="py-3 text-sm"><h3 className="font-bold">{s.scheme.toUpperCase()} · {label(s.category)}</h3><p>{s.source_version} · effective {s.effective_from}</p><a className="text-primary underline" href={s.source_url} target="_blank" rel="noreferrer">Official schedule source</a><p className="text-text-secondary">{s.reconciliation_note}</p></section>)}</div>}
+      {scheduleError ? <p role="alert">{scheduleError}</p> : schedules === null ? <p>Loading schedules…</p> : <div className="divide-y divide-border">{schedules.filter(s=>s.effective_from<=today() && (!s.effective_to || s.effective_to>=today())).map(s=><section key={s.id} className="py-3 text-sm"><h3 className="font-bold">{s.scheme.toUpperCase()} · {label(s.category)}</h3><p>{s.source_version} · effective {s.effective_from}</p><a className="text-primary underline" href={s.source_url} target="_blank" rel="noreferrer">Official schedule source</a></section>)}</div>}
     </Modal>}
   </div>;
 }
