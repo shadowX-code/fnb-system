@@ -2,7 +2,7 @@ import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 const mocks=vi.hoisted(()=>({ readStatutorySetup:vi.fn(),confirmStatutorySetup:vi.fn(),adjustRecurring:vi.fn() }));
 vi.mock('../../../../services/payrollService.js',()=>({ payrollService:mocks }));
-import StatutorySetup, { statutorySchemeLabel } from '../PayrollStatutorySetup.jsx';
+import StatutorySetup, { statutorySchemeLabel, statutorySetupHelp } from '../PayrollStatutorySetup.jsx';
 import Components, { componentTimeline } from '../PayrollEmployeeComponents.jsx';
 beforeEach(()=>{
   vi.clearAllMocks();
@@ -13,21 +13,53 @@ describe('Payroll employee setup',()=>{
   it('confirms server recommendation without repetitive source/reason inputs',async()=>{
     const saved=vi.fn(),close=vi.fn();
     render(<StatutorySetup profile={{id:'p',employee_name:'QA'}} onSaved={saved} onClose={close} />);
-    await screen.findByText('Recommended · Act 4 · First Category');
+    await screen.findByText(/Act 4 · First Category/);
     expect(screen.queryByRole('textbox',{name:/Evidence \/ source/})).toBeNull();
-    fireEvent.click(screen.getByRole('button',{name:'Confirm Setup'}));
+    fireEvent.click(screen.getByRole('button',{name:'Confirm Statutory Setup'}));
     await vi.waitFor(()=>expect(close).toHaveBeenCalled());
     expect(mocks.confirmStatutorySetup).toHaveBeenCalledWith(expect.objectContaining({profileId:'p',fingerprint:'trusted',categories:{socso:'first_category_base',eis:'standard'}}));
     expect(screen.queryByText('EPF category')).toBeNull();
     expect(saved).toHaveBeenCalled();
   });
-  it('insufficient evidence disables confirmation and override requires evidence/reason',async()=>{
+  it('insufficient evidence explains the missing fact and expands only Complete Setup guidance',async()=>{
     mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:true,socso:false,eis:false,pcb:false},schemes:{epf:{issue:'epf_birthdate_unverified'}},next_effective_from:'2026-09-28',fingerprint:'trusted'});
     render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
-    await screen.findByText(/epf birthdate unverified/);
-    expect(screen.getByRole('button',{name:'Confirm Setup'}).disabled).toBe(true);
-    expect(screen.getByRole('textbox',{name:/Evidence \/ source/})).not.toBeNull();
-    expect(screen.getByRole('textbox',{name:/Setup \/ override reason/})).not.toBeNull();
+    await screen.findByText(/Confirm a valid date of birth/);
+    expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(true);
+    expect(screen.queryByRole('textbox',{name:/evidence|reason/i})).toBeNull();
+    expect(screen.queryByRole('button',{name:'Override'})).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'Complete Setup'}));
+    expect(screen.getByText(/Correct missing or inaccurate identity information/)).not.toBeNull();
+  });
+  it('requires evidence only after changing a recommendation, and clears it when restored',async()=>{
+    render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
+    await screen.findByText(/Act 4 · First Category/);
+    fireEvent.click(screen.getAllByRole('button',{name:'Override',exact:true})[0]);
+    expect(screen.queryByRole('textbox',{name:/Supporting evidence/})).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'SOCSO category'}));
+    fireEvent.click(screen.getByRole('button',{name:'Act 4 · Second Category'}));
+    expect(screen.getByRole('textbox',{name:/Supporting evidence \/ source/})).not.toBeNull();
+    expect(screen.getByRole('textbox',{name:/Override reason/})).not.toBeNull();
+    expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(true);
+    fireEvent.click(screen.getByRole('button',{name:'Use recommendation'}));
+    expect(screen.queryByRole('textbox',{name:/Supporting evidence/})).toBeNull();
+    expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false);
+  });
+  it('Off to On immediately resolves canonical evidence and does not add PCB category',async()=>{
+    mocks.readStatutorySetup.mockImplementation((id,date,input)=>Promise.resolve({history:{applicability:[],categories:[]},applicability:input || {epf:false,socso:false,eis:false,pcb:false},schemes:{epf:input?.epf?{recommendation:'malaysian_under_60'}:{state:'not_applicable'},pcb:{state:'not_applicable'}},next_effective_from:'2026-09-28',fingerprint:'trusted'}));
+    render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
+    await screen.findByRole('button',{name:'EPF applicability'});
+    fireEvent.click(screen.getByRole('button',{name:'EPF applicability'}));
+    fireEvent.click(screen.getByRole('button',{name:'Applicable',exact:true}));
+    await screen.findByText(/Malaysian · under 60/);
+    expect(mocks.readStatutorySetup).toHaveBeenLastCalledWith('p','2026-09-28',expect.objectContaining({epf:true}));
+    expect(screen.queryByRole('textbox',{name:/evidence|reason/i})).toBeNull();
+    expect(screen.queryByRole('button',{name:'PCB category'})).toBeNull();
+  });
+  it('distinguishes unsupported existing evidence from missing evidence',()=>{
+    expect(statutorySetupHelp('socso_age_category_review_required',{birthday:'2017-02-01'})).toContain('2017-02-01');
+    expect(statutorySetupHelp('eis_prior_contribution_history_unverified')).toContain('Prior contribution history');
+    expect(statutorySetupHelp('epf_citizenship_category_unverified',{nationality:'Other'})).toContain('outside the currently supported');
   });
   it('Not Applicable is terminal and PCB has no category concept',()=>{
     expect(statutorySchemeLabel('epf',{state:'not_applicable'})).toBe('Not Applicable');

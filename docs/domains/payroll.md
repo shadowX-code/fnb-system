@@ -278,8 +278,12 @@ nationality/birthdate using the existing supported-category guard. One atomic
 command rechecks the evidence fingerprint under the Profile lock and delegates
 to both append-only authorities with the same effective date. Source, actor/time
 and evidence are recorded automatically for recommendation confirmation;
-Complete Setup and actual overrides require explicit source/reason and never
-bypass eligibility. Earlier evidence and finalized snapshots remain immutable.
+The compact scheme rows reevaluate recommendations whenever applicability or
+the effective date changes. Complete Setup explains the specific missing or
+unsupported canonical evidence and directs identity corrections to Employee
+Master; free text cannot establish unsupported eligibility. Only a deliberate
+change from a valid recommendation expands supporting source/override reason.
+Earlier evidence and finalized snapshots remain immutable.
 The suggested date follows both latest applicability/category versions, never
 an inferred historical entitlement. Settings exposes schedule sources read-only.
 
