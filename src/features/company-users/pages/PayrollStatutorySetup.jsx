@@ -72,7 +72,7 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
         fingerprint:review.fingerprint,sourceNote,reason});
       await onSaved();onClose();
     } catch(e) {
-      if(e.cause?.code==='40001' || e.code==='40001') {setStale(true);setError('Statutory information was updated');}
+      if(e.cause?.details==='payroll_statutory_setup_stale' || e.cause?.code==='40001' || e.code==='40001' || e.cause?.code==='PT409') {setStale(true);setError('Statutory information was updated');}
       else if(e.cause?.message==='Choose a later effective date') setError('Choose a later effective date');
       else setError(e.message || 'Unable to save statutory setup.');
     }

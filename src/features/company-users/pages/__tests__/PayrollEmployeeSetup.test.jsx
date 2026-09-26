@@ -11,7 +11,7 @@ beforeEach(()=>{
 afterEach(cleanup);
 describe('Payroll employee setup',()=>{
   it('blocks stale confirmation until an explicit same-modal refresh',async()=>{
-    mocks.confirmStatutorySetup.mockRejectedValueOnce(Object.assign(new Error('stale'),{cause:{code:'40001'}})).mockResolvedValueOnce({});
+    mocks.confirmStatutorySetup.mockRejectedValueOnce(Object.assign(new Error('stale'),{cause:{code:'PT409',details:'payroll_statutory_setup_stale'}})).mockResolvedValueOnce({});
     const close=vi.fn();
     render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={close} />);
     await screen.findByText(/Act 4 · First Category/);
