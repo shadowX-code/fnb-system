@@ -20,6 +20,7 @@ import PayrollRunCalculationPanel from "./PayrollRunCalculationPanel.jsx";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
 import PayrollEmployeeComponents, { ComponentSummary } from "./PayrollEmployeeComponents.jsx";
+import PayrollStatutorySetup, { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
 
 const today = () => new Intl.DateTimeFormat("en-CA", {
@@ -46,8 +47,9 @@ function StatutoryChecks({ value, onChange }) {
     <legend className="px-1 text-sm font-bold text-text-primary">Statutory applicability</legend>
     <p className="mb-3 text-xs text-text-secondary">Choose which schemes apply to this employee. PCB / MTD is confirmed for each Payroll Run.</p>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {["epf", "socso", "eis", "pcb"].map((key) => <ToggleField key={key} label={key.toUpperCase()}
-        checked={value[key] === true} onChange={(checked) => onChange({ ...value, [key]: checked })} />)}
+      {["epf", "socso", "eis", "pcb"].map((key) => <SelectField key={key} label={key.toUpperCase()}
+        value={value[key]==null?'':String(value[key])} onChange={(v)=>onChange({...value,[key]:v===''?null:v==='true'})}
+        options={[{value:'',label:'Choose applicability'},{value:'true',label:'Applicable'},{value:'false',label:'Not Applicable'}]} />)}
     </div>
   </fieldset>;
 }
@@ -75,7 +77,6 @@ function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, 
   const title = {
     create: "Set Up Employee",
     compensation: "Adjust Compensation",
-    statutory: "Review Statutory Applicability",
   }[mode];
 
   async function save() {
@@ -85,7 +86,6 @@ function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, 
       const input = { ...draft, rate: Number(draft.rate) };
       if (mode === "create") await payrollService.createProfile(input);
       if (mode === "compensation") await payrollService.adjustCompensation(input);
-      if (mode === "statutory") await payrollService.adjustStatutory(input);
       await onSaved();
       onClose();
     } catch (cause) {
@@ -120,7 +120,7 @@ function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, 
             value={draft.rate} onChange={(event) => patch("rate", event.target.value)} />
         </AdminFormField>
       </div>}
-      {mode === "create" || mode === "statutory" ? <StatutoryChecks value={draft} onChange={setDraft} /> : null}
+      {mode === "create" ? <StatutoryChecks value={draft} onChange={setDraft} /> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <DatePickerField label="Effective From" required value={draft.effectiveFrom} onChange={(value) => patch("effectiveFrom", value)} />
         <AdminFormField label="Reason / provenance" required><input className="control" value={draft.reason}
@@ -128,72 +128,6 @@ function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, 
       </div>
       {mode === "compensation" && <p className="text-xs text-text-secondary">The new version applies from this date. It does not update an Employment Contract or rewrite earlier versions.</p>}
       {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
-    </div>
-  </Modal>;
-}
-
-export function StatutoryCategoryForm({ profile, onClose, onSaved }) {
-  const [review, setReview] = useState(null);
-  const [override, setOverride] = useState(false);
-  const [draft, setDraft] = useState({ effectiveFrom: "", epfCategory: "", socsoCategory: "", eisCategory: "", sourceNote: "", reason: "" });
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    let active = true;
-    Promise.all([payrollService.readStatutoryInput(profile.id), payrollService.recommendStatutory(profile.id)]).then(([history,recommendation]) => {
-      if (!active) return;
-      setReview({ ...recommendation, versions: history.versions || [] });
-      setDraft(v=>({...v, effectiveFrom: recommendation.effective_from,
-        epfCategory: recommendation.categories.epf || "", socsoCategory: recommendation.categories.socso || "", eisCategory: recommendation.categories.eis || "" }));
-    }).catch(e=>{ if(active) setError(e.message); });
-    return ()=>{ active=false; };
-  },[profile.id]);
-  const patch = (key,value)=>setDraft(v=>({...v,[key]:value}));
-  const save = async () => {
-    setBusy(true);setError("");
-    try {
-      if (override) await payrollService.reviewStatutoryInput({...draft,profileId:profile.id});
-      else await payrollService.confirmStatutoryRecommendation(profile.id,review.fingerprint);
-      await onSaved();onClose();
-    } catch(e) { setError(e.message || "Unable to confirm statutory setup."); }
-    finally { setBusy(false); }
-  };
-  const allowed = review && (override ? draft.effectiveFrom && (!review.versions[0] || draft.effectiveFrom>review.versions[0].effective_from)
-    && draft.sourceNote.trim().length>=8 && draft.reason.trim().length>=3 : review.can_confirm);
-  return <Modal title={`Review Statutory Categories · ${profile.employee_name}`} size="lg" onClose={onClose}
-    description="Review the system recommendation. Confirmation records the canonical evidence, Admin and time automatically."
-    footer={<><button className="btn-secondary" disabled={busy} onClick={onClose}>Cancel</button><button className="btn-primary" disabled={!allowed || busy} onClick={save}>{busy ? "Saving…" : override ? "Save Override" : "Confirm Recommendation"}</button></>}>
-    <div className="space-y-4">
-      {!review && !error && <p>Loading employee evidence…</p>}
-      {review && !override && <>
-        <h3 className="font-bold">System Recommendation</h3>
-        <div className="divide-y divide-border">{["epf","socso","eis"].map(s=><div key={s} className="flex justify-between gap-4 py-3 text-sm"><strong>{s.toUpperCase()}</strong><span>{review.issues[s] ? `Needs evidence · ${label(review.issues[s])}` : review.categories[s] ? label(review.categories[s]) : "Not applicable"}</span></div>)}</div>
-        <p className="text-sm">Effective From <strong>{review.effective_from}</strong></p>
-        <p className="text-xs text-text-secondary">Source: canonical Employee nationality/date of birth and reviewed Payroll applicability. Unsupported contribution-history categories remain Review Required.</p>
-      </>}
-      {review && <button type="button" className="font-semibold text-primary" onClick={()=>setOverride(v=>!v)}>{override ? "Use System Recommendation" : "Override / Provide Evidence"}</button>}
-      {override && <>
-        <p className="text-sm text-text-secondary">Overrides do not bypass calculation eligibility checks. Supply evidence and a reason; unknown categories remain unreviewed.</p>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <AdminFormField label="EPF category"><SelectField value={draft.epfCategory} onChange={(value) => patch("epfCategory", value)} options={[
-          { value: "", label: "Unreviewed" }, { value: "malaysian_under_60", label: "Malaysian · under 60" },
-          { value: "malaysian_60_to_74", label: "Malaysian · 60–74" },
-        ]} /></AdminFormField>
-        <AdminFormField label="SOCSO category"><SelectField value={draft.socsoCategory} onChange={(value) => patch("socsoCategory", value)} options={[
-          { value: "", label: "Unreviewed" }, { value: "first_category_base", label: "Act 4 · First Category" },
-          { value: "second_category_base", label: "Act 4 · Second Category" },
-        ]} /></AdminFormField>
-        <AdminFormField label="EIS category"><SelectField value={draft.eisCategory} onChange={(value) => patch("eisCategory", value)} options={[
-          { value: "", label: "Unreviewed" }, { value: "standard", label: "Standard" },
-        ]} /></AdminFormField>
-      </div>
-
-        <DatePickerField label="Effective From" required value={draft.effectiveFrom} onChange={v=>patch("effectiveFrom",v)} />
-        <AdminFormField label="Evidence / source reference" required><input className="control" value={draft.sourceNote} onChange={e=>patch("sourceNote",e.target.value)} /></AdminFormField>
-        <AdminFormField label="Override reason" required><input className="control" value={draft.reason} onChange={e=>patch("reason",e.target.value)} /></AdminFormField>
-      </>}
-      {review?.versions[0] && <p className="text-xs text-text-secondary">Previous review {review.versions[0].effective_from}. Confirmation creates a later version; earlier evidence is retained.</p>}
-      {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
     </div>
   </Modal>;
 }
@@ -221,9 +155,7 @@ function ProfilesTab({ data, canManage, reload }) {
     profile: (data.profiles || []).find((profile) => profile.employee_id === employee.id) || null }));
   const setupState = (row) => {
     if (!row.profile || !effective(row.profile.compensation)) return "Setup Required";
-    const statutory = effective(row.profile.statutory);
-    return ["epf", "socso", "eis", "pcb"].some((key) => statutory?.[`${key}_applicable`] == null)
-      ? "Review Required" : "Ready";
+    return row.profile.statutory_setup?.complete ? "Ready" : "Review Required";
   };
   const visibleRows = rows.filter((row) => row.legal_entity_id === entityFilter
     && (statusFilter === "all" || setupState(row) === statusFilter)
@@ -232,14 +164,14 @@ function ProfilesTab({ data, canManage, reload }) {
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><div className="text-xs text-text-secondary">{row.employee_code || row.workplace || "—"}</div></div> },
     { key: "basis", header: "Pay Basis", render: (row) => effective(row.profile?.compensation) ? label(effective(row.profile.compensation).pay_basis) : "Not set" },
     { key: "rate", header: "Current Pay", align: "right", render: (row) => { const c = effective(row.profile?.compensation); return c ? <strong className="tabular-nums">{money(c.basic_salary || c.hourly_rate, c.currency)}{c.pay_basis === "hourly" ? " / hour" : ""}</strong> : "—"; } },
-    { key: "statutory", header: "Statutory Readiness", render: (row) => <span className="text-sm">{row.profile ? (setupState(row) === "Ready" ? "Applicability reviewed" : "Review applicability") : "Not set"}</span> },
+    { key: "statutory", header: "Statutory Readiness", render: (row) => <span className="text-sm">{row.profile ? (row.profile.statutory_setup?.complete ? "Complete" : "Review Required") : "Not set"}</span> },
     { key: "status", header: "Status", render: (row) => <Badge tone={setupState(row) === "Ready" ? "success" : "warning"}>{setupState(row)}</Badge> },
     { key: "open", header: "", align: "right", render: (row) => <button className="text-primary" type="button" aria-label={`View ${row.name} payroll setup`} onClick={() => setSelectedId(row.id)}><ChevronRight size={16} /></button> },
   ];
   const versions = selected?.compensation || [];
   const current = effective(versions);
   const upcoming = versions.filter((item) => item.effective_from > today()).sort((a, b) => a.effective_from.localeCompare(b.effective_from));
-  const statutory = effective(selected?.statutory);
+  const statutory = selected?.statutory_setup;
 
   return <div className="space-y-4">
     <AdminFilterToolbar ariaLabel="Payroll employee filters"
@@ -250,7 +182,7 @@ function ProfilesTab({ data, canManage, reload }) {
     <Card>{visibleRows.length ? <DataTable columns={columns} rows={visibleRows} getRowKey={(row) => row.id}
       density="compact" onRowClick={(row) => setSelectedId(row.id)} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees match these filters.</div>}</Card>
     <Drawer open={Boolean(selectedEmployee) && !form} title={selectedEmployee?.name} eyebrow="Payroll employee" description={`${entityName(entities, selectedEmployee?.legal_entity_id)} · ${selectedEmployee?.workplace || "Workplace not set"}`} onClose={() => setSelectedId("")}
-      footer={canManage && selectedEmployee ? <div className="flex flex-wrap justify-end gap-2">{selected ? <><button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Edit Pay</button><button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Edit Statutory</button><button className="btn-primary" type="button" onClick={() => setForm("recurring")}>Manage Components</button></> : <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(selectedEmployee.id); setForm("create"); }}>Set Up Employee</button>}</div> : null}>
+      footer={canManage && selectedEmployee ? <div className="flex flex-wrap justify-end gap-2">{selected ? <><button className="btn-secondary" type="button" onClick={() => setForm("compensation")}>Edit Pay</button><button className="btn-secondary" type="button" onClick={() => setForm("statutory")}>Manage Statutory Setup</button><button className="btn-primary" type="button" onClick={() => setForm("recurring")}>Manage Components</button></> : <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(selectedEmployee.id); setForm("create"); }}>Set Up Employee</button>}</div> : null}>
       {selectedEmployee && <div className="space-y-5">
       <Badge tone={selected ? setupState({ profile: selected }) === "Ready" ? "success" : "warning" : "warning"}>{setupState({ profile: selected })}</Badge>
       {!selected && <p className="text-sm text-text-secondary">Pay has not been set up for this employee. Open Set Up Employee to create the first effective-dated profile.</p>}
@@ -262,13 +194,12 @@ function ProfilesTab({ data, canManage, reload }) {
           {upcoming[0] && <p className="mt-2 text-sm text-text-secondary">Next change: {money(upcoming[0].basic_salary || upcoming[0].hourly_rate)} from {upcoming[0].effective_from}</p>}</section>
         <section><h4 className="font-bold">Statutory</h4>
           <div className="mt-2 flex flex-wrap gap-2">{["epf", "socso", "eis", "pcb"].map((key) =>
-            <Badge key={key} tone={statutory?.[`${key}_applicable`] === true ? "success" : "neutral"}>
-              {key.toUpperCase()}: {statutory?.[`${key}_applicable`] == null ? "Unreviewed" : statutory[`${key}_applicable`] ? "Yes" : "No"}
+            <Badge key={key} tone={statutory?.schemes[key]?.state === "setup_required" ? "warning" : "neutral"}>
+              {key.toUpperCase()} — {statutorySchemeLabel(key,statutory?.schemes[key])}
             </Badge>)}</div>
-          <div className="mt-2 text-xs text-text-secondary">{Array.isArray(categoryRead) ? ["epf","socso","eis"].map(s=><p key={s}>{s.toUpperCase()}: {label(effective(categoryRead)?.[`${s}_category`]) || "Category unreviewed"}</p>) : <p>{categoryRead?.error ? "Categories could not be loaded." : "Loading categories…"}</p>}</div>
-          {Array.isArray(categoryRead) && categoryRead.filter(v=>v.effective_from>today()).map(v=><p key={v.id} className="mt-2 text-xs text-text-secondary">Category review scheduled from {v.effective_from}</p>)}</section>
+          <p className="mt-2 text-xs text-text-secondary">{statutory?.complete ? "Complete" : "Review Required"}</p>
+          {Array.isArray(categoryRead) && categoryRead.filter(v=>v.effective_from>today()).map(v=><p key={v.id} className="mt-2 text-xs text-text-secondary">Setup evidence scheduled from {v.effective_from}</p>)}</section>
       </div>
-      {canManage && <button className="text-sm font-semibold text-primary" type="button" onClick={() => setForm("categories")}>Review statutory categories →</button>}
       <div className="grid gap-5 lg:grid-cols-2">
         <section><h4 className="mb-2 font-bold">History</h4>
           <div className="divide-y divide-border rounded-xl border border-border">{versions.map((item) =>
@@ -280,7 +211,7 @@ function ProfilesTab({ data, canManage, reload }) {
       </>}
       </div>}
     </Drawer>
-    {form === "categories" ? <StatutoryCategoryForm profile={selected} onSaved={reload} onClose={() => setForm("")} />
+    {form === "statutory" ? <PayrollStatutorySetup profile={selected} onSaved={reload} onClose={() => setForm("")} />
       : form === "recurring" ? <PayrollEmployeeComponents profile={selected} components={data.components || []} date={today()} onSaved={reload} onClose={() => setForm("")} />
       : form && <FoundationForm mode={form} profile={selected} initialEmployeeId={setupEmployeeId} data={data} onClose={() => setForm("")} onSaved={reload} />}
   </div>;

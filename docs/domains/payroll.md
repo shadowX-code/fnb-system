@@ -266,15 +266,22 @@ current Operating Expenses or Reporting value is changed.
 
 ## Employee setup
 
-Employee category setup begins with a server-derived recommendation from
-canonical nationality, birthdate and reviewed effective applicability, using
-the existing supported-category guard. Confirmation rechecks the evidence
-fingerprint under the Profile lock and delegates to the append-only input
-command; source, actor/time and evidence are recorded automatically. Overrides
-require explicit source and reason and never bypass calculation eligibility.
-Unknown contribution-history categories remain Review Required. The suggested
-date is today or the day after the latest input version, never an inferred
-historical entitlement. Settings exposes canonical schedule sources read-only.
+Employee Statutory Setup is one workflow: applicability → category only where
+applicable → confirmed setup. The server-resolved projection evaluates explicit
+Not Applicable as a terminal resolved state, never as a missing category. PCB
+has no category; Applicable PCB retains the separate manual Run confirmation.
+Applicable EPF/SOCSO/EIS require supported confirmed category evidence. Missing
+applicability/evidence remains Setup Required. Employee list and detail consume
+this same projection; it does not replace the date-effective Run calculation
+gates. The centered Manage Statutory Setup flow recommends from canonical
+nationality/birthdate using the existing supported-category guard. One atomic
+command rechecks the evidence fingerprint under the Profile lock and delegates
+to both append-only authorities with the same effective date. Source, actor/time
+and evidence are recorded automatically for recommendation confirmation;
+Complete Setup and actual overrides require explicit source/reason and never
+bypass eligibility. Earlier evidence and finalized snapshots remain immutable.
+The suggested date follows both latest applicability/category versions, never
+an inferred historical entitlement. Settings exposes schedule sources read-only.
 
 Employee Manage Components owns assignment/amount, distinct from Settings
 definitions and one-period Run adjustments. Add, Change Amount and Stop append

@@ -1,35 +1,39 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-const mocks=vi.hoisted(()=>({ readStatutoryInput:vi.fn(),recommendStatutory:vi.fn(),confirmStatutoryRecommendation:vi.fn(),reviewStatutoryInput:vi.fn(),adjustRecurring:vi.fn() }));
+const mocks=vi.hoisted(()=>({ readStatutorySetup:vi.fn(),confirmStatutorySetup:vi.fn(),adjustRecurring:vi.fn() }));
 vi.mock('../../../../services/payrollService.js',()=>({ payrollService:mocks }));
-import { StatutoryCategoryForm } from '../PayrollPage.jsx';
+import StatutorySetup, { statutorySchemeLabel } from '../PayrollStatutorySetup.jsx';
 import Components, { componentTimeline } from '../PayrollEmployeeComponents.jsx';
 beforeEach(()=>{
   vi.clearAllMocks();
-  mocks.readStatutoryInput.mockResolvedValue({versions:[]});
-  mocks.recommendStatutory.mockResolvedValue({categories:{epf:'malaysian_under_60',socso:'first_category_base',eis:'standard'},issues:{},effective_from:'2026-09-26',fingerprint:'trusted',can_confirm:true});
+  mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:false,socso:true,eis:true,pcb:false},schemes:{epf:{state:'not_applicable'},socso:{recommendation:'first_category_base'},eis:{recommendation:'standard'},pcb:{state:'not_applicable'}},next_effective_from:'2026-09-28',fingerprint:'trusted'});
 });
 afterEach(cleanup);
 describe('Payroll employee setup',()=>{
   it('confirms server recommendation without repetitive source/reason inputs',async()=>{
     const saved=vi.fn(),close=vi.fn();
-    render(<StatutoryCategoryForm profile={{id:'p',employee_name:'QA'}} onSaved={saved} onClose={close} />);
-    await screen.findByText('System Recommendation');
-    expect(screen.queryByRole('textbox')).toBeNull();
-    fireEvent.click(screen.getByRole('button',{name:'Confirm Recommendation'}));
+    render(<StatutorySetup profile={{id:'p',employee_name:'QA'}} onSaved={saved} onClose={close} />);
+    await screen.findByText('Recommended · Act 4 · First Category');
+    expect(screen.queryByRole('textbox',{name:/Evidence \/ source/})).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'Confirm Setup'}));
     await vi.waitFor(()=>expect(close).toHaveBeenCalled());
-    expect(mocks.confirmStatutoryRecommendation).toHaveBeenCalledWith('p','trusted');
+    expect(mocks.confirmStatutorySetup).toHaveBeenCalledWith(expect.objectContaining({profileId:'p',fingerprint:'trusted',categories:{socso:'first_category_base',eis:'standard'}}));
+    expect(screen.queryByText('EPF category')).toBeNull();
     expect(saved).toHaveBeenCalled();
   });
   it('insufficient evidence disables confirmation and override requires evidence/reason',async()=>{
-    mocks.recommendStatutory.mockResolvedValueOnce({categories:{epf:null},issues:{epf:'epf_birthdate_unverified'},effective_from:'2026-09-26',can_confirm:false});
-    render(<StatutoryCategoryForm profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
-    await screen.findByText(/Needs evidence/);
-    expect(screen.getByRole('button',{name:'Confirm Recommendation'}).disabled).toBe(true);
-    fireEvent.click(screen.getByRole('button',{name:'Override / Provide Evidence'}));
-    expect(screen.getByRole('button',{name:'Save Override'}).disabled).toBe(true);
+    mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:true,socso:false,eis:false,pcb:false},schemes:{epf:{issue:'epf_birthdate_unverified'}},next_effective_from:'2026-09-28',fingerprint:'trusted'});
+    render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
+    await screen.findByText(/epf birthdate unverified/);
+    expect(screen.getByRole('button',{name:'Confirm Setup'}).disabled).toBe(true);
     expect(screen.getByRole('textbox',{name:/Evidence \/ source/})).not.toBeNull();
-    expect(screen.getByRole('textbox',{name:/Override reason/})).not.toBeNull();
+    expect(screen.getByRole('textbox',{name:/Setup \/ override reason/})).not.toBeNull();
+  });
+  it('Not Applicable is terminal and PCB has no category concept',()=>{
+    expect(statutorySchemeLabel('epf',{state:'not_applicable'})).toBe('Not Applicable');
+    expect(statutorySchemeLabel('pcb',{state:'not_applicable'})).toBe('Not Applicable');
+    expect(statutorySchemeLabel('pcb',{state:'confirmed'})).toBe('Applicable · monthly confirmation');
+    expect(statutorySchemeLabel('socso',{state:'setup_required'})).toBe('Setup Required');
   });
   it('keeps historical amount independent of scheduled change/stop',()=>{
     const versions=[{effective_from:'2026-01-01',amount:100,is_active:true},{effective_from:'2026-10-01',amount:200,is_active:true},{effective_from:'2026-11-01',amount:0,is_active:false}];
