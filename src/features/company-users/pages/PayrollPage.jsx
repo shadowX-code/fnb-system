@@ -465,6 +465,7 @@ function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun,
 }
 
 function SettingsTab({ data, canManage, reload }) {
+  const [holidayCompany, setHolidayCompany] = useState("all");
   const [schedules, setSchedules] = useState(null);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [scheduleError, setScheduleError] = useState("");
@@ -567,9 +568,9 @@ function SettingsTab({ data, canManage, reload }) {
           { key: "status", header: "Status", render: (item) => <Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge> },
           { key: "actions", header: "Actions", render: (item) => <button className="font-semibold text-primary" type="button" onClick={() => setSelectedComponentId(item.id)}>View</button> },
         ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
-      : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays}
+      : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays} onCompanyChanged={setHolidayCompany}
         onAddHoliday={() => { setEditingHolidayId(""); setAdding(true); }} onViewHoliday={setSelectedHolidayId} />
-        <PayrollPhPolicy entities={data.legal_entities || []} canManage={canManageHolidays} onChanged={reload} /></div>}
+        <PayrollPhPolicy entities={data.legal_entities || []} canManage={canManageHolidays} selectedCompany={holidayCompany} onChanged={reload} /></div>}
     {adding && <Modal title={mode === "components" ? "Add Pay Component" : editingHolidayId ? "Edit Public Holiday" : "Add Public Holiday"} size="lg" onClose={() => !busy && setAdding(false)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setAdding(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.name || (mode === "components" ? ["epf", "socso", "eis", "pcb"].some((key) => draft[key] === "undetermined") : !draft.sourceNote || (editingHolidayId && !draft.reason) || (draft.scope === "state" && !draft.stateCode) || (draft.scope === "outlet" && !draft.outletId))} onClick={save}>{busy ? "Saving…" : mode === "components" ? "Add Component" : editingHolidayId ? "Save Changes" : "Add Holiday"}</button></>}>
       {mode === "components" ? <div className="grid gap-3 sm:grid-cols-2">
         <h3 className="sm:col-span-2 text-sm font-bold">Basic Information</h3>

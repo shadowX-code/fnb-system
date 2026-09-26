@@ -171,6 +171,18 @@ and audit evidence. Required holidays cannot be deselected. Draft saving and
 publication have payload-bound retry identities and stale-version checks.
 
 Settings → Public Holidays exposes Holiday Calendar and Company Policy.
+The normal workflow is Get Official Calendar → Review Calendar → Publish Calendar
+→ inline Paid Holiday Selection → PH Work Benefit → Ready. Get Official Calendar
+opens an already prepared controlled candidate; it does not fetch an unverified
+source. When unavailable, source capture/preparation stays under Advanced → Add
+Official Source. Operational selection shows the 11-day company target and locks
+explicitly reviewed required entries; names/jurisdictions never establish required
+classification. This operational completeness presentation does not claim
+statutory compliance or replace work-date-effective calculation authority.
+Manage exceptions can focus one company selection/benefit while default actions
+continue applying to all applicable active companies. Source metadata, versions,
+QA visibility and history remain secondary. Draft inline selection never advances
+published assignment pointers until the explicit Publish action.
 The operational table shows Required / Selected / Not Selected; technical source,
 classification and publication evidence stays in Details/History. The default
 selection command derives active Legal Entities server-side and delegates to the

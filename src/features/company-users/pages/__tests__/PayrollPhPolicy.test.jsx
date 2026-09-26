@@ -12,13 +12,14 @@ it("summarizes shared benefits without a permanent company form and excludes ret
  expect(service.readPhPolicy).toHaveBeenCalledWith("a");
  expect(screen.getByText("Working on a Paid Holiday")).toBeTruthy();
  expect(screen.queryByText("Retired QA")).toBeNull();
- fireEvent.click(screen.getByRole("button", { name: "Edit Policy" }));
- expect(screen.getByRole("dialog")).toBeTruthy();
+ fireEvent.click(screen.getByRole("button", { name: "Configure PH Work Benefit" }));
+ expect(screen.getByRole("button", { name: "Save PH Work Policy" })).toBeTruthy();
+ expect(screen.queryByRole("dialog")).toBeNull();
  expect(service.saveDefaultPhPolicy).not.toHaveBeenCalled();
 });
 it("reports differing company policies truthfully rather than inventing a common default", async () => {
  service.readPhPolicy.mockImplementation(id => Promise.resolve([{ id, effective_from: "2026-01-01", treatment: id === "a" ? "additional_pay" : "replacement_leave" }]));
  render(<PayrollPhPolicy entities={[{ id: "a", name: "A" }, { id: "b", name: "B" }]} canManage={false} />);
  await waitFor(() => expect(screen.getByText("Company-specific benefits — review exceptions")).toBeTruthy());
- expect(screen.queryByRole("button", { name: "Edit Policy" })).toBeNull();
+ expect(screen.queryByRole("button", { name: "Configure PH Work Benefit" })).toBeNull();
 });

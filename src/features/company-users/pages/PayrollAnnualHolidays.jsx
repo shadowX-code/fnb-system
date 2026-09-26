@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -29,7 +29,7 @@ export function annualCalendarEntries(holidays, year, previous = []) {
   });
 }
 
-export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, onViewHoliday }) {
+export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, onViewHoliday, onCompanyChanged }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
   const [geography, setGeography] = useState("");
@@ -39,6 +39,11 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const [busy, setBusy] = useState(false);
   const [draft, setDraft] = useState({});
   const [refresh, setRefresh] = useState(0);
+  const [candidate, setCandidate] = useState(null);
+  const [selectionDraft, setSelectionDraft] = useState(null);
+  const [company, setCompany] = useState("all");
+  const [companyBenefit, setCompanyBenefit] = useState(false);
+  const selectionRequest = useRef(null);
   useEffect(() => {
     let active = true;
     setAnnual(null); setError("");
@@ -50,17 +55,45 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const latest = calendars[0];
   const published = calendars.find(c => c.status === "published");
   const policies = (annual?.policies || []).filter((p, i, list) => list.findIndex(x => x.policy_id === p.policy_id) === i);
-  const defaultPolicy = policies.find(p => p.is_default);
+  const defaultPolicy = company === "all" ? policies.find(p => p.is_default) : policies.find(p => !p.outlet_ids?.length && p.legal_entity_ids?.length === 1 && p.legal_entity_ids.includes(company));
+  useEffect(() => {
+    let current = true; setCompanyBenefit(false);
+    if (company !== "all") payrollService.readPhPolicy(company).then(rows => {
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
+      const date = year === String(currentYear) ? today : `${year}-01-01`;
+      if (current) setCompanyBenefit(rows.some(row => row.effective_from <= date));
+    }).catch(cause => { if (current) setError(cause.message); });
+    return () => { current = false; };
+  }, [company, year, refresh, data]);
   const entries = latest?.entries || [];
   const selection = defaultPolicy?.selected_holiday_ids || [];
+  const publishedEntries = published?.entries || [];
+  const paidSelection = selectionDraft || [...new Set([...publishedEntries.filter(e => e.kind === "required").map(e => e.holiday_id), ...selection.filter(id => publishedEntries.some(e => e.holiday_id === id))])];
+  useEffect(() => { setSelectionDraft(null); selectionRequest.current = null; }, [year, company, published?.id, defaultPolicy?.id]);
   const required = entries.filter(e => e.kind === "required");
   const optional = entries.filter(e => e.kind !== "required");
-  const ready = annual?.benefit_ready && latest?.status === "published" && defaultPolicy?.status === "published" && defaultPolicy.calendar_version_id === published?.id;
+  const benefitReady = company === "all" ? annual?.benefit_ready : companyBenefit;
+  const ready = benefitReady && latest?.status === "published" && defaultPolicy?.status === "published" && defaultPolicy.calendar_version_id === published?.id && selection.length >= 11 && !selectionDraft;
+  const remaining = Math.max(0, 11 - paidSelection.length);
+  const readiness = !published ? "Official Calendar not published" : !defaultPolicy || defaultPolicy.calendar_version_id !== published.id || selection.length < 11 || selectionDraft ? remaining ? `Select ${remaining} more paid holidays` : "Publish Paid Holiday Selection" : !benefitReady ? "PH Work Benefit not configured" : `${year} Public Holiday setup complete`;
+  const publishSelection = async () => {
+    setBusy(true); setError("");
+    try {
+      const fingerprint = JSON.stringify([company, published.id, paidSelection, defaultPolicy?.id]);
+      if (selectionRequest.current?.fingerprint !== fingerprint) selectionRequest.current = { fingerprint, id: crypto.randomUUID() };
+      const input = { name: `${year} Company Paid Holidays`, calendarId: published.id, selected: paidSelection, publish: true, previousId: defaultPolicy?.id, requestId: selectionRequest.current.id };
+      if (company === "all") await payrollService.saveDefaultPaidHolidays(input);
+      else await payrollService.savePaidHolidayPolicy({ ...input, entities: [company], outlets: [], reason: "" });
+      setSelectionDraft(null); setRefresh(n => n + 1);
+    }
+    catch (cause) { setError(cause.message || "Unable to publish paid holiday selection."); }
+    finally { setBusy(false); }
+  };
   const exceptional = (data.holidays || []).filter(h => h.holiday_date?.startsWith(year)
     && (h.legal_entity_id || h.scope === "outlet"));
   const years = [String(currentYear + 1), String(currentYear), String(currentYear - 1)];
   const editCalendar = () => {
-    setDraft({ entries: annualCalendarEntries(data.holidays || [], year, latest?.entries), source: latest?.source_reference || "", complete: latest?.source_complete || false,
+    setDraft({ entries: latest?.entries?.length ? latest.entries.map(entry => ({ ...entry })) : annualCalendarEntries(data.holidays || [], year), source: latest?.source_reference || "", complete: latest?.source_complete || false,
       previousId: annual?.previous_calendar_id || latest?.id, requestId: crypto.randomUUID() });
     setEditing("calendar"); setError("");
   };
@@ -98,7 +131,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const canSave = editing === "calendar" ? calendarReady && !!draft.source?.trim() : policyReady;
   return <Card className="overflow-hidden">
     <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4">
-      <div><h3 className="text-lg font-bold">Public Holidays</h3><p className="text-sm text-text-secondary">Holiday Calendar · Company Policy</p></div>
+      <div><h3 className="text-lg font-bold">Public Holidays</h3><p className="text-sm text-text-secondary">{annual ? readiness : "Prepare the annual calendar, paid holidays and work benefit."}</p></div>
       <div className="flex flex-wrap items-end gap-3"><SelectField label="Year" value={year} onChange={setYear} options={years.map(value => ({ value, label: value }))} />
         <SelectField label="Geography" value={geography} onChange={setGeography} options={[{ value: "", label: "All" }, { value: "national", label: "National" }, ...MALAYSIA_STATES.map(([value, label]) => ({ value, label }))]} />
         <Badge tone={ready ? "success" : "warning"}>{ready ? "Ready" : "Setup Required"}</Badge></div>
@@ -108,26 +141,33 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       <section className="border-b border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">Holiday Calendar</h4>
         <p className="text-sm text-text-secondary">{latest ? "Review holidays, then confirm the company selection." : "Import a reviewed official annual calendar. No dates have been generated."}</p></div>
         </div>
-        {editable && <PayrollHolidayImport year={year} onPublished={() => setRefresh(n => n + 1)} />}
+        {editable && <PayrollHolidayImport year={year} geography={geography} onCandidateChanged={setCandidate} onPublished={() => setRefresh(n => n + 1)} />}
         <dl className="my-4 grid gap-3 text-sm sm:grid-cols-4">
-          <div><dt className="text-text-secondary">Required holidays</dt><dd className="font-semibold">{required.filter(e => selection.includes(e.holiday_id)).length}/{required.length}</dd></div>
-          <div><dt className="text-text-secondary">Company selected</dt><dd className="font-semibold">{optional.filter(e => selection.includes(e.holiday_id)).length}/{optional.length}</dd></div>
-          <div><dt className="text-text-secondary">Total paid holidays</dt><dd className="font-semibold">{selection.length}</dd></div>
-          <div><dt className="text-text-secondary">Geography</dt><dd>Malaysia · applicable states</dd></div>
+          <div><dt className="text-text-secondary">Required holidays</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind === "required" && paidSelection.includes(e.holiday_id)).length}/{publishedEntries.filter(e => e.kind === "required").length}</dd></div>
+          <div><dt className="text-text-secondary">Company selected</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind !== "required" && paidSelection.includes(e.holiday_id)).length}/{Math.max(0, 11 - publishedEntries.filter(e => e.kind === "required").length)}</dd></div>
+          <div><dt className="text-text-secondary">Total paid holidays</dt><dd className="font-semibold">{paidSelection.length}/11</dd></div>
+          <div><dt className="text-text-secondary">Calendar Status</dt><dd>{published ? "Published" : candidate ? "Review Required" : "Not available"}</dd></div>
         </dl>
         {defaultPolicy && published && defaultPolicy.calendar_version_id !== published.id && <p role="status" className="mb-3 text-sm text-amber-800">Calendar updated. Review and publish the company selection; the existing policy has not changed.</p>}
-        {entries.length > 0 && <div className="mt-3"><DataTable density="compact" rows={entries.filter(e => !geography || (geography === "national" ? e.holiday.scope === "national" : e.holiday.scope === "national" || e.holiday.state_code === geography))} getRowKey={e => e.holiday_id} columns={[
+        {candidate && <DataTable density="compact" rows={(candidate.rows || []).filter(r => r.state !== "missing").map(r => ({ ...r.row, key: r.key, state: r.state }))} getRowKey={r => r.key} columns={[
+          { key: "date", header: "Date", render: r => r.date }, { key: "name", header: "Holiday", render: r => r.name }, { key: "scope", header: "Scope", render: scopeLabel },
+          { key: "status", header: "Status", render: r => r.state === "matched" || candidate.decisions?.[r.key]?.action === "accept" ? r.kind === "required" ? "Required" : "Available" : "Review Required" },
+        ]} />}
+        {latest?.source_reference?.startsWith("QA ONLY") && <p role="status" className="mt-3 text-sm text-amber-800">QA ONLY · Synthetic demonstration dates, not an official Malaysian calendar.</p>}
+        {published && <div className="mt-4 mb-3"><h4 className="font-bold">{year} Paid Holidays</h4><p className="text-sm text-text-secondary">{company === "all" ? "Applies to all applicable companies." : `Company exception: ${entityName((data.legal_entities || []).find(e => e.id === company) || {})}.`} Required holidays stay locked.</p></div>}
+        {publishedEntries.length > 0 && <div className="mt-3"><DataTable density="compact" rows={publishedEntries.filter(e => !geography || (geography === "national" ? e.holiday.scope === "national" : e.holiday.scope === "national" || e.holiday.state_code === geography))} getRowKey={e => e.holiday_id} columns={[
           { key: "date", header: "Date", render: e => e.holiday.holiday_date },
           { key: "name", header: "Holiday", render: e => <strong>{e.holiday.name}</strong> },
           { key: "scope", header: "Scope", render: e => scopeLabel(e.holiday) },
-          { key: "kind", header: "Company Status", render: e => e.kind === "required" ? "Required" : !e.kind ? "Review Required" : selection.includes(e.holiday_id) ? "Selected" : "Not Selected" },
+          { key: "kind", header: "Company Status", render: e => <label className="flex items-center gap-2"><input type="checkbox" className="accent-primary" aria-label={`Select ${e.holiday.name}`} disabled={!editable || busy || e.kind === "required"} checked={paidSelection.includes(e.holiday_id)} onChange={event => setSelectionDraft(event.target.checked ? [...paidSelection, e.holiday_id] : paidSelection.filter(id => id !== e.holiday_id))} />{e.kind === "required" ? "Required — locked" : paidSelection.includes(e.holiday_id) ? "Selected" : "Not Selected"}</label> },
           { key: "view", header: "Action", render: e => <button type="button" className="text-primary" onClick={() => onViewHoliday(e.holiday_id)}>View</button> },
         ]} /></div>}
+        {published && editable && <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-text-secondary">{remaining ? `Select ${remaining} more paid holidays` : "Paid holiday selection ready to publish"}</p><button className="btn-primary" disabled={busy || remaining > 0} onClick={publishSelection}>{busy ? "Publishing…" : "Publish Paid Holiday Selection"}</button></div>}
+        {published && editable && <details className="mt-3 text-sm"><summary className="cursor-pointer text-text-secondary">Review paid-holiday classifications</summary><p className="my-2 text-text-secondary">Required status needs explicit reviewed evidence; it is never inferred from a holiday name or scope.</p><button type="button" className="btn-secondary" onClick={editCalendar}>Review Calendar</button></details>}
       </section>
-      <section className="p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">Company Policy</h4><p className="text-sm text-text-secondary">Applies to: All applicable companies</p></div>
-        {editable && <button type="button" className="btn-primary" disabled={!published} onClick={() => editPolicy(defaultPolicy)}>Select Paid Holidays</button>}</div>
-        <p className="mt-2 text-sm text-text-secondary">{published ? "Required holidays stay selected. Choose additional company-observed holidays, then publish." : "Publish the reviewed annual calendar first."}</p>
+      <section className="p-4">
         <details className="mt-3 text-sm"><summary className="cursor-pointer text-primary">Manage exceptions</summary><p className="my-2 text-text-secondary">Explicit company/outlet calendars retain their own scope. Changing an existing scope requires a separate policy; it is never silently reassigned.</p>
+          <SelectField label="Review company selection" value={company} onChange={value => { setCompany(value); onCompanyChanged?.(value); }} options={[{ value: "all", label: "All applicable companies" }, ...(data.legal_entities || []).filter(e => e.is_active !== false).map(e => ({ value: e.id, label: entityName(e) }))]} />
           {policies.filter(p => !p.is_default).map(p => <div key={p.id} className="flex justify-between gap-3 py-2"><span>{p.legal_entity_ids.map(id => entityName((data.legal_entities || []).find(e => e.id === id) || {})).join(", ")} · {p.selected_holiday_ids.length} selected</span>{editable && <button className="text-primary" onClick={() => editPolicy(p, true)}>Review</button>}</div>)}
           {editable && <button className="btn-secondary" disabled={!published} onClick={() => editPolicy(null, true)}>Add Exception</button>}
         </details>

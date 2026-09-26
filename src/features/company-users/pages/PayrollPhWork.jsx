@@ -13,13 +13,14 @@ const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", 
 const clock = value => value ? new Date(value).toLocaleTimeString("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
 const range = (start, end) => `${clock(start)} – ${clock(end)}`;
 
-export function PayrollPhPolicy({ entities, canManage, onChanged }) {
+export function PayrollPhPolicy({ entities, canManage, onChanged, selectedCompany = "all" }) {
   const [entityId, setEntityId] = useState("all");
   const [versions, setVersions] = useState(null);
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const activeEntities = entities.filter(e => e.is_active !== false);
+  useEffect(() => { setEntityId(selectedCompany); }, [selectedCompany]);
   const load = async (id) => id === "all" ? Promise.all(activeEntities.map(async e => ({ entity: e, rows: await payrollService.readPhPolicy(e.id) }))) : payrollService.readPhPolicy(id);
   useEffect(() => { let current = true; setVersions(null); setDraft(null); setError("");
     if (entityId) load(entityId).then(rows => { if (current) setVersions(rows); }).catch(e => { if (current) setError(e.message); });
@@ -32,21 +33,21 @@ export function PayrollPhPolicy({ entities, canManage, onChanged }) {
   const rows = entityId === "all" ? (versions || []).flatMap(v => v.rows.slice(0, 1)) : (versions || []);
   const uniform = rows.length > 0 && (entityId !== "all" || rows.length === activeEntities.length) && rows.every(v => v.treatment === rows[0].treatment && v.effective_from === rows[0].effective_from);
   return <Card className="space-y-3 p-4"><div><h3 className="font-bold">Working on a Paid Holiday</h3>
-    <p className="text-sm text-text-secondary">A company benefit for confirmed work on selected paid holidays. Not a statutory premium or substitute for statutory entitlements.</p></div>
+    <p className="text-sm text-text-secondary">Choose the default benefit when an employee works on a selected paid holiday.</p></div>
     <p className="text-sm">Applies to: {entityId === "all" ? "All applicable companies" : activeEntities.find(e => e.id === entityId)?.display_name || activeEntities.find(e => e.id === entityId)?.name}</p>
     <details className="text-sm"><summary className="cursor-pointer text-primary">Manage exceptions / History</summary><div className="mt-3"><SelectField label="Company" value={entityId} onChange={setEntityId} options={[{ value: "all", label: "All applicable companies" }, ...activeEntities.map(e => ({ value: e.id, label: e.display_name || e.name }))]} /></div>
       {rows.map(v => <p key={v.id} className="mt-2 text-text-secondary">{v.effective_from} · {label(v.treatment)}{v.remark ? ` · ${v.remark}` : ""}</p>)}
     </details>
     {entityId && versions === null && !error && <p role="status">Loading policy…</p>}
     {versions && <p className="text-sm"><strong>{uniform ? label(rows[0].treatment) : rows.length ? "Company-specific benefits — review exceptions" : "Setup Required"}</strong>{uniform ? ` · Effective ${rows[0].effective_from}` : ""}</p>}
-    <p className="text-xs text-text-secondary">Additional Pay: Monthly Basic / 26 × 1 ordinary day; Hourly Rate × approved PH hours. Replacement Leave: 1 day, valid until 31 December of the entitlement year, no carry-forward.</p>
-    {canManage && entityId && versions && !draft && <button className="btn-secondary" type="button" onClick={() => setDraft({ date: "", treatment: rows[0]?.treatment || "additional_pay", remark: "" })}>Edit Policy</button>}
-    {draft && <Modal title="Edit PH Work Policy" onClose={() => !busy && setDraft(null)} footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setDraft(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.date} onClick={save}>{busy ? "Saving…" : "Confirm Policy"}</button></>}><div className="space-y-3"><p className="text-sm">Applies to: {entityId === "all" ? "All applicable companies" : "Selected company exception"}. Existing historical policies are not changed.</p><SelectField label="Default Benefit" value={draft.treatment} onChange={treatment => setDraft(old => ({ ...old, treatment }))} options={treatments} />
-      <p className="text-xs text-text-secondary">Additional Pay: Monthly Basic / 26 × 1 day; Hourly Rate × approved PH hours. Replacement Leave: 1 day, expires 31 December, no carry-forward.</p>
+    <p className="text-xs text-text-secondary">Company benefit only; statutory entitlements remain separate.</p>
+    {canManage && entityId && versions && !draft && <button className="btn-secondary" type="button" onClick={() => setDraft({ date: "", treatment: rows[0]?.treatment || "additional_pay", remark: "" })}>Configure PH Work Benefit</button>}
+    {draft && <section className="space-y-3 border-t border-border pt-4"><p className="text-sm">Applies to: {entityId === "all" ? "All applicable companies" : "Selected company exception"}. Existing historical policies are not changed.</p><fieldset><legend className="mb-2 text-sm font-semibold">Default Benefit</legend><div className="flex flex-wrap gap-2">{treatments.map(t => <button key={t.value} type="button" aria-pressed={draft.treatment === t.value} className={draft.treatment === t.value ? "btn-primary" : "btn-secondary"} disabled={busy} onClick={() => setDraft(old => ({ ...old, treatment: t.value }))}>{t.label}</button>)}</div></fieldset>
+      {draft.treatment === "additional_pay" ? <dl className="grid gap-3 text-sm sm:grid-cols-2"><div><dt className="font-semibold">Monthly employee</dt><dd>+1 ordinary day · Basic Salary ÷ 26</dd></div><div><dt className="font-semibold">Hourly employee</dt><dd>Approved Hours × Hourly Rate</dd></div></dl> : <p className="text-sm">+1 Replacement Leave day · Valid until 31 Dec · No carry-forward</p>}
       <DatePickerField label="Effective From" value={draft.date} onChange={date => setDraft(old => ({ ...old, date }))} />
       <AdminFormField label="Remark (Optional)"><input className="control" value={draft.remark} onChange={e => setDraft(old => ({ ...old, remark: e.target.value }))} /></AdminFormField>
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-      </div></Modal>}
+      <div className="flex gap-2"><button className="btn-secondary" type="button" disabled={busy} onClick={() => setDraft(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !draft.date} onClick={save}>{busy ? "Saving…" : "Save PH Work Policy"}</button></div></section>}
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
   </Card>;
 }
