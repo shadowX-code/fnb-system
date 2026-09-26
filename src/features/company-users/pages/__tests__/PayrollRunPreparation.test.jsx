@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), reverseRunComponent: vi.fn() }));
+const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), reverseRunComponent: vi.fn(), decideTime: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
 import PayrollRunEmployeesPanel from "../PayrollRunEmployeesPanel.jsx";
 afterEach(cleanup);
@@ -69,4 +69,22 @@ it("still exposes time-dependent employee evidence", async () => {
   expect(screen.getByText("Time evidence required")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Review", exact: true }));
   expect(screen.getByRole("heading", { name: "Time & Attendance" })).toBeTruthy();
+});
+it("records a time decision before employee-only recalculation and projection refresh", async () => {
+  mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15.5}}}}]});
+  mocks.readTime.mockResolvedValue([{id:'time',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-25',status:'review_required',classification:'regular',issue_codes:['missing_punch'],proposed_minutes:null,evidence:{}}]);
+  mocks.decideTime.mockResolvedValue({});
+  mocks.recalculateEmployee.mockResolvedValue({});
+  render(<PayrollRunEmployeesPanel {...props} />);
+  await screen.findByText('QA Employee');
+  fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Review Hours'}));
+  fireEvent.click(screen.getByRole('button',{name:'Review exception'}));
+  fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'120'}});
+  fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Verified QA evidence'}});
+  fireEvent.click(screen.getByRole('button',{name:'Record Decision'}));
+  await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalled());
+  await waitFor(()=>expect(mocks.recalculateEmployee).toHaveBeenLastCalledWith('run','employee'));
+  expect(mocks.decideTime.mock.invocationCallOrder.at(-1)).toBeLessThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1));
+  await waitFor(()=>expect(mocks.readPreparation.mock.invocationCallOrder.at(-1)).toBeGreaterThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1)));
 });
