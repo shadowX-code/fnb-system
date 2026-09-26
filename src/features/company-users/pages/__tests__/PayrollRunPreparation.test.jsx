@@ -23,6 +23,7 @@ it("keeps monthly time irrelevant and displays persisted deductions before calcu
   expect(screen.getByText("Deduction")).toBeTruthy();
   expect(screen.getByText("Deduction · Approved period adjustment · Saved")).toBeTruthy();
   expect(screen.queryByRole("heading", { name: "Time & Attendance" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Review Hours" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Confirm PCB" })).toBeNull();
 });
 it("resolves period-effective categories and PCB N/A beside current amounts", async () => {

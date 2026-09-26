@@ -1,5 +1,7 @@
 # Payroll
 
+Employee monthly review exposes **Review Hours** only for time-dependent employees (all Hourly employees, and Monthly employees whose canonical preparation projection identifies relevant time). The centered review reads `payroll_time_read` snapshots, displays roster/clock/proposed/approved evidence and exception-first rows, and uses `payroll_time_decide` for unresolved exceptions. Clean days require no repeated confirmation. A successful decision runs `payroll_employee_recalculate` (earnings and statutory core together) then refreshes employee, preparation and review projections. If refresh fails after persistence, retry refresh only—not the decision. Regular earnings and effective rates shown here come from persisted calculation lines, not a second UI wage calculator. Original work evidence and finalized snapshots remain under their existing immutable authorities.
+
 ## Ownership and Phase
 
 Payroll is an independent People domain. Employee Master owns identity, current

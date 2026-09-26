@@ -29,24 +29,27 @@ export function DecisionModal({ row, onClose, onSaved }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [recorded, setRecorded] = useState(false);
   const save = async () => {
     setBusy(true); setError("");
     try {
-      await payrollService.decideTime({ id: row.id, action,
+      if (!recorded) { await payrollService.decideTime({ id: row.id, action,
         approvedMinutes: action === "reject" ? 0 : Number(minutes),
         extraMinutes: action === "reject" ? 0 : Number(extra),
         classification: action === "reject" ? "non_payable" : classification, reason });
+        setRecorded(true); }
       await onSaved();
       onClose();
-    } catch (cause) { setError(cause.message || "Unable to decide payable time."); }
+    } catch (cause) { setError(cause.message || "Unable to refresh payable time."); }
     finally { setBusy(false); }
   };
   const evidence = row.evidence || {};
   return <Modal title={`${row.employee_name} · ${row.work_date}`} description="Approve Payroll time only. Original Roster, Attendance and Leave evidence is never edited."
     size="lg" onClose={onClose}
     footer={<><button className="btn-secondary" type="button" onClick={onClose} disabled={busy}>Cancel</button>
-      <button className="btn-primary" type="button" onClick={save} disabled={busy || !reason.trim() || (action !== "reject" && (minutes === "" || Number(minutes) < 0))}>{busy ? "Saving..." : "Record Decision"}</button></>}>
+      <button className="btn-primary" type="button" onClick={save} disabled={busy || (!recorded && (!reason.trim() || (action !== "reject" && (minutes === "" || !Number.isInteger(Number(minutes)) || !Number.isInteger(Number(extra)) || Number(minutes) < 0 || Number(extra) < 0 || Number(minutes) + Number(extra) > 1440))))}>{busy ? "Saving..." : recorded ? "Refresh Review" : "Record Decision"}</button></>}>
     <div className="space-y-4 text-sm">
+      {recorded && <p role="status">Decision recorded. Refresh the review to restore the latest payroll result; this will not submit another decision.</p>}
       <div className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
         <div><strong>Published Roster</strong><p>{time(evidence.scheduled_start_at)} – {time(evidence.scheduled_end_at)} · {evidence.roster_break_minutes ?? "—"}m unpaid break</p><small className="text-text-muted">Entry {evidence.roster_entry_id || "None"}</small></div>
         <div><strong>Attendance</strong><p>{time(evidence.clock_in_at)} – {time(evidence.clock_out_at)} · {duration(row.actual_minutes)}</p><small className="text-text-muted">Record {evidence.attendance_id || "None"}</small></div>
