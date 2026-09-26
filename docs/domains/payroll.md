@@ -264,6 +264,25 @@ component wage treatment or missing source evidence also blocks Ready. The
 Run cannot become Ready or Finalized with unresolved statutory evidence. No
 current Operating Expenses or Reporting value is changed.
 
+## Employee setup
+
+Employee category setup begins with a server-derived recommendation from
+canonical nationality, birthdate and reviewed effective applicability, using
+the existing supported-category guard. Confirmation rechecks the evidence
+fingerprint under the Profile lock and delegates to the append-only input
+command; source, actor/time and evidence are recorded automatically. Overrides
+require explicit source and reason and never bypass calculation eligibility.
+Unknown contribution-history categories remain Review Required. The suggested
+date is today or the day after the latest input version, never an inferred
+historical entitlement. Settings exposes canonical schedule sources read-only.
+
+Employee Manage Components owns assignment/amount, distinct from Settings
+definitions and one-period Run adjustments. Add, Change Amount and Stop append
+versions through `payroll_recurring_adjust`; a stop writes an inactive zero
+version, never deletes history. Future starts/changes/stops remain visible.
+Dates must follow the latest scheduled version and finalized-period protection
+is unchanged. Retired definitions permit stopping an existing assignment only.
+
 ## Deferred
 
 Payslips, settlement and Finance labour-cost projections remain deferred.

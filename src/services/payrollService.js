@@ -46,6 +46,9 @@ export const payrollService = {
     p_reason: input.reason,
   }),
   readStatutoryInput: (profileId) => command("payroll_statutory_input_read", { p_profile_id: profileId }),
+  recommendStatutory: (profileId) => command("payroll_statutory_recommendation", { p_profile_id: profileId }),
+  confirmStatutoryRecommendation: (profileId, fingerprint) => command("payroll_statutory_confirm_recommendation", { p_profile_id: profileId, p_fingerprint: fingerprint }),
+  readStatutorySchedules: () => command("payroll_statutory_schedule_read", {}),
   reviewStatutoryInput: (input) => command("payroll_statutory_input_adjust", {
     p_profile_id: input.profileId,
     p_effective_from: input.effectiveFrom,
