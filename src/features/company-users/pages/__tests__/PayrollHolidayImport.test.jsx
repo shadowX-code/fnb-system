@@ -7,6 +7,12 @@ const row = { key: "1", state: "new", row: { date: "2027-01-10", name: "QA ONLY 
 const candidate = { id: "candidate", status: "needs_review", revision: 2, source_reference: "Verified source", rows: [row], history: [] };
 beforeEach(() => { vi.clearAllMocks(); service.readHolidayCandidates.mockResolvedValue([candidate]); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("does not show an unavailable-source action after the calendar is published", async () => {
+  service.readHolidayCandidates.mockResolvedValue([]);
+  render(<PayrollHolidayImport year="2027" calendarPublished />);
+  await screen.findByText("Holiday calendar published. Continue with paid holiday selection.");
+  expect(screen.queryByRole("button", { name: "Get Official Calendar" })).toBeNull();
+});
 it("captures an uploaded source artifact with retry identity but never publishes from capture", async () => {
   vi.stubGlobal("FileReader", class { readAsDataURL() { this.result = "data:application/pdf;base64,JVBERi0="; this.onload(); } });
   render(<PayrollHolidayImport year="2027" />);

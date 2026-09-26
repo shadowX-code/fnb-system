@@ -22,7 +22,7 @@ const fileBase64 = file => new Promise((resolve, reject) => {
 });
 
 // This is source preparation/review only. Publication delegates to Annual Calendar.
-export default function PayrollHolidayImport({ year, geography = "", onPublished, onCandidateChanged }) {
+export default function PayrollHolidayImport({ year, geography = "", calendarPublished = false, onPublished, onCandidateChanged }) {
   const [candidates, setCandidates] = useState(null);
   const [includeQa, setIncludeQa] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -79,8 +79,8 @@ export default function PayrollHolidayImport({ year, geography = "", onPublished
   const close = () => { if (!busy) { setSelected(null); setCapture(false); setError(""); } };
   return <div className="mt-3 space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-text-secondary">{available ? "A prepared calendar is available. Review changes before publication." : "Official calendar source not available yet"}</p>
-      <button type="button" className="btn-primary" disabled={!available} onClick={() => open(available)}>{available?.status === "approved" ? "Publish Calendar" : available ? "Review Calendar" : "Get Official Calendar"}</button>
+      <p className="text-sm text-text-secondary">{available ? "A prepared calendar is available. Review changes before publication." : calendarPublished ? "Holiday calendar published. Continue with paid holiday selection." : "Official calendar source not available yet"}</p>
+      {(available || !calendarPublished) && <button type="button" className="btn-primary" disabled={!available} onClick={() => open(available)}>{available?.status === "approved" ? "Publish Calendar" : available ? "Review Calendar" : "Get Official Calendar"}</button>}
     </div>
     {error && !selected && !capture && <p role="alert" className="text-sm text-rose-700">{error}<button type="button" className="ml-3 text-primary" onClick={() => setRefresh(n => n + 1)}>Refresh Imports</button></p>}
     {!candidates && !error && <p className="text-sm text-text-secondary">Loading imports…</p>}

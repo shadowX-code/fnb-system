@@ -75,6 +75,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const benefitReady = company === "all" ? annual?.benefit_ready : companyBenefit;
   const ready = benefitReady && latest?.status === "published" && defaultPolicy?.status === "published" && defaultPolicy.calendar_version_id === published?.id && selection.length >= 11 && !selectionDraft;
   const remaining = Math.max(0, 11 - paidSelection.length);
+  const selectionPublished = defaultPolicy?.status === "published" && defaultPolicy.calendar_version_id === published?.id && selection.length >= 11 && !selectionDraft;
   const readiness = !published ? "Official Calendar not published" : !defaultPolicy || defaultPolicy.calendar_version_id !== published.id || selection.length < 11 || selectionDraft ? remaining ? `Select ${remaining} more paid holidays` : "Publish Paid Holiday Selection" : !benefitReady ? "PH Work Benefit not configured" : `${year} Public Holiday setup complete`;
   const publishSelection = async () => {
     setBusy(true); setError("");
@@ -141,7 +142,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       <section className="border-b border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">Holiday Calendar</h4>
         <p className="text-sm text-text-secondary">{latest ? "Review holidays, then confirm the company selection." : "Import a reviewed official annual calendar. No dates have been generated."}</p></div>
         </div>
-        {editable && <PayrollHolidayImport year={year} geography={geography} onCandidateChanged={setCandidate} onPublished={() => setRefresh(n => n + 1)} />}
+        {editable && <PayrollHolidayImport year={year} geography={geography} calendarPublished={!!published} onCandidateChanged={setCandidate} onPublished={() => setRefresh(n => n + 1)} />}
         <dl className="my-4 grid gap-3 text-sm sm:grid-cols-4">
           <div><dt className="text-text-secondary">Required holidays</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind === "required" && paidSelection.includes(e.holiday_id)).length}/{publishedEntries.filter(e => e.kind === "required").length}</dd></div>
           <div><dt className="text-text-secondary">Company selected</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind !== "required" && paidSelection.includes(e.holiday_id)).length}/{Math.max(0, 11 - publishedEntries.filter(e => e.kind === "required").length)}</dd></div>
@@ -162,7 +163,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
           { key: "kind", header: "Company Status", render: e => <label className="flex items-center gap-2"><input type="checkbox" className="accent-primary" aria-label={`Select ${e.holiday.name}`} disabled={!editable || busy || e.kind === "required"} checked={paidSelection.includes(e.holiday_id)} onChange={event => setSelectionDraft(event.target.checked ? [...paidSelection, e.holiday_id] : paidSelection.filter(id => id !== e.holiday_id))} />{e.kind === "required" ? "Required — locked" : paidSelection.includes(e.holiday_id) ? "Selected" : "Not Selected"}</label> },
           { key: "view", header: "Action", render: e => <button type="button" className="text-primary" onClick={() => onViewHoliday(e.holiday_id)}>View</button> },
         ]} /></div>}
-        {published && editable && <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-text-secondary">{remaining ? `Select ${remaining} more paid holidays` : "Paid holiday selection ready to publish"}</p><button className="btn-primary" disabled={busy || remaining > 0} onClick={publishSelection}>{busy ? "Publishing…" : "Publish Paid Holiday Selection"}</button></div>}
+        {published && editable && <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-text-secondary">{selectionPublished ? "Paid holiday selection published" : remaining ? `Select ${remaining} more paid holidays` : "Paid holiday selection ready to publish"}</p>{!selectionPublished && <button className="btn-primary" disabled={busy || remaining > 0} onClick={publishSelection}>{busy ? "Publishing…" : "Publish Paid Holiday Selection"}</button>}</div>}
         {published && editable && <details className="mt-3 text-sm"><summary className="cursor-pointer text-text-secondary">Review paid-holiday classifications</summary><p className="my-2 text-text-secondary">Required status needs explicit reviewed evidence; it is never inferred from a holiday name or scope.</p><button type="button" className="btn-secondary" onClick={editCalendar}>Review Calendar</button></details>}
       </section>
       <section className="p-4">
