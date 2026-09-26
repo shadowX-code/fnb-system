@@ -57,9 +57,17 @@ Payroll Settings uses the shared Admin underline-tab pattern below the four
 primary destinations. Employee setup opens in a read-only detail drawer from a
 Legal-Entity-scoped filter/list; explicit actions open the existing effective-
 dated commands. Pay Components use List → View Modal → Edit/Create Modal with audited changes;
-their immutable technical code is normally generated from the name and shown
-under Advanced information. Their `undetermined` backend treatment remains
+their immutable technical code is generated from the name and remains internal.
+The registry shows individual EPF/SOCSO/EIS/PCB wage-base inclusion icons with
+focus/hover explanations. Create/edit uses shared Included/Excluded segmented
+controls; these describe component wage bases, not employee applicability.
+Their `undetermined` backend treatment remains
 fail-closed but appears as Not configured, never as a normal selectable choice.
+One-off adjustment type derives from the chosen canonical component. Employee
+review attaches adjustment reason/reversal to its calculated line instead of
+repeating the amount in a separate financial section. Reimbursements remain
+outside Gross Earnings and are explicitly included in the payment reconciliation.
+Employer contributions remain separate from employee deductions and Net Pay.
 Payroll forms use the shared FeedX Select, Date Picker and Month Picker; Pay
 Period is month-only, while Public Holiday and effective dates use dates.
 Finalized Run revisions are read-only, and historical corrections create a new

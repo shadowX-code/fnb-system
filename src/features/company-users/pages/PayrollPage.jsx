@@ -10,6 +10,7 @@ import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import ToggleField from "../../../components/forms/ToggleField.jsx";
@@ -41,8 +42,10 @@ const timeBlocker = (time) => time?.period_in_progress && !time.unresolved && !t
   : `${time?.unresolved || 0} time exceptions · ${time?.unreconciled || 0} unreconciled${time?.stale ? ` · ${time.stale} stale` : ""}${time?.period_in_progress ? " · period in progress" : ""}`;
 const entityName = (entities, id) => entities.find((item) => item.id === id)?.display_name
   || entities.find((item) => item.id === id)?.name || "Legal Entity";
-const treatmentOptions = [{ value: "undetermined", label: "Select treatment", disabled: true },
-  { value: "included", label: "Included" }, { value: "excluded", label: "Excluded" }];
+const treatmentOptions = [{ value: "included", label: "Included" }, { value: "excluded", label: "Excluded" }];
+function WageTreatment({ scheme, value, onChange }) {
+  return <AdminFormField as="div" label={`${scheme.toUpperCase()} wage base`}><AdminSegmentedControl label={`${scheme.toUpperCase()} wage base`} value={value} onChange={onChange} options={treatmentOptions} />{!["included", "excluded"].includes(value) && <p className="text-xs text-amber-700">Choose Included or Excluded.</p>}</AdminFormField>;
+}
 
 function StatutoryChecks({ value, onChange }) {
   return <fieldset className="rounded-xl border border-border p-3">
@@ -471,8 +474,7 @@ function SettingsTab({ data, canManage, reload }) {
     try {
       if (mode === "components") {
         const code = draft.code.trim() || draft.name.trim().toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").replace(/^[^a-z]+/, "");
-        if (!code) throw new Error("Enter a system code under Advanced for this name.");
-        await payrollService.createComponent({ ...draft, code });
+        await payrollService.createComponent({ ...draft, code: code || `component_${crypto.randomUUID().replaceAll("-", "")}` });
       }
       else if (editingHolidayId) await payrollService.updateHoliday({ ...draft, id: editingHolidayId });
       else await payrollService.addHoliday(draft);
@@ -529,9 +531,12 @@ function SettingsTab({ data, canManage, reload }) {
       : mode === "components" ? <Card className="overflow-hidden"><div className="flex flex-wrap items-start justify-between gap-3 border-b border p-4"><div><h3 className="text-lg font-bold">Allowances & Deductions</h3><p className="text-sm text-text-secondary">Statutory wage treatment must be explicit before a run is ready.</p></div>
         {canManageComponents && <button className="btn-primary" type="button" onClick={() => { setEditingHolidayId(""); setAdding(true); }}><Plus size={16} /> Add Component</button>}</div>
         {components.length ? <DataTable density="compact" columns={[
-          { key: "name", header: "Name", render: (item) => <strong>{item.name}</strong> },
+          { key: "name", header: "Component", render: (item) => <strong>{item.name}</strong> },
           { key: "type", header: "Type", render: (item) => label(item.component_type) },
-          { key: "treatment", header: "Statutory Treatment", render: (item) => undetermined(item) ? <Badge tone="warning">Not configured</Badge> : <span className="text-sm text-text-secondary">Configured</span> },
+          ...["epf", "socso", "eis", "pcb"].map((scheme) => ({ key: scheme, header: scheme.toUpperCase(), render: (item) => {
+            const value = item[`${scheme}_treatment`]; const Icon = value === "included" ? Check : value === "excluded" ? Minus : TriangleAlert;
+            return <InfoTooltip label={`${scheme.toUpperCase()} wage base: ${value === "included" ? "Included" : value === "excluded" ? "Excluded" : "Setup required"}`}><Icon size={16} aria-hidden="true" className={value === "included" ? "text-emerald-700" : value === "excluded" ? "text-text-secondary" : "text-amber-700"} /></InfoTooltip>;
+          } })),
           { key: "status", header: "Status", render: (item) => <Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge> },
           { key: "actions", header: "Actions", render: (item) => <button className="font-semibold text-primary" type="button" onClick={() => setSelectedComponentId(item.id)}>View</button> },
         ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
@@ -552,11 +557,11 @@ function SettingsTab({ data, canManage, reload }) {
         <h3 className="sm:col-span-2 text-sm font-bold">Basic Information</h3>
         <AdminFormField label="Name"><input className="control" value={draft.name} onChange={(event) => patch("name", event.target.value)} /></AdminFormField>
         <SelectField label="Type" value={draft.type} onChange={(value) => patch("type", value)} options={["earning", "allowance", "deduction", "reimbursement"].map((value) => ({ value, label: label(value) }))} />
-        <div className="sm:col-span-2"><h3 className="text-sm font-bold">Statutory Treatment</h3><p className="text-xs text-text-secondary">Choose whether this component forms part of each scheme's wage base. Unconfigured treatment blocks Payroll readiness.</p></div>
-        {["epf", "socso", "eis", "pcb"].map((key) => <SelectField key={key} label={`${key.toUpperCase()} wage base`} value={draft[key]} onChange={(value) => patch(key, value)} options={treatmentOptions} />)}
+        <div className="sm:col-span-2"><h3 className="text-sm font-bold">Statutory Wage Treatment</h3><p className="text-xs text-text-secondary">Included means this component forms part of the scheme's wage base, not that the employee participates. Resolve all four treatments before use.</p></div>
+        {["epf", "socso", "eis", "pcb"].map((key) => <WageTreatment key={key} scheme={key} value={draft[key]} onChange={(value) => patch(key, value)} />)}
         <h3 className="sm:col-span-2 text-sm font-bold">Configuration Evidence</h3>
         <AdminFormField label="Reason / source"><input className="control" value={draft.reason} onChange={(event) => patch("reason", event.target.value)} /></AdminFormField>
-        <details className="sm:col-span-2"><summary className="cursor-pointer text-sm font-semibold">Advanced / System Information</summary><AdminFormField label="Immutable System Code"><input className="control" value={draft.code} onChange={(event) => patch("code", event.target.value)} placeholder="Generated from name" /></AdminFormField></details></div>
+        </div>
         : <div className="grid gap-3 sm:grid-cols-2">
           <DatePickerField label="Date" required value={draft.date} onChange={(value) => patch("date", value)} />
           <AdminFormField label="Holiday Name"><input className="control" value={draft.name} onChange={(event) => patch("name", event.target.value)} /></AdminFormField>
@@ -588,13 +593,12 @@ function SettingsTab({ data, canManage, reload }) {
         <section><h3 className="font-bold">Statutory Treatment</h3><div className="mt-2 divide-y divide-border rounded-xl border border-border">{["epf", "socso", "eis", "pcb"].map((scheme) => <div key={scheme} className="flex justify-between px-3 py-2"><span>{scheme.toUpperCase()}</span><Badge tone={selectedComponent[`${scheme}_treatment`] === "undetermined" ? "warning" : "neutral"}>{selectedComponent[`${scheme}_treatment`] === "undetermined" ? "Not configured" : label(selectedComponent[`${scheme}_treatment`])}</Badge></div>)}</div></section>
         <section><h3 className="font-bold">History & source</h3><p className="mt-1 text-text-secondary">Created {selectedComponent.created_at?.slice(0, 10) || "—"}.</p>
           {Array.isArray(componentHistory) ? <div className="mt-2 divide-y divide-border">{componentHistory.map((event, index) => <div key={`${event.occurred_at}-${index}`} className="py-2"><strong>{label(event.event_type)}</strong><span className="ml-2 text-text-muted">{event.occurred_at?.slice(0, 16).replace("T", " ")} · {event.actor_name}</span><p className="text-text-secondary">{event.reason || event.details?.source || "—"}</p></div>)}</div> : <p className="mt-2 text-text-secondary">{componentHistory?.error ? "History could not be loaded." : "Loading history…"}</p>}</section>
-        <details className="rounded-xl border border-border p-3"><summary className="cursor-pointer font-semibold">Advanced / System Information</summary><p className="mt-2 text-text-secondary">Immutable code: <code>{selectedComponent.code}</code><br />ID: <code>{selectedComponent.id}</code></p></details>
       </div>}
     </Modal>}
     {editingComponent && componentEditDraft && <Modal title={`Edit ${selectedComponent?.name || "Pay Component"}`} description="Changes are audited. A component used by finalized Payroll cannot change its name or wage treatment; create a successor component instead." size="lg" onClose={() => !busy && setEditingComponent(false)}
       footer={<><button className="btn-secondary" type="button" disabled={busy} onClick={() => setEditingComponent(false)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || !componentEditDraft.name.trim() || !componentEditDraft.reason.trim() || !componentEditDraft.sourceNote.trim() || ["epf", "socso", "eis", "pcb"].some((key) => componentEditDraft[key] === "undetermined")} onClick={saveComponentEdit}>{busy ? "Saving…" : "Save Changes"}</button></>}>
       <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><AdminFormField label="Name" required><input className="control" value={componentEditDraft.name} onChange={(event) => setComponentEditDraft((current) => ({ ...current, name: event.target.value }))} /></AdminFormField><AdminFormField label="Type"><p className="control flex items-center bg-surface-muted text-text-secondary">{label(selectedComponent?.component_type)} · fixed identity</p></AdminFormField></div>
-        <div><h3 className="mb-1 text-sm font-bold">Statutory wage treatment</h3><p className="mb-3 text-xs text-text-secondary">Choose whether the component is included in each scheme's wage base.</p><div className="grid gap-3 sm:grid-cols-2">{["epf", "socso", "eis", "pcb"].map((scheme) => <SelectField key={scheme} label={`${scheme.toUpperCase()} wage base`} value={componentEditDraft[scheme]} onChange={(value) => setComponentEditDraft((current) => ({ ...current, [scheme]: value }))} options={treatmentOptions} />)}</div></div>
+        <div><h3 className="mb-1 text-sm font-bold">Statutory Wage Treatment</h3><p className="mb-3 text-xs text-text-secondary">Included means this component forms part of the scheme's wage base, not that the employee participates. Resolve all four treatments before use.</p><div className="grid gap-3 sm:grid-cols-2">{["epf", "socso", "eis", "pcb"].map((scheme) => <WageTreatment key={scheme} scheme={scheme} value={componentEditDraft[scheme]} onChange={(value) => setComponentEditDraft((current) => ({ ...current, [scheme]: value }))} />)}</div></div>
         <ToggleField label="Active for new use" checked={componentEditDraft.active} onChange={(checked) => setComponentEditDraft((current) => ({ ...current, active: checked }))} />
         <div className="grid gap-3 sm:grid-cols-2"><AdminFormField label="Source / reference" required><input className="control" value={componentEditDraft.sourceNote} onChange={(event) => setComponentEditDraft((current) => ({ ...current, sourceNote: event.target.value }))} /></AdminFormField><AdminFormField label="Reason" required><input className="control" value={componentEditDraft.reason} onChange={(event) => setComponentEditDraft((current) => ({ ...current, reason: event.target.value }))} /></AdminFormField></div>
         {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}

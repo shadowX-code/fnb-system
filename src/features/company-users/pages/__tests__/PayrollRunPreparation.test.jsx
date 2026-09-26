@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), reverseRunComponent: vi.fn(), decideTime: vi.fn() }));
+const mocks = vi.hoisted(() => ({ readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), reverseRunComponent: vi.fn(), addRunComponent: vi.fn(), decideTime: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
 import PayrollRunEmployeesPanel from "../PayrollRunEmployeesPanel.jsx";
 afterEach(cleanup);
@@ -21,7 +21,7 @@ it("keeps monthly time irrelevant and displays persisted deductions before calcu
   expect(screen.queryByText("Confirm amount")).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Review", exact: true }));
   expect(screen.getByText("Deduction")).toBeTruthy();
-  expect(screen.getByText("Deduction · Approved period adjustment · Saved")).toBeTruthy();
+  expect(screen.getByText("Saved adjustment · Approved period adjustment")).toBeTruthy();
   expect(screen.queryByRole("heading", { name: "Time & Attendance" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Review Hours" })).toBeNull();
   expect(screen.queryByRole("button", { name: "Confirm PCB" })).toBeNull();
@@ -69,6 +69,28 @@ it("still exposes time-dependent employee evidence", async () => {
   expect(screen.getByText("Time evidence required")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Review", exact: true }));
   expect(screen.getByRole("heading", { name: "Time & Attendance" })).toBeTruthy();
+});
+it("shows calculated adjustment provenance once and derives the chosen component type", async () => {
+  mocks.readCalculation.mockResolvedValue({ results: [{ employee_id: "employee", status: "ready", gross_earnings: 2050, lines: [
+    {kind:"earning",label:"Basic Salary",amount:2000},
+    {kind:"earning",label:"QA Allowance",amount:50,source:{run_adjustment_id:"adjustment"}},
+    {kind:"deduction",label:"QA Deduction",amount:20},
+    {kind:"reimbursement",label:"QA Reimbursement",amount:10},
+  ],reimbursements:10 }], adjustments: [{id:"adjustment",employee_id:"employee",component_name:"QA Allowance",component_type:"allowance",amount:50,reason:"Approved QA expense"}] });
+  mocks.readStatutory.mockResolvedValue({results:[{employee_id:"employee",status:"ready",non_statutory_deductions:20,net_pay:2040,employer_statutory_cost:0,total_employer_cost:2060,lines:[]}]});
+  render(<PayrollRunEmployeesPanel {...props} data={{...props.data,components:[{id:"ded",name:"QA Deduction",component_type:"deduction",is_active:true}]}} />);
+  await screen.findByText("QA Employee");
+  fireEvent.click(screen.getByRole("button",{name:"Review",exact:true}));
+  expect(screen.getAllByText("QA Allowance")).toHaveLength(1);
+  expect(screen.getByText("This period adjustment · Approved QA expense")).toBeTruthy();
+  expect(screen.getAllByText("QA Deduction")).toHaveLength(1);
+  expect(screen.getByText("Business Reimbursements")).toBeTruthy();
+  expect(screen.queryByText("This Period Adjustments")).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:"Add Adjustment",exact:true}));
+  expect(screen.queryByRole("button",{name:"Earning"})).toBeNull();
+  fireEvent.click(screen.getByRole("button",{name:"Select"}));
+  fireEvent.click(screen.getByRole("button",{name:"QA Deduction · Deduction"}));
+  expect(screen.getByText("Deduction")).toBeTruthy();
 });
 it("records a time decision before employee-only recalculation and projection refresh", async () => {
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15.5}}}}]});

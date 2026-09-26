@@ -282,6 +282,7 @@ export default function PayrollRunCalculationPanel({ run, components, canManage,
           options={rows.map((row) => ({ value: row.employee_id, label: row.employee_name }))} placeholder="Select employee" />
         <SelectField label="Pay Component" required searchable value={draft.componentId} onChange={(componentId) => setDraft((value) => ({ ...value, componentId }))}
           options={options.map((item) => ({ value: item.id, label: `${item.name} · ${title(item.component_type)}` }))} placeholder="Select component" />
+        <AdminFormField label="Type"><p>{draft.componentId ? title(options.find(item => item.id === draft.componentId)?.component_type) : "Select a Pay Component"}</p></AdminFormField>
         <AdminFormField label="Amount (RM)" required><input className="control" type="number" min="0.01" step="0.01" value={draft.amount} onChange={(event) => setDraft((value) => ({ ...value, amount: event.target.value }))} /></AdminFormField>
       </>}
         <AdminFormField label="Reason" required><input className="control" value={draft.reason || ""} onChange={(event) => setDraft((value) => ({ ...value, reason: event.target.value }))} /></AdminFormField>

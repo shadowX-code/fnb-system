@@ -12,5 +12,7 @@ export default function AdminSegmentedControl({ value, onChange, options, label 
     refs.current[destination.optionIndex]?.focus();
     onChange(destination.option.value);
   }
-  return <div className={`admin-segmented-control ${className}`.trim()} role="tablist" aria-label={label}>{options.map((option, index) => { const active = option.value === value; return <button key={option.value} ref={(element) => { refs.current[index] = element; }} className={active ? "is-active" : ""} type="button" role="tab" aria-selected={active} aria-controls={option.panelId} tabIndex={active ? 0 : -1} disabled={option.disabled} onKeyDown={(event) => moveFocus(event, index)} onClick={() => onChange(option.value)}>{option.label}</button>; })}</div>;
+  const focusIndex = options.findIndex(option => option.value === value && !option.disabled);
+  const entryIndex = focusIndex < 0 ? options.findIndex(option => !option.disabled) : focusIndex;
+  return <div className={`admin-segmented-control ${className}`.trim()} role="tablist" aria-label={label}>{options.map((option, index) => { const active = option.value === value; return <button key={option.value} ref={(element) => { refs.current[index] = element; }} className={active ? "is-active" : ""} type="button" role="tab" aria-selected={active} aria-controls={option.panelId} tabIndex={index === entryIndex ? 0 : -1} disabled={option.disabled} onKeyDown={(event) => moveFocus(event, index)} onClick={() => onChange(option.value)}>{option.label}</button>; })}</div>;
 }

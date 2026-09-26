@@ -49,6 +49,22 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Payroll Control Center", () => {
+  it("shows scheme-specific component treatment and explicit segmented choices without technical identity", async () => {
+    mocks.read.mockResolvedValue({...fixture,settings_authority:{components:true},components:[{id:"component",name:"QA Allowance",component_type:"allowance",is_active:true,epf_treatment:"included",socso_treatment:"excluded",eis_treatment:"undetermined",pcb_treatment:"included"}]});
+    render(<PayrollPage auth={{}} />);
+    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Pay Components" }));
+    expect(screen.getByRole("button",{name:"EPF wage base: Included"})).toBeTruthy();
+    expect(screen.getByRole("button",{name:"SOCSO wage base: Excluded"})).toBeTruthy();
+    expect(screen.getByRole("button",{name:"EIS wage base: Setup required"})).toBeTruthy();
+    fireEvent.click(screen.getByRole("button",{name:/Add Component/}));
+    expect(screen.getAllByRole("tab",{name:"Included"})).toHaveLength(4);
+    expect(screen.getAllByRole("tab",{name:"Excluded"})).toHaveLength(4);
+    expect(screen.queryByText("Advanced / System Information")).toBeNull();
+    expect(screen.queryByText("Undetermined")).toBeNull();
+    expect(screen.getByRole("dialog").querySelector("button.btn-primary").disabled).toBe(true);
+  });
   it("opens Payroll Runs on history rather than the selected month workflow", async () => {
     render(<PayrollPage auth={{}} />);
     await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });

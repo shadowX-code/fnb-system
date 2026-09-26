@@ -64,7 +64,15 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const visible = rows.filter((row) => filter === "all" || (filter === "review" ? row.needsReview : !row.needsReview))
     .sort((a, b) => Number(b.needsReview) - Number(a.needsReview) || a.name.localeCompare(b.name));
   const selected = rows.find((row) => row.id === employeeId);
+  const adjustmentComponent = (data.components || []).find((item) => item.id === adjustment?.componentId);
   const active = canManage && ["draft", "review_required"].includes(run.status);
+  const financialLine = (line, index) => {
+    const saved = selected.adjustments.find(item => item.id === line.source?.run_adjustment_id);
+    return <div key={`${line.code}-${index}`} className="flex justify-between gap-3 py-2"><span>{line.label}
+      <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)} · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
+      <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsCurrent ? `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
+        {saved && active && <button type="button" className="ml-3 font-semibold text-primary" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), adjustmentId: saved.id, reason: "" })}>Reverse</button>}</span></div>;
+  };
   const refresh = async () => { await load(); await onChanged?.(); };
   const reconcile = async () => {
     setBusy(true); setError("");
@@ -136,27 +144,18 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
           {[["Gross Earnings", selected.result.gross], ["Total Deductions", selected.result.deductions], ["Net Pay", selected.result.net]].map(([label, value]) =>
             <div key={label}><dt className="text-xs text-text-secondary">{label}</dt><dd className="mt-1 text-lg font-bold tabular-nums">{value == null ? "Pending" : money(value)}</dd></div>)}
         </dl>
-        <section><div className="flex items-center justify-between gap-3"><h4 className="font-bold">Earnings</h4>
-          {selected.timeRelevant && <button type="button" className="font-semibold text-primary" onClick={()=>setReviewHours(true)}>Review Hours</button>}</div>
+        <section><div className="flex items-center justify-between gap-3"><h4 className="text-base font-bold">Earnings</h4>
+          {active && <button className="font-semibold text-primary" type="button" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), componentId: "", amount: "", reason: "" })}>Add Adjustment</button>}</div>
           <p className="mt-1 text-xs text-text-secondary">{selected.pay ? `${human(selected.pay.pay_basis)} · Pay effective ${selected.pay.effective_from}` : "Complete Employee pay setup"}</p>
-          <div className="mt-2 divide-y divide-border">{(selected.calculation?.lines || []).filter((line) => line.kind === "earning").map((line, index) =>
-            <div key={`${line.code}-${index}`} className="flex justify-between gap-3 py-2"><span>{line.label}
-              <small className="block text-text-secondary">{line.minutes != null ? `${hours(line.minutes)} · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
-              <strong className="shrink-0 tabular-nums">{selected.result.earningsCurrent ? money(line.amount) : "Pending review"}</strong></div>)}
+          <div className="mt-2 divide-y divide-border">{(selected.calculation?.lines || []).filter((line) => line.kind === "earning").map(financialLine)}
             {!selected.calculation?.lines?.some((line) => line.kind === "earning") && <p className="py-2 text-text-secondary">Calculate Payroll to see earning lines.</p>}
           </div>
         </section>
-        <section><div className="flex justify-between gap-3"><h4 className="font-bold">This Period Adjustments</h4>{active && <button className="font-semibold text-primary" type="button" disabled={busy}
-          onClick={() => setAdjustment({ requestId: crypto.randomUUID(), type: "earning", componentId: "", amount: "", reason: "" })}>Add Adjustment</button>}</div>
-          <div className="mt-2 divide-y divide-border">{selected.adjustments.length ? selected.adjustments.map((item) =>
-            <div key={item.id} className="flex justify-between gap-3 py-2"><span><strong>{item.component_name}</strong><small className="block text-text-secondary">{human(item.component_type)} · {item.reason} · Saved</small></span>
-              <span className="flex items-center gap-3"><strong className="tabular-nums">{signedMoney(Number(item.amount) * (item.component_type === "deduction" ? -1 : 1))}</strong>
-              {active && <button type="button" className="font-semibold text-primary" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), adjustmentId: item.id, reason: "" })}>Reverse</button>}</span></div>)
-              : <p className="py-2 text-text-secondary">No one-off adjustments for this period.</p>}</div>
-          <p className="mt-1 text-xs text-text-secondary">Saved adjustments are included in the calculated earnings or deductions below, not added twice.</p>
-        </section>
-        {selected.timeRelevant && <section><h4 className="font-bold">Time & Attendance</h4><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
-        <section><div className="flex justify-between gap-3"><h4 className="font-bold">Statutory Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
+        <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Gross Earnings</span><span className="tabular-nums">{money(selected.result.gross)}</span></div>
+        {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map(financialLine)}</div></section>}
+        {selected.adjustments.some(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)) && <section><h4 className="font-semibold">Awaiting Calculation</h4>{selected.adjustments.filter(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)).map(item => <div key={item.id} className="flex justify-between py-2"><span>{item.component_name}<small className="block text-text-secondary">Saved adjustment · {item.reason}</small></span>{active && <button type="button" className="text-primary font-semibold" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), adjustmentId: item.id, reason: "" })}>Reverse</button>}</div>)}</section>}
+        {selected.timeRelevant && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4><button type="button" className="font-semibold text-primary" onClick={()=>setReviewHours(true)}>Review Hours</button></div><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
+        <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
           <div className="mt-2 divide-y divide-border">{["epf", "socso", "eis", "pcb"].map((scheme) => {
             const line = selected.statutory?.lines?.find((item) => item.scheme === scheme);
@@ -167,24 +166,25 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
                 : setup ? statutorySchemeLabel(scheme, setup) : "Period setup required"}</small></span>
               <strong className="tabular-nums">{notApplicable ? "N/A" : selected.result.statutoryCurrent && line?.employee_amount != null ? money(line.employee_amount) : "Pending review"}</strong></div>;
           })}</div>
+          <h5 className="mt-4 text-xs font-semibold text-text-secondary">Other Deductions</h5><div className="mt-2 divide-y divide-border">{(selected.calculation?.lines || []).filter(line => line.kind === "deduction").map(financialLine)}</div>
+          <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Total Deductions</span><span className="tabular-nums">{money(selected.result.deductions)}</span></div>
         </section>
-        <section><h4 className="font-bold">Employer Contributions</h4><div className="mt-2 divide-y divide-border">
+        <section className="rounded-xl bg-primary/5 p-4"><h4 className="text-lg font-bold">Net Pay</h4><div className="mt-2 divide-y divide-border">
+          <div className="flex justify-between py-2"><span>Gross Earnings</span><strong className="tabular-nums">{money(selected.result.gross)}</strong></div>
+          <div className="flex justify-between py-2"><span>− Total Deductions</span><strong className="tabular-nums">{money(selected.result.deductions)}</strong></div>
+          {Number(selected.calculation?.reimbursements) > 0 && <div className="flex justify-between py-2"><span>+ Reimbursements · outside gross</span><span className="tabular-nums">{selected.result.earningsCurrent ? money(selected.calculation.reimbursements) : "Pending review"}</span></div>}
+          <div className="flex justify-between py-3 text-xl font-bold"><span>= Net Pay</span><span className="tabular-nums">{selected.result.net == null ? "Pending review" : money(selected.result.net)}</span></div>
+        </div></section>
+        <section className="border-t border-border pt-4 text-text-secondary"><h4 className="font-semibold">Employer Contributions</h4><div className="mt-2 divide-y divide-border">
           {["epf", "socso", "eis"].map((scheme) => { const line = selected.statutory?.lines?.find((item) => item.scheme === scheme);
             return <div key={scheme} className="flex justify-between gap-3 py-2"><span>{scheme.toUpperCase()}</span><strong className="tabular-nums">
               {selected.preparation?.statutory_setup?.schemes?.[scheme]?.applicable === false ? "N/A" : selected.result.statutoryCurrent ? money(line?.employer_amount) : "Pending review"}</strong></div>;
           })}
           {selected.result.statutoryCurrent && selected.statutory?.lines?.some((line) => Number(line.remittance_rounding) > 0) &&
             <div className="flex justify-between py-2"><span>Employer-funded remittance rounding</span><strong className="tabular-nums">{money(selected.statutory.lines.reduce((sum, line) => sum + Number(line.remittance_rounding || 0), 0))}</strong></div>}
+          <div className="flex justify-between py-2 font-semibold"><span>Total Employer Contributions</span><span className="tabular-nums">{selected.result.statutoryCurrent ? money(selected.statutory.employer_statutory_cost) : "Pending review"}</span></div>
           <div className="flex justify-between py-2 font-semibold"><span>Total Employer Cost</span><span className="tabular-nums">{selected.result.statutoryCurrent ? money(selected.statutory.total_employer_cost) : "Pending review"}</span></div>
         </div><p className="text-xs text-text-secondary">Employer contributions do not reduce employee Net Pay.</p></section>
-        <section className="border-t border-border pt-3"><h4 className="font-bold">Net Pay</h4><div className="mt-2 divide-y divide-border">
-          <div className="flex justify-between py-2"><span>Gross Earnings</span><strong className="tabular-nums">{money(selected.result.gross)}</strong></div>
-          {(selected.calculation?.lines || []).filter((line) => line.kind === "deduction").map((line, index) =>
-            <div key={`${line.code}-${index}`} className="flex justify-between gap-3 py-2"><span>{line.label}</span><span className="tabular-nums">{selected.result.earningsCurrent ? `−${money(line.amount)}` : "Pending review"}</span></div>)}
-          <div className="flex justify-between py-2"><span>Employee statutory deductions</span><span className="tabular-nums">{selected.result.statutoryCurrent ? `−${money(selected.statutory.lines.reduce((sum, line) => sum + Number(line.employee_amount || 0), 0))}` : "Pending review"}</span></div>
-          {Number(selected.calculation?.reimbursements) > 0 && <div className="flex justify-between py-2"><span>Reimbursements · outside gross</span><span className="tabular-nums">+{money(selected.calculation.reimbursements)}</span></div>}
-          <div className="flex justify-between py-3 text-base font-bold"><span>Net Pay</span><span className="tabular-nums">{selected.result.net == null ? "Pending review" : money(selected.result.net)}</span></div>
-        </div></section>
         {[...new Set([...(selected.projection?.issues || []), ...(selected.statutory?.issues || [])])].length > 0 &&
           <ul className="list-disc pl-5 text-amber-800">{[...new Set([...(selected.projection?.issues || []), ...(selected.statutory?.issues || [])])].map((issue) =>
             <li key={issue}>{payrollIssueLabel(issue)}</li>)}</ul>}
@@ -203,9 +203,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <AdminFormField label="Reason" required><input className="control" value={pcbDraft.reason} onChange={(event) => setPcbDraft((old) => ({ ...old, reason: event.target.value }))} /></AdminFormField></div></Modal>}
     {adjustment && selected && <Modal title={`${adjustment.adjustmentId ? "Reverse" : "Add"} Adjustment · ${selected.name}`} description="This changes this Payroll Run only; permanent employee setup is unchanged." onClose={() => !busy && setAdjustment(null)}
       footer={<><button className="btn-secondary" type="button" onClick={() => setAdjustment(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || (!adjustment.adjustmentId && (!adjustment.componentId || !Number.isFinite(Number(adjustment.amount)) || Number(adjustment.amount) <= 0)) || !adjustment.reason.trim()} onClick={saveAdjustment}>{busy ? "Saving…" : adjustment.adjustmentId ? "Reverse Adjustment" : "Add Adjustment"}</button></>}>
-      <div className="space-y-3">{!adjustment.adjustmentId && <><SelectField label="Type" required value={adjustment.type} onChange={(type) => setAdjustment((old) => ({ ...old, type, componentId: "" }))} options={[{ value: "earning", label: "Earning" }, { value: "deduction", label: "Deduction" }]} />
-        <SelectField label="Component" searchable required value={adjustment.componentId} onChange={(componentId) => setAdjustment((old) => ({ ...old, componentId }))}
-        options={(data.components || []).filter((item) => item.is_active && (adjustment.type === "deduction" ? item.component_type === "deduction" : ["earning", "allowance", "reimbursement"].includes(item.component_type))).map((item) => ({ value: item.id, label: `${item.name} · ${human(item.component_type)}` }))} />
+      <div className="space-y-3">{!adjustment.adjustmentId && <><SelectField label="Pay Component" searchable required value={adjustment.componentId} onChange={(componentId) => setAdjustment((old) => ({ ...old, componentId }))}
+        options={(data.components || []).filter((item) => item.is_active).map((item) => ({ value: item.id, label: `${item.name} · ${human(item.component_type)}` }))} />
+        <AdminFormField label="Type"><p>{adjustmentComponent ? human(adjustmentComponent.component_type) : "Select a Pay Component"}</p></AdminFormField>
         <AdminFormField label="Amount (RM)" required><input className="control" type="number" min="0.01" step="0.01" value={adjustment.amount} onChange={(event) => setAdjustment((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField></>}
         <AdminFormField label="Reason" required><input className="control" value={adjustment.reason} onChange={(event) => setAdjustment((old) => ({ ...old, reason: event.target.value }))} /></AdminFormField>{error && <p role="alert" className="text-rose-700">{error}</p>}</div></Modal>}
   </div>;
