@@ -10,6 +10,12 @@ async function command(name, args) {
 // Payroll is the only owner of compensation and run commands. Employee and
 // Employment Document services remain read/provenance sources, not writers here.
 export const payrollService = {
+  readHolidayCandidates: (year, includeQa = false) => command("payroll_holiday_candidate_read", { p_year: Number(year), p_include_qa: includeQa }),
+  captureHolidaySource: (input) => command("payroll_holiday_candidate_capture", { p_year: Number(input.year), p_url: input.url, p_reference: input.reference, p_filename: input.filename, p_pdf_base64: input.base64, p_request_id: input.requestId, p_is_qa: false }),
+  parseHolidayCandidate: (id, rows) => command("payroll_holiday_candidate_parse", { p_id: id, p_rows: rows }),
+  reviewHolidayCandidate: (id, revision, decisions, approve) => command("payroll_holiday_candidate_review", { p_id: id, p_revision: revision, p_decisions: decisions, p_approve: approve }),
+  publishHolidayCandidate: (id, revision) => command("payroll_holiday_candidate_publish", { p_id: id, p_revision: revision }),
+  readHolidaySource: (id) => command("payroll_holiday_candidate_source", { p_id: id }),
   saveDefaultPhPolicy: ({ date, treatment, remark }) => command("payroll_ph_default_policy_save", { p_effective_from: date, p_treatment: treatment, p_remark: remark || null }),
   importHolidayCalendar: ({ year, manifest, publish, previousId, requestId }) => command("payroll_holiday_import", { p_year: Number(year), p_manifest: manifest, p_publish: publish, p_previous_id: previousId || null, p_request_id: requestId }),
   saveDefaultPaidHolidays: ({ calendarId, selected, previousId, requestId }) => command("payroll_paid_holiday_default_save", { p_calendar_id: calendarId, p_selected: selected, p_previous_id: previousId || null, p_request_id: requestId }),

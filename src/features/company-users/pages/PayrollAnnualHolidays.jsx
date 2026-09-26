@@ -6,7 +6,8 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
-import { malaysiaStateName } from "../../../constants/malaysiaStates.js";
+import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
+import PayrollHolidayImport from "./PayrollHolidayImport.jsx";
 
 const kinds = [
   { value: "", label: "Review classification" },
@@ -31,6 +32,7 @@ export function annualCalendarEntries(holidays, year, previous = []) {
 export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, onViewHoliday }) {
   const currentYear = new Date().getFullYear();
   const [year, setYear] = useState(String(currentYear));
+  const [geography, setGeography] = useState("");
   const [annual, setAnnual] = useState(null);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null);
@@ -81,7 +83,6 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       setDraft(d => ({ ...d, [`${publish ? "publish" : "save"}RequestId`]: input.requestId }));
       if (editing === "calendar") await payrollService.saveAnnualCalendar({ ...input, year,
         entries: input.entries.map(({ holiday, ...entry }) => ({ ...entry, substitutes_holiday_id: entry.substitutes_holiday_id || null })) });
-      else if (editing === "import") await payrollService.importHolidayCalendar({ ...input, year, previousId: annual?.previous_calendar_id || latest?.id });
       else if (draft.exception) await payrollService.savePaidHolidayPolicy(input);
       else await payrollService.saveDefaultPaidHolidays(input);
       setEditing(null); setRefresh(n => n + 1);
@@ -94,27 +95,20 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const policyCalendar = calendars.find(c => c.id === draft.calendarId);
   const policyReady = !!draft.name?.trim() && (!draft.exception || draft.entities?.length > 0) && !!draft.calendarId
     && (!draft.outlets?.length || !!draft.reason?.trim());
-  const importFile = async (file) => {
-    setError("");
-    try {
-      if (!file || file.size > 1024 * 1024) throw new Error("Choose a JSON manifest smaller than 1 MB.");
-      const manifest = JSON.parse(await file.text());
-      if (!manifest.source_reference || !Array.isArray(manifest.holidays) || !manifest.holidays.length) throw new Error("The manifest needs source_reference and reviewed holidays.");
-      setDraft({ manifest, requestId: crypto.randomUUID() });
-    } catch (cause) { setDraft({}); setError(cause.message); }
-  };
-  const canSave = editing === "import" ? !!draft.manifest : editing === "calendar" ? calendarReady && !!draft.source?.trim() : policyReady;
+  const canSave = editing === "calendar" ? calendarReady && !!draft.source?.trim() : policyReady;
   return <Card className="overflow-hidden">
     <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4">
       <div><h3 className="text-lg font-bold">Public Holidays</h3><p className="text-sm text-text-secondary">Holiday Calendar · Company Policy</p></div>
       <div className="flex flex-wrap items-end gap-3"><SelectField label="Year" value={year} onChange={setYear} options={years.map(value => ({ value, label: value }))} />
+        <SelectField label="Geography" value={geography} onChange={setGeography} options={[{ value: "", label: "All" }, { value: "national", label: "National" }, ...MALAYSIA_STATES.map(([value, label]) => ({ value, label }))]} />
         <Badge tone={ready ? "success" : "warning"}>{ready ? "Ready" : "Setup Required"}</Badge></div>
     </div>
     {error && !editing && <div role="alert" className="p-4 text-sm text-rose-700">{error}<button type="button" className="ml-3 text-primary" onClick={() => setRefresh(n => n + 1)}>Retry</button></div>}
     {!annual && !error ? <p className="p-4 text-sm text-text-secondary">Loading annual calendar…</p> : annual && <>
       <section className="border-b border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">Holiday Calendar</h4>
         <p className="text-sm text-text-secondary">{latest ? "Review holidays, then confirm the company selection." : "Import a reviewed official annual calendar. No dates have been generated."}</p></div>
-        {editable && <button type="button" className="btn-secondary" onClick={() => { setDraft({}); setEditing("import"); setError(""); }}>Import Calendar</button>}</div>
+        </div>
+        {editable && <PayrollHolidayImport year={year} onPublished={() => setRefresh(n => n + 1)} />}
         <dl className="my-4 grid gap-3 text-sm sm:grid-cols-4">
           <div><dt className="text-text-secondary">Required holidays</dt><dd className="font-semibold">{required.filter(e => selection.includes(e.holiday_id)).length}/{required.length}</dd></div>
           <div><dt className="text-text-secondary">Company selected</dt><dd className="font-semibold">{optional.filter(e => selection.includes(e.holiday_id)).length}/{optional.length}</dd></div>
@@ -122,7 +116,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
           <div><dt className="text-text-secondary">Geography</dt><dd>Malaysia · applicable states</dd></div>
         </dl>
         {defaultPolicy && published && defaultPolicy.calendar_version_id !== published.id && <p role="status" className="mb-3 text-sm text-amber-800">Calendar updated. Review and publish the company selection; the existing policy has not changed.</p>}
-        {entries.length > 0 && <div className="mt-3"><DataTable density="compact" rows={entries} getRowKey={e => e.holiday_id} columns={[
+        {entries.length > 0 && <div className="mt-3"><DataTable density="compact" rows={entries.filter(e => !geography || (geography === "national" ? e.holiday.scope === "national" : e.holiday.scope === "national" || e.holiday.state_code === geography))} getRowKey={e => e.holiday_id} columns={[
           { key: "date", header: "Date", render: e => e.holiday.holiday_date },
           { key: "name", header: "Holiday", render: e => <strong>{e.holiday.name}</strong> },
           { key: "scope", header: "Scope", render: e => scopeLabel(e.holiday) },
@@ -145,15 +139,11 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       </details>
       {!!exceptional.length && <details className="border-t border-border p-4"><summary className="cursor-pointer text-sm text-text-secondary">Historical / exceptional definitions ({exceptional.length})</summary><p className="my-2 text-xs text-text-secondary">Retained source evidence. These are not automatically selected Company Paid Holidays.</p><div className="divide-y divide-border">{exceptional.map(h => <div key={h.id} className="flex items-center justify-between gap-3 py-2 text-sm"><div><strong>{h.name}</strong><p className="text-text-secondary">{h.holiday_date} · {h.scope === "outlet" ? "Outlet definition" : "Historical company definition"}</p></div><button type="button" className="text-primary" onClick={() => onViewHoliday(h.id)}>View</button></div>)}</div></details>}
     </>}
-    {editing && <Modal size="xl" title={editing === "import" ? "Import Holiday Calendar" : editing === "calendar" ? `Review ${year} Calendar Exceptions` : "Select Paid Holidays"}
+    {editing && <Modal size="xl" title={editing === "calendar" ? `Review ${year} Calendar Exceptions` : "Select Paid Holidays"}
       onClose={() => !busy && setEditing(null)} footer={<><button className="btn-secondary" disabled={busy} onClick={() => setEditing(null)}>Cancel</button>
         {(editing !== "policy" || draft.exception) && <button className="btn-secondary" disabled={busy || !canSave} onClick={() => save(false)}>Save Draft</button>}
-        <button className="btn-primary" disabled={busy || !canSave || (editing === "calendar" && !draft.complete) || (editing === "import" && !draft.manifest?.source_complete)} onClick={() => save(true)}>{busy ? "Saving…" : "Publish"}</button></>}>
-      {editing === "import" ? <div className="space-y-4"><p className="text-sm text-text-secondary">Upload a reviewed JSON manifest transcribed from the official JPM annual calendar and applicable gazettes. FeedX does not scrape, generate or certify official dates. Imported source updates never publish company selections.</p>
-        <AdminFormField label="Reviewed calendar manifest"><input type="file" accept="application/json,.json" disabled={busy} onChange={e => importFile(e.target.files[0])} /></AdminFormField>
-        <details className="text-sm"><summary>Manifest format</summary><p className="mt-2">source_reference, source_complete and holidays. Each holiday requires date, name, scope (national/state), state_code for State, kind (required/gazetted/special/substitute), and source_reference where different. Substitute requires the canonical substitutes_holiday_id. Unresolved classification must be reviewed before import.</p></details>
-        {draft.manifest && <><p className="text-sm">{draft.manifest.source_reference} · {draft.manifest.holidays.length} reviewed holidays</p><DataTable density="compact" rows={draft.manifest.holidays} getRowKey={(r, i) => `${r.date}-${r.name}-${i}`} columns={[{ key: "date", header: "Date" }, { key: "name", header: "Holiday" }, { key: "scope", header: "Scope" }]} /><label className="flex gap-2 text-sm"><input type="checkbox" checked={!!draft.manifest.source_complete} onChange={e => patch("manifest", { ...draft.manifest, source_complete: e.target.checked })} />Complete annual source and applicable special/substitute gazettes reviewed</label></>}
-      </div> : editing === "calendar" ? <div className="space-y-4">
+        <button className="btn-primary" disabled={busy || !canSave || (editing === "calendar" && !draft.complete)} onClick={() => save(true)}>{busy ? "Saving…" : "Publish"}</button></>}>
+      {editing === "calendar" ? <div className="space-y-4">
         <p className="text-sm text-text-secondary">Classify each holiday from its authoritative source. This review does not generate official dates or certify statutory compliance.</p>
         <AdminFormField label="Official calendar / gazette reference" required><input className="control" value={draft.source} onChange={e => patch("source", e.target.value)} /></AdminFormField>
         {!draft.entries.length && <p className="text-sm text-text-secondary">No shared National/State holidays for this year. Add sourced definitions first.</p>}

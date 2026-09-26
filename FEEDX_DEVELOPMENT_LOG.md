@@ -589,3 +589,9 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 - Added effective company PH benefit decisions from published roster, complete Attendance and approved Payable Time. Monthly Basic/26 and Hourly approved-hours benefits remain separate from statutory PH obligations; OT/PH OT/rest-day premiums stay unsupported.
 - Replacement Leave uses canonical Leave entitlements/adjustments and source allocations, expires at year-end without carry-forward, prevents unsafe consumed-grant reversal, and retains append-only history. Employee-only recalculation and existing finalization freeze exact policy/source/decision evidence.
 - Authenticated isolated Staging publication, Pay/Leave switching, consumed-leave guard and Ready/Finalize gates passed; no-access QA masters retired and immutable evidence retained. Official annual operational import remains required. See `qa/staging/payrollPhWork.closure.md`.
+
+# 2026-09-27 — Controlled Official Holiday Import
+
+- Added bounded private source PDF/hash evidence and revision-locked import candidates ahead of the existing Annual Calendar publisher. Verified transcription, exception-only diff/review, explicit complete-source approval and publication retain server actor/time and append-only history.
+- Matched entries need no repetitive review; missing entries are retained, uncertainty blocks publication, and source updates never advance Company Paid Holiday assignments. Required paid status is never inferred by the importer.
+- No unattended fetch/parser/publication or Payroll/Leave calculation change. Synthetic QA imports are explicitly opt-in and cannot replace live operational calendars.

@@ -182,16 +182,36 @@ formula, Payroll/Leave decisions and finalization boundaries are unchanged.
 Overall setup readiness also requires date-effective company PH-benefit evidence;
 it does not substitute for the work-date-effective Payroll resolver.
 
-Official-source ingestion is reviewed import, not unattended synchronization.
+Official-source ingestion is controlled import, not unattended synchronization.
 JPM/BKPP publishes [annual calendars](https://www.kabinet.gov.my/hari-kelepasan-am/)
 and separate [special-holiday gazettes](https://www.kabinet.gov.my/akta-dan-warta/).
-No verified machine-readable provider exists in the repository. A reviewed JSON
-manifest supplies actual dates, National/State scope, explicit classifications,
-source references and substitute linkage; unresolved rows cannot be imported.
-The server pins the manifest SHA-256, source, actor/time and retry identity,
-reuses canonical holiday creation/calendar publication and never advances company
-assignments during source import. Automated official import remains blocked
-pending a verified maintained annual/special/substitute source contract.
+No verified machine-readable provider exists in the repository. V1 captures an
+Admin-uploaded PDF matching an actual official government HTTPS reference.
+`payroll_holiday_import_candidates` retains bounded (5 MB) private PDF bytes and
+server SHA-256; source reads use authorized RPCs, never public URLs. This low-volume
+document boundary has no client table access. A verified structured transcription
+supplies actual dates, National/State ISO codes, document page/row provenance and
+supported correction/substitution links. `verified_manifest_v1` is a manual
+transcription method, not an automated PDF parser or source-certification claim.
+Required paid status is not inferred from name or jurisdiction. Existing unchanged
+required classification is preserved, not created by the importer.
+
+Capture → Parsed evidence → Needs Review → Approved → Published is backed by
+append-only `payroll_holiday_import_events`, server actor/time, payload-bound
+capture retries and revision-locked review. Matched records need no repetitive
+row review. New/changed entries require explicit acceptance; corrections require
+a remark. Missing previous entries must be explicitly retained, never deleted.
+Conflicts/uncertainty block approval; corrected transcription requires a new
+candidate, preserving the original. Complete-source review precedes explicit
+publication through the existing `payroll_holiday_calendar_save` authority.
+Stale calendar baselines block publication rather than overwriting newer sources.
+The source import never advances company assignments or rewrites Payroll/Leave.
+Retired candidates are excluded from authoring reads; clearly marked QA candidates
+are opt-in and cannot replace a live operational calendar. Source/history remains
+retained after retirement. The superseded direct manifest-import modal is removed.
+There is no fetch scheduler, scraper, unattended parsing or automatic publication.
+Automated official import remains not enabled pending a verified maintained
+annual/special/substitute source contract.
 An inactive-company calendar can be explicitly retired with append-only evidence;
 retirement excludes it from future authoring/default reads, never historical
 resolution, definitions or finalized snapshots. Required holidays from active
