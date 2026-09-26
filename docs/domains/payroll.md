@@ -179,6 +179,8 @@ scope/collision guards; changing a frozen scope is not an implicit reassignment.
 The compact Working on a Paid Holiday section delegates shared confirmation
 atomically to each company's existing date-effective PH-benefit command. Its
 formula, Payroll/Leave decisions and finalization boundaries are unchanged.
+Overall setup readiness also requires date-effective company PH-benefit evidence;
+it does not substitute for the work-date-effective Payroll resolver.
 
 Official-source ingestion is reviewed import, not unattended synchronization.
 JPM/BKPP publishes [annual calendars](https://www.kabinet.gov.my/hari-kelepasan-am/)

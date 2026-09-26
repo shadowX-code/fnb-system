@@ -61,6 +61,15 @@ it("does not publish incomplete source or substitute fake dates for an invalid f
   expect(screen.getByRole("button", { name: "Publish", exact: true }).disabled).toBe(true);
   expect(service.importHolidayCalendar).not.toHaveBeenCalled();
 });
+it("requires the company PH benefit setup as well as a published selection for overall Ready", async () => {
+  service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [{ id: "policy", policy_id: "family", is_default: true, status: "published", calendar_version_id: "calendar", selected_holiday_ids: ["required"], legal_entity_ids: ["entity"], outlet_ids: [] }], can_manage: true, benefit_ready: false });
+  const view = render(<PayrollAnnualHolidays data={data} canManage />);
+  await screen.findByText("Required Holiday");
+  expect(screen.getByText("Setup Required")).toBeTruthy();
+  service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [{ id: "policy", policy_id: "family", is_default: true, status: "published", calendar_version_id: "calendar", selected_holiday_ids: ["required"], legal_entity_ids: ["entity"], outlet_ids: [] }], can_manage: true, benefit_ready: true });
+  view.rerender(<PayrollAnnualHolidays data={{ ...data }} canManage />);
+  expect(await screen.findByText("Ready")).toBeTruthy();
+});
 it("shows real loading/error and blocks policy creation before source publication", async () => {
   service.readAnnualHolidays.mockResolvedValue({ calendars: [], policies: [], can_manage: true });
   render(<PayrollAnnualHolidays data={{ ...data, holidays: [] }} canManage onAddHoliday={vi.fn()} />);

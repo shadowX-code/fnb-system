@@ -43,7 +43,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
     payrollService.readAnnualHolidays(year).then(value => { if (active) setAnnual(value); })
       .catch(e => { if (active) setError(e.message || "Unable to load annual holiday policy."); });
     return () => { active = false; };
-  }, [year, refresh]);
+  }, [year, refresh, data]);
   const calendars = annual?.calendars || [];
   const latest = calendars[0];
   const published = calendars.find(c => c.status === "published");
@@ -53,7 +53,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const selection = defaultPolicy?.selected_holiday_ids || [];
   const required = entries.filter(e => e.kind === "required");
   const optional = entries.filter(e => e.kind !== "required");
-  const ready = latest?.status === "published" && defaultPolicy?.status === "published" && defaultPolicy.calendar_version_id === published?.id;
+  const ready = annual?.benefit_ready && latest?.status === "published" && defaultPolicy?.status === "published" && defaultPolicy.calendar_version_id === published?.id;
   const exceptional = (data.holidays || []).filter(h => h.holiday_date?.startsWith(year)
     && (h.legal_entity_id || h.scope === "outlet"));
   const years = [String(currentYear + 1), String(currentYear), String(currentYear - 1)];

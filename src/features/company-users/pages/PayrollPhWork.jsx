@@ -13,7 +13,7 @@ const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", 
 const clock = value => value ? new Date(value).toLocaleTimeString("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
 const range = (start, end) => `${clock(start)} – ${clock(end)}`;
 
-export function PayrollPhPolicy({ entities, canManage }) {
+export function PayrollPhPolicy({ entities, canManage, onChanged }) {
   const [entityId, setEntityId] = useState("all");
   const [versions, setVersions] = useState(null);
   const [draft, setDraft] = useState(null);
@@ -26,7 +26,7 @@ export function PayrollPhPolicy({ entities, canManage }) {
     return () => { current = false; };
   }, [entityId]);
   const save = async () => { setBusy(true); setError("");
-    try { if (entityId === "all") await payrollService.saveDefaultPhPolicy(draft); else await payrollService.savePhPolicy({ entityId, ...draft }); setVersions(await load(entityId)); setDraft(null); }
+    try { if (entityId === "all") await payrollService.saveDefaultPhPolicy(draft); else await payrollService.savePhPolicy({ entityId, ...draft }); setVersions(await load(entityId)); setDraft(null); await onChanged?.(); }
     catch (cause) { setError(cause.message); } finally { setBusy(false); }
   };
   const rows = entityId === "all" ? (versions || []).flatMap(v => v.rows.slice(0, 1)) : (versions || []);
