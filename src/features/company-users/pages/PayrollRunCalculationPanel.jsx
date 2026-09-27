@@ -8,6 +8,8 @@ import { payrollService } from "../../../services/payrollService.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
 import PayrollMonthlyBasicBreakdown from "./PayrollMonthlyBasicBreakdown.jsx";
+import PayrollEmployeeBankInfo from "./PayrollEmployeeBankInfo.jsx";
+import { employeeService } from "../../../services/employeeService.js";
 
 const rm = (value) => new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -68,6 +70,18 @@ export default function PayrollRunCalculationPanel({ run, canManage, onChanged, 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState(null);
+  const [bankInfo, setBankInfo] = useState(null);
+  const [bankAttempt, setBankAttempt] = useState(0);
+  const bankIds = stage === "review" ? JSON.stringify((preparation?.results || []).map(row => row.employee_id).sort()) : "[]";
+  useEffect(() => {
+    let active = true;
+    setBankInfo(null);
+    const ids = JSON.parse(bankIds);
+    if (ids.length) employeeService.readBankInfo(ids).then(employees => {
+      if (active) setBankInfo({ employees, runId: run.id, ids: bankIds });
+    }).catch(() => { if (active) setBankInfo({ error: true, runId: run.id, ids: bankIds }); });
+    return () => { active = false; };
+  }, [bankIds, bankAttempt, run.id]);
   const load = useCallback(async () => {
     try {
       const [calculation, statutoryResult, pcbResult, preparationResult] = await Promise.all([
@@ -146,6 +160,11 @@ export default function PayrollRunCalculationPanel({ run, canManage, onChanged, 
       const value = payrollEmployeeResult(row, statutoryFor(row)).net;
       return <strong className="tabular-nums">{value == null ? "Pending review" : rm(value)}</strong>;
     } },
+    { key: "bank", header: "Bank Info", render: row => <PayrollEmployeeBankInfo key={`${run.id}:${row.employee_id}`}
+      employeeName={row.employee_name} onRetry={() => setBankAttempt(value => value + 1)}
+      result={bankInfo?.runId === run.id && bankInfo.ids === bankIds ? {
+        error: bankInfo.error, employee: bankInfo.employees?.find(employee => employee.id === row.employee_id),
+      } : null} /> },
     { key: "status", header: "Status", render: (row) => {
       const result = statutoryFor(row);
       const status = overallStatus(row, result);

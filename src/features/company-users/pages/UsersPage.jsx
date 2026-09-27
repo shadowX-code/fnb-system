@@ -11,6 +11,7 @@ import FilterBar from "../../../components/forms/FilterBar.jsx";
 import FilterPopover from "../../../components/forms/FilterPopover.jsx";
 import MultiSelectField from "../../../components/forms/MultiSelectField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import { malaysiaBankOptions, MALAYSIA_BANKS } from "../../../constants/malaysiaBanks.js";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
@@ -1177,7 +1178,10 @@ function UserFormModal({
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
             <FormField label="Bank Name">
-              <input className="control" value={values.bank_name || ""} onBlur={() => markTouched("bank_name")} onChange={(event) => updateValue("bank_name", event.target.value)} placeholder="Maybank" />
+              <SelectField ariaLabel="Bank Name" searchable value={values.bank_name || ""}
+                options={malaysiaBankOptions(values.bank_name)} placeholder="Select bank"
+                onChange={(value) => { markTouched("bank_name"); updateValue("bank_name", value); }}
+                helper={values.bank_name && !MALAYSIA_BANKS.includes(values.bank_name) ? "Existing bank value is preserved. Select a bank only to replace it." : undefined} />
             </FormField>
             <FormField label="Account Number">
               <input className="control" value={values.bank_account_number || ""} onBlur={() => markTouched("bank_account_number")} onChange={(event) => updateValue("bank_account_number", event.target.value)} placeholder="Account number" />

@@ -10,6 +10,13 @@ It does not own Crew passcode/session lifecycle, which belongs to Crew Workforce
 Current employee, role, permission, Auth-link, role-configuration, RLS, and audit contracts are authoritative.
 `employees.role_id` is the canonical employee-role assignment.
 `employees.auth_user_id` is the canonical employee-to-Supabase-Auth link.
+Employee bank details remain owned by `employees.bank_name`,
+`bank_account_name` and `bank_account_number`. New bank selections use the shared
+controlled Malaysia bank-name catalog; unmatched historical names remain
+unchanged until explicitly replaced. Payroll Review reads only these fields
+through Employee visibility/RLS, with compact read-only details. Incomplete bank
+information is not a Payroll calculation, readiness or Finalize blocker; this is
+not a payment workflow or finalized payment snapshot.
 `employees.profile_photo_path` is the canonical reference for an employee profile photo; the image itself is private Crew presentation data, not a second employee profile.
 
 ## Core Entities
