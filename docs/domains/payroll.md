@@ -619,7 +619,7 @@ version, never deletes history. Future starts/changes/stops remain visible.
 Dates must follow the latest scheduled version and finalized-period protection
 is unchanged. Retired definitions permit stopping an existing assignment only.
 
-## Phase 5 — Private Final Payslips and Settlement
+## Phase 5 V1 — Draft and Private Final Payslips
 
 Payroll owns payslips separately from Legal Contracts and Employment Documents.
 Finalization captures an immutable payslip identity alongside the existing
@@ -635,16 +635,22 @@ Crew Me → Payslips has no correction/history surface. Superseded artifacts rem
 available to authorized Admin/Audit; a correction creates a separate artifact.
 Client roles have no direct payslip table or storage access.
 
-`payroll_settlement_entries` is an append-only ledger of payments, recoveries
-and evidenced reversals. `payroll_payment_record` uses `payroll.manage`, locks
-the period, requires the current finalized revision and idempotent request ID,
-and records actor/time/reference. It records evidence only, never transfers
-money or changes payroll calculations or Run state. Settlement projects the
-current immutable Net Pay against all employee/period settlements, including
-payments against earlier revisions: Unpaid / Partially Paid / Paid / Recovery
-Required. Corrections therefore expose a separate settlement difference without
-inserting it into another period's remuneration.
+Review Payroll exposes View / Draft Payslip. The entity-scoped Admin-only
+`payroll_draft_payslip_read` consumes the latest non-stale calculation and
+statutory reads without mutating them. The Edge gateway returns a transient,
+no-store PDF marked DRAFT · NOT FINAL; it creates no job, artifact or audit event.
+Unresolved statutory totals remain unavailable, not zero. Correction drafts
+use the same boundary. Finalized rows expose View / Payslip.
+
+One Payroll-owned A4 renderer and document contract serve Draft, Final, Admin
+and Crew. Final documents use only immutable snapshots. New finalizations also
+pin employee Position; older evidence is never backfilled from current masters.
+Existing immutable artifacts retain their original bytes/hash/layout.
+
+Payment/Settlement is deferred. Earlier Staging append-only settlement evidence
+is retained, but client command privileges and runtime controls are removed.
+Bank Info remains an Admin preparation read, not a Payroll readiness gate.
 
 ## Deferred
 
-Bank transfers/payment files and Finance labour-cost projections remain deferred.
+Payment/Settlement, bank transfers/payment files and Finance projections remain deferred.

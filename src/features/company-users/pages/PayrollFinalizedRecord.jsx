@@ -7,7 +7,7 @@ import { ResultDetail } from "./PayrollRunCalculationPanel.jsx";
 import { payrollEmployeeResult } from "./payrollRunPresentation.js";
 import PayrollEmployeeBankInfo from "./PayrollEmployeeBankInfo.jsx";
 import { employeeService } from "../../../services/employeeService.js";
-import PayrollPayslipPayment from './PayrollPayslipPayment.jsx';
+import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 
 const money = value => value == null ? "—" : new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value));
 const deductionTotal = row => row.statutory ? Number(row.calculation?.non_statutory_deductions || 0) + (row.statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null;
@@ -54,7 +54,7 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
     { key: "net", header: "Net Pay", align: "right", render: row => <strong>{money(row.statutory?.net_pay)}</strong> },
     { key: "bank", header: "Bank Info", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.employee_name} onRetry={() => setBankRetry(value => value + 1)} /> },
     { key: "status", header: "Status", render: () => <Badge tone="success">Finalized</Badge> },
-    { key: "action", header: "Action", render: row => row.calculation && row.statutory ? <button type="button" className="font-semibold text-primary" onClick={() => setSelected(row)}>View</button> : <span className="text-xs text-text-secondary">Financial snapshot unavailable</span> },
+    { key: "action", header: "Action", render: row => row.calculation && row.statutory ? <div className="inline-flex gap-1"><button type="button" className="btn-ghost" onClick={() => setSelected(row)}>View</button><PayrollPayslipAction runId={run.id} employeeId={row.employee_id} /></div> : <span className="text-xs text-text-secondary">Financial snapshot unavailable</span> },
   ];
   return <div className="space-y-4">
     {!commandHeader && <Card className="p-5"><h3 className="text-lg font-bold">Payroll Record</h3>
@@ -65,7 +65,7 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
     </Card>}
     <Card className="overflow-hidden"><DataTable density="compact" columns={columns} rows={rows} getRowKey={row => row.employee_id} /></Card>
     {selected && <ResultDetail result={{ ...selected.calculation, employee_name: selected.employee_name }} statutory={selected.statutory}
-      payslipPayment={<PayrollPayslipPayment runId={run.id} employeeId={selected.employee_id} />}
+      payslip={<PayrollPayslipAction runId={run.id} employeeId={selected.employee_id} />}
       bankInfo={<PayrollEmployeeBankInfo inline result={bankFor(selected)} employeeName={selected.employee_name} onRetry={() => setBankRetry(value => value + 1)} />}
       frozenPeriod={record.period.period_start.slice(0, 7)} onClose={() => setSelected(null)} />}
   </div>;

@@ -13,6 +13,7 @@ import { payrollService } from "../../../services/payrollService.js";
 import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
 import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./PayrollMonthlyBasicBreakdown.jsx";
 import PayrollPhWork from "./PayrollPhWork.jsx";
+import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
 
@@ -160,7 +161,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "net", header: "Net Pay", align: "right", render: row => <strong className="tabular-nums">{money(row.result.net)}</strong> },
     { key: "bank", header: "Bank Info", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.name} onRetry={() => setBankRetry(value => value + 1)} /> },
     { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Attention" : "Ready"}</Badge> },
-    { key: "action", header: "Actions", render: row => <button type="button" className="btn-ghost" onClick={() => setEmployeeId(row.id)}>View</button> },
+    { key: "action", header: "Actions", render: row => <div className="inline-flex gap-1"><button type="button" className="btn-ghost" onClick={() => setEmployeeId(row.id)}>View</button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
   ];
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },

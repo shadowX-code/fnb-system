@@ -30,9 +30,17 @@ Deno.serve(async request => {
   const service=createClient(url,key);
   const body=await request.json();
   const crew=body.action==='crew_open';
-  if (!crew && body.action!=='admin_open') return reply({error:'Unsupported payslip action.'},400);
+  const draft=body.action==='admin_draft';
+  if (!crew && !draft && body.action!=='admin_open') return reply({error:'Unsupported payslip action.'},400);
   if (!(crew?uuid.test(body.period_id || ''):uuid.test(body.run_id || '') && uuid.test(body.employee_id || ''))) return reply({error:'Payslip unavailable.'},400);
   if (!crew) { const {data,error}=await caller.auth.getUser(); if(error || !data.user) return reply({error:'Admin sign-in required.'},401); }
+  if(draft) {
+   const {data:manifest,error}=await caller.rpc('payroll_draft_payslip_read',{p_run_id:body.run_id,p_employee_id:body.employee_id});
+   if(error || !manifest) return reply({error:error?.message || 'Draft payslip unavailable.'},403);
+   const bytes=await renderPayslip(manifest,{PDFDocument,StandardFonts,rgb,fontkit,unicodeFont:await unicodeFont(manifest)});
+   // Transient response only. Drafts never enter private immutable artifact storage.
+   return new Response(bytes,{headers:{...headers,'Content-Type':'application/pdf','Cache-Control':'no-store','Content-Disposition':'inline; filename="draft-payslip.pdf"'}});
+  }
   const rpc=crew?'crew_payroll_payslip_prepare':'payroll_payslip_admin_prepare';
   const args=crew?{p_token:String(body.token || ''),p_period_id:body.period_id}:{p_run_id:body.run_id,p_employee_id:body.employee_id};
   const {data:context,error}=await caller.rpc(rpc,args);

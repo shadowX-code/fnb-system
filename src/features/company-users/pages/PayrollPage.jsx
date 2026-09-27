@@ -447,7 +447,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
           <div className="flex flex-wrap gap-2">
             {canManage && run.status === "ready" && <button className="btn-secondary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Return to Review</button>}
             </div></>}
-        <p className="text-xs text-text-muted">Finalization snapshots compensation, payable time, rule versions, statutory evidence and approvals. No payslip or payment is created.</p></Card>}
+        <p className="text-xs text-text-muted">Finalization freezes Payroll evidence for the Final Payslip. No payment occurs.</p></Card>}
     </>}
     {pendingTransition && <Modal title={`${label(pendingTransition.status)} Payroll Run`}
       description="Record why this run is changing status. Ready and Finalize require complete time, pay and statutory evidence; no payment occurs."
