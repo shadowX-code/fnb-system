@@ -31,7 +31,7 @@ Deno.serve(async request => {
               p_filename: new URL(document.url).pathname.split("/").pop(), p_pdf_base64: btoa(binary), p_request_id: crypto.randomUUID(),
             });
             if (captureError) throw captureError;
-            updates.push({ ...candidate, name: document.name, source: directory });
+            updates.push({ ...candidate, name: document.name, source: directory, document_url: document.url });
           } catch { incomplete = true; sources.push({ url: document.url, status: "unavailable" }); }
         }
         sources.push({ url: directory, status: "checked", documents: documents.length });

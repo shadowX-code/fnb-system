@@ -86,6 +86,14 @@ it("checks official sources on explicit intent only, reuses review and does not 
   view.rerender(<PayrollHolidayImport year="2028" geography="MY-10" />);
   await waitFor(() => expect(service.readHolidayUpdateCheck).toHaveBeenCalledWith("2028", "MY-10"));
 });
+it("shows a persisted no-update result without offering publication or manual source entry", async () => {
+  service.readHolidayCandidates.mockResolvedValue([]);
+  service.readHolidayUpdateCheck.mockResolvedValue({ completed_at: "2026-09-27T01:00:00Z", result: { status: "no_updates", sources: [] } });
+  render(<PayrollHolidayImport year="2027" />);
+  await screen.findByText("No updates found");
+  expect(screen.queryByRole("button", { name: "Publish Calendar" })).toBeNull();
+  expect(service.checkOfficialHolidayUpdates).not.toHaveBeenCalled();
+});
 it("defaults QA off and clears stale year/outlet-independent candidate state", async () => {
   const view = render(<PayrollHolidayImport year="2027" />); await screen.findByRole("button", { name: "Review", exact: true });
   expect(service.readHolidayCandidates).toHaveBeenCalledWith("2027", false);

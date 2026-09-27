@@ -91,14 +91,14 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
   const summary = selected && entitlementResolved(selected) ? { ...rawSummary, matched: rawSummary.imported, review: 0, blocked: 0 } : rawSummary;
   const available = candidates?.find(c => c.status !== "published" && c.status !== "fetched" && !entitlementResolved(c));
   const pending = candidates?.filter(c => c.status !== "published" && !entitlementResolved(c)) || [];
-  useEffect(() => { onCandidateChanged?.(available || null); }, [candidates, onCandidateChanged]);
+  useEffect(() => { onCandidateChanged?.(available || pending.find(c => c.status === "fetched") || null); }, [candidates, onCandidateChanged]);
   const exceptions = (selected?.rows || []).filter(r => r.state !== "matched" && !selected?.additional_confirmations?.[r.key] && !(selected && entitlementResolved(selected) && r.state === "missing"));
   const allReviewed = !summary.blocked && exceptions.every(r => decisions[r.key]?.action === (r.state === "missing" ? "retain" : "accept") && (r.state !== "changed" || decisions[r.key]?.remark?.trim()));
   const reviewable = selected?.status === "needs_review" && !entitlementResolved(selected);
   const close = () => { if (!busy) { setSelected(null); setCapture(false); setError(""); } };
   return <div className="mt-3 space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
-      <p className="text-sm text-text-secondary">{available ? "A prepared calendar is available. Review changes before publication." : calendarPublished ? "Holiday calendar published. Continue with paid holiday selection." : "Official calendar source not available yet"}</p>
+      <p className="text-sm text-text-secondary">{pending.length ? "Official updates are available. Review before publication." : calendarPublished ? "Holiday calendar published. Continue with paid holiday selection." : "Check for an official calendar before preparing this year."}</p>
       <div className="flex flex-wrap gap-2"><button type="button" className="btn-primary" disabled={checking || busy || !candidates} onClick={checkUpdates}>{checking ? "Checking…" : "Check Official Updates"}</button>
       {available && <button type="button" className="btn-secondary" onClick={() => open(available)}>{available.status === "approved" ? "Publish Calendar" : "Review Calendar"}</button>}</div>
     </div>
@@ -134,7 +134,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     </>}>
       <p className="mb-3 text-sm text-text-secondary">Malaysia · {geography ? geography === "national" ? "National" : malaysiaStateName(geography) : "All applicable states"}</p>
       <p className="mb-3 font-semibold">Official source: {title(selected)}</p>
-      <p className="mb-3 text-sm text-text-secondary">Imported {selected.created_at?.slice(0, 10)} · {summary.imported} holidays · {summary.review} needing review</p>
+      <p className="mb-3 text-sm text-text-secondary">{selected.status === "fetched" ? "Official document captured · Holiday verification required" : `Imported ${selected.created_at?.slice(0, 10)} · ${summary.imported} holidays · ${summary.review} needing review`}</p>
       {selected.is_qa && <p role="status" className="mb-3 text-sm text-amber-800">Synthetic Staging QA evidence. Not an official Malaysian calendar.</p>}
       {selected.status === "fetched" ? <div className="space-y-3"><p className="text-sm text-text-secondary">The official document is captured. Verify dates and applicable geography against it before reviewing changes. No calendar or company selection has changed.</p>
         <button type="button" className="btn-secondary" disabled={busy} onClick={viewSource}>View Official Document</button>
