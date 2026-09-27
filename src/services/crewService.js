@@ -568,6 +568,12 @@ export const crewService = {
     return data;
   },
 
+  async googleTargetHistory(outletId, period) {
+    const { data, error } = await supabase.rpc("crew_google_target_history", { p_outlet_id: outletId, p_period: period });
+    throwSupabaseError("crew.googleTargetHistory", error);
+    return data || { rows: [] };
+  },
+
   async peerReviewAdmin(outletId, period) {
     const { data, error } = await supabase.rpc("crew_peer_review_admin", { p_outlet_id: outletId, p_period: period });
     throwSupabaseError("crew.peerReviewAdmin", error);

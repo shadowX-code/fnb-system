@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const mocks = vi.hoisted(() => ({ data: vi.fn(), page: vi.fn(), feedbackPage: vi.fn(), peerReview: vi.fn(), review: vi.fn(), finalize: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: { performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, peerReviewAdmin: mocks.peerReview, submitPerformanceReview: mocks.review, finalizePerformance: mocks.finalize, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
@@ -46,7 +46,8 @@ describe("Crew Performance Admin", () => {
     mocks.page.mockResolvedValue({ rows: [v2], total_count: 1, page: 1, page_size: 20 });
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click((await screen.findAllByText("Alex Tan")).at(-1));
-    expect(screen.getByText("Assessed points")).not.toBeNull();
+    expect(within(screen.getByRole("dialog", { name: /Alex Tan · Performance/ })).getByText("Assessed points")).not.toBeNull();
+    expect(screen.getByText("3 of 5 components scored · Pending: Customer, Peer Review")).not.toBeNull();
     expect(screen.getByText("Customer: Pending · Google Review authority not available")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Finalize Performance" })).toBeNull();
   });

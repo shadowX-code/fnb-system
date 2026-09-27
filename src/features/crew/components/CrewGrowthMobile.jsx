@@ -291,9 +291,9 @@ function buildComponentGuidance(component, t) {
     level: value == null ? t("performance.awaitingEvidence") : t("status.completed"),
   };
   if (key === "customer" && item?.calculation_version === "performance-v2") return {
-    why: [{ label: t("performance.components.customer"), value: t("performance.awaitingEvidence"), tone: "neutral" }],
-    improve: [], whatCounts: t("performance.awaitingEvidence"), cta: null,
-    level: t("performance.awaitingEvidence"),
+    why: [{ label: t("performance.components.customer"), value: value == null ? t("performance.awaitingEvidence") : `${value} / ${max}`, tone: "neutral" }],
+    improve: [], whatCounts: t(value == null ? "performance.googleUnavailable" : "performance.googleEvidence"), cta: null,
+    level: value == null ? t("performance.awaitingEvidence") : t("status.completed"),
   };
   const evidence = item?.evidence && typeof item.evidence === "object" && !Array.isArray(item.evidence) ? item.evidence : {};
   const fullScore = value != null && value >= max;
@@ -436,7 +436,7 @@ function PerformanceBreakdown({ performance, onSelect }) {
   const { t } = useTranslation();
   const presentationScore = getPerformanceScorePresentation(performance).score;
   const total = presentationScore == null ? null : Math.round(presentationScore);
-  const v2Partial = performance?.calculation_version === "performance-v2" && performance?.score_state !== "finalized";
+  const v2Partial = performance?.calculation_version === "performance-v2" && performance?.status !== "finalized";
   return <section className="crew-performance-final-breakdown">
     <header className="crew-performance-final-breakdown-head"><h2 className="crew-type-section-title">{t("performance.scoreBreakdown")}</h2><strong aria-hidden="true">{v2Partial ? t("performance.earnedPoints", { score: total ?? "—" }) : total == null ? "— / 100" : `${total} / 100`}</strong></header>
     <div className="crew-performance-final-breakdown-card">
@@ -447,7 +447,7 @@ function PerformanceBreakdown({ performance, onSelect }) {
         return <button type="button" key={key} onClick={() => onSelect({ key, label, max, weight, icon: Icon, item, value })} aria-label={t("performance.viewEvidence", { label })}>
           <i className="crew-ui-icon-container crew-ui-icon-container--small"><Icon size={17} /></i>
           <span><strong>{label}</strong><small>{t("performance.weight", { weight })}</small></span>
-          <div className="crew-performance-final-meter" aria-label={`${label} ${value ?? 0} of ${max}`}><span style={{ width: `${progress}%` }} /></div>
+          <div className="crew-performance-final-meter" aria-label={value == null ? `${label}: ${t("performance.awaitingEvidence")}` : `${label} ${value} of ${max}`}><span style={{ width: `${progress}%` }} /></div>
           <b>{value == null ? "—" : value} / {max}</b><ChevronRight size={17} />
         </button>;
       })}
