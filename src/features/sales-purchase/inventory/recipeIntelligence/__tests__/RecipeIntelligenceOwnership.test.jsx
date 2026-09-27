@@ -27,6 +27,7 @@ describe("Intelligence ownership",()=>{
     expect(mocks.rows).toHaveBeenCalledWith("inventory_items",{in:{id:["i"]}});
     expect(data.items[0].cost).toBe(2); // Existing inactive ingredient costing is preserved.
     expect(data.completeness).toBe("complete");
+    expect(data.recipeProductReports.map(row=>row.id)).toEqual(["s","old"]); // Metadata preserves historical year selection.
   });
   it.each(["error","incomplete"])("never displays an %s analytics read as an empty complete result",async readState=>{
     mocks.items.mockRejectedValue(Object.assign(new Error("Analytics unavailable"),{readState}));
@@ -39,6 +40,18 @@ describe("Intelligence ownership",()=>{
     const {result}=renderHook(()=>useRecipeIntelligenceRead(scope));
     await waitFor(()=>expect(result.current.state).toBe("complete"));
     expect(result.current.data.recipeProductReports).toEqual([]);expect(result.current.error).toBe("");
+  });
+  it("does not relabel the previous outlet's verified data while the new scope is loading",async()=>{
+    const {result,rerender}=renderHook(props=>useRecipeIntelligenceRead(props),{initialProps:scope});
+    await waitFor(()=>expect(result.current.state).toBe("complete"));
+    let resolveNext;
+    mocks.reports.mockImplementation(()=>new Promise(resolve=>{resolveNext=resolve;}));
+    rerender({...scope,outletId:"b"});
+    await waitFor(()=>expect(result.current.state).toBe("loading"));
+    expect(result.current.data).toBeNull();
+    await act(async()=>resolveNext([]));
+    await waitFor(()=>expect(result.current.state).toBe("complete"));
+    expect(result.current.data.recipeProductReports).toEqual([]);
   });
   it("rejects late outlet/period responses and obsolete refresh, and revalidates only relevant scope",async()=>{
     let resolveOld;

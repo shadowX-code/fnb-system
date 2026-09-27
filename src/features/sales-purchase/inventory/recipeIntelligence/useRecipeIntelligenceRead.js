@@ -39,7 +39,9 @@ export default function useRecipeIntelligenceRead({outletId, scopeKey, enabled, 
     if (liveKey.current !== key) return;
     const id = ++request.current;
     if (!enabled || !outletId) { setRead({state:"empty",data:null,error:"",key}); return; }
-    setRead(current => ({...current,state:current.key === key && current.data ? "refreshing" : "loading",error:"",key}));
+    setRead(current => current.key === key && current.data
+      ? {...current,state:"refreshing",error:"",key}
+      : {state:"loading",data:null,error:"",key});
     try {
       const data = await loadRecipeIntelligence({outletId,recipeAnalysisPeriod,recipeReportMonth,recipeReportYear,recipeTrendYear});
       if (id === request.current && liveKey.current === key) setRead({state:"complete",data,error:"",key});
