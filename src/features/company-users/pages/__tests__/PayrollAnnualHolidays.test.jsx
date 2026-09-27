@@ -2,7 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
 const service = vi.hoisted(() => ({ readAnnualHolidays: vi.fn(), saveAnnualCalendar: vi.fn(), savePaidHolidayPolicy: vi.fn(), saveDefaultPaidHolidays: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: service }));
-vi.mock("../PayrollHolidayImport.jsx", () => ({ default: () => <button>Get Official Calendar</button> }));
+vi.mock("../PayrollHolidayImport.jsx", () => ({ default: ({ advancedContent }) => <><button>Check Official Updates</button><details><summary>Advanced &amp; History</summary>{advancedContent}</details></> }));
 import PayrollAnnualHolidays, { annualCalendarEntries } from "../PayrollAnnualHolidays.jsx";
 const year = String(new Date().getFullYear());
 const holidays = Array.from({ length: 12 }, (_, i) => ({ id: `holiday-${i}`, holiday_date: `${year}-01-${String(i + 1).padStart(2, "0")}`, name: `Holiday ${i}`, scope: "national", source_note: "Verified source", is_active: true }));
@@ -12,6 +12,26 @@ const data = { holidays, legal_entities: [{ id: "entity", name: "Employer" }], o
 const policy = { id: "policy", policy_id: "family", is_default: true, status: "published", calendar_version_id: "calendar", selected_holiday_ids: holidays.slice(0, 11).map(h => h.id), legal_entity_ids: ["entity"], outlet_ids: [] };
 beforeEach(() => { vi.clearAllMocks(); service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [], can_manage: true }); service.saveDefaultPaidHolidays.mockResolvedValue("saved"); });
 afterEach(cleanup);
+it("groups maintenance and complete version history under one secondary entry", async () => {
+  service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [{ ...policy, revision: 2 }, { ...policy, id: "older-policy", revision: 1 }], can_manage: true });
+  render(<PayrollAnnualHolidays data={data} canManage />);
+  await screen.findByText(/Calendar verified/);
+  expect(screen.getAllByText("Advanced & History")).toHaveLength(1);
+  expect(screen.queryByText("Advanced · Classification maintenance")).toBeNull();
+  expect(screen.queryByText("View details / History")).toBeNull();
+  expect(screen.getByRole("region", { name: "Calendar Maintenance" })).toBeTruthy();
+  expect(screen.getByRole("region", { name: "Holiday History" }).textContent).toContain("Revision 1");
+  expect(screen.getAllByRole("button", { name: "Override Classification" })).toHaveLength(1);
+  expect(screen.getAllByRole("button", { name: "Add Sourced Holiday" })).toHaveLength(1);
+  expect(screen.getByText("Manage exceptions")).toBeTruthy();
+});
+it("retains read-only history without exposing maintenance authority", async () => {
+  render(<PayrollAnnualHolidays data={data} canManage={false} />);
+  await screen.findByText(/Calendar verified/);
+  expect(screen.getAllByText("Advanced & History")).toHaveLength(1);
+  expect(screen.queryByRole("button", { name: "Override Classification" })).toBeNull();
+  expect(screen.getByText("Calendar versions / Publication history")).toBeTruthy();
+});
 it("retains verified annual classifications without a normal reclassification workflow", async () => {
   render(<PayrollAnnualHolidays data={data} canManage />);
   await screen.findByText(/Calendar verified/);

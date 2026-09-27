@@ -181,8 +181,12 @@ Content-hash locks reuse existing candidates; private update-check evidence reco
 the authorized actor, check time, sources and result. A partial fetch never claims
 No updates. New PDF dates/jurisdictions require verified review; discovery is not
 automatic PDF interpretation, publication or company-policy mutation. No scheduled
-job exists. Manual URL/reference/PDF maintenance stays under Advanced → Add Official
-Source Manually. Operational selection shows five Required base holidays and six
+job exists. Secondary controls share one Advanced & History entry: Official Sources
+owns source evidence/import history and Add Official Source Manually; Calendar
+Maintenance owns Override Classification and Add Sourced Holiday; History shows
+calendar/company-policy versions, publication evidence and historical definitions.
+Normal update review and publication remain outside this entry. Manage Exceptions
+remains a separate company/outlet business workflow. Operational selection shows five Required base holidays and six
 Company Selected base holidays and locks
 explicitly reviewed required entries; names/jurisdictions never establish required
 classification. This operational completeness presentation does not claim

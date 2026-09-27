@@ -7,6 +7,17 @@ const row = { key: "1", state: "new", row: { date: "2027-01-10", name: "QA ONLY 
 const candidate = { id: "candidate", status: "needs_review", revision: 2, source_reference: "Verified source", rows: [row], history: [] };
 beforeEach(() => { vi.clearAllMocks(); service.readHolidayUpdateCheck.mockResolvedValue(null); service.readHolidayCandidates.mockResolvedValue([candidate]); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
+it("keeps operational updates outside the single grouped secondary entry", async () => {
+  render(<PayrollHolidayImport year="2027" advancedContent={<section>Calendar Maintenance and History</section>} />);
+  await screen.findByRole("button", { name: "Review Update" });
+  const advanced = screen.getByText("Advanced & History").closest("details");
+  expect(advanced.contains(screen.getByRole("button", { name: "Add Official Source Manually" }))).toBe(true);
+  expect(advanced.contains(screen.getByRole("button", { name: "Review Update" }))).toBe(false);
+  expect(screen.getAllByRole("button", { name: "Add Official Source Manually" })).toHaveLength(1);
+  expect(screen.queryByText("Advanced", { exact: true })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Review", exact: true })).toBeNull();
+  expect(screen.getByRole("region", { name: "Official Sources" })).toBeTruthy();
+});
 it("does not show an unavailable-source action after the calendar is published", async () => {
   service.readHolidayCandidates.mockResolvedValue([]);
   render(<PayrollHolidayImport year="2027" calendarPublished />);
@@ -31,7 +42,7 @@ it("stops counting accepted exceptions as needing review after approval", () => 
 });
 it("requires exception review and complete-source confirmation before approval, then separate publication", async () => {
   const published = vi.fn(); render(<PayrollHolidayImport year="2027" onPublished={published} />);
-  fireEvent.click(await screen.findByRole("button", { name: "Review", exact: true }));
+  fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
   expect(screen.getByText(/Perak · New/)).toBeTruthy();
   expect(screen.getByRole("button", { name: "Confirm Calendar Review" }).disabled).toBe(true);
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, revision: 3, decisions: { 1: { action: "accept" } } }]);
@@ -49,7 +60,7 @@ it("requires exception review and complete-source confirmation before approval, 
 });
 it("does not require matched row review; missing remains explicit and blocked cannot be approved", async () => {
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, rows: [{ ...row, state: "matched" }, { ...row, key: "2", state: "blocked", issue: "Uncertain source" }] }]);
-  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review", exact: true }));
+  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
   expect(screen.queryByLabelText("Verified against source")).toBeNull();
   expect(screen.queryByText("Matched holidays (1)")).toBeNull();
   expect(screen.getByRole("button", { name: "Confirm Classification" }).disabled).toBe(true);
@@ -59,7 +70,7 @@ it("does not require matched row review; missing remains explicit and blocked ca
 });
 it("explicitly retains missing evidence and requires a correction remark", async () => {
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, rows: [{ ...row, state: "missing", row: null, previous: { holiday: { ...row.row, holiday_date: row.row.date } } }, { ...row, key: "2", state: "changed", previous: { holiday: { name: "Previous", holiday_date: "2027-01-09", scope: "national" } } }] }]);
-  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review", exact: true }));
+  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
   fireEvent.click(screen.getByLabelText(/I have reviewed/));
   expect(screen.getByRole("button", { name: "Confirm Calendar Review" }).disabled).toBe(true);
   fireEvent.change(screen.getByLabelText(/Correction remark/), { target: { value: "Official correction" } });
@@ -90,7 +101,7 @@ it("keeps a failed confirmation visible and never publishes as a fallback", asyn
 });
 it("parsing is separate from approval/publication and invalid transcription reports a real error", async () => {
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, status: "fetched", rows: [] }]);
-  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review", exact: true }));
+  render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review Update", exact: true }));
   fireEvent.change(screen.getByLabelText(/Verified holiday transcription/), { target: { value: "invalid JSON" } });
   fireEvent.click(screen.getByRole("button", { name: "Review Holiday Changes" }));
   await screen.findByRole("alert");
@@ -122,7 +133,7 @@ it("shows a persisted no-update result without offering publication or manual so
   expect(service.checkOfficialHolidayUpdates).not.toHaveBeenCalled();
 });
 it("defaults QA off and clears stale year/outlet-independent candidate state", async () => {
-  const view = render(<PayrollHolidayImport year="2027" />); await screen.findByRole("button", { name: "Review", exact: true });
+  const view = render(<PayrollHolidayImport year="2027" />); await screen.findByRole("button", { name: "Review Update", exact: true });
   expect(service.readHolidayCandidates).toHaveBeenCalledWith("2027", false);
   view.rerender(<PayrollHolidayImport year="2026" />);
   await waitFor(() => expect(service.readHolidayCandidates).toHaveBeenCalledWith("2026", false));

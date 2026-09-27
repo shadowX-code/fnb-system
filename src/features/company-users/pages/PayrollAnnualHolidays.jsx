@@ -136,6 +136,18 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
   const policyReady = !!draft.name?.trim() && (!draft.exception || draft.entities?.length > 0) && !!draft.calendarId
     && (!draft.outlets?.length || !!draft.reason?.trim());
   const canSave = editing === "calendar" ? calendarReady && !!draft.source?.trim() && !!draft.overrideReason?.trim() : policyReady;
+  const advancedContent = <>
+    {editable && <section aria-label="Calendar Maintenance" className="border-t border-border py-3"><h4 className="font-bold">Calendar Maintenance</h4><p className="my-3 text-text-secondary">Manual overrides require authoritative evidence and a reason. Changes create a new calendar revision; published company selections and historical evidence remain unchanged.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" disabled={!latest} onClick={editCalendar}>Override Classification</button><button className="btn-secondary" onClick={onAddHoliday}>Add Sourced Holiday</button></div></section>}
+    <section aria-label="Holiday History" className="border-t border-border py-3"><h4 className="font-bold">History</h4>
+      <h5 className="mt-3 font-semibold">Calendar versions / Publication history</h5>
+      {calendars.length ? calendars.map(c => <p key={c.id} className="py-2 break-words">Calendar {c.revision} · {c.status} · {c.source_reference}</p>) : <p className="py-2 text-text-secondary">No calendar versions yet.</p>}
+      <h5 className="mt-3 font-semibold">Company policy history</h5>
+      {annual?.policies?.length ? annual.policies.map(p => <p key={p.id} className="py-2">{p.name} · Revision {p.revision} · {p.status} · {p.selected_holiday_ids.length} selected</p>) : <p className="py-2 text-text-secondary">No company policy versions yet.</p>}
+      {(annual?.history || []).map(e => <p key={e.id} className="py-1 text-xs text-text-secondary">{e.occurred_at} · {e.event_type.replaceAll("_", " ")}</p>)}
+      <h5 className="mt-3 font-semibold">Historical / exceptional definitions ({exceptional.length})</h5><p className="my-2 text-xs text-text-secondary">Retained source evidence. These are not automatically selected Company Paid Holidays.</p>
+      {exceptional.length ? <div className="divide-y divide-border">{exceptional.map(h => <div key={h.id} className="flex items-center justify-between gap-3 py-2 text-sm"><div><strong>{h.name}</strong><p className="text-text-secondary">{h.holiday_date} · {h.scope === "outlet" ? "Outlet definition" : "Historical company definition"}</p></div><button type="button" className="text-primary" onClick={() => onViewHoliday(h.id)}>View</button></div>)}</div> : <p className="py-2 text-text-secondary">No historical or exceptional definitions.</p>}
+    </section>
+  </>;
   return <Card className="overflow-hidden">
     <div className="flex flex-wrap items-end justify-between gap-3 border-b border-border p-4">
       <div><h3 className="text-lg font-bold">Public Holidays</h3><p className="text-sm text-text-secondary">{annual ? readiness : "Prepare the annual calendar, paid holidays and work benefit."}</p></div>
@@ -148,7 +160,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       <section className="border-b border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">Holiday Calendar</h4>
         <p className="text-sm text-text-secondary">{latest ? "Review holidays, then confirm the company selection." : "Import a reviewed official annual calendar. No dates have been generated."}</p></div>
         </div>
-        {editable && <PayrollHolidayImport key={refresh} year={year} geography={geography} calendarPublished={!!published} onCandidateChanged={setCandidate} onPublished={() => setRefresh(n => n + 1)} />}
+        {editable && <PayrollHolidayImport key={refresh} year={year} geography={geography} calendarPublished={!!published} onCandidateChanged={setCandidate} onPublished={() => setRefresh(n => n + 1)} advancedContent={advancedContent} />}
         <dl className="my-4 grid gap-3 text-sm sm:grid-cols-5">
           <div><dt className="text-text-secondary">Required</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind === "required" && paidSelection.includes(e.holiday_id)).length} / 5</dd></div>
           <div><dt className="text-text-secondary">Company Selected</dt><dd className="font-semibold">{selectedBase} selected · {selectedBase >= 6 ? "Minimum 6 met" : `${6 - selectedBase} more needed`}</dd></div>
@@ -181,12 +193,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
           {editable && <button className="btn-secondary" disabled={!published} onClick={() => editPolicy(null, true)}>Add Exception</button>}
         </details>
       </section>
-      <details className="border-t border-border p-4 text-sm"><summary className="cursor-pointer text-text-secondary">View details / History</summary>
-        {calendars.map(c => <p key={c.id} className="py-2">Calendar {c.revision} · {c.status} · {c.source_reference}</p>)}
-        {(annual.history || []).map(e => <p key={e.id} className="py-1 text-xs text-text-secondary">{e.occurred_at} · {e.event_type.replaceAll("_", " ")}</p>)}
-      </details>
-      {editable && <details className="border-t border-border p-4 text-sm"><summary className="cursor-pointer text-text-secondary">Advanced · Classification maintenance</summary><p className="my-3 text-text-secondary">Manual overrides require authoritative evidence and a reason. Changes create a new calendar revision; published company selections and historical evidence remain unchanged.</p><div className="flex flex-wrap gap-3"><button className="btn-secondary" disabled={!latest} onClick={editCalendar}>Override Classification</button><button className="btn-secondary" onClick={onAddHoliday}>Add Sourced Holiday</button></div></details>}
-      {!!exceptional.length && <details className="border-t border-border p-4"><summary className="cursor-pointer text-sm text-text-secondary">Historical / exceptional definitions ({exceptional.length})</summary><p className="my-2 text-xs text-text-secondary">Retained source evidence. These are not automatically selected Company Paid Holidays.</p><div className="divide-y divide-border">{exceptional.map(h => <div key={h.id} className="flex items-center justify-between gap-3 py-2 text-sm"><div><strong>{h.name}</strong><p className="text-text-secondary">{h.holiday_date} · {h.scope === "outlet" ? "Outlet definition" : "Historical company definition"}</p></div><button type="button" className="text-primary" onClick={() => onViewHoliday(h.id)}>View</button></div>)}</div></details>}
+      {!editable && <details className="border-t border-border p-4 text-sm"><summary className="cursor-pointer text-text-secondary">Advanced &amp; History</summary>{advancedContent}</details>}
     </>}
     {additionalReview && <Modal title="Review Additional Paid Entitlement" size="lg" onClose={() => !busy && setAdditionalReview(null)} footer={<><button className="btn-secondary" disabled={busy} onClick={() => setAdditionalReview(null)}>Cancel</button><button className="btn-primary" disabled={busy || !additionalReview.attested || !additionalReview.reference.trim()} onClick={async () => {
       setBusy(true); setError("");

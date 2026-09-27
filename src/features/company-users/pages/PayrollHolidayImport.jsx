@@ -32,7 +32,7 @@ const fileBase64 = file => new Promise((resolve, reject) => {
 });
 
 // This is source preparation/review only. Publication delegates to Annual Calendar.
-export default function PayrollHolidayImport({ year, geography = "", calendarPublished = false, onPublished, onCandidateChanged }) {
+export default function PayrollHolidayImport({ year, geography = "", calendarPublished = false, onPublished, onCandidateChanged, advancedContent }) {
   const [candidates, setCandidates] = useState(null);
   const [includeQa, setIncludeQa] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -86,8 +86,8 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     await payrollService.captureHolidaySource({ ...source, year, filename: source.file.name, base64: await fileBase64(source.file) });
     setCapture(false);
   });
-  const viewSource = () => perform(async () => {
-    const pdf = await payrollService.readHolidaySource(selected.id);
+  const viewSource = (candidate = selected) => perform(async () => {
+    const pdf = await payrollService.readHolidaySource(candidate.id);
     const bytes = Uint8Array.from(atob(pdf.base64.replace(/\s/g, "")), ch => ch.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
     const link = document.createElement("a"); link.href = url; link.download = pdf.filename; link.click();
@@ -111,20 +111,23 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     </div>
     {lastCheck && <div role="status" className="text-sm text-text-secondary"><p>Last checked: {new Date(lastCheck.completed_at || lastCheck.started_at).toLocaleString()} · JPM / BKPP</p>
       <p>{!lastCheck.completed_at ? "Check in progress. Retry shortly if interrupted." : { no_updates: "No updates found", updates_found: "Official Update Found · Review before publication", review_pending: "No new documents · Official updates awaiting review", incomplete: "Check incomplete · Published calendar unchanged. Please retry or review Advanced source maintenance." }[lastCheck.result?.status]}</p>
-      <details><summary className="cursor-pointer">Sources checked</summary>{lastCheck.result?.sources?.map((s, i) => <p className="break-all text-xs" key={i}>{s.url} · {s.status === "checked" ? "Checked" : "Unavailable"}</p>)}</details>
     </div>}
     {pending.length > 0 && <div className="divide-y divide-border">{pending.map(c => <div key={c.id} className="flex items-center justify-between gap-3 py-2"><div className="min-w-0"><p className="text-sm font-medium">{title(c)}</p><p className="text-xs text-text-secondary">{c.status === "fetched" ? "Date and jurisdiction verification required" : "Review holiday changes"}</p></div><button type="button" className="btn-secondary shrink-0" disabled={busy || checking} onClick={() => open(c)}>Review Update</button></div>)}</div>}
     {error && !selected && !capture && <p role="alert" className="text-sm text-rose-700">{error}<button type="button" className="ml-3 text-primary" onClick={() => setRefresh(n => n + 1)}>Refresh Imports</button></p>}
     {!candidates && !error && <p className="text-sm text-text-secondary">Loading imports…</p>}
-    <details className="text-sm"><summary className="cursor-pointer text-text-secondary">Advanced</summary>
+    <details className="border-t border-border pt-3 text-sm"><summary className="cursor-pointer text-text-secondary">Advanced &amp; History</summary>
+    <section aria-label="Official Sources" className="py-3"><h4 className="font-bold">Official Sources</h4>
+    {lastCheck?.result?.sources?.length > 0 && <div className="my-3"><p className="font-semibold">Sources checked</p>{lastCheck.result.sources.map((s, i) => <p className="break-all text-xs text-text-secondary" key={i}>{s.url} · {s.status === "checked" ? "Checked" : "Unavailable"}</p>)}</div>}
     <button type="button" className="btn-secondary my-3" onClick={() => { setSource({ url: "", reference: "", file: null, requestId: crypto.randomUUID() }); setCapture(true); setError(""); }}>Add Official Source Manually</button>
     {!!candidates?.length && <DataTable density="compact" rows={candidates} getRowKey={c => c.id} columns={[
       { key: "source", header: "Import", render: c => <div><strong>{title(c)}</strong><p className="text-xs text-text-secondary">{c.created_at?.slice(0, 10)}</p></div> },
       { key: "status", header: "Status", render: c => <Badge tone={c.status === "published" || entitlementResolved(c) ? "success" : "neutral"}>{entitlementResolved(c) ? "Additional entitlement confirmed" : { fetched: "Source captured", needs_review: "Needs Review", approved: "Approved", published: "Published" }[c.status] || c.status}</Badge> },
       { key: "diff", header: "Review", render: c => { const s = holidayDiffSummary(c.rows, c.decisions); return entitlementResolved(c) ? "Supplement confirmed · annual calendar unchanged" : c.status === "fetched" ? "Transcription required" : `${s.matched} matched · ${s.review} need review · ${s.blocked} blocked`; } },
-      { key: "action", header: "Action", render: c => <button type="button" className="text-primary" onClick={() => open(c)}>{c.status === "published" ? "View" : "Review"}</button> },
+      { key: "action", header: "Action", render: c => <button type="button" className="text-primary" onClick={() => c.status === "published" || entitlementResolved(c) ? open(c) : viewSource(c)}>{c.status === "published" || entitlementResolved(c) ? "View History" : "View Source"}</button> },
     ]} />}
-    <details className="text-xs text-text-secondary"><summary className="cursor-pointer">History / QA visibility</summary><label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={includeQa} onChange={e => setIncludeQa(e.target.checked)} />Include clearly labelled QA imports (never official sources)</label></details>
+    <label className="mt-3 flex items-center gap-2 text-xs text-text-secondary"><input type="checkbox" checked={includeQa} onChange={e => setIncludeQa(e.target.checked)} />Include clearly labelled QA imports (never official sources)</label>
+    </section>
+    {advancedContent}
     </details>
     {capture && <Modal title="Add Official Source" size="lg" onClose={close} footer={<><button className="btn-secondary" disabled={busy} onClick={close}>Cancel</button><button className="btn-primary" disabled={busy || !source.file || !source.url.trim() || !source.reference.trim()} onClick={captureSource}>{busy ? "Capturing…" : "Capture Source"}</button></>}>
       <div className="space-y-4"><p className="text-sm text-text-secondary">Upload the JPM/BKPP annual calendar, or an official gazette/circular correction. Use the actual published government URL. FeedX retains the exact PDF; it does not guess dates or automatically extract or publish them.</p>
@@ -144,7 +147,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
       <p className="mb-3 text-sm text-text-secondary">{selected.status === "fetched" ? "Official document captured · Holiday verification required" : `Imported ${selected.created_at?.slice(0, 10)} · ${summary.imported} holidays · ${summary.review} needing review`}</p>
       {selected.is_qa && <p role="status" className="mb-3 text-sm text-amber-800">Synthetic Staging QA evidence. Not an official Malaysian calendar.</p>}
       {selected.status === "fetched" ? <div className="space-y-3"><p className="text-sm text-text-secondary">The official document is captured. Verify dates and applicable geography against it before reviewing changes. No calendar or company selection has changed.</p>
-        <button type="button" className="btn-secondary" disabled={busy} onClick={viewSource}>View Official Document</button>
+        <button type="button" className="btn-secondary" disabled={busy} onClick={() => viewSource()}>View Official Document</button>
         {verifiedRows.map((r, index) => <div key={index} className="grid gap-3 border-b border-border py-3 sm:grid-cols-2">
           <AdminFormField label="Holiday name" required><input className="control" value={r.name} onChange={e => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, name: e.target.value } : v))} /></AdminFormField>
           <DatePickerField label="Holiday date" value={r.date} onChange={date => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, date } : v))} />
@@ -168,7 +171,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
           </div>
           <p className="text-sm text-text-secondary">Official source: {title(selected)}{h.source_locator ? ` · ${h.source_locator}` : ""}</p>
           <p className="text-sm">{r.state === "blocked" ? "Review Required · Authoritative evidence is insufficient or conflicting." : r.state === "missing" ? "Keep the previously verified holiday; absence from a newer source does not remove it." : `Source classification: ${classificationLabel(h.kind) || "Review Required"}`}</p>
-          <div className="flex flex-wrap gap-3"><button type="button" className="btn-secondary" disabled={busy} onClick={viewSource}>View Official Source</button>
+          <div className="flex flex-wrap gap-3"><button type="button" className="btn-secondary" disabled={busy} onClick={() => viewSource()}>View Official Source</button>
           <button type="button" className="btn-primary" disabled={!reviewable || busy || r.state === "blocked" || (r.state !== "missing" && !classificationLabel(h.kind)) || (r.state === "changed" && !decisions[r.key]?.remark?.trim())} onClick={() => perform(async () => {
             const next = { ...decisions, [r.key]: { ...decisions[r.key], action: r.state === "missing" ? "retain" : "accept" } };
             await payrollService.reviewHolidayCandidate(selected.id, selected.revision, next, false);
@@ -182,7 +185,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
         {selected.status === "published" && <p role="status" className="mt-3 text-sm text-text-secondary">Annual calendar published. Existing Company Paid Holiday policies remain pinned until separately reviewed and published.</p>}
       </>}
       <details className="mt-4 border-t border-border pt-3 text-sm"><summary className="cursor-pointer text-primary">Source Details / History</summary>
-        <p className="my-2 break-all">{selected.source_url || "QA source"}</p><button className="btn-secondary" disabled={busy} onClick={viewSource}>Download Source PDF</button>
+        <p className="my-2 break-all">{selected.source_url || "QA source"}</p><button className="btn-secondary" disabled={busy} onClick={() => viewSource()}>Download Source PDF</button>
         <p className="my-2 break-all text-xs text-text-secondary">SHA-256: {selected.source_sha256} · {selected.parser_version || "Awaiting verified transcription"}</p>
         {(selected.history || []).map(e => <p key={e.id} className="py-1 text-xs text-text-secondary">{e.occurred_at} · {e.event_type.replaceAll("_", " ")}</p>)}
       </details>
