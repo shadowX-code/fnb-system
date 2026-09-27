@@ -3780,14 +3780,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   }, [initialTab]);
 
 
-  useEffect(() => {
-    if (activeTab !== "recipes") return;
-    if (!outlets.length) return;
-    if (selectedOutletId !== "all" && !outlets.some((outlet) => outlet.id === selectedOutletId)) {
-      setSelectedOutletId("all");
-    }
-  }, [activeTab, auth, outlets, selectedOutletId]);
-
   const can = useMemo(() => ({
     importMaster: hasPermission(auth, "inventory_master.import"),
     exportMaster: hasPermission(auth, "inventory_master.export"),

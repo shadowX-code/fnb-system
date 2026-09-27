@@ -10,6 +10,11 @@ const mocks = vi.hoisted(() => ({
   from: vi.fn(),
   completeReports: vi.fn(),
   completeItems: vi.fn(),
+  download: vi.fn(),
+}));
+
+vi.mock("../../inventory/InventorySharedPresentation.jsx", async importOriginal => ({
+  ...await importOriginal(), downloadTextFile: mocks.download,
 }));
 
 vi.mock("../../../../lib/supabase.ts", () => ({
@@ -169,11 +174,22 @@ beforeEach(() => {
   mocks.saveRecipe.mockResolvedValue({ recipe: { ...recipeRow }, items: [] });
   mocks.completeReports.mockReset().mockResolvedValue([]);
   mocks.completeItems.mockReset().mockResolvedValue([]);
+  mocks.download.mockReset();
 });
 
 afterEach(cleanup);
 
 describe("InventoryControlPage Recipe lifecycle", () => {
+  it("exports the selected recipe projection through the existing download owner", async () => {
+    renderRecipes();
+    await waitForRecipePage();
+    fireEvent.click(screen.getByRole("button", {name:"Export",exact:true}));
+    expect(mocks.download).toHaveBeenCalledTimes(1);
+    const [filename,csv] = mocks.download.mock.calls[0];
+    expect(filename).toMatch(/^feedx-recipes-\d{4}-\d{2}-\d{2}\.csv$/);
+    expect(csv).toContain("RCP-SAMBAL-001");
+    expect(csv).toContain("叁巴面");
+  });
   it("owns a focused read set and loads Product Analytics only when Mapping opens", async () => {
     renderRecipes();
     await waitForRecipePage();

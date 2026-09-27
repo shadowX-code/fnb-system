@@ -215,7 +215,7 @@ export function createInventoryRecipeReadModel({ recipes = [], items = [], outle
 }
 
 import { buildDynamicYearOptions, yearsFromRecords } from "../../../../utils/yearOptions.js";
-const recipeAnalysisPeriodOptions = [{value:"current",months:1}, {value:"last3",months:3}, {value:"last6",months:6}, {value:"last12",months:12}];
+const recipeAnalysisPeriodOptions = [{value:"current",label:"Current Month",months:1}, {value:"last3",label:"Last 3 Months",months:3}, {value:"last6",label:"Last 6 Months",months:6}, {value:"last12",label:"Last 12 Months",months:12}];
 export function createRecipeWorkspaceProjection({data, outletById, activeRecipeOutletId, recipeFilters, recipeAnalysisPeriod = "last3", recipeReportYear, recipeReportMonth, recipeTrendYear, recipeProductReports = [], recipeProductItems = [], recipeProductMappings = [], recipeMappingSelections = {}, recipeMappingFilters = {status:"all",search:""}, isRecipeIntelligencePage = false}) {
     const recipeReadModel = createInventoryRecipeReadModel({
       recipes: data.recipes,

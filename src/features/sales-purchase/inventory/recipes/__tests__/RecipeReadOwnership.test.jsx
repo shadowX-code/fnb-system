@@ -3,10 +3,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({load: vi.fn()}));
 vi.mock("../inventoryRecipeService.js", () => ({loadInventoryRecipes: mocks.load}));
 import useInventoryRecipesRead from "../useInventoryRecipesRead.js";
+import { createRecipeWorkspaceProjection } from "../inventoryRecipeReadModel.js";
 afterEach(cleanup);
 beforeEach(() => { mocks.load.mockReset(); });
 const complete = id => ({recipes: [{id}], items: [], categories: [], menuCategories: [], completeness: "complete"});
 describe("Recipes scoped atomic read", () => {
+  it("preserves the existing analysis period labels for the shared Intelligence consumer", () => {
+    const projection = createRecipeWorkspaceProjection({data:{recipes:[],items:[],menuCategories:[]},outletById:new Map(),activeRecipeOutletId:"a",recipeFilters:{category:"all",status:"active",search:""},recipeAnalysisPeriod:"last3",recipeReportYear:2026,recipeReportMonth:9,recipeTrendYear:2026,recipeProductReports:[],recipeProductItems:[],recipeProductMappings:[]});
+    expect(projection.selectedPeriod).toEqual({value:"last3",label:"Last 3 Months",months:3});
+  });
   it("rejects an old outlet response and immediately hides the previous outlet projection", async () => {
     let resolveA;
     mocks.load.mockImplementation(id => id === "a" ? new Promise(resolve => {resolveA = resolve;}) : Promise.resolve(complete("b")));
