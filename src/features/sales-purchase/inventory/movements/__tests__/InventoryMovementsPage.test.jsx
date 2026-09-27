@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import InventoryMovementsPage from "../InventoryMovementsPage.jsx";
+import InventoryMovementsPage from "../InventoryMovementsTable.jsx";
 
 const rows = [
   { id: "purchase", outletId: "outlet-1", itemId: "item-1", movementType: "Purchase", quantity: 10, unit: "kg", date: "2026-08-01", reference: "PO-1" },

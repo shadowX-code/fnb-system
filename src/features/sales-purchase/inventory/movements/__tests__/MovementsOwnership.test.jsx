@@ -1,0 +1,54 @@
+import { act, cleanup, fireEvent, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+const mocks = vi.hoisted(() => ({ load: vi.fn(), save: vi.fn(), update: vi.fn(), transfer: vi.fn(), resolve: vi.fn() }));
+vi.mock('../inventoryMovementService.js', async importOriginal => ({ ...await importOriginal(), loadInventoryMovements: mocks.load, persistRemoteInventoryMovement: mocks.save, persistRemoteInventoryMovementUpdate: mocks.update, resolveMovementPurchaseOrder: mocks.resolve }));
+vi.mock('../../../../../services/inventoryLifecycleService.js', () => ({ inventoryLifecycleService: { transferInventory: mocks.transfer } }));
+vi.mock('../InventoryManualMovementModal.jsx', () => ({ default: props => <div role="dialog"><button onClick={() => props.onSave({ itemId: 'item', outletId: 'outlet', quantity: 2, type: 'adjustment' })}>Submit manual</button><button onClick={() => props.onSave({ transfer: true, itemId: 'item', fromOutletId: 'outlet', toOutletId: 'other', quantity: 1, reference: 'TRF-QA' })}>Submit transfer</button></div> }));
+vi.mock('../../purchaseOrders/InventoryPurchaseOrderSurface.jsx', () => ({ default: props => <div>PO identity {props.orderId}</div> }));
+vi.mock('../../waste/InventoryWasteDetail.jsx', () => ({ default: props => <div>Waste identity {props.wasteId}</div>, wasteActorName: () => 'Actor' }));
+import InventoryMovementsPage from '../InventoryMovementsPage.jsx';
+import useInventoryMovementsRead from '../useInventoryMovementsRead.js';
+import { invalidateInventoryReads } from '../../../../../services/inventoryRevalidation.js';
+const auth = { user: { id: 'actor' }, isProtectedRole: true, profile: { role: 'owner' }, permissions: ['inventory_movements.view', 'inventory_movements.create'], hasPermission: () => true };
+const outlets = [{ id: 'outlet', name: 'Outlet' }, { id: 'other', name: 'Other' }];
+const data = { movements: [{ id: 'm', itemId: 'item', outletId: 'outlet', movementType: 'Purchase', referenceType: 'purchase_order', referenceId: 'po-id', reference: 'PO-QA', quantity: 1 }], items: [{ id: 'item', name: 'Item', unit: 'pcs' }], people: [] };
+beforeEach(() => { vi.clearAllMocks(); mocks.load.mockResolvedValue(data); mocks.save.mockResolvedValue({}); mocks.transfer.mockResolvedValue({}); mocks.resolve.mockResolvedValue('po-id'); });
+afterEach(cleanup);
+it('owns manual/transfer commands and coherent invalidation without parent callbacks', async () => {
+  const notify = vi.fn();
+  render(<InventoryMovementsPage auth={auth} ui={{ notify }} outlets={outlets} suppliers={[]} />);
+  const record = await screen.findByRole('button', { name: 'Record Movement' });
+  await waitFor(() => expect(record.disabled).toBe(false));
+  fireEvent.click(record); fireEvent.click(screen.getByText('Submit manual')); fireEvent.click(screen.getByText('Submit manual'));
+  await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+  expect(mocks.save).toHaveBeenCalledTimes(1);
+  await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(2));
+  fireEvent.click(record); fireEvent.click(screen.getByText('Submit transfer'));
+  await waitFor(() => expect(mocks.transfer).toHaveBeenCalledTimes(1));
+  expect(mocks.transfer).toHaveBeenCalledWith({ movement: expect.objectContaining({ fromOutletId: 'outlet', toOutletId: 'other', quantity: 1, reference: 'TRF-QA' }) });
+  await waitFor(() => expect(mocks.load).toHaveBeenCalledTimes(3));
+});
+it('opens the existing PO surface using identity only', async () => {
+  render(<InventoryMovementsPage auth={auth} ui={{}} outlets={outlets} suppliers={[]} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'PO-QA' }));
+  expect(await screen.findByText('PO identity po-id')).toBeTruthy();
+});
+it('opens Wastage by identity without loading its detail into the route bundle', async () => {
+  mocks.load.mockResolvedValue({ ...data, movements: [{ ...data.movements[0], referenceType: 'waste', referenceId: 'waste-id', reference: 'WASTE-QA' }] });
+  render(<InventoryMovementsPage auth={auth} ui={{}} outlets={outlets} suppliers={[]} />);
+  fireEvent.click(await screen.findByRole('button', { name: 'WASTE-QA' }));
+  expect(await screen.findByText('Waste identity waste-id')).toBeTruthy();
+});
+it('rejects stale scope reads and incomplete results instead of showing an authoritative empty table', async () => {
+  let resolveOld;
+  mocks.load.mockImplementationOnce(() => new Promise(resolve => { resolveOld = resolve; })).mockResolvedValueOnce({ ...data, movements: [] });
+  const hook = renderHook(({ outletIds }) => useInventoryMovementsRead({ outletIds, scopeKey: 'actor', enabled: true }), { initialProps: { outletIds: ['outlet'] } });
+  hook.rerender({ outletIds: ['other'] });
+  await waitFor(() => expect(hook.result.current.state).toBe('ready'));
+  await act(async () => resolveOld(data));
+  expect(hook.result.current.data.movements).toEqual([]);
+  mocks.load.mockRejectedValueOnce(Object.assign(new Error('Truncated read'), { readState: 'incomplete' }));
+  await act(async () => invalidateInventoryReads({ outletId: 'other' }));
+  await waitFor(() => expect(hook.result.current.state).toBe('incomplete'));
+  expect(hook.result.current.data).toBeNull();
+});

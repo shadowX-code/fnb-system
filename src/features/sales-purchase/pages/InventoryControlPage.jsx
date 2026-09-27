@@ -57,16 +57,15 @@ import { readCompleteInventoryRows } from "../../../services/inventoryCompleteRe
 import { createInventoryRecipeReadModel } from "../inventory/recipes/inventoryRecipeReadModel.js";
 import { findRecipeCodeMatches, uploadRecipePhoto } from "../inventory/recipes/inventoryRecipeModalSupportReads.js";
 import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
-import InventoryWasteDetail from "../inventory/waste/InventoryWasteDetail.jsx";
 import InventoryItemPhotoPreview from "../inventory/InventoryItemPhotoPreview.jsx";
 import { mapRemoteWasteRecord, persistRemoteWasteRecord } from "../inventory/waste/inventoryWasteService.js";
 import InventoryMovementsPage from "../inventory/movements/InventoryMovementsPage.jsx";
-import InventoryManualMovementModal from "../inventory/movements/InventoryManualMovementModal.jsx";
+import { mapRemoteInventoryMovement, persistRemoteInventoryMovement, persistRemoteInventoryMovementUpdate } from "../inventory/movements/inventoryMovementService.js";
 import InventoryGroupsPage from "../inventory/groups/InventoryGroupsPage.jsx";
 import { groupCategoryIds, mapRemoteStockCheckGroup, stockCheckItemsForGroup } from "../inventory/groups/inventoryGroupsModel.js";
 import InventoryStockCheckResultModal from "../inventory/stockChecks/InventoryStockCheckResultModal.jsx";
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
-import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty, isPurchaseOrderReference } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
+import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { resolveAdminLocation } from "../../../app/routeOwnership.js";
@@ -675,25 +674,6 @@ function mapRemoteEmployeeLite(row = {}) {
 
 
 
-function mapRemoteInventoryMovement(row = {}) {
-  return {
-    id: row.id,
-    date: normalizeBusinessDate(row.movement_date || row.created_at),
-    dateTime: row.created_at || "",
-    itemId: row.inventory_item_id || row.item_id || "",
-    type: String(row.movement_type || "purchase").toLowerCase(),
-    movementType: row.movement_type || "Purchase",
-    quantity: row.quantity === null || row.quantity === undefined ? 0 : Number(row.quantity),
-    unit: row.unit || "",
-    outletId: row.outlet_id || "",
-    user: row.created_by || "",
-    createdBy: row.created_by || "",
-    reference: row.reference_no || "",
-    referenceType: row.reference_type || "",
-    referenceId: row.reference_id || "",
-    notes: row.notes || "",
-  };
-}
 
 
 function mapRemoteRecipeItem(row = {}) {
@@ -1562,69 +1542,6 @@ async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
 }
 
 
-async function persistRemoteInventoryMovement(movement = {}, userId) {
-  if (!isUuid(movement.outletId)) throw new Error("Outlet is required.");
-  if (!isUuid(movement.itemId)) throw new Error("Inventory item is required.");
-  const timestamp = movement.date ? businessDateToTimestamp(movement.date) : new Date().toISOString();
-  const movementType = toTitle(movement.type || movement.movementType || "adjustment");
-  let quantity = Number(movement.quantity || 0);
-  const movementKey = canonical(movementType);
-  if (movementKey === "purchase") quantity = Math.abs(quantity);
-  if (movementKey === "waste") quantity = -Math.abs(quantity);
-  if (!Number.isFinite(quantity) || quantity === 0) throw new Error("Quantity is required.");
-  const payload = {
-    outlet_id: movement.outletId,
-    inventory_item_id: movement.itemId,
-    movement_type: movementType,
-    quantity,
-    unit: movement.unit || null,
-    reference_type: movement.referenceType || "manual",
-    reference_id: isUuid(movement.referenceId) ? movement.referenceId : null,
-    reference_no: movement.reference || movement.referenceNo || null,
-    notes: movement.notes || null,
-    created_by: userId || null,
-    created_at: timestamp,
-  };
-  const rpcResult = await inventoryLifecycleService.saveInventoryMovement({ movement: payload });
-  return mapRemoteInventoryMovement(rpcResult.movement || {});
-}
-
-function canEditInventoryMovement(movement = {}) {
-  const referenceType = canonical(movement.referenceType || "");
-  if (referenceType === "purchase_order" || referenceType === "po") return false;
-  const type = canonical(movement.movementType || movement.type || "");
-  return type === "waste" || type === "adjustment" || type.includes("transfer");
-}
-
-function movementEditPayload(movement = {}) {
-  if (!isUuid(movement.outletId)) throw new Error("Outlet is required.");
-  if (!isUuid(movement.itemId)) throw new Error("Inventory item is required.");
-  const movementType = toTitle(movement.type || movement.movementType || "adjustment");
-  let quantity = Number(movement.quantity || 0);
-  const movementKey = canonical(movementType);
-  if (movementKey === "purchase") quantity = Math.abs(quantity);
-  if (movementKey === "waste") quantity = -Math.abs(quantity);
-  if (!Number.isFinite(quantity) || quantity === 0) throw new Error("Quantity is required.");
-  return {
-    outlet_id: movement.outletId,
-    inventory_item_id: movement.itemId,
-    movement_type: movementType,
-    quantity,
-    unit: movement.unit || null,
-    reference_type: movement.referenceType || "manual",
-    reference_id: isUuid(movement.referenceId) ? movement.referenceId : null,
-    reference_no: movement.reference || movement.referenceNo || null,
-    notes: movement.notes || null,
-  };
-}
-
-async function persistRemoteInventoryMovementUpdate(movement = {}, userId) {
-  if (!isUuid(movement.id)) throw new Error("Movement record is required.");
-  if (!canEditInventoryMovement(movement)) throw new Error("Purchase receiving movements are read-only.");
-  const payload = movementEditPayload(movement);
-  const rpcResult = await inventoryLifecycleService.saveInventoryMovement({ movement: { id: movement.id, ...payload } });
-  return mapRemoteInventoryMovement(rpcResult.movement || {});
-}
 
 
 async function persistRemoteRecipe(recipe = {}, userId) {
@@ -4894,7 +4811,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     cancelPo: hasPermission(auth, "inventory_orders.cancel"),
     exportPo: hasPermission(auth, "inventory_orders.export"),
     managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_orders.submit") || hasPermission(auth, "inventory_orders.receive") || hasPermission(auth, "inventory_orders.complete") || hasPermission(auth, "inventory_orders.cancel"),
-    recordMovement: hasPermission(auth, "inventory_movements.create"),
     viewInsights: hasPermission(auth, "inventory_dashboard.view"),
     viewRecipes: activeTab === "recipe-intelligence" ? hasPermission(auth, "recipe_intelligence.view") : hasPermission(auth, "inventory_recipes.view"),
     manageRecipeIntelligence: hasPermission(auth, "recipe_intelligence.manage"),
@@ -6211,38 +6127,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 
 
 
-  async function saveMovement(movement) {
-    try {
-      if (movement.transfer) {
-        const reference = movement.reference || `TRF-${Date.now().toString().slice(-8)}`;
-        const base = {
-          itemId: movement.itemId,
-          unit: movement.unit || itemById.get(movement.itemId)?.unit || "",
-          reference,
-          referenceType: "transfer",
-          notes: movement.notes,
-        };
-        await inventoryLifecycleService.transferInventory({ movement: { ...movement, ...base } });
-        await refreshInventory();
-        setModal(null);
-        notify(movement.id ? "Inventory movement updated" : "Inventory movement recorded");
-        return;
-      }
-      const selectedItem = itemById.get(movement.itemId);
-      const existing = data.movements.some((entry) => entry.id === movement.id);
-      const savedMovement = existing
-        ? await persistRemoteInventoryMovementUpdate({ ...movement, unit: movement.unit || selectedItem?.unit || "" }, auth?.user?.id)
-        : await persistRemoteInventoryMovement({ ...movement, unit: movement.unit || selectedItem?.unit || "" }, auth?.user?.id);
-      setData((current) => ({ ...current, movements: [savedMovement, ...current.movements.filter((entry) => entry.id !== savedMovement.id)] }));
-      await refreshInventory();
-      setModal(null);
-      notify(existing ? "Inventory movement updated" : "Inventory movement recorded");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to save inventory movement.", error);
-      debugLog("[InventoryMovementDebug]", { action: "save-movement", movement, error });
-      notify("Unable to save movement", error.message || "Please try again.", "error");
-    }
-  }
 
 
   async function saveRecipe(recipe) {
@@ -7352,25 +7236,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     />;
   }
 
-  function renderMovements() {
-    const openMovementReference = (movement) => {
-      const referenceType = canonical(movement.referenceType || "");
-      if (isPurchaseOrderReference(movement)) {
-        if (isUuid(movement.referenceId)) return setModal({ type: "po-surface", orderId: movement.referenceId });
-        const order = data.orders.find((entry) => entry.id === movement.referenceId || entry.poNo === movement.reference);
-        if (order) return setModal({ type: "po-surface", orderId: order.id });
-      }
-      if (referenceType === "waste") {
-        return setModal({ type: "waste-detail", wasteId: movement.referenceId });
-      }
-      if (referenceType === "transfer") {
-        const transferMovements = data.movements.filter((entry) => entry.reference && movement.reference && entry.reference === movement.reference);
-        return setModal({ type: "transfer-detail", movement, movements: transferMovements.length ? transferMovements : [movement] });
-      }
-      notify("Reference detail unavailable", "No linked detail record is available for this movement.", "info");
-    };
-    return <InventoryMovementsPage movements={data.movements} itemById={itemById} outletById={outletById} outletOptions={getAccessibleOutletOptions(auth, outlets)} actorNameByAnyId={actorNameByAnyId} formatDateTimeCompact={formatDateTimeCompact} canonical={canonical} toTitle={toTitle} canEditMovement={canEditInventoryMovement} canRecordMovement={can.recordMovement} onEditMovement={(movement) => setModal({ type: "movement", movement })} onOpenReference={openMovementReference} />;
-  }
 
 
   function renderRecipes() {
@@ -8125,7 +7990,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "stock-check") return renderStockCheck();
     if (activeTab === "requests") return renderRequests();
     if (activeTab === "orders") return renderOrders();
-    if (activeTab === "movements") return renderMovements();
     if (activeTab === "recipe-intelligence") return renderRecipes();
     return renderRecipes();
   }
@@ -8158,9 +8022,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "requests") return null;
     if (activeTab === "orders") {
       return <button className="btn-secondary" type="button" onClick={() => requirePermission(can.exportPo, "export purchase orders") && exportPurchaseOrders()}><Download size={15} /> Export</button>;
-    }
-    if (activeTab === "movements") {
-      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>;
     }
     if (activeTab === "recipe-intelligence") {
       return null;
@@ -8265,39 +8126,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
-      {modal?.type === "movement" ? <InventoryManualMovementModal outlets={outlets} items={data.items} movements={data.movements} movement={modal.movement} canonical={canonical} isActiveInventoryItem={isActiveInventoryItem} todayInput={todayInput} makeId={makeId} parseNonNegativeNumber={parseNonNegativeNumber} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
-      {modal?.type === "transfer-detail" ? (() => {
-        const rows = modal.movements || [];
-        const reference = modal.movement?.reference || rows[0]?.reference || "Transfer";
-        return (
-          <Modal
-            title="Transfer Detail"
-            description={reference}
-            size="lg"
-            onClose={() => setModal(null)}
-            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
-          >
-            <div className="space-y-2">
-              {rows.map((row) => {
-                const item = itemById.get(row.itemId);
-                const quantity = Number(row.quantity || 0);
-                return (
-                  <div key={row.id} className="rounded-2xl border border-border bg-slate-50 p-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <div className="font-bold text-text-primary">{quantity < 0 ? "Transfer Out" : "Transfer In"}</div>
-                        <div className="mt-1 type-caption text-text-secondary">{outletById.get(row.outletId)?.name || "Outlet"} · {item?.name || "Inventory item"}</div>
-                      </div>
-                      <Badge tone="info">{quantity > 0 ? "+" : ""}{quantity} {row.unit || item?.unit || ""}</Badge>
-                    </div>
-                    {row.notes ? <div className="mt-2 type-body-sm text-text-secondary">{row.notes}</div> : null}
-                  </div>
-                );
-              })}
-            </div>
-          </Modal>
-        );
-      })() : null}
       {modal?.type === "recipe" ? (
         <RecipeModal
           recipe={modal.recipe}
@@ -8381,13 +8209,13 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
         onClose={() => setModal(null)}
       /> : null}
       {poSurface}
-      {modal?.type === "waste-detail" ? <InventoryWasteDetail wasteId={modal.wasteId} auth={auth} outlets={outlets} onClose={() => setModal(null)} /> : null}
       <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
   );
 }
 
 function InventoryControlPage(props) {
+  if (props.initialTab === "movements") return <InventoryMovementsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
   if (props.initialTab === "par-levels") return <InventoryParLevelsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
   if (props.initialTab === "waste") return <InventoryWastePage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "groups") return <InventoryGroupsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
