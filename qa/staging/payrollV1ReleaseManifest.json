@@ -394,5 +394,11 @@
     "productionVersion": "20260927110645",
     "stagingVersion": "20260927110719",
     "sha256": "9537c5827ac090b53ce3afebcdc20e347b527809566f7b336bab14c525341441"
+  },
+  {
+    "file": "20260927124520_payroll_payslip_corporate_identity.sql",
+    "productionVersion": "20260927124520",
+    "stagingVersion": "20260927124803",
+    "sha256": "5ff9a7652ea000ae9f46c402d1b1fd1643fb4c0e3b9ea8eaade02c0e2e2d6991"
   }
 ]

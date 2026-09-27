@@ -8,6 +8,8 @@ const require = createRequire('/private/tmp/feedx-payroll-pdf-test/package.json'
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const fontkit = require('@pdf-lib/fontkit');
 const base = { identity:{employer:'QA ONLY FeedX Payslip Design',registration:'QA-P5-20260927',employee_name:'QA ONLY Phase 5 Monthly',employee_code:'QA-P5-1',position:'Restaurant Supervisor',workplace:'QA ONLY Phase 5 Workplace'},pay_basis:'monthly',period_start:'2026-06-01',period_end:'2026-06-30',finalized_at:'2026-09-27T08:07:47.180031+00:00',earnings:[{label:'Basic Salary',amount:3250},{label:'Transport Allowance',amount:100}],deductions:[],reimbursements:[],gross_earnings:3350,net_pay:2918.25,statutory:[{scheme:'epf',applicable:true,amount:359,employer_amount:424},{scheme:'socso',applicable:true,amount:16.25,employer_amount:56.85},{scheme:'eis',applicable:true,amount:6.5,employer_amount:6.5},{scheme:'pcb',applicable:true,amount:50}]};
+base.identity.employer_address='QA ONLY · 12 Jalan Contoh, 30000 Ipoh, Perak, Malaysia';
+base.identity.ic_passport='900101-08-1234';
 const api={PDFDocument,StandardFonts,rgb,fontkit};
 const fonts = manifest => loadPayslipFonts(manifest, async path => new Blob([await readFile(new URL(`../../supabase/functions/payroll-payslips/fonts/prepared/${path.split('/').at(-1)}`,import.meta.url))]));
 const render = async manifest => renderPayslip(manifest,{...api,unicodeFonts:await fonts(manifest)});
@@ -17,11 +19,11 @@ const hourly={...base,pay_basis:'hourly',identity:{...base.identity,employee_nam
 await writeFile('/private/tmp/feedx-phase5-monthly.pdf',monthly);
 await writeFile('/private/tmp/feedx-phase5-hourly.pdf',await render(hourly));
 await writeFile('/private/tmp/feedx-phase5-draft.pdf',await render({...base,draft:true}));
-const unicode={...base,identity:{...base.identity,employee_name:'QA ONLY 陈伟明 · 长名称测试'},earnings:Array.from({length:40},(_,i)=>({label:`津贴 ${i} · Long financial line wrapping verification`,amount:1}))};
+const unicode={...base,draft:true,identity:{...base.identity,employer:'QA ONLY 冷启动有限公司',employee_name:'QA ONLY 陈伟明 · 长名称测试'},earnings:Array.from({length:40},(_,i)=>({label:`津贴 ${i} · Long financial line wrapping verification`,amount:1}))};
 const started=performance.now();
 const bytes=await render(unicode);
 assert.deepEqual(bytes,await render(unicode));
-assert.ok(bytes.length<500000,'Representative Unicode PDF comfortably below 5 MiB');
+assert.ok(bytes.length<1000000,'Expanded Unicode identity PDF comfortably below 5 MiB');
 assert.throws(()=>requiredFontShards({...base,identity:{...base.identity,employee_name:'Unsupported 🦄'}}),/not supported/,'Never silently drop unsupported source-font glyphs');
 assert.ok((await PDFDocument.load(bytes)).getPageCount()>1,'Long statement pagination');
 await writeFile('/private/tmp/feedx-phase5-unicode.pdf',bytes);
