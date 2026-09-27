@@ -184,6 +184,16 @@ export const payrollService = {
     }),
   runTimeReadiness: (runId) => command("payroll_run_time_readiness", { p_run_id: runId }),
   calculateRun: (runId) => command("payroll_run_calculate", { p_run_id: runId }),
+  recalculateRun: async (runId) => {
+    await command("payroll_run_calculate", { p_run_id: runId });
+    return command("payroll_run_statutory_calculate", { p_run_id: runId });
+  },
+  finalizeRun: async (runId, status, reason) => {
+    // Preserve each server-validated transition and its evidence, without extra UI steps.
+    if (status === "draft") await command("payroll_run_transition", { p_run_id: runId, p_next_status: "review_required", p_reason: reason });
+    if (["draft", "review_required"].includes(status)) await command("payroll_run_transition", { p_run_id: runId, p_next_status: "ready", p_reason: reason });
+    return command("payroll_run_transition", { p_run_id: runId, p_next_status: "finalized", p_reason: reason });
+  },
   recalculateEmployee: (runId, employeeId) => command("payroll_employee_recalculate", {
     p_run_id: runId, p_employee_id: employeeId,
   }),

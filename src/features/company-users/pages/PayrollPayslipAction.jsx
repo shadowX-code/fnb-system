@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { payrollService } from '../../../services/payrollService.js';
 import Modal from '../../../components/feedback/Modal.jsx';
+import { FileText } from 'lucide-react';
 
 // Both row actions share private document access and the canonical PDF layout.
 export default function PayrollPayslipAction({ runId, employeeId, draft = false }) {
@@ -22,7 +23,7 @@ export default function PayrollPayslipAction({ runId, employeeId, draft = false 
   }
   const title = draft ? 'Draft Payslip' : 'Payslip';
   return <>
-    <button type="button" className="btn-ghost" disabled={busy} onClick={event => { event.stopPropagation(); load(); }}>{title}</button>
+    <button type="button" className="btn-secondary" disabled={busy} onClick={event => { event.stopPropagation(); load(); }}><FileText size={16} aria-hidden="true" />{title}</button>
     {open && <Modal title={title} size="xl" description={draft ? 'DRAFT · NOT FINAL · Admin preview of the current calculation.' : 'Private document from the finalized Payroll snapshot.'}
       onClose={close} footer={<button type="button" className="btn-secondary" onClick={close}>Close</button>}>
       {busy && <p role="status">Opening payslip…</p>}

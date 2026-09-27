@@ -14,6 +14,7 @@ import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
 import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./PayrollMonthlyBasicBreakdown.jsx";
 import PayrollPhWork from "./PayrollPhWork.jsx";
 import PayrollPayslipAction from './PayrollPayslipAction.jsx';
+import { Eye } from 'lucide-react';
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
 
@@ -138,9 +139,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     try { await payrollService.recalculateEmployee(run.id, selected.id); }
     finally { await refresh(); }
   };
-  const calculate = async (statutoryOnly = false) => {
+  const calculate = async () => {
     setBusy(true); setError("");
-    try { await (statutoryOnly ? payrollService.calculateStatutory(run.id) : payrollService.calculateRun(run.id)); await refresh(); }
+    try { await payrollService.recalculateRun(run.id); await refresh(); }
     catch (cause) { setError(cause.message || "Unable to refresh Payroll calculation."); }
     finally { setBusy(false); }
   };
@@ -161,7 +162,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "net", header: "Net Pay", align: "right", render: row => <strong className="tabular-nums">{money(row.result.net)}</strong> },
     { key: "bank", header: "Bank Info", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.name} onRetry={() => setBankRetry(value => value + 1)} /> },
     { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Attention" : "Ready"}</Badge> },
-    { key: "action", header: "Actions", render: row => <div className="inline-flex gap-1"><button type="button" className="btn-ghost" onClick={() => setEmployeeId(row.id)}>View</button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
+    { key: "action", header: "Actions", render: row => <div className="inline-flex gap-1"><button type="button" className="btn-secondary" onClick={() => setEmployeeId(row.id)}><Eye size={16} aria-hidden="true" />View</button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
   ];
   const columns = stage === "review" ? reviewColumns : [
     { key: "employee", header: "Employee", render: (row) => <div><strong>{row.name}</strong><small className="block text-text-secondary">{row.employee_code || "—"}</small></div> },
@@ -184,7 +185,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   return <div className="space-y-4">
     <Card className="flex flex-wrap items-center justify-between gap-3 p-4"><div><h3 className="text-lg font-bold">{stage === "review" ? "Review Payroll" : "Prepare Payroll"}</h3>
       <p className="text-sm text-text-secondary">{rows.length} included · {rows.filter((row) => row.needsReview).length} need attention. Resolve only exceptions; clean evidence needs no manual approval.</p></div>
-      {active && (stage === "review" ? <div className="flex flex-wrap gap-2"><button className="btn-secondary" type="button" disabled={busy || !rows.length} onClick={() => calculate(true)}>Calculate Statutory</button><button className="btn-secondary" type="button" disabled={busy} onClick={() => calculate()}>{busy ? "Updating…" : "Recalculate Payroll"}</button></div> : <button type="button" className="btn-secondary" disabled={busy} onClick={reconcile}>{busy ? "Reconciling…" : "Refresh time evidence"}</button>)}</Card>
+      {active && (stage === "review" ? <button className="btn-secondary" type="button" disabled={busy} onClick={calculate}>{busy ? "Updating…" : "Recalculate Payroll"}</button> : <button type="button" className="btn-secondary" disabled={busy} onClick={reconcile}>{busy ? "Reconciling…" : "Refresh time evidence"}</button>)}</Card>
     {stage === "review" && <AdminFilterToolbar ariaLabel="Payroll review filters" compact denseFields searchAfterFilters
       filters={<><SelectField label="Status" ariaLabel="Review status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, { value: "ready", label: "Ready" }, { value: "attention", label: "Need Attention" }]} />
         <SelectField label="Pay Basis" ariaLabel="Review pay basis" value={basisFilter} onChange={setBasisFilter} options={[{ value: "all", label: "All" }, { value: "monthly", label: "Monthly" }, { value: "hourly", label: "Hourly" }]} />

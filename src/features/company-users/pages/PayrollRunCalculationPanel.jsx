@@ -98,14 +98,8 @@ export default function PayrollRunCalculationPanel({ run, canManage, onChanged, 
   useEffect(() => { load(); }, [load]);
   const calculate = async () => {
     setBusy(true); setError("");
-    try { await payrollService.calculateRun(run.id); await load(); await onChanged?.(); }
+    try { await payrollService.recalculateRun(run.id); await load(); await onChanged?.(); }
     catch (cause) { setError(cause.message || "Unable to calculate Run."); }
-    finally { setBusy(false); }
-  };
-  const calculateStatutory = async () => {
-    setBusy(true); setError("");
-    try { await payrollService.calculateStatutory(run.id); await load(); await onChanged?.(); }
-    catch (cause) { setError(cause.message || "Unable to calculate statutory results."); }
     finally { setBusy(false); }
   };
   const openPcb = (row) => {
@@ -206,8 +200,7 @@ export default function PayrollRunCalculationPanel({ run, canManage, onChanged, 
         <p className="text-sm text-text-secondary">{data?.readiness ?
           `${rows.length} employees · ${rows.filter((row) => overallStatus(row, statutoryFor(row)) !== "Ready").length} need attention${data.readiness.period_in_progress ? " · pay period still in progress" : ""}` : "Loading payroll evidence…"}</p></div>
       {canEdit && <div className="flex flex-wrap gap-2">
-        <button className="btn-secondary" type="button" disabled={busy || !rows.length} onClick={calculateStatutory}>{busy ? "Calculating…" : "Calculate Statutory"}</button>
-        <button className="btn-primary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : rows.length ? "Recalculate" : "Calculate Payroll"}</button></div>}
+        <button className="btn-secondary" type="button" disabled={busy} onClick={calculate}>{busy ? "Calculating…" : "Recalculate Payroll"}</button></div>}
     </div>
     {stage === "review" && rows.length > 0 && <div className="grid gap-3 border-b border-border p-4 text-sm sm:grid-cols-5">
       <div><span className="text-text-secondary">Gross Payroll</span><strong className="block tabular-nums">{rows.some((row) => row.is_stale || row.uncalculated || row.status !== "ready") ? "Pending review" : rm(rows.reduce((sum, row) => sum + Number(row.gross_earnings || 0), 0))}</strong></div>

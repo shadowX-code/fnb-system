@@ -344,12 +344,13 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
     if (!pendingTransition || !transitionReason.trim()) return;
     setBusy(true); setError("");
     try {
-      await payrollService.transitionRun(pendingTransition.runId, pendingTransition.status, transitionReason.trim());
+      if (pendingTransition.status === "finalized") await payrollService.finalizeRun(pendingTransition.runId, run.status, transitionReason.trim());
+      else await payrollService.transitionRun(pendingTransition.runId, pendingTransition.status, transitionReason.trim());
       await reload();
       setPendingTransition(null);
       setTransitionReason("");
     }
-    catch (cause) { setError(cause.message || "Unable to transition run."); }
+    catch (cause) { setError(cause.message || "Unable to transition run."); await reload(); }
     finally { setBusy(false); }
   };
   const requestTransition = (runId, status) => {
@@ -408,9 +409,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
       {run && <div className="mt-2 flex flex-wrap items-center gap-3 text-sm"><Badge tone={["ready", "finalized", "paid"].includes(run.status) ? "success" : "warning"}>{label(run.status)}</Badge><span>{employeeCount ?? (commandRows.length || "—")} employees</span>
         {!["finalized", "paid"].includes(run.status) && <span>{commandRows.length ? `${readyCount} Ready · ${commandRows.length - readyCount} Need Attention` : "Checking readiness…"}</span>}</div>}</div>
       <div className="flex flex-wrap gap-2">
-        {run && canManage && run.status === "draft" && <button className="btn-primary" type="button" disabled={busy} onClick={() => requestTransition(run.id, "review_required")}>Send to Review</button>}
-        {run && canManage && run.status === "review_required" && <button className="btn-primary" type="button" disabled={busy || !allReady} onClick={() => requestTransition(run.id, "ready")}>Mark Ready</button>}
-        {run && canFinalize && run.status === "ready" && <button className="btn-primary" type="button" disabled={busy || !allReady || !totals || totals.error} onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}
+        {run && canFinalize && (run.status === "ready" || (canManage && ["draft", "review_required"].includes(run.status))) && allReady && <button className="btn-primary" type="button" disabled={busy || !totals || totals.error} onClick={() => requestTransition(run.id, "finalized")}>Finalize Payroll</button>}
         {runs.length > 1 && <SelectField ariaLabel="Payroll revision" value={run?.id || ""} onChange={(value) => { setOpenRunId(value); setStep(runs.find((item) => item.id === value)?.status === "finalized" ? 2 : 0); }} options={runs.map((item) => ({ value: item.id, label: `Revision ${item.revision} · ${label(item.status)}` }))} />}
       </div></div>
       {run && <><dl className="grid grid-cols-2 gap-4 border-t border-border pt-3 lg:grid-cols-4">{[["Gross Payroll", commandTotals.gross], ["Employee Deductions", commandTotals.deductions], ["Net Payroll", commandTotals.net], ["Employer Cost", commandTotals.employerCost]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 font-bold tabular-nums">{displayMoney(value)}</dd></div>)}</dl>

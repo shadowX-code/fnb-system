@@ -54,7 +54,7 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
     { key: "net", header: "Net Pay", align: "right", render: row => <strong>{money(row.statutory?.net_pay)}</strong> },
     { key: "bank", header: "Bank Info", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.employee_name} onRetry={() => setBankRetry(value => value + 1)} /> },
     { key: "status", header: "Status", render: () => <Badge tone="success">Finalized</Badge> },
-    { key: "action", header: "Action", render: row => row.calculation && row.statutory ? <div className="inline-flex gap-1"><button type="button" className="btn-ghost" onClick={() => setSelected(row)}>View</button><PayrollPayslipAction runId={run.id} employeeId={row.employee_id} /></div> : <span className="text-xs text-text-secondary">Financial snapshot unavailable</span> },
+    { key: "action", header: "Action", render: row => row.calculation && row.statutory ? <div className="inline-flex gap-1"><button type="button" className="btn-secondary" onClick={() => setSelected(row)}><Eye size={16} aria-hidden="true" />View</button><PayrollPayslipAction runId={run.id} employeeId={row.employee_id} /></div> : <span className="text-xs text-text-secondary">Financial snapshot unavailable</span> },
   ];
   return <div className="space-y-4">
     {!commandHeader && <Card className="p-5"><h3 className="text-lg font-bold">Payroll Record</h3>
@@ -70,3 +70,4 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
       frozenPeriod={record.period.period_start.slice(0, 7)} onClose={() => setSelected(null)} />}
   </div>;
 }
+import { Eye } from 'lucide-react';

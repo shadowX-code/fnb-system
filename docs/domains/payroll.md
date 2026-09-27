@@ -621,6 +621,14 @@ is unchanged. Retired definitions permit stopping an existing assignment only.
 
 ## Phase 5 V1 — Draft and Private Final Payslips
 
+Run review is always navigable and projects canonical readiness; Send to Review
+and Mark Ready are not separate Admin tasks. One Finalize confirmation delegates
+to the existing sequential review/ready/finalized commands, retaining all server
+permission, evidence and snapshot gates. A partial failure reloads current Run
+state; no client result can authorize finalization. Recalculate Payroll runs the
+existing earnings command followed by statutory calculation, stopping on failure.
+Manual PCB confirmation remains an independent employee review requirement.
+
 Payroll owns payslips separately from Legal Contracts and Employment Documents.
 Finalization captures an immutable payslip identity alongside the existing
 financial snapshots. The private `payroll-payslips` gateway renders one A4
