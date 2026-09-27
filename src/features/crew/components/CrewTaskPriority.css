@@ -1,16 +1,18 @@
 .crew-task-heading {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .crew-task-heading > strong {
-  display: inline;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .crew-task-heading > .crew-ui-status {
   min-height: 18px;
-  margin-inline-start: 5px;
   padding: 1px 5px;
   font-size: var(--crew-type-badge);
   vertical-align: baseline;
