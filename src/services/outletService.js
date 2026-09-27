@@ -16,6 +16,7 @@ function mapOutlet(outlet) {
     status: isActive ? "active" : "inactive",
     location: outlet.location ?? outlet.address ?? "",
     address: outlet.address ?? outlet.location ?? "",
+    state_code: outlet.state_code ?? "",
     attendance_location_enabled: Boolean(outlet.attendance_location_enabled),
     attendance_latitude: outlet.attendance_latitude ?? "",
     attendance_longitude: outlet.attendance_longitude ?? "",
@@ -35,7 +36,7 @@ export const outletService = {
   async listOutlets() {
     const { data, error } = await supabase
       .from("outlets")
-      .select("id,name,code,public_feedback_token,brand_accent_color,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,brand_accent_color,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,state_code,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .order("name", { ascending: true });
 
     throwSupabaseError("outlets.list", error);
@@ -45,7 +46,7 @@ export const outletService = {
   async listActiveOutlets() {
     const { data, error } = await supabase
       .from("outlets")
-      .select("id,name,code,public_feedback_token,brand_accent_color,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,brand_accent_color,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,state_code,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .eq("is_active", true)
       .order("name", { ascending: true });
 
@@ -60,6 +61,7 @@ export const outletService = {
       code: outlet.code?.trim() || null,
       location: outlet.location?.trim() || null,
       address: outlet.location?.trim() || outlet.address?.trim() || null,
+      state_code: outlet.state_code || null,
       is_active: outlet.status ? outlet.status === "active" : outlet.is_active !== false,
       status: outlet.status ?? (outlet.is_active === false ? "inactive" : "active"),
       attendance_location_enabled: outlet.attendance_location_enabled === true || outlet.attendance_location_enabled === "true",
@@ -75,7 +77,7 @@ export const outletService = {
       : supabase.from("outlets").insert(payload);
 
     const { data, error } = await query
-      .select("id,name,code,public_feedback_token,brand_accent_color,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
+      .select("id,name,code,public_feedback_token,brand_accent_color,logo:outlet_logo_media!outlets_logo_media_id_fkey(object_path,updated_at),is_active,status,location,address,state_code,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .single();
 
     throwSupabaseError("outlets.save", error);

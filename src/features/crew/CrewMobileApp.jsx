@@ -10,6 +10,7 @@ import useCrewNotifications from "./hooks/useCrewNotifications.js";
 import CrewLogin from "./components/CrewLogin.jsx";
 import CrewHomeMobile from "./components/CrewHomeMobile.jsx";
 import CrewMeMobile from "./components/CrewMeMobile.jsx";
+import CrewPayslipsMobile from './components/CrewPayslipsMobile.jsx';
 import CrewAttendanceMobile, { CrewClockDialogs } from "./components/CrewAttendanceMobile.jsx";
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
 import CrewManagementTasksMobile from "./components/CrewManagementTasksMobile.jsx";
@@ -107,6 +108,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "assets" && <CrewAssetsMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} onBack={() => navigate("me")} onFlowChange={setAssetInspectionFlow} />}
     {screen === "employment-records" && <CrewEmploymentRecordsMobile onBack={() => navigate("me")} navigate={navigate} disciplinary={disciplinary} />}
     {screen === "employment-documents" && <CrewEmploymentDocumentsMobile token={session.token} onBack={() => navigate("employment-records")} />}
+    {screen === "payslips" && <CrewPayslipsMobile token={session.token} onBack={() => navigate("me")} />}
     {screen === "compliance" && <CrewComplianceMobile token={session.token} onBack={() => navigate("employment-records")} />}
     {screen === "disciplinary" && <CrewDisciplinaryMobile token={session.token} onBack={() => navigate("employment-records")} onViewed={refresh} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
@@ -114,7 +116,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} cashAvailable={!outletScope.management || Boolean(outletScope.outlets.find((outlet) => outlet.id === selectedOutletId)?.special_access?.can_initiate_handover)} management={outletScope.management} disciplinary={disciplinary} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
-    {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
+    {!cashCheckoutFlow && !assetInspectionFlow && <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "payslips", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;
 }
 

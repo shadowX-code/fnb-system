@@ -1,0 +1,666 @@
+{
+  "productionBaseline": "56029c15388dce0121454aec72bbe0313b7be70d",
+  "canonicalStaging": "718288b52c76079c2f7ec00ac19ce0de772588aa",
+  "files": [
+    {
+      "file": "config/modules.ts",
+      "sha256": "68dea8b17c9ee4507683a81d6b0c8e025dbe2f2c6bba11d419e581ce7d32daf2"
+    },
+    {
+      "file": "docs/domains/payroll.md",
+      "sha256": "e10ba2e882f8915c5ca454508920c3edbcb1468c505985fd17bfdee759b717df"
+    },
+    {
+      "file": "docs/README.md",
+      "sha256": "d7feab76d76195218d9bffca9e17f96cc2b6a72f3bdacf4fde4377b536ea7423"
+    },
+    {
+      "file": "qa/staging/payrollMembershipClosure.rollback.sql",
+      "sha256": "0fb7b671be60de1f64146f72e73b2953658cbc8bf895043f5d7fb5dee88a11d3"
+    },
+    {
+      "file": "qa/staging/payrollPayslipRender.mjs",
+      "sha256": "8f53baf24601cf9b6764b355aabe3aed451bd0ab45f790aafeba6f3152d7e4ee"
+    },
+    {
+      "file": "qa/staging/payrollProductionRehearsal.mjs",
+      "sha256": "a52fbd3e24beb4fd1bdfe90223859922486db141ba15cbd784d61cd212dd0956"
+    },
+    {
+      "file": "qa/staging/payrollRehearsalBootstrap.sql",
+      "sha256": "5d3e03031bfd5bf38413d971c3b7d7c77e62bc58d8e8bcdd3fe988a9a3355117"
+    },
+    {
+      "file": "qa/staging/payrollV1ReleaseManifest.json",
+      "sha256": "ec7d9c99547bd1b748cdc171d0611069b7158deae327605bb4b17365ea065127"
+    },
+    {
+      "file": "src/app/routeOwnership.js",
+      "sha256": "8292a3dbaa9c8a48b0d137d25e9509bfb4b1392c5c0196b8e87b2cd9db1b4cae"
+    },
+    {
+      "file": "src/app/routes.jsx",
+      "sha256": "8e160b63a3aac688d3867635c8649ef9f6bc22b31adfe0ed70c144196176637d"
+    },
+    {
+      "file": "src/components/forms/__tests__/AdminSegmentedControl.test.jsx",
+      "sha256": "549abef091bf61129b24bb28903cb5b22d8c4c0c65f09d868c78e427b35e9f6a"
+    },
+    {
+      "file": "src/components/forms/__tests__/DatePickerField.test.jsx",
+      "sha256": "c8f4d10233c25e8639aa76e3f1c0a04ed89edc16f2ae6fe52c580f327b78862a"
+    },
+    {
+      "file": "src/components/forms/__tests__/SelectField.test.jsx",
+      "sha256": "7e716128f367ff0164caf8100624bce7aff603c85836a93f49ba8bf0e3f0ce57"
+    },
+    {
+      "file": "src/components/forms/AdminSegmentedControl.jsx",
+      "sha256": "65d4146a0d97969bdb8554bd45c8b5105d6fab6f3af4d39b0efb5cb71b2805bf"
+    },
+    {
+      "file": "src/components/forms/DatePickerField.jsx",
+      "sha256": "67b232e57cac06380860c0793fd22b1bc8c83b13b73ee8b21f44702f6190d021"
+    },
+    {
+      "file": "src/components/forms/SelectField.jsx",
+      "sha256": "2cce3237a86592d0f5eeddee026744e367cf0a1b062ed2419ed7af323e0894fb"
+    },
+    {
+      "file": "src/components/layout/__tests__/AdminFilterToolbar.test.jsx",
+      "sha256": "2ad0093d714bc489f2f8b215293991eeca8e2bb216c4a2186b6334c52b10ffd0"
+    },
+    {
+      "file": "src/components/layout/AdminFilterToolbar.jsx",
+      "sha256": "336dfb129e298b0b9da506580a0f40a5936d6af71b3ca10375cc54d61765ba15"
+    },
+    {
+      "file": "src/components/navigation/AdminUnderlineTabs.jsx",
+      "sha256": "3d27b65fc2353ea25ce9460c82f4560d38ca3ddc3b69a9dff463cb35b298d45d"
+    },
+    {
+      "file": "src/components/ui/FloatingLayer.jsx",
+      "sha256": "341829d489bff081f5bfc765bfe67a63ca3fc7a2b36dc25e9c25508ec51f5c45"
+    },
+    {
+      "file": "src/components/ui/InfoTooltip.jsx",
+      "sha256": "f5015a8ddb522ffa300d127bac3e24ffa18c48e0713c479e9b9c08f718ddb61f"
+    },
+    {
+      "file": "src/constants/malaysiaBanks.js",
+      "sha256": "1e21932255142a6ec9ac5c10ef7e851bd6fe9e3d616b159d5bb3bfd81825413b"
+    },
+    {
+      "file": "src/constants/malaysiaStates.js",
+      "sha256": "71a32ea76e474d6f0c857751c47cb93294d7c0a9894f2d64c82ff392f76a8911"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollAnnualHolidays.test.jsx",
+      "sha256": "579f3f4c051d0088172efc8cdb598e646ac4135c6ca046b4edc495ff8ad1a4cf"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollControlCenter.test.jsx",
+      "sha256": "8712cf58a7c2c57f3180835f0bdfa348f69fa4b08eac5fe75af1bff2ad852cd8"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollEmployeeBankInfo.test.jsx",
+      "sha256": "72493fca5865279bb1790b45acfce4271d2734148d12be3b1bc0c84f09279b34"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollEmployeeRegistry.test.jsx",
+      "sha256": "b32b38dd1a3bc3943cebf66178cef3a7936d8481cdca26479b1f47d522830898"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollEmployeeSetup.test.jsx",
+      "sha256": "d903ab7fd0435ea30e35a8fafade40d7535e869e857e982f75356ea31341c312"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollFoundation.contract.test.jsx",
+      "sha256": "f21fcdecc8d67c1e810dc30fa259324fca8ae299a851453deed54d46acd4c3ca"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollHolidayImport.test.jsx",
+      "sha256": "efcf9c963961f2403cce0290d70b05ba389a10b0843a326157064380a76971ad"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollInitialSetup.test.jsx",
+      "sha256": "1238350ebd93f74a5693c2842ab0155ef9891c9cc60458f2e33cb12934e8b0c5"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollMonthlyBasicBreakdown.test.jsx",
+      "sha256": "048df49b34256d608e2c133211d30f0efe836496d184b000525a008002a3ebc3"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollOperationalRecord.test.jsx",
+      "sha256": "e475160afd8117f3a3cef825888390b1a83787fded8a237135786622d32a28bc"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollPayableTimeReview.test.jsx",
+      "sha256": "1a29268f73644c876ef406f77118a7ea8e7455ca0e088890280274c1b4deab4c"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollPayslipAction.test.jsx",
+      "sha256": "f74e41a6aea253f8e8a8d4ac624db8170dd2479ad463c41fbd69198a08d98ce3"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollPhPolicy.test.jsx",
+      "sha256": "521ca4a7fe3a9e23c89273dbfa3fb416b622ee4730e2b565dacc116b485e6eb5"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollPhWork.test.jsx",
+      "sha256": "33740f0a29f9d89a75b2705a1a32091861b371a696af918f25a81ffcf4e67beb"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollReviewBankInfo.test.jsx",
+      "sha256": "724d5a6806b8e2775b05ea34bd6af78b241edecc910f45d511a56524b11b5cf2"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollRunPreparation.test.jsx",
+      "sha256": "8ac5fd2b003a26fe208d12e92bb6ede3592a1cce3b305192772b476f4936b747"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollRunRead.test.jsx",
+      "sha256": "1bbd00ca2bf41fceaeb1d2dafeed4dfd7efc70e08eab0494f20c4a06ae692075"
+    },
+    {
+      "file": "src/features/company-users/pages/__tests__/PayrollTimeExceptionsTab.test.jsx",
+      "sha256": "89fd92134642e316ee1a8eb6fce230e6339b25d740ba03e1fb2f471a096d5377"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollAnnualHolidays.jsx",
+      "sha256": "dcbd1f539c202206ecc0c34e47a1c82605b1d0745e527fcf60eedeb2417b1060"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollEmployeeBankInfo.jsx",
+      "sha256": "e084b1da81f1dbab81df8e07d23a2ddd050a9ce35aa36ca3d6e57af38787b86e"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollEmployeeComponents.jsx",
+      "sha256": "7696122965c75abf25823a7722db36e98d917301e9d475ce5a7ffb92bf415cac"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollFinalizedRecord.jsx",
+      "sha256": "80f3327c94198d312ab11961400daecb47267397771924b9c6b86db1686faebf"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollHolidayImport.jsx",
+      "sha256": "51c29c59c02ea951bf78e05b2aac1e8ef6035be1e1f5825a1347aae664fb8cd1"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollMonthlyBasicBreakdown.jsx",
+      "sha256": "1799cf83972fca389a764206dab669beb28b328a61674d563aed0fed5453040d"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollPage.jsx",
+      "sha256": "8e2b5e7ee21790cf29499f8d475084604a7e4e19d427d010fa3769d08f2ac370"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollPayableTimeReview.jsx",
+      "sha256": "6e9f20575bb56909d9a20cfd7f1c98cacbcc3c18627cee7a2040db8fc8506887"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollPayRulesPanel.jsx",
+      "sha256": "8c36f178fce546f99d790461269f5d408d414a44629803a75102ee9ede145c98"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollPayslipAction.jsx",
+      "sha256": "82c48fc33f33ef47b646e82184cea08e8cba655681aacc5d5d3f6edc04a4bb18"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollPhWork.jsx",
+      "sha256": "4df8ce37b13fb5c13ddd3867be65b02df394d723f4db31ae4001650eb4f3d969"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollRunCalculationPanel.jsx",
+      "sha256": "b2b4405ed58168b181dde22e8d01d2b5563ed2cbc4652dcacd48ae83ff37224e"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollRunEmployeesPanel.jsx",
+      "sha256": "66da992d5c492d49ab228566404e39473391739eeb9ec6ebd6f48f12cf010196"
+    },
+    {
+      "file": "src/features/company-users/pages/payrollRunPresentation.js",
+      "sha256": "6fe2345c648904cc6ce49a231a547c6d4de96016c780470c07e33a1097837975"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollStatutorySetup.jsx",
+      "sha256": "3615518dafbd19924afbc8876549bbb828d567202a4f7c77be7971e4f357e5d2"
+    },
+    {
+      "file": "src/features/company-users/pages/PayrollTimeExceptionsTab.jsx",
+      "sha256": "f1907d8f0cb38b3410f51f56c727699c4f8d2655b3ea425f63ca735e19c55274"
+    },
+    {
+      "file": "src/features/company-users/pages/usePayrollRunRead.js",
+      "sha256": "fa3a23ff203b95d9b9b72a3913201d4896cb5ade7c3f042504f2ec6bbcc73974"
+    },
+    {
+      "file": "src/features/company-users/pages/UsersPage.jsx",
+      "sha256": "7e075125b0a138985c2bdf4e501211da9c3dd4953739415d4805d52e101a8a48"
+    },
+    {
+      "file": "src/features/crew/components/__tests__/CrewPayslipsMobile.test.jsx",
+      "sha256": "4c9b4cfcc6b129a26a67871c8ffbf26315000cd0d98da0ed8343ed07b8a24bcc"
+    },
+    {
+      "file": "src/features/crew/components/CrewMeMobile.jsx",
+      "sha256": "5da893de6bcc9748f2e28b973c7e80c3a91f5398bd5bac9fbc4f5be1f9ef4c2d"
+    },
+    {
+      "file": "src/features/crew/components/CrewPayslipsMobile.jsx",
+      "sha256": "42363c8a42444fa1eed178e0553a0299d945c829605fcabb46f6e4100f515a6c"
+    },
+    {
+      "file": "src/features/crew/CrewMobileApp.jsx",
+      "sha256": "416851cd6bf1c962b8b91e0bf7943237f66eea173192cc93c5b18384aa82d444"
+    },
+    {
+      "file": "src/features/sales-purchase/pages/OutletManagementPage.jsx",
+      "sha256": "b5d0ed1ea677f8afcb4dd7bcada29fa4736ae53557b6e13067d0b4a4ad03aa87"
+    },
+    {
+      "file": "src/locales/en/crew.js",
+      "sha256": "f1b7625ae727e441425f453975b0fa260e41f67dd2d9dfeca8d66ef37ab77f37"
+    },
+    {
+      "file": "src/locales/ms/crew.js",
+      "sha256": "ef90b7d21d19a0fb38e923791a2bdf902449380fbdfbf1bb4f4ac83ccd0728b4"
+    },
+    {
+      "file": "src/locales/zh-CN/crew.js",
+      "sha256": "29bdac9f5ec940551338131f0e6cd6f1fcf1ab22980f0b421a8ceb6aa1cdb964"
+    },
+    {
+      "file": "src/services/__tests__/payrollReviewCommands.test.js",
+      "sha256": "b1a0a3b359f3470dcaec44cd8e82adbfa41efe477dd7b9e6b77e957803ad0c7f"
+    },
+    {
+      "file": "src/services/employeeService.js",
+      "sha256": "89bc6cfd5973159f0e4c38844464d1f08b1648e74fd60c5f3728750a17cb761f"
+    },
+    {
+      "file": "src/services/outletService.js",
+      "sha256": "37e2b61c48111f0d9d8d2893e0459dd6e7e5f67a2e1167110a0c9a13dc6cef62"
+    },
+    {
+      "file": "src/services/payrollService.js",
+      "sha256": "e732ac97512c3d0bb100e1c7ce36d693ecefc2f33f6da7aba5afcd8f6b7cf344"
+    },
+    {
+      "file": "src/styles/index.css",
+      "sha256": "3ef2b6e11abfb372a761a1a2fb6e4a3f7d403abd3e8aca0260313c82ab46e26d"
+    },
+    {
+      "file": "supabase/config.toml",
+      "sha256": "fa1857d95eafd327f5cebaf5afd8353a14c44c41ca8de3f3c8323cd7e5181f05"
+    },
+    {
+      "file": "supabase/functions/payroll-holiday-updates/discovery.js",
+      "sha256": "13d670f02e14efeab3472276c3d8a1f0728df498de42073d455e8f18fa2c1345"
+    },
+    {
+      "file": "supabase/functions/payroll-holiday-updates/index.ts",
+      "sha256": "8ef40fd4cbe9753246fb6e8d7c727767c05d68a82c206a1ea57e073d7030dac9"
+    },
+    {
+      "file": "supabase/functions/payroll-payslips/fonts/LICENSE",
+      "sha256": "6a73f9541c2de74158c0e7cf6b0a58ef774f5a780bf191f2d7ec9cc53efe2bf2"
+    },
+    {
+      "file": "supabase/functions/payroll-payslips/fonts/NotoSansSC-VF.ttf.gz",
+      "sha256": "b7d08f85c1b1fbf407731fca265db33f9a9e52e260e7024a702f9340a164ad59"
+    },
+    {
+      "file": "supabase/functions/payroll-payslips/fonts/README.md",
+      "sha256": "ab81b7a664d2582fb9b0ba0526b8f360e78057a79ff334649772fb292205dae1"
+    },
+    {
+      "file": "supabase/functions/payroll-payslips/index.ts",
+      "sha256": "d0213055fc47fe9bef0c7a13525fec7784d84cd946e918e8808d05572b009d4c"
+    },
+    {
+      "file": "supabase/functions/payroll-payslips/render.js",
+      "sha256": "4f20040efc0716649534f449f05e2f0d012185a22aeb40c00c1a62a07c99df91"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollCalculationPhase3.contract.test.js",
+      "sha256": "45897aa6fc61b53bf4c9c83eedeac6895ea456a212bdb182bc88083373dd2c16"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollDraftPayslip.contract.test.js",
+      "sha256": "c98bcbe951491d85615d99d5e4f9428852a22fedfcf4e43622a393084ad05add"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollEffectiveDateContract.contract.test.js",
+      "sha256": "12493735ad2a874332a628f47d3ce5234f33120ed500533256b97733fe4ba0a2"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollEmployeeSetup.contract.test.js",
+      "sha256": "1271e59026fe6e387deb2c36064be5b101213f15c0b79e84032e6cf3af4b1460"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollEpfOctober2025.contract.test.js",
+      "sha256": "ddb626edbade88c574ccd27f8e7be0754bbc1f77b35d160110ee952a21ded317"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollFinalAdminWorkflow.contract.test.js",
+      "sha256": "51203f39645825064f006115e07d196da24322ac50264d2c2da8197f7416c121"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollManualPcbV1.contract.test.js",
+      "sha256": "5077d7782c80856e7e6b548b0844ae125bb85b93a354650a79f1616bcf21f27f"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollMonthlyEntitlement.contract.test.js",
+      "sha256": "f8c18cbbdfabdc794a67cbe09afa48d8f92927dac92ee91d3f208396051ecde0"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollPayableTimePhase2.contract.test.js",
+      "sha256": "55dd36f217abdb375e33dda07ebc9d09a875d5c5f1b4ddba1f8e8f30294ef9b7"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollPayslipsSettlement.contract.test.js",
+      "sha256": "d7097b65ad7318dfd26ef2917b4b90081cd1471dfc926a536ede2c6e3a0d0ca4"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollRunPreparation.contract.test.js",
+      "sha256": "0761d44be75a45e5d2fc069098c29b9bb9af158b4b1a3829441f0c51246dbb1a"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollStatutoryEffectiveState.contract.test.js",
+      "sha256": "04da56d3cf77c9698f3767574f5eb3dbf1c9c6da577ef795269191579b32c9cc"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollStatutoryOfficialPacks.contract.test.js",
+      "sha256": "df224c2dbe99dc6cb1e6a84ed0f09482dd0a4e3b8fcadc71583966e23b04505b"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollStatutoryPhase4.contract.test.js",
+      "sha256": "b7ccb2b88d54cc6837f874cf1505fb486770793f492e38c97d10612156fe8ff6"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollUiConsolidation.contract.test.js",
+      "sha256": "518883a55a0fb03b3bcb42760173b51e1a8dd421fde66b12a3fbbfbae5efcdce"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollUnifiedStatutorySetup.contract.test.js",
+      "sha256": "5773aed2a5a316ca5a838cd16c339c3cc38254aaa5cfd09280b737c0cf8c8d3c"
+    },
+    {
+      "file": "supabase/migrations/__tests__/payrollV1SupportedEnvelope.contract.test.js",
+      "sha256": "3d999381843483e84f940ce7c9cf7f7b5f25d531a4a729a12dad2d90cd941364"
+    },
+    {
+      "file": "supabase/migrations/20260925084053_payroll_foundation.sql",
+      "sha256": "3e12badf5b3acf0789a8d437e33638bd637ab155b18614ffed116fc0b1408898"
+    },
+    {
+      "file": "supabase/migrations/20260925084327_payroll_foundation_guard_fix.sql",
+      "sha256": "4d56863b835e3c8ef5aee89980ae5f55f9c1fe5f5677b1e49fb322a5fe1af5ca"
+    },
+    {
+      "file": "supabase/migrations/20260925084828_payroll_finalized_effective_date_guard.sql",
+      "sha256": "40b8d0b58e28e1ae7300e22e2ace6a07223023083808aaddec37f3e52576ffec"
+    },
+    {
+      "file": "supabase/migrations/20260925085222_payroll_cost_attribution_guard.sql",
+      "sha256": "3b5600644f1ccde1909c337f98a013fe646bc75632a9f02afe2bbb39f8631d92"
+    },
+    {
+      "file": "supabase/migrations/20260925110812_payroll_payable_time_phase2.sql",
+      "sha256": "53aefa712eed71da66953137ac42ff14e4ccd9b1c9fcf9f161928d9a60b6c4ec"
+    },
+    {
+      "file": "supabase/migrations/20260925111136_payroll_time_guard_fix.sql",
+      "sha256": "81b2aeefe18f87c7013a26366c4913015e989abbcd2634403e7bcc649bbd98a6"
+    },
+    {
+      "file": "supabase/migrations/20260925111855_payroll_time_indexes_and_semantics.sql",
+      "sha256": "df76a24918f37d00e27cb39ebc76bd7ccf022a3227b0be7a7c76030a64e0c4ce"
+    },
+    {
+      "file": "supabase/migrations/20260925112435_payroll_time_removed_source_guard.sql",
+      "sha256": "876378faa5094489d24f9ab142d390732ce728a3a8e1d5a1c5cf063840cdb662"
+    },
+    {
+      "file": "supabase/migrations/20260925120914_payroll_calculation_phase3.sql",
+      "sha256": "271e1f049c44f14db4c7caf1f9909a06b964693b210da6104ac23f0ca8d37895"
+    },
+    {
+      "file": "supabase/migrations/20260925121036_payroll_hourly_midperiod_effective_fix.sql",
+      "sha256": "9f0bd267e4b2b5fcc12b0fe6a49978cb2f70a0473162ac0bc93298a8d3d0dd5b"
+    },
+    {
+      "file": "supabase/migrations/20260925121219_payroll_calculation_guard_fix.sql",
+      "sha256": "7d697c73a6b627ee3643c3dfab421f3af6ba82dfd75efbe27fad7ad094fd16e2"
+    },
+    {
+      "file": "supabase/migrations/20260925121453_payroll_final_calculation_read_guard.sql",
+      "sha256": "28a53449600694b90550728c959c899019bc09493714b82edf58d4a2071930e0"
+    },
+    {
+      "file": "supabase/migrations/20260925123708_payroll_employment_period_scope.sql",
+      "sha256": "0bb2b23ee97cc671990b8f7cbb44c4f9616052cdac3761363807bb22d4e7451d"
+    },
+    {
+      "file": "supabase/migrations/20260925123715_payroll_employment_date_review_guard.sql",
+      "sha256": "48da25614d4c3fa2af37430ae3159a58dc40a25e1c17e8b97bc71acaa91c8cde"
+    },
+    {
+      "file": "supabase/migrations/20260925125338_payroll_statutory_phase4.sql",
+      "sha256": "c9ec684969e87cada75aa136f833dcda7ffea89e9d5f093a8e70efcb0bc91107"
+    },
+    {
+      "file": "supabase/migrations/20260925125642_payroll_phase4_pcb_null_fix.sql",
+      "sha256": "253042349c2fb55517d293453716b69dde45f01ac8cd1e491492bf0bed545235"
+    },
+    {
+      "file": "supabase/migrations/20260925130108_payroll_phase4_insert_guard_fix.sql",
+      "sha256": "6645534db6b1aa22c19acb359de7b027c7059c1808be388b70b5dc659cd0cf2f"
+    },
+    {
+      "file": "supabase/migrations/20260925134633_payroll_statutory_official_packs.sql",
+      "sha256": "e1c9de7785f24fcb7a6c4a2a0498ae5c78864ce5bbef051073615c8bceab0e4f"
+    },
+    {
+      "file": "supabase/migrations/20260925135058_payroll_epf_hourly_bonus_guard.sql",
+      "sha256": "b772dbe893a4524b28ecaeb1b29912db5d775b07141d8c047778f12407a5b5f9"
+    },
+    {
+      "file": "supabase/migrations/20260925140129_payroll_socso_act4_independent_of_lindung24jam.sql",
+      "sha256": "881ca55d22b063a4a60daadea0b62295203d5dfbfc789ed6308020727b9ddaf5"
+    },
+    {
+      "file": "supabase/migrations/20260925142005_payroll_epf_oct2025_percentage_and_bonus.sql",
+      "sha256": "562fff610af5671a8bcef507c16247b1ab400297e4d04003867de43fb9c90d4f"
+    },
+    {
+      "file": "supabase/migrations/20260925142352_payroll_epf_supported_category_guard.sql",
+      "sha256": "6277407a2593f8a49d387ea3d53f20d0ec6ac010e610dc777a18f8a30dc9f79f"
+    },
+    {
+      "file": "supabase/migrations/20260925142603_payroll_epf_fractional_remittance_gate.sql",
+      "sha256": "980269ccd7d41374b552e111087c8406acc47dc641aacf464d58a2d4389fe447"
+    },
+    {
+      "file": "supabase/migrations/20260925143613_payroll_manual_pcb_v1.sql",
+      "sha256": "559277d1819353629bf602621259697e785c90a5cf87f100226c642673404847"
+    },
+    {
+      "file": "supabase/migrations/20260925144113_payroll_pcb_read_employee_scope.sql",
+      "sha256": "1a16a721bed0b6d29f6931a8b28ffb20d06ebe5cda2e87e327c4659441460140"
+    },
+    {
+      "file": "supabase/migrations/20260925144939_payroll_command_guard_table_scope_fix.sql",
+      "sha256": "f80a55ceef21d6eb0fd0c463963df273e76eba09a9a8bab0b0819ef9c4a4fa31"
+    },
+    {
+      "file": "supabase/migrations/20260925145221_payroll_statutory_input_scoped_read.sql",
+      "sha256": "ff4c194137fc11141524edd63438240940bda40a97a39f22f820ac2d1fe90f7f"
+    },
+    {
+      "file": "supabase/migrations/20260925160342_payroll_run_approver_projection.sql",
+      "sha256": "97ce61c9130954434f3848510b383aa5cbc50e757866cc678f11c5a1bbcbcf61"
+    },
+    {
+      "file": "supabase/migrations/20260925184831_payroll_holiday_geography.sql",
+      "sha256": "b14203843b974bdae983a5ec7f18536c24ae75d98ac979f1b24cc21fb7d5e064"
+    },
+    {
+      "file": "supabase/migrations/20260925185106_payroll_holiday_applicability_read.sql",
+      "sha256": "7c1bc7f8f3b30a6e0b9a7057fe4916daabcd9e1956b5827865b63adbfc047849"
+    },
+    {
+      "file": "supabase/migrations/20260925185329_payroll_holiday_scope_correction.sql",
+      "sha256": "d9fc6d08165818056e844261298852e61a6ef1e9c2bddaee24c79f1e41386cfa"
+    },
+    {
+      "file": "supabase/migrations/20260925195344_payroll_admin_history_and_holiday_edit.sql",
+      "sha256": "07d59ca1d0b59a0fe99128b0258b8ad84b7c10f14337faef73cfdd9e7e65f60c"
+    },
+    {
+      "file": "supabase/migrations/20260926031421_payroll_employee_setup_guidance.sql",
+      "sha256": "bac6b2ae17098241c70a1da6d7099da9b002b507c0d9603b2377ac20fd8b5814"
+    },
+    {
+      "file": "supabase/migrations/20260926035233_payroll_unified_statutory_setup.sql",
+      "sha256": "67753bacec75002c335701f09e84fefdd76558b8f73a00a90596f02105a0fe2b"
+    },
+    {
+      "file": "supabase/migrations/20260926043815_payroll_statutory_effective_state.sql",
+      "sha256": "19ee9a77510ddec399558fa16ab0c364214ef37e586aa7a2d7ba4bac60f71724"
+    },
+    {
+      "file": "supabase/migrations/20260926044154_payroll_statutory_summary_read_fix.sql",
+      "sha256": "ae329a18568cc836703578513fe78231a7993fc4af4fed40d81ecde4f9351ce7"
+    },
+    {
+      "file": "supabase/migrations/20260926051250_payroll_run_preparation_read.sql",
+      "sha256": "3a0286e0c9de4612cc8e1ac3ae6c03b4ecf1c6ede62428d4456c67ae709f92e4"
+    },
+    {
+      "file": "supabase/migrations/20260926054205_payroll_statutory_setup_validation.sql",
+      "sha256": "17bc5dfbcb9bb8a295b006769c04e774aa3d1ecb22de18ce18df7348d789d446"
+    },
+    {
+      "file": "supabase/migrations/20260926055038_payroll_statutory_setup_conflict_response.sql",
+      "sha256": "06b7e4d39354c40aba3972280f98f1c178509ad8a28fb07652bda267ebdd2abf"
+    },
+    {
+      "file": "supabase/migrations/20260926061856_payroll_employee_recalculation.sql",
+      "sha256": "9806bf41bd2ebe7e1eb51d79f5f76420535ee2c0031d01ac9ca1b5c91ef1507b"
+    },
+    {
+      "file": "supabase/migrations/20260926063843_payroll_employee_registry_read.sql",
+      "sha256": "945a8732074d07d77c9f7131207c92134f2e03075aa2811997add489fc8f3127"
+    },
+    {
+      "file": "supabase/migrations/20260926115140_payroll_initial_statutory_setup.sql",
+      "sha256": "fcaa02e38bf5edff909db77066b0ba992afc5983c8e87a452ad46b187da700a6"
+    },
+    {
+      "file": "supabase/migrations/20260926123834_payroll_operational_record.sql",
+      "sha256": "af357afa9e3747c58fd66900c50dddcd77cd072de7f1d44a15e8eaad7f05a6f0"
+    },
+    {
+      "file": "supabase/migrations/20260926133431_payroll_monthly_entitlement.sql",
+      "sha256": "236fe9058949d643c0ffe52d66b0216473c3995845f21ad359f2bfa1a072aaac"
+    },
+    {
+      "file": "supabase/migrations/20260926134501_payroll_statutory_employment_window.sql",
+      "sha256": "9271df8b9ab856f3988bb9cf2dbb1d23e5c8dd662a412c8f981a0258453b0587"
+    },
+    {
+      "file": "supabase/migrations/20260926145356_payroll_annual_paid_holiday_authority.sql",
+      "sha256": "b9549f7a5fc4a73d48c8b97792ddc7abc1789f570040e52633f67d2676031ed6"
+    },
+    {
+      "file": "supabase/migrations/20260926145832_payroll_paid_holiday_time_gate.sql",
+      "sha256": "d339272a8b712995f8e979b9792244a0dccb6bc5a65f2f94a497f8535dbf5c80"
+    },
+    {
+      "file": "supabase/migrations/20260926150105_payroll_holiday_geography_compatibility.sql",
+      "sha256": "98710a906bcea3209b9113ef21fef509f992fc7d5c7190f4b8b8a57810a0a3be"
+    },
+    {
+      "file": "supabase/migrations/20260926152146_payroll_company_ph_benefit.sql",
+      "sha256": "b5f1229f527992969c73ce633aa6438e7350f90833f353a7dfd5facf7cb5e13b"
+    },
+    {
+      "file": "supabase/migrations/20260926152757_payroll_ph_contract_corrections.sql",
+      "sha256": "43195f4966334082a201658844a2b33440ee86cb70363fe1038ca41fd416238f"
+    },
+    {
+      "file": "supabase/migrations/20260926153226_replacement_leave_expiry_guard.sql",
+      "sha256": "157d1d7c22caf29efba85171861a77324bacccd7a2746f626d58fcdc7c1a9f94"
+    },
+    {
+      "file": "supabase/migrations/20260926161802_payroll_holiday_operational_boundary.sql",
+      "sha256": "d7f385f7fd4bdac0f38545d6799e259f41d411969dd8ee5242fd44e8a6772006"
+    },
+    {
+      "file": "supabase/migrations/20260926162638_payroll_holiday_operational_readiness.sql",
+      "sha256": "856ecbf3fef9a8331f9cbb5d2670659c1293041b4cd9e129dc01c6e18f2448c2"
+    },
+    {
+      "file": "supabase/migrations/20260926171247_payroll_official_holiday_candidates.sql",
+      "sha256": "a2400ad526511975e430dfb476c776b3cbe5c3ea53254aaf0ffb425addb0f571"
+    },
+    {
+      "file": "supabase/migrations/20260926171442_payroll_holiday_candidate_guard_fix.sql",
+      "sha256": "ff6a4a270cdf14921f2a8d00d4f828159c9920bd7777d5d4029dadcf9395f61f"
+    },
+    {
+      "file": "supabase/migrations/20260927003705_payroll_additional_gazetted_holidays.sql",
+      "sha256": "5a03f2b1ea84ebd5ee11dbb3b18655631e52c0ef06873903a3453c625cd9345d"
+    },
+    {
+      "file": "supabase/migrations/20260927004123_payroll_additional_holiday_scope_guards.sql",
+      "sha256": "f079a1ab8a8fd234b9b33f033e2e11a30fe07bba4e95ffac266c1befdc3a7611"
+    },
+    {
+      "file": "supabase/migrations/20260927012606_payroll_official_holiday_discovery.sql",
+      "sha256": "34fc07921c7ed47af454d63ed0d952f3e5ffd0818ef2d7ea3d1633b5ce66cbf2"
+    },
+    {
+      "file": "supabase/migrations/20260927061128_payroll_effective_date_contract.sql",
+      "sha256": "27eb0ec047dde395374e3fcf8cdf7df13badd424c021314d1e3c782efd26c69d"
+    },
+    {
+      "file": "supabase/migrations/20260927073102_payroll_v1_epf_supported_envelope.sql",
+      "sha256": "8c49d329e9790d23ba6abb79aac360ba5f834021b57d8601a819499b8690e1af"
+    },
+    {
+      "file": "supabase/migrations/20260927075050_payroll_payslips_settlement_v1.sql",
+      "sha256": "cb7ed58ead39952a86a69fa60a95a24c9e90d6d351240b9c9f29bf968911bce0"
+    },
+    {
+      "file": "supabase/migrations/20260927085319_payroll_payslip_draft_v1.sql",
+      "sha256": "1e955a035b3a88c25ad2979bbb027a48dd1b676c969913defde92ddc4a63865c"
+    },
+    {
+      "file": "supabase/migrations/20260927090516_payroll_payslip_hourly_display.sql",
+      "sha256": "78dc29543108ed2115e3887056963069e86fcd0277263f7f50eaf346681b3da1"
+    },
+    {
+      "file": "supabase/migrations/20260927091923_payroll_payslip_unicode_artifact.sql",
+      "sha256": "c93d85e2b368a1a09c0a49fbc7602689945d0d9d6d23c4fff76e0b647b980cd6"
+    },
+    {
+      "file": "supabase/migrations/20260927104700_payroll_v1_membership_closure.sql",
+      "sha256": "7715c2f734bacf99a44de6eb1716cd00e2175d625cf9a9eae1b542eae0ffac5c"
+    },
+    {
+      "file": "supabase/migrations/20260927110645_payroll_payslip_release_font.sql",
+      "sha256": "9537c5827ac090b53ce3afebcdc20e347b527809566f7b336bab14c525341441"
+    }
+  ],
+  "migrationManifest": "qa/staging/payrollV1ReleaseManifest.json",
+  "releaseOrder": [
+    "Apply ordered 66 migrations",
+    "Upload hash-verified font to private payroll-renderer-assets bucket",
+    "Deploy payroll-payslips and payroll-holiday-updates functions with existing caller authorization",
+    "Deploy isolated application only"
+  ],
+  "data": "No Staging fixtures, employee onboarding backfills or published holiday/company policy data copied."
+}

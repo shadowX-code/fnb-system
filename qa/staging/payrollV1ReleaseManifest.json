@@ -1,0 +1,398 @@
+[
+  {
+    "file": "20260925084053_payroll_foundation.sql",
+    "productionVersion": "20260925084053",
+    "stagingVersion": "20260925084053",
+    "sha256": "3e12badf5b3acf0789a8d437e33638bd637ab155b18614ffed116fc0b1408898"
+  },
+  {
+    "file": "20260925084327_payroll_foundation_guard_fix.sql",
+    "productionVersion": "20260925084327",
+    "stagingVersion": "20260925084327",
+    "sha256": "4d56863b835e3c8ef5aee89980ae5f55f9c1fe5f5677b1e49fb322a5fe1af5ca"
+  },
+  {
+    "file": "20260925084828_payroll_finalized_effective_date_guard.sql",
+    "productionVersion": "20260925084828",
+    "stagingVersion": "20260925084828",
+    "sha256": "40b8d0b58e28e1ae7300e22e2ace6a07223023083808aaddec37f3e52576ffec"
+  },
+  {
+    "file": "20260925085222_payroll_cost_attribution_guard.sql",
+    "productionVersion": "20260925085222",
+    "stagingVersion": "20260925085222",
+    "sha256": "3b5600644f1ccde1909c337f98a013fe646bc75632a9f02afe2bbb39f8631d92"
+  },
+  {
+    "file": "20260925110812_payroll_payable_time_phase2.sql",
+    "productionVersion": "20260925110812",
+    "stagingVersion": "20260925110812",
+    "sha256": "53aefa712eed71da66953137ac42ff14e4ccd9b1c9fcf9f161928d9a60b6c4ec"
+  },
+  {
+    "file": "20260925111136_payroll_time_guard_fix.sql",
+    "productionVersion": "20260925111136",
+    "stagingVersion": "20260925111136",
+    "sha256": "81b2aeefe18f87c7013a26366c4913015e989abbcd2634403e7bcc649bbd98a6"
+  },
+  {
+    "file": "20260925111855_payroll_time_indexes_and_semantics.sql",
+    "productionVersion": "20260925111855",
+    "stagingVersion": "20260925111855",
+    "sha256": "df76a24918f37d00e27cb39ebc76bd7ccf022a3227b0be7a7c76030a64e0c4ce"
+  },
+  {
+    "file": "20260925112435_payroll_time_removed_source_guard.sql",
+    "productionVersion": "20260925112435",
+    "stagingVersion": "20260925112435",
+    "sha256": "876378faa5094489d24f9ab142d390732ce728a3a8e1d5a1c5cf063840cdb662"
+  },
+  {
+    "file": "20260925120914_payroll_calculation_phase3.sql",
+    "productionVersion": "20260925120914",
+    "stagingVersion": "20260925120914",
+    "sha256": "271e1f049c44f14db4c7caf1f9909a06b964693b210da6104ac23f0ca8d37895"
+  },
+  {
+    "file": "20260925121036_payroll_hourly_midperiod_effective_fix.sql",
+    "productionVersion": "20260925121036",
+    "stagingVersion": "20260925121036",
+    "sha256": "9f0bd267e4b2b5fcc12b0fe6a49978cb2f70a0473162ac0bc93298a8d3d0dd5b"
+  },
+  {
+    "file": "20260925121219_payroll_calculation_guard_fix.sql",
+    "productionVersion": "20260925121219",
+    "stagingVersion": "20260925121219",
+    "sha256": "7d697c73a6b627ee3643c3dfab421f3af6ba82dfd75efbe27fad7ad094fd16e2"
+  },
+  {
+    "file": "20260925121453_payroll_final_calculation_read_guard.sql",
+    "productionVersion": "20260925121453",
+    "stagingVersion": "20260925121453",
+    "sha256": "28a53449600694b90550728c959c899019bc09493714b82edf58d4a2071930e0"
+  },
+  {
+    "file": "20260925123708_payroll_employment_period_scope.sql",
+    "productionVersion": "20260925123708",
+    "stagingVersion": "20260925123708",
+    "sha256": "0bb2b23ee97cc671990b8f7cbb44c4f9616052cdac3761363807bb22d4e7451d"
+  },
+  {
+    "file": "20260925123715_payroll_employment_date_review_guard.sql",
+    "productionVersion": "20260925123715",
+    "stagingVersion": "20260925123715",
+    "sha256": "48da25614d4c3fa2af37430ae3159a58dc40a25e1c17e8b97bc71acaa91c8cde"
+  },
+  {
+    "file": "20260925125338_payroll_statutory_phase4.sql",
+    "productionVersion": "20260925125338",
+    "stagingVersion": "20260925125338",
+    "sha256": "c9ec684969e87cada75aa136f833dcda7ffea89e9d5f093a8e70efcb0bc91107"
+  },
+  {
+    "file": "20260925125642_payroll_phase4_pcb_null_fix.sql",
+    "productionVersion": "20260925125642",
+    "stagingVersion": "20260925125642",
+    "sha256": "253042349c2fb55517d293453716b69dde45f01ac8cd1e491492bf0bed545235"
+  },
+  {
+    "file": "20260925130108_payroll_phase4_insert_guard_fix.sql",
+    "productionVersion": "20260925130108",
+    "stagingVersion": "20260925130108",
+    "sha256": "6645534db6b1aa22c19acb359de7b027c7059c1808be388b70b5dc659cd0cf2f"
+  },
+  {
+    "file": "20260925134633_payroll_statutory_official_packs.sql",
+    "productionVersion": "20260925134633",
+    "stagingVersion": "20260925134633",
+    "sha256": "e1c9de7785f24fcb7a6c4a2a0498ae5c78864ce5bbef051073615c8bceab0e4f"
+  },
+  {
+    "file": "20260925135058_payroll_epf_hourly_bonus_guard.sql",
+    "productionVersion": "20260925135058",
+    "stagingVersion": "20260925135058",
+    "sha256": "b772dbe893a4524b28ecaeb1b29912db5d775b07141d8c047778f12407a5b5f9"
+  },
+  {
+    "file": "20260925140129_payroll_socso_act4_independent_of_lindung24jam.sql",
+    "productionVersion": "20260925140129",
+    "stagingVersion": "20260925140129",
+    "sha256": "881ca55d22b063a4a60daadea0b62295203d5dfbfc789ed6308020727b9ddaf5"
+  },
+  {
+    "file": "20260925142005_payroll_epf_oct2025_percentage_and_bonus.sql",
+    "productionVersion": "20260925142005",
+    "stagingVersion": "20260925142005",
+    "sha256": "562fff610af5671a8bcef507c16247b1ab400297e4d04003867de43fb9c90d4f"
+  },
+  {
+    "file": "20260925142352_payroll_epf_supported_category_guard.sql",
+    "productionVersion": "20260925142352",
+    "stagingVersion": "20260925142352",
+    "sha256": "6277407a2593f8a49d387ea3d53f20d0ec6ac010e610dc777a18f8a30dc9f79f"
+  },
+  {
+    "file": "20260925142603_payroll_epf_fractional_remittance_gate.sql",
+    "productionVersion": "20260925142603",
+    "stagingVersion": "20260925142603",
+    "sha256": "980269ccd7d41374b552e111087c8406acc47dc641aacf464d58a2d4389fe447"
+  },
+  {
+    "file": "20260925143613_payroll_manual_pcb_v1.sql",
+    "productionVersion": "20260925143613",
+    "stagingVersion": "20260925143613",
+    "sha256": "559277d1819353629bf602621259697e785c90a5cf87f100226c642673404847"
+  },
+  {
+    "file": "20260925144113_payroll_pcb_read_employee_scope.sql",
+    "productionVersion": "20260925144113",
+    "stagingVersion": "20260925144113",
+    "sha256": "1a16a721bed0b6d29f6931a8b28ffb20d06ebe5cda2e87e327c4659441460140"
+  },
+  {
+    "file": "20260925144939_payroll_command_guard_table_scope_fix.sql",
+    "productionVersion": "20260925144939",
+    "stagingVersion": "20260925144939",
+    "sha256": "f80a55ceef21d6eb0fd0c463963df273e76eba09a9a8bab0b0819ef9c4a4fa31"
+  },
+  {
+    "file": "20260925145221_payroll_statutory_input_scoped_read.sql",
+    "productionVersion": "20260925145221",
+    "stagingVersion": "20260925145221",
+    "sha256": "ff4c194137fc11141524edd63438240940bda40a97a39f22f820ac2d1fe90f7f"
+  },
+  {
+    "file": "20260925160342_payroll_run_approver_projection.sql",
+    "productionVersion": "20260925160342",
+    "stagingVersion": "20260925160342",
+    "sha256": "97ce61c9130954434f3848510b383aa5cbc50e757866cc678f11c5a1bbcbcf61"
+  },
+  {
+    "file": "20260925184831_payroll_holiday_geography.sql",
+    "productionVersion": "20260925184831",
+    "stagingVersion": "20260925184831",
+    "sha256": "b14203843b974bdae983a5ec7f18536c24ae75d98ac979f1b24cc21fb7d5e064"
+  },
+  {
+    "file": "20260925185106_payroll_holiday_applicability_read.sql",
+    "productionVersion": "20260925185106",
+    "stagingVersion": "20260925185106",
+    "sha256": "7c1bc7f8f3b30a6e0b9a7057fe4916daabcd9e1956b5827865b63adbfc047849"
+  },
+  {
+    "file": "20260925185329_payroll_holiday_scope_correction.sql",
+    "productionVersion": "20260925185329",
+    "stagingVersion": "20260925185329",
+    "sha256": "d9fc6d08165818056e844261298852e61a6ef1e9c2bddaee24c79f1e41386cfa"
+  },
+  {
+    "file": "20260925195344_payroll_admin_history_and_holiday_edit.sql",
+    "productionVersion": "20260925195344",
+    "stagingVersion": "20260925195344",
+    "sha256": "07d59ca1d0b59a0fe99128b0258b8ad84b7c10f14337faef73cfdd9e7e65f60c"
+  },
+  {
+    "file": "20260926031421_payroll_employee_setup_guidance.sql",
+    "productionVersion": "20260926031421",
+    "stagingVersion": "20260926031421",
+    "sha256": "bac6b2ae17098241c70a1da6d7099da9b002b507c0d9603b2377ac20fd8b5814"
+  },
+  {
+    "file": "20260926035233_payroll_unified_statutory_setup.sql",
+    "productionVersion": "20260926035233",
+    "stagingVersion": "20260926035233",
+    "sha256": "67753bacec75002c335701f09e84fefdd76558b8f73a00a90596f02105a0fe2b"
+  },
+  {
+    "file": "20260926043815_payroll_statutory_effective_state.sql",
+    "productionVersion": "20260926043815",
+    "stagingVersion": "20260926043815",
+    "sha256": "19ee9a77510ddec399558fa16ab0c364214ef37e586aa7a2d7ba4bac60f71724"
+  },
+  {
+    "file": "20260926044154_payroll_statutory_summary_read_fix.sql",
+    "productionVersion": "20260926044154",
+    "stagingVersion": "20260926044154",
+    "sha256": "ae329a18568cc836703578513fe78231a7993fc4af4fed40d81ecde4f9351ce7"
+  },
+  {
+    "file": "20260926051250_payroll_run_preparation_read.sql",
+    "productionVersion": "20260926051250",
+    "stagingVersion": "20260926051250",
+    "sha256": "3a0286e0c9de4612cc8e1ac3ae6c03b4ecf1c6ede62428d4456c67ae709f92e4"
+  },
+  {
+    "file": "20260926054205_payroll_statutory_setup_validation.sql",
+    "productionVersion": "20260926054205",
+    "stagingVersion": "20260926054205",
+    "sha256": "17bc5dfbcb9bb8a295b006769c04e774aa3d1ecb22de18ce18df7348d789d446"
+  },
+  {
+    "file": "20260926055038_payroll_statutory_setup_conflict_response.sql",
+    "productionVersion": "20260926055038",
+    "stagingVersion": "20260926055038",
+    "sha256": "06b7e4d39354c40aba3972280f98f1c178509ad8a28fb07652bda267ebdd2abf"
+  },
+  {
+    "file": "20260926061856_payroll_employee_recalculation.sql",
+    "productionVersion": "20260926061856",
+    "stagingVersion": "20260926061856",
+    "sha256": "9806bf41bd2ebe7e1eb51d79f5f76420535ee2c0031d01ac9ca1b5c91ef1507b"
+  },
+  {
+    "file": "20260926063843_payroll_employee_registry_read.sql",
+    "productionVersion": "20260926063843",
+    "stagingVersion": "20260926063843",
+    "sha256": "945a8732074d07d77c9f7131207c92134f2e03075aa2811997add489fc8f3127"
+  },
+  {
+    "file": "20260926115140_payroll_initial_statutory_setup.sql",
+    "productionVersion": "20260926115140",
+    "stagingVersion": "20260926115140",
+    "sha256": "fcaa02e38bf5edff909db77066b0ba992afc5983c8e87a452ad46b187da700a6"
+  },
+  {
+    "file": "20260926123834_payroll_operational_record.sql",
+    "productionVersion": "20260926123834",
+    "stagingVersion": "20260926123834",
+    "sha256": "af357afa9e3747c58fd66900c50dddcd77cd072de7f1d44a15e8eaad7f05a6f0"
+  },
+  {
+    "file": "20260926133431_payroll_monthly_entitlement.sql",
+    "productionVersion": "20260926133431",
+    "stagingVersion": "20260926133431",
+    "sha256": "236fe9058949d643c0ffe52d66b0216473c3995845f21ad359f2bfa1a072aaac"
+  },
+  {
+    "file": "20260926134501_payroll_statutory_employment_window.sql",
+    "productionVersion": "20260926134501",
+    "stagingVersion": "20260926134501",
+    "sha256": "9271df8b9ab856f3988bb9cf2dbb1d23e5c8dd662a412c8f981a0258453b0587"
+  },
+  {
+    "file": "20260926145356_payroll_annual_paid_holiday_authority.sql",
+    "productionVersion": "20260926145356",
+    "stagingVersion": "20260926145356",
+    "sha256": "b9549f7a5fc4a73d48c8b97792ddc7abc1789f570040e52633f67d2676031ed6"
+  },
+  {
+    "file": "20260926145832_payroll_paid_holiday_time_gate.sql",
+    "productionVersion": "20260926145832",
+    "stagingVersion": "20260926145832",
+    "sha256": "d339272a8b712995f8e979b9792244a0dccb6bc5a65f2f94a497f8535dbf5c80"
+  },
+  {
+    "file": "20260926150105_payroll_holiday_geography_compatibility.sql",
+    "productionVersion": "20260926150105",
+    "stagingVersion": "20260926150105",
+    "sha256": "98710a906bcea3209b9113ef21fef509f992fc7d5c7190f4b8b8a57810a0a3be"
+  },
+  {
+    "file": "20260926152146_payroll_company_ph_benefit.sql",
+    "productionVersion": "20260926152146",
+    "stagingVersion": "20260926152146",
+    "sha256": "b5f1229f527992969c73ce633aa6438e7350f90833f353a7dfd5facf7cb5e13b"
+  },
+  {
+    "file": "20260926152757_payroll_ph_contract_corrections.sql",
+    "productionVersion": "20260926152757",
+    "stagingVersion": "20260926152757",
+    "sha256": "43195f4966334082a201658844a2b33440ee86cb70363fe1038ca41fd416238f"
+  },
+  {
+    "file": "20260926153226_replacement_leave_expiry_guard.sql",
+    "productionVersion": "20260926153226",
+    "stagingVersion": "20260926153226",
+    "sha256": "157d1d7c22caf29efba85171861a77324bacccd7a2746f626d58fcdc7c1a9f94"
+  },
+  {
+    "file": "20260926161802_payroll_holiday_operational_boundary.sql",
+    "productionVersion": "20260926161802",
+    "stagingVersion": "20260926161802",
+    "sha256": "d7f385f7fd4bdac0f38545d6799e259f41d411969dd8ee5242fd44e8a6772006"
+  },
+  {
+    "file": "20260926162638_payroll_holiday_operational_readiness.sql",
+    "productionVersion": "20260926162638",
+    "stagingVersion": "20260926162638",
+    "sha256": "856ecbf3fef9a8331f9cbb5d2670659c1293041b4cd9e129dc01c6e18f2448c2"
+  },
+  {
+    "file": "20260926171247_payroll_official_holiday_candidates.sql",
+    "productionVersion": "20260926171247",
+    "stagingVersion": "20260926171247",
+    "sha256": "a2400ad526511975e430dfb476c776b3cbe5c3ea53254aaf0ffb425addb0f571"
+  },
+  {
+    "file": "20260926171442_payroll_holiday_candidate_guard_fix.sql",
+    "productionVersion": "20260926171442",
+    "stagingVersion": "20260926171442",
+    "sha256": "ff6a4a270cdf14921f2a8d00d4f828159c9920bd7777d5d4029dadcf9395f61f"
+  },
+  {
+    "file": "20260927003705_payroll_additional_gazetted_holidays.sql",
+    "productionVersion": "20260927003705",
+    "stagingVersion": "20260927003705",
+    "sha256": "5a03f2b1ea84ebd5ee11dbb3b18655631e52c0ef06873903a3453c625cd9345d"
+  },
+  {
+    "file": "20260927004123_payroll_additional_holiday_scope_guards.sql",
+    "productionVersion": "20260927004123",
+    "stagingVersion": "20260927004123",
+    "sha256": "f079a1ab8a8fd234b9b33f033e2e11a30fe07bba4e95ffac266c1befdc3a7611"
+  },
+  {
+    "file": "20260927012606_payroll_official_holiday_discovery.sql",
+    "productionVersion": "20260927012606",
+    "stagingVersion": "20260927012606",
+    "sha256": "34fc07921c7ed47af454d63ed0d952f3e5ffd0818ef2d7ea3d1633b5ce66cbf2"
+  },
+  {
+    "file": "20260927061128_payroll_effective_date_contract.sql",
+    "productionVersion": "20260927061128",
+    "stagingVersion": "20260927061128",
+    "sha256": "27eb0ec047dde395374e3fcf8cdf7df13badd424c021314d1e3c782efd26c69d"
+  },
+  {
+    "file": "20260927073102_payroll_v1_epf_supported_envelope.sql",
+    "productionVersion": "20260927073102",
+    "stagingVersion": "20260927073247",
+    "sha256": "8c49d329e9790d23ba6abb79aac360ba5f834021b57d8601a819499b8690e1af"
+  },
+  {
+    "file": "20260927075050_payroll_payslips_settlement_v1.sql",
+    "productionVersion": "20260927075050",
+    "stagingVersion": "20260927080221",
+    "sha256": "cb7ed58ead39952a86a69fa60a95a24c9e90d6d351240b9c9f29bf968911bce0"
+  },
+  {
+    "file": "20260927085319_payroll_payslip_draft_v1.sql",
+    "productionVersion": "20260927085319",
+    "stagingVersion": "20260927085846",
+    "sha256": "1e955a035b3a88c25ad2979bbb027a48dd1b676c969913defde92ddc4a63865c"
+  },
+  {
+    "file": "20260927090516_payroll_payslip_hourly_display.sql",
+    "productionVersion": "20260927090516",
+    "stagingVersion": "20260927090533",
+    "sha256": "78dc29543108ed2115e3887056963069e86fcd0277263f7f50eaf346681b3da1"
+  },
+  {
+    "file": "20260927091923_payroll_payslip_unicode_artifact.sql",
+    "productionVersion": "20260927091923",
+    "stagingVersion": "20260927092010",
+    "sha256": "c93d85e2b368a1a09c0a49fbc7602689945d0d9d6d23c4fff76e0b647b980cd6"
+  },
+  {
+    "file": "20260927104700_payroll_v1_membership_closure.sql",
+    "productionVersion": "20260927104700",
+    "stagingVersion": "20260927110023",
+    "sha256": "7715c2f734bacf99a44de6eb1716cd00e2175d625cf9a9eae1b542eae0ffac5c"
+  },
+  {
+    "file": "20260927110645_payroll_payslip_release_font.sql",
+    "productionVersion": "20260927110645",
+    "stagingVersion": "20260927110719",
+    "sha256": "9537c5827ac090b53ce3afebcdc20e347b527809566f7b336bab14c525341441"
+  }
+]

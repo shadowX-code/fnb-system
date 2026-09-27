@@ -1,0 +1,107 @@
+// Display explanations only; calculation and readiness stay server-owned.
+export const payComponentIsConfigured = (component) => ["epf", "socso", "eis", "pcb"]
+  .every(scheme => ["included", "excluded"].includes(component?.[`${scheme}_treatment`]));
+
+export function payrollEmployeeResult(calculation, statutory) {
+  const earningsCurrent = calculation?.status === "ready" && !calculation.is_stale;
+  const statutoryCurrent = earningsCurrent && statutory?.status === "ready" && !statutory.is_stale;
+  return {
+    earningsCurrent,
+    statutoryCurrent,
+    gross: earningsCurrent ? calculation.gross_earnings : null,
+    deductions: statutoryCurrent ? Number(statutory.non_statutory_deductions || 0)
+      + (statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null,
+    net: statutoryCurrent ? statutory.net_pay : null,
+    status: calculation?.is_stale || statutory?.is_stale ? "Refresh Payroll"
+      : !earningsCurrent ? calculation ? "Needs Attention" : "Complete Calculation"
+        : !statutory ? "Complete Calculation" : statutoryCurrent ? "Ready" : "Needs Attention",
+  };
+}
+
+// Aggregate persisted results for display only; never price earnings in the UI.
+export function payrollRunSummary(rows = []) {
+  const sum = read => rows.length && rows.every(row => read(row) != null)
+    ? rows.reduce((total, row) => total + Number(read(row)), 0) : null;
+  return {
+    gross: sum(row => row.result.gross),
+    deductions: sum(row => row.result.deductions),
+    net: sum(row => row.result.net),
+    employerCost: sum(row => row.result.statutoryCurrent ? row.statutory?.total_employer_cost : null),
+  };
+}
+
+// One display projection from server results. Never prices wages or grants Finalize.
+export function payrollReviewRows(evidence, finalized = false) {
+  const members = finalized ? evidence?.results : evidence?.preparation?.results;
+  return (members || []).map(member => {
+    const calculation = finalized ? member.calculation : evidence.calculation?.results?.find(row => row.employee_id === member.employee_id);
+    const statutory = finalized ? member.statutory : evidence.statutory?.results?.find(row => row.employee_id === member.employee_id);
+    const result = payrollEmployeeResult(calculation, statutory);
+    const timeNeedsReview = !finalized && member.time_relevant && (member.projection?.issues || []).some(issue => /time|attendance|clock|roster/.test(issue));
+    const payNeedsReview = !result.earningsCurrent || (!finalized && member.projection?.status !== "ready");
+    const statutoryNeedsReview = !result.statutoryCurrent || (!finalized && member.statutory_setup?.complete !== true);
+    return { ...member, calculation, statutory, result, timeNeedsReview, payNeedsReview, statutoryNeedsReview,
+      needsReview: Boolean(timeNeedsReview || payNeedsReview || statutoryNeedsReview) };
+  });
+}
+
+export function payrollReviewSummary(rows = []) {
+  return { ...payrollRunSummary(rows), employeeCount: rows.length,
+    readyCount: rows.filter(row => !row.needsReview).length,
+    needCount: rows.filter(row => row.needsReview).length,
+    timeCount: rows.filter(row => row.timeNeedsReview).length,
+    payCount: rows.filter(row => row.payNeedsReview).length,
+    statutoryCount: rows.filter(row => row.statutoryNeedsReview).length };
+}
+
+export function payrollIssueLabel(issue, context = {}) {
+  const [code, detail] = String(issue).split(":");
+  const range = value => value?.replaceAll("..", " – ");
+  if (code === "pay_history_missing") return `Pay history missing · ${range(detail)}`;
+  if (code === "component_proration_policy_required" || code === "component_multiple_amounts_requires_review") {
+    const component = context.components?.find(c => c.id === detail);
+    return `${component?.name || "Recurring component"} · ${code === "component_proration_policy_required" ? "Component proration policy required" : "Multiple amounts in one period require review"}`;
+  }
+  const coverage = context.statutory?.inputs?.applicability_coverage;
+  if ((code === "statutory_applicability_missing" || code.endsWith("_applicability_unreviewed")) && coverage?.missing_through) {
+    return `${code === "statutory_applicability_missing" ? "Statutory" : code.split("_")[0].toUpperCase()} applicability missing · ${coverage.start} – ${coverage.missing_through}`;
+  }
+  const labels = {
+    missing_approved_payable_time: "Missing approved payable time",
+    missing_punch: "Missing clock-in or clock-out; review payable time",
+    pcb_confirmation_required: "PCB amount required",
+    pcb_applicability_unreviewed: "PCB applicability requires review",
+    epf_applicability_unreviewed: "EPF applicability requires review",
+    socso_applicability_unreviewed: "SOCSO applicability requires review",
+    eis_applicability_unreviewed: "EIS applicability requires review",
+    ph_treatment_confirmation_required: "Review and confirm the company PH work treatment in Employee Review",
+    ph_company_policy_required: "Confirm a company PH Work Policy in Public Holidays Settings",
+    ph_treatment_evidence_changed: "PH work evidence changed; review and confirm its treatment again",
+    ph_confirmed_work_evidence_required: "Confirm published PH work and approved payable time before pricing",
+    public_holiday_ot_unsupported: "PH overtime is unsupported; a separate approved authority is required",
+    replacement_leave_grant_required: "The source-linked Replacement Leave grant requires review",
+    missing_effective_compensation_or_proration_policy: "Pay is not established for the full period; an approved proration policy is required.",
+    partial_month_requires_approved_proration: "Partial-month pay requires an approved proration policy.",
+    monthly_rate_change_requires_proration_policy: "The salary changed during this period; an approved proration policy is required.",
+    monthly_calendar_rule_confirmation_required: "Confirm the official calendar-day Basic Salary rule in Pay Rules.",
+    unpaid_half_day_policy_required: "Half-day Unpaid Leave requires an approved policy; no amount has been assumed.",
+    unpaid_leave_overlap_requires_review: "Approved leave overlaps; resolve the source leave evidence.",
+    unpaid_leave_attendance_conflict: "Attendance conflicts with approved Unpaid Leave; review the source evidence.",
+    monthly_proration_jurisdiction_requires_review: "Confirm an effective workplace state covered by the approved calendar-day rule.",
+    monthly_proration_jurisdiction_change: "Workplace jurisdiction changes during the period; review its salary treatment.",
+    monthly_components_entitlement_policy_required: "Recurring components in an incomplete month require an approved entitlement policy.",
+    mid_period_component_change: "A recurring component changes during this period; its period treatment requires review.",
+    statutory_applicability_missing: "Statutory applicability is not established for the employee's eligible period.",
+    mid_period_statutory_applicability_change: "Statutory applicability changes within this period and requires review.",
+    mid_period_statutory_input_change: "Contribution categories change within this period and require review.",
+    phase3_calculation_missing_or_stale: "Refresh payroll after resolving employee inputs.",
+    earnings_inputs_require_review: "Resolve the earning inputs above before calculating statutory amounts.",
+    employment_start_date_requires_review: "Confirm the employee's commencement date in Employee setup.",
+    unreconciled_time: "Refresh payable time evidence",
+    unresolved_time_exception: "Resolve the payable time exception",
+    stale_time_evidence: "Work evidence changed; refresh payable time",
+    missing_payroll_profile: "Set up this employee's pay before calculating payroll.",
+  };
+  const text = labels[code] || code.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  return /^\d{4}-\d{2}-\d{2}$/.test(detail || "") ? `${text} · ${detail}` : text;
+}

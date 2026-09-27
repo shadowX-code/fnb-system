@@ -1,0 +1,26 @@
+// Uses the production renderer; fixture-only outputs under /private/tmp.
+import { createRequire } from 'node:module';
+import { writeFile, readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { gunzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
+import { renderPayslip } from '../../supabase/functions/payroll-payslips/render.js';
+const require = createRequire('/private/tmp/feedx-payroll-pdf-test/package.json');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const fontkit = require('@pdf-lib/fontkit');
+const base = { identity:{employer:'QA ONLY FeedX Payslip Design',registration:'QA-P5-20260927',employee_name:'QA ONLY Phase 5 Monthly',employee_code:'QA-P5-1',position:'Restaurant Supervisor',workplace:'QA ONLY Phase 5 Workplace'},pay_basis:'monthly',period_start:'2026-06-01',period_end:'2026-06-30',finalized_at:'2026-09-27T08:07:47.180031+00:00',earnings:[{label:'Basic Salary',amount:3250},{label:'Transport Allowance',amount:100}],deductions:[],reimbursements:[],gross_earnings:3350,net_pay:2918.25,statutory:[{scheme:'epf',applicable:true,amount:359,employer_amount:424},{scheme:'socso',applicable:true,amount:16.25,employer_amount:56.85},{scheme:'eis',applicable:true,amount:6.5,employer_amount:6.5},{scheme:'pcb',applicable:true,amount:50}]};
+const api={PDFDocument,StandardFonts,rgb,fontkit};
+const monthly=await renderPayslip(base,api);
+assert.deepEqual(monthly,await renderPayslip(base,api),'Deterministic retry bytes');
+const hourly={...base,pay_basis:'hourly',identity:{...base.identity,employee_name:'QA ONLY Phase 5 Hourly',employee_code:'QA-P5-2'},earnings:[{label:'Regular Hourly Pay',amount:75,minutes:450,rate:10}],gross_earnings:75,net_pay:65.4,statutory:[{scheme:'epf',applicable:true,amount:9},{scheme:'socso',applicable:true,amount:.4},{scheme:'eis',applicable:true,amount:.2},{scheme:'pcb',applicable:false,amount:0}]};
+await writeFile('/private/tmp/feedx-phase5-monthly.pdf',monthly);
+await writeFile('/private/tmp/feedx-phase5-hourly.pdf',await renderPayslip(hourly,api));
+await writeFile('/private/tmp/feedx-phase5-draft.pdf',await renderPayslip({...base,draft:true},api));
+const unicodeFont=gunzipSync(await readFile(new URL('../../supabase/functions/payroll-payslips/fonts/NotoSansSC-VF.ttf.gz',import.meta.url)));
+assert.equal(createHash('sha256').update(unicodeFont).digest('hex'),'d68bafcb48a2707749396aa12bbbd833cb70401f3a9a689fd2902c7e0d295964');
+const unicode={...base,identity:{...base.identity,employee_name:'QA ONLY 陈伟明 · 长名称测试'},earnings:Array.from({length:40},(_,i)=>({label:`津贴 ${i} · Long financial line wrapping verification`,amount:1}))};
+const bytes=await renderPayslip(unicode,{...api,unicodeFont});
+assert.deepEqual(bytes,await renderPayslip(unicode,{...api,unicodeFont}));
+assert.ok((await PDFDocument.load(bytes)).getPageCount()>1,'Long statement pagination');
+await writeFile('/private/tmp/feedx-phase5-unicode.pdf',bytes);
+console.log('Monthly/Hourly A4, deterministic retry and Unicode pagination PASS');

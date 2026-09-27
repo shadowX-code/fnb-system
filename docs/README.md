@@ -20,6 +20,7 @@ Choose by durable ownership: architecture docs own cross-domain foundations; dom
 - [`domains/restaurant-finance-and-purchasing.md`](domains/restaurant-finance-and-purchasing.md): outlet finance, sales, purchases, suppliers, purchase orders, tax, imports, financial snapshots, reporting, and alerts.
 - [`domains/inventory-and-assets.md`](domains/inventory-and-assets.md): restaurant inventory movements, stock state, reconciliation, recipes/usage relationships, and asset lifecycle.
 - [`domains/people-identity-rbac.md`](domains/people-identity-rbac.md): employee master data, Admin identity, roles, permissions, outlet scope, and audit relationships.
+- [`domains/payroll.md`](domains/payroll.md): Payroll Profiles, payable time, statutory calculation, immutable Runs/corrections and private Payslips.
 
 ### Crew
 
