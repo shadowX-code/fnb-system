@@ -484,11 +484,10 @@ Phase 4A's conservative reconciliation boundary:
   RM20,000, the official percentages are applied to the total monthly EPF wage
   base and their aggregate is rounded up to the next ringgit. The individual
   percentage shares and the remittance-rounding residual are retained
-  separately. The V1 product decision allocates any fractional remittance
-  residual to employer cost, while the employee deduction remains the
-  calculated employee share. This is an explicit accounting allocation of
-  KWSP's rounded total, not an increased statutory employer percentage; the
-  policy identity is pinned in the statutory result. The same percentage
+  separately. The locked V1 envelope leaves a fractional residual allocation
+  Review Required pending authoritative reconciliation; a company accounting
+  allocation cannot clear that gate. Existing finalized residual evidence is
+  preserved, not rewritten. The same percentage
   treatment applies to the Part A bonus exception when reviewed ordinary wages
   are at most RM5,000 and a reviewed bonus raises monthly wages above it.
   Component bonus/ordinary classifications are append-only, effective-dated,
@@ -496,8 +495,8 @@ Phase 4A's conservative reconciliation boundary:
   EPF excludes overtime, including pay for rest-day/public-holiday work as
   defined in the EPF Act. The supported categories remain bounded to Malaysian
   under-60 and ages 60–74 with reviewed applicability; other categories fail
-  closed. Published KWSP examples validate the percentage/total rule; the V1
-  employer-funded residual decision governs the remittance allocation.
+  closed. Published KWSP examples validate the percentage/total rule, not an
+  assumed fractional-residual split.
 - PERKESO Act 4 base SOCSO first/second categories, effective October 2024:
   65 bands per category with an RM6,000 ceiling. LINDUNG 24 JAM is a separate
   voluntary, employee-funded non-employment injury scheme for Malaysian
