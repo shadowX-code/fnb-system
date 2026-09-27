@@ -1,8 +1,8 @@
 import InventoryPurchaseOrderSurface from "../inventory/purchaseOrders/InventoryPurchaseOrderSurface.jsx";
-import { mapRemotePurchaseOrderItem, mapRemotePurchaseReceiptItem, mapRemotePurchaseReceipt, mapRemotePurchaseOrder, persistRemotePurchaseOrderReceive, fetchRemotePurchaseOrder } from "../inventory/purchaseOrders/inventoryPurchaseOrderService.js";
+import { mapRemotePurchaseOrder, persistRemotePurchaseOrderReceive, fetchRemotePurchaseOrder } from "../inventory/purchaseOrders/inventoryPurchaseOrderService.js";
 export { ReceiveInventoryModal } from "../inventory/purchaseOrders/ReceiveInventoryModal.jsx";
 import { subscribeInventoryRevalidation } from "../../../services/inventoryRevalidation.js";
-import { TextArea, focusIndexedInput } from "../inventory/InventorySharedPresentation.jsx";
+import { TextArea } from "../inventory/InventorySharedPresentation.jsx";
 import InventoryParLevelsPage from "../inventory/parLevels/InventoryParLevelsPage.jsx";
 import { mapRemoteInventoryItem, normalizeOutletRecord, normalizeInventoryItem, uniqueIds, buildOutletConfig, mapRemoteCategory, outletConfigForItem, isActiveInventoryItem, categoryForItem, canonical, isUuid, outletDisplayName, outletDisplayCode } from "../inventory/inventoryItemModel.js";
 import { InventoryCategoryIcon, SectionCard, selectInputText, parseNonNegativeNumber, csvEscape, downloadTextFile, todayInput, getBusinessDateInput, toDateInputValue } from "../inventory/InventorySharedPresentation.jsx";
@@ -24,7 +24,6 @@ import {
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
-  Copy,
   Download,
   FileText,
   Folder,
