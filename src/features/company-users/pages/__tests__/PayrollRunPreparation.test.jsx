@@ -2,6 +2,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 const mocks = vi.hoisted(() => ({ readPhWork: vi.fn(), readTime: vi.fn(), readCalculation: vi.fn(), readStatutory: vi.fn(), readPcb: vi.fn(), readPreparation: vi.fn(), recalculateEmployee: vi.fn(), saveDraftAdjustment: vi.fn(), decideTime: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
+vi.mock("../../../../services/employeeService.js", () => ({ employeeService: { readBankInfo: async ids => ids.map(id => ({ id, bank_name: "" })) } }));
 import PayrollRunEmployeesPanel from "../PayrollRunEmployeesPanel.jsx";
 afterEach(cleanup);
 beforeEach(() => {
@@ -126,4 +127,49 @@ it("records a time decision before employee-only recalculation and projection re
   await waitFor(()=>expect(mocks.recalculateEmployee).toHaveBeenLastCalledWith('run','employee'));
   expect(mocks.decideTime.mock.invocationCallOrder.at(-1)).toBeLessThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1));
   await waitFor(()=>expect(mocks.readPreparation.mock.invocationCallOrder.at(-1)).toBeGreaterThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1)));
+});
+
+it("uses a compact processing table and keeps bank absence informational", async () => {
+  mocks.readCalculation.mockResolvedValue({results:[{employee_id:"employee",status:"ready",gross_earnings:2000,lines:[]}],adjustments:[]});
+  mocks.readStatutory.mockResolvedValue({results:[{employee_id:"employee",status:"ready",non_statutory_deductions:0,net_pay:1900,total_employer_cost:2200,lines:[{scheme:"socso",employee_amount:100,employer_amount:200}]}]});
+  mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee",time_relevant:false,statutory_setup:{complete:true,schemes:{socso:{state:"confirmed",applicable:true},epf:{state:"not_applicable",applicable:false},eis:{state:"not_applicable",applicable:false},pcb:{state:"not_applicable",applicable:false}}},projection:{status:"ready",inputs:{compensation_start:{id:"pay",pay_basis:"monthly",basic_salary:2000,effective_from:"2026-01-01"}}}}]});
+  const snapshot=vi.fn();
+  render(<PayrollRunEmployeesPanel {...props} stage="review" onSnapshot={snapshot} />);
+  await screen.findByText("Complete");
+  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","Deductions","Statutory","Net Pay","Bank Info","Status","Actions"]);
+  await screen.findByText("Missing");
+  expect(screen.getByRole("region",{name:"Payroll review filters"})).toBeTruthy();
+  expect(screen.getByText("Ready")).toBeTruthy();
+  expect(screen.getByText(/1,900.00/)).toBeTruthy();
+  expect(snapshot).toHaveBeenLastCalledWith(expect.objectContaining({runId:"run",rows:[expect.objectContaining({needsReview:false})]}));
+  fireEvent.click(screen.getByRole("button",{name:"Review pay basis"}));
+  fireEvent.click(screen.getByRole("button",{name:"Hourly",exact:true}));
+  expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Review pay basis"}));
+  fireEvent.click(screen.getByRole("button",{name:"All",exact:true}));
+  fireEvent.click(screen.getByRole("button",{name:"Review status"}));
+  fireEvent.click(screen.getByRole("button",{name:"Need Attention",exact:true}));
+  expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button",{name:"Review status"}));
+  fireEvent.click(screen.getByRole("button",{name:"All",exact:true}));
+  fireEvent.change(screen.getByRole("searchbox",{name:"Search Employee"}),{target:{value:"unknown"}});
+  expect(screen.getByText("No employees match these review filters.")).toBeTruthy();
+  fireEvent.change(screen.getByRole("searchbox",{name:"Search Employee"}),{target:{value:"QA"}});
+  fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+  expect(screen.getByRole("heading",{name:"Compensation"})).toBeTruthy();
+  expect(screen.getByRole("heading",{name:"Bank Information"})).toBeTruthy();
+  expect(screen.queryByRole("heading",{name:"Time & Attendance"})).toBeNull();
+});
+
+it("puts human-readable blockers first and hides unresolved Net Pay", async () => {
+  mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee",projection:{status:"review_required",issues:["pay_history_missing:2026-09-01..2026-09-25"],inputs:{compensation_end:{pay_basis:"monthly",basic_salary:1700}}}}]});
+  render(<PayrollRunEmployeesPanel {...props} stage="review" />);
+  await screen.findByRole("button",{name:"View",exact:true});
+  const net=screen.getByRole("columnheader",{name:"Net Pay"});
+  expect(net).toBeTruthy();
+  expect(screen.getAllByRole("cell").some(cell=>cell.textContent==="—")).toBe(true);
+  fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+  const blockers=screen.getByRole("region",{name:"Review blockers"});
+  expect(blockers.textContent).toContain("Pay history missing · 2026-09-01 – 2026-09-25");
+  expect(blockers.compareDocumentPosition(screen.getByRole("heading",{name:"Earnings"})) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 });

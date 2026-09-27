@@ -77,7 +77,7 @@ runs keep `foundation_only=true`; open and new runs use the stricter contract.
 
 ## Admin Payroll Control Center
 
-The People Payroll UI has four destinations: Overview, Employees, Payroll Runs,
+The People Payroll UI has four destinations: Overview, Payroll Profiles, Payroll Runs,
 and Settings. Overview is scoped to a Legal Entity and pay period, summarizes
 available financial totals and links readiness blockers to their owning
 resolution step. It does not execute the Run workflow. Employees manages the
@@ -89,6 +89,19 @@ navigation stages. Payable-time exceptions, one-period adjustments and
 PCB/MTD confirmation are resolved through centered monthly employee review;
 permanent setup remains in Employees. Ready and Finalize still rely on the
 canonical server gates.
+
+Run detail has a compact command header with readiness and canonical financial
+totals; unresolved totals show `—`. Review Payroll reuses the monthly employee
+processing surface (not a competing monetary projection), with Status, Pay Basis,
+Workplace and employee search. View opens the existing centered employee review
+without changing stages. Blockers precede the statement; compensation, relevant
+payable time, financial lines and current read-only Employee bank information
+remain available. Bank information is operational context, never a new readiness
+or finalization gate. Successful individual decisions/adjustments refresh the
+employee result, table and header. Finalize remains under the existing server
+readiness gates, with one header action and a count/totals confirmation. Finalized
+rows and financial totals consume frozen snapshots only; current Employee bank
+information is explicitly distinct from immutable financial evidence.
 
 The scoped Run preparation read consumes the canonical calculation projection
 for time relevance and blockers, and resolves statutory setup at period start.

@@ -20,7 +20,7 @@ const overallStatus = (calculation, statutory) => {
   return payrollEmployeeResult(calculation, statutory).status;
 };
 
-export function ResultDetail({ result, statutory, frozenPeriod, onClose }) {
+export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInfo }) {
   const compensation = result.inputs?.compensation_start;
   const time = result.inputs?.time || [];
   const deductions = statutory ? Number(result.non_statutory_deductions || 0) + (statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null;
@@ -35,7 +35,9 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose }) {
   return <Modal title={result.employee_name} description={frozenPeriod ? `${frozenPeriod} · Finalized read-only Payroll statement` : "Employee Payroll statement"}
     onClose={onClose} size="xl" footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
     <div className="space-y-6">
+      {(result.issues?.length || statutory?.issues?.length) > 0 && <p role="alert" className="text-sm text-amber-800">{[...(result.issues || []),...(statutory?.issues || [])].map(issueLabel).join(" · ")}</p>}
       <dl className="grid grid-cols-3 gap-3 rounded-xl bg-surface-muted p-4 text-sm">{[["Gross Earnings", result.gross_earnings], ["Total Deductions", deductions], ["Net Pay", statutory?.net_pay]].map(([name, value]) => <div key={name}><dt className="text-text-secondary">{name}</dt><dd className="mt-1 text-lg font-bold tabular-nums">{amount(value)}</dd></div>)}</dl>
+      <section><h4 className="font-bold">Compensation</h4><p className="mt-2 text-sm">{compensation ? `${title(compensation.pay_basis)} · ${amount(compensation.pay_basis === "hourly" ? compensation.hourly_rate : compensation.basic_salary)}${compensation.pay_basis === "hourly" ? " / hour" : ""} · Effective ${compensation.effective_from}` : "Compensation snapshot unavailable"}</p></section>
       <section><h4 className="text-lg font-bold">Earnings</h4><p className="mt-1 text-xs text-text-secondary">{compensation ? `${title(compensation.pay_basis)} · Effective ${compensation.effective_from}` : "Pinned compensation evidence"}</p>
         <div className="mt-2 divide-y divide-border">{financialLines("earning")}{row("Gross Earnings",result.gross_earnings)}</div>
         {Number(result.reimbursements) > 0 && <div className="mt-3 divide-y divide-border">{financialLines("reimbursement")}</div>}
@@ -56,7 +58,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose }) {
       <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Calculation evidence</summary><p className="mt-2">Calculation revision {result.revision} · {result.calculated_at ? new Date(result.calculated_at).toLocaleString() : "Pinned evidence"}</p>
         {(statutory?.lines || []).map(line=><p key={line.scheme} className="mt-2">{line.scheme.toUpperCase()} · {line.applicable === false ? "Not Applicable" : line.method === "manual_confirmed" ? "Admin confirmed" : line.source_row || line.source_version || "Pinned contribution schedule"}{line.wage_base != null ? ` · Wage base ${rm(line.wage_base)}` : ""}{line.schedule_version_id && <small className="block">Schedule version {line.schedule_version_id}</small>}</p>)}
       </details>
-      {(result.issues?.length || statutory?.issues?.length) > 0 && <p role="alert" className="text-sm text-amber-800">{[...(result.issues || []),...(statutory?.issues || [])].map(issueLabel).join(" · ")}</p>}
+      {bankInfo && <section className="border-t border-border pt-4"><div className="flex justify-between"><h4 className="font-bold">Bank Information</h4>{bankInfo}</div><p className="mt-1 text-xs text-text-secondary">Current Employee information · read-only; not a finalized payment snapshot.</p></section>}
     </div>
   </Modal>;
 }

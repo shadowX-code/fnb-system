@@ -13,7 +13,7 @@ it("shows frozen employee identity, earnings and contributions without editable 
   render(<PayrollFinalizedRecord run={{id:"final"}} />);
   await screen.findByText("Frozen Employee");
   expect(mocks.readFinalizedRecord).toHaveBeenCalledWith("final");
-  expect(screen.getByRole("columnheader",{name:"Other Deductions"})).toBeTruthy();
+  expect(screen.getByRole("columnheader",{name:"Deductions"})).toBeTruthy();
   fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
   expect(screen.getByText("2026-07 · Finalized read-only Payroll statement")).toBeTruthy();
   expect(screen.getByRole("heading",{name:"Employee Deductions"})).toBeTruthy();

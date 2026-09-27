@@ -51,6 +51,25 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Payroll Control Center", () => {
+  it("keeps one gated Finalize action in the command header and summarizes its confirmation", async () => {
+    mocks.read.mockResolvedValue({...fixture,periods:[{...fixture.periods[0],runs:[{id:"run-1",status:"ready",revision:1}]}]});
+    mocks.time.mockResolvedValue({ready:true}); mocks.calculation.mockResolvedValue({ready:true}); mocks.statutory.mockResolvedValue({ready:true});
+    mocks.readCalculation.mockResolvedValue({results:[{employee_id:"employee-1",status:"ready",gross_earnings:2000}],adjustments:[]});
+    mocks.readStatutory.mockResolvedValue({results:[{employee_id:"employee-1",status:"ready",net_pay:1750,non_statutory_deductions:50,total_employer_cost:2260,lines:[{scheme:"epf",employee_amount:200}]}]});
+    mocks.readPcb.mockResolvedValue({results:[{employee_id:"employee-1",applicable:false}]});
+    mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee-1",projection:{status:"ready"},statutory_setup:{complete:true}}]});
+    render(<PayrollPage auth={{}} />);
+    await screen.findByRole("button",{name:/Continue Payroll/});
+    fireEvent.click(screen.getByRole("button",{name:/Continue Payroll/}));
+    const finalize=await screen.findByRole("button",{name:"Finalize Payroll",exact:true});
+    await waitFor(()=>expect(finalize.disabled).toBe(false));
+    expect(screen.getAllByRole("button",{name:"Finalize Payroll",exact:true})).toHaveLength(1);
+    fireEvent.click(finalize);
+    const confirmation=screen.getByRole("dialog");
+    await waitFor(()=>expect(confirmation.textContent.replaceAll("\u00a0"," ")).toContain("RM 1,750.00"));
+    expect(confirmation.textContent).toContain("1 employees · 2026-09");
+    expect(screen.getByRole("button",{name:"Confirm",exact:true}).disabled).toBe(true);
+  });
   it("summarizes canonical readiness and money without raw blocker wording", async () => {
     mocks.readPreparation.mockResolvedValue({results:[
       {employee_id:"a",projection:{status:"ready"},statutory_setup:{complete:true}},
@@ -159,9 +178,9 @@ describe("Payroll Control Center", () => {
     expect(screen.getByRole("button", { name: /View Finalized Payroll/ })).not.toBeNull();
     expect(screen.getByText("Payroll finalized. The current revision is read-only; any correction creates a new revision.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /View Finalized Payroll/ }));
-    await screen.findByRole("heading",{name:"Payroll Record"});
+    await screen.findByText(/Read-only; changes require a Correction Revision/);
     expect(mocks.readFinalizedRecord).toHaveBeenCalledWith("run-final");
-    expect(screen.getByText(/QA Approver/)).not.toBeNull();
+    await screen.findByText(/QA Approver/);
     expect(screen.queryByRole("button", { name: "Finalize Payroll" })).toBeNull();
   });
 

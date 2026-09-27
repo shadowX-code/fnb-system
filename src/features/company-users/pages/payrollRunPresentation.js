@@ -18,6 +18,18 @@ export function payrollEmployeeResult(calculation, statutory) {
   };
 }
 
+// Aggregate persisted results for display only; never price earnings in the UI.
+export function payrollRunSummary(rows = []) {
+  const sum = read => rows.length && rows.every(row => read(row) != null)
+    ? rows.reduce((total, row) => total + Number(read(row)), 0) : null;
+  return {
+    gross: sum(row => row.result.gross),
+    deductions: sum(row => row.result.deductions),
+    net: sum(row => row.result.net),
+    employerCost: sum(row => row.result.statutoryCurrent ? row.statutory?.total_employer_cost : null),
+  };
+}
+
 export function payrollIssueLabel(issue, context = {}) {
   const [code, detail] = String(issue).split(":");
   const range = value => value?.replaceAll("..", " – ");
@@ -31,6 +43,13 @@ export function payrollIssueLabel(issue, context = {}) {
     return `${code === "statutory_applicability_missing" ? "Statutory" : code.split("_")[0].toUpperCase()} applicability missing · ${coverage.start} – ${coverage.missing_through}`;
   }
   const labels = {
+    missing_approved_payable_time: "Missing approved payable time",
+    missing_punch: "Missing clock-in or clock-out; review payable time",
+    pcb_confirmation_required: "PCB amount required",
+    pcb_applicability_unreviewed: "PCB applicability requires review",
+    epf_applicability_unreviewed: "EPF applicability requires review",
+    socso_applicability_unreviewed: "SOCSO applicability requires review",
+    eis_applicability_unreviewed: "EIS applicability requires review",
     ph_treatment_confirmation_required: "Review and confirm the company PH work treatment in Employee Review",
     ph_company_policy_required: "Confirm a company PH Work Policy in Public Holidays Settings",
     ph_treatment_evidence_changed: "PH work evidence changed; review and confirm its treatment again",
