@@ -78,7 +78,7 @@ export default function AdminFilterToolbar({
   ].filter(Boolean);
 
   return (
-    <section className={`admin-filter-toolbar rounded-lg border border-border bg-surface/80 shadow-sm ${compact ? "admin-filter-toolbar-compact" : ""} ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar>
+    <section className={`admin-filter-toolbar w-full min-w-0 rounded-lg border border-border bg-surface/80 shadow-sm ${compact ? "admin-filter-toolbar-compact" : ""} ${className}`.trim()} aria-label={ariaLabel} data-admin-filter-toolbar>
       <div className="admin-filter-toolbar-row flex flex-wrap items-end">
         <div className="flex min-w-0 flex-[1_1_640px] flex-wrap items-end" data-admin-filter-fields>
           {fields.map(({ field, slot, role, width }, index) => <div className={`${denseFields ? role === "outlet" ? "w-full sm:w-[200px]" : role === "search" ? "w-full min-w-0 sm:flex-[1_1_240px]" : role === "date-range" ? "w-full sm:w-[220px]" : "w-full sm:w-[150px]" : width} ${role === "search" ? "min-w-0" : "min-w-0 shrink-0"} admin-filter-field`.trim()} data-admin-filter-slot={slot} data-admin-filter-role={role} key={field?.key || index}>{field}</div>)}

@@ -43,6 +43,7 @@ import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
+import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
@@ -8552,9 +8553,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       );
     };
 
+    const contentActions = <div className="flex flex-wrap items-center justify-end gap-3">
+      <span role="status" aria-live="polite">
+        <Badge tone={parLevelSaveState === "saving" ? "info" : parLevelSaveState === "error" ? "danger" : "neutral"}>
+          {parLevelSaveState === "saving" ? "Saving..." : parLevelSaveState === "error" ? "Save failed" : "Saved"}
+        </Badge>
+      </span>
+      <AdminSegmentedControl label="Par Level view" value={parLevelView} onChange={setParLevelView} options={[
+        { value: "outlet", label: "Outlet View" },
+        { value: "matrix", label: "Matrix View" },
+      ]} />
+    </div>;
+
     return (
       <div className="space-y-4">
-      <AdminFilterToolbar outlet={parLevelView === "outlet" ? (
+        <AdminFilterToolbar outlet={parLevelView === "outlet" ? (
               <SelectField
                 label="Outlet"
                 value={activeOutletId}
@@ -8573,32 +8586,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             )} search={<AdminSearchField label="Search item" value={query} onChange={setQuery} placeholder="Search item name or SKU" />} filters={<>
             <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
             {parLevelView === "outlet" ? <SelectField label="Group by" value={parLevelGroupBy} options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]} onChange={setParLevelGroupBy} /> : null}
-          </>} secondaryActions={<><div className="flex min-w-[92px] justify-end">
-            <Badge tone={parLevelSaveState === "saving" ? "info" : parLevelSaveState === "error" ? "danger" : "success"}>
-              {parLevelSaveState === "saving" ? "Saving..." : parLevelSaveState === "error" ? "Save failed" : "Saved"}
-            </Badge>
-          </div>
-          <div className="inline-flex rounded-xl border border-border bg-slate-50 p-1">
-            {[
-              ["outlet", "Outlet View"],
-              ["matrix", "Matrix View"],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                className={`rounded-lg px-3 py-1.5 type-caption font-bold transition ${parLevelView === value ? "bg-white text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
-                type="button"
-                onClick={() => setParLevelView(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </>} />
+          </>} />
 
         {parLevelView === "outlet" ? (
           <SectionCard
             title={`${outletById.get(activeOutletId)?.name ?? "Outlet"} Par Levels`}
             description="Set the minimum quantity this outlet should keep for each linked item."
+            action={contentActions}
           >
             {outletScopedItems.length ? (
               <div className="overflow-x-auto" ref={parLevelGridRef}>
@@ -8650,7 +8644,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             ) : <EmptyState title="No linked items for this outlet" description="Link items to this outlet from Master Inventory before setting par levels." />}
           </SectionCard>
         ) : (
-          <SectionCard title="Par Level Matrix" description="HQ view for comparing item par levels across outlets.">
+          <SectionCard title="Par Level Matrix" description="HQ view for comparing item par levels across outlets." action={contentActions}>
             {parItems.length ? (
               <div className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">

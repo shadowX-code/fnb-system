@@ -21,6 +21,13 @@ function OutletHarness() {
 afterEach(cleanup);
 
 describe("AdminFilterToolbar", () => {
+  it("keeps compact and standard toolbars full width while selects stay bounded", () => {
+    const view = render(<AdminFilterToolbar compact><AdminSearchField label="Search" value="" onChange={vi.fn()} /><Field label="Status" /></AdminFilterToolbar>);
+    expect(screen.getByRole("region", { name: "Filters" }).className).toContain("w-full min-w-0");
+    expect(screen.getByLabelText("Status").closest('[data-admin-filter-slot]').className).toContain("sm:w-[180px]");
+    view.rerender(<AdminFilterToolbar><Field label="Status" /></AdminFilterToolbar>);
+    expect(screen.getByRole("region", { name: "Filters" }).className).toContain("w-full min-w-0");
+  });
   it("gives a shared child Search the same responsive space as the Search slot", () => {
     render(<AdminFilterToolbar><AdminSearchField label="Search" value="" onChange={vi.fn()} /></AdminFilterToolbar>);
     expect(screen.getByRole("searchbox", { name: "Search" }).closest('[data-admin-filter-role="search"]').className).toContain("sm:flex-[1_1_280px]");

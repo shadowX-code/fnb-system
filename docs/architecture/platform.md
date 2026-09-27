@@ -55,6 +55,8 @@ Admin cross-domain presentation primitives live under `src/components/`: `PageHe
 
 ### Admin Page Composition
 
+`AdminFilterToolbar` is full available page width in both standard and compact density. Compact changes spacing, not container width. Search receives flexible space while select fields remain bounded and wrap at narrower widths. Content save state and local table presentation modes belong in the content section header rather than the query toolbar; Par Levels keeps its existing autosave authority and uses `AdminSegmentedControl` there for Outlet/Matrix views.
+
 Shared `SelectField`, `DatePickerField`, and `MonthPickerField` provide branded selection controls rather than OS-native menus. `FloatingLayer` mounts anchored popovers inside the nearest active dialog when present, otherwise to the document body, keeping modal options/calendars in the same accessible tree. Date Picker arrow-key focus uses its calendar owner rather than the non-portaled input wrapper.
 
 Routed Admin pages normally compose as `PageHeader → primary mode/tabs → scope and filters → summary/KPIs → section or view controls → primary data surface`. PageHeader owns page identity and page-level actions. Put a mode switch before controls whose meaning changes with that mode; put scope controls before any summary calculated for that scope. A genuinely global or current-state domain summary may precede filters only when its label/helper makes that scope explicit. Keep view controls adjacent to the surface they change. Operational workflow sequence may justify a deviation, but a page must not create its own competing presentation convention.
