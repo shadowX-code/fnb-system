@@ -18,6 +18,10 @@ vi.mock("../../../../lib/supabase.ts", () => {
     builder.eq = vi.fn((key, value) => { filters.push({ key, value }); return builder; });
     builder.in = vi.fn(() => builder);
     builder.order = vi.fn(() => builder);
+    builder.range = vi.fn(async (from, to) => {
+      const rows = rowsFor(table, filters).map((row, index) => ({ ...row, id: row.id || `fixture-${table}-${index}` }));
+      return { data: rows.slice(from, to + 1), count: rows.length, error: null };
+    });
     builder.limit = vi.fn(() => builder);
     builder.ilike = vi.fn(() => builder);
     builder.single = vi.fn(async () => {

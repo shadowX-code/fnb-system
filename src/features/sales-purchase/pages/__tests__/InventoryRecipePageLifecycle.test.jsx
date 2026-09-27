@@ -92,6 +92,10 @@ function createQuery(table) {
   };
   builder.select = vi.fn(() => builder);
   builder.order = vi.fn(() => builder);
+  builder.range = vi.fn(async (from, to) => {
+    const rows = (mocks.tables[table] || []).map((row, index) => ({ ...row, id: row.id || `fixture-${table}-${index}` }));
+    return { data: rows.slice(from, to + 1), count: rows.length, error: null };
+  });
   builder.ilike = vi.fn(() => builder);
   builder.limit = vi.fn(() => builder);
   builder.eq = vi.fn((key, value) => { query.filters.push([key, value]); return builder; });

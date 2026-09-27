@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertTriangle, Award, BarChart3, Building2, ChevronDown, CircleDollarSign, Download, FileSpreadsheet, FileText, Info, TrendingDown, TrendingUp } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
@@ -7,8 +7,9 @@ import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import TrendChart from "../../../components/charts/TrendChart.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
-import { months } from "../data/mockData.js";
-import { getSalesBreakdown, percentageChange, sumAmount, toCurrency, toPercent } from "../utils/analytics.js";
+import { percentageChange, toCurrency as formatCurrency, toPercent as formatPercent } from "../utils/analytics.js";
+import { reportingService } from "../../../services/reportingService.js";
+import { projectOutletPnl } from "../../../services/outletPnlProjection.js";
 import { canExport, getAccessibleOutletOptions, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { financialTerminology } from "../../../utils/financialTerminology.js";
 
@@ -19,60 +20,30 @@ function defaultYear(store) {
   return years.length ? Math.max(...years) : new Date().getFullYear();
 }
 
-function monthPnl(store, outletIds, year, month) {
-  return outletIds.reduce((total, outletId) => {
-    const sales = getSalesBreakdown(store.salesRecords, store.salesChannels, outletId, month, year).netSales;
-    const cogs = sumAmount(store.purchaseRecords.filter((record) => record.outlet_id === outletId && Number(record.year) === Number(year) && Number(record.month) === Number(month)));
-    const opex = sumAmount((store.operatingExpenses ?? []).filter((record) => record.outlet_id === outletId && Number(record.year) === Number(year) && Number(record.month) === Number(month)));
-    return {
-      revenue: total.revenue + sales,
-      cogs: total.cogs + cogs,
-      opex: total.opex + opex,
-    };
-  }, { revenue: 0, cogs: 0, opex: 0 });
-}
-
-function enrichPnl(row) {
-  const grossProfit = row.revenue - row.cogs;
-  const netProfit = row.revenue - row.cogs - row.opex;
-  const margin = row.revenue > 0 ? (netProfit / row.revenue) * 100 : 0;
-  return { ...row, grossProfit, netProfit, margin };
-}
-
-function yearlyPnl(store, outletIds, year) {
-  const monthly = months.map((month) => enrichPnl({ month: month.value, label: month.label, ...monthPnl(store, outletIds, year, month.value) }));
-  const total = enrichPnl(monthly.reduce((sum, item) => ({
-    revenue: sum.revenue + item.revenue,
-    cogs: sum.cogs + item.cogs,
-    opex: sum.opex + item.opex,
-  }), { revenue: 0, cogs: 0, opex: 0 }));
-  return { monthly, total };
-}
-
-function outletRanking(store, year) {
-  return store.outlets.map((outlet) => {
-    const pnl = yearlyPnl(store, [outlet.id], year).total;
-    return { outlet, ...pnl };
-  }).sort((a, b) => b.netProfit - a.netProfit);
-}
+const toCurrency = (value) => value === null || value === undefined ? "—" : formatCurrency(value);
+const toPercent = (value) => value === null || value === undefined ? "—" : formatPercent(value);
 
 function yoy(current, previous) {
+  if (current === null || previous === null) return "Incomplete comparison";
   if (!previous) return "No prior year";
   const change = percentageChange(current, previous);
   return `${change >= 0 ? "+" : ""}${toPercent(change)} YoY`;
 }
 
 function yoyValue(current, previous) {
+  if (current === null || previous === null) return null;
   if (!previous) return null;
   return percentageChange(current, previous);
 }
 
 function signedCurrency(value) {
+  if (value === null || value === undefined) return "—";
   const amount = Math.abs(Number(value) || 0);
   return `${Number(value) < 0 ? "-" : ""}${toCurrency(amount)}`;
 }
 
 function marginStatus(margin) {
+  if (margin === null) return { label: "Incomplete", tone: "neutral", className: "border-slate-200 bg-slate-50 text-slate-600" };
   if (margin >= 25) return { label: "Excellent", tone: "success", className: "border-emerald-200 bg-emerald-50 text-emerald-700" };
   if (margin >= 15) return { label: "Healthy", tone: "success", className: "border-green-200 bg-green-50 text-green-700" };
   if (margin >= 5) return { label: "Warning", tone: "warning", className: "border-amber-200 bg-amber-50 text-amber-700" };
@@ -96,6 +67,7 @@ function FinanceBadge({ children, tone = "neutral" }) {
 }
 
 function monthMarginBadgeClass(item) {
+  if (item.margin === null) return "border-slate-200 bg-slate-50 text-slate-500";
   if (item.revenue <= 0) return "border-slate-200 bg-slate-50 text-slate-500";
   if (item.margin < 0) return "border-rose-200 bg-rose-50 text-rose-700";
   if (item.margin === 0) return "border-slate-200 bg-slate-50 text-slate-500";
@@ -104,7 +76,7 @@ function monthMarginBadgeClass(item) {
 }
 
 function pnlRatio(value, revenue) {
-  if (!revenue) return "--";
+  if (value === null || !revenue) return "—";
   return `(${toPercent(Math.abs(value) / revenue * 100)})`;
 }
 
@@ -153,8 +125,8 @@ function TrendSeriesTooltip({ label, currentLabel, previousLabel, currentValue, 
         <div className="font-bold text-text-primary">{label}</div>
       </div>
       {[
-        [currentLabel, toCurrency(currentValue || 0), valueClassName],
-        [previousLabel, toCurrency(previousValue || 0), "text-text-primary"],
+        [currentLabel, toCurrency(currentValue), valueClassName],
+        [previousLabel, toCurrency(previousValue), "text-text-primary"],
       ].map(([name, value, className]) => (
         <div key={name} className="mt-1.5 flex justify-between gap-8 text-text-secondary">
           <span>{name}</span>
@@ -166,6 +138,7 @@ function TrendSeriesTooltip({ label, currentLabel, previousLabel, currentValue, 
 }
 
 function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingRows }) {
+  if (total.netProfit === null) return [{ tone: "warning", icon: Info, label: "Incomplete", title: "Financial evidence is incomplete.", body: "Missing Revenue, COGS or OpEx remains unavailable; EBITDA is not reported as zero." }];
   const insights = [];
   const latest = latestActiveMonth(monthly);
   const previousMonth = monthly[Math.max(0, Number(latest?.month ?? 1) - 2)];
@@ -198,9 +171,9 @@ function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingR
     insights.push({ tone: "warning", icon: CircleDollarSign, label: financialTerminology.ebitda, title: `Revenue increased but ${financialTerminology.ebitda} dropped.`, body: "Sales improved YoY, but profit conversion weakened. Review cost movement." });
   }
   if (missingOpexCount) {
-    insights.push({ tone: "info", icon: Info, label: "OpEx", title: `Operating expense data missing for ${missingOpexCount} months.`, body: "P&L can render with RM0 OpEx, but management reporting is clearer after entry." });
+    insights.push({ tone: "info", icon: Info, label: "OpEx", title: `Operating expense data missing for ${missingOpexCount} months.`, body: "Enter the missing source evidence to complete the P&L." });
   }
-  const groupNetProfit = rankingRows?.reduce((sum, row) => sum + row.netProfit, 0) ?? 0;
+  const groupNetProfit = rankingRows?.length && rankingRows.every((row) => row.netProfit !== null) ? rankingRows.reduce((sum, row) => sum + row.netProfit, 0) : null;
   const topOutlet = rankingRows?.filter((row) => row.netProfit > 0).sort((a, b) => b.netProfit - a.netProfit)[0];
   if (topOutlet && groupNetProfit > 0) {
     const contribution = (topOutlet.netProfit / groupNetProfit) * 100;
@@ -215,6 +188,7 @@ function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingR
 }
 
 function BreakdownBar({ total }) {
+  if (total.netProfit === null) return <p className="text-sm text-text-secondary">Cost and profit mix unavailable until financial inputs are complete.</p>;
   const absolute = Math.max(total.revenue, total.cogs + total.opex + Math.max(total.netProfit, 0), 1);
   const parts = [
     { label: "Revenue", value: total.revenue, color: "bg-slate-900", ring: "#0f172a", muted: true },
@@ -271,15 +245,37 @@ export default function OutletPnlPage({ store, ui, auth }) {
   const [outletId, setOutletId] = useState("all");
   const [year, setYear] = useState(defaultYear(store));
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
-  const outletIds = outletId === "all" ? store.outlets.map((outlet) => outlet.id) : [outletId].filter(Boolean);
-  const current = useMemo(() => yearlyPnl(store, outletIds, year), [outletIds.join("|"), store, year]);
-  const previous = useMemo(() => yearlyPnl(store, outletIds, Number(year) - 1), [outletIds.join("|"), store, year]);
+  const [report, setReport] = useState({ key: "", loading: true, error: "" });
+  const reportKey = `${outletId}:${year}`;
+  const accessibleOutlets = getAccessibleOutletOptions(auth, store.outlets).filter((option) => option.value !== "all");
+  const accessibleKey = accessibleOutlets.map((option) => option.value).join("|");
+  useEffect(() => {
+    let cancelled = false;
+    setReport({ key: reportKey, loading: true, error: "" });
+    const scope = outletId === "all" ? null : outletId;
+    Promise.all([
+      reportingService.getYearlyScopeFinancialReport({ outletId: scope, year }),
+      reportingService.getYearlyScopeFinancialReport({ outletId: scope, year: year - 1 }),
+      outletId === "all" ? Promise.all(accessibleOutlets.map(async (outlet) => ({
+        outlet: { id: outlet.value, name: outlet.label },
+        ...projectOutletPnl(await reportingService.getYearlyScopeFinancialReport({ outletId: outlet.value, year })).total,
+      }))) : Promise.resolve([]),
+    ]).then(([current, previous, rankingRows]) => {
+      if (!cancelled) setReport({ key: reportKey, loading: false, error: "", current: projectOutletPnl(current), previous: projectOutletPnl(previous), rankingRows });
+    }).catch((error) => {
+      if (!cancelled) setReport({ key: reportKey, loading: false, error: error.message || "Reporting data unavailable." });
+    });
+    return () => { cancelled = true; };
+  }, [reportKey, accessibleKey]);
+  const empty = { monthly: [], total: { revenue: null, cogs: null, opex: null, grossProfit: null, netProfit: null, margin: null } };
+  const current = report.key === reportKey ? report.current ?? empty : empty;
+  const previous = report.key === reportKey ? report.previous ?? empty : empty;
   const exportAllowed = canExport(auth, "outlet_pnl");
-  const rankingRows = outletRanking(store, year);
-  const totalGroupNetProfit = rankingRows.reduce((sum, row) => sum + row.netProfit, 0);
+  const rankingRows = (report.key === reportKey ? report.rankingRows ?? [] : []).toSorted((a, b) => (b.netProfit ?? -Infinity) - (a.netProfit ?? -Infinity));
+  const totalGroupNetProfit = rankingRows.length && rankingRows.every((row) => row.netProfit !== null) ? rankingRows.reduce((sum, row) => sum + row.netProfit, 0) : null;
   const highestRevenue = Math.max(...rankingRows.map((row) => row.revenue), 0);
   const highestMargin = Math.max(...rankingRows.filter((row) => row.revenue > 0).map((row) => row.margin), 0);
-  const missingOpexCount = current.monthly.filter((item) => item.revenue > 0 && item.opex === 0).length;
+  const missingOpexCount = current.monthly.filter((item) => !item.future && item.opex === null).length;
   const insights = pnlInsights({ total: current.total, previousTotal: previous.total, monthly: current.monthly, missingOpexCount, rankingRows });
   const marginHealth = marginStatus(current.total.margin);
   const today = new Date();
@@ -287,6 +283,11 @@ export default function OutletPnlPage({ store, ui, auth }) {
   const currentCalendarMonth = today.getMonth() + 1;
   const visibleMonthLimit = Number(year) < currentCalendarYear ? 12 : Number(year) === currentCalendarYear ? currentCalendarMonth : 0;
   const visibleMonthly = current.monthly.filter((item) => item.month <= visibleMonthLimit);
+  const revenueTrendComplete = visibleMonthly.length > 0 && visibleMonthly.every((item) => item.revenue !== null);
+  const profitTrendComplete = visibleMonthly.length > 0 && visibleMonthly.every((item) => item.netProfit !== null);
+  const previousVisible = previous.monthly.slice(0, visibleMonthly.length);
+  const previousRevenueComplete = previousVisible.length > 0 && previousVisible.every((item) => item.revenue !== null);
+  const previousProfitComplete = previousVisible.length > 0 && previousVisible.every((item) => item.netProfit !== null);
 
   function queueExport(format) {
     if (!exportAllowed) {
@@ -309,7 +310,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
             <div className="mt-1 flex flex-wrap gap-1.5">
               {row.revenue === highestRevenue && row.revenue > 0 ? <FinanceBadge tone="success">Highest Revenue</FinanceBadge> : null}
               {row.margin === highestMargin && row.revenue > 0 ? <FinanceBadge tone="info">Highest Margin</FinanceBadge> : null}
-              {row.margin < 5 && row.revenue > 0 ? <FinanceBadge tone="danger">Loss Risk</FinanceBadge> : null}
+              {row.margin !== null && row.margin < 5 && row.revenue > 0 ? <FinanceBadge tone="danger">Loss Risk</FinanceBadge> : null}
             </div>
           </div>
         </div>
@@ -325,6 +326,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
       header: "Contribution %",
       align: "right",
       render: (row) => {
+        if (row.netProfit === null || totalGroupNetProfit === null) return "—";
         const contribution = totalGroupNetProfit !== 0 ? (row.netProfit / totalGroupNetProfit) * 100 : 0;
         return (
           <div className="ml-auto w-32">
@@ -391,6 +393,8 @@ export default function OutletPnlPage({ store, ui, auth }) {
         />
       </FilterBar>
 
+      {report.loading || report.key !== reportKey ? <p role="status" className="card p-4">Loading canonical Reporting evidence…</p> : report.error ? <p role="alert" className="card p-4 text-rose-700">{report.error} Financial results are unavailable.</p> : current.completeness !== "complete" ? <p role="status" className="card p-4 text-amber-800">Incomplete financial evidence. Missing inputs and dependent totals display —, never RM0.</p> : null}
+
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <PnlKpiCard label="Total Revenue" value={toCurrency(current.total.revenue)} helper={yoy(current.total.revenue, previous.total.revenue)} icon={TrendingUp} insight="Saved net sales across selected outlets." />
         <PnlKpiCard label="Gross Profit" value={toCurrency(current.total.grossProfit)} helper={yoy(current.total.grossProfit, previous.total.grossProfit)} icon={BarChart3} insight="Revenue after COGS before OpEx." />
@@ -410,13 +414,13 @@ export default function OutletPnlPage({ store, ui, auth }) {
       <div className="grid gap-4 xl:grid-cols-2">
         <Card title="Revenue Trend" description="Monthly net sales compared with previous year.">
           <div className="p-4">
-            <TrendChart
-              labels={months.map((month) => month.label)}
+            {revenueTrendComplete ? <TrendChart
+              labels={visibleMonthly.map((month) => month.label)}
               type="area"
               tension={0.38}
               series={[
-                { name: `${year} Revenue`, data: current.monthly.map((item) => item.revenue), stroke: "#16a34a", fill: "#22c55e", area: true, areaOpacity: 0.14, format: toCurrency },
-                { name: `${year - 1} Revenue`, data: previous.monthly.map((item) => item.revenue), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency },
+                { name: `${year} Revenue`, data: visibleMonthly.map((item) => item.revenue), stroke: "#16a34a", fill: "#22c55e", area: true, areaOpacity: 0.14, format: toCurrency },
+                ...(previousRevenueComplete ? [{ name: `${year - 1} Revenue`, data: previousVisible.map((item) => item.revenue), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency }] : []),
               ]}
               highlightIndex={new Date().getMonth()}
               renderTooltip={({ label, index }) => (
@@ -428,18 +432,18 @@ export default function OutletPnlPage({ store, ui, auth }) {
                   previousValue={previous.monthly[index]?.revenue}
                 />
               )}
-            />
+            /> : <p className="text-sm text-text-secondary">Revenue trend unavailable: source evidence is missing. See the monthly breakdown.</p>}
           </div>
         </Card>
         <Card title={financialTerminology.ebitdaTrend} description={financialTerminology.ebitdaExplanation}>
           <div className="p-4">
-            <TrendChart
-              labels={months.map((month) => month.label)}
+            {profitTrendComplete ? <TrendChart
+              labels={visibleMonthly.map((month) => month.label)}
               type="area"
               tension={0.38}
               series={[
-                { name: `${year} ${financialTerminology.ebitda}`, data: current.monthly.map((item) => item.netProfit), stroke: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", fill: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", area: true, areaOpacity: 0.12, format: toCurrency },
-                { name: `${year - 1} ${financialTerminology.ebitda}`, data: previous.monthly.map((item) => item.netProfit), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency },
+                { name: `${year} ${financialTerminology.ebitda}`, data: visibleMonthly.map((item) => item.netProfit), stroke: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", fill: current.total.netProfit < 0 ? "#e11d48" : "#2563eb", area: true, areaOpacity: 0.12, format: toCurrency },
+                ...(previousProfitComplete ? [{ name: `${year - 1} ${financialTerminology.ebitda}`, data: previousVisible.map((item) => item.netProfit), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency }] : []),
               ]}
               highlightIndex={new Date().getMonth()}
               renderTooltip={({ label, index }) => (
@@ -452,7 +456,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
                   valueClassName={current.monthly[index]?.netProfit < 0 ? "text-rose-600" : "text-text-primary"}
                 />
               )}
-            />
+            /> : <p className="text-sm text-text-secondary">EBITDA trend unavailable until Revenue, COGS and OpEx evidence is complete.</p>}
           </div>
         </Card>
       </div>
@@ -471,15 +475,15 @@ export default function OutletPnlPage({ store, ui, auth }) {
                 </div>
                 <div className="mt-3 grid gap-1.5">
                   <PnlStatementRow label="Revenue" amount={toCurrency(item.revenue)} ratio="" />
-                  <PnlStatementRow label="COGS" amount={`-${toCurrency(item.cogs)}`} ratio={pnlRatio(item.cogs, item.revenue)} />
-                  <PnlStatementRow label="OpEx" amount={`-${toCurrency(item.opex)}`} ratio={pnlRatio(item.opex, item.revenue)} />
+                  <PnlStatementRow label="COGS" amount={item.cogs === null ? "—" : `-${toCurrency(item.cogs)}`} ratio={pnlRatio(item.cogs, item.revenue)} />
+                  <PnlStatementRow label="OpEx" amount={item.opex === null ? "—" : `-${toCurrency(item.opex)}`} ratio={pnlRatio(item.opex, item.revenue)} />
                   <div className="mt-1.5 flex justify-between border-t border-border pt-2.5"><span className="text-xs font-bold text-text-primary">{financialTerminology.ebitda}</span><strong className={`text-base font-bold ${item.netProfit < 0 ? "text-rose-500" : "text-text-primary"}`}>{signedCurrency(item.netProfit)}</strong></div>
                 </div>
               </div>
             ))}
             {!visibleMonthly.length ? (
               <div className="col-span-full rounded-2xl border border-border bg-slate-50 p-6 text-sm font-semibold text-text-secondary">
-                No months are available for this future year yet.
+                {visibleMonthLimit === 0 ? "No months are available for this future year yet." : "Monthly Reporting evidence is not available."}
               </div>
             ) : null}
           </div>

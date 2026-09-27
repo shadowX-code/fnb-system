@@ -89,6 +89,8 @@ After a completed scheduled Stock Check, Crew's completion result uses the exist
 
 ## Compatibility And Deferred Scope
 
+Full Inventory reads page each canonical collection with exact counts and stable ID tie-breaking through `inventoryCompleteRead`. Read failures, changing counts, overlapping pages and truncation are explicit error/incomplete states, never authoritative empty collections. Only a verified complete read replaces the full Inventory projection. Initial loading and failed refresh block the full data surface; successful-snapshot revalidation is explicitly marked. The focused PO reader and all stock/PO/receiving write authorities remain unchanged.
+
 Inventory Control and Asset Tracking pages are surfaces within this domain, not separate documentation domains.
 Do not merge Factory warehouse state into restaurant inventory solely because both represent stock.
 Advanced costing, predictive ordering, or external warehouse integration remains deferred unless introduced by current contracts.

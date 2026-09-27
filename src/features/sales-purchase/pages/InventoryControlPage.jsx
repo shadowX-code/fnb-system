@@ -48,6 +48,7 @@ import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
 import { inventoryLifecycleService } from "../../../services/inventoryLifecycleService.js";
+import { readCompleteInventoryRows } from "../../../services/inventoryCompleteRead.js";
 import { createInventoryRecipeReadModel } from "../inventory/recipes/inventoryRecipeReadModel.js";
 import { findRecipeCodeMatches, uploadRecipePhoto } from "../inventory/recipes/inventoryRecipeModalSupportReads.js";
 import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
@@ -1380,59 +1381,30 @@ function mapRemotePurchaseOrder(row = {}, lines = [], receipts = []) {
 }
 
 async function loadRemoteInventoryMaster() {
-  const itemsResult = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
+  const itemsResult = await readCompleteInventoryRows("inventory_items", { order: "created_at", ascending: false });
   if (itemsResult.error) throw itemsResult.error;
 
   const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult, stockChecksResult, stockCheckItemsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult, movementsResult, wasteResult, menuCategoriesResult, recipesResult, recipeItemsResult, employeesResult] = await Promise.all([
-    supabase.from("inventory_categories").select("*").order("sort_order", { ascending: true }),
-    supabase.from("inventory_uoms").select("*").order("sort_order", { ascending: true }),
-    supabase.from("inventory_item_outlets").select("*, outlets:outlet_id(*)"),
-    supabase.from("inventory_item_outlet_suppliers").select("*"),
-    supabase.from("inventory_stock_check_groups").select("*").order("created_at", { ascending: false }),
-    supabase.from("inventory_stock_check_group_categories").select("*"),
-    supabase.from("inventory_stock_checks").select("*").order("created_at", { ascending: false }),
-    supabase.from("inventory_stock_check_items").select("*").order("created_at", { ascending: true }),
-    supabase.from("inventory_purchase_orders").select("*").order("created_at", { ascending: false }),
-    supabase.from("inventory_purchase_order_items").select("*").order("created_at", { ascending: true }),
-    supabase.from("inventory_purchase_receipts").select("*").order("received_at", { ascending: false }),
-    supabase.from("inventory_purchase_receipt_items").select("*").order("created_at", { ascending: true }),
-    supabase.from("inventory_movements").select("*").order("created_at", { ascending: false }),
-    supabase.from("inventory_waste_records").select("*").order("waste_date", { ascending: false }).order("created_at", { ascending: false }),
-    supabase.from("inventory_menu_categories").select("*").order("sort_order", { ascending: true }),
-    supabase.from("inventory_recipes").select("*").order("created_at", { ascending: false }),
-    supabase.from("inventory_recipe_items").select("*").order("created_at", { ascending: true }),
-    supabase.from("employees").select("id, auth_user_id, full_name, nickname, email"),
+    readCompleteInventoryRows("inventory_categories", { order: "sort_order" }),
+    readCompleteInventoryRows("inventory_uoms", { order: "sort_order" }),
+    readCompleteInventoryRows("inventory_item_outlets", { select: "*, outlets:outlet_id(*)" }),
+    readCompleteInventoryRows("inventory_item_outlet_suppliers"),
+    readCompleteInventoryRows("inventory_stock_check_groups", { order: "created_at", ascending: false }),
+    readCompleteInventoryRows("inventory_stock_check_group_categories"),
+    readCompleteInventoryRows("inventory_stock_checks", { order: "created_at", ascending: false }),
+    readCompleteInventoryRows("inventory_stock_check_items", { order: "created_at" }),
+    readCompleteInventoryRows("inventory_purchase_orders", { order: "created_at", ascending: false }),
+    readCompleteInventoryRows("inventory_purchase_order_items", { order: "created_at" }),
+    readCompleteInventoryRows("inventory_purchase_receipts", { order: "received_at", ascending: false }),
+    readCompleteInventoryRows("inventory_purchase_receipt_items", { order: "created_at" }),
+    readCompleteInventoryRows("inventory_movements", { order: "created_at", ascending: false }),
+    readCompleteInventoryRows("inventory_waste_records", { order: "waste_date", ascending: false }),
+    readCompleteInventoryRows("inventory_menu_categories", { order: "sort_order" }),
+    readCompleteInventoryRows("inventory_recipes", { order: "created_at", ascending: false }),
+    readCompleteInventoryRows("inventory_recipe_items", { order: "created_at" }),
+    readCompleteInventoryRows("employees", { select: "id, auth_user_id, full_name, nickname, email" }),
   ]);
-  if (categoriesResult.error) console.warn("[InventoryControl] Inventory categories metadata unavailable. Items will still render.", categoriesResult.error);
-  if (uomsResult.error) console.warn("[InventoryControl] Inventory UOM metadata unavailable. Items will still render.", uomsResult.error);
-  if (itemOutletSuppliersResult.error) console.warn("[InventoryControl] Inventory outlet supplier links unavailable. Items will still render without supplier assignments.", itemOutletSuppliersResult.error);
-  if (stockGroupsResult.error) console.warn("[InventoryControl] Stock check groups unavailable. Groups will render empty until persistence is configured.", stockGroupsResult.error);
-  if (stockGroupCategoriesResult.error) console.warn("[InventoryControl] Stock check group category links unavailable.", stockGroupCategoriesResult.error);
-  if (stockChecksResult.error) console.warn("[InventoryControl] Stock checks unavailable. Drafts and results will render empty until persistence is configured.", stockChecksResult.error);
-  if (stockCheckItemsResult.error) console.warn("[InventoryControl] Stock check item rows unavailable.", stockCheckItemsResult.error);
-  if (purchaseOrdersResult.error) console.warn("[InventoryControl] Purchase orders unavailable. Draft POs will render empty until persistence is configured.", purchaseOrdersResult.error);
-  if (purchaseOrderItemsResult.error) console.warn("[InventoryControl] Purchase order items unavailable.", purchaseOrderItemsResult.error);
-  if (purchaseReceiptsResult.error) console.warn("[InventoryControl] Purchase receipts unavailable. Receiving history will render empty until persistence is configured.", purchaseReceiptsResult.error);
-  if (purchaseReceiptItemsResult.error) console.warn("[InventoryControl] Purchase receipt items unavailable.", purchaseReceiptItemsResult.error);
-  if (movementsResult.error) console.warn("[InventoryControl] Inventory movements unavailable. Movement history will render empty until persistence is configured.", movementsResult.error);
-  if (wasteResult.error) console.warn("[InventoryControl] Waste records unavailable. Wastage will render empty until persistence is configured.", wasteResult.error);
-  if (menuCategoriesResult.error) console.warn("[InventoryControl] Menu categories unavailable. Recipes & Usage will use default menu category labels.", menuCategoriesResult.error);
-  if (recipesResult.error) console.warn("[InventoryControl] Recipes unavailable. Recipes & Usage will render empty until persistence is configured.", recipesResult.error);
-  if (recipeItemsResult.error) console.warn("[InventoryControl] Recipe ingredients unavailable.", recipeItemsResult.error);
-  if (employeesResult.error) console.warn("[InventoryControl] Employee names unavailable. Stock checks will show fallback checker names.", employeesResult.error);
-  debugLog("[WasteFetchDebug]", { result: { data: wasteResult.data || [], error: wasteResult.error }, error: wasteResult.error });
-  debugLog("[RecipeFetchDebug]", { result: { recipes: recipesResult.data || [], items: recipeItemsResult.data || [], recipeError: recipesResult.error, itemError: recipeItemsResult.error } });
-
-  let itemOutletRows = itemOutletsResult.data || [];
-  if (itemOutletsResult.error) {
-    console.warn("[InventoryControl] Outlet join unavailable. Falling back to plain inventory_item_outlets query.", itemOutletsResult.error);
-    const fallbackItemOutletsResult = await supabase.from("inventory_item_outlets").select("*");
-    if (fallbackItemOutletsResult.error) {
-      console.warn("[InventoryControl] Inventory outlet links unavailable. Items will still render without outlet chips.", fallbackItemOutletsResult.error);
-    } else {
-      itemOutletRows = fallbackItemOutletsResult.data || [];
-    }
-  }
+  const itemOutletRows = itemOutletsResult.data;
 
   const categories = (categoriesResult.data || []).map(mapRemoteCategory);
   const categoryById = new Map(categories.map((category) => [category.id, category]));
@@ -1504,9 +1476,7 @@ async function loadRemoteInventoryMaster() {
     recipeItemsByRecipeId.set(row.recipe_id, list);
   });
   const recipes = (recipesResult.data || []).map((recipe) => mapRemoteRecipe(recipe, recipeItemsByRecipeId.get(recipe.id) || []));
-  const menuCategories = menuCategoriesResult.error
-    ? recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" }))
-    : (menuCategoriesResult.data || []).map(mapRemoteMenuCategory);
+  const menuCategories = menuCategoriesResult.data.map(mapRemoteMenuCategory);
 
   debugLog("[InventoryFetchRaw]", {
     itemRows: itemRows.map((row) => ({
@@ -2640,6 +2610,7 @@ function useInventoryData(outlets, suppliers, readScope = "full") {
       }, outlets, suppliers, { allowEmptyMaster: true }));
       setMeta({
         dataSource: "supabase",
+        completeness: "complete",
         lastFetchedAt: fetchedAt,
         rawItemsCount: remote.rawItemCount ?? remote.items.length,
         normalizedItemsCount: remote.items.length,
@@ -2650,8 +2621,8 @@ function useInventoryData(outlets, suppliers, readScope = "full") {
       return remote;
     } catch (error) {
       if (requestId !== refreshRequestRef.current) return null;
-      console.warn("[InventoryControl] Unable to load remote master inventory. Keeping in-memory fallback data.", error);
-      setMeta((current) => ({ ...current, dataSource: "remote_error", lastFetchedAt: current.lastFetchedAt || "", fallbackActive: true, purchaseOrdersError: error.message || "Unable to load purchase orders." }));
+      console.warn("[InventoryControl] Inventory read unavailable/incomplete. Results are not authoritative until refresh succeeds.", error);
+      setMeta((current) => ({ ...current, dataSource: "remote_error", completeness: error.readState || "error", lastFetchedAt: current.lastFetchedAt || "", fallbackActive: true, purchaseOrdersError: error.message || "Unable to load Inventory." }));
       return null;
     }
   }, [outlets, suppliers, readScope]);
@@ -10026,6 +9997,17 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   const meta = pageMeta[activeTab] ?? pageMeta.dashboard;
 
+  if (activeTab !== "orders" && !["supabase", "refreshing"].includes(inventoryMeta.dataSource)) {
+    const failed = inventoryMeta.dataSource === "remote_error";
+    return <div className="space-y-4">
+      <PageHeader section="INVENTORY CONTROL" title={meta.title} description={meta.description} />
+      <div className="card p-4" role={failed ? "alert" : "status"}>
+        <h2 className="font-semibold">{failed ? "Inventory data unavailable or incomplete" : "Loading complete Inventory data…"}</h2>
+        {failed ? <><p className="mt-2 text-sm text-text-secondary">{inventoryMeta.purchaseOrdersError} No partial results are presented as complete.</p><button type="button" className="btn-secondary mt-3" onClick={refreshInventory}>Retry</button></> : null}
+      </div>
+    </div>;
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -10035,6 +10017,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         actions={renderPageActions()}
       />
 
+      {inventoryMeta.dataSource === "refreshing" ? <p role="status" className="text-sm text-text-secondary">Refreshing Inventory. Showing the last verified complete read.</p> : null}
       {renderActiveTab()}
 
       {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} uoms={sortedUoms} canCreateUom={can.createUom} onAddUom={saveQuickUom} onClose={() => setModal(null)} onSave={saveItem} /> : null}
