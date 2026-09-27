@@ -7,6 +7,10 @@
 }
 
 .crew-task-heading > strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
   min-width: 0;
   overflow-wrap: anywhere;
 }
