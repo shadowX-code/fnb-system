@@ -14,7 +14,7 @@ const hourly={...base,pay_basis:'hourly',identity:{...base.identity,employee_nam
 await writeFile('/private/tmp/feedx-phase5-monthly.pdf',monthly);
 await writeFile('/private/tmp/feedx-phase5-hourly.pdf',await renderPayslip(hourly,api));
 await writeFile('/private/tmp/feedx-phase5-draft.pdf',await renderPayslip({...base,draft:true},api));
-const unicodeFont=await readFile('/private/tmp/feedx-payslip-noto.otf');
+const unicodeFont=await readFile('/private/tmp/feedx-payslip-noto-ttf.ttf');
 const unicode={...base,identity:{...base.identity,employee_name:'QA ONLY 陈伟明 · 长名称测试'},earnings:Array.from({length:40},(_,i)=>({label:`津贴 ${i} · Long financial line wrapping verification`,amount:1}))};
 const bytes=await renderPayslip(unicode,{...api,unicodeFont});
 assert.deepEqual(bytes,await renderPayslip(unicode,{...api,unicodeFont}));

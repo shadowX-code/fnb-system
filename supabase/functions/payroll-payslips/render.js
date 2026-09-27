@@ -7,7 +7,7 @@ export async function renderPayslip(manifest, { PDFDocument, StandardFonts, rgb,
   let regular, bold;
   if (unicodeFont) {
     pdf.registerFontkit(fontkit);
-    regular = await pdf.embedFont(unicodeFont, { subset: true }); bold = regular;
+    regular = await pdf.embedFont(unicodeFont, { subset: false }); bold = regular;
   } else {
     regular = await pdf.embedFont(StandardFonts.Helvetica);
     bold = await pdf.embedFont(StandardFonts.HelveticaBold);

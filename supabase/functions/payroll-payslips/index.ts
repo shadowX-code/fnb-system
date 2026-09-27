@@ -12,10 +12,10 @@ let fontBytes: Uint8Array | undefined;
 async function unicodeFont(manifest: unknown) {
  if (!/[^\u0000-\u007f]/.test(JSON.stringify(manifest))) return undefined;
  if (!fontBytes) {
-  const response=await fetch('https://raw.githubusercontent.com/notofonts/noto-cjk/refs/heads/main/Sans/OTF/SimplifiedChinese/NotoSansCJKsc-Regular.otf',{redirect:'error',signal:AbortSignal.timeout(15000)});
+  const response=await fetch('https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/Variable/TTF/Subset/NotoSansSC-VF.ttf',{redirect:'error',signal:AbortSignal.timeout(15000)});
   if(!response.ok || Number(response.headers.get('content-length'))>18000000) throw new Error('Font unavailable.');
   const bytes=new Uint8Array(await response.arrayBuffer());
-  if(bytes.length>18000000 || hex(await crypto.subtle.digest('SHA-256',bytes))!=='2c76254f6fc379fddfce0a7e84fb5385bb135d3e399294f6eeb6680d0365b74b') throw new Error('Font evidence changed.');
+  if(bytes.length>18000000 || hex(await crypto.subtle.digest('SHA-256',bytes))!=='d68bafcb48a2707749396aa12bbbd833cb70401f3a9a689fd2902c7e0d295964') throw new Error('Font evidence changed.');
   fontBytes=bytes;
  }
  return fontBytes;
