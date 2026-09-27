@@ -41,6 +41,8 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
@@ -1219,7 +1221,7 @@ const recipeWorkspaceTabs = [
 ];
 
 const recipeMappingStatusOptions = [
-  { value: "all", label: "All Status" },
+  { value: "all", label: "All" },
   { value: "pending", label: "Pending" },
   { value: "mapped", label: "Mapped" },
   { value: "ignored", label: "Ignored" },
@@ -4842,15 +4844,12 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
       onClose={onClose}
       footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
     >
-      <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_180px_180px]">
-        <label>
-          <div className="mb-1 type-caption font-semibold text-text-secondary">Search ingredient</div>
-          <input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => onFilter({ ...filters, search: event.target.value })} placeholder="Search ingredient" />
-        </label>
+      <AdminFilterToolbar className="mb-4">
+        <AdminSearchField label="Search ingredient" value={filters.search} onChange={(value) => onFilter({ ...filters, search: value })} placeholder="Search ingredient" />
         <SelectField
           label="Category"
           value={filters.category}
-          options={[{ value: "all", label: "All Categories" }, ...categories.map((category) => ({ value: category, label: category }))]}
+          options={[{ value: "all", label: "All" }, ...categories.map((category) => ({ value: category, label: category }))]}
           onChange={(value) => onFilter({ ...filters, category: value })}
         />
         <SelectField
@@ -4864,7 +4863,7 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
           ]}
           onChange={(value) => onFilter({ ...filters, sort: value })}
         />
-      </div>
+      </AdminFilterToolbar>
       <RecipeRankingTable
         rows={filtered}
         columns={[
@@ -8260,17 +8259,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <MetricCard icon={Warehouse} label="Outlets Linked" value={masterSummary.outletsLinked} helper="Unique outlet links" tone="info" size="compact" />
         </div>
 
-        <div className="card grid gap-3 p-3 xl:grid-cols-[1.15fr_220px_180px_170px] xl:items-end">
-          <label className="min-w-0">
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Search item</div>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-              <input className="control h-9 w-full pl-9 text-[13px]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item name or SKU" />
-            </div>
-          </label>
+      <AdminFilterToolbar>
+          <AdminSearchField label="Search item" value={query} onChange={(value) => setQuery(value)} placeholder="Search item name or SKU" />
           <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable />
-          <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All Categories" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
-          <SelectField label="Status" value={statusFilter} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setStatusFilter} />
+          <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
+          <SelectField label="Status" value={statusFilter} options={[{ value: "all", label: "All" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setStatusFilter} />
           <div className="xl:col-start-4">
             <SelectField
               label="Group by"
@@ -8291,7 +8284,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               <RefreshCw size={15} /> Hard Refresh Inventory
             </button>
           ) : null}
-        </div>
+        </AdminFilterToolbar>
 
         <SectionCard
           title="Inventory Items"
@@ -8561,52 +8554,26 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     return (
       <div className="space-y-4">
-        <div className="card flex flex-col gap-3 p-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-end">
-            {parLevelView === "outlet" ? (
+      <AdminFilterToolbar outlet={parLevelView === "outlet" ? (
               <SelectField
                 label="Outlet"
                 value={activeOutletId}
                 options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
                 onChange={setParLevelOutletId}
                 searchable
-                className="lg:w-72"
               />
             ) : (
-              <div className="lg:w-72">
+              <div className="min-w-0">
                 <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet Scope</div>
                 <div className="control flex h-9 items-center justify-between text-[13px] font-semibold text-text-primary">
                   <span>All accessible outlets</span>
                   <Badge tone="info">{outlets.length}</Badge>
                 </div>
               </div>
-            )}
-            <SelectField
-              label="Category"
-              value={categoryFilter}
-              options={[{ value: "all", label: "All Categories" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]}
-              onChange={setCategoryFilter}
-              searchable
-              className="lg:w-56"
-            />
-            <label className="min-w-0 flex-1">
-              <div className="mb-1 type-caption font-semibold text-text-secondary">Search item</div>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                <input className="control h-9 w-full pl-9 text-[13px]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item name or SKU" />
-              </div>
-            </label>
-          </div>
-          {parLevelView === "outlet" ? (
-            <SelectField
-              label="Group by"
-              value={parLevelGroupBy}
-              options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]}
-              onChange={setParLevelGroupBy}
-              className="lg:w-44"
-            />
-          ) : null}
-          <div className="flex min-w-[92px] justify-end">
+            )} search={<AdminSearchField label="Search item" value={query} onChange={setQuery} placeholder="Search item name or SKU" />} filters={<>
+            <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
+            {parLevelView === "outlet" ? <SelectField label="Group by" value={parLevelGroupBy} options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]} onChange={setParLevelGroupBy} /> : null}
+          </>} secondaryActions={<><div className="flex min-w-[92px] justify-end">
             <Badge tone={parLevelSaveState === "saving" ? "info" : parLevelSaveState === "error" ? "danger" : "success"}>
               {parLevelSaveState === "saving" ? "Saving..." : parLevelSaveState === "error" ? "Save failed" : "Saved"}
             </Badge>
@@ -8626,7 +8593,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </button>
             ))}
           </div>
-        </div>
+        </>} />
 
         {parLevelView === "outlet" ? (
           <SectionCard
@@ -9033,11 +9000,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     return (
       <div className="space-y-4">
-        <div className="card flex flex-col gap-3 p-3 md:flex-row md:items-end">
-          <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable className="md:w-64" />
+      <AdminFilterToolbar>
+          <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable />
           <DatePickerField label="Date" value={date} onChange={setDate} />
-          <SelectField label="Shift" value={stockCheckShiftFilter} options={[{ value: "all", label: "All Shifts" }, ...shifts.map((shift) => ({ value: shift, label: shift }))]} onChange={setStockCheckShiftFilter} className="md:w-48" />
-        </div>
+          <SelectField label="Shift" value={stockCheckShiftFilter} options={[{ value: "all", label: "All" }, ...shifts.map((shift) => ({ value: shift, label: shift }))]} onChange={setStockCheckShiftFilter} />
+        </AdminFilterToolbar>
         <SectionCard title="Today's Required Checks" description="Only due groups appear here; outlets are not asked to count every item every day.">
           {dueGroups.length ? (
             <div className="grid gap-3 xl:grid-cols-3">
@@ -9545,7 +9512,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return (
       <div className="space-y-4">
         {isRecipeIntelligencePage ? (
-          <div className="card grid gap-3 p-3 lg:grid-cols-[240px_160px_140px] lg:items-end">
+      <AdminFilterToolbar>
             <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
             <SelectField
               label="Month"
@@ -9559,21 +9526,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               options={availableReportYears.map((year) => ({ value: String(year), label: String(year) }))}
               onChange={(value) => setRecipeReportYear(String(value))}
             />
-          </div>
+          </AdminFilterToolbar>
         ) : (
           <>
-            <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
+      <AdminFilterToolbar>
               <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
-              <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
-              <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
-              <label>
-                <div className="mb-1 type-caption font-semibold text-text-secondary">Search recipe/menu item</div>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                  <input className="control h-9 w-full pl-9 text-[13px]" value={recipeFilters.search} onChange={(event) => updateRecipeFilter("search", event.target.value)} placeholder="Search recipe, outlet or ingredient" />
-                </div>
-              </label>
-            </div>
+              <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
+              <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
+              <AdminSearchField label="Search recipe/menu item" value={recipeFilters.search} onChange={(value) => updateRecipeFilter("search", value)} placeholder="Search recipe, outlet or ingredient" />
+            </AdminFilterToolbar>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard icon={FileText} label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
               <MetricCard icon={ShoppingCart} label="Average Recipe Cost" value={formatRestaurantRecipeCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
@@ -9697,26 +9658,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <MetricCard label="Ignored" value={ignoredProductCount} helper="Excluded intentionally" tone={ignoredProductCount ? "neutral" : "success"} size="compact" />
             <MetricCard label="Coverage %" value={`${mappingCoverage}%`} helper="Mapped / (Mapped + Pending)" tone={mappingCoverage >= 80 ? "success" : mappingCoverage >= 40 ? "warning" : "danger"} size="compact" />
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr]">
+      <AdminFilterToolbar>
             <SelectField
               label="Status"
               value={recipeMappingFilters.status}
               options={recipeMappingStatusOptions}
               onChange={(value) => setRecipeMappingFilters((current) => ({ ...current, status: value }))}
             />
-            <label>
-              <div className="mb-1 type-caption font-semibold text-text-secondary">Search product or recipe</div>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                <input
-                  className="control h-9 w-full pl-9 text-[13px]"
-                  value={recipeMappingFilters.search}
-                  onChange={(event) => setRecipeMappingFilters((current) => ({ ...current, search: event.target.value }))}
-                  placeholder="Search product name or mapped recipe"
-                />
-              </div>
-            </label>
-          </div>
+            <AdminSearchField label="Search product or recipe" value={recipeMappingFilters.search} onChange={(value) => setRecipeMappingFilters((current) => ({ ...current, search: value }))} placeholder="Search product name or mapped recipe" />
+          </AdminFilterToolbar>
           <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
             {visibleProductMappingRows.length ? (
               <table className="w-full min-w-[980px] text-left">

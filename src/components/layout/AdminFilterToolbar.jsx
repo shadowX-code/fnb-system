@@ -25,6 +25,7 @@ function roleForField(field) {
 
 function widthForField(field) {
   const role = roleForField(field);
+  if (role === "search") return "w-full min-w-0 sm:flex-[1_1_280px]";
   if (role === "date-range-navigation") return "w-full sm:w-[320px]";
   if (role === "date-range") return "w-full sm:w-[220px]";
   return "w-full sm:w-[180px]";

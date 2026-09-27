@@ -7,7 +7,8 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import FilterBar from "../../../components/forms/FilterBar.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions } from "../data/rbacDefaults.js";
 import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
@@ -1286,11 +1287,9 @@ export default function RolesPage({ ui, store, auth }) {
         <strong>System note:</strong> Roles define access permissions across operational modules, HR tools, reports, and future company systems. Open a role to review its outlet scope, assigned employees, and accessible modules.
       </div>
 
-      <FilterBar compact>
-        <FieldLabel label="Search Role">
-          <input className="control h-9 min-w-[260px]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search role or outlet..." />
-        </FieldLabel>
-      </FilterBar>
+      <AdminFilterToolbar compact>
+        <AdminSearchField label="Search Role" value={query} onChange={setQuery} placeholder="Search role or outlet..." />
+      </AdminFilterToolbar>
 
       <Card>
         {loading ? (

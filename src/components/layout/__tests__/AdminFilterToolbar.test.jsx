@@ -21,6 +21,10 @@ function OutletHarness() {
 afterEach(cleanup);
 
 describe("AdminFilterToolbar", () => {
+  it("gives a shared child Search the same responsive space as the Search slot", () => {
+    render(<AdminFilterToolbar><AdminSearchField label="Search" value="" onChange={vi.fn()} /></AdminFilterToolbar>);
+    expect(screen.getByRole("searchbox", { name: "Search" }).closest('[data-admin-filter-role="search"]').className).toContain("sm:flex-[1_1_280px]");
+  });
   it("keeps outlet, period, search, filters and actions in one responsive toolbar", () => {
     render(<AdminFilterToolbar outlet={<Field label="Outlet" />} period={<Field label="Period" />} search={<Field label="Search" />} filters={<Field label="Status" />} secondaryActions={<button type="button">Export</button>} primaryActions={<button type="button">Create</button>} />);
     expect(screen.getByRole("region", { name: "Filters" })).toBeTruthy();

@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260920170000_employee_compliance_v1.sql"), "utf8");
 const scopeFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260920172000_employee_compliance_people_scope.sql"), "utf8");
 const edge = readFileSync(resolve(process.cwd(), "supabase/functions/employee-compliance-evidence/index.ts"), "utf8");
+const registry = readFileSync(resolve(process.cwd(), "supabase/migrations/20260927131345_employee_compliance_employee_registry.sql"), "utf8");
 
 describe("Employee Compliance V1 authority", () => {
   it("uses requirement records rather than employee columns", () => {
@@ -52,6 +53,17 @@ describe("Employee Compliance V1 authority", () => {
 });
 
 describe("Employee Compliance People scope", () => {
+  it("groups employees before paging and uses the canonical scoped requirement states", () => {
+    expect(registry).toContain("employee_rows as materialized");
+    expect(registry).toContain("public.employee_compliance_current(e.id,r.id,v_today)");
+    expect(registry).toContain("public.employee_compliance_admin_can_access_employee(e.id)");
+    expect(registry).toContain("current_user_has_permission('employee_compliance.view')");
+    expect(registry).toContain("from jsonb_array_elements(e.requirements)");
+    expect(registry).toContain("requirement->'state'->>'status'=v_status");
+    expect(registry).toContain("'unit','employees','scope','filtered_employees'");
+    expect(registry).toContain("from public,anon,authenticated");
+    expect(registry).not.toMatch(/\b(insert|update|delete)\b/i);
+  });
   it("uses the canonical all-outlet or employee outlet authority everywhere Admin reads or reviews", () => {
     expect(scopeFix).toContain("current_user_has_all_outlet_access()");
     expect(scopeFix).toContain("current_user_can_access_outlet(public.crew_resolve_employee_outlet(e.id))");

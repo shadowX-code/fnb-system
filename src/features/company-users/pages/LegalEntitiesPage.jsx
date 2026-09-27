@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit3, FileText, MoreHorizontal, Plus, Power, Search, Users } from "lucide-react";
+import { Edit3, FileText, MoreHorizontal, Plus, Power, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import FilterBar from "../../../components/forms/FilterBar.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import FilterPopover from "../../../components/forms/FilterPopover.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
@@ -181,7 +182,7 @@ export default function LegalEntitiesPage({ ui, auth }) {
   return <div className="space-y-4">
     <PageHeader section="People" title="Legal Entities" description="Manage employing entities used across employee records." actions={canManage ? <button className="btn-primary" type="button" onClick={() => setFormEntity(emptyEntity())}><Plus size={16} /> Add Legal Entity</button> : null} />
     {!canManage ? <div className="rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm text-text-secondary">Read-only access. You need Legal Entities manage permission to add, edit, activate or deactivate records.</div> : null}
-    <FilterBar compact><FieldLabel label="Search"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} /><input className="control h-9 min-w-[260px] pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search entity or registration number" /></div></FieldLabel><FieldLabel label="Status"><FilterPopover value={status === "all" ? "" : status} placeholder="All statuses" options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} onApply={(value) => setStatus(value || "all")} /></FieldLabel></FilterBar>
+      <AdminFilterToolbar compact><AdminSearchField label="Search" value={query} onChange={setQuery} placeholder="Search entity or registration number" /><FieldLabel label="Status"><FilterPopover value={status === "all" ? "" : status} placeholder="All" options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} onApply={(value) => setStatus(value || "all")} /></FieldLabel></AdminFilterToolbar>
     <Card>{loading ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading Legal Entities...</div> : error ? <div className="p-8 text-center text-sm font-semibold text-rose-700">{error}</div> : filteredEntities.length ? <DataTable columns={columns} rows={filteredEntities} getRowKey={(row) => row.id} density="compact" tableClassName="min-w-[980px]" onRowClick={canManage ? (row) => setFormEntity(row) : undefined} /> : <div className="p-8 text-center"><div className="text-sm font-bold text-text-primary">No Legal Entities found.</div><p className="mt-1 text-sm text-text-secondary">Add a legal employer before assigning one to an employee.</p></div>}</Card>
     {formEntity ? <LegalEntityFormModal entity={formEntity} ui={ui} onClose={() => setFormEntity(null)} onSaved={async (saved) => { const latest = await legalEntityService.list(); setEntities(latest); return saved; }} /> : null}
     {deactivateEntity ? <DeactivateModal entity={deactivateEntity} busy={busy} onClose={() => setDeactivateEntity(null)} onConfirm={deactivate} /> : null}

@@ -46,7 +46,8 @@ describe("Food Handling Compliance V1 surfaces", () => {
   });
 
   it("only exposes review or evidence actions when a submission exists", () => {
-    expect(admin).toContain("submissionIdFor(row) ?");
-    expect(admin).toContain('row.state?.status === "pending_verification" ? "Review" : "View"');
+    expect(admin).toContain("submissionIdFor(requirement) ?");
+    expect(admin).toContain('requirement.state?.status === "pending_verification" ? `Review');
+    expect(admin).toContain('row.state?.status === "pending_verification" && canReview');
   });
 });

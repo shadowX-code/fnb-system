@@ -7,7 +7,8 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import FilterBar from "../../../components/forms/FilterBar.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import FilterPopover from "../../../components/forms/FilterPopover.jsx";
 import MultiSelectField from "../../../components/forms/MultiSelectField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
@@ -1881,17 +1882,12 @@ export default function UsersPage({ ui, store, auth }) {
 
       <UpcomingCelebrationsCard celebrations={celebrations} outlets={store?.outlets ?? []} />
 
-      <FilterBar compact>
-        <FieldLabel label="Search">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-            <input className="control h-9 min-w-[280px] pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, email, IC, contact..." />
-          </div>
-        </FieldLabel>
+      <AdminFilterToolbar compact>
+        <AdminSearchField label="Search" value={query} onChange={setQuery} placeholder="Search name, email, IC, contact..." />
         <FieldLabel label="Role">
           <FilterPopover
             value={roleFilter === "all" ? "" : roleFilter}
-            placeholder="All Roles"
+            placeholder="All"
             options={roles.map((role) => ({ value: role, label: role }))}
             onApply={(nextValue) => setRoleFilter(nextValue || "all")}
           />
@@ -1899,7 +1895,7 @@ export default function UsersPage({ ui, store, auth }) {
         <FieldLabel label="Workplace">
           <FilterPopover
             value={workplaceFilter === "all" ? "" : workplaceFilter}
-            placeholder="All Workplaces"
+            placeholder="All"
             className="min-w-44"
             options={workplaces.map((workplace) => ({ value: workplace, label: workplace }))}
             onApply={(nextValue) => setWorkplaceFilter(nextValue || "all")}
@@ -1908,7 +1904,7 @@ export default function UsersPage({ ui, store, auth }) {
         <FieldLabel label="Employment Type">
           <MultiSelectField
             value={employmentTypeFilter}
-            placeholder="All Types"
+            placeholder="All"
             options={employmentTypeOptions}
             onApply={setEmploymentTypeFilter}
           />
@@ -1916,7 +1912,7 @@ export default function UsersPage({ ui, store, auth }) {
         <FieldLabel label="Employment Status">
           <MultiSelectField
             value={employmentStatusFilter}
-            placeholder="All Status"
+            placeholder="All"
             options={employmentStatusOptions}
             onApply={setEmploymentStatusFilter}
           />
@@ -1924,7 +1920,7 @@ export default function UsersPage({ ui, store, auth }) {
         <FieldLabel label="Access State">
           <FilterPopover
             value={accountFilter}
-            placeholder="All Access"
+            placeholder="All"
             options={[
               { value: EMPLOYEE_ACCESS_STATE.NO_ACCESS, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.NO_ACCESS] },
               { value: EMPLOYEE_ACCESS_STATE.NOT_SENT, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.NOT_SENT] },
@@ -1935,7 +1931,7 @@ export default function UsersPage({ ui, store, auth }) {
             onApply={setAccountFilter}
           />
         </FieldLabel>
-      </FilterBar>
+      </AdminFilterToolbar>
 
       <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
         <div className="flex items-start gap-2">

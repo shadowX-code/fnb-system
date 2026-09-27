@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, Building2, CheckCircle2, Edit3, Eye, MoreHorizontal, Plus, Power, Search, Trash2, Users } from "lucide-react";
+import { BriefcaseBusiness, Building2, CheckCircle2, Edit3, Eye, MoreHorizontal, Plus, Power, Trash2, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
-import FilterBar from "../../../components/forms/FilterBar.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import FilterPopover from "../../../components/forms/FilterPopover.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -311,17 +312,12 @@ export default function DepartmentsPage({ ui, auth }) {
         Departments organize employee job positions and company structure.
       </div>
 
-      <FilterBar compact>
-        <FieldLabel label="Search">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-            <input className="control h-9 min-w-[260px] pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search department..." />
-          </div>
-        </FieldLabel>
+      <AdminFilterToolbar compact>
+        <AdminSearchField label="Search" value={query} onChange={setQuery} placeholder="Search department..." />
         <FieldLabel label="Status">
           <FilterPopover
             value={statusFilter === "all" ? "" : statusFilter}
-            placeholder="All Status"
+            placeholder="All"
             options={[
               { value: "active", label: "Active" },
               { value: "inactive", label: "Inactive" },
@@ -329,7 +325,7 @@ export default function DepartmentsPage({ ui, auth }) {
             onApply={(nextValue) => setStatusFilter(nextValue || "all")}
           />
         </FieldLabel>
-      </FilterBar>
+      </AdminFilterToolbar>
 
       {!canManage ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
