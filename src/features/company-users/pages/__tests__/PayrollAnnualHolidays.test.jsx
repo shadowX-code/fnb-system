@@ -56,3 +56,18 @@ it("starts an empty year without inventing dates or enabling paid selection", as
   expect(await screen.findByText("Official Calendar not published")).toBeTruthy();
   expect(screen.queryByRole("button", { name: "Publish Paid Holiday Selection" })).toBeNull();
 });
+it("counts additional mandatory holidays separately without consuming six choices", async () => {
+  const extra = { holiday_id: "additional", kind: "additional_mandatory", holiday: { id: "additional", name: "Additional declaration", holiday_date: `${year}-03-20`, scope: "state", state_code: "MY-08" } };
+  service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [], additional_entries: [extra], can_manage: true });
+  render(<PayrollAnnualHolidays data={data} canManage />);
+  expect(await screen.findByText("Additional Gazetted — locked")).toBeTruthy();
+  expect(screen.getByLabelText("Select Additional declaration").checked).toBe(true);
+  expect(screen.getByLabelText("Select Additional declaration").disabled).toBe(true);
+  expect(screen.getAllByText("Select 6 more paid holidays")).toHaveLength(2);
+  for (let i = 5; i < 11; i++) fireEvent.click(screen.getByLabelText(`Select Holiday ${i}`));
+  expect(screen.getByLabelText("Select Holiday 11").disabled).toBe(true);
+  const total = screen.getByText("Total Paid Holidays").parentElement;
+  expect(total.textContent).toContain("12");
+  fireEvent.click(screen.getByRole("button", { name: "Publish Paid Holiday Selection" }));
+  await waitFor(() => expect(service.saveDefaultPaidHolidays).toHaveBeenCalledWith(expect.objectContaining({ selected: holidays.slice(0, 11).map(h => h.id) })));
+});

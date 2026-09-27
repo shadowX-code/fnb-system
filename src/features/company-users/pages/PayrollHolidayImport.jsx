@@ -14,6 +14,7 @@ export function holidayDiffSummary(rows = [], decisions = {}) {
 }
 const jurisdiction = r => r.scope === "national" ? "National" : malaysiaStateName(r.state_code);
 const title = c => c.is_qa ? `QA ONLY · ${c.source_reference}` : c.source_reference;
+const entitlementResolved = c => (c.rows || []).some(r => r.state !== "missing") && (c.rows || []).filter(r => r.state !== "missing").every(r => c.additional_confirmations?.[r.key]);
 const fileBase64 = file => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onerror = () => reject(new Error("Unable to read the source PDF."));
@@ -70,12 +71,13 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     setTimeout(() => URL.revokeObjectURL(url), 30000);
   });
   const changeDecision = (r, patch) => setDecisions(old => ({ ...old, [r.key]: { ...old[r.key], ...patch } }));
-  const summary = holidayDiffSummary(selected?.rows, decisions);
-  const available = candidates?.find(c => c.status !== "published" && c.status !== "fetched");
+  const rawSummary = holidayDiffSummary(selected?.rows, decisions);
+  const summary = selected && entitlementResolved(selected) ? { ...rawSummary, matched: rawSummary.imported, review: 0, blocked: 0 } : rawSummary;
+  const available = candidates?.find(c => c.status !== "published" && c.status !== "fetched" && !entitlementResolved(c));
   useEffect(() => { onCandidateChanged?.(available || null); }, [candidates, onCandidateChanged]);
-  const exceptions = (selected?.rows || []).filter(r => r.state !== "matched");
+  const exceptions = (selected?.rows || []).filter(r => r.state !== "matched" && !selected?.additional_confirmations?.[r.key] && !(selected && entitlementResolved(selected) && r.state === "missing"));
   const allReviewed = !summary.blocked && exceptions.every(r => decisions[r.key]?.action === (r.state === "missing" ? "retain" : "accept") && (r.state !== "changed" || decisions[r.key]?.remark?.trim()));
-  const reviewable = selected?.status === "needs_review";
+  const reviewable = selected?.status === "needs_review" && !entitlementResolved(selected);
   const close = () => { if (!busy) { setSelected(null); setCapture(false); setError(""); } };
   return <div className="mt-3 space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
@@ -88,8 +90,8 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     <button type="button" className="btn-secondary my-3" onClick={() => { setSource({ url: "", reference: "", file: null, requestId: crypto.randomUUID() }); setCapture(true); setError(""); }}>Add Official Source</button>
     {!!candidates?.length && <DataTable density="compact" rows={candidates} getRowKey={c => c.id} columns={[
       { key: "source", header: "Import", render: c => <div><strong>{title(c)}</strong><p className="text-xs text-text-secondary">{c.created_at?.slice(0, 10)}</p></div> },
-      { key: "status", header: "Status", render: c => <Badge tone={c.status === "published" ? "success" : "neutral"}>{{ fetched: "Source captured", needs_review: "Needs Review", approved: "Approved", published: "Published" }[c.status] || c.status}</Badge> },
-      { key: "diff", header: "Review", render: c => { const s = holidayDiffSummary(c.rows, c.decisions); return c.status === "fetched" ? "Transcription required" : `${s.matched} matched · ${s.review} need review · ${s.blocked} blocked`; } },
+      { key: "status", header: "Status", render: c => <Badge tone={c.status === "published" || entitlementResolved(c) ? "success" : "neutral"}>{entitlementResolved(c) ? "Additional entitlement confirmed" : { fetched: "Source captured", needs_review: "Needs Review", approved: "Approved", published: "Published" }[c.status] || c.status}</Badge> },
+      { key: "diff", header: "Review", render: c => { const s = holidayDiffSummary(c.rows, c.decisions); return entitlementResolved(c) ? "Supplement confirmed · annual calendar unchanged" : c.status === "fetched" ? "Transcription required" : `${s.matched} matched · ${s.review} need review · ${s.blocked} blocked`; } },
       { key: "action", header: "Action", render: c => <button type="button" className="text-primary" onClick={() => open(c)}>{c.status === "published" ? "View" : "Review"}</button> },
     ]} />}
     <details className="text-xs text-text-secondary"><summary className="cursor-pointer">History / QA visibility</summary><label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={includeQa} onChange={e => setIncludeQa(e.target.checked)} />Include clearly labelled QA imports (never official sources)</label></details>
@@ -116,8 +118,9 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
         <AdminFormField label="Or load verified transcription file"><input type="file" accept="application/json,.json" disabled={busy} onChange={e => perform(async () => { const file = e.target.files[0]; if (!file || file.size > 1024 * 1024) throw new Error("Choose a JSON file up to 1 MB."); setTranscription(await file.text()); })} /></AdminFormField>
         <details className="text-sm"><summary className="cursor-pointer">Transcription format</summary><p className="my-2">JSON array: date, name, scope (national/state), state_code (MY-08 Perak / MY-10 Selangor, etc.), source_locator (page/row). Optional kind: gazetted/special/substitute; previous_holiday_id for corrections; substitutes_holiday_id for an authoritative substitution. Mark uncertainty explicitly. Required paid status is never inferred.</p></details>
       </div> : <>
+        {entitlementResolved(selected) && <p role="status" className="mb-3 text-sm text-text-secondary">Additional mandatory paid entitlement confirmed separately. The annual calendar remains unchanged; this supplementary source is not an annual replacement.</p>}
         <dl className="mb-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">{[["Imported", summary.imported], ["Matched", summary.matched], ["Needs Review", summary.review], ["Blocked", summary.blocked]].map(([label, value]) => <div key={label}><dt className="text-text-secondary">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
-        {summary.blocked > 0 && <p role="alert" className="mb-3 text-sm text-rose-700">Resolve uncertainty against the source, then capture a new corrected import. The current published calendar is unchanged.</p>}
+        {summary.blocked > 0 && !entitlementResolved(selected) && <p role="alert" className="mb-3 text-sm text-rose-700">Resolve uncertainty against the source, then capture a new corrected import. The current published calendar is unchanged.</p>}
         <div className="divide-y divide-border">{exceptions.map(r => { const h = r.row || r.previous?.holiday || {}; return <div key={r.key} className="space-y-2 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><strong>{h.name}</strong><p className="text-sm text-text-secondary">{h.date || h.holiday_date} · {jurisdiction(h)} · {r.state === "new" ? "New" : r.state === "changed" ? "Changed" : r.state === "missing" ? "Missing from source" : "Blocked"}</p>
           {r.state === "changed" && <p className="text-xs text-text-secondary">Previously: {r.previous.holiday.name} · {r.previous.holiday.holiday_date} · {jurisdiction(r.previous.holiday)}</p>}{r.issue && <p className="text-sm text-text-secondary">{r.issue}</p>}</div>

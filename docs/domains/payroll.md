@@ -175,10 +175,23 @@ The normal workflow is Get Official Calendar → Review Calendar → Publish Cal
 → inline Paid Holiday Selection → PH Work Benefit → Ready. Get Official Calendar
 opens an already prepared controlled candidate; it does not fetch an unverified
 source. When unavailable, source capture/preparation stays under Advanced → Add
-Official Source. Operational selection shows the 11-day company target and locks
+Official Source. Operational selection shows five Required base holidays and six
+Company Selected base holidays and locks
 explicitly reviewed required entries; names/jurisdictions never establish required
 classification. This operational completeness presentation does not claim
 statutory compliance or replace work-date-effective calculation authority.
+Additional mandatory paid declarations are a separate entitlement, never inferred
+from names or generic gazetted status. The authorized
+`payroll_additional_holiday_confirm` command retains the captured source hash,
+explicit gazette/employment-law review, jurisdiction, actor/time and retry identity
+in append-only `payroll_additional_holiday_confirmations`. New company-policy
+revisions pin these `additional_entries` outside the six optional slots. Confirming
+an addition atomically advances existing published assignments with unchanged base
+selection/scope/calendar; previous revisions and finalized payroll stay immutable.
+The work-date resolver applies the pinned addition only in its jurisdiction.
+The annual source calendar is not rewritten. Summary separates Required,
+Company Selected, Additional Gazetted and Total Paid Holidays; eleven is the base,
+not an annual cap. Corrections need separate reviewed evidence, never source edits.
 Manage exceptions can focus one company selection/benefit while default actions
 continue applying to all applicable active companies. Source metadata, versions,
 QA visibility and history remain secondary. Draft inline selection never advances
