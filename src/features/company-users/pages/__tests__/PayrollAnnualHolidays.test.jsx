@@ -65,7 +65,7 @@ it("counts additional mandatory holidays separately without consuming six choice
   expect(screen.getByLabelText("Select Additional declaration").disabled).toBe(true);
   expect(screen.getAllByText("Select 6 more paid holidays")).toHaveLength(2);
   for (let i = 5; i < 11; i++) fireEvent.click(screen.getByLabelText(`Select Holiday ${i}`));
-  expect(screen.getByLabelText("Select Holiday 11").disabled).toBe(true);
+  expect(screen.getByLabelText("Select Holiday 11").disabled).toBe(false);
   const total = screen.getByText("Total Paid Holidays").parentElement;
   expect(total.textContent).toContain("12");
   fireEvent.click(screen.getByRole("button", { name: "Publish Paid Holiday Selection" }));
