@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-09-27 — Admin-triggered official holiday discovery
+
+- Added bounded JPM/BKPP update discovery with private actor/time/source-check evidence and content-level candidate reuse. Actual official PDF links feed the existing controlled-import authority; uncertain dates still need review. No scheduled monitor, automatic publication, company-policy advancement or Payroll/Leave calculation change.
+
 ## 2026-09-21 — Platform Crew Notification Foundation V1
 
 - Promoted Legal Entities from an Employees-page utility into its own People master-data module. The existing canonical Legal Entity table, RPC authority, permissions and employee relationship remain unchanged; the standalone list now exposes server-derived linked-employee counts and deactivation preserves existing assignments and document history.

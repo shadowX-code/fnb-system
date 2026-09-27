@@ -171,11 +171,18 @@ and audit evidence. Required holidays cannot be deselected. Draft saving and
 publication have payload-bound retry identities and stale-version checks.
 
 Settings → Public Holidays exposes Holiday Calendar and Company Policy.
-The normal workflow is Get Official Calendar → Review Calendar → Publish Calendar
-→ inline Paid Holiday Selection → PH Work Benefit → Ready. Get Official Calendar
-opens an already prepared controlled candidate; it does not fetch an unverified
-source. When unavailable, source capture/preparation stays under Advanced → Add
-Official Source. Operational selection shows five Required base holidays and six
+The normal workflow is Check Official Updates → Review Update → Publish Calendar
+→ inline Paid Holiday Selection → PH Work Benefit → Ready. The Admin-triggered
+`payroll-holiday-updates` Edge Function checks only the approved BKPP annual-calendar
+and Act/Gazette directories. It follows actual selected-year PDF links under the
+same official storage host, rejects redirects and bounded-response violations,
+and captures exact bytes through the existing controlled-import authority.
+Content-hash locks reuse existing candidates; private update-check evidence records
+the authorized actor, check time, sources and result. A partial fetch never claims
+No updates. New PDF dates/jurisdictions require verified review; discovery is not
+automatic PDF interpretation, publication or company-policy mutation. No scheduled
+job exists. Manual URL/reference/PDF maintenance stays under Advanced → Add Official
+Source Manually. Operational selection shows five Required base holidays and six
 Company Selected base holidays and locks
 explicitly reviewed required entries; names/jurisdictions never establish required
 classification. This operational completeness presentation does not claim
@@ -191,7 +198,8 @@ selection/scope/calendar; previous revisions and finalized payroll stay immutabl
 The work-date resolver applies the pinned addition only in its jurisdiction.
 The annual source calendar is not rewritten. Summary separates Required,
 Company Selected, Additional Gazetted and Total Paid Holidays; eleven is the base,
-not an annual cap. Corrections need separate reviewed evidence, never source edits.
+not an annual cap. Company Selected displays the selection count and minimum met,
+not an x/6 maximum. Corrections need separate reviewed evidence, never source edits.
 Manage exceptions can focus one company selection/benefit while default actions
 continue applying to all applicable active companies. Source metadata, versions,
 QA visibility and history remain secondary. Draft inline selection never advances

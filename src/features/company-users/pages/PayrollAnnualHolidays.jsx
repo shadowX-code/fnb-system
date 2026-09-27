@@ -150,8 +150,8 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
         </div>
         {editable && <PayrollHolidayImport key={refresh} year={year} geography={geography} calendarPublished={!!published} onCandidateChanged={setCandidate} onPublished={() => setRefresh(n => n + 1)} />}
         <dl className="my-4 grid gap-3 text-sm sm:grid-cols-5">
-          <div><dt className="text-text-secondary">Required</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind === "required" && paidSelection.includes(e.holiday_id)).length}/5</dd></div>
-          <div><dt className="text-text-secondary">Company Selected</dt><dd className="font-semibold">{selectedBase}/6</dd></div>
+          <div><dt className="text-text-secondary">Required</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind === "required" && paidSelection.includes(e.holiday_id)).length} / 5</dd></div>
+          <div><dt className="text-text-secondary">Company Selected</dt><dd className="font-semibold">{selectedBase} selected · {selectedBase >= 6 ? "Minimum 6 met" : `${6 - selectedBase} more needed`}</dd></div>
           <div><dt className="text-text-secondary">Additional Gazetted</dt><dd className="font-semibold">{additionalEntries.length}</dd></div>
           <div><dt className="text-text-secondary">Total Paid Holidays</dt><dd className="font-semibold">{paidSelection.length + additionalEntries.length}</dd></div>
           <div><dt className="text-text-secondary">Calendar Status</dt><dd>{published ? "Published" : candidate ? "Review Required" : "Not available"}</dd></div>

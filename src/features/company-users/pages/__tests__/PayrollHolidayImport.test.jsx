@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
-const service = vi.hoisted(() => ({ readHolidayCandidates: vi.fn(), captureHolidaySource: vi.fn(), parseHolidayCandidate: vi.fn(), reviewHolidayCandidate: vi.fn(), publishHolidayCandidate: vi.fn() }));
+const service = vi.hoisted(() => ({ readHolidayUpdateCheck: vi.fn(), checkOfficialHolidayUpdates: vi.fn(), readHolidayCandidates: vi.fn(), captureHolidaySource: vi.fn(), parseHolidayCandidate: vi.fn(), reviewHolidayCandidate: vi.fn(), publishHolidayCandidate: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: service }));
 import PayrollHolidayImport, { holidayDiffSummary } from "../PayrollHolidayImport.jsx";
 const row = { key: "1", state: "new", row: { date: "2027-01-10", name: "QA ONLY holiday", scope: "state", state_code: "MY-08" } };
 const candidate = { id: "candidate", status: "needs_review", revision: 2, source_reference: "Verified source", rows: [row], history: [] };
-beforeEach(() => { vi.clearAllMocks(); service.readHolidayCandidates.mockResolvedValue([candidate]); });
+beforeEach(() => { vi.clearAllMocks(); service.readHolidayUpdateCheck.mockResolvedValue(null); service.readHolidayCandidates.mockResolvedValue([candidate]); });
 afterEach(() => { cleanup(); vi.unstubAllGlobals(); });
 it("does not show an unavailable-source action after the calendar is published", async () => {
   service.readHolidayCandidates.mockResolvedValue([]);
@@ -16,7 +16,7 @@ it("does not show an unavailable-source action after the calendar is published",
 it("captures an uploaded source artifact with retry identity but never publishes from capture", async () => {
   vi.stubGlobal("FileReader", class { readAsDataURL() { this.result = "data:application/pdf;base64,JVBERi0="; this.onload(); } });
   render(<PayrollHolidayImport year="2027" />);
-  fireEvent.click(screen.getByRole("button", { name: "Add Official Source" }));
+  fireEvent.click(screen.getByRole("button", { name: "Add Official Source Manually" }));
   fireEvent.change(screen.getByLabelText(/Official source URL/), { target: { value: "https://www.kabinet.gov.my/verified-source.pdf" } });
   fireEvent.change(screen.getByLabelText(/Source reference/), { target: { value: "Verified document reference" } });
   fireEvent.change(screen.getByLabelText(/Official PDF/), { target: { files: [new File(["%PDF-"], "source.pdf", { type: "application/pdf" })] } });
@@ -65,10 +65,26 @@ it("parsing is separate from approval/publication and invalid transcription repo
   service.readHolidayCandidates.mockResolvedValue([{ ...candidate, status: "fetched", rows: [] }]);
   render(<PayrollHolidayImport year="2027" />); fireEvent.click(await screen.findByRole("button", { name: "Review", exact: true }));
   fireEvent.change(screen.getByLabelText(/Verified holiday transcription/), { target: { value: "invalid JSON" } });
-  fireEvent.click(screen.getByRole("button", { name: "Review Transcription" }));
+  fireEvent.click(screen.getByRole("button", { name: "Review Holiday Changes" }));
   await screen.findByRole("alert");
   expect(service.parseHolidayCandidate).not.toHaveBeenCalled();
   expect(service.publishHolidayCandidate).not.toHaveBeenCalled();
+});
+it("checks official sources on explicit intent only, reuses review and does not publish", async () => {
+  service.readHolidayCandidates.mockResolvedValue([]);
+  const view = render(<PayrollHolidayImport year="2027" geography="MY-08" />);
+  await waitFor(() => expect(screen.getByRole("button", { name: "Check Official Updates" }).disabled).toBe(false));
+  expect(service.checkOfficialHolidayUpdates).not.toHaveBeenCalled();
+  service.readHolidayUpdateCheck.mockResolvedValue({ completed_at: "2026-09-27T01:00:00Z", result: { status: "updates_found", sources: [] } });
+  service.readHolidayCandidates.mockResolvedValue([{ ...candidate, status: "fetched", rows: [] }]);
+  fireEvent.click(screen.getByRole("button", { name: "Check Official Updates" }));
+  await screen.findByText(/Official Update Found/);
+  expect(service.checkOfficialHolidayUpdates).toHaveBeenCalledWith("2027", "MY-08", expect.any(String));
+  fireEvent.click(screen.getByRole("button", { name: "Review Update" }));
+  expect(screen.getByRole("button", { name: "View Official Document" })).toBeTruthy();
+  expect(service.publishHolidayCandidate).not.toHaveBeenCalled();
+  view.rerender(<PayrollHolidayImport year="2028" geography="MY-10" />);
+  await waitFor(() => expect(service.readHolidayUpdateCheck).toHaveBeenCalledWith("2028", "MY-10"));
 });
 it("defaults QA off and clears stale year/outlet-independent candidate state", async () => {
   const view = render(<PayrollHolidayImport year="2027" />); await screen.findByRole("button", { name: "Review", exact: true });

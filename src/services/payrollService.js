@@ -10,6 +10,12 @@ async function command(name, args) {
 // Payroll is the only owner of compensation and run commands. Employee and
 // Employment Document services remain read/provenance sources, not writers here.
 export const payrollService = {
+  readHolidayUpdateCheck: (year, geography) => command("payroll_holiday_update_check_read", { p_year: Number(year), p_geography: geography || "national" }),
+  checkOfficialHolidayUpdates: async (year, geography, requestId) => {
+    const { data, error } = await supabase.functions.invoke("payroll-holiday-updates", { body: { year: Number(year), geography: geography || "national", requestId } });
+    if (error || data?.error) throw new Error(data?.error || "Unable to check official updates. Please try again.");
+    return data;
+  },
   readHolidayCandidates: (year, includeQa = false) => command("payroll_holiday_candidate_read", { p_year: Number(year), p_include_qa: includeQa }),
   confirmAdditionalHoliday: (input) => command("payroll_additional_holiday_confirm", { p_candidate_id: input.candidateId, p_row_key: input.rowKey, p_entitlement_reference: input.reference, p_request_id: input.requestId }),
   captureHolidaySource: (input) => command("payroll_holiday_candidate_capture", { p_year: Number(input.year), p_url: input.url, p_reference: input.reference, p_filename: input.filename, p_pdf_base64: input.base64, p_request_id: input.requestId, p_is_qa: false }),

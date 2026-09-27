@@ -3,8 +3,10 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import DatePickerField from "../../../components/forms/DatePickerField.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
-import { malaysiaStateName } from "../../../constants/malaysiaStates.js";
+import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
 
 export function holidayDiffSummary(rows = [], decisions = {}) {
   return { imported: rows.filter(r => r.state !== "missing").length,
@@ -31,6 +33,9 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
   const [capture, setCapture] = useState(false);
   const [source, setSource] = useState({ url: "", reference: "", file: null, requestId: crypto.randomUUID() });
   const [transcription, setTranscription] = useState("");
+  const [verifiedRows, setVerifiedRows] = useState([]);
+  const [lastCheck, setLastCheck] = useState(null);
+  const [checking, setChecking] = useState(false);
   const [decisions, setDecisions] = useState({});
   const [attested, setAttested] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -43,6 +48,11 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     return () => { active = false; };
   }, [year, includeQa]);
   useEffect(() => {
+    let active = true; setLastCheck(null);
+    payrollService.readHolidayUpdateCheck(year, geography).then(value => { if (active) setLastCheck(value); }).catch(e => { if (active) setError(e.message); });
+    return () => { active = false; };
+  }, [year, geography, refresh]);
+  useEffect(() => {
     if (!refresh) return;
     let active = true;
     payrollService.readHolidayCandidates(year, includeQa).then(rows => {
@@ -51,7 +61,13 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     }).catch(e => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [refresh, year, includeQa]);
-  const open = c => { setSelected(c); setDecisions(c.decisions || {}); setAttested(false); setTranscription(""); setError(""); };
+  const open = c => { setSelected(c); setDecisions(c.decisions || {}); setAttested(false); setTranscription(""); setVerifiedRows([]); setError(""); };
+  const checkUpdates = async () => {
+    setChecking(true); setError("");
+    try { await payrollService.checkOfficialHolidayUpdates(year, geography, crypto.randomUUID()); setRefresh(n => n + 1); }
+    catch (e) { setError(e.message); }
+    finally { setChecking(false); }
+  };
   const perform = async action => {
     setBusy(true); setError("");
     try { await action(); setRefresh(n => n + 1); }
@@ -74,6 +90,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
   const rawSummary = holidayDiffSummary(selected?.rows, decisions);
   const summary = selected && entitlementResolved(selected) ? { ...rawSummary, matched: rawSummary.imported, review: 0, blocked: 0 } : rawSummary;
   const available = candidates?.find(c => c.status !== "published" && c.status !== "fetched" && !entitlementResolved(c));
+  const pending = candidates?.filter(c => c.status !== "published" && !entitlementResolved(c)) || [];
   useEffect(() => { onCandidateChanged?.(available || null); }, [candidates, onCandidateChanged]);
   const exceptions = (selected?.rows || []).filter(r => r.state !== "matched" && !selected?.additional_confirmations?.[r.key] && !(selected && entitlementResolved(selected) && r.state === "missing"));
   const allReviewed = !summary.blocked && exceptions.every(r => decisions[r.key]?.action === (r.state === "missing" ? "retain" : "accept") && (r.state !== "changed" || decisions[r.key]?.remark?.trim()));
@@ -82,12 +99,18 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
   return <div className="mt-3 space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-text-secondary">{available ? "A prepared calendar is available. Review changes before publication." : calendarPublished ? "Holiday calendar published. Continue with paid holiday selection." : "Official calendar source not available yet"}</p>
-      {(available || !calendarPublished) && <button type="button" className="btn-primary" disabled={!available} onClick={() => open(available)}>{available?.status === "approved" ? "Publish Calendar" : available ? "Review Calendar" : "Get Official Calendar"}</button>}
+      <div className="flex flex-wrap gap-2"><button type="button" className="btn-primary" disabled={checking || busy || !candidates} onClick={checkUpdates}>{checking ? "Checking…" : "Check Official Updates"}</button>
+      {available && <button type="button" className="btn-secondary" onClick={() => open(available)}>{available.status === "approved" ? "Publish Calendar" : "Review Calendar"}</button>}</div>
     </div>
+    {lastCheck && <div role="status" className="text-sm text-text-secondary"><p>Last checked: {new Date(lastCheck.completed_at || lastCheck.started_at).toLocaleString()} · JPM / BKPP</p>
+      <p>{!lastCheck.completed_at ? "Check in progress. Retry shortly if interrupted." : { no_updates: "No updates found", updates_found: "Official Update Found · Review before publication", review_pending: "No new documents · Official updates awaiting review", incomplete: "Check incomplete · Published calendar unchanged. Please retry or review Advanced source maintenance." }[lastCheck.result?.status]}</p>
+      <details><summary className="cursor-pointer">Sources checked</summary>{lastCheck.result?.sources?.map((s, i) => <p className="break-all text-xs" key={i}>{s.url} · {s.status === "checked" ? "Checked" : "Unavailable"}</p>)}</details>
+    </div>}
+    {pending.length > 0 && <div className="divide-y divide-border">{pending.map(c => <div key={c.id} className="flex items-center justify-between gap-3 py-2"><div className="min-w-0"><p className="text-sm font-medium">{title(c)}</p><p className="text-xs text-text-secondary">{c.status === "fetched" ? "Date and jurisdiction verification required" : "Review holiday changes"}</p></div><button type="button" className="btn-secondary shrink-0" disabled={busy || checking} onClick={() => open(c)}>Review Update</button></div>)}</div>}
     {error && !selected && !capture && <p role="alert" className="text-sm text-rose-700">{error}<button type="button" className="ml-3 text-primary" onClick={() => setRefresh(n => n + 1)}>Refresh Imports</button></p>}
     {!candidates && !error && <p className="text-sm text-text-secondary">Loading imports…</p>}
     <details className="text-sm"><summary className="cursor-pointer text-text-secondary">Advanced</summary>
-    <button type="button" className="btn-secondary my-3" onClick={() => { setSource({ url: "", reference: "", file: null, requestId: crypto.randomUUID() }); setCapture(true); setError(""); }}>Add Official Source</button>
+    <button type="button" className="btn-secondary my-3" onClick={() => { setSource({ url: "", reference: "", file: null, requestId: crypto.randomUUID() }); setCapture(true); setError(""); }}>Add Official Source Manually</button>
     {!!candidates?.length && <DataTable density="compact" rows={candidates} getRowKey={c => c.id} columns={[
       { key: "source", header: "Import", render: c => <div><strong>{title(c)}</strong><p className="text-xs text-text-secondary">{c.created_at?.slice(0, 10)}</p></div> },
       { key: "status", header: "Status", render: c => <Badge tone={c.status === "published" || entitlementResolved(c) ? "success" : "neutral"}>{entitlementResolved(c) ? "Additional entitlement confirmed" : { fetched: "Source captured", needs_review: "Needs Review", approved: "Approved", published: "Published" }[c.status] || c.status}</Badge> },
@@ -105,7 +128,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
       </div>{error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
     </Modal>}
     {selected && <Modal title={`Review ${year} Holiday Calendar`} size="xl" onClose={close} footer={<><button className="btn-secondary" disabled={busy} onClick={close}>Close</button>
-      {selected.status === "fetched" && <button className="btn-primary" disabled={busy || !transcription.trim()} onClick={() => perform(async () => { await payrollService.parseHolidayCandidate(selected.id, JSON.parse(transcription)); })}>Review Transcription</button>}
+      {selected.status === "fetched" && <button className="btn-primary" disabled={busy || (!transcription.trim() && !verifiedRows.length)} onClick={() => perform(async () => { await payrollService.parseHolidayCandidate(selected.id, transcription.trim() ? JSON.parse(transcription) : verifiedRows.map(r => ({ ...r, scope: r.state_code === "national" ? "national" : "state", state_code: r.state_code === "national" ? null : r.state_code }))); })}>Review Holiday Changes</button>}
       {reviewable && <><button className="btn-secondary" disabled={busy} onClick={() => perform(() => payrollService.reviewHolidayCandidate(selected.id, selected.revision, decisions, false))}>Save Review</button><button className="btn-primary" disabled={busy || !allReviewed || !attested} onClick={() => perform(() => payrollService.reviewHolidayCandidate(selected.id, selected.revision, decisions, true))}>Confirm Calendar Review</button></>}
       {selected.status === "approved" && <button className="btn-primary" disabled={busy} onClick={() => perform(async () => { await payrollService.publishHolidayCandidate(selected.id, selected.revision); setSelected(null); onPublished?.(); })}>Publish Holiday Calendar</button>}
     </>}>
@@ -113,10 +136,21 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
       <p className="mb-3 font-semibold">Official source: {title(selected)}</p>
       <p className="mb-3 text-sm text-text-secondary">Imported {selected.created_at?.slice(0, 10)} · {summary.imported} holidays · {summary.review} needing review</p>
       {selected.is_qa && <p role="status" className="mb-3 text-sm text-amber-800">Synthetic Staging QA evidence. Not an official Malaysian calendar.</p>}
-      {selected.status === "fetched" ? <div className="space-y-3"><p className="text-sm text-text-secondary">Provide a verified structured transcription of this PDF. Check every date and jurisdiction against the document. Uncertain rows remain blocked; there is no unattended PDF parser.</p>
+      {selected.status === "fetched" ? <div className="space-y-3"><p className="text-sm text-text-secondary">The official document is captured. Verify dates and applicable geography against it before reviewing changes. No calendar or company selection has changed.</p>
+        <button type="button" className="btn-secondary" disabled={busy} onClick={viewSource}>View Official Document</button>
+        {verifiedRows.map((r, index) => <div key={index} className="grid gap-3 border-b border-border py-3 sm:grid-cols-2">
+          <AdminFormField label="Holiday name" required><input className="control" value={r.name} onChange={e => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, name: e.target.value } : v))} /></AdminFormField>
+          <DatePickerField label="Holiday date" value={r.date} onChange={date => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, date } : v))} />
+          <SelectField label="Applies to" value={r.state_code} options={[{ value: "national", label: "National" }, ...MALAYSIA_STATES.map(([value, label]) => ({ value, label }))]} onChange={state_code => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, state_code } : v))} />
+          <AdminFormField label="Document page / row" required><input className="control" value={r.source_locator} onChange={e => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, source_locator: e.target.value } : v))} /></AdminFormField>
+          <button type="button" className="text-primary text-sm justify-self-start" onClick={() => setVerifiedRows(old => old.filter((_, i) => i !== index))}>Remove unsaved row</button>
+        </div>)}
+        <button type="button" className="btn-secondary" onClick={() => setVerifiedRows(old => [...old, { name: "", date: "", state_code: geography || "national", source_locator: "", kind: "gazetted" }])}>Add Verified Holiday</button>
+        <details><summary className="cursor-pointer text-sm text-text-secondary">Advanced verified data import</summary>
         <AdminFormField label="Verified holiday transcription" required><textarea className="control min-h-40 font-mono text-sm" value={transcription} onChange={e => setTranscription(e.target.value)} /></AdminFormField>
         <AdminFormField label="Or load verified transcription file"><input type="file" accept="application/json,.json" disabled={busy} onChange={e => perform(async () => { const file = e.target.files[0]; if (!file || file.size > 1024 * 1024) throw new Error("Choose a JSON file up to 1 MB."); setTranscription(await file.text()); })} /></AdminFormField>
         <details className="text-sm"><summary className="cursor-pointer">Transcription format</summary><p className="my-2">JSON array: date, name, scope (national/state), state_code (MY-08 Perak / MY-10 Selangor, etc.), source_locator (page/row). Optional kind: gazetted/special/substitute; previous_holiday_id for corrections; substitutes_holiday_id for an authoritative substitution. Mark uncertainty explicitly. Required paid status is never inferred.</p></details>
+        </details>
       </div> : <>
         {entitlementResolved(selected) && <p role="status" className="mb-3 text-sm text-text-secondary">Additional mandatory paid entitlement confirmed separately. The annual calendar remains unchanged; this supplementary source is not an annual replacement.</p>}
         <dl className="mb-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">{[["Imported", summary.imported], ["Matched", summary.matched], ["Needs Review", summary.review], ["Blocked", summary.blocked]].map(([label, value]) => <div key={label}><dt className="text-text-secondary">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
