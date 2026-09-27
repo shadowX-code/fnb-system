@@ -13,15 +13,16 @@ import {
 import "./LocalizedContentEditor.css";
 
 export default function LocalizedContentEditor({ domain, versionId, sourceLanguage, onSourceLanguageChange, onHydrateSourceLanguage, sourceUnits = [], sourceDirty = false, confirm, disabled = false }) {
+  const comparison = domain === "task";
   const [payload, setPayload] = useState(null);
-  const [language, setLanguage] = useState(sourceLanguage || "en");
+  const [language, setLanguage] = useState(comparison ? CONTENT_LANGUAGES.find((value) => value !== sourceLanguage) || "zh-CN" : sourceLanguage || "en");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const units = payload?.units || {};
   const visibleUnits = useMemo(() => sourceUnits.map((sourceUnit) => ({ ...sourceUnit, stored: units[sourceUnit.unit_key] })), [sourceUnits, units]);
 
-  useEffect(() => { setLanguage(sourceLanguage || "en"); }, [sourceLanguage]);
+  useEffect(() => { setLanguage((current) => comparison ? current === sourceLanguage ? CONTENT_LANGUAGES.find((value) => value !== sourceLanguage) : current : sourceLanguage || "en"); }, [sourceLanguage, comparison]);
   useEffect(() => {
     if (!versionId) return;
     let active = true;
@@ -43,8 +44,10 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
     try {
       // Legacy drafts can have saved content but predate localized units.
       // Hydrate canonical units first; reviewed/manual targets stay protected.
-      await crewService.saveLocalizedContentUnits(domain, versionId, sourceUnits);
-      const translated = await crewService.translateLocalizedContent(domain, versionId);
+      const saved = await crewService.saveLocalizedContentUnits(domain, versionId, sourceUnits);
+      const currentIds = sourceUnits.map((source) => saved?.units?.[source.unit_key]?.id).filter(Boolean);
+      if (comparison && currentIds.length !== sourceUnits.length) throw new Error("Save the Draft source before generating translations.");
+      const translated = await crewService.translateLocalizedContent(domain, versionId, comparison ? currentIds : null, comparison ? [language] : null);
       // The Edge Function response is read after the complete server-side apply.
       // Read again to prevent a previously-open editor from retaining stale units.
       const refreshed = await crewService.localizedContentAdmin(domain, versionId);
@@ -96,22 +99,23 @@ export default function LocalizedContentEditor({ domain, versionId, sourceLangua
       <SelectField label="Source Language" ariaLabel="Source Language" value={sourceLanguage || "en"} disabled={disabled} onChange={onSourceLanguageChange} options={CONTENT_LANGUAGE_OPTIONS} />
       <p>The source remains canonical. Changing it marks existing translations as Outdated after the Draft is saved.</p>
     </div>
-    <div className="crew-localized-tabs" role="tablist" aria-label="Localized content language">
+    {comparison ? <div className="crew-localized-target"><SelectField label="Translate To" ariaLabel="Translate To" value={language} onChange={setLanguage} options={CONTENT_LANGUAGE_OPTIONS.filter((option) => option.value !== sourceLanguage)} /><span>{visibleUnits.filter(({ stored, ...source }) => stored?.translations?.[language]?.value && stored?.translations?.[language]?.status !== "outdated" && JSON.stringify(stored.source_value) === JSON.stringify(source.source_value)).length} of {visibleUnits.length} translated</span></div> : <div className="crew-localized-tabs" role="tablist" aria-label="Localized content language">
       {CONTENT_LANGUAGE_OPTIONS.map((option) => {
         const status = localizationLanguageStatus(visibleUnits.map(({ stored }) => stored).filter(Boolean), option.value, sourceLanguage);
         return <button type="button" key={option.value} role="tab" aria-selected={language === option.value} className={language === option.value ? "is-active" : ""} onClick={() => setLanguage(option.value)}><span>{option.label}</span><Badge tone={LOCALIZATION_STATUS[status].tone}>{LOCALIZATION_STATUS[status].label}</Badge></button>;
       })}
-    </div>
+    </div>}
     <div className="crew-localized-units">
       {visibleUnits.length ? visibleUnits.map(({ stored, ...sourceUnit }) => {
-        const status = language === sourceLanguage ? "original" : localizationStatus(stored, language);
+        const sourceChanged = stored && (stored.source_language !== sourceLanguage || JSON.stringify(stored.source_value) !== JSON.stringify(sourceUnit.source_value));
+        const status = language === sourceLanguage ? "original" : sourceChanged && stored?.translations?.[language] ? "outdated" : localizationStatus(stored, language);
         const translation = stored?.translations?.[language];
         const isSource = language === (stored?.source_language || sourceLanguage);
         const currentValue = isSource ? sourceUnit.source_value : translation?.value ?? "";
         return <article key={`${sourceUnit.unit_key}:${language}:${translation?.updated_at || status}`}>
-          <div><strong>{sourceUnit.label || sourceUnit.unit_key}</strong><Badge tone={LOCALIZATION_STATUS[status].tone}>{LOCALIZATION_STATUS[status].label}</Badge></div>
-          {isSource ? <p className="crew-localized-original">{sourceUnit.field_kind === "rich_text" ? "Rich text source is edited in the content editor." : String(currentValue || "")}</p> : <textarea className="control" disabled={!stored?.id || disabled} defaultValue={String(currentValue || "")} aria-label={`${sourceUnit.label} ${language}`} onBlur={(event) => event.target.value !== String(currentValue || "") && edit(stored?.id, event.target.value)} placeholder={stored?.id ? "Missing translation" : "Save the Draft source first"} />}
-          {!isSource ? <footer>{status === "outdated" ? <span><AlertTriangle size={14} /> Translation may be outdated</span> : <span />}{translation ? <span className="flex gap-2">{status === "outdated" ? <button type="button" className="btn-ghost" disabled={busy} onClick={() => regenerate(stored, translation)}><RefreshCw size={14} /> Regenerate</button> : null}{status !== "reviewed" && status !== "outdated" ? <button type="button" className="btn-ghost" disabled={busy} onClick={() => review(stored.id)}><Check size={14} /> Mark Reviewed</button> : null}</span> : null}</footer> : null}
+          <div><strong>{sourceUnit.label || "Content"}</strong><Badge tone={LOCALIZATION_STATUS[status].tone}>{comparison && ["ai_translated", "reviewed"].includes(status) ? "Translated" : LOCALIZATION_STATUS[status].label}</Badge></div>
+          {comparison ? <div className="crew-localized-comparison"><div><small>Source · {CONTENT_LANGUAGE_OPTIONS.find((option) => option.value === sourceLanguage)?.label}</small><p className="crew-localized-original">{String(sourceUnit.source_value || "")}</p></div><div><small>Translation · {CONTENT_LANGUAGE_OPTIONS.find((option) => option.value === language)?.label}</small><textarea className="control" disabled={!stored?.id || disabled || sourceDirty || busy} defaultValue={String(translation?.value || "")} aria-label={`${sourceUnit.label} ${language}`} onBlur={(event) => event.target.value !== String(translation?.value || "") && edit(stored?.id, event.target.value)} placeholder={stored?.id ? "Missing translation" : "Save the Draft source first"} /></div></div> : isSource ? <p className="crew-localized-original">{sourceUnit.field_kind === "rich_text" ? "Rich text source is edited in the content editor." : String(currentValue || "")}</p> : <textarea className="control" disabled={!stored?.id || disabled} defaultValue={String(currentValue || "")} aria-label={`${sourceUnit.label} ${language}`} onBlur={(event) => event.target.value !== String(currentValue || "") && edit(stored?.id, event.target.value)} placeholder={stored?.id ? "Missing translation" : "Save the Draft source first"} />}
+          {!isSource ? <footer>{status === "outdated" ? <span><AlertTriangle size={14} /> Translation may be outdated</span> : <span />}{translation ? <span className="flex gap-2">{status === "outdated" ? <button type="button" className="btn-ghost" disabled={busy || disabled || sourceDirty} onClick={() => regenerate(stored, translation)}><RefreshCw size={14} /> Regenerate</button> : null}{status !== "reviewed" && status !== "outdated" ? <button type="button" className="btn-ghost" disabled={busy || disabled || sourceDirty} onClick={() => review(stored.id)}><Check size={14} /> Mark Reviewed</button> : null}</span> : null}</footer> : null}
         </article>;
       }) : <p className="crew-localized-empty">Save the Draft source once to create its translatable content units.</p>}
     </div>

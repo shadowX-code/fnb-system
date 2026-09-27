@@ -26,6 +26,8 @@ The saved source content is canonical.
 A source must exist before translation is requested.
 Changing a saved source marks dependent translations outdated rather than silently treating them as current.
 
+Task block content identity is carried by the persistent block configuration localization key, not display order or text. Draft block duplication creates a fresh content identity and deep-copies configuration; reopening an invalid Draft preserves the first identity and repairs colliding copies without changing active definitions or frozen execution evidence. Task translation comparison projects only current source units, keeps source and selected target visible together, and requests translation only for those current units. Deleted source fields are absent from the active projection; historical localization audit records are retained.
+
 Translation generation crosses a provider boundary through the established trusted service.
 Provider output is a draft translation, not a replacement for source authority.
 Manual edits and reviewed translations are protected from accidental regeneration through the current confirmation and lifecycle rules.
