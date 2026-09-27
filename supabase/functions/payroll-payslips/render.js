@@ -58,8 +58,14 @@ export async function renderPayslip(manifest, { PDFDocument, StandardFonts, rgb,
     }
     lines.push(line); return lines;
   };
-  const newPage = () => { page = pdf.addPage([width,height]); y = height-margin; };
-  const ensure = heightNeeded => { if (y-heightNeeded<margin+24) newPage(); };
+  const newPage = () => {
+    page = pdf.addPage([width,height]); y = height-margin;
+    if (manifest.draft) {
+      const label = 'DRAFT', size = 72;
+      drawText(label,{x:(width-regular.widthOfTextAtSize(label,size))/2,y:height/2,size,font:regular,color:teal,opacity:.045});
+    }
+  };
+  const ensure = heightNeeded => { if (y-heightNeeded<margin+24) { newPage(); return true; } return false; };
   const text = (value,size=10,font=regular,color=ink,available=width-2*margin) => {
     for (const line of wrap(value,size,available)) { ensure(size+7); drawText(line,{x:margin,y,size,font,color}); y-=size+7; }
   };
@@ -72,20 +78,34 @@ export async function renderPayslip(manifest, { PDFDocument, StandardFonts, rgb,
     drawText(value,{x:width-margin-(total?bold:regular).widthOfTextAtSize(value,10),y,size:10,font:total?bold:regular,color:ink});
     y-=lines.length*14+4;
   };
-  newPage();
-  text(manifest.identity.employer,16,bold);
-  if (manifest.identity.registration) text(`Registration: ${manifest.identity.registration}`,9,regular,muted);
-  y-=8; text('PAYSLIP',18,bold,teal);
   const period = new Intl.DateTimeFormat('en-MY',{month:'long',year:'numeric',timeZone:'UTC'}).format(new Date(`${manifest.period_start}T00:00:00Z`));
-  text(period,12,bold);
-  if (manifest.draft) text('DRAFT · NOT FINAL',11,bold,teal);
+  newPage();
+  const headerY=y;
+  text(manifest.identity.employer || 'Employer not recorded',15,bold,ink,310);
+  if (manifest.identity.registration) text(`Registration No. ${manifest.identity.registration}`,8,regular,muted,310);
+  if (manifest.identity.employer_address) text(manifest.identity.employer_address,8,regular,muted,310);
+  const right = (value,at,size,color=ink) => drawText(value,{x:width-margin-regular.widthOfTextAtSize(value,size),y:at,size,font:regular,color});
+  right('PAYSLIP',headerY,16,teal);
+  right(period,headerY-23,10);
+  if (manifest.draft) right('DRAFT · NOT FINAL',headerY-43,9,teal);
+  y=Math.min(y,headerY-(manifest.draft?62:46));
   rule();
-  text(`Employee: ${manifest.identity.employee_name}`);
-  text(`Employee Code: ${manifest.identity.employee_code || '—'}`);
-  if (manifest.identity.position) text(`Position: ${manifest.identity.position}`);
-  if (manifest.identity.workplace) text(`Workplace: ${manifest.identity.workplace}`);
-  if (manifest.pay_basis) text(`Pay Basis: ${manifest.pay_basis === 'hourly' ? 'Hourly' : 'Monthly'}`,9,regular,muted);
-  y-=8;
+  text('Employee Details',10,bold);
+  const detailsRow = fields => {
+    const columnWidth=(width-2*margin)/2;
+    const lines=fields.map(([,value])=>wrap(value || '—',10,columnWidth-20));
+    const heightNeeded=18+Math.max(...lines.map(value=>value.length))*14;
+    ensure(heightNeeded);
+    fields.forEach(([label],index)=>{
+      const x=margin+index*columnWidth;
+      drawText(label,{x,y,size:8,font:regular,color:muted});
+      lines[index].forEach((value,line)=>drawText(value,{x,y:y-16-line*14,size:10,font:regular,color:ink}));
+    });
+    y-=heightNeeded+5;
+  };
+  detailsRow([['Employee Name',manifest.identity.employee_name],['IC / Passport No.',manifest.identity.ic_passport]]);
+  detailsRow([['Position',manifest.identity.position],['Pay Basis',manifest.pay_basis ? manifest.pay_basis==='hourly'?'Hourly':'Monthly' : null]]);
+  y-=4;rule();
   const totalDeductions=manifest.total_deductions ?? (manifest.net_pay == null ? null : Number(manifest.gross_earnings)+
     (manifest.reimbursements || []).reduce((sum,line)=>sum+Number(line.amount),0)-Number(manifest.net_pay));
   ensure(50);
@@ -95,35 +115,43 @@ export async function renderPayslip(manifest, { PDFDocument, StandardFonts, rgb,
     drawText(money(value),{x,y:y-19,size:index===2?15:12,font:bold,color:index===2?teal:ink});
   });y-=43;
   heading('Earnings');
+  const earningsHeader = () => {
+    ensure(24);
+    drawText('DESCRIPTION',{x:margin,y,size:8,font:bold,color:muted});
+    drawText('UNITS / RATE',{x:margin+285,y,size:8,font:bold,color:muted});
+    drawText('AMOUNT',{x:width-margin-bold.widthOfTextAtSize('AMOUNT',8),y,size:8,font:bold,color:muted});
+    y-=20;
+  };
   const earningRow=line=>{
     const units=line.minutes != null ? `${(Number(line.minutes)/60).toFixed(2)} h${line.rate != null ? ` x ${money(line.rate)}` : ''}${Number(line.multiplier)>1 ? ` x ${line.multiplier}` : ''}` : line.units != null ? String(line.units) : '';
     const labels=wrap(line.label,10,275), contexts=wrap(units,9,100);
-    ensure(Math.max(labels.length,contexts.length)*14+4);
+    if (ensure(Math.max(labels.length,contexts.length)*14+4)) earningsHeader();
     labels.forEach((label,index)=>drawText(label,{x:margin,y:y-index*14,size:10,font:regular,color:ink}));
     contexts.forEach((label,index)=>drawText(label,{x:margin+285,y:y-index*14,size:9,font:regular,color:muted}));
     const value=money(line.amount);drawText(value,{x:width-margin-regular.widthOfTextAtSize(value,10),y,size:10,font:regular,color:ink});
     y-=Math.max(labels.length,contexts.length)*14+4;
   };
-  ensure(24);
-  drawText('DESCRIPTION',{x:margin,y,size:8,font:bold,color:muted});
-  drawText('UNITS / RATE',{x:margin+285,y,size:8,font:bold,color:muted});
-  drawText('AMOUNT',{x:width-margin-bold.widthOfTextAtSize('AMOUNT',8),y,size:8,font:bold,color:muted});
-  y-=20;
+  earningsHeader();
   for (const line of manifest.earnings) earningRow(line);
   rule(); row('Gross Earnings',manifest.gross_earnings,true);
   heading('Deductions');
   for (const line of manifest.deductions) row(line.label,line.amount);
-  for (const line of manifest.statutory) row(line.scheme==='pcb'?'PCB / MTD':`${line.scheme.toUpperCase()} Employee`,line.applicable===false?'N/A':line.amount);
+  for (const line of manifest.statutory) row(line.scheme==='pcb'?'PCB / MTD':`${line.scheme.toUpperCase()} Employee`,line.applicable===false?'—':line.amount);
   rule();row('Total Deductions',totalDeductions,true);
   if (manifest.reimbursements?.length) { heading('Reimbursements'); for (const line of manifest.reimbursements) row(line.label,line.amount); }
-  heading('NET PAY'); row('Net Pay',manifest.net_pay,true);
+  ensure(45);y-=8;rule();
+  drawText('NET PAY',{x:margin,y,size:12,font:bold,color:teal});
+  right(money(manifest.net_pay),y,16,teal);y-=30;
   if (manifest.statutory.some(line=>line.employer_amount != null && line.scheme!=='pcb')) {
-    heading('Employer Contributions');
-    for (const line of manifest.statutory.filter(line=>line.scheme!=='pcb')) row(`${line.scheme.toUpperCase()} Employer`,line.applicable===false?'N/A':line.employer_amount);
+    ensure(100);y-=6;text('Employer Contributions',9,regular,muted);rule();
+    for (const line of manifest.statutory.filter(line=>line.scheme!=='pcb')) row(`${line.scheme.toUpperCase()} Employer`,line.applicable===false?'—':line.employer_amount);
     text('Employer contributions do not reduce Net Pay.',8,regular,muted);
   }
-  y-=12;text(`${manifest.draft?'Calculated':'Finalized'} ${finalized.toISOString().slice(0,10)} · System-generated payroll document.`,8,regular,muted);
-  pdf.getPages().forEach((p,index)=>{ page=p; drawText(`Private and confidential | ${index+1} / ${pdf.getPageCount()}`,{x:margin,y:28,size:8,font:regular,color:muted}); });
+  pdf.getPages().forEach((p,index)=>{
+    page=p;
+    drawText('Private & Confidential',{x:margin,y:28,size:8,font:regular,color:muted});
+    right(`Page ${index+1} of ${pdf.getPageCount()}`,28,8,muted);
+  });
   onTiming('layout_ms', performance.now() - layoutStarted);
   const saveStarted = performance.now();
   const bytes = await pdf.save();

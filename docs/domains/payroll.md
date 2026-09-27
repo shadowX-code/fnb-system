@@ -655,6 +655,15 @@ and Crew. Final documents use only immutable snapshots. New finalizations also
 pin employee Position; older evidence is never backfilled from current masters.
 Existing immutable artifacts retain their original bytes/hash/layout.
 
+The corporate A4 layout (a4_v4 for new artifacts) shows the canonical employer
+registered address and full Employee `ic_no` (IC/passport), Position and Pay
+Basis. Draft reads current canonical identity; new Final identity snapshots
+capture these fields at Finalize. Older frozen identity is not backfilled from
+mutable masters; missing identity fields display neutrally. Employee code and
+workplace remain technical evidence, not displayed document fields. Draft and
+Final share the layout, with Draft-only status/watermark and a minimal private
+document/page footer. No financial or font-shard authority changes.
+
 Payment/Settlement is deferred. Earlier Staging append-only settlement evidence
 is retained, but client command privileges and runtime controls are removed.
 Bank Info remains an Admin preparation read, not a Payroll readiness gate.
@@ -679,7 +688,7 @@ content-addressed, size/hash-verified assets. Only required shards are loaded an
 embedded without request-time subsetting or full variable-font processing.
 Characters outside source coverage fail closed rather than disappearing. Upload
 the repository prepared assets before the gateway release. No upstream font
-fetch occurs at runtime. Draft and Final retain one a4_v3 layout/projection;
+fetch occurs at runtime. Draft and Final retain one canonical layout/projection;
 previous immutable artifact bytes remain unchanged. Operational render timings
 contain no employee identity, financial values, token or document content.
 
