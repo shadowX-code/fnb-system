@@ -7,6 +7,8 @@ describe("TimePickerField", () => {
     const { container } = render(<TimePickerField label="Start time" value="13:05:00" onChange={() => {}} />);
     expect(screen.getByText("1:05 pm")).toBeTruthy();
     expect(container.querySelector('input[type="time"]')).toBeNull();
+    expect(container.querySelector(".admin-form-field-label")?.textContent).toContain("Start time");
+    expect(container.querySelector(".admin-form-field")?.contains(screen.getByRole("button", { name: "Start time" }))).toBe(true);
   });
   it("can set and clear an optional value", () => {
     const onChange = vi.fn();
