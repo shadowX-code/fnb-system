@@ -1,10 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Link2, Settings2, Star } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import AdminFormField from "../../../components/forms/AdminFormField.jsx";
+import { googleReviewsState, hasGoogleReviewEvidence } from "../utils/googleReviewsState.js";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
 
@@ -31,13 +33,20 @@ export default function CrewGoogleReviewsAdminPage({ auth, store }) {
   const [targetInput, setTargetInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveMessage, setSaveMessage] = useState("");
+  const [history, setHistory] = useState([]);
+  const [historyError, setHistoryError] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const requestSequence = useRef(0);
   const canEdit = auth.hasPermission("crew_performance.review");
 
   useEffect(() => {
     let active = true;
+    ++requestSequence.current;
     setContext(null);
     setError("");
     setSaveMessage("");
+    setHistory([]);
+    setHistoryError("");
     if (!outletId) return undefined;
     setLoading(true);
     crewService.googleReviewsAdminContext(outletId, period)
@@ -47,26 +56,42 @@ export default function CrewGoogleReviewsAdminPage({ auth, store }) {
     return () => { active = false; };
   }, [outletId, period]);
 
+  useEffect(() => {
+    let active = true;
+    if (view !== "settings" || !outletId) return undefined;
+    setHistoryLoading(true);
+    setHistoryError("");
+    crewService.googleTargetHistory(outletId, period).then((data) => { if (active) setHistory(data.rows || []); })
+      .catch(() => { if (active) setHistoryError("Target history could not be loaded. Reopen Settings to retry."); })
+      .finally(() => { if (active) setHistoryLoading(false); });
+    return () => { active = false; };
+  }, [view, outletId, period, context?.positive_target]);
+
   async function saveTarget(event) {
     event.preventDefault();
     const target = Number(targetInput);
     if (!Number.isSafeInteger(target) || target <= 0) { setSaveMessage("Enter a whole number greater than zero."); return; }
     setSaving(true);
+    const sequence = requestSequence.current;
     setSaveMessage("");
     try {
       await crewService.setGoogleMonthlyTarget(outletId, period, target);
       const next = await crewService.googleReviewsAdminContext(outletId, period);
+      if (sequence !== requestSequence.current) return;
       setContext(next);
       setTargetInput(String(next.positive_target));
       setSaveMessage("Monthly target saved. The change is audited.");
-    } catch (cause) { setSaveMessage(cause.message || "Target could not be saved."); }
+    } catch (cause) { if (sequence === requestSequence.current) setSaveMessage(cause.message || "Target could not be saved."); }
     finally { setSaving(false); }
   }
 
   const outlet = outlets.find((item) => item.id === outletId);
-  const unavailable = context?.api_status === "pending_allowlist";
+  const state = googleReviewsState(context);
+  const evidenceAvailable = hasGoogleReviewEvidence(context);
+  const unavailable = context?.api_status !== "available";
+  const metric = (value) => evidenceAvailable && value != null ? value : noData;
   const connectionLabel = context?.connection_status === "error" ? "Connection error" : context?.connection_status === "connected" ? "Connected" : "Not connected";
-  const visibleReviews = (context?.reviews || [])
+  const visibleReviews = (evidenceAvailable ? context?.reviews || [] : [])
     .filter((review) => filter === "All" || sentimentFor(Number(review.rating)) === filter)
     .sort((left, right) => order === "rating_high" ? right.rating - left.rating : order === "rating_low" ? left.rating - right.rating : order === "oldest" ? new Date(left.created_at) - new Date(right.created_at) : new Date(right.created_at) - new Date(left.created_at));
   return <div className="space-y-5">
@@ -77,8 +102,8 @@ export default function CrewGoogleReviewsAdminPage({ auth, store }) {
     {!outletId && !loading ? <p className="text-sm text-text-secondary">Select an outlet to view its review context.</p> : null}
     {context && !loading ? view === "settings" ? <div className="grid max-w-5xl gap-5 lg:grid-cols-2">
       <section className="space-y-3 border-t border-border pt-4" aria-label="Google Business Profile connection">
-        <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-text-primary">Google Business Profile</h2><Badge tone="neutral">API access pending</Badge></div>
-        <p className="text-sm text-text-secondary">One organization connection will supply verified business accounts and locations. Google API access is not available yet.</p>
+        <div className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-text-primary">Google Business Profile</h2><Badge tone="neutral">{unavailable ? "API access pending" : connectionLabel}</Badge></div>
+        <p className="text-sm text-text-secondary">One organization connection supplies authorized business accounts and verified locations. {unavailable ? "Google API access is not available yet." : "Connection actions require the verified server-side provider."}</p>
         <p className="text-sm text-text-secondary">Connection: <strong className="text-text-primary">{connectionLabel}</strong> · Last sync: {context.last_synced_at ? new Date(context.last_synced_at).toLocaleString("en-MY") : noData}</p>
         <div className="flex flex-wrap gap-2"><button className="btn-secondary" type="button" disabled title="Available after Google Business Profile API access is approved">Connect</button><button className="btn-secondary" type="button" disabled title="No connection to reconnect">Reconnect</button><button className="btn-secondary" type="button" disabled title="No connection to disconnect">Disconnect</button></div>
       </section>
@@ -90,19 +115,21 @@ export default function CrewGoogleReviewsAdminPage({ auth, store }) {
       </section>
       <section className="space-y-3 border-t border-border pt-4 lg:col-span-2" aria-label="Monthly positive review target">
         <div><h2 className="text-base font-semibold text-text-primary">Monthly Positive Review Target</h2><p className="text-sm text-text-secondary">Set for {outlet?.name || "this outlet"} and {new Date(`${period}T12:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })}. Changes are audited and lock after monthly Performance finalization.</p></div>
-        <form className="flex flex-wrap items-end gap-3" onSubmit={saveTarget}><label className="grid gap-1 text-sm font-medium text-text-secondary">Positive reviews<input className="control w-36" type="number" min="1" step="1" inputMode="numeric" value={targetInput} onChange={(event) => setTargetInput(event.target.value)} disabled={!canEdit || context.target_locked || saving} /></label><button className="btn-primary" type="submit" disabled={!canEdit || context.target_locked || saving || !targetInput}>{saving ? "Saving…" : "Save target"}</button></form>
+        <form className="flex flex-wrap items-end gap-3" onSubmit={saveTarget}><AdminFormField label="Positive reviews"><input className="control w-36" type="number" min="1" step="1" inputMode="numeric" value={targetInput} onChange={(event) => setTargetInput(event.target.value)} disabled={!canEdit || context.target_locked || saving} /></AdminFormField><button className="btn-primary" type="submit" disabled={!canEdit || context.target_locked || saving || !targetInput}>{saving ? "Saving…" : "Save target"}</button></form>
         {context.target_locked ? <p className="text-sm text-text-secondary">Locked: Performance has been finalized for this outlet and month.</p> : !canEdit ? <p className="text-sm text-text-secondary">Performance review permission is required to edit this target.</p> : null}
         {saveMessage ? <p className="text-sm text-text-secondary" role="status">{saveMessage}</p> : null}
+        <h3 className="text-sm font-semibold text-text-primary">Target history</h3>
+        {historyLoading ? <p role="status" className="text-sm text-text-secondary">Loading target history…</p> : historyError ? <p role="alert" className="text-sm text-text-secondary">{historyError}</p> : history.length ? <ol className="divide-y divide-border">{history.map((entry) => <li key={entry.id} className="flex flex-wrap justify-between gap-2 py-2 text-sm"><span>{entry.old_target ?? "Not set"} → {entry.new_target} positive reviews</span><time className="text-text-secondary" dateTime={entry.changed_at}>{new Date(entry.changed_at).toLocaleString("en-MY")}</time></li>)}</ol> : <p className="text-sm text-text-secondary">No target changes recorded for this outlet and month.</p>}
       </section>
     </div> : <div className="space-y-5">
-      <div className="border-l-2 border-primary bg-primary/5 px-4 py-3"><strong className="text-sm text-text-primary">{context.connection_status === "error" ? "Google Reviews connection needs attention" : unavailable ? "Google Reviews is not connected" : "Google Reviews is unavailable"}</strong><p className="mt-1 text-sm text-text-secondary">{unavailable ? "Business Profile API approval is pending. Review metrics and content are unavailable; no Customer Performance points are calculated." : "Connect and map a verified Google Location to see review activity."}</p></div>
+      <div className="border-l-2 border-primary bg-primary/5 px-4 py-3" role="status"><strong className="text-sm text-text-primary">{state.title}</strong><p className="mt-1 text-sm text-text-secondary">{state.description}</p></div>
       <section aria-label="Review overview" className="grid gap-x-5 gap-y-4 border-y border-border py-4 sm:grid-cols-2 xl:grid-cols-4">{[
-        ["New Reviews", noData], ["Positive / Monthly Target", `${noData} / ${context.positive_target ?? "Not set"}`],
-        ["Average Rating", noData], ["Negative / Negative Rate", noData],
+        ["New Reviews", metric(context.new_reviews)], ["Positive / Monthly Target", `${metric(context.positive_reviews)} / ${context.positive_target ?? "Not set"}`],
+        ["Average Rating", metric(context.average_rating)], ["Negative / Negative Rate", evidenceAvailable ? `${metric(context.negative_reviews)} / ${context.negative_rate == null ? noData : `${context.negative_rate}%`}` : noData],
       ].map(([label, value]) => <div key={label}><p className="text-xs font-medium text-text-secondary">{label}</p><strong className="mt-1 block text-lg font-semibold text-text-primary">{value}</strong></div>)}</section>
-      <div className="grid gap-5 lg:grid-cols-2"><section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Positive Target Progress</h2><p className="mt-2 text-sm text-text-secondary">{context.positive_target ? `Target: ${context.positive_target} positive reviews. Progress is unavailable until Google data is connected.` : "Set a monthly target in Settings. Progress is unavailable until Google data is connected."}</p></section><section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Review Trend</h2><p className="mt-2 text-sm text-text-secondary">No review trend is available yet.</p></section></div>
-      <section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Rating Breakdown</h2><div className="mt-3 grid grid-cols-5 gap-2">{[5, 4, 3, 2, 1].map((rating) => <div key={rating} className="text-sm text-text-secondary"><span className="inline-flex items-center gap-1"><Star size={13} /> {rating}</span><strong className="block text-text-primary">—</strong></div>)}</div></section>
-      <section className="border-t border-border pt-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-text-primary">Reviews</h2><p className="text-sm text-text-secondary">Review content will appear here after connection and policy approval.</p></div><div className="w-40"><SelectField label="Order" value={order} onChange={setOrder} options={[{ value: "newest", label: "Newest first" }, { value: "oldest", label: "Oldest first" }, { value: "rating_high", label: "Highest rated" }, { value: "rating_low", label: "Lowest rated" }]} /></div></div>
+      <div className="grid gap-5 lg:grid-cols-2"><section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Positive Target Progress</h2><p className="mt-2 text-sm text-text-secondary">{evidenceAvailable && context.positive_target ? `${metric(context.positive_reviews)} of ${context.positive_target} positive reviews` : context.positive_target ? `Target: ${context.positive_target} positive reviews. Progress is unavailable until reconciliation completes.` : "Set a monthly target in Settings. Progress is unavailable until verified Google evidence is available."}</p></section><section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Review Trend</h2>{evidenceAvailable && context.review_trend?.length ? <ol className="mt-2 divide-y divide-border">{context.review_trend.map((entry) => <li key={entry.date} className="flex justify-between gap-3 py-1.5 text-sm"><time dateTime={entry.date}>{entry.date}</time><span>{entry.count} reviews</span></li>)}</ol> : <p className="mt-2 text-sm text-text-secondary">No review trend is available yet.</p>}</section></div>
+      <section className="border-t border-border pt-4"><h2 className="text-base font-semibold text-text-primary">Rating Breakdown</h2><div className="mt-3 grid grid-cols-5 gap-2">{[5, 4, 3, 2, 1].map((rating) => <div key={rating} className="text-sm text-text-secondary"><span className="inline-flex items-center gap-1"><Star size={13} /> {rating}</span><strong className="block text-text-primary">{evidenceAvailable ? context.rating_breakdown?.[rating] ?? "—" : "—"}</strong></div>)}</div></section>
+      <section className="border-t border-border pt-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-semibold text-text-primary">Reviews</h2><p className="text-sm text-text-secondary">{evidenceAvailable ? "Verified reviews created in the selected month." : "Review content will appear here after connection and policy approval."}</p></div><div className="w-40"><SelectField label="Order" value={order} onChange={setOrder} options={[{ value: "newest", label: "Newest first" }, { value: "oldest", label: "Oldest first" }, { value: "rating_high", label: "Highest rated" }, { value: "rating_low", label: "Lowest rated" }]} /></div></div>
         <div className="mt-3 flex gap-1 overflow-x-auto pb-1" role="group" aria-label="Review sentiment">{reviewFilters.map((item) => <button key={item} type="button" className={`shrink-0 rounded-md px-3 py-1.5 text-sm ${filter === item ? "bg-primary/10 font-semibold text-primary" : "text-text-secondary hover:bg-slate-100"}`} onClick={() => setFilter(item)}>{item}</button>)}</div>
         {visibleReviews.length ? <div className="mt-4 divide-y divide-border border-t border-border">{visibleReviews.map((review) => <article key={review.id} className="grid gap-1 py-3 sm:grid-cols-[100px_minmax(0,1fr)_auto] sm:gap-4"><span className="inline-flex items-center gap-1 text-sm font-semibold text-text-primary"><Star size={14} /> {review.rating} / 5</span><div className="min-w-0"><time className="text-xs text-text-secondary" dateTime={review.created_at}>{new Date(review.created_at).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" })}</time><p className="whitespace-pre-wrap break-words text-sm text-text-primary">{review.content || "No written review"}</p></div>{googleReviewUrl(review.url) ? <a className="inline-flex items-center gap-1 text-sm text-primary hover:underline" href={googleReviewUrl(review.url)} target="_blank" rel="noopener noreferrer">View on Google <ExternalLink size={14} /></a> : null}</article>)}</div> : <div className="mt-4 flex min-h-28 items-center justify-center border-t border-border text-center text-sm text-text-secondary">No Google reviews available for this outlet and month.</div>}
       </section>

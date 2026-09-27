@@ -132,4 +132,5 @@ Object.assign(resources.inventory, {
 Object.assign(resources.performance.components, { peer: "Penilaian Rakan Sekerja" });
 Object.assign(resources.performance.strengths, { peer: "Penilaian pasukan anda telah selesai." });
 Object.assign(resources.performance, { earnedPoints: "{{score}} mata dinilai", pendingNames: "Menunggu: {{names}}", finalScore: "Skor muktamad" });
+Object.assign(resources.performance, { googleUnavailable: "Bukti pelanggan bulan ini belum tersedia. Komponen ini kekal belum dinilai, bukan sifar, dan tidak mengurangkan mata yang telah dinilai.", googleEvidence: "Ulasan Google yang dibuat bulan ini menyumbang kepada komponen Pelanggan bersama cawangan anda. Keputusan muktamad mengekalkan bukti yang direkodkan." });
 export default resources;
