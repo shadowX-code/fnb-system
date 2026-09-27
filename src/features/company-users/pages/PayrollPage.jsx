@@ -57,21 +57,19 @@ function WageTreatment({ scheme, value, onChange }) {
 }
 
 function StatutoryChecks({ value, onChange, review, loading }) {
-  return <fieldset className="rounded-xl border border-border p-3">
-    <legend className="px-1 text-sm font-bold text-text-primary">Statutory applicability</legend>
-    <p className="mb-3 text-xs text-text-secondary">Choose which schemes apply to this employee. PCB / MTD is confirmed for each Payroll Run.</p>
+  return <div>
     <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
       {["epf", "socso", "eis", "pcb"].map((key) => <div key={key}><SelectField label={key.toUpperCase()} ariaLabel={key.toUpperCase()}
         value={value[key]==null?'':String(value[key])} onChange={(v)=>onChange({...value,[key]:v===''?null:v==='true'})}
         options={[{value:'',label:'Choose applicability'},{value:'true',label:'Applicable'},{value:'false',label:'Not Applicable'}]} />
-        {value[key] === false && <p className="mt-2 text-xs text-text-secondary">Not Applicable · resolved</p>}
+        {value[key] === false && <p className="mt-2 text-xs text-text-secondary">Not Applicable</p>}
         {value[key] === true && (key === "pcb" ? <p className="mt-2 text-xs text-text-secondary">Confirm the amount in each Payroll Run.</p>
           : loading ? <p className="mt-2 text-xs text-text-secondary">Checking Employee evidence…</p>
           : review?.schemes?.[key]?.recommendation ? <p className="mt-2 text-xs text-teal-700">{statutoryCategories[key].find(c=>c.value===review.schemes[key].recommendation)?.label} · Recommended</p>
           : review && <div className="mt-2 text-xs text-amber-700"><p className="font-semibold">Additional information required</p><p>{statutorySetupHelp(review.schemes?.[key]?.issue, review.evidence)}</p></div>)}
       </div>)}
     </div>
-  </fieldset>;
+  </div>;
 }
 
 export function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, onSaved }) {
@@ -143,10 +141,12 @@ export function FoundationForm({ mode, profile, initialEmployeeId = "", data, on
       : mode === "compensation" ? Number(draft.rate) > 0
         : true) && (mode === "create" || draft.reason.trim());
 
-  return <Modal title={title} description="Changes apply from the selected date. Previous pay records remain available in history."
+  return <Modal title={title} description={mode === "create" ? "Set pay from a specific date and statutory setup from a payroll month." : "Changes apply from the selected date. Previous pay records remain available in history."}
     onClose={onClose} size="lg"
     footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={!allowed || busy} onClick={save}>{busy ? "Saving..." : mode === "create" ? "Confirm Employee Setup" : "Save"}</button></>}>
     <div className="space-y-4">
+      <fieldset className="min-w-0 space-y-4">
+      {mode === "create" && <legend className="mb-3 text-sm font-bold text-text-primary">Pay Setup</legend>}
       {mode === "create" && <AdminFormField label="Employee" required>
         <SelectField value={draft.employeeId} onChange={(value) => setDraft(previous => ({ ...previous,
           employeeId: value, effectiveFrom: candidates.find(e => e.id === value)?.joined_date || "",
@@ -164,11 +164,6 @@ export function FoundationForm({ mode, profile, initialEmployeeId = "", data, on
             value={draft.rate} onChange={(event) => patch("rate", event.target.value)} />
         </AdminFormField>
       </div>}
-      {mode === "create" ? <><MonthPickerField label="Effective Payroll Month" value={draft.statutoryMonth} onChange={value => patch("statutoryMonth", value)} />
-        <StatutoryChecks value={draft} onChange={setDraft} review={setup} loading={setupLoading} />
-        <p className="text-xs text-text-secondary">Save confirms the recommended categories with canonical Employee evidence, Admin and time. Unresolved schemes remain Setup Required; pay setup can still be saved.</p>
-        {(setupError || (error && !setup)) && <div role="alert"><p>{setupError || error}</p><button type="button" className="btn-secondary" onClick={()=>{setError("");setRefresh(v=>v+1);}}>Refresh Setup</button></div>}
-      </> : null}
       <div className="grid gap-4 sm:grid-cols-2">
         <DatePickerField label="Pay Effective From" required value={draft.effectiveFrom} onChange={(value) => patch("effectiveFrom", value)}
           helper={mode === "create" && joinedDate ? `Recommended: Joined Date · ${joinedDate}. Confirm when this salary/rate actually started.` : null} />
@@ -177,6 +172,15 @@ export function FoundationForm({ mode, profile, initialEmployeeId = "", data, on
         }
       </div>
       {mode === "create" && joinedDate && draft.effectiveFrom > joinedDate && <p role="status" className="text-sm text-amber-700">Current pay starts after employment date. Earlier payroll periods may require previous pay history.</p>}
+      </fieldset>
+      {mode === "create" && <fieldset className="min-w-0 space-y-3 border-t border-border pt-4">
+        <legend className="px-0 text-sm font-bold text-text-primary">Statutory Setup</legend>
+        <div className="space-y-1"><MonthPickerField label="Statutory Effective Month" value={draft.statutoryMonth} onChange={value => patch("statutoryMonth", value)} />
+          <p className="text-xs text-text-secondary">Applies to payroll for this month and later, until changed.</p></div>
+        <StatutoryChecks value={draft} onChange={setDraft} review={setup} loading={setupLoading} />
+        <p className="text-xs text-text-secondary">Confirm recommended categories with this setup. Unresolved schemes remain Setup Required. Applicable PCB / MTD amounts are confirmed in each Payroll Run.</p>
+        {(setupError || (error && !setup)) && <div role="alert"><p>{setupError || error}</p><button type="button" className="btn-secondary" onClick={()=>{setError("");setRefresh(v=>v+1);}}>Refresh Setup</button></div>}
+      </fieldset>}
       {mode === "compensation" && <p className="text-xs text-text-secondary">The new version applies from this date. It does not update an Employment Contract or rewrite earlier versions.</p>}
       {error && mode !== "create" && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     </div>

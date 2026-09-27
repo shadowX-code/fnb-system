@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { render, screen, fireEvent, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, fireEvent, cleanup, waitFor, within } from "@testing-library/react";
 const mocks = vi.hoisted(()=>({readInitialSetup:vi.fn(),confirmInitialSetup:vi.fn()}));
 vi.mock("../../../../services/payrollService.js",()=>({payrollService:mocks}));
 import { FoundationForm } from "../PayrollPage.jsx";
@@ -67,5 +67,12 @@ it("recommends joined date and warns only when Admin selects a genuinely later p
 it("recommends the exact mid-month joined date without conflating statutory month",()=>{
   render(<FoundationForm mode="create" initialEmployeeId="qa" data={{...data,employees:[{...data.employees[0],joined_date:"2026-10-15"}]}} onClose={vi.fn()} onSaved={vi.fn()}/>);
   expect(screen.getByRole("textbox",{name:/Pay Effective From/}).value).toBe("15 Oct 2026");
-  expect(screen.getByRole("button",{name:"Effective Payroll Month"})).toBeTruthy();
+  expect(screen.getByRole("button",{name:"Statutory Effective Month"})).toBeTruthy();
+  const pay = screen.getByRole("group",{name:"Pay Setup"});
+  const statutory = screen.getByRole("group",{name:"Statutory Setup"});
+  expect(within(pay).getByRole("textbox",{name:/Pay Effective From/})).toBeTruthy();
+  expect(within(pay).queryByRole("button",{name:"Statutory Effective Month"})).toBeNull();
+  expect(within(statutory).getByRole("button",{name:"Statutory Effective Month"})).toBeTruthy();
+  expect(within(statutory).getByRole("button",{name:"EPF"})).toBeTruthy();
+  expect(within(statutory).queryByRole("textbox",{name:/Pay Effective From/})).toBeNull();
 });
