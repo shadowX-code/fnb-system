@@ -64,7 +64,7 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
     </Card>}
     <Card className="overflow-hidden"><DataTable density="compact" columns={columns} rows={rows} getRowKey={row => row.employee_id} /></Card>
     {selected && <ResultDetail result={{ ...selected.calculation, employee_name: selected.employee_name }} statutory={selected.statutory}
-      bankInfo={<PayrollEmployeeBankInfo result={bankFor(selected)} employeeName={selected.employee_name} onRetry={() => setBankRetry(value => value + 1)} />}
+      bankInfo={<PayrollEmployeeBankInfo inline result={bankFor(selected)} employeeName={selected.employee_name} onRetry={() => setBankRetry(value => value + 1)} />}
       frozenPeriod={record.period.period_start.slice(0, 7)} onClose={() => setSelected(null)} />}
   </div>;
 }

@@ -58,7 +58,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInf
       <details className="text-xs text-text-secondary"><summary className="cursor-pointer">Calculation evidence</summary><p className="mt-2">Calculation revision {result.revision} · {result.calculated_at ? new Date(result.calculated_at).toLocaleString() : "Pinned evidence"}</p>
         {(statutory?.lines || []).map(line=><p key={line.scheme} className="mt-2">{line.scheme.toUpperCase()} · {line.applicable === false ? "Not Applicable" : line.method === "manual_confirmed" ? "Admin confirmed" : line.source_row || line.source_version || "Pinned contribution schedule"}{line.wage_base != null ? ` · Wage base ${rm(line.wage_base)}` : ""}{line.schedule_version_id && <small className="block">Schedule version {line.schedule_version_id}</small>}</p>)}
       </details>
-      {bankInfo && <section className="border-t border-border pt-4"><div className="flex justify-between"><h4 className="font-bold">Bank Information</h4>{bankInfo}</div><p className="mt-1 text-xs text-text-secondary">Current Employee information · read-only; not a finalized payment snapshot.</p></section>}
+      {bankInfo && <section className="border-t border-border pt-4"><h4 className="font-bold">Bank Information</h4>{bankInfo}<p className="mt-1 text-xs text-text-secondary">Current Employee information · read-only; not a finalized payment snapshot.</p></section>}
     </div>
   </Modal>;
 }

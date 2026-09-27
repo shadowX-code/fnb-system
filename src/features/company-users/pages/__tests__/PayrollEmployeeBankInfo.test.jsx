@@ -34,4 +34,12 @@ describe("Employee bank presentation", () => {
     expect(retry).toHaveBeenCalledOnce();
     expect(screen.queryByText("Missing")).toBeNull();
   });
+  it("renders read-only bank details inside an employee statement without nesting dialogs", () => {
+    render(<PayrollEmployeeBankInfo inline employeeName="QA Employee" result={{ employee: {
+      bank_name: "Maybank", bank_account_name: "QA Account", bank_account_number: "00012345",
+    } }} />);
+    expect(screen.getByText("00012345")).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
 });
