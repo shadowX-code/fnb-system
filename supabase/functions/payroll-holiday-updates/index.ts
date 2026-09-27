@@ -37,7 +37,15 @@ Deno.serve(async request => {
         sources.push({ url: directory, status: "checked", documents: documents.length });
       } catch { incomplete = true; sources.push({ url: directory, status: "unavailable" }); }
     }
-    const result = { status: incomplete ? "incomplete" : updates.some(c => c.created) ? "updates_found" : updates.some(c => c.status !== "published") ? "review_pending" : "no_updates", sources, candidates: updates };
+    // A supplementary declaration can be resolved by the existing entitlement
+    // authority without publishing it as a replacement annual calendar.
+    const { data: reviewed, error: readError } = await caller.rpc("payroll_holiday_candidate_read", { p_year: check.year, p_include_qa: false });
+    if (readError) incomplete = true;
+    const pendingIds = new Set((reviewed || []).filter((c: { id: string; status: string; rows: Array<{state: string; key: string}>; additional_confirmations?: Record<string, unknown> }) => {
+      const actual = (c.rows || []).filter(r => r.state !== "missing");
+      return c.status !== "published" && !(actual.length && actual.every(r => c.additional_confirmations?.[r.key]));
+    }).map((c: { id: string }) => c.id));
+    const result = { status: incomplete ? "incomplete" : updates.some(c => c.created) ? "updates_found" : updates.some(c => pendingIds.has(c.id)) ? "review_pending" : "no_updates", sources, candidates: updates };
     const trusted = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const { error: finishError } = await trusted.rpc("payroll_holiday_update_check_finish", { p_id: check.id, p_result: result });
     if (finishError) return reply({ error: "Check could not be recorded. The published calendar is unchanged." }, 500);
