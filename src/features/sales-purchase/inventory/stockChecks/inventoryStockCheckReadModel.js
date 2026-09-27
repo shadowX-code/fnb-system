@@ -1,5 +1,5 @@
 import { normalizeBusinessDate } from '../waste/inventoryWasteService.js';
-import { uniqueIds } from '../InventoryItemModel.js';
+import { uniqueIds } from '../inventoryItemModel.js';
 export function mapRemoteStockCheckItem(row = {}) {
   return {
     id: row.id,
@@ -50,4 +50,3 @@ export function mapRemoteStockCheck(row = {}, rows = []) {
     updatedAt: row.updated_at || "",
   };
 }
-

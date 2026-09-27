@@ -1,6 +1,6 @@
 import { readCompleteInventoryRows } from '../../../../services/inventoryCompleteRead.js';
 import { mapRemoteStockCheck } from './inventoryStockCheckReadModel.js';
-import { mapRemoteInventoryItem } from '../InventoryItemModel.js';
+import { mapRemoteInventoryItem } from '../inventoryItemModel.js';
 
 // Submitted rows are immutable evidence. Catalog joins supply labels/photos only.
 export async function loadSubmittedStockCheck(checkId) {
