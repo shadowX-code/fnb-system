@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-09-27 — Payroll effective-date contract
+
+- Initial pay setup recommends Joined Date for explicit confirmation. New statutory setup uses append-only payroll-month revisions with unchanged legacy exact-date evidence and finalized snapshots. Recurring definitions require an explicit calendar-day/full-active/next-full-period policy; canonical calculation pins its evidence and preserves genuine missing-pay and salary-blending blockers. No statutory schedule, overtime, payment or payslip authority changed.
+
 ## 2026-09-27 — Admin-triggered official holiday discovery
 
 - Added bounded JPM/BKPP update discovery with private actor/time/source-check evidence and content-level candidate reuse. Actual official PDF links feed the existing controlled-import authority; uncertain dates still need review. No scheduled monitor, automatic publication, company-policy advancement or Payroll/Leave calculation change.

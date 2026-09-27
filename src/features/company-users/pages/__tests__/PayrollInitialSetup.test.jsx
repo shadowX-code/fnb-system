@@ -4,7 +4,7 @@ const mocks = vi.hoisted(()=>({readInitialSetup:vi.fn(),confirmInitialSetup:vi.f
 vi.mock("../../../../services/payrollService.js",()=>({payrollService:mocks}));
 import { FoundationForm } from "../PayrollPage.jsx";
 import { readFileSync } from "node:fs";
-const data={employees:[{id:"qa",name:"QA",legal_entity_id:"le"}],profiles:[],legal_entities:[{id:"le",name:"QA Employer"}]};
+const data={employees:[{id:"qa",name:"QA",legal_entity_id:"le",joined_date:"2026-05-01"}],profiles:[],legal_entities:[{id:"le",name:"QA Employer"}]};
 beforeEach(()=>{
   vi.clearAllMocks();
   mocks.readInitialSetup.mockImplementation(async(id,date,a)=>({fingerprint:"trusted",evidence:{},schemes:{
@@ -44,7 +44,7 @@ it("allows truthful unresolved setup and reevaluates Off to On",async()=>{
   expect(await screen.findByText("Additional information required")).toBeTruthy();
   expect(screen.getByText(/Confirm a valid date of birth/)).toBeTruthy();
   expect(screen.getByRole("button",{name:"Confirm Employee Setup"}).disabled).toBe(false);
-  expect(mocks.readInitialSetup).toHaveBeenLastCalledWith("qa",expect.any(String),{epf:true,socso:false,eis:false,pcb:false});
+  expect(mocks.readInitialSetup).toHaveBeenLastCalledWith("qa","2026-05-01",{epf:true,socso:false,eis:false,pcb:false},expect.stringMatching(/^\d{4}-\d{2}-01$/));
 });
 it("keeps one private resolver and an atomic scoped append-only initial command",()=>{
   const sql=readFileSync("supabase/migrations/20260926114822_payroll_initial_statutory_setup.sql","utf8");
@@ -56,4 +56,16 @@ it("keeps one private resolver and an atomic scoped append-only initial command"
   expect(sql).toContain("profile_id:=public.payroll_profile_create");
   expect(sql).toContain("category_id:=public.payroll_statutory_input_adjust");
   expect(sql).toContain("from public,anon,authenticated");
+});
+it("recommends joined date and warns only when Admin selects a genuinely later pay date",async()=>{
+  render(<FoundationForm mode="create" initialEmployeeId="qa" data={data} onClose={vi.fn()} onSaved={vi.fn()}/>);
+  expect(screen.getByRole("textbox",{name:/Pay Effective From/}).value).toContain("May");
+  expect(screen.queryByText(/Current pay starts after employment date/)).toBeNull();
+  fireEvent.change(screen.getByRole("textbox",{name:/Pay Effective From/}),{target:{value:"26 Sep 2026"}});
+  expect(await screen.findByText(/Current pay starts after employment date/)).toBeTruthy();
+});
+it("recommends the exact mid-month joined date without conflating statutory month",()=>{
+  render(<FoundationForm mode="create" initialEmployeeId="qa" data={{...data,employees:[{...data.employees[0],joined_date:"2026-10-15"}]}} onClose={vi.fn()} onSaved={vi.fn()}/>);
+  expect(screen.getByRole("textbox",{name:/Pay Effective From/}).value).toBe("15 Oct 2026");
+  expect(screen.getByRole("button",{name:"Effective Payroll Month"})).toBeTruthy();
 });

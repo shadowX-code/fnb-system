@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import Modal from '../../../components/feedback/Modal.jsx';
 import AdminFormField from '../../../components/forms/AdminFormField.jsx';
 import SelectField from '../../../components/forms/SelectField.jsx';
-import DatePickerField from '../../../components/forms/DatePickerField.jsx';
+import MonthPickerField from '../../../components/forms/MonthPickerField.jsx';
 import { payrollService } from '../../../services/payrollService.js';
 
 const schemes = ['epf', 'socso', 'eis', 'pcb'];
@@ -46,8 +46,8 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
   const [refreshing,setRefreshing]=useState(false);
   useEffect(()=>{
     let active=true;
-    payrollService.readStatutorySetup(profile.id).then(r=>payrollService.readStatutorySetup(profile.id,r.next_effective_from)).then(r=>{
-      if(active) {setHistory(r.history);setDraft({effectiveFrom:r.next_effective_from,applicability:r.applicability});}
+    payrollService.readStatutorySetup(profile.id).then(r=>payrollService.readStatutorySetup(profile.id,r.next_effective_from,r.applicability)).then(r=>{
+      if(active) {setHistory(r.history);setDraft({effectiveFrom:`${r.next_effective_from.slice(0,7)}-01`,applicability:r.applicability});}
     }).catch(e=>{if(active)setError(e.message);});
     return ()=>{active=false;};
   },[profile.id]);
@@ -62,7 +62,7 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
   const applicable=schemes.filter(s=>s!=='pcb' && draft?.applicability[s]===true);
   const chosen=Object.fromEntries(applicable.map(s=>[s,overrides[s] ?? review?.schemes[s]?.recommendation ?? review?.schemes[s]?.category ?? null]));
   const manual=applicable.some(s=>review?.schemes[s]?.recommendation && chosen[s]!==review.schemes[s].recommendation);
-  const invalidDate=review?.latest_effective_from && draft?.effectiveFrom<=review.latest_effective_from;
+  const invalidDate=false; // Month revisions append evidence; concurrency is fingerprint-checked server-side.
   const allowed=review && !stale && !refreshing && draft.effectiveFrom && !invalidDate && schemes.every(s=>draft.applicability[s]!=null)
     && applicable.every(s=>chosen[s])
     && (!manual || (sourceNote.trim().length>=8 && reason.trim().length>=3));
@@ -88,7 +88,7 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
     finally {setRefreshing(false);}
   }
   return <Modal title={`Manage Statutory Setup · ${profile.employee_name}`} size="lg" onClose={onClose}
-    description="Confirm applicability, then contribution categories where required. Earlier effective-dated evidence is retained."
+    description="Confirm one setup for the payroll month. Salary/rate dates remain separate; historical evidence is retained."
     footer={<><button className="btn-secondary" onClick={onClose} disabled={busy}>Cancel</button><button className="btn-primary" onClick={save} disabled={!allowed || busy}>{busy?'Saving…':'Confirm Statutory Setup'}</button></>}>
     <div className="space-y-5">
       {!draft && !error && <p>Loading employee evidence…</p>}
@@ -121,11 +121,8 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
             </>}
           </div></div>;
         })}</section>
-        <DatePickerField label="Effective From" required value={draft.effectiveFrom} minDate={review?.minimum_effective_from}
-          error={invalidDate?'Choose a later effective date':null}
-          helper={review?.latest_effective_from ? `Latest effective date: ${review.latest_effective_from}` : null}
-          onChange={v=>{setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:v}));}} />
-        {invalidDate && <p className="text-sm text-text-secondary">Latest effective date: {review.latest_effective_from}</p>}
+        <MonthPickerField label="Effective Payroll Month" value={draft.effectiveFrom.slice(0,7)} disabled={busy}
+          onChange={v=>{setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:`${v}-01`}));}} />
         {!review && !error && <p role="status">Resolving setup…</p>}
         {review && manual && <div className="space-y-3"><p className="text-sm text-text-secondary">Explain the change from FeedX's recommendation. The server still validates the selected category against employee evidence.</p>
           <AdminFormField label="Supporting evidence / source" required><input className="control" value={sourceNote} onChange={e=>setSourceNote(e.target.value)} /></AdminFormField>

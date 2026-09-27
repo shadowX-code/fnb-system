@@ -7,7 +7,7 @@ import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { payrollService } from "../../../services/payrollService.js";
 import PayrollPayableTimeReview from "./PayrollPayableTimeReview.jsx";
-import PayrollMonthlyBasicBreakdown from "./PayrollMonthlyBasicBreakdown.jsx";
+import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./PayrollMonthlyBasicBreakdown.jsx";
 import PayrollPhWork from "./PayrollPhWork.jsx";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
@@ -77,7 +77,8 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)} · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
       <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsCurrent ? `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
         {saved && adjustmentActions(saved)}</span></div>
-      {selected.result.earningsCurrent && <PayrollMonthlyBasicBreakdown line={line} />}</div>;
+      {selected.result.earningsCurrent && <PayrollMonthlyBasicBreakdown line={line} />}
+      <PayrollRecurringBreakdown line={line} /></div>;
   };
   const refresh = async () => { await load(); await onChanged?.(); };
   const reconcile = async () => {
@@ -191,7 +192,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         </div><p className="text-xs text-text-secondary">Employer contributions do not reduce employee Net Pay.</p></section>
         {[...new Set([...(selected.projection?.issues || []), ...(selected.statutory?.issues || [])])].length > 0 &&
           <ul className="list-disc pl-5 text-amber-800">{[...new Set([...(selected.projection?.issues || []), ...(selected.statutory?.issues || [])])].map((issue) =>
-            <li key={issue}>{payrollIssueLabel(issue)}</li>)}</ul>}
+            <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}</li>)}</ul>}
         {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p role="status" className="text-amber-800">Inputs changed. Refresh this employee's calculation before reviewing amounts.</p>}
         {active && <button className="btn-secondary" type="button" disabled={busy} onClick={async () => {
           setBusy(true); setError(""); try { await payrollService.recalculateEmployee(run.id, selected.id); await refresh(); }

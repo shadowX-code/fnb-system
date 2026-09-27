@@ -23,14 +23,14 @@ describe('Payroll employee setup',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Confirm Statutory Setup'}));
     await vi.waitFor(()=>expect(close).toHaveBeenCalled());
   });
-  it('accepts a later historical date rather than imposing today as a minimum',async()=>{
+  it('uses a payroll month rather than a second day-level date validation',async()=>{
     mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:false,socso:false,eis:false,pcb:false},schemes:{},next_effective_from:'2026-08-02',latest_effective_from:'2026-08-01',minimum_effective_from:'2026-08-02',fingerprint:'trusted'});
     render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
-    await screen.findByText('Latest effective date: 2026-08-01');
-    expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false);
-    fireEvent.change(screen.getByRole('textbox',{name:/Effective From/}),{target:{value:'1 Aug 2026'}});
-    await screen.findByText('Choose a later effective date');
-    expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(true);
+    await screen.findByRole('button',{name:'Effective Payroll Month'});
+    await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false));
+    expect(screen.queryByRole('textbox',{name:/Effective From/})).toBeNull();
+    fireEvent.click(screen.getByRole('button',{name:'Confirm Statutory Setup'}));
+    await vi.waitFor(()=>expect(mocks.confirmStatutorySetup).toHaveBeenCalledWith(expect.objectContaining({effectiveFrom:'2026-08-01'})));
   });
   it('confirms server recommendation without repetitive source/reason inputs',async()=>{
     const saved=vi.fn(),close=vi.fn();
@@ -74,7 +74,7 @@ describe('Payroll employee setup',()=>{
     fireEvent.click(screen.getByRole('button',{name:'EPF applicability'}));
     fireEvent.click(screen.getByRole('button',{name:'Applicable',exact:true}));
     await screen.findByText(/Malaysian · under 60/);
-    expect(mocks.readStatutorySetup).toHaveBeenLastCalledWith('p','2026-09-28',expect.objectContaining({epf:true}));
+    expect(mocks.readStatutorySetup).toHaveBeenLastCalledWith('p','2026-09-01',expect.objectContaining({epf:true}));
     expect(screen.queryByRole('textbox',{name:/evidence|reason/i})).toBeNull();
     expect(screen.queryByRole('button',{name:'PCB category'})).toBeNull();
   });

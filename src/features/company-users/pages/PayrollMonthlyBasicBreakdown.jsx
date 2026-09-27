@@ -1,4 +1,12 @@
 // Presentation of pinned server evidence; never prices salary/leave in the browser.
+export function PayrollRecurringBreakdown({ line }) {
+  const basis = line?.source?.recurring_period;
+  if (!basis) return null;
+  const money = value => new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value));
+  return <p className="mt-1 text-xs text-text-secondary">{line.source.formula} · {basis.active_days} active days / {basis.period_days} calendar days
+    {basis.policy === "calendar_days" && ` · ${money(line.source.daily_amount_sum)} ÷ ${basis.period_days} = ${money(line.amount)}`}
+    {` · ${basis.period_start} – ${basis.period_end}`}</p>;
+}
 export default function PayrollMonthlyBasicBreakdown({ line }) {
   const basis = line?.source?.monthly_entitlement;
   if (!basis || (basis.employed_days === basis.period_days && basis.unpaid_days === 0)) return null;

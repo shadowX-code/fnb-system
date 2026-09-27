@@ -545,14 +545,52 @@ unsupported canonical evidence and directs identity corrections to Employee
 Master; free text cannot establish unsupported eligibility. Only a deliberate
 change from a valid recommendation expands supporting source/override reason.
 Earlier evidence and finalized snapshots remain immutable.
-Setup confirmation distinguishes a stale evidence fingerprint from an invalid
-effective date. Stale information requires explicit same-modal Refresh Setup;
-the fingerprint includes latest applicability/category versions, including
-future changes. The date must follow both latest versions, not today's suggested
-default. Historical later dates remain subject to existing finalized-period
-guards. The shared Date Picker disables days below the server-provided minimum.
-The suggested date follows both latest applicability/category versions, never
-an inferred historical entitlement. Settings exposes schedule sources read-only.
+Setup confirmation distinguishes stale information and requires explicit
+same-modal Refresh Setup. Settings exposes schedule sources read-only.
+
+### Effective-date contract (2026-09-27)
+
+Pay remains exact-date effective. Initial setup recommends the Employee's
+canonical Joined Date, including for existing employees, but writes nothing
+until Admin confirms. A later pay start warns about missing earlier pay history.
+The independent Effective Payroll Month defaults to the current month (or the
+future join month). It is not an inferred historical salary date.
+
+New statutory confirmations append paired applicability/category evidence with
+`effective_basis=payroll_month`, first-of-month date and `month_revision` to the
+existing version tables. One explicit confirmation covers the eligible payroll
+period in that month. Subsequent months inherit it until changed. Same-month
+draft changes append a revision; identical reconfirmation is a no-op. All four
+scheme applicability choices are required; categories apply only to applicable
+EPF/SOCSO/EIS. PCB remains monthly manual amount confirmation, not a category.
+Missing supported category evidence remains Setup Required.
+
+Legacy `exact_date` evidence is not backdated, rewritten or silently promoted.
+The shared effective selectors prefer an explicitly confirmed monthly event
+over legacy dates in the same month; without one, legacy date coverage and its
+real gaps remain authoritative. Setup, statutory calculation and PCB reads and
+commands use the same selectors. Fingerprints include complete evidence history;
+confirmation locks Profile and affected Runs, rejects stale evidence and changes
+to finalized periods. Existing frozen snapshots are unchanged.
+
+Recurring definitions own nullable `mid_period_policy`; no existing definition
+receives an automatic default. An active assignment without policy blocks with
+Component proration policy required. The private canonical recurring projection
+resolves exact-date assignment history and pins definition, policy, dates,
+employment window and assignment versions in calculation evidence:
+
+- Calendar days: sum effective daily amounts in eligible employment days divided
+  by calendar days in the payroll period, rounded once to two decimals.
+- Full amount when active: one full amount if active in the eligible period.
+  Multiple distinct amounts in that period remain review-required, not guessed.
+- Start next full period: use the assignment at the start of a full eligible
+  employment/payroll month; intra-month changes apply next full period.
+
+This does not invent allowance entitlement reduction for unpaid leave. Component
+statutory treatment applies to the resulting canonical amount. Policy changes
+after finalized use require a successor definition. Statements render pinned
+formula evidence, never independent UI pricing. Missing pay history includes
+its actual date range; two real monthly rates remain unsupported salary blending.
 
 Employee Manage Components owns assignment/amount, distinct from Settings
 definitions and one-period Run adjustments. The Employee registry reads Joined

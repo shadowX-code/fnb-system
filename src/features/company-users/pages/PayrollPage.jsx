@@ -46,6 +46,16 @@ const timeBlocker = (time) => time?.period_in_progress && !time.unresolved && !t
 const entityName = (entities, id) => entities.find((item) => item.id === id)?.display_name
   || entities.find((item) => item.id === id)?.name || "Legal Entity";
 const treatmentOptions = [{ value: "included", label: "Included" }, { value: "excluded", label: "Excluded" }];
+export const componentPeriodPolicies = [
+  { value: "calendar_days", label: "Prorate by calendar days" },
+  { value: "full_when_active", label: "Full amount when active in period" },
+  { value: "next_full_period", label: "Start next full payroll period" },
+];
+function ComponentPeriodPolicy({ value, onChange }) {
+  return <SelectField label="Recurring mid-period treatment" value={value || ""} onChange={onChange}
+    options={[{ value: "", label: "Choose a policy" }, ...componentPeriodPolicies]}
+    helper="Calendar-day proration uses the active days in the payroll month. Full amount pays once if active. Next full period applies the assignment in force at the start of a complete employment month." />;
+}
 function WageTreatment({ scheme, value, onChange }) {
   return <AdminFormField as="div" label={`${scheme.toUpperCase()} wage base`}><AdminSegmentedControl className="w-fit" label={`${scheme.toUpperCase()} wage base`} value={value} onChange={onChange} options={treatmentOptions} />{!["included", "excluded"].includes(value) && <p className="text-xs text-amber-700">Choose Included or Excluded.</p>}</AdminFormField>;
 }
@@ -77,7 +87,8 @@ export function FoundationForm({ mode, profile, initialEmployeeId = "", data, on
     payBasis: current?.pay_basis || "monthly",
     rate: current?.basic_salary || current?.hourly_rate || "",
     currency: current?.currency || "MYR",
-    effectiveFrom: today(),
+    effectiveFrom: mode === "create" ? data.employees?.find(e => e.id === initialEmployeeId)?.joined_date || "" : today(),
+    statutoryMonth: [currentMonth(), data.employees?.find(e => e.id === initialEmployeeId)?.joined_date?.slice(0, 7) || ""].sort().at(-1),
     reason: "",
     epf: currentStatutory?.epf_applicable ?? null,
     socso: currentStatutory?.socso_applicable ?? null,
@@ -90,19 +101,20 @@ export function FoundationForm({ mode, profile, initialEmployeeId = "", data, on
   const [setupLoading, setSetupLoading] = useState(false);
   const [setupError, setSetupError] = useState("");
   const [refresh, setRefresh] = useState(0);
-  const { employeeId, effectiveFrom, epf, socso, eis, pcb } = draft;
+  const { employeeId, effectiveFrom, statutoryMonth, epf, socso, eis, pcb } = draft;
+  const joinedDate = data.employees?.find(e => e.id === employeeId)?.joined_date;
   useEffect(() => {
     if (mode !== "create") return;
     let active = true;
     setSetup(null); setSetupError("");
     if (!employeeId || !effectiveFrom) { setSetupLoading(false); return; }
     setSetupLoading(true);
-    payrollService.readInitialSetup(employeeId, effectiveFrom, { epf, socso, eis, pcb })
+    payrollService.readInitialSetup(employeeId, effectiveFrom, { epf, socso, eis, pcb }, `${statutoryMonth}-01`)
       .then(result => { if (active) setSetup(result); })
       .catch(cause => { if (active) setSetupError(cause.message || "Unable to check statutory setup."); })
       .finally(() => { if (active) setSetupLoading(false); });
     return () => { active = false; };
-  }, [mode, employeeId, effectiveFrom, epf, socso, eis, pcb, refresh]);
+  }, [mode, employeeId, effectiveFrom, statutoryMonth, epf, socso, eis, pcb, refresh]);
   const patch = (key, value) => setDraft((previous) => ({ ...previous, [key]: value }));
   const isProfile = mode === "create" || mode === "compensation";
   const title = {
@@ -116,7 +128,7 @@ export function FoundationForm({ mode, profile, initialEmployeeId = "", data, on
     try {
       const input = { ...draft, rate: Number(draft.rate) };
       if (mode === "create") await payrollService.confirmInitialSetup({
-        ...input, applicability: { epf, socso, eis, pcb }, fingerprint: setup.fingerprint,
+        ...input, statutoryMonth: `${statutoryMonth}-01`, applicability: { epf, socso, eis, pcb }, fingerprint: setup.fingerprint,
       });
       if (mode === "compensation") await payrollService.adjustCompensation(input);
       await onSaved(mode === "create" ? draft.employeeId : undefined);
@@ -140,7 +152,9 @@ export function FoundationForm({ mode, profile, initialEmployeeId = "", data, on
     footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={!allowed || busy} onClick={save}>{busy ? "Saving..." : mode === "create" ? "Confirm Employee Setup" : "Save"}</button></>}>
     <div className="space-y-4">
       {mode === "create" && <AdminFormField label="Employee" required>
-        <SelectField value={draft.employeeId} onChange={(value) => patch("employeeId", value)} searchable
+        <SelectField value={draft.employeeId} onChange={(value) => setDraft(previous => ({ ...previous,
+          employeeId: value, effectiveFrom: candidates.find(e => e.id === value)?.joined_date || "",
+          statutoryMonth: [currentMonth(), candidates.find(e => e.id === value)?.joined_date?.slice(0, 7) || ""].sort().at(-1) }))} searchable
           options={[{ value: "", label: "Select employee with Legal Employer" },
             ...candidates.map((item) => ({ value: item.id, label: `${item.name} · ${entityName(data.legal_entities || [], item.legal_entity_id)}` }))]} />
       </AdminFormField>}
@@ -154,16 +168,19 @@ export function FoundationForm({ mode, profile, initialEmployeeId = "", data, on
             value={draft.rate} onChange={(event) => patch("rate", event.target.value)} />
         </AdminFormField>
       </div>}
-      {mode === "create" ? <><StatutoryChecks value={draft} onChange={setDraft} review={setup} loading={setupLoading} />
+      {mode === "create" ? <><MonthPickerField label="Effective Payroll Month" value={draft.statutoryMonth} onChange={value => patch("statutoryMonth", value)} />
+        <StatutoryChecks value={draft} onChange={setDraft} review={setup} loading={setupLoading} />
         <p className="text-xs text-text-secondary">Save confirms the recommended categories with canonical Employee evidence, Admin and time. Unresolved schemes remain Setup Required; pay setup can still be saved.</p>
         {(setupError || (error && !setup)) && <div role="alert"><p>{setupError || error}</p><button type="button" className="btn-secondary" onClick={()=>{setError("");setRefresh(v=>v+1);}}>Refresh Setup</button></div>}
       </> : null}
       <div className="grid gap-4 sm:grid-cols-2">
-        <DatePickerField label="Effective From" required value={draft.effectiveFrom} onChange={(value) => patch("effectiveFrom", value)} />
+        <DatePickerField label="Pay Effective From" required value={draft.effectiveFrom} onChange={(value) => patch("effectiveFrom", value)}
+          helper={mode === "create" && joinedDate ? `Recommended: Joined Date · ${joinedDate}. Confirm when this salary/rate actually started.` : null} />
         {mode !== "create" && <AdminFormField label="Reason / provenance" required><input className="control" value={draft.reason}
           onChange={(event) => patch("reason", event.target.value)} placeholder="Reviewed compensation change" /></AdminFormField>
         }
       </div>
+      {mode === "create" && joinedDate && draft.effectiveFrom > joinedDate && <p role="status" className="text-sm text-amber-700">Current pay starts after employment date. Earlier payroll periods may require previous pay history.</p>}
       {mode === "compensation" && <p className="text-xs text-text-secondary">The new version applies from this date. It does not update an Employment Contract or rewrite earlier versions.</p>}
       {error && mode !== "create" && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     </div>
@@ -481,7 +498,7 @@ function SettingsTab({ data, canManage, reload }) {
   const [selectedHolidayId, setSelectedHolidayId] = useState("");
   const [holidayApplicability, setHolidayApplicability] = useState(null);
   const [holidayHistory, setHolidayHistory] = useState(null);
-  const [draft, setDraft] = useState({ code: "", name: "", type: "allowance", epf: "undetermined", socso: "undetermined", eis: "undetermined", pcb: "undetermined",
+  const [draft, setDraft] = useState({ code: "", name: "", type: "allowance", epf: "undetermined", socso: "undetermined", eis: "undetermined", pcb: "undetermined", midPeriodPolicy: "",
     date: today(), scope: "national", stateCode: "", outletId: "", sourceNote: "", reason: "", active: true });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -532,6 +549,7 @@ function SettingsTab({ data, canManage, reload }) {
   const beginComponentEdit = () => {
     if (!selectedComponent) return;
     setComponentEditDraft({ id: selectedComponent.id, name: selectedComponent.name,
+      midPeriodPolicy: selectedComponent.mid_period_policy || "",
       epf: selectedComponent.epf_treatment, socso: selectedComponent.socso_treatment,
       eis: selectedComponent.eis_treatment, pcb: selectedComponent.pcb_treatment,
       active: selectedComponent.is_active, sourceNote: "", reason: "" });
@@ -547,7 +565,7 @@ function SettingsTab({ data, canManage, reload }) {
     } catch (cause) { setError(cause.message || "Unable to update Pay Component."); }
     finally { setBusy(false); }
   };
-  const undetermined = (item) => !payComponentIsConfigured(item);
+  const undetermined = (item) => !payComponentIsConfigured(item) || !item.mid_period_policy;
   return <div className="space-y-4">
     <AdminUnderlineTabs value={mode} onChange={(value) => { setMode(value); setAdding(false); setError(""); }}
       tabs={[["rules", "Statutory & Pay Rules"], ["holidays", "Public Holidays"], ["components", "Pay Components"]].map(([value, text]) => ({ value, label: text }))} ariaLabel="Payroll settings" />
@@ -565,7 +583,7 @@ function SettingsTab({ data, canManage, reload }) {
             const value = item[`${scheme}_treatment`]; const Icon = value === "included" ? Check : value === "excluded" ? Minus : TriangleAlert;
             return <InfoTooltip label={`${scheme.toUpperCase()} wage base: ${value === "included" ? "Included" : value === "excluded" ? "Excluded" : "Setup required"}`}><Icon size={16} aria-hidden="true" className={value === "included" ? "text-emerald-700" : value === "excluded" ? "text-text-secondary" : "text-amber-700"} /></InfoTooltip>;
           } })),
-          { key: "status", header: "Status", render: (item) => <Badge tone={item.is_active ? "success" : "neutral"}>{item.is_active ? "Active" : "Inactive"}</Badge> },
+          { key: "status", header: "Status", render: (item) => <Badge tone={!item.is_active ? "neutral" : undetermined(item) ? "warning" : "success"}>{!item.is_active ? "Inactive" : undetermined(item) ? "Setup Required" : "Active"}</Badge> },
           { key: "actions", header: "Actions", render: (item) => <button className="font-semibold text-primary" type="button" onClick={() => setSelectedComponentId(item.id)}>View</button> },
         ]} rows={components} getRowKey={(item) => item.id} onRowClick={(item) => { setSelectedComponentId(item.id); setEditingComponent(false); }} /> : <p className="p-6 text-sm text-text-secondary">No pay components configured.</p>}</Card>
       : <div className="space-y-4"><PayrollAnnualHolidays data={data} canManage={canManageHolidays} onCompanyChanged={setHolidayCompany} onChanged={reload}
@@ -578,6 +596,7 @@ function SettingsTab({ data, canManage, reload }) {
         <SelectField label="Type" value={draft.type} onChange={(value) => patch("type", value)} options={["earning", "allowance", "deduction", "reimbursement"].map((value) => ({ value, label: label(value) }))} />
         <div className="sm:col-span-2"><h3 className="text-sm font-bold">Statutory Wage Treatment</h3><p className="text-xs text-text-secondary">Included means this component forms part of the scheme's wage base, not that the employee participates. Resolve all four treatments before use.</p></div>
         {["epf", "socso", "eis", "pcb"].map((key) => <WageTreatment key={key} scheme={key} value={draft[key]} onChange={(value) => patch(key, value)} />)}
+        <div className="sm:col-span-2"><ComponentPeriodPolicy value={draft.midPeriodPolicy} onChange={value => patch("midPeriodPolicy", value)} /></div>
         <ToggleField label="Available for use" checked={draft.active} onChange={(value) => patch("active", value)} />
         <AdminFormField label="Remark (Optional)"><input className="control" value={draft.reason} onChange={(event) => patch("reason", event.target.value)} /></AdminFormField>
         </div>
@@ -609,6 +628,7 @@ function SettingsTab({ data, canManage, reload }) {
       onClose={() => { setSelectedComponentId(""); setEditingComponent(false); }}
       footer={<><button className="btn-secondary" type="button" onClick={() => setSelectedComponentId("")}>Close</button>{canManageComponents && <button className="btn-primary" type="button" onClick={beginComponentEdit}>{undetermined(selectedComponent) ? "Complete Setup" : "Edit Component"}</button>}</>}>
       {selectedComponent && <div className="space-y-5 text-sm">
+        <section><h3 className="font-bold">Recurring mid-period treatment</h3><p className="mt-1 text-text-secondary">{componentPeriodPolicies.find(p => p.value === selectedComponent.mid_period_policy)?.label || "Setup Required · choose a component policy before recurring Payroll use"}</p></section>
         <section><h3 className="font-bold">Statutory Treatment</h3><div className="mt-2 divide-y divide-border rounded-xl border border-border">{["epf", "socso", "eis", "pcb"].map((scheme) => <div key={scheme} className="flex justify-between px-3 py-2"><span>{scheme.toUpperCase()}</span><Badge tone={selectedComponent[`${scheme}_treatment`] === "undetermined" ? "warning" : "neutral"}>{selectedComponent[`${scheme}_treatment`] === "undetermined" ? "Not configured" : label(selectedComponent[`${scheme}_treatment`])}</Badge></div>)}</div></section>
         <details><summary className="cursor-pointer text-text-secondary">History</summary><p className="mt-1 text-text-secondary">Created {selectedComponent.created_at?.slice(0, 10) || "—"}.</p>
           {Array.isArray(componentHistory) ? <div className="mt-2 divide-y divide-border">{componentHistory.map((event, index) => <div key={`${event.occurred_at}-${index}`} className="py-2"><strong>{label(event.event_type)}</strong><span className="ml-2 text-text-muted">{event.occurred_at?.slice(0, 16).replace("T", " ")} · {event.actor_name}</span><p className="text-text-secondary">{event.reason || event.details?.source || "—"}</p></div>)}</div> : <p className="mt-2 text-text-secondary">{componentHistory?.error ? "History could not be loaded." : "Loading history…"}</p>}</details>
@@ -619,6 +639,7 @@ function SettingsTab({ data, canManage, reload }) {
       <div className="space-y-4"><div className="grid gap-3 sm:grid-cols-2"><AdminFormField label="Name" required><input className="control" value={componentEditDraft.name} onChange={(event) => setComponentEditDraft((current) => ({ ...current, name: event.target.value }))} /></AdminFormField><AdminFormField label="Type"><p className="control flex items-center bg-surface-muted text-text-secondary">{label(selectedComponent?.component_type)}</p></AdminFormField></div>
         <div><h3 className="mb-1 text-sm font-bold">Statutory Wage Treatment</h3><p className="mb-3 text-xs text-text-secondary">Included means this component forms part of the scheme's wage base, not that the employee participates. Resolve all four treatments before use.</p><div className="grid gap-3 sm:grid-cols-2">{["epf", "socso", "eis", "pcb"].map((scheme) => <WageTreatment key={scheme} scheme={scheme} value={componentEditDraft[scheme]} onChange={(value) => setComponentEditDraft((current) => ({ ...current, [scheme]: value }))} />)}</div></div>
         <ToggleField label="Available for use" checked={componentEditDraft.active} onChange={(checked) => setComponentEditDraft((current) => ({ ...current, active: checked }))} />
+        <ComponentPeriodPolicy value={componentEditDraft.midPeriodPolicy} onChange={value => setComponentEditDraft(current => ({ ...current, midPeriodPolicy: value }))} />
         <p className="text-xs text-text-secondary">Unavailable components cannot be newly assigned. Historical Payroll evidence is retained.</p>
         <AdminFormField label="Remark (Optional)"><input className="control" value={componentEditDraft.reason} onChange={(event) => setComponentEditDraft((current) => ({ ...current, reason: event.target.value }))} /></AdminFormField>
         {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}

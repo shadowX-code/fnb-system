@@ -18,8 +18,18 @@ export function payrollEmployeeResult(calculation, statutory) {
   };
 }
 
-export function payrollIssueLabel(issue) {
+export function payrollIssueLabel(issue, context = {}) {
   const [code, detail] = String(issue).split(":");
+  const range = value => value?.replaceAll("..", " – ");
+  if (code === "pay_history_missing") return `Pay history missing · ${range(detail)}`;
+  if (code === "component_proration_policy_required" || code === "component_multiple_amounts_requires_review") {
+    const component = context.components?.find(c => c.id === detail);
+    return `${component?.name || "Recurring component"} · ${code === "component_proration_policy_required" ? "Component proration policy required" : "Multiple amounts in one period require review"}`;
+  }
+  const coverage = context.statutory?.inputs?.applicability_coverage;
+  if ((code === "statutory_applicability_missing" || code.endsWith("_applicability_unreviewed")) && coverage?.missing_through) {
+    return `${code === "statutory_applicability_missing" ? "Statutory" : code.split("_")[0].toUpperCase()} applicability missing · ${coverage.start} – ${coverage.missing_through}`;
+  }
   const labels = {
     ph_treatment_confirmation_required: "Review and confirm the company PH work treatment in Employee Review",
     ph_company_policy_required: "Confirm a company PH Work Policy in Public Holidays Settings",
@@ -42,6 +52,7 @@ export function payrollIssueLabel(issue) {
     mid_period_statutory_applicability_change: "Statutory applicability changes within this period and requires review.",
     mid_period_statutory_input_change: "Contribution categories change within this period and require review.",
     phase3_calculation_missing_or_stale: "Refresh payroll after resolving employee inputs.",
+    earnings_inputs_require_review: "Resolve the earning inputs above before calculating statutory amounts.",
     employment_start_date_requires_review: "Confirm the employee's commencement date in Employee setup.",
     unreconciled_time: "Refresh payable time evidence",
     unresolved_time_exception: "Resolve the payable time exception",

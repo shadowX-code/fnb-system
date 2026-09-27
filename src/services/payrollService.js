@@ -47,13 +47,14 @@ export const payrollService = {
   }),
   read: (profileId = null, periodId = null) =>
     command("payroll_foundation_read", { p_profile_id: profileId, p_period_id: periodId }),
-  readInitialSetup: (employeeId, date, applicability) => command("payroll_initial_setup_read", {
-    p_employee_id: employeeId, p_date: date, p_applicability: applicability,
+  readInitialSetup: (employeeId, date, applicability, statutoryMonth = null) => command("payroll_initial_setup_read", {
+    p_employee_id: employeeId, p_date: date, p_applicability: applicability, p_statutory_month: statutoryMonth,
   }),
   confirmInitialSetup: (input) => command("payroll_initial_setup_confirm", {
     p_employee_id: input.employeeId, p_effective_from: input.effectiveFrom,
     p_pay_basis: input.payBasis, p_rate: input.rate, p_currency: input.currency || "MYR",
     p_applicability: input.applicability, p_fingerprint: input.fingerprint,
+    p_statutory_month: input.statutoryMonth || null,
   }),
   createProfile: (input) => command("payroll_profile_create", {
     p_employee_id: input.employeeId,
@@ -125,6 +126,7 @@ export const payrollService = {
     p_pcb_treatment: input.pcb,
     p_is_active: input.active ?? true,
     p_remark: input.reason || null,
+    p_mid_period_policy: input.midPeriodPolicy || null,
   }),
   updateComponent: (input) => command("payroll_component_save", {
     p_component_id: input.id,
@@ -137,6 +139,7 @@ export const payrollService = {
     p_pcb_treatment: input.pcb,
     p_is_active: input.active,
     p_remark: input.reason || null,
+    p_mid_period_policy: input.midPeriodPolicy || null,
   }),
   saveDraftAdjustment: (input) => command("payroll_draft_adjustment_save", {
     p_request_id: input.requestId, p_run_id: input.runId, p_employee_id: input.employeeId,
