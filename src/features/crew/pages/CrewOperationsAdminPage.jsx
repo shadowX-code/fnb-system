@@ -152,7 +152,7 @@ function TaskEditor({ initial, employees, sops, outletName, onConfirm, onClose, 
   const [saving, setSaving] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const initialSignature = useMemo(() => JSON.stringify(initial), [initial]);
-  const dirty = JSON.stringify(draft) !== initialSignature || sourceLanguage !== savedSourceLanguage;
+  const dirty = Boolean(draft._identityRepairRequired) || JSON.stringify(draft) !== initialSignature || sourceLanguage !== savedSourceLanguage;
   const valid = Boolean(draft.name.trim() && draft.blocks.length && draft.effective_date && !taskTimeError(draft));
   const structuredCount = draft.blocks.filter((block) => RESPONSE_BLOCK_TYPES.has(block.block_type)).length;
   const previewTask = { ...draft, blocks: draft.blocks.map((block) => withSopPreview(block, sops)) };

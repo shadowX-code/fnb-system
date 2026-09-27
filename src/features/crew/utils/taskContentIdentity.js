@@ -12,13 +12,15 @@ export function duplicateTaskBlock(block) {
 export function repairDraftTaskIdentity(task) {
   if (task.status && task.status !== "draft") return task;
   const seen = new Set();
-  return { ...task, blocks: (task.blocks || []).map((block) => {
+  let repaired = false;
+  const blocks = (task.blocks || []).map((block) => {
     const config = { ...(block.config || block.block_config || {}) };
     let key = config.localization_key || block.id || newIdentity();
-    if (seen.has(key)) key = newIdentity();
+    if (seen.has(key)) { key = newIdentity(); repaired = true; }
     seen.add(key);
     return { ...block, config: { ...config, localization_key: key } };
-  }) };
+  });
+  return { ...task, blocks, ...(repaired ? { _identityRepairRequired: true } : {}) };
 }
 
 export function moveTaskBlock(blocks, id, targetId, placement) {

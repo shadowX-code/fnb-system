@@ -13,6 +13,25 @@ beforeEach(() => { Object.values(mocks).forEach((mock) => mock.mockReset()); moc
 afterEach(cleanup);
 
 describe("Crew unified Tasks Admin", () => {
+  it("duplicates independently, reorders by shared handle and saves unique content identities", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Create Task/ }));
+    fireEvent.change(screen.getByLabelText(/Task Name/), { target: { value: "Opening Duties" } });
+    fireEvent.change(screen.getByLabelText("Title"), { target: { value: "Clean Counter Area" } });
+    for (let index = 1; index <= 3; index += 1) {
+      fireEvent.click(screen.getByRole("button", { name: `More actions for block ${index}` }));
+      fireEvent.click(screen.getByRole("button", { name: "Duplicate" }));
+      fireEvent.change(screen.getByLabelText("Title"), { target: { value: `Independent copy ${index}` } });
+    }
+    expect(screen.queryByRole("button", { name: "Move up" })).toBeNull();
+    const handle = screen.getByRole("button", { name: /Reorder block 4:/ });
+    fireEvent.keyDown(handle, { key: "ArrowUp" });
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(mocks.save).toHaveBeenCalled());
+    const blocks = mocks.save.mock.calls[0][1].blocks;
+    expect(blocks.map((block) => block.title)).toEqual(["Clean Counter Area", "Independent copy 1", "Independent copy 3", "Independent copy 2"]);
+    expect(new Set(blocks.map((block) => block.config.localization_key)).size).toBe(4);
+  });
   it("renders one Tasks workspace with status filters and actions", async () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByRole("heading", { name: "Tasks" })).not.toBeNull();
