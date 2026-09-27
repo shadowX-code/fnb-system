@@ -58,9 +58,9 @@ export default function InventoryRecipesPage({auth, ui, outlets}) {
   const recipeReportYear = date.slice(0,4), recipeReportMonth = Number(date.slice(5,7)), recipeTrendYear = Number(recipeReportYear);
   const notify = (title, message = "", tone = "success") => ui?.notify?.({title,message,tone});
   const requirePermission = (allowed, action) => { if (allowed) return true; notifyPermissionDenied(ui,action); return false; };
-  async function refreshInventory() {
+  async function refreshInventory({global = false} = {}) {
     if (liveScope.current !== commandScope) return;
-    invalidateInventoryReads({outletId: activeRecipeOutletId, reason:"recipe-saved",owner:"recipes"});
+    invalidateInventoryReads({outletId: global ? undefined : activeRecipeOutletId, reason:"recipe-saved",owner:"recipes"});
     await read.refresh();
   }
   async function refreshMapping() {
@@ -96,7 +96,8 @@ export default function InventoryRecipesPage({auth, ui, outlets}) {
   const pendingProductCount = productMappingRows.filter(row => row.status === "pending").length;
   const ignoredProductCount = productMappingRows.filter(row => row.status === "ignored").length;
   const mappingCoverage = mappedProductCount + pendingProductCount ? Math.round(mappedProductCount / (mappedProductCount + pendingProductCount) * 100) : 0;
-  const recipeProductLoading = mappingRead.state === "loading";
+  const mappingReady = mappingRead.state === "complete" && mappingRead.scope === commandScope;
+  const recipeProductLoading = !mappingReady && !mappingRead.error;
 async function saveRecipe(recipe) {
     try {
       let recipePhotoUrl = recipe.recipePhotoUrl || recipe.recipe_photo_url || "";
@@ -294,7 +295,7 @@ async function saveMenuCategory(category) {
           || (data.menuCategories?.length ? Math.max(...data.menuCategories.map((entry) => Number(entry.sortOrder || 0))) + 1 : 1),
       });
       
-      await refreshInventory();
+      await refreshInventory({global:true});
       setModal({ type: "recipe-menu-categories" });
       notify(isUuid(category.id) ? "Menu category updated" : "Menu category created");
     } catch (error) {
@@ -309,7 +310,7 @@ async function archiveMenuCategory(category) {
     try {
       const savedCategory = await persistRemoteMenuCategory({ ...category, status: category.status === "active" ? "inactive" : "active" });
       
-      await refreshInventory();
+      await refreshInventory({global:true});
       notify(category.status === "active" ? "Menu category archived" : "Menu category activated");
     } catch (error) {
       console.warn("[InventoryControl] Unable to archive menu category.", error);
@@ -355,7 +356,7 @@ async function sortMenuCategories(draggedId,targetId) {
   try {
     const results = await Promise.all(ordered.filter(row => isUuid(row.id)).map((row,index) => supabase.from("inventory_menu_categories").update({sort_order:index+1,updated_at:new Date().toISOString()}).eq("id",row.id)));
     const error = results.find(row => row.error)?.error; if (error) throw error;
-    await refreshInventory(); notify("Menu category order updated");
+    await refreshInventory({global:true}); notify("Menu category order updated");
   } catch(error) { notify("Failed to update menu category order",error.message,"error"); await read.refresh(); }
 }
 
@@ -372,6 +373,7 @@ return <div className="space-y-4">
               <AdminSearchField label="Search recipe/menu item" value={recipeFilters.search} onChange={(value) => updateRecipeFilter("search", value)} placeholder="Search recipe, outlet or ingredient" />
             </AdminFilterToolbar>
 {read.error ? <div className="card p-4" role="alert"><p>{read.error}</p><p>No incomplete results are presented as complete.</p><button className="btn-secondary" onClick={read.refresh}>Retry</button></div> : !read.data ? <p role="status">{activeRecipeOutletId ? "Loading complete Recipes…" : "No accessible outlet."}</p> : <>
+{read.state === "refreshing" ? <p role="status">Refreshing Recipes…</p> : null}
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard icon={FileText} label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
               <MetricCard icon={ShoppingCart} label="Average Recipe Cost" value={formatRestaurantRecipeCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
@@ -482,7 +484,7 @@ return <div className="space-y-4">
             </div>
           )}
         </DashboardSection> : null}
-        {recipeWorkspaceTab === "mapping" && mappingRead.state === "complete" ? <DashboardSection
+        {recipeWorkspaceTab === "mapping" && mappingReady ? <DashboardSection
           title="Product ↔ Recipe Mapping"
           subtitle="Connect Product Analytics products to recipes so Recipe Intelligence can use real sales volume and revenue."
           density="compact"
@@ -604,7 +606,7 @@ return <div className="space-y-4">
           </div>
         </DashboardSection> : null}
 
-{recipeWorkspaceTab === "mapping" && mappingRead.state !== "complete" ? <div className="card p-4" role={mappingRead.error ? "alert" : "status"}><p>{mappingRead.error || "Loading verified Product Analytics…"}</p>{mappingRead.error ? <button className="btn-secondary" onClick={refreshMapping}>Retry</button> : null}</div> : null}
+{recipeWorkspaceTab === "mapping" && !mappingReady ? <div className="card p-4" role={mappingRead.scope === commandScope && mappingRead.error ? "alert" : "status"}><p>{mappingRead.scope === commandScope && mappingRead.error || "Loading verified Product Analytics…"}</p>{mappingRead.scope === commandScope && mappingRead.error ? <button className="btn-secondary" onClick={refreshMapping}>Retry</button> : null}</div> : null}
 </>}
       {modal?.type === "recipe" ? (
         <RecipeModal
