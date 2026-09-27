@@ -1,5 +1,6 @@
 import en from "../en/crew.js";
 const resources = { ...en,
+  payslips: { title:'工资单', subtitle:'已确认的每月薪资', net:'实发工资', view:'查看工资单', download:'下载工资单', refresh:'更新私密链接', empty:'暂无工资单', emptyBody:'薪资确认后，最终工资单将显示在这里。', unavailable:'请联系薪资管理员', error:'无法加载工资单。' },
   peerReview: { title: "同事互评", progress: "已完成 {{completed}} / {{total}}", continue: "继续", help: "请评价本月与你一起工作的同事。其他员工不会看到你的个人评分。", submitError: "无法提交评价。", dimensions: { teamwork: "团队合作", reliability: "可靠程度", communication: "沟通", work_attitude: "工作态度" } },
   common: { ...en.common, back:"返回",close:"关闭",closeNamed:"关闭{{title}}",aboutNamed:"关于{{title}}",cancel:"取消",continue:"继续",confirm:"确认",save:"保存",saving:"保存中…",submit:"提交",retry:"重试",viewAll:"查看全部",loading:"加载中…",optional:"可选",required:"必需",today:"今天",now:"现在",outlet:"门店",role:"职位",other:"其他",noLimit:"不限",days:"天",shifts:"班次" },
   nav:{home:"首页",learn:"学习",reward:"奖励",growth:"成长",me:"我的",label:"员工导航"},

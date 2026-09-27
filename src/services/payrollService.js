@@ -10,6 +10,18 @@ async function command(name, args) {
 // Payroll is the only owner of compensation and run commands. Employee and
 // Employment Document services remain read/provenance sources, not writers here.
 export const payrollService = {
+  readPayment: (runId, employeeId) => command('payroll_payment_read', { p_run_id: runId, p_employee_id: employeeId }),
+  recordPayment: input => command('payroll_payment_record', { p_request_id: input.requestId, p_run_id: input.runId,
+    p_employee_id: input.employeeId, p_kind: input.kind, p_amount: Number(input.amount), p_date: input.date,
+    p_reference: input.reference || null, p_remark: input.remark || null, p_reverses_id: input.reversesId || null }),
+  crewPayslips: token => command('crew_payroll_payslips', { p_token: token }),
+  openPayslip: async input => {
+    const { data, error } = await supabase.functions.invoke('payroll-payslips', { body: input.token
+      ? { action: 'crew_open', token: input.token, period_id: input.periodId }
+      : { action: 'admin_open', run_id: input.runId, employee_id: input.employeeId } });
+    if (error || data?.error) throw new Error(data?.error || 'Payslip unavailable. Please retry.');
+    return data;
+  },
   readHolidayUpdateCheck: (year, geography) => command("payroll_holiday_update_check_read", { p_year: Number(year), p_geography: geography || "national" }),
   checkOfficialHolidayUpdates: async (year, geography, requestId) => {
     const { data, error } = await supabase.functions.invoke("payroll-holiday-updates", { body: { year: Number(year), geography: geography || "national", requestId } });

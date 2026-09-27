@@ -234,6 +234,7 @@ const crewMobileDefinitions = [
   crewMobileRouteDefinition({ id: "crew-mobile-assets", screen: "assets", path: "me/assets", legacyPath: "crew/me/assets" }),
   crewMobileRouteDefinition({ id: "crew-mobile-employment-records", screen: "employment-records", path: "me/employment-records", legacyPath: "crew/me/employment-records" }),
   crewMobileRouteDefinition({ id: "crew-mobile-employment-documents", screen: "employment-documents", path: "me/employment-records/contracts", legacyPath: "crew/me/employment-records/contracts" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-payslips", screen: "payslips", path: "me/payslips", legacyPath: "crew/me/payslips" }),
   crewMobileRouteDefinition({ id: "crew-mobile-compliance", screen: "compliance", path: "me/employment-records/food-handling-compliance", legacyPath: "crew/me/employment-records/documents-compliance", aliases: ["#crew/me/compliance"] }),
   crewMobileRouteDefinition({ id: "crew-mobile-disciplinary", screen: "disciplinary", path: "me/employment-records/warnings-notices", legacyPath: "crew/me/employment-records/warnings", aliases: ["#crew/me/warnings"] }),
   crewMobileRouteDefinition({ id: "crew-mobile-tasks", screen: "operations", path: "tasks", legacyPath: "crew/tasks" }),

@@ -619,6 +619,32 @@ version, never deletes history. Future starts/changes/stops remain visible.
 Dates must follow the latest scheduled version and finalized-period protection
 is unchanged. Retired definitions permit stopping an existing assignment only.
 
+## Phase 5 — Private Final Payslips and Settlement
+
+Payroll owns payslips separately from Legal Contracts and Employment Documents.
+Finalization captures an immutable payslip identity alongside the existing
+financial snapshots. The private `payroll-payslips` gateway renders one A4
+artifact per finalized employee/revision from those snapshots, retains manifest
+and PDF SHA-256 evidence, never overwrites the object, and issues 60-second
+signed access after revalidating the caller. Pre-foundation revisions without
+frozen identity fail closed rather than copying today's mutable identity.
+
+Admin uses existing entity-scoped `payroll.view`; opaque Crew sessions derive
+the employee server-side and expose only each period's current finalized result.
+Crew Me → Payslips has no correction/history surface. Superseded artifacts remain
+available to authorized Admin/Audit; a correction creates a separate artifact.
+Client roles have no direct payslip table or storage access.
+
+`payroll_settlement_entries` is an append-only ledger of payments, recoveries
+and evidenced reversals. `payroll_payment_record` uses `payroll.manage`, locks
+the period, requires the current finalized revision and idempotent request ID,
+and records actor/time/reference. It records evidence only, never transfers
+money or changes payroll calculations or Run state. Settlement projects the
+current immutable Net Pay against all employee/period settlements, including
+payments against earlier revisions: Unpaid / Partially Paid / Paid / Recovery
+Required. Corrections therefore expose a separate settlement difference without
+inserting it into another period's remuneration.
+
 ## Deferred
 
-Payslips, settlement and Finance labour-cost projections remain deferred.
+Bank transfers/payment files and Finance labour-cost projections remain deferred.

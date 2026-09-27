@@ -7,6 +7,7 @@ import { ResultDetail } from "./PayrollRunCalculationPanel.jsx";
 import { payrollEmployeeResult } from "./payrollRunPresentation.js";
 import PayrollEmployeeBankInfo from "./PayrollEmployeeBankInfo.jsx";
 import { employeeService } from "../../../services/employeeService.js";
+import PayrollPayslipPayment from './PayrollPayslipPayment.jsx';
 
 const money = value => value == null ? "—" : new Intl.NumberFormat("en-MY", { style: "currency", currency: "MYR" }).format(Number(value));
 const deductionTotal = row => row.statutory ? Number(row.calculation?.non_statutory_deductions || 0) + (row.statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null;
@@ -64,6 +65,7 @@ export default function PayrollFinalizedRecord({ run, onSnapshot, commandHeader 
     </Card>}
     <Card className="overflow-hidden"><DataTable density="compact" columns={columns} rows={rows} getRowKey={row => row.employee_id} /></Card>
     {selected && <ResultDetail result={{ ...selected.calculation, employee_name: selected.employee_name }} statutory={selected.statutory}
+      payslipPayment={<PayrollPayslipPayment runId={run.id} employeeId={selected.employee_id} />}
       bankInfo={<PayrollEmployeeBankInfo inline result={bankFor(selected)} employeeName={selected.employee_name} onRetry={() => setBankRetry(value => value + 1)} />}
       frozenPeriod={record.period.period_start.slice(0, 7)} onClose={() => setSelected(null)} />}
   </div>;
