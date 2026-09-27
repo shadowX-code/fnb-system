@@ -234,6 +234,15 @@ append-only `payroll_holiday_import_events`, server actor/time, payload-bound
 capture retries and revision-locked review. Matched records need no repetitive
 row review. New/changed entries require explicit acceptance; corrections require
 a remark. Missing previous entries must be explicitly retained, never deleted.
+Operational classification review shows only unresolved candidate rows, with the
+captured source classification, geography and source viewer. Confirm Classification
+persists the existing revision-locked candidate decision; it does not publish.
+Matched and already-confirmed records are excluded. Blocked or absent classification
+evidence cannot be confirmed. Complete-source approval and annual publication remain
+separate controlled-import gates. Published classifications display Calendar verified,
+not a full-year reclassification form. Individual manual classification maintenance
+is under Advanced, requires evidence and a reason retained in the new calendar
+revision, and preserves untouched entries and existing required-holiday guards.
 Conflicts/uncertainty block approval; corrected transcription requires a new
 candidate, preserving the original. Complete-source review precedes explicit
 publication through the existing `payroll_holiday_calendar_save` authority.

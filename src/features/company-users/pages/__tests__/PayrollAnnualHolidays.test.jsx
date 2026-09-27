@@ -12,6 +12,18 @@ const data = { holidays, legal_entities: [{ id: "entity", name: "Employer" }], o
 const policy = { id: "policy", policy_id: "family", is_default: true, status: "published", calendar_version_id: "calendar", selected_holiday_ids: holidays.slice(0, 11).map(h => h.id), legal_entity_ids: ["entity"], outlet_ids: [] };
 beforeEach(() => { vi.clearAllMocks(); service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [], can_manage: true }); service.saveDefaultPaidHolidays.mockResolvedValue("saved"); });
 afterEach(cleanup);
+it("retains verified annual classifications without a normal reclassification workflow", async () => {
+  render(<PayrollAnnualHolidays data={data} canManage />);
+  await screen.findByText(/Calendar verified/);
+  expect(screen.queryByRole("button", { name: "Review Calendar" })).toBeNull();
+  expect(screen.queryByRole("button", { name: "Resolve Calendar Exceptions" })).toBeNull();
+  fireEvent.click(screen.getByRole("button", { name: "Override Classification" }));
+  expect(screen.getByRole("heading", { name: "Override Holiday Classification" })).toBeTruthy();
+  expect(screen.getByLabelText(/Override reason/)).toBeTruthy();
+  expect(screen.getAllByText(/^Classification —/)).toHaveLength(1);
+  expect(screen.getByRole("button", { name: "Publish", exact: true }).disabled).toBe(true);
+  expect(service.saveAnnualCalendar).not.toHaveBeenCalled();
+});
 it("does not infer classifications or duplicate entity/outlet definitions", () => {
   expect(annualCalendarEntries([...holidays, { ...holidays[0], id: "outlet", scope: "outlet" }, { ...holidays[0], id: "legacy", legal_entity_id: "entity" }], year)).toHaveLength(12);
   expect(annualCalendarEntries(holidays, year).every(e => !e.kind)).toBe(true);

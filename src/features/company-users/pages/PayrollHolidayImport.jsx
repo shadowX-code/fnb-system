@@ -15,6 +15,13 @@ export function holidayDiffSummary(rows = [], decisions = {}) {
     blocked: rows.filter(r => r.state === "blocked").length };
 }
 const jurisdiction = r => r.scope === "national" ? "National" : malaysiaStateName(r.state_code);
+const classificationLabel = kind => ({ required: "Required paid holiday", gazetted: "Other gazetted holiday", special: "Specially declared", substitute: "Substituted holiday" }[kind]);
+export function unresolvedHolidayRows(candidate) {
+  return (candidate?.rows || []).filter(r => r.state !== "matched" && !candidate.additional_confirmations?.[r.key]
+    && !(entitlementResolved(candidate) && r.state === "missing")
+    && (r.state === "blocked" || candidate.decisions?.[r.key]?.action !== (r.state === "missing" ? "retain" : "accept")
+      || (r.state === "changed" && !candidate.decisions?.[r.key]?.remark?.trim())));
+}
 const title = c => c.is_qa ? `QA ONLY · ${c.source_reference}` : c.source_reference;
 const entitlementResolved = c => (c.rows || []).some(r => r.state !== "missing") && (c.rows || []).filter(r => r.state !== "missing").every(r => c.additional_confirmations?.[r.key]);
 const fileBase64 = file => new Promise((resolve, reject) => {
@@ -92,15 +99,15 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
   const available = candidates?.find(c => c.status !== "published" && c.status !== "fetched" && !entitlementResolved(c));
   const pending = candidates?.filter(c => c.status !== "published" && !entitlementResolved(c)) || [];
   useEffect(() => { onCandidateChanged?.(available || pending.find(c => c.status === "fetched") || null); }, [candidates, onCandidateChanged]);
-  const exceptions = (selected?.rows || []).filter(r => r.state !== "matched" && !selected?.additional_confirmations?.[r.key] && !(selected && entitlementResolved(selected) && r.state === "missing"));
-  const allReviewed = !summary.blocked && exceptions.every(r => decisions[r.key]?.action === (r.state === "missing" ? "retain" : "accept") && (r.state !== "changed" || decisions[r.key]?.remark?.trim()));
+  const exceptions = unresolvedHolidayRows(selected);
+  const allReviewed = !summary.blocked && summary.review === 0;
   const reviewable = selected?.status === "needs_review" && !entitlementResolved(selected);
   const close = () => { if (!busy) { setSelected(null); setCapture(false); setError(""); } };
   return <div className="mt-3 space-y-3">
     <div className="flex flex-wrap items-center justify-between gap-3">
       <p className="text-sm text-text-secondary">{pending.length ? "Official updates are available. Review before publication." : calendarPublished ? "Holiday calendar published. Continue with paid holiday selection." : "Check for an official calendar before preparing this year."}</p>
       <div className="flex flex-wrap gap-2"><button type="button" className="btn-primary" disabled={checking || busy || !candidates} onClick={checkUpdates}>{checking ? "Checking…" : "Check Official Updates"}</button>
-      {available && <button type="button" className="btn-secondary" onClick={() => open(available)}>{available.status === "approved" ? "Publish Calendar" : "Review Calendar"}</button>}</div>
+      {available && <button type="button" className="btn-secondary" onClick={() => open(available)}>{available.status === "approved" ? "Publish Annual Calendar" : unresolvedHolidayRows(available).length ? "Review Calendar Exceptions" : "Confirm Calendar Review"}</button>}</div>
     </div>
     {lastCheck && <div role="status" className="text-sm text-text-secondary"><p>Last checked: {new Date(lastCheck.completed_at || lastCheck.started_at).toLocaleString()} · JPM / BKPP</p>
       <p>{!lastCheck.completed_at ? "Check in progress. Retry shortly if interrupted." : { no_updates: "No updates found", updates_found: "Official Update Found · Review before publication", review_pending: "No new documents · Official updates awaiting review", incomplete: "Check incomplete · Published calendar unchanged. Please retry or review Advanced source maintenance." }[lastCheck.result?.status]}</p>
@@ -127,9 +134,9 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
         <p className="text-xs text-text-secondary">Confirm that the uploaded document matches the official reference before reviewing its transcription. Government URL validation is not automatic document certification.</p>
       </div>{error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}</p>}
     </Modal>}
-    {selected && <Modal title={`Review ${year} Holiday Calendar`} size="xl" onClose={close} footer={<><button className="btn-secondary" disabled={busy} onClick={close}>Close</button>
+    {selected && <Modal title={selected.status === "needs_review" ? "Review Calendar Exceptions" : `Review ${year} Holiday Calendar`} size="xl" onClose={close} footer={<><button className="btn-secondary" disabled={busy} onClick={close}>Close</button>
       {selected.status === "fetched" && <button className="btn-primary" disabled={busy || (!transcription.trim() && !verifiedRows.length)} onClick={() => perform(async () => { await payrollService.parseHolidayCandidate(selected.id, transcription.trim() ? JSON.parse(transcription) : verifiedRows.map(r => ({ ...r, scope: r.state_code === "national" ? "national" : "state", state_code: r.state_code === "national" ? null : r.state_code }))); })}>Review Holiday Changes</button>}
-      {reviewable && <><button className="btn-secondary" disabled={busy} onClick={() => perform(() => payrollService.reviewHolidayCandidate(selected.id, selected.revision, decisions, false))}>Save Review</button><button className="btn-primary" disabled={busy || !allReviewed || !attested} onClick={() => perform(() => payrollService.reviewHolidayCandidate(selected.id, selected.revision, decisions, true))}>Confirm Calendar Review</button></>}
+      {reviewable && <button className="btn-primary" disabled={busy || !allReviewed || !attested} onClick={() => perform(() => payrollService.reviewHolidayCandidate(selected.id, selected.revision, decisions, true))}>Confirm Calendar Review</button>}
       {selected.status === "approved" && <button className="btn-primary" disabled={busy} onClick={() => perform(async () => { await payrollService.publishHolidayCandidate(selected.id, selected.revision); setSelected(null); onPublished?.(); })}>Publish Holiday Calendar</button>}
     </>}>
       <p className="mb-3 text-sm text-text-secondary">Malaysia · {geography ? geography === "national" ? "National" : malaysiaStateName(geography) : "All applicable states"}</p>
@@ -158,11 +165,18 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
         <div className="divide-y divide-border">{exceptions.map(r => { const h = r.row || r.previous?.holiday || {}; return <div key={r.key} className="space-y-2 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><strong>{h.name}</strong><p className="text-sm text-text-secondary">{h.date || h.holiday_date} · {jurisdiction(h)} · {r.state === "new" ? "New" : r.state === "changed" ? "Changed" : r.state === "missing" ? "Missing from source" : "Blocked"}</p>
           {r.state === "changed" && <p className="text-xs text-text-secondary">Previously: {r.previous.holiday.name} · {r.previous.holiday.holiday_date} · {jurisdiction(r.previous.holiday)}</p>}{r.issue && <p className="text-sm text-text-secondary">{r.issue}</p>}</div>
-          {r.state !== "blocked" && <label className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={!reviewable || busy} checked={!!decisions[r.key]?.action} onChange={e => changeDecision(r, { action: e.target.checked ? r.state === "missing" ? "retain" : "accept" : null })} />{r.state === "missing" ? "Retain previous holiday" : "Verified against source"}</label>}</div>
+          </div>
+          <p className="text-sm text-text-secondary">Official source: {title(selected)}{h.source_locator ? ` · ${h.source_locator}` : ""}</p>
+          <p className="text-sm">{r.state === "blocked" ? "Review Required · Authoritative evidence is insufficient or conflicting." : r.state === "missing" ? "Keep the previously verified holiday; absence from a newer source does not remove it." : `Source classification: ${classificationLabel(h.kind) || "Review Required"}`}</p>
+          <div className="flex flex-wrap gap-3"><button type="button" className="btn-secondary" disabled={busy} onClick={viewSource}>View Official Source</button>
+          <button type="button" className="btn-primary" disabled={!reviewable || busy || r.state === "blocked" || (r.state !== "missing" && !classificationLabel(h.kind)) || (r.state === "changed" && !decisions[r.key]?.remark?.trim())} onClick={() => perform(async () => {
+            const next = { ...decisions, [r.key]: { ...decisions[r.key], action: r.state === "missing" ? "retain" : "accept" } };
+            await payrollService.reviewHolidayCandidate(selected.id, selected.revision, next, false);
+            setDecisions(next);
+          })}>{r.state === "missing" ? "Confirm Retained Holiday" : "Confirm Classification"}</button></div>
           {r.state === "changed" && <AdminFormField label={`Correction remark — ${h.name}`} required><input className="control" disabled={!reviewable || busy} value={decisions[r.key]?.remark || ""} onChange={e => changeDecision(r, { remark: e.target.value })} /></AdminFormField>}
         </div>; })}</div>
-        {!exceptions.length && <p className="text-sm text-text-secondary">All records match. No repetitive row review is required.</p>}
-        {summary.matched > 0 && <details className="my-3 text-sm"><summary className="cursor-pointer">Matched holidays ({summary.matched})</summary>{selected.rows.filter(r => r.state === "matched").map(r => <p key={r.key} className="py-1">{r.row.date} · {r.row.name} · {jurisdiction(r.row)}</p>)}</details>}
+        {!exceptions.length && <p className="text-sm text-text-secondary">Calendar verified · No unresolved classifications.</p>}
         {reviewable && <label className="mt-4 flex items-start gap-2 text-sm"><input type="checkbox" className="mt-1 accent-primary" checked={attested} onChange={e => setAttested(e.target.checked)} />I have reviewed the complete annual source and applicable corrections. Missing previous holidays are retained; company paid-holiday selections are separate.</label>}
         {selected.status === "approved" && <p className="mt-3 text-sm text-text-secondary">Approved for annual publication. Publishing creates a new calendar version, not a new company selection.</p>}
         {selected.status === "published" && <p role="status" className="mt-3 text-sm text-text-secondary">Annual calendar published. Existing Company Paid Holiday policies remain pinned until separately reviewed and published.</p>}
