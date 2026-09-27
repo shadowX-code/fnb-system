@@ -8,16 +8,6 @@ import { mapRemoteInventoryItem, normalizeOutletRecord, normalizeInventoryItem, 
 import { InventoryCategoryIcon, SectionCard, selectInputText, parseNonNegativeNumber, csvEscape, downloadTextFile, todayInput, getBusinessDateInput, toDateInputValue } from "../inventory/InventorySharedPresentation.jsx";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Area,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ResponsiveContainer,
-  Tooltip as RechartsTooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
-import {
   AlertTriangle,
   Boxes,
   CheckCircle2,
@@ -37,10 +27,8 @@ import {
   Trash2,
   Upload,
   Warehouse,
-  X,
 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
-import DashboardSection from "../../../components/layout/DashboardSection.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -55,9 +43,10 @@ import { supabase } from "../../../lib/supabase.ts";
 import { inventoryLifecycleService } from "../../../services/inventoryLifecycleService.js";
 import { readCompleteInventoryRows } from "../../../services/inventoryCompleteRead.js";
 import InventoryRecipesPage from "../inventory/recipes/InventoryRecipesPage.jsx";
+import InventoryRecipeIntelligencePage from "../inventory/recipeIntelligence/InventoryRecipeIntelligencePage.jsx";
 import { recipeMenuCategories } from "../inventory/recipes/inventoryRecipeReadModel.js";
 import { Field } from "../inventory/InventorySharedPresentation.jsx";
-import { formatRestaurantRecipeCurrency, mapRemoteMenuCategory, recipeCode, recipeNameEn, recipeNameCn, normalizeProductRecipeKey, monthSerial, serialToMonthParts, businessMonthSerial, mapRemoteRecipe, recipeMarginTone, formatRecipeMargin, createRecipeWorkspaceProjection } from "../inventory/recipes/inventoryRecipeReadModel.js";
+import { formatRestaurantRecipeCurrency, mapRemoteMenuCategory } from "../inventory/recipes/inventoryRecipeReadModel.js";
 import { persistRemoteRecipe } from "../inventory/recipes/inventoryRecipeService.js";
 export { RecipeModal } from "../inventory/recipes/InventoryRecipeForms.jsx";
 import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
@@ -70,7 +59,6 @@ import { groupCategoryIds, mapRemoteStockCheckGroup, stockCheckItemsForGroup } f
 import InventoryStockCheckResultModal from "../inventory/stockChecks/InventoryStockCheckResultModal.jsx";
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
 import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
-import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
@@ -681,54 +669,6 @@ function mapRemoteEmployeeLite(row = {}) {
 
 
 
-const recipeAnalysisPeriodOptions = [
-  { value: "current", label: "Current Month", months: 1 },
-  { value: "last3", label: "Last 3 Months", months: 3 },
-  { value: "last6", label: "Last 6 Months", months: 6 },
-  { value: "last12", label: "Last 12 Months", months: 12 },
-];
-const recipeMonthOptions = [
-  { value: "1", label: "Jan" },
-  { value: "2", label: "Feb" },
-  { value: "3", label: "Mar" },
-  { value: "4", label: "Apr" },
-  { value: "5", label: "May" },
-  { value: "6", label: "Jun" },
-  { value: "7", label: "Jul" },
-  { value: "8", label: "Aug" },
-  { value: "9", label: "Sep" },
-  { value: "10", label: "Oct" },
-  { value: "11", label: "Nov" },
-  { value: "12", label: "Dec" },
-];
-
-
-
-
-
-
-
-
-
-
-function formatMonthShort(serial) {
-  const { month } = serialToMonthParts(serial);
-  const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  return labels[month - 1] || "—";
-}
-
-
-function formatPercentChange(value) {
-  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
-  const numeric = Number(value);
-  return `${numeric > 0 ? "+" : ""}${Math.round(numeric)}%`;
-}
-
-function formatCompactCurrency(value) {
-  const amount = Number(value || 0);
-  if (Math.abs(amount) >= 1000) return `RM${(amount / 1000).toLocaleString("en-MY", { maximumFractionDigits: 1 })}k`;
-  return toCurrency(amount);
-}
 
 
 
@@ -737,7 +677,7 @@ async function loadRemoteInventoryMaster() {
   const itemsResult = await readCompleteInventoryRows("inventory_items", { order: "created_at", ascending: false });
   if (itemsResult.error) throw itemsResult.error;
 
-  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult, stockChecksResult, stockCheckItemsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult, movementsResult, wasteResult, menuCategoriesResult, recipesResult, recipeItemsResult, employeesResult] = await Promise.all([
+  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult, stockChecksResult, stockCheckItemsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult, movementsResult, wasteResult, employeesResult] = await Promise.all([
     readCompleteInventoryRows("inventory_categories", { order: "sort_order" }),
     readCompleteInventoryRows("inventory_uoms", { order: "sort_order" }),
     readCompleteInventoryRows("inventory_item_outlets", { select: "*, outlets:outlet_id(*)" }),
@@ -752,9 +692,6 @@ async function loadRemoteInventoryMaster() {
     readCompleteInventoryRows("inventory_purchase_receipt_items", { order: "created_at" }),
     readCompleteInventoryRows("inventory_movements", { order: "created_at", ascending: false }),
     readCompleteInventoryRows("inventory_waste_records", { order: "waste_date", ascending: false }),
-    readCompleteInventoryRows("inventory_menu_categories", { order: "sort_order" }),
-    readCompleteInventoryRows("inventory_recipes", { order: "created_at", ascending: false }),
-    readCompleteInventoryRows("inventory_recipe_items", { order: "created_at" }),
     readCompleteInventoryRows("employees", { select: "id, auth_user_id, full_name, nickname, email" }),
   ]);
   const itemOutletRows = itemOutletsResult.data;
@@ -822,14 +759,9 @@ async function loadRemoteInventoryMaster() {
     receiptsByOrderId.set(receipt.purchase_order_id, list);
   });
   const orders = (purchaseOrdersResult.data || []).map((order) => mapRemotePurchaseOrder(order, purchaseItemsByOrderId.get(order.id) || [], receiptsByOrderId.get(order.id) || []));
-  const recipeItemsByRecipeId = new Map();
-  (recipeItemsResult.data || []).forEach((row) => {
-    const list = recipeItemsByRecipeId.get(row.recipe_id) || [];
-    list.push(row);
-    recipeItemsByRecipeId.set(row.recipe_id, list);
-  });
-  const recipes = (recipesResult.data || []).map((recipe) => mapRemoteRecipe(recipe, recipeItemsByRecipeId.get(recipe.id) || []));
-  const menuCategories = menuCategoriesResult.data.map(mapRemoteMenuCategory);
+  // Legacy non-recipe routes retain the data shape, not the recipe bootstrap.
+  const recipes = [];
+  const menuCategories = [];
 
   debugLog("[InventoryFetchRaw]", {
     itemRows: itemRows.map((row) => ({
@@ -2767,577 +2699,6 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
 
 
 
-function RecipeIntelligencePlaceholder({ title, description }) {
-  return (
-    <div className="flex min-h-[180px] items-center justify-center rounded-2xl border border-dashed border-border bg-slate-50/70 p-4 text-center dark:bg-white/5">
-      <div>
-        <div className="type-title font-black text-text-primary">{title}</div>
-        <p className="mt-1 max-w-md type-body-sm text-text-secondary">{description}</p>
-      </div>
-    </div>
-  );
-}
-
-function RecipeIntelligenceCard({ title, description, children, showViewAll = false, action = null }) {
-  return (
-    <div className="rounded-3xl border border-border bg-background p-4 shadow-sm dark:bg-white/5">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="type-title font-black text-text-primary">{title}</div>
-          <p className="mt-1 type-body-sm text-text-secondary">{description}</p>
-        </div>
-        {action || (showViewAll ? <button className="type-caption font-black text-primary hover:underline" type="button">View All</button> : null)}
-      </div>
-      <div className="mt-4">{children}</div>
-    </div>
-  );
-}
-
-function RecipeYearSelector({ year, years = [], onChange }) {
-  const options = years.length ? years : [year];
-  return <div className="w-32"><SelectField ariaLabel="Trend year" value={String(year)} options={options.map((option) => ({ value: String(option), label: String(option) }))} onChange={(value) => onChange(Number(value))} /></div>;
-}
-
-function RecipeInsightBadge({ classification }) {
-  const tone = classification === "Star" ? "success" : classification === "Puzzle" ? "info" : classification === "Workhorse" ? "warning" : "danger";
-  return <Badge tone={tone}>{classification}</Badge>;
-}
-
-function classifyMenuEngineeringRow(row, averageVolume, averageMargin) {
-  const highVolume = Number(row.salesVolume || 0) >= Number(averageVolume || 0);
-  const highMargin = Number(row.margin || 0) >= Number(averageMargin || 0);
-  if (highVolume && highMargin) {
-    return {
-      classification: "Star",
-      impact: "High",
-      reason: "High volume and high margin.",
-      action: "Protect availability and keep promoting.",
-    };
-  }
-  if (highVolume && !highMargin) {
-    return {
-      classification: "Workhorse",
-      impact: "High",
-      reason: "Strong volume but margin trails the average.",
-      action: "Review ingredient cost, portioning, or price.",
-    };
-  }
-  if (!highVolume && highMargin) {
-    return {
-      classification: "Puzzle",
-      impact: "Medium",
-      reason: "Good margin but lower sales volume.",
-      action: "Improve placement, bundling, or staff recommendation.",
-    };
-  }
-  return {
-    classification: "Dog",
-    impact: "Low",
-    reason: "Low volume and low margin.",
-    action: "Consider simplifying, repricing, or retiring.",
-  };
-}
-
-function RecipeInsightsPanel({ rows = [], grossProfitRows = [], ingredientDrivers = [], pendingCount = 0 }) {
-  if (!rows.length && !grossProfitRows.length && !ingredientDrivers.length) {
-    return (
-      <RecipeIntelligenceCard title="Recipe Insights" description="Actionable classification will appear when mapped sales data is available.">
-        <RecipeIntelligencePlaceholder
-          title="No reliable insights yet"
-          description="Map recipes to Product Analytics products to classify Star, Workhorse, Puzzle and Dog recipes."
-        />
-      </RecipeIntelligenceCard>
-    );
-  }
-  const averageVolume = rows.reduce((sum, row) => sum + Number(row.salesVolume || 0), 0) / rows.length;
-  const averageMargin = rows.reduce((sum, row) => sum + Number(row.margin || 0), 0) / rows.length;
-  const ranked = rows
-    .map((row) => ({ ...row, ...classifyMenuEngineeringRow(row, averageVolume, averageMargin) }))
-    .sort((a, b) => {
-      const priority = { Star: 0, Workhorse: 1, Puzzle: 2, Dog: 3 };
-      return priority[a.classification] - priority[b.classification] || Number(b.revenue || 0) - Number(a.revenue || 0);
-    })
-    .slice(0, 5);
-  return (
-    <RecipeIntelligenceCard title="Recipe Insights" description="Top actions from the mapped Product Analytics period.">
-      <div className="space-y-3">
-        {pendingCount > 0 ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-400/30 dark:bg-amber-950/30">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <div className="font-black text-amber-900 dark:text-amber-100">Mapping coverage warning</div>
-                <p className="mt-1 type-body-sm text-amber-800 dark:text-amber-100">{pendingCount} pending products are excluded from profit and ingredient planning.</p>
-              </div>
-              <Badge tone="warning">Medium impact</Badge>
-            </div>
-          </div>
-        ) : null}
-        {grossProfitRows[0] ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-400/30 dark:bg-emerald-950/30">
-            <div className="font-black text-emerald-900 dark:text-emerald-100">Top gross profit recipe</div>
-            <p className="mt-1 type-body-sm text-emerald-800 dark:text-emerald-100">
-              {recipeNameEn(grossProfitRows[0].recipe) || grossProfitRows[0].label} contributes {formatRestaurantRecipeCurrency(grossProfitRows[0].grossProfit)} gross profit.
-            </p>
-            <div className="mt-2 type-caption font-bold text-emerald-800 dark:text-emerald-100">Action: protect availability and ingredient supply.</div>
-          </div>
-        ) : null}
-        {ingredientDrivers[0] ? (
-          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-400/30 dark:bg-orange-950/30">
-            <div className="font-black text-orange-900 dark:text-orange-100">Ingredient cost driver</div>
-            <p className="mt-1 type-body-sm text-orange-800 dark:text-orange-100">
-              {ingredientDrivers[0].ingredient} is the largest forecast purchase driver at {formatRestaurantRecipeCurrency(ingredientDrivers[0].forecastCost)}.
-            </p>
-            <div className="mt-2 type-caption font-bold text-orange-800 dark:text-orange-100">Action: check supplier pricing and par level planning.</div>
-          </div>
-        ) : null}
-        {ranked.map((row) => (
-          <div key={`${row.id}-${row.classification}`} className="rounded-2xl border border-border bg-slate-50/80 p-3 dark:bg-white/5">
-            <div className="flex flex-wrap items-start justify-between gap-2">
-              <div>
-                <div className="font-black text-text-primary">{recipeNameEn(row.recipe) || row.label}</div>
-                <div className="type-caption text-text-muted">{row.salesVolume.toLocaleString()} sold · {formatRestaurantRecipeCurrency(row.revenue)} revenue</div>
-              </div>
-              <RecipeInsightBadge classification={row.classification} />
-            </div>
-            <p className="mt-2 type-body-sm text-text-secondary">{row.reason}</p>
-            <div className="mt-2 rounded-xl bg-background/80 p-2 type-caption text-text-secondary dark:bg-black/20">
-              <span className="font-black text-text-primary">Recommended action:</span> {row.action}
-            </div>
-            <div className="mt-2 type-caption font-bold text-text-muted">Impact: {row.impact}</div>
-          </div>
-        ))}
-      </div>
-    </RecipeIntelligenceCard>
-  );
-}
-
-function RecipeIntelligenceLockedState({ mappedCount }) {
-  const remaining = Math.max(10 - Number(mappedCount || 0), 0);
-  return (
-    <div className="flex min-h-[300px] items-center justify-center rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-center shadow-inner dark:border-amber-400/30 dark:bg-amber-950/30">
-      <div className="max-w-md">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-200/80 text-amber-900 dark:bg-amber-400/20 dark:text-amber-100">
-          <Sparkles size={24} />
-        </div>
-        <div className="mt-4 type-title font-black text-text-primary">Need at least 10 mapped recipes</div>
-        <p className="mt-1 type-body-sm text-text-secondary">Menu Engineering needs enough mapped products to avoid noisy management decisions.</p>
-        <p className="mt-3 type-body-sm font-bold text-amber-800 dark:text-amber-100">
-          Map {remaining} more {remaining === 1 ? "recipe" : "recipes"} to unlock reliable matrix insights.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-
-function RecipeMappingHealth({ mapped, unmapped, totalRecipes, loading }) {
-  const total = mapped + unmapped;
-  const coverage = total ? Math.round((mapped / total) * 100) : 0;
-  return (
-    <div className="overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-emerald-50 p-4 shadow-sm dark:from-emerald-400/10 dark:via-white/5 dark:to-cyan-400/10">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <div className="type-caption font-black uppercase tracking-wide text-text-muted">Recipe Mapping Health</div>
-          <div className="mt-1 text-3xl font-black text-text-primary">{coverage}%</div>
-          <p className="mt-1 max-w-xl type-body-sm text-text-secondary">You’re almost there. Map more recipes to unlock full menu insights.</p>
-        </div>
-        {loading ? <Badge tone="info">Loading</Badge> : <Badge tone={coverage >= 80 ? "success" : coverage >= 40 ? "warning" : "neutral"}>{mapped} mapped</Badge>}
-      </div>
-      <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/80 shadow-inner dark:bg-black/30">
-        <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all" style={{ width: `${coverage}%` }} />
-      </div>
-      <div className="mt-4 grid grid-cols-2 gap-2 text-center type-caption sm:grid-cols-4">
-        <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
-          <div className="font-black text-text-primary">{mapped}</div>
-          <div className="font-semibold text-text-muted">Mapped</div>
-        </div>
-        <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
-          <div className="font-black text-text-primary">{unmapped}</div>
-          <div className="font-semibold text-text-muted">Pending</div>
-        </div>
-        <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
-          <div className="font-black text-text-primary">{coverage}%</div>
-          <div className="font-semibold text-text-muted">Coverage %</div>
-        </div>
-        <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
-          <div className="font-black text-text-primary">{total || 0} / {totalRecipes || 0}</div>
-          <div className="font-semibold text-text-muted">Products / Recipes</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function RecipeMenuEngineeringMatrix({ rows = [] }) {
-  if (!rows.length) {
-    return (
-      <RecipeIntelligencePlaceholder
-        title="Coming Soon"
-        description="Requires Product Analytics ↔ Recipe Mapping before sales volume, margin %, and revenue bubbles can be plotted."
-      />
-    );
-  }
-  const maxVolume = Math.max(...rows.map((row) => Number(row.salesVolume || 0)), 1);
-  const maxRevenue = Math.max(...rows.map((row) => Number(row.revenue || 0)), 1);
-  const averageVolume = rows.reduce((sum, row) => sum + Number(row.salesVolume || 0), 0) / rows.length;
-  const averageMargin = rows.reduce((sum, row) => sum + Number(row.margin || 0), 0) / rows.length;
-  const averageVolumeX = 10 + (averageVolume / maxVolume) * 80;
-  const averageMarginY = 86 - Math.max(0, Math.min(100, averageMargin));
-  return (
-    <div className="relative h-[360px] overflow-hidden rounded-3xl border border-border bg-slate-950 p-4 shadow-inner dark:bg-slate-950">
-      <div className="absolute inset-x-10 bottom-12 top-10 overflow-hidden rounded-2xl border border-white/10">
-        <div className="absolute left-0 top-0 h-1/2 w-1/2 bg-amber-400/10" />
-        <div className="absolute right-0 top-0 h-1/2 w-1/2 bg-emerald-400/10" />
-        <div className="absolute bottom-0 left-0 h-1/2 w-1/2 bg-rose-400/10" />
-        <div className="absolute bottom-0 right-0 h-1/2 w-1/2 bg-sky-400/10" />
-      </div>
-      <div className="absolute left-4 top-3 type-caption font-black uppercase tracking-wide text-slate-300">Margin %</div>
-      <div className="absolute bottom-4 right-4 type-caption font-black uppercase tracking-wide text-slate-300">Qty Sold</div>
-      <div className="absolute bottom-12 top-10 border-l border-dashed border-white/35" style={{ left: `${averageVolumeX}%` }} />
-      <div className="absolute left-10 right-10 border-t border-dashed border-white/35" style={{ top: `${averageMarginY}%` }} />
-      <div className="absolute right-14 top-14 rounded-full bg-emerald-400/15 px-2 py-1 type-caption font-black text-emerald-100">Star</div>
-      <div className="absolute left-14 top-14 rounded-full bg-amber-400/15 px-2 py-1 type-caption font-black text-amber-100">Puzzle</div>
-      <div className="absolute bottom-16 right-14 rounded-full bg-sky-400/15 px-2 py-1 type-caption font-black text-sky-100">Workhorse</div>
-      <div className="absolute bottom-16 left-14 rounded-full bg-rose-400/15 px-2 py-1 type-caption font-black text-rose-100">Dog</div>
-      {rows.map((row) => {
-        const x = 10 + (Number(row.salesVolume || 0) / maxVolume) * 80;
-        const y = 86 - Math.max(0, Math.min(100, Number(row.margin || 0)));
-        const size = 18 + (Number(row.revenue || 0) / maxRevenue) * 34;
-        const cost = Number(row.recipeCost || 0);
-        const price = Number(row.sellingPrice || 0);
-        return (
-          <div
-            key={row.id}
-            className="group absolute -translate-x-1/2 -translate-y-1/2"
-            style={{ left: `${x}%`, top: `${y}%`, height: size, width: size }}
-            title={`${row.label}: ${row.salesVolume} sold, ${formatRestaurantRecipeCurrency(row.revenue)} revenue, ${formatRecipeMargin(row.margin)} margin`}
-          >
-            <div className="h-full w-full rounded-full border-2 border-white/80 bg-primary shadow-[0_0_22px_rgba(34,197,94,0.55)] ring-4 ring-primary/25" />
-            <div className="pointer-events-none absolute left-full top-1/2 ml-2 hidden w-48 -translate-y-1/2 rounded-2xl border border-white/15 bg-slate-900/95 p-3 text-left text-xs text-white shadow-2xl group-hover:block">
-              <div className="font-black">{recipeNameEn(row.recipe) || row.label}</div>
-              <div className="mt-1 text-slate-300">Qty Sold: {Number(row.salesVolume || 0).toLocaleString()}</div>
-              <div className="text-slate-300">Revenue: {formatRestaurantRecipeCurrency(row.revenue)}</div>
-              <div className="text-slate-300">Cost: {formatRestaurantRecipeCurrency(cost)}</div>
-              <div className="text-slate-300">Price: {formatRestaurantRecipeCurrency(price)}</div>
-              <div className="text-slate-300">Profit: {formatRestaurantRecipeCurrency(row.profitPerServing)}</div>
-              <div className="text-slate-300">Margin: {formatRecipeMargin(row.margin)}</div>
-            </div>
-            <div className="absolute left-full top-1/2 ml-2 max-w-[110px] -translate-y-1/2 truncate rounded-full bg-white/90 px-2 py-0.5 type-caption font-black text-slate-900 shadow-sm">
-              {row.label}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function RecipeRankingTable({ rows = [], columns = [], emptyTitle, emptyDescription }) {
-  if (!rows.length) {
-    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
-  }
-  return (
-    <div className="overflow-x-auto rounded-2xl border border-border">
-      <table className="w-full min-w-[520px] text-left text-[13px]">
-        <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-          <tr>
-            {columns.map((column, index) => (
-              <th key={column.key} className={index === 0 ? "px-3 py-2" : "py-2"}>{column.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border">
-          {rows.map((row) => (
-            <tr key={row.id || row.label}>
-              {columns.map((column, index) => (
-                <td key={column.key} className={index === 0 ? "px-3 py-2" : "py-2"}>
-                  {column.render ? column.render(row) : row[column.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-const recipeTrendPalette = ["#22c55e", "#38bdf8", "#f59e0b", "#a855f7", "#f43f5e"];
-
-function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) => value, emptyTitle, emptyDescription, height = 280, showLegend = true, tooltipVariant = "default" }) {
-  const activeSeries = series.filter((entry) => entry?.values?.some((point) => Number(point.value || 0) > 0)).slice(0, 5);
-  if (!activeSeries.length || !months.length) {
-    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
-  }
-  const chartHeight = Math.max(240, Number(height) || 280);
-  const values = activeSeries.flatMap((entry) => entry.values.map((point) => Number(point.value || 0)));
-  const maxValue = Math.max(...values, 1);
-  const trendData = months.map((month) => {
-    const row = { month, monthLabel: formatMonthShort(month) };
-    activeSeries.forEach((entry) => {
-      const point = entry.values.find((candidate) => candidate.month === month) || { value: 0 };
-      row[entry.id] = Number(point.value || 0);
-      row[`${entry.id}Tooltip`] = point.tooltip || "";
-      row[`${entry.id}Meta`] = point.meta || null;
-    });
-    return row;
-  });
-  if (!trendData.length) {
-    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
-  }
-  const peakBySeries = Object.fromEntries(activeSeries.map((entry) => [entry.id, Math.max(...entry.values.map((point) => Number(point.value || 0)), 0)]));
-  const axisMax = Math.ceil(maxValue * 1.12);
-  const tooltipByKey = Object.fromEntries(activeSeries.map((entry) => [entry.id, entry]));
-  const gradientId = `recipeTrendArea-${activeSeries.map((entry) => entry.id).join("-")}`.replace(/[^a-zA-Z0-9_-]/g, "");
-  const CustomTooltip = ({ active, payload, label }) => {
-    if (!active || !payload?.length) return null;
-    const seen = new Set();
-    const rows = payload.filter((entry) => {
-      if (!tooltipByKey[entry.dataKey] || seen.has(entry.dataKey)) return false;
-      seen.add(entry.dataKey);
-      return true;
-    });
-    if (!rows.length) return null;
-    return (
-      <div className="min-w-56 rounded-2xl border border-white/60 bg-white/95 p-3 text-xs text-slate-800 shadow-2xl backdrop-blur dark:border-white/10 dark:bg-slate-950/95 dark:text-slate-100">
-        <div className="font-black">{label}</div>
-        <div className="mt-2 space-y-2">
-          {rows.map((entry) => {
-            if (tooltipVariant === "ingredient-cost") {
-              return (
-                <div key={entry.dataKey} className="grid grid-cols-[1fr_auto] gap-4">
-                  <span className="font-bold" style={{ color: entry.color }}>{tooltipByKey[entry.dataKey]?.label || entry.name}</span>
-                  <span className="font-black">{valueFormatter(entry.value)}</span>
-                </div>
-              );
-            }
-            return (
-              <div key={entry.dataKey}>
-                <div className="flex items-center justify-between gap-3">
-                  <span className="font-bold" style={{ color: entry.color }}>{tooltipByKey[entry.dataKey]?.label || entry.name}</span>
-                  <span className="font-black">{valueFormatter(entry.value)}</span>
-                </div>
-                {Array.isArray(entry.payload?.[`${entry.dataKey}Meta`]) ? (
-                  <div className="mt-1.5 space-y-1 text-slate-500 dark:text-slate-300">
-                    {entry.payload[`${entry.dataKey}Meta`].map((item) => (
-                      <div key={item.label} className="flex justify-between gap-4">
-                        <span>{item.label}</span>
-                        <span className="font-bold text-slate-700 dark:text-slate-100">{item.value}</span>
-                      </div>
-                    ))}
-                  </div>
-                ) : entry.payload?.[`${entry.dataKey}Tooltip`] ? (
-                  <div className="mt-1 text-slate-500 dark:text-slate-300">{entry.payload[`${entry.dataKey}Tooltip`]}</div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    );
-  };
-  const Dot = ({ cx, cy, payload, dataKey, stroke }) => {
-    const value = Number(payload?.[dataKey] || 0);
-    if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
-    const isPeak = value > 0 && value === peakBySeries[dataKey];
-    const radius = isPeak ? 5 : value > 0 ? 3 : 1.5;
-    return (
-      <circle
-        cx={cx}
-        cy={cy}
-        r={radius}
-        fill={value > 0 ? stroke : "#94a3b8"}
-        stroke={value > 0 ? "var(--surface, #fff)" : "#cbd5e1"}
-        strokeWidth={isPeak ? 2 : 1.5}
-        opacity={value > 0 ? 1 : 0.18}
-      />
-    );
-  };
-
-  return (
-    <div>
-      <div className="w-full min-w-0 rounded-3xl border border-border bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-3 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" style={{ height: chartHeight, minHeight: chartHeight }}>
-        <ResponsiveContainer width="100%" height={chartHeight - 24} minWidth={1} minHeight={1}>
-          <ComposedChart data={trendData} margin={{ top: 10, right: 16, bottom: 0, left: -8 }}>
-            <defs>
-              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor={recipeTrendPalette[0]} stopOpacity="0.18" />
-                <stop offset="100%" stopColor={recipeTrendPalette[0]} stopOpacity="0.02" />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} stroke="currentColor" strokeDasharray="4 6" className="text-border/70" />
-            <XAxis dataKey="monthLabel" axisLine={false} tickLine={false} interval={0} tick={{ fill: "var(--text-muted)", fontSize: 11, fontWeight: 700 }} />
-            <YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 11, fontWeight: 700 }} tickFormatter={formatCompactCurrency} width={48} domain={[0, axisMax]} />
-            <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: "var(--border-subtle)", strokeWidth: 1, strokeDasharray: "4 4" }} />
-            {activeSeries[0] ? <Area type="monotone" dataKey={activeSeries[0].id} fill={`url(#${gradientId})`} stroke="none" isAnimationActive={false} activeDot={false} dot={false} /> : null}
-            {activeSeries.map((entry, index) => (
-              <Line
-                key={entry.id}
-                type="monotone"
-                dataKey={entry.id}
-                name={entry.label}
-                stroke={recipeTrendPalette[index % recipeTrendPalette.length]}
-                strokeWidth={2}
-                dot={<Dot />}
-                activeDot={{ r: 6, strokeWidth: 2 }}
-                connectNulls
-                isAnimationActive={false}
-              />
-            ))}
-          </ComposedChart>
-        </ResponsiveContainer>
-      </div>
-      {showLegend ? (
-        <div className="mt-3 flex flex-wrap gap-2">
-          {activeSeries.map((entry, index) => (
-            <span key={entry.id || entry.label} className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2.5 py-1 type-caption font-bold text-text-secondary dark:bg-white/5">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: recipeTrendPalette[index % recipeTrendPalette.length] }} />
-              {entry.label}
-            </span>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function formatGrowthPercent(value) {
-  const numeric = Number(value || 0);
-  if (!Number.isFinite(numeric) || numeric === 0) return "0%";
-  return `${numeric > 0 ? "▲" : "▼"}${Math.abs(Math.round(numeric))}%`;
-}
-
-function IngredientSelectorPills({ rows = [], selectedIds = [], onToggle, search, onSearch, sort, onSort }) {
-  const selectedRows = selectedIds
-    .map((id) => rows.find((row) => row.id === id))
-    .filter(Boolean);
-  const visible = rows
-    .filter((row) => !search.trim() || `${row.ingredient} ${row.category}`.toLowerCase().includes(search.trim().toLowerCase()))
-    .filter((row) => !selectedIds.includes(row.id))
-    .slice(0, 12);
-  return (
-    <div className="space-y-3">
-      <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
-        <label>
-          <div className="mb-1 type-caption font-semibold text-text-secondary">Search ingredient</div>
-          <input
-            className="control h-9 w-full text-[13px]"
-            value={search}
-            list="recipe-ingredient-trend-options"
-            onChange={(event) => onSearch(event.target.value)}
-            placeholder="Type ingredient name"
-          />
-          <datalist id="recipe-ingredient-trend-options">
-            {rows.slice(0, 30).map((row) => <option key={row.id} value={row.ingredient} />)}
-          </datalist>
-        </label>
-        <SelectField
-          label="Sort"
-          value={sort}
-          options={[
-            { value: "cost", label: "Total Cost" },
-            { value: "usage", label: "Usage" },
-            { value: "growth", label: "Growth %" },
-          ]}
-          onChange={onSort}
-        />
-      </div>
-      {selectedRows.length ? (
-        <div className="flex flex-wrap gap-1.5">
-          {selectedRows.map((row) => (
-            <button
-              key={row.id}
-              className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 type-caption font-black text-primary transition hover:bg-primary/15 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200"
-              type="button"
-              onClick={() => onToggle(row.id)}
-              title={`Remove ${row.ingredient}`}
-            >
-              <span>{row.ingredient}</span>
-              <span className={Number(row.growthPercent || 0) >= 0 ? "text-emerald-700 dark:text-emerald-200" : "text-rose-700 dark:text-rose-200"}>
-                {formatGrowthPercent(row.growthPercent)}
-              </span>
-              <X size={12} />
-            </button>
-          ))}
-        </div>
-      ) : null}
-      <div className="flex flex-wrap gap-1.5">
-        {visible.map((row) => {
-          const disabled = selectedIds.length >= 5;
-          return (
-            <button
-              key={row.id}
-              className={`rounded-full border border-border bg-background px-2 py-1 type-caption font-bold text-text-secondary transition hover:bg-primary/10 hover:text-text-primary dark:bg-white/5 ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-              type="button"
-              disabled={disabled}
-              onClick={() => onToggle(row.id)}
-            >
-              {row.ingredient}
-            </button>
-          );
-        })}
-      </div>
-      {selectedIds.length >= 5 ? <div className="type-caption text-text-muted">Up to 5 ingredients can be compared at once.</div> : null}
-    </div>
-  );
-}
-
-function IngredientConsumptionModal({ rows = [], categories = [], filters, onFilter, onClose }) {
-  const search = filters.search.trim().toLowerCase();
-  const filtered = rows
-    .filter((row) => (filters.category === "all" || row.category === filters.category)
-      && (!search || `${row.ingredient} ${row.category}`.toLowerCase().includes(search)))
-    .sort((a, b) => {
-      if (filters.sort === "usage") return Number(b.estimatedUsage || 0) - Number(a.estimatedUsage || 0);
-      if (filters.sort === "ingredient") return a.ingredient.localeCompare(b.ingredient);
-      if (filters.sort === "category") return a.category.localeCompare(b.category) || a.ingredient.localeCompare(b.ingredient);
-      return Number(b.totalCost || 0) - Number(a.totalCost || 0);
-    });
-  return (
-    <Modal
-      title="Ingredient Consumption"
-      description="Full monthly estimated ingredient consumption from mapped Product Analytics sales and Recipe BOM."
-      size="xl"
-      onClose={onClose}
-      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
-    >
-      <AdminFilterToolbar className="mb-4">
-        <AdminSearchField label="Search ingredient" value={filters.search} onChange={(value) => onFilter({ ...filters, search: value })} placeholder="Search ingredient" />
-        <SelectField
-          label="Category"
-          value={filters.category}
-          options={[{ value: "all", label: "All" }, ...categories.map((category) => ({ value: category, label: category }))]}
-          onChange={(value) => onFilter({ ...filters, category: value })}
-        />
-        <SelectField
-          label="Sort"
-          value={filters.sort}
-          options={[
-            { value: "cost", label: "Total Cost" },
-            { value: "usage", label: "Estimated Usage" },
-            { value: "ingredient", label: "Ingredient Name" },
-            { value: "category", label: "Category" },
-          ]}
-          onChange={(value) => onFilter({ ...filters, sort: value })}
-        />
-      </AdminFilterToolbar>
-      <RecipeRankingTable
-        rows={filtered}
-        columns={[
-          { key: "ingredient", label: "Ingredient", render: (row) => <div className="font-bold text-text-primary">{row.ingredient}</div> },
-          { key: "category", label: "Category", render: (row) => <Badge tone="info">{row.category}</Badge> },
-          { key: "usage", label: "Estimated Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.estimatedUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
-          { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-          { key: "unitCost", label: "Unit Cost", render: (row) => formatRestaurantRecipeCurrency(row.unitCost) },
-          { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{formatRestaurantRecipeCurrency(row.totalCost)}</span> },
-          { key: "contribution", label: "Cost Contribution %", render: (row) => <Badge tone="info">{formatRecipeMargin(row.costContribution)}</Badge> },
-        ]}
-        emptyTitle="No ingredient consumption rows"
-        emptyDescription="Try another search or category filter."
-      />
-    </Modal>
-  );
-}
 
 
 
@@ -3642,19 +3003,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState(() => new Set());
   const [uomWriteStatus, setUomWriteStatus] = useState("Not written");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
-  const recipeFilters = { category: "all", status: "active", search: "" };
-  const [recipeAnalysisPeriod] = useState("last3");
-  const [recipeTrendYear, setRecipeTrendYear] = useState(() => Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)) || new Date().getFullYear());
-  const [recipeReportMonth, setRecipeReportMonth] = useState(() => String(Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(5, 7)) || 1));
-  const [recipeReportYear, setRecipeReportYear] = useState(() => String(Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)) || new Date().getFullYear()));
-  const [recipeProductReports, setRecipeProductReports] = useState([]);
-  const [recipeProductItems, setRecipeProductItems] = useState([]);
-  const [recipeProductMappings, setRecipeProductMappings] = useState([]);
-  const [recipeProductLoading, setRecipeProductLoading] = useState(false);
-  const [ingredientTrendSearch, setIngredientTrendSearch] = useState("");
-  const [ingredientTrendSort, setIngredientTrendSort] = useState("cost");
-  const [ingredientTrendSelectedIds, setIngredientTrendSelectedIds] = useState([]);
-  const [ingredientConsumptionFilters, setIngredientConsumptionFilters] = useState({ search: "", category: "all", sort: "cost" });
   const [date, setDateState] = useState(initialStockCheckDate.date);
   const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
@@ -3675,8 +3023,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const [photoPreview, setPhotoPreview] = useState(null);
   const stockCheckResponsiveLayout = useStockCheckResponsiveLayout();
   const useStockCheckCardLayout = stockCheckResponsiveLayout !== "desktop";
-  const recipeOutletOptions = useMemo(() => getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all"), [auth, outlets]);
-  const activeRecipeOutletId = selectedOutletId === "all" ? (recipeOutletOptions[0]?.value || "") : selectedOutletId;
 
   const setDate = useCallback((value, source = "manual") => {
     setDateState(normalizeBusinessDate(value));
@@ -3694,58 +3040,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     });
   }, [date, selectedDateSource]);
 
-  useEffect(() => {
-    if (activeTab !== "recipe-intelligence" || !activeRecipeOutletId) return undefined;
-    let cancelled = false;
-    const selectedPeriod = recipeAnalysisPeriodOptions.find((option) => option.value === recipeAnalysisPeriod) || recipeAnalysisPeriodOptions[1];
-    const analysisStartSerial = businessMonthSerial(-(selectedPeriod.months - 1));
-    const analysisEndSerial = businessMonthSerial(0);
-    const selectedReportSerial = monthSerial(recipeReportYear, recipeReportMonth);
-    const trendStartSerial = monthSerial(recipeTrendYear, 1);
-    const trendEndSerial = monthSerial(recipeTrendYear, 12);
-    const startSerial = Math.min(analysisStartSerial, selectedReportSerial, trendStartSerial);
-    const endSerial = Math.max(analysisEndSerial, selectedReportSerial, trendEndSerial);
-    setRecipeProductLoading(true);
-    Promise.all([
-      productAnalyticsService.listReports({ outletIds: [activeRecipeOutletId] }),
-      supabase
-        .from("product_recipe_mappings")
-        .select("*")
-        .eq("outlet_id", activeRecipeOutletId),
-    ])
-      .then(async ([reports, mappingsResult]) => {
-        if (mappingsResult.error) throw mappingsResult.error;
-        const periodReports = reports.filter((report) => {
-          const serial = monthSerial(report.report_year, report.report_month);
-          return serial >= startSerial && serial <= endSerial;
-        });
-        const items = await productAnalyticsService.listItemsByReportIds(periodReports.map((report) => report.id));
-        if (!cancelled) {
-          setRecipeProductReports(periodReports);
-          setRecipeProductItems(items);
-          setRecipeProductMappings(mappingsResult.data || []);
-        }
-      })
-      .catch((error) => {
-        console.warn("[InventoryControl] Unable to load Product Analytics for Recipe Intelligence.", error);
-        if (!cancelled) {
-          setRecipeProductReports([]);
-          setRecipeProductItems([]);
-          setRecipeProductMappings([]);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setRecipeProductLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [activeRecipeOutletId, activeTab, recipeAnalysisPeriod, recipeReportMonth, recipeReportYear, recipeTrendYear]);
-
-  useEffect(() => {
-    setIngredientTrendSearch("");
-    setIngredientTrendSelectedIds([]);
-  }, [activeRecipeOutletId, recipeAnalysisPeriod, recipeReportMonth, recipeReportYear, recipeTrendYear]);
 
   useEffect(() => {
     setCheckValidationAttempted(false);
@@ -3810,10 +3104,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     exportPo: hasPermission(auth, "inventory_orders.export"),
     managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_orders.submit") || hasPermission(auth, "inventory_orders.receive") || hasPermission(auth, "inventory_orders.complete") || hasPermission(auth, "inventory_orders.cancel"),
     viewInsights: hasPermission(auth, "inventory_dashboard.view"),
-    viewRecipes: activeTab === "recipe-intelligence" ? hasPermission(auth, "recipe_intelligence.view") : hasPermission(auth, "inventory_recipes.view"),
-    manageRecipeIntelligence: hasPermission(auth, "recipe_intelligence.manage"),
-    manageRecipes: hasPermission(auth, "inventory_recipes.manage"),
-    exportRecipes: hasPermission(auth, "inventory_recipes.export"),
   }), [activeTab, auth]);
 
   const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);
@@ -5952,392 +5242,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 
 
 
-  function renderRecipes() {
-    if (!can.viewRecipes) {
-      return <EmptyState title="Permission required" description={`You do not have permission to view ${activeTab === "recipe-intelligence" ? "Recipe Intelligence" : "Recipes & Usage"}.`} />;
-    }
-    const isRecipeIntelligencePage = activeTab === "recipe-intelligence";
-    const {recipeReadModel, activeMenuCategories, filteredRecipes, recipeCostRows, averageRecipeCost, pricedMargins, averageMargin, highestCostRecipe, selectedPeriod, analysisStartSerial, analysisEndSerial, analysisMonths, analysisMonthSet, selectedReportSerial, selectedReportMonthSet, selectedReportLabel, trendMonths, trendMonthSet, availableTrendYears, availableReportYears, reportById, buildProductSalesByName, analysisProductSalesByName, monthlyProductSalesByName, allProductSalesByName, productSalesByName, yearlyProductSalesByName, recipeCostById, mappingByProductKey, mappedMappings, mappingCandidateRecipes, productMappingKeys, productMappingRows, recipeMappingSearch, visibleProductMappingRows} = createRecipeWorkspaceProjection({data, outletById, activeRecipeOutletId, recipeFilters, recipeAnalysisPeriod, recipeReportYear, recipeReportMonth, recipeTrendYear, recipeProductReports, recipeProductItems, recipeProductMappings, isRecipeIntelligencePage});
-    const matchedProductKeys = new Set();
-    const menuEngineeringRows = mappedMappings
-      .map((mapping) => {
-        const matchKey = normalizeProductRecipeKey(mapping.product_name);
-        const recipeRow = recipeCostById.get(mapping.recipe_id);
-        if (!matchKey || !recipeRow || !productSalesByName.has(matchKey)) return null;
-        matchedProductKeys.add(matchKey);
-        const product = productSalesByName.get(matchKey);
-        const { recipe, margin } = recipeRow;
-        const recipeCost = Number(recipeRow.summary.totalCost || 0);
-        const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
-        return {
-          id: recipe.id,
-          label: recipeCode(recipe) || recipeNameEn(recipe) || recipeNameCn(recipe),
-          recipe,
-          salesVolume: product.quantity,
-          revenue: product.revenue,
-          margin,
-          recipeCost,
-          sellingPrice,
-          profitPerServing: sellingPrice - recipeCost,
-        };
-      })
-      .filter((row) => row && row.salesVolume > 0 && row.revenue > 0 && row.margin !== null && Number.isFinite(Number(row.margin)));
-    const mappedRecipeCount = new Set(mappedMappings
-      .filter((mapping) => recipeCostById.has(mapping.recipe_id) && productSalesByName.has(normalizeProductRecipeKey(mapping.product_name)))
-      .map((mapping) => mapping.recipe_id)).size;
-    const mappedProductCount = productMappingRows.filter((row) => row.status === "mapped").length;
-    const pendingProductCount = productMappingRows.filter((row) => row.status === "pending").length;
-    const ignoredProductCount = productMappingRows.filter((row) => row.status === "ignored").length;
-    const mappingCoverage = (mappedProductCount + pendingProductCount) ? Math.round((mappedProductCount / (mappedProductCount + pendingProductCount)) * 100) : 0;
-    const reliableMenuEngineeringRows = mappedRecipeCount >= 10 ? menuEngineeringRows : [];
-    const buildMappedRecipeAnalytics = (salesByName, months) => {
-      const monthSet = new Set(months);
-      const monthlyGrossProfitBuckets = new Map(months.map((serial) => [serial, { month: serial, quantity: 0, revenue: 0, recipeCost: 0, grossProfit: 0, margin: null }]));
-      const ingredientConsumptionByMonth = new Map();
-      const addIngredientUsage = ({ line, item, month, usage }) => {
-        if (!item || !Number(usage || 0)) return;
-        const key = item.id || line.itemId || item.name;
-        const unitCost = Number(item.cost || 0);
-        const category = categoryById.get(item.categoryId);
-        const current = ingredientConsumptionByMonth.get(key) || {
-          id: key,
-          ingredient: item.name || "Inventory item",
-          category: category?.name || "Uncategorized",
-          uom: item.unit || line.unit || "",
-          unitCost,
-          estimatedUsage: 0,
-          totalCost: 0,
-          monthly: new Map(),
-        };
-        current.estimatedUsage += usage;
-        current.totalCost += usage * unitCost;
-        const monthBucket = current.monthly.get(month) || { month, usage: 0, cost: 0 };
-        monthBucket.usage += usage;
-        monthBucket.cost += usage * unitCost;
-        current.monthly.set(month, monthBucket);
-        ingredientConsumptionByMonth.set(key, current);
-      };
-      mappedMappings.forEach((mapping) => {
-        const matchKey = normalizeProductRecipeKey(mapping.product_name);
-        const product = salesByName.get(matchKey);
-        const recipeRow = recipeCostById.get(mapping.recipe_id);
-        if (!product || !recipeRow) return;
-        const { recipe, summary } = recipeRow;
-        const recipeCost = Number(summary.totalCost || 0);
-        const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
-        const profitPerServing = sellingPrice - recipeCost;
-        product.monthly.forEach((monthSale, month) => {
-          if (!monthSet.has(month)) return;
-          const quantity = Number(monthSale.quantity || 0);
-          const gross = monthlyGrossProfitBuckets.get(month) || { month, quantity: 0, revenue: 0, recipeCost: 0, grossProfit: 0, margin: null };
-          gross.quantity += quantity;
-          gross.revenue += Number(monthSale.revenue || 0);
-          gross.recipeCost += quantity * recipeCost;
-          gross.grossProfit += quantity * profitPerServing;
-          gross.margin = gross.revenue > 0 ? (gross.grossProfit / gross.revenue) * 100 : null;
-          monthlyGrossProfitBuckets.set(month, gross);
-          (recipe.ingredients || []).forEach((line) => {
-            const item = itemById.get(line.itemId);
-            const quantityUsed = Number(line.quantityUsed ?? line.quantity_used ?? 0);
-            addIngredientUsage({ line, item, month, usage: quantity * quantityUsed });
-          });
-        });
-      });
-      return { monthlyGrossProfitBuckets, ingredientConsumptionByMonth };
-    };
-
-    const analysisAnalytics = buildMappedRecipeAnalytics(analysisProductSalesByName, analysisMonths);
-    const monthlyAnalytics = buildMappedRecipeAnalytics(monthlyProductSalesByName, [selectedReportSerial]);
-    const yearlyAnalytics = buildMappedRecipeAnalytics(yearlyProductSalesByName, trendMonths);
-
-    const topGrossProfitRows = [...menuEngineeringRows]
-      .map((row) => ({ ...row, grossProfit: Number(row.salesVolume || 0) * Number(row.profitPerServing || 0) }))
-      .sort((a, b) => Number(b.grossProfit || 0) - Number(a.grossProfit || 0))
-      .slice(0, 8);
-    const grossProfitTrendSeries = [{
-      id: "gross-profit",
-      label: "Gross Profit",
-      values: trendMonths.map((month) => {
-        const bucket = yearlyAnalytics.monthlyGrossProfitBuckets.get(month) || {};
-        return {
-          month,
-          value: Number(bucket.grossProfit || 0),
-          tooltip: `Qty ${Number(bucket.quantity || 0).toLocaleString()} · Revenue ${formatRestaurantRecipeCurrency(bucket.revenue || 0)} · Recipe Cost ${formatRestaurantRecipeCurrency(bucket.recipeCost || 0)} · Margin ${formatRecipeMargin(bucket.margin)}`,
-        };
-      }),
-    }];
-    const yearlyGrossProfitRows = [...yearlyAnalytics.monthlyGrossProfitBuckets.values()];
-    const currentYearGrossProfit = yearlyGrossProfitRows.reduce((sum, row) => sum + Number(row.grossProfit || 0), 0);
-    const bestGrossProfitMonth = yearlyGrossProfitRows.reduce((best, row) => !best || Number(row.grossProfit || 0) > Number(best.grossProfit || 0) ? row : best, null);
-    const averageMonthlyGrossProfit = currentYearGrossProfit / 12;
-    const ingredientConsumptionRows = [...monthlyAnalytics.ingredientConsumptionByMonth.values()]
-      .map((row) => {
-        const latestBucket = row.monthly.get(selectedReportSerial) || { usage: 0, cost: 0 };
-        const periodCost = [...row.monthly.values()].reduce((sum, bucket) => sum + Number(bucket.cost || 0), 0);
-        return {
-          ...row,
-          estimatedUsage: latestBucket.usage,
-          totalCost: latestBucket.cost,
-          periodCost,
-        };
-      })
-      .filter((row) => Number(row.estimatedUsage || 0) > 0 || Number(row.totalCost || 0) > 0)
-      .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0));
-    const ingredientConsumptionCategories = [...new Set(ingredientConsumptionRows.map((row) => row.category).filter(Boolean))].sort();
-    const totalMonthlyIngredientCost = ingredientConsumptionRows.reduce((sum, row) => sum + Number(row.totalCost || 0), 0);
-    const ingredientConsumptionRowsWithContribution = ingredientConsumptionRows.map((row) => ({
-      ...row,
-      costContribution: totalMonthlyIngredientCost > 0 ? (Number(row.totalCost || 0) / totalMonthlyIngredientCost) * 100 : null,
-    }));
-    const ingredientDemandForecastRows = [...analysisAnalytics.ingredientConsumptionByMonth.values()]
-      .map((row) => {
-        const monthlyBuckets = analysisMonths.map((month) => row.monthly.get(month) || { usage: 0, cost: 0 });
-        const forecastUsage = monthlyBuckets.reduce((sum, bucket) => sum + Number(bucket.usage || 0), 0) / Math.max(selectedPeriod.months, 1);
-        const latestUsage = monthlyBuckets[monthlyBuckets.length - 1]?.usage || 0;
-        const priorBuckets = monthlyBuckets.slice(0, -1);
-        const priorAverage = priorBuckets.length ? priorBuckets.reduce((sum, bucket) => sum + Number(bucket.usage || 0), 0) / priorBuckets.length : null;
-        const change = priorAverage && priorAverage > 0 ? ((latestUsage - priorAverage) / priorAverage) * 100 : null;
-        return {
-          ...row,
-          forecastUsage,
-          forecastCost: forecastUsage * Number(row.unitCost || 0),
-          change,
-        };
-      })
-      .filter((row) => Number(row.forecastUsage || 0) > 0)
-      .sort((a, b) => Number(b.forecastCost || 0) - Number(a.forecastCost || 0))
-      .slice(0, 8);
-    const trendIngredientRows = [...yearlyAnalytics.ingredientConsumptionByMonth.values()]
-      .map((row) => {
-        const monthlyBuckets = trendMonths.map((month) => row.monthly.get(month) || { month, usage: 0, cost: 0 });
-        const nonZeroBuckets = monthlyBuckets.filter((bucket) => Number(bucket.cost || 0) > 0);
-        const latest = nonZeroBuckets.at(-1);
-        const previous = nonZeroBuckets.slice(0, -1).at(-1);
-        const growthPercent = previous && Number(previous.cost || 0) > 0
-          ? ((Number(latest?.cost || 0) - Number(previous.cost || 0)) / Number(previous.cost || 0)) * 100
-          : latest ? 100 : 0;
-        return {
-          ...row,
-          totalUsage: monthlyBuckets.reduce((sum, bucket) => sum + Number(bucket.usage || 0), 0),
-          growthPercent,
-        };
-      })
-      .sort((a, b) => {
-        if (ingredientTrendSort === "usage") return Number(b.totalUsage || 0) - Number(a.totalUsage || 0);
-        if (ingredientTrendSort === "growth") return Number(b.growthPercent || 0) - Number(a.growthPercent || 0);
-        return Number(b.totalCost || 0) - Number(a.totalCost || 0);
-      });
-    const defaultTrendIngredientIds = trendIngredientRows
-      .slice(0, 5)
-      .map((row) => row.id);
-    const activeTrendIngredientIds = (ingredientTrendSelectedIds.length ? ingredientTrendSelectedIds : defaultTrendIngredientIds)
-      .filter((id) => yearlyAnalytics.ingredientConsumptionByMonth.has(id))
-      .slice(0, 5);
-    const ingredientTrendSeries = activeTrendIngredientIds.map((id) => {
-      const row = yearlyAnalytics.ingredientConsumptionByMonth.get(id);
-      return {
-        id,
-        label: row?.ingredient || "Ingredient",
-        values: trendMonths.map((month) => {
-          const bucket = row?.monthly?.get(month) || { usage: 0, cost: 0 };
-          return {
-            month,
-            value: Number(bucket.cost || 0),
-            meta: [
-              { label: "Ingredient", value: row?.ingredient || "Ingredient" },
-              { label: "Estimated Usage", value: Number(bucket.usage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 }) },
-              { label: "UOM", value: row?.uom || "—" },
-              { label: "Estimated Cost", value: formatRestaurantRecipeCurrency(bucket.cost || 0) },
-            ],
-          };
-        }),
-      };
-    });
-    const highestIngredientCostPoint = trendIngredientRows.reduce((best, row) => {
-      const peak = [...row.monthly.values()].reduce((monthBest, bucket) => !monthBest || Number(bucket.cost || 0) > Number(monthBest.cost || 0) ? bucket : monthBest, null);
-      if (!peak) return best;
-      const candidate = { ...row, peak };
-      return !best || Number(candidate.peak.cost || 0) > Number(best.peak.cost || 0) ? candidate : best;
-    }, null);
-    return (
-      <div className="space-y-4">
-        {isRecipeIntelligencePage ? (
-      <AdminFilterToolbar>
-            <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
-            <SelectField
-              label="Month"
-              value={String(recipeReportMonth)}
-              options={recipeMonthOptions}
-              onChange={(value) => setRecipeReportMonth(String(value))}
-            />
-            <SelectField
-              label="Year"
-              value={String(recipeReportYear)}
-              options={availableReportYears.map((year) => ({ value: String(year), label: String(year) }))}
-              onChange={(value) => setRecipeReportYear(String(value))}
-            />
-          </AdminFilterToolbar>
-        ) : null}
-        {isRecipeIntelligencePage ? <DashboardSection
-          title="Recipe Intelligence"
-          subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
-        >
-          <div className="mb-4 grid gap-3">
-            <RecipeMappingHealth mapped={mappedProductCount} unmapped={pendingProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
-          </div>
-          {pendingProductCount > 0 ? (
-            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/30 dark:text-amber-100">
-              <span className="font-black">Some products are not mapped yet.</span> Insights may be incomplete until {pendingProductCount} pending {pendingProductCount === 1 ? "product is" : "products are"} mapped or ignored.
-            </div>
-          ) : null}
-          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
-            <RecipeIntelligenceCard
-              title="Menu Engineering Matrix"
-              description="Product Analytics source: X = Qty Sold, Y = Margin %, bubble size = Revenue."
-            >
-              {mappedRecipeCount < 10 ? (
-                <RecipeIntelligenceLockedState mappedCount={mappedRecipeCount} />
-              ) : (
-                <RecipeMenuEngineeringMatrix rows={menuEngineeringRows} />
-              )}
-            </RecipeIntelligenceCard>
-            <RecipeInsightsPanel rows={reliableMenuEngineeringRows} grossProfitRows={topGrossProfitRows} ingredientDrivers={ingredientDemandForecastRows} pendingCount={pendingProductCount} />
-          </div>
-          <div className="mt-4 grid gap-4">
-            <RecipeIntelligenceCard
-              title="Recipe Gross Profit Trend"
-              description={`Jan-Dec ${recipeTrendYear} monthly gross profit from mapped Product Analytics quantity sold × recipe profit per serving.`}
-              action={<RecipeYearSelector year={recipeTrendYear} years={availableTrendYears} onChange={setRecipeTrendYear} />}
-            >
-              <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                <MetricCard label={`${recipeTrendYear} Gross Profit`} value={formatRestaurantRecipeCurrency(currentYearGrossProfit)} helper="Mapped recipe sales only" tone={currentYearGrossProfit ? "success" : "neutral"} size="compact" />
-                <MetricCard label="Best Month" value={bestGrossProfitMonth ? formatMonthShort(bestGrossProfitMonth.month) : "—"} helper={bestGrossProfitMonth ? formatRestaurantRecipeCurrency(bestGrossProfitMonth.grossProfit) : "No mapped sales"} tone={bestGrossProfitMonth?.grossProfit ? "success" : "neutral"} size="compact" />
-                <MetricCard label="Average Monthly GP" value={formatRestaurantRecipeCurrency(averageMonthlyGrossProfit)} helper="12-month average" size="compact" />
-              </div>
-              <RecipeTrendChart
-                series={grossProfitTrendSeries}
-                months={trendMonths}
-                valueFormatter={formatRestaurantRecipeCurrency}
-                emptyTitle="Map products to recipes to unlock gross profit trend."
-                emptyDescription="Gross profit uses Product Analytics qty sold and Recipe BOM costing. No fake trend is shown."
-              />
-              {bestGrossProfitMonth?.grossProfit ? (
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 type-body-sm text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/30 dark:text-emerald-100">
-                  Gross profit peaked in {formatMonthShort(bestGrossProfitMonth.month)} at {formatRestaurantRecipeCurrency(bestGrossProfitMonth.grossProfit)}.
-                </div>
-              ) : null}
-            </RecipeIntelligenceCard>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <RecipeIntelligenceCard
-                title={`Top Gross Profit Recipes - ${selectedReportLabel}`}
-                description="Recipes ranked by selected-month gross profit, not just revenue."
-              >
-                <RecipeRankingTable
-                  rows={topGrossProfitRows}
-                  columns={[
-                    { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{recipeNameEn(row.recipe) || row.label}</div><div className="type-caption text-text-muted">{recipeNameCn(row.recipe) || recipeCode(row.recipe)}</div></div> },
-                    { key: "qty", label: "Qty Sold", render: (row) => <span className="font-black text-text-primary">{Number(row.salesVolume || 0).toLocaleString()}</span> },
-                    { key: "revenue", label: "Revenue", render: (row) => formatRestaurantRecipeCurrency(row.revenue) },
-                    { key: "grossProfit", label: "Gross Profit", render: (row) => <span className="font-black text-text-primary">{formatRestaurantRecipeCurrency(row.grossProfit)}</span> },
-                    { key: "margin", label: "Margin %", render: (row) => <Badge tone={recipeMarginTone(row.margin)}>{formatRecipeMargin(row.margin)}</Badge> },
-                  ]}
-                  emptyTitle="No mapped gross profit yet"
-                  emptyDescription="Map Product Analytics products to recipes with selling prices and ingredient costs."
-                />
-              </RecipeIntelligenceCard>
-              <RecipeIntelligenceCard
-                title="Ingredient Demand Forecast"
-                description={`${selectedPeriod.label} average monthly usage for procurement planning.`}
-              >
-                <RecipeRankingTable
-                  rows={ingredientDemandForecastRows}
-                  columns={[
-                    { key: "ingredient", label: "Ingredient", render: (row) => <div><div className="font-bold text-text-primary">{row.ingredient}</div><div className="type-caption text-text-muted">{row.category}</div></div> },
-                    { key: "usage", label: "Forecast Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.forecastUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
-                    { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-                    { key: "cost", label: "Forecast Cost", render: (row) => <span className="font-black text-text-primary">{formatRestaurantRecipeCurrency(row.forecastCost)}</span> },
-                    { key: "change", label: "Change", render: (row) => <Badge tone={Number(row.change || 0) > 0 ? "warning" : Number(row.change || 0) < 0 ? "success" : "neutral"}>{formatPercentChange(row.change)}</Badge> },
-                  ]}
-                  emptyTitle="Map products to recipes to estimate demand."
-                  emptyDescription="Ingredient demand forecast needs mapped Product Analytics sales and Recipe BOM quantities."
-                />
-              </RecipeIntelligenceCard>
-            </div>
-            <div className="grid gap-4 lg:grid-cols-2">
-              <RecipeIntelligenceCard
-                title={`Top 10 Ingredient Consumption - ${selectedReportLabel}`}
-                description="Estimated monthly usage from mapped Product Analytics sales × Recipe BOM."
-                action={(
-                  <button
-                    className="btn-secondary h-8 px-3 text-xs"
-                    type="button"
-                    onClick={() => setModal({ type: "ingredient-consumption", rows: ingredientConsumptionRowsWithContribution, categories: ingredientConsumptionCategories })}
-                    disabled={!ingredientConsumptionRowsWithContribution.length}
-                  >
-                    View All
-                  </button>
-                )}
-              >
-                <RecipeRankingTable
-                  rows={ingredientConsumptionRowsWithContribution.slice(0, 10)}
-                  columns={[
-                    { key: "ingredient", label: "Ingredient", render: (row) => <div><div className="font-bold text-text-primary">{row.ingredient}</div><div className="type-caption text-text-muted">{row.category}</div></div> },
-                    { key: "usage", label: "Estimated Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.estimatedUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
-                    { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-                    { key: "unitCost", label: "Unit Cost", render: (row) => formatRestaurantRecipeCurrency(row.unitCost) },
-                    { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{formatRestaurantRecipeCurrency(row.totalCost)}</span> },
-                    { key: "contribution", label: "Cost Contribution %", render: (row) => <Badge tone="info">{formatRecipeMargin(row.costContribution)}</Badge> },
-                  ]}
-                  emptyTitle="Map products to recipes to estimate ingredient consumption."
-                  emptyDescription="Only mapped products feed ingredient usage. Pending and ignored products are excluded."
-                />
-              </RecipeIntelligenceCard>
-              <RecipeIntelligenceCard
-                title="Ingredient Cost Trend"
-                description={`Jan-Dec ${recipeTrendYear} estimated procurement cost trend by ingredient.`}
-                action={<RecipeYearSelector year={recipeTrendYear} years={availableTrendYears} onChange={setRecipeTrendYear} />}
-              >
-                <IngredientSelectorPills
-                  rows={trendIngredientRows}
-                  selectedIds={activeTrendIngredientIds}
-                  search={ingredientTrendSearch}
-                  onSearch={setIngredientTrendSearch}
-                  sort={ingredientTrendSort}
-                  onSort={setIngredientTrendSort}
-                  onToggle={(id) => setIngredientTrendSelectedIds((current) => current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id].slice(0, 5))}
-                />
-                <div className="mt-4">
-                  <RecipeTrendChart
-                    series={ingredientTrendSeries}
-                    months={trendMonths}
-                    valueFormatter={formatRestaurantRecipeCurrency}
-                    emptyTitle="Map products to recipes to unlock ingredient cost trends."
-                    emptyDescription="The trend uses estimated monthly procurement cost, not quantity."
-                    showLegend={false}
-                    tooltipVariant="ingredient-cost"
-                  />
-                  {highestIngredientCostPoint?.peak ? (
-                    <div className="mt-3 rounded-2xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-400/30 dark:bg-orange-950/30">
-                      <div className="type-caption font-black uppercase tracking-wide text-orange-700 dark:text-orange-200">Top Cost Driver</div>
-                      <div className="mt-2 grid gap-3 sm:grid-cols-3">
-                        <MetricCard label="Ingredient" value={highestIngredientCostPoint.ingredient} helper={highestIngredientCostPoint.category || "Ingredient"} tone="warning" size="compact" />
-                        <MetricCard label="Month" value={formatMonthShort(highestIngredientCostPoint.peak.month)} helper={String(recipeTrendYear)} tone="warning" size="compact" />
-                        <MetricCard label="Cost" value={formatRestaurantRecipeCurrency(highestIngredientCostPoint.peak.cost)} helper="Estimated cost" tone="warning" size="compact" />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-3 rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary dark:bg-white/5">
-                      No ingredient cost trend available for selected year.
-                    </div>
-                  )}
-                </div>
-              </RecipeIntelligenceCard>
-            </div>
-          </div>
-        </DashboardSection> : null}
-      </div>
-    );
-  }
 
   function renderActiveTab() {
     if (activeTab === "dashboard") return renderDashboard();
@@ -6345,8 +5249,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "stock-check") return renderStockCheck();
     if (activeTab === "requests") return renderRequests();
     if (activeTab === "orders") return renderOrders();
-    if (activeTab === "recipe-intelligence") return renderRecipes();
-    return renderRecipes();
+    return null;
   }
 
   function renderPageActions() {
@@ -6377,9 +5280,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "requests") return null;
     if (activeTab === "orders") {
       return <button className="btn-secondary" type="button" onClick={() => requirePermission(can.exportPo, "export purchase orders") && exportPurchaseOrders()}><Download size={15} /> Export</button>;
-    }
-    if (activeTab === "recipe-intelligence") {
-      return null;
     }
     return (
       <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
@@ -6463,15 +5363,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
-      {modal?.type === "ingredient-consumption" ? (
-        <IngredientConsumptionModal
-          rows={modal.rows || []}
-          categories={modal.categories || []}
-          filters={ingredientConsumptionFilters}
-          onFilter={setIngredientConsumptionFilters}
-          onClose={() => setModal(null)}
-        />
-      ) : null}
       {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={async (order) => { const result = await savePurchaseOrder(order); setModal(null); return result; }} /> : null}
 
       {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} displayPoNo={businessPoNo(modal.order)} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
@@ -6510,6 +5401,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 }
 
 function InventoryControlPage(props) {
+  if (props.initialTab === "recipe-intelligence") return <InventoryRecipeIntelligencePage auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "recipes") return <InventoryRecipesPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "movements") return <InventoryMovementsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
   if (props.initialTab === "par-levels") return <InventoryParLevelsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
