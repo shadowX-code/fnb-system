@@ -21,7 +21,7 @@ vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
 } }));
 vi.mock("../../../../utils/accessControl.js", () => ({ hasPermission: () => true }));
 
-import PayrollPage from "../PayrollPage.jsx";
+import PayrollPage, { Overview } from "../PayrollPage.jsx";
 
 const fixture = {
   legal_entities: [{ id: "entity-1", name: "QA Employer" }],
@@ -51,11 +51,49 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Payroll Control Center", () => {
+  it("summarizes canonical readiness and money without raw blocker wording", async () => {
+    mocks.readPreparation.mockResolvedValue({results:[
+      {employee_id:"a",projection:{status:"ready"},statutory_setup:{complete:true}},
+      {employee_id:"b",time_relevant:true,projection:{status:"review_required",issues:["unresolved_time_exception"]},statutory_setup:{complete:false}},
+    ]});
+    mocks.readCalculation.mockResolvedValue({results:[{employee_id:"a",status:"ready",gross_earnings:2000}]});
+    mocks.readStatutory.mockResolvedValue({results:[{employee_id:"a",status:"ready",net_pay:1800,non_statutory_deductions:0,lines:[{employee_amount:200}],total_employer_cost:2250}]});
+    const open = vi.fn();
+    render(<Overview data={fixture} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]} canManage onOpenRun={open} onOpenEmployees={vi.fn()} />);
+    await screen.findByText("1 Ready · 1 Need Attention");
+    expect(screen.getByText("1 employee needs time reconciliation")).toBeTruthy();
+    expect(screen.getByText("1 employee needs statutory review")).toBeTruthy();
+    expect(screen.queryByText(/unresolved_time_exception/)).toBeNull();
+    expect(screen.queryByText(/RM\s*0\.00/)).toBeNull();
+    fireEvent.click(screen.getByRole("button",{name:"Review Statutory"}));
+    expect(open).toHaveBeenCalledWith(1);
+  });
+  it("uses canonical financial totals when all employee results are current", async () => {
+    mocks.readPreparation.mockResolvedValue({results:[{employee_id:"a",projection:{status:"ready"},statutory_setup:{complete:true}}]});
+    mocks.readCalculation.mockResolvedValue({results:[{employee_id:"a",status:"ready",gross_earnings:2000}]});
+    mocks.readStatutory.mockResolvedValue({results:[{employee_id:"a",status:"ready",net_pay:1750,non_statutory_deductions:50,lines:[{employee_amount:200}],total_employer_cost:2260}]});
+    render(<Overview data={{...fixture,profiles:[{employee_id:"employee-1"}]}} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]} canManage onOpenRun={vi.fn()} />);
+    await screen.findByText("1 Ready · 0 Need Attention");
+    const statement = screen.getByText("Gross Payroll").closest("dl").textContent.replaceAll("\u00a0"," ");
+    expect(statement).toContain("RM 2,000.00"); expect(statement).toContain("RM 250.00"); expect(statement).toContain("RM 1,750.00"); expect(statement).toContain("RM 2,260.00");
+  });
+  it("gives one current revision per period prominence in recent runs", async () => {
+    mocks.readRunHistory.mockResolvedValue([
+      {run_id:"old",period_start:"2026-08-01",revision:1,status:"finalized",current:false,net_pay:1000},
+      {run_id:"current",period_start:"2026-08-01",revision:2,status:"finalized",current:true,net_pay:1100},
+    ]);
+    const open=vi.fn();
+    render(<Overview data={fixture} entityId="entity-1" month="2026-09" canManage onOpenRun={open} />);
+    await screen.findByText("August 2026");
+    expect(screen.getAllByRole("button",{name:"View",exact:true})).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+    expect(open).toHaveBeenCalledWith(2,{legal_entity_id:"entity-1",period_start:"2026-08-01"},"current");
+  });
   it("shows scheme-specific component treatment and explicit segmented choices without technical identity", async () => {
     mocks.read.mockResolvedValue({...fixture,settings_authority:{components:true},components:[{id:"component",name:"QA Allowance",component_type:"allowance",is_active:true,epf_treatment:"included",socso_treatment:"excluded",eis_treatment:"undetermined",pcb_treatment:"included"}]});
     render(<PayrollPage auth={{}} />);
-    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "September 2026 Payroll" });
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     fireEvent.click(screen.getByRole("tab", { name: "Pay Components" }));
     expect(screen.getByRole("button",{name:"EPF wage base: Included"})).toBeTruthy();
     expect(screen.getByRole("button",{name:"SOCSO wage base: Excluded"})).toBeTruthy();
@@ -69,8 +107,8 @@ describe("Payroll Control Center", () => {
   });
   it("opens Payroll Runs on history rather than the selected month workflow", async () => {
     render(<PayrollPage auth={{}} />);
-    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
-    fireEvent.click(screen.getByRole("button", { name: "Payroll Runs" }));
+    await screen.findByRole("heading", { name: "September 2026 Payroll" });
+    fireEvent.click(screen.getByRole("tab", { name: "Payroll Runs" }));
     await screen.findByText("2026-09");
     expect(screen.queryByRole("navigation", { name: "Payroll Run stages" })).toBeNull();
     expect(screen.getByRole("button", { name: "Start Payroll" })).not.toBeNull();
@@ -78,10 +116,10 @@ describe("Payroll Control Center", () => {
   });
   it("uses four user-facing destinations and routes a time blocker into the run", async () => {
     render(<PayrollPage auth={{}} />);
-    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
-    expect(screen.getByRole("navigation", { name: "Payroll sections" }).textContent).toBe("OverviewEmployeesPayroll RunsSettings");
-    await screen.findByText("1 time exceptions · 0 unreconciled");
-    fireEvent.click(screen.getByRole("button", { name: /Review employees →/ }));
+    await screen.findByRole("heading", { name: "September 2026 Payroll" });
+    expect(screen.getByRole("tablist", { name: "Payroll sections" }).textContent).toBe("OverviewPayroll ProfilesPayroll RunsSettings");
+    await screen.findByText("Review time readiness for this period");
+    fireEvent.click(screen.getByRole("button", { name: "Review Time & Attendance" }));
     expect(screen.getByRole("navigation", { name: "Payroll Run stages" })).not.toBeNull();
     await screen.findByRole("heading", { name: "Prepare Payroll" });
     expect(mocks.readTime).toHaveBeenCalledWith("entity-1", "2026-09-01", "2026-09-30");
@@ -89,10 +127,10 @@ describe("Payroll Control Center", () => {
 
   it("keeps employee setup separate and shows pay rules as managed versions", async () => {
     render(<PayrollPage auth={{}} />);
-    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
-    fireEvent.click(screen.getByRole("button", { name: "Employees" }));
+    await screen.findByRole("heading", { name: "September 2026 Payroll" });
+    fireEvent.click(screen.getByRole("tab", { name: "Payroll Profiles" }));
     expect(screen.getAllByText("Set Up Employee").length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     expect(screen.getByText("Manual confirmation")).not.toBeNull();
     await waitFor(() => expect(mocks.readRules).toHaveBeenCalled());
     expect(screen.getByText("Pay Calculation Rules")).not.toBeNull();
@@ -102,8 +140,8 @@ describe("Payroll Control Center", () => {
     mocks.readRules.mockResolvedValueOnce([{ id: "rule-1", rule_code: "monthly_basic", pay_basis: "monthly",
       effective_from: "2000-01-01", multiplier: 1, source_note: "Approved policy" }]);
     render(<PayrollPage auth={{}} />);
-    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
-    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    await screen.findByRole("heading", { name: "September 2026 Payroll" });
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
     await screen.findByText("Basic Salary");
     fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Create New Version" }));
@@ -117,7 +155,7 @@ describe("Payroll Control Center", () => {
       finalized_by_employee_id: "employee-outside-entity", finalized_by_name: "QA Approver",
     }] }] });
     render(<PayrollPage auth={{}} />);
-    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
+    await screen.findByRole("heading", { name: "September 2026 Payroll" });
     expect(screen.getByRole("button", { name: /View Finalized Payroll/ })).not.toBeNull();
     expect(screen.getByText("Payroll finalized. The current revision is read-only; any correction creates a new revision.")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /View Finalized Payroll/ }));
@@ -132,8 +170,8 @@ describe("Payroll Control Center", () => {
       ...fixture.employees, { id: "employee-2", name: "Another Employee", employee_code: "QA-002", legal_entity_id: "entity-1" },
     ] });
     render(<PayrollPage auth={{}} />);
-    await screen.findByRole("heading", { name: /QA Employer.*2026-09/ });
-    fireEvent.click(screen.getByRole("button", { name: "Employees" }));
+    await screen.findByRole("heading", { name: "September 2026 Payroll" });
+    fireEvent.click(screen.getByRole("tab", { name: "Payroll Profiles" }));
     fireEvent.change(screen.getByRole("searchbox", { name: "Search" }), { target: { value: "QA-001" } });
     expect(screen.getByText("QA Employee")).not.toBeNull();
     expect(screen.queryByText("Another Employee")).toBeNull();

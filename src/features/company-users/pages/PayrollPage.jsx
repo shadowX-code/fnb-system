@@ -21,7 +21,7 @@ import { payrollService } from "../../../services/payrollService.js";
 import PayrollRunCalculationPanel from "./PayrollRunCalculationPanel.jsx";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
 import PayrollFinalizedRecord from "./PayrollFinalizedRecord.jsx";
-import { payComponentIsConfigured, payrollIssueLabel } from "./payrollRunPresentation.js";
+import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
 import PayrollAnnualHolidays from "./PayrollAnnualHolidays.jsx";
 import { PayrollPhPolicy } from "./PayrollPhWork.jsx";
@@ -442,42 +442,78 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
   </div>;
 }
 
-function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun, onOpenEmployees }) {
+export function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun, onOpenEmployees }) {
   const [history, setHistory] = useState(null);
+  const [details, setDetails] = useState(null);
+  const [detailError, setDetailError] = useState(false);
+  const [historyError, setHistoryError] = useState(false);
   useEffect(() => {
     if (!entityId) return;
     let active = true;
-    setHistory(null);
-    payrollService.readRunHistory(entityId).then((rows) => { if (active) setHistory(rows); }).catch(() => { if (active) setHistory([]); });
+    setHistory(null); setHistoryError(false);
+    payrollService.readRunHistory(entityId).then((rows) => { if (active) setHistory({ entityId, rows }); }).catch(() => { if (active) setHistoryError(true); });
     return () => { active = false; };
   }, [entityId, data]);
-  const finalized = run?.status === "finalized";
+  const finalized = ["finalized", "paid"].includes(run?.status);
+  useEffect(() => {
+    let active = true;
+    setDetails(null); setDetailError(false);
+    if (!run?.id) return () => { active = false; };
+    const read = finalized ? payrollService.readFinalizedRecord(run.id).then(record => ({ rows: record.results || [] }))
+      : Promise.all([payrollService.readPreparation(run.id), payrollService.readCalculation(run.id), payrollService.readStatutory(run.id)])
+        .then(([preparation, calculation, statutory]) => ({ rows: (preparation.results || []).map(row => ({ ...row,
+          calculation: calculation.results?.find(item => item.employee_id === row.employee_id),
+          statutory: statutory.results?.find(item => item.employee_id === row.employee_id),
+        })) }));
+    read.then(value => { if (active) setDetails({ ...value, runId: run.id }); })
+      .catch(() => { if (active) setDetailError(true); });
+    return () => { active = false; };
+  }, [run?.id, finalized, data]);
+  const periodTitle = new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`));
+  const rows = details?.runId === run?.id ? details?.rows : null;
   const employees = (data.employees || []).filter((item) => item.legal_entity_id === entityId);
   const withoutProfile = employees.filter((item) => !(data.profiles || []).some((profile) => profile.employee_id === item.id));
+  const timeIssue = row => row.time_relevant && (row.projection?.issues || []).some(issue => /time|attendance|clock|roster/.test(issue));
+  const readyRow = row => payrollEmployeeResult(row.calculation, row.statutory).statutoryCurrent
+    && (finalized || (row.projection?.status === "ready" && row.statutory_setup?.complete === true));
+  const readyCount = rows ? rows.filter(readyRow).length : null;
+  const employeeCount = rows?.length ?? employees.length;
+  const needCount = readyCount == null ? null : employeeCount - readyCount;
+  const countCopy = (count, action) => `${count} employee${count === 1 ? " needs" : "s need"} ${action}`;
+  const timeCount = rows?.filter(timeIssue).length || 0;
+  const payCount = rows?.filter(row => !payrollEmployeeResult(row.calculation, row.statutory).earningsCurrent || row.projection?.status !== "ready").length || 0;
+  const statutoryCount = rows?.filter(row => row.statutory_setup?.complete !== true || !payrollEmployeeResult(row.calculation, row.statutory).statutoryCurrent).length || 0;
   const attention = finalized ? [] : [
-    withoutProfile.length > 0 && { label: `${withoutProfile.length} employee${withoutProfile.length === 1 ? " needs" : "s need"} pay setup`, action: "Set up employees", open: onOpenEmployees },
-    readiness?.error && { label: "Run readiness could not be checked", action: "Open run", open: () => onOpenRun(0) },
-    readiness?.time && !readiness.time.ready && { label: timeBlocker(readiness.time), action: "Review employees", open: () => onOpenRun(0) },
-    readiness?.calculation && !readiness.calculation.ready && { label: `${readiness.calculation.review_required || 0} results need review · ${readiness.calculation.uncalculated || 0} not calculated`, action: "Review payroll", open: () => onOpenRun(1) },
-    readiness?.statutory && !readiness.statutory.ready && { label: `${readiness.statutory.review_required || 0} statutory results need review · ${readiness.statutory.uncalculated || 0} not calculated`, action: "Review payroll", open: () => onOpenRun(1) },
+    (timeCount || (readiness?.time && !readiness.time.ready)) && { group: "Time & Attendance", label: timeCount ? countCopy(timeCount, "time reconciliation") : "Review time readiness for this period", open: () => onOpenRun(0) },
+    (payCount || (!run && withoutProfile.length) || (readiness?.calculation && !readiness.calculation.ready)) && { group: "Payroll Calculation", label: payCount ? countCopy(payCount, "payroll review") : !run && withoutProfile.length ? countCopy(withoutProfile.length, "pay setup") : "Review employee calculations", open: !run ? onOpenEmployees : () => onOpenRun(0) },
+    (statutoryCount || (readiness?.statutory && !readiness.statutory.ready)) && { group: "Statutory", label: statutoryCount ? countCopy(statutoryCount, "statutory review") : "Review statutory readiness", open: () => onOpenRun(1) },
   ].filter(Boolean);
-  const recent = (history || []).slice(0, 5);
-  const current = (history || []).find((item) => item.run_id === run?.id);
-  const trend = (history || []).filter((item) => item.current && item.total_employer_cost != null).slice(0, 4).reverse();
+  const historyRows = history?.entityId === entityId ? history.rows : [];
+  const recent = [...new Set(historyRows.map(item => item.period_start))].sort().reverse().slice(0, 5).map(date => {
+    const versions = historyRows.filter(item => item.period_start === date);
+    return versions.find(item => item.current) || versions.sort((a, b) => Number(b.revision) - Number(a.revision))[0];
+  });
+  const total = getter => rows?.length && rows.every(row => getter(row) != null) ? money(rows.reduce((sum, row) => sum + Number(getter(row)), 0)) : "—";
+  const metrics = [["Gross Payroll", total(row => payrollEmployeeResult(row.calculation, row.statutory).gross)],
+    ["Employee Deductions", total(row => payrollEmployeeResult(row.calculation, row.statutory).deductions)],
+    ["Net Payroll", total(row => payrollEmployeeResult(row.calculation, row.statutory).net)],
+    ["Employer Cost", total(row => readyRow(row) ? row.statutory?.total_employer_cost : null)]];
   return <div className="space-y-4">
     <Card className="p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4">
-      <div><p className="text-xs font-bold uppercase tracking-wide text-text-secondary">{month === currentMonth() ? "Current payroll period" : "Selected pay period"}</p><h2 className="mt-1 text-2xl font-bold">{entityName(data.legal_entities || [], entityId)} <span className="text-text-secondary">· {month}</span></h2>
-        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><Badge tone={run?.status === "finalized" ? "success" : run ? "warning" : "neutral"}>{run ? label(run.status) : "Not started"}</Badge><span>{employees.length} employees</span><span>{attention.length} area{attention.length === 1 ? "" : "s"} needing attention</span></div></div>
+      <div className="min-w-0"><h2 className="text-xl font-bold text-text-primary">{periodTitle} Payroll</h2><p className="mt-1 text-sm text-text-secondary">{entityName(data.legal_entities || [], entityId)}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-3 text-sm"><Badge tone={finalized || run?.status === "ready" ? "success" : run ? "warning" : "neutral"}>{run ? label(run.status) : "Not started"}</Badge><span>{employeeCount} employees</span></div></div>
       <button className="btn-primary" type="button" disabled={!canManage && !run} onClick={() => onOpenRun(finalized ? 2 : 0)}>{finalized ? "View Finalized Payroll" : run ? "Continue Payroll" : "Start Payroll"} <ChevronRight size={16} /></button></div>
-      <div className="mt-5 grid gap-3 border-t border-border pt-4 text-sm sm:grid-cols-4"><div><span className="text-text-secondary">Readiness</span><strong className="block">{finalized ? "Finalized" : attention.length ? "Need Attention" : run ? "Ready to review" : "Not started"}</strong></div>
-        <div><span className="text-text-secondary">Gross</span><strong className="block tabular-nums">{current?.gross == null ? "—" : money(current.gross)}</strong></div>
-        <div><span className="text-text-secondary">Net Pay</span><strong className="block tabular-nums">{current?.net_pay == null ? "—" : money(current.net_pay)}</strong></div>
-        <div><span className="text-text-secondary">Employer statutory cost</span><strong className="block tabular-nums">{current?.employer_statutory_cost == null ? "—" : money(current.employer_statutory_cost)}</strong></div></div>
+      <div className="mt-4 border-t border-border pt-3"><p className="text-sm font-semibold" aria-live="polite">{readyCount != null ? `${readyCount} Ready · ${needCount} Need Attention` : detailError || readiness?.error ? "Readiness unavailable · Open Payroll to retry" : run ? "Checking employee readiness…" : "Start Payroll to assess employee readiness"}</p>
+        {employeeCount > 0 && readyCount != null && <progress className="mt-2 h-1.5 w-full accent-primary" aria-label="Payroll employee readiness" value={readyCount} max={employeeCount} />}</div>
+      <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border pt-4 sm:grid-cols-4">{metrics.map(([name, value]) => <div key={name} className="min-w-0"><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 break-words text-lg font-bold tabular-nums">{value}</dd></div>)}</dl>
     </Card>
-    <div className="grid gap-4 lg:grid-cols-[1.3fr_1fr]"><Card className="p-5"><h3 className="text-base font-bold">Needs Attention</h3><p className="mt-1 text-sm text-text-secondary">Open the exact step or employee setup to resolve a blocker.</p>
-      <div className="mt-4 divide-y divide-border">{attention.length ? attention.map((item) => <div key={item.label} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm"><span>{item.label}</span><button className="font-semibold text-primary" type="button" onClick={item.open}>{item.action} →</button></div>) : <p className="py-4 text-sm text-text-secondary">{finalized ? "Payroll finalized. The current revision is read-only; any correction creates a new revision." : run ? "No known blockers for this period. Review the run before finalization." : "Start a run to assess payable time, calculations and statutory readiness."}</p>}</div></Card>
-      <Card className="p-5"><h3 className="text-base font-bold">Recent Payroll Runs</h3><div className="mt-3 divide-y divide-border">{recent.length ? recent.map((item) => <button key={item.run_id} className="flex w-full items-center justify-between gap-2 py-3 text-left text-sm" type="button" onClick={() => onOpenRun(item.status === "finalized" ? 2 : 0, { legal_entity_id: entityId, period_start: item.period_start }, item.run_id)}><span><strong>{item.period_start.slice(0, 7)} · Revision {item.revision}</strong><small className="block text-text-secondary">{item.current ? "Current" : item.status === "finalized" ? "Superseded" : "In progress"}{item.net_pay != null ? ` · ${money(item.net_pay)} net` : ""}</small></span><Badge tone={item.status === "finalized" ? "success" : "neutral"}>{label(item.status)}</Badge></button>) : <p className="py-4 text-sm text-text-secondary">No previous runs for this Legal Entity.</p>}</div></Card></div>
-    {trend.length > 1 && <Card className="p-5"><h3 className="font-bold">Recent Employer Cost</h3><div className="mt-3 grid gap-3 sm:grid-cols-4">{trend.map((item) => <div key={item.run_id} className="border-l-2 border-primary/30 pl-3"><small className="text-text-secondary">{item.period_start.slice(0, 7)}</small><strong className="block tabular-nums">{money(item.total_employer_cost)}</strong></div>)}</div></Card>}
+    <Card title="Needs Attention"><div className="divide-y divide-border px-4">{attention.length ? attention.map(item => <div key={item.group} className="flex items-center justify-between gap-4 py-3 text-sm"><div className="min-w-0"><h3 className="font-semibold">{item.group}</h3><p className="mt-0.5 text-text-secondary">{item.label}</p></div><button className="btn-secondary shrink-0" type="button" aria-label={`Review ${item.group}`} onClick={item.open}>Review <ChevronRight size={14} /></button></div>) : <p className="py-4 text-sm text-text-secondary">{finalized ? "Payroll finalized. The current revision is read-only; any correction creates a new revision." : detailError || readiness?.error ? "Unable to check readiness. Open Payroll to review." : run && !rows ? "Checking items needing attention…" : run ? "No known blockers for this period. Review the run before finalization." : "Start a run to assess payable time, calculations and statutory readiness."}</p>}</div></Card>
+    <Card title="Recent Payroll Runs">{historyError ? <p role="alert" className="p-4 text-sm">Unable to load recent Payroll Runs.</p> : history === null ? <p className="p-4 text-sm text-text-secondary">Loading recent runs…</p> : recent.length ? <DataTable density="compact" columns={[
+      { key: "period", header: "Period", render: item => <strong>{new Intl.DateTimeFormat("en-MY", {month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${item.period_start}T00:00:00Z`))}</strong> },
+      { key: "status", header: "Status", render: item => <Badge tone={["finalized","paid","ready"].includes(item.status) ? "success" : "neutral"}>{label(item.status)}</Badge> },
+      { key: "net", header: "Net Pay", align: "right", render: item => item.net_pay == null ? "—" : money(item.net_pay) },
+      { key: "action", header: "Action", render: item => <button className="font-semibold text-primary" type="button" onClick={() => onOpenRun(["finalized","paid"].includes(item.status) ? 2 : 0, {legal_entity_id:entityId,period_start:item.period_start}, item.run_id)}>View</button> },
+    ]} rows={recent} getRowKey={item => item.run_id} /> : <p className="p-4 text-sm text-text-secondary">No previous runs for this Legal Entity.</p>}</Card>
   </div>;
 }
 
@@ -696,12 +732,11 @@ export default function PayrollPage({ auth }) {
     {!canView ? <Card className="p-8 text-center text-sm text-text-secondary">Payroll permission is required. Employee access alone does not reveal compensation.</Card>
       : loading && !data ? <Card className="p-8 text-center text-sm text-text-secondary">Loading Payroll...</Card>
         : error ? <Card className="p-8 text-sm font-semibold text-rose-700" role="alert">{error}<button className="btn-secondary ml-3" type="button" onClick={reload}>Retry</button></Card>
-          : <><nav aria-label="Payroll sections" className="flex flex-wrap gap-2">
-            {[["overview","Overview"],["employees","Employees"],["runs","Payroll Runs"],["settings","Settings"]].map(([key,title]) =>
-              <button key={key} type="button" className={tab === key ? "btn-primary" : "btn-secondary"} onClick={() => { if (key === "runs") setOpenRunId(""); setTab(key); }}>{title}</button>)}
-          </nav>
-          {tab === "overview" && <Card className="grid gap-3 p-4 sm:grid-cols-2 lg:max-w-2xl"><SelectField label="Legal Entity" value={entityId} onChange={(value) => { setEntityId(value); setOpenRunId(""); }} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />
-            <MonthPickerField label="Pay Period" value={month} onChange={(value) => { setMonth(value); setOpenRunId(""); }} /></Card>}
+          : <><AdminUnderlineTabs ariaLabel="Payroll sections" value={tab} onChange={key => { if (key === "runs") setOpenRunId(""); setTab(key); }}
+            tabs={[["overview","Overview"],["employees","Payroll Profiles"],["runs","Payroll Runs"],["settings","Settings"]].map(([value,text]) => ({value,label:text}))} />
+          {tab === "overview" && <AdminFilterToolbar compact ariaLabel="Payroll context"
+            outlet={<SelectField label="Legal Entity" value={entityId} onChange={(value) => { setEntityId(value); setOpenRunId(""); }} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
+            period={<MonthPickerField label="Pay Period" value={month} onChange={(value) => { setMonth(value); setOpenRunId(""); }} />} />}
           {tab === "overview" && <Overview data={data} canManage={canManage} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} />}
           {tab === "employees" && <ProfilesTab data={data} canManage={canManage} reload={reload} />}
           {tab === "runs" && <RunsTab data={data} canManage={canManage} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={setEntityId} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} />}
