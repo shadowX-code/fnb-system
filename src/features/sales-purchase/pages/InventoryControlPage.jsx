@@ -1,4 +1,5 @@
 import InventoryPurchaseOrderSurface from "../inventory/purchaseOrders/InventoryPurchaseOrderSurface.jsx";
+import useAdminLocation from '../../../app/useAdminLocation.js';
 import { mapRemotePurchaseOrder, persistRemotePurchaseOrderReceive, fetchRemotePurchaseOrder } from "../inventory/purchaseOrders/inventoryPurchaseOrderService.js";
 export { ReceiveInventoryModal } from "../inventory/purchaseOrders/ReceiveInventoryModal.jsx";
 import { subscribeInventoryRevalidation } from "../../../services/inventoryRevalidation.js";
@@ -5284,7 +5285,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 }
 
 function InventoryControlPage(props) {
-  const route = resolveAdminLocation(window.location);
+  const route = useAdminLocation();
   if (route?.definitionId === 'inventory-stock-check-result') return <InventoryStockCheckResultSurface checkId={route.params.checkId} auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} onClose={() => navigateAdminRoute('inventory_stock_check', {}, route.query)} />;
   if (props.initialTab === "recipe-intelligence") return <InventoryRecipeIntelligencePage auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "recipes") return <InventoryRecipesPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
