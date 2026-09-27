@@ -54,8 +54,12 @@ import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
 import { inventoryLifecycleService } from "../../../services/inventoryLifecycleService.js";
 import { readCompleteInventoryRows } from "../../../services/inventoryCompleteRead.js";
-import { createInventoryRecipeReadModel } from "../inventory/recipes/inventoryRecipeReadModel.js";
-import { findRecipeCodeMatches, uploadRecipePhoto } from "../inventory/recipes/inventoryRecipeModalSupportReads.js";
+import InventoryRecipesPage from "../inventory/recipes/InventoryRecipesPage.jsx";
+import { recipeMenuCategories } from "../inventory/recipes/inventoryRecipeReadModel.js";
+import { Field } from "../inventory/InventorySharedPresentation.jsx";
+import { formatRestaurantRecipeCurrency, mapRemoteMenuCategory, recipeCode, recipeNameEn, recipeNameCn, normalizeProductRecipeKey, monthSerial, serialToMonthParts, businessMonthSerial, mapRemoteRecipe, recipeMarginTone, formatRecipeMargin, createRecipeWorkspaceProjection } from "../inventory/recipes/inventoryRecipeReadModel.js";
+import { persistRemoteRecipe } from "../inventory/recipes/inventoryRecipeService.js";
+export { RecipeModal } from "../inventory/recipes/InventoryRecipeForms.jsx";
 import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
 import InventoryItemPhotoPreview from "../inventory/InventoryItemPhotoPreview.jsx";
 import { mapRemoteWasteRecord, persistRemoteWasteRecord } from "../inventory/waste/inventoryWasteService.js";
@@ -70,8 +74,6 @@ import { productAnalyticsService } from "../../../services/productAnalyticsServi
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { resolveAdminLocation } from "../../../app/routeOwnership.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
-import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
-import AdminPagination, { useAdminClientPagination } from "../../../components/tables/AdminPagination.jsx";
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
 const LEGACY_STORAGE_KEYS = ["feedx.inventoryControl.v1"];
@@ -148,7 +150,6 @@ const frequencies = ["custom", "monthly"];
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
-const recipeMenuCategories = ["Main Dish", "Beverage", "Side Dish", "Sauce", "Dessert", "Prep Item", "Combo", "Other"];
 
 
 
@@ -209,10 +210,6 @@ function toCurrency(value) {
   return `RM${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
-function formatRestaurantRecipeCurrency(value) {
-  const amount = Number(value);
-  return `RM${(Number.isFinite(amount) ? amount : 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
 
 function formatInventoryCost(value, unit = "") {
   if (value === "" || value === null || value === undefined) return "—";
@@ -676,49 +673,12 @@ function mapRemoteEmployeeLite(row = {}) {
 
 
 
-function mapRemoteRecipeItem(row = {}) {
-  return {
-    id: row.id,
-    itemId: row.inventory_item_id || "",
-    quantityUsed: row.quantity_used === null || row.quantity_used === undefined ? 0 : Number(row.quantity_used),
-    unit: row.unit || "",
-    wastagePercent: row.wastage_percent === null || row.wastage_percent === undefined ? 0 : Number(row.wastage_percent),
-    remark: row.remark || "",
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || row.created_at || "",
-  };
-}
-
-function mapRemoteMenuCategory(row = {}) {
-  return {
-    id: row.id || makeId("menu_cat"),
-    name: row.name || "",
-    description: row.description || "",
-    status: row.status || "active",
-    sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || row.created_at || "",
-  };
-}
-
-function safeRecipe(recipe) {
-  return recipe && typeof recipe === "object" ? recipe : {};
-}
 
 
-function recipeCode(recipe = {}) {
-  return String(safeRecipe(recipe).recipeCode || safeRecipe(recipe).recipe_code || "").trim();
-}
 
-function recipeNameEn(recipe = {}) {
-  const safe = safeRecipe(recipe);
-  return String(safe.recipeNameEn || safe.recipe_name_en || safe.recipeName || safe.recipe_name || "").trim();
-}
 
-function recipeNameCn(recipe = {}) {
-  const safe = safeRecipe(recipe);
-  return String(safe.recipeNameCn || safe.recipe_name_cn || "").trim();
-}
+
+
 
 
 const recipeAnalysisPeriodOptions = [
@@ -742,80 +702,14 @@ const recipeMonthOptions = [
   { value: "12", label: "Dec" },
 ];
 
-const recipeWorkspaceTabs = [
-  { id: "recipes", label: "Recipes" },
-  { id: "mapping", label: "Product Mapping" },
-];
 
-const recipeMappingStatusOptions = [
-  { value: "all", label: "All" },
-  { value: "pending", label: "Pending" },
-  { value: "mapped", label: "Mapped" },
-  { value: "ignored", label: "Ignored" },
-];
 
-function normalizeProductRecipeKey(value) {
-  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
-}
 
-function mappingDecisionStatus(mapping = {}) {
-  if (!mapping) return "pending";
-  if (mapping.status === "ignored") return "ignored";
-  return mapping.recipe_id ? "mapped" : "pending";
-}
 
-function mappingConfidenceLabel(confidence) {
-  if (confidence >= 90) return "High";
-  if (confidence >= 60) return "Medium";
-  if (confidence > 0) return "Low";
-  return "None";
-}
 
-function getRecipeMappingCandidates(recipe = {}) {
-  return [
-    { type: "recipe_code", value: recipeCode(recipe), confidence: 98 },
-    { type: "recipe_name_en", value: recipeNameEn(recipe), confidence: 92 },
-    { type: "recipe_name_cn", value: recipeNameCn(recipe), confidence: 88 },
-  ].filter((entry) => entry.value);
-}
 
-function suggestRecipeMatch(productName, recipes = []) {
-  const productKey = normalizeProductRecipeKey(productName);
-  if (!productKey) return { recipe: null, confidence: 0, matchType: "" };
-  for (const recipe of recipes) {
-    const match = getRecipeMappingCandidates(recipe).find((candidate) => normalizeProductRecipeKey(candidate.value) === productKey);
-    if (match) return { recipe, confidence: match.confidence, matchType: match.type };
-  }
-  const fuzzy = recipes
-    .map((recipe) => {
-      const candidates = getRecipeMappingCandidates(recipe);
-      const matched = candidates.find((candidate) => {
-        const key = normalizeProductRecipeKey(candidate.value);
-        return key && (productKey.includes(key) || key.includes(productKey));
-      });
-      return matched ? { recipe, confidence: Math.max(55, matched.confidence - 25), matchType: `${matched.type}_partial` } : null;
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.confidence - a.confidence)[0];
-  return fuzzy || { recipe: null, confidence: 0, matchType: "" };
-}
 
-function monthSerial(year, month) {
-  return Number(year) * 12 + Number(month);
-}
 
-function serialToMonthParts(serial) {
-  const value = Number(serial || 0);
-  const year = Math.floor((value - 1) / 12);
-  const month = value - year * 12;
-  return { year, month };
-}
-
-function formatMonthSerial(serial) {
-  const { year, month } = serialToMonthParts(serial);
-  if (!year || !month) return "—";
-  return new Date(year, month - 1, 1).toLocaleDateString("en-MY", { month: "short", year: "numeric" });
-}
 
 function formatMonthShort(serial) {
   const { month } = serialToMonthParts(serial);
@@ -823,12 +717,6 @@ function formatMonthShort(serial) {
   return labels[month - 1] || "—";
 }
 
-function buildMonthSerialRange(startSerial, endSerial) {
-  const start = Number(startSerial || 0);
-  const end = Number(endSerial || 0);
-  if (!start || !end || end < start) return [];
-  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
-}
 
 function formatPercentChange(value) {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
@@ -842,39 +730,7 @@ function formatCompactCurrency(value) {
   return toCurrency(amount);
 }
 
-function businessMonthSerial(offsetMonths = 0) {
-  const [year, month] = getBusinessDateInput("Asia/Kuala_Lumpur").split("-").map(Number);
-  return monthSerial(year, month) + offsetMonths;
-}
 
-function mapRemoteRecipe(row = {}, items = []) {
-  const nameEn = row.recipe_name_en || row.recipe_name || "";
-  const nameCn = row.recipe_name_cn || "";
-  const code = row.recipe_code || "";
-  return {
-    id: row.id,
-    outletId: row.outlet_id || "",
-    recipeCode: code,
-    recipe_code: code,
-    recipeNameEn: nameEn,
-    recipe_name_en: nameEn,
-    recipeNameCn: nameCn,
-    recipe_name_cn: nameCn,
-    recipeName: nameEn || nameCn || code || "Recipe",
-    menuCategory: row.menu_category || "",
-    recipePhotoUrl: row.recipe_photo_url || "",
-    recipe_photo_url: row.recipe_photo_url || "",
-    sellingPrice: row.selling_price === null || row.selling_price === undefined ? "" : Number(row.selling_price),
-    selling_price: row.selling_price === null || row.selling_price === undefined ? "" : Number(row.selling_price),
-    servingSize: row.serving_size === null || row.serving_size === undefined ? "" : String(Number(row.serving_size)),
-    status: row.status || "active",
-    notes: row.notes || "",
-    createdBy: row.created_by || "",
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || row.created_at || "",
-    ingredients: items.map(mapRemoteRecipeItem),
-  };
-}
 
 
 async function loadRemoteInventoryMaster() {
@@ -1544,67 +1400,7 @@ async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
 
 
 
-async function persistRemoteRecipe(recipe = {}, userId) {
-  if (!isUuid(recipe.outletId)) throw new Error("Outlet is required.");
-  const code = recipeCode(recipe);
-  const nameEn = recipeNameEn(recipe);
-  const nameCn = recipeNameCn(recipe);
-  if (!code) throw new Error("Recipe code is required.");
-  if (!nameEn) throw new Error("Recipe Name EN is required.");
-  if (!nameCn) throw new Error("Recipe Name CN is required.");
-  const ingredients = (recipe.ingredients || recipe.items || []).map((line) => {
-    const quantityUsed = Number(line.quantityUsed ?? line.quantity_used ?? 0);
-    const wastagePercent = Number(line.wastagePercent ?? line.wastage_percent ?? 0);
-    return {
-      id: line.id,
-      inventory_item_id: line.itemId || line.inventory_item_id || "",
-      quantity_used: quantityUsed,
-      unit: line.unit || null,
-      wastage_percent: Number.isFinite(wastagePercent) ? wastagePercent : 0,
-      remark: line.remark || null,
-    };
-  });
-  if (!ingredients.length) throw new Error("At least one ingredient is required.");
-  if (ingredients.some((line) => !isUuid(line.inventory_item_id))) throw new Error("Every ingredient needs an inventory item.");
-  if (ingredients.some((line) => !Number.isFinite(line.quantity_used) || line.quantity_used <= 0)) throw new Error("Quantity used must be greater than zero.");
-  if (ingredients.some((line) => !Number.isFinite(line.wastage_percent) || line.wastage_percent < 0)) throw new Error("Wastage percentage cannot be negative.");
 
-  const servingSize = Number(recipe.servingSize ?? recipe.serving_size ?? "");
-  const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? "");
-  const recipePayload = {
-    outlet_id: recipe.outletId,
-    recipe_code: code,
-    recipe_name: nameEn,
-    recipe_name_en: nameEn,
-    recipe_name_cn: nameCn,
-    menu_category: recipe.menuCategory || recipe.menu_category || null,
-    recipe_photo_url: recipe.recipePhotoUrl || recipe.recipe_photo_url || null,
-    selling_price: Number.isFinite(sellingPrice) && sellingPrice >= 0 ? sellingPrice : null,
-    serving_size: Number.isFinite(servingSize) && servingSize >= 0 ? servingSize : null,
-    status: recipe.status || "active",
-    notes: recipe.notes || null,
-    updated_at: new Date().toISOString(),
-  };
-  const rpcResult = await inventoryLifecycleService.saveInventoryRecipe({ recipe: {
-    id: isUuid(recipe.id) ? recipe.id : null,
-    ...recipePayload,
-    ingredients,
-  } });
-  return mapRemoteRecipe(rpcResult.recipe || {}, rpcResult.items || []);
-}
-
-async function archiveRemoteRecipe(recipeId) {
-  if (!isUuid(recipeId)) throw new Error("Recipe is required.");
-  const result = await supabase
-    .from("inventory_recipes")
-    .update({ status: "inactive", updated_at: new Date().toISOString() })
-    .eq("id", recipeId)
-    .select("*")
-    .single();
-  debugLog("[RecipeSaveDebug]", { action: "archive", recipeId, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
-  return mapRemoteRecipe(result.data, []);
-}
 
 // Existing persistence contracts exposed for focused lifecycle tests; runtime ownership remains in InventoryControlPage.
 export const inventoryLifecycleContracts = {
@@ -1621,33 +1417,6 @@ export const inventoryLifecycleContracts = {
   persistRemoteRecipe,
 };
 
-async function persistRemoteMenuCategory(category = {}) {
-  const name = String(category.name || "").trim();
-  if (!name) throw new Error("Menu category name is required.");
-  const payload = {
-    name,
-    description: String(category.description || "").trim() || null,
-    status: category.status || "active",
-    sort_order: Number(category.sortOrder ?? category.sort_order ?? 0) || 0,
-    updated_at: new Date().toISOString(),
-  };
-  const mode = isUuid(category.id) ? "edit" : "create";
-  const result = mode === "edit"
-    ? await supabase
-      .from("inventory_menu_categories")
-      .update(payload)
-      .eq("id", category.id)
-      .select("*")
-      .single()
-    : await supabase
-      .from("inventory_menu_categories")
-      .insert(payload)
-      .select("*")
-      .single();
-  debugLog("[RecipeMenuCategoryDebug]", { action: mode, payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
-  return mapRemoteMenuCategory(result.data);
-}
 
 function uomOptionLabel(uom = {}) {
   return uom.displayName && canonical(uom.displayName) !== canonical(uom.code)
@@ -1914,26 +1683,6 @@ function useInventoryData(outlets, suppliers, readScope = "full") {
   return [data, setData, meta, refreshInventory];
 }
 
-function Field({ label, value, onChange, type = "text", placeholder, required = false, onBlur, error }) {
-  return (
-    <label className="block">
-      <div className="mb-1 type-caption font-semibold text-text-secondary">
-        {label} {required ? <span className="text-rose-500">*</span> : null}
-      </div>
-      <input
-        className="control h-9 w-full text-[13px]"
-        type={type}
-        min={type === "number" ? 0 : undefined}
-        value={value ?? ""}
-        placeholder={placeholder}
-        onFocus={type === "number" ? selectInputText : undefined}
-        onChange={(event) => onChange(event.target.value)}
-        onBlur={onBlur}
-      />
-      {error ? <div className="mt-1 type-caption font-semibold text-rose-600">{error}</div> : null}
-    </label>
-  );
-}
 
 
 
@@ -2656,113 +2405,7 @@ function UomSettingsModal({ uoms, remoteRows, visibleRows, lastWriteStatus, canA
   );
 }
 
-function MenuCategoryModal({ category, onClose, onSave }) {
-  const [form, setForm] = useState(() => ({
-    id: category?.id || "",
-    name: category?.name || "",
-    description: category?.description || "",
-    status: category?.status || "active",
-    sortOrder: category?.sortOrder ?? 0,
-  }));
-  const [touched, setTouched] = useState(false);
-  const invalid = touched && !form.name.trim();
-  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
-  return (
-    <Modal
-      title={category ? "Edit Menu Category" : "Add Menu Category"}
-      description="Menu categories organize recipe BOMs and recipe filters."
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button
-            className="btn-primary"
-            type="button"
-            onClick={() => {
-              setTouched(true);
-              if (!form.name.trim()) return;
-              onSave({
-                ...form,
-                name: form.name.trim(),
-                description: form.description.trim(),
-                sortOrder: Number(form.sortOrder || 0),
-              });
-            }}
-          >
-            Save
-          </button>
-        </>
-      )}
-    >
-      <div className="grid gap-3 md:grid-cols-2">
-        <Field label="Category Name" value={form.name} required onChange={(value) => update("name", value)} placeholder="Main Dish" />
-        <Field label="Sort Order" type="number" value={form.sortOrder} onChange={(value) => update("sortOrder", Number(value || 0))} />
-        <SelectField label="Status" value={form.status} options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} onChange={(value) => update("status", value)} />
-        <div className="md:col-span-2">
-          <TextArea label="Description" value={form.description} onChange={(value) => update("description", value)} placeholder="Optional description" />
-        </div>
-        {invalid ? <div className="md:col-span-2 type-caption font-semibold text-rose-600">Menu category name is required.</div> : null}
-      </div>
-    </Modal>
-  );
-}
 
-function MenuCategorySettingsModal({ categories, canManage, requirePermission, onAdd, onEdit, onArchive, onSort, onClose }) {
-  const ordered = [...categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name));
-  return (
-    <Modal
-      title="Menu Category Settings"
-      description="Create, edit, archive and sort menu categories used by Recipes & Usage."
-      size="lg"
-      onClose={onClose}
-      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
-    >
-      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="type-caption text-text-secondary">{ordered.length} configured menu categor{ordered.length === 1 ? "y" : "ies"}</div>
-          <div className="type-caption text-text-muted">Only active menu categories appear in recipe forms and filters.</div>
-        </div>
-        <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={() => requirePermission(canManage, "add menu categories") && onAdd()}>
-          <PackagePlus size={14} /> Add Category
-        </button>
-      </div>
-      {ordered.length ? (
-        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
-          {ordered.map((category) => (
-            <div
-              key={category.id}
-              draggable={canManage}
-              onDragStart={(event) => event.dataTransfer.setData("text/plain", category.id)}
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={(event) => {
-                event.preventDefault();
-                const draggedId = event.dataTransfer.getData("text/plain");
-                if (draggedId && draggedId !== category.id) onSort(draggedId, category.id);
-              }}
-              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-primary/5"
-            >
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <GripVertical size={14} className="text-text-muted" />
-                  <div className="truncate type-body-sm font-bold text-text-primary">{category.name}</div>
-                  <Badge tone={category.status === "active" ? "success" : "neutral"}>{toTitle(category.status || "active")}</Badge>
-                </div>
-                <div className="mt-0.5 truncate type-caption text-text-secondary">{category.description || "No description"}</div>
-                <div className="mt-1 type-caption font-semibold text-text-muted">Sort {category.sortOrder || 0}</div>
-              </div>
-              <div className="flex items-center justify-end gap-2">
-                <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(canManage, "edit menu categories") && onEdit(category)}>Edit</button>
-                <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(canManage, "archive menu categories") && onArchive(category)}>{category.status === "active" ? "Archive" : "Activate"}</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      ) : (
-        <EmptyState title="Create your first menu category." description="Menu categories help scan recipe BOMs by product type." />
-      )}
-    </Modal>
-  );
-}
 
 function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave }) {
   const initialItem = normalizeInventoryItem(item ?? {
@@ -3118,109 +2761,11 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
   );
 }
 
-function recipeIngredientCost(line = {}, item) {
-  const quantity = Number(line.quantityUsed || 0);
-  const unitCost = Number(item?.cost || 0);
-  const totalCost = quantity * unitCost;
-  const wastageCost = totalCost * (Number(line.wastagePercent || 0) / 100);
-  return {
-    quantity,
-    unitCost,
-    totalCost,
-    wastageCost,
-  };
-}
 
-function RecipeIngredientPreviewPill({ recipe, itemById }) {
-  const anchorRef = useRef(null);
-  const [open, setOpen] = useState(false);
-  const ingredients = recipe.ingredients || [];
-  const rows = ingredients.slice(0, 5).map((line) => {
-    const item = itemById.get(line.itemId);
-    const quantity = Number(line.quantityUsed ?? line.quantity_used ?? 0);
-    const displayQty = Number.isFinite(quantity) ? String(quantity).replace(/\.0+$/, "") : "-";
-    const unit = line.unit || item?.unit || "";
-    const cost = recipeIngredientCost(line, item);
-    return `${item?.name || "Inventory item"} · ${displayQty} ${unit}`.trim() + ` · ${formatRestaurantRecipeCurrency(cost.totalCost)}`;
-  });
-  const remaining = Math.max(0, ingredients.length - 5);
 
-  return (
-    <span
-      className="inline-flex"
-      ref={anchorRef}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocus={() => setOpen(true)}
-      onBlur={() => setOpen(false)}
-    >
-      <button
-        className="rounded-full border border-border bg-slate-50 px-2.5 py-1 type-caption font-bold text-text-secondary transition hover:border-primary/30 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/20"
-        type="button"
-        onClick={(event) => {
-          event.preventDefault();
-          setOpen((current) => !current);
-        }}
-      >
-        {ingredients.length} ingredient{ingredients.length === 1 ? "" : "s"}
-      </button>
-      <FloatingLayer
-        open={open}
-        onOpenChange={setOpen}
-        anchorRef={anchorRef}
-        align="start"
-        width={300}
-        minWidth={260}
-        estimatedHeight={220}
-        className="p-0"
-        contentClassName="p-3"
-      >
-        <div className="mb-2 type-caption font-black uppercase tracking-wide text-text-muted">Ingredient Preview</div>
-        {rows.length ? (
-          <div className="space-y-1.5">
-            {rows.map((line) => (
-              <div key={line} className="type-caption font-semibold text-text-secondary">{line}</div>
-            ))}
-            {remaining ? <div className="type-caption font-black text-primary">+{remaining} more</div> : null}
-          </div>
-        ) : (
-          <div className="type-caption text-text-muted">No ingredients</div>
-        )}
-      </FloatingLayer>
-    </span>
-  );
-}
 
-function recipeCostSummary(recipe = {}, items = []) {
-  const itemById = new Map(items.map((item) => [item.id, item]));
-  return (recipe.ingredients || []).reduce((summary, line) => {
-    const cost = recipeIngredientCost(line, itemById.get(line.itemId));
-    return {
-      ingredientCost: summary.ingredientCost + cost.totalCost,
-      wastageCost: summary.wastageCost + cost.wastageCost,
-      totalCost: summary.totalCost + cost.totalCost + cost.wastageCost,
-    };
-  }, { ingredientCost: 0, wastageCost: 0, totalCost: 0 });
-}
 
-function recipeMarginPercent(sellingPrice, cost) {
-  const price = Number(sellingPrice || 0);
-  const totalCost = Number(cost || 0);
-  if (!price || price <= 0) return null;
-  return ((price - totalCost) / price) * 100;
-}
 
-function recipeMarginTone(margin) {
-  if (margin === null || margin === undefined || !Number.isFinite(Number(margin))) return "neutral";
-  if (margin >= 70) return "success";
-  if (margin >= 40) return "warning";
-  return "danger";
-}
-
-function formatRecipeMargin(margin) {
-  if (margin === null || margin === undefined || !Number.isFinite(Number(margin))) return "—";
-  return `${Math.round(margin)}%`;
-}
 
 function RecipeIntelligencePlaceholder({ title, description }) {
   return (
@@ -3794,518 +3339,8 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
   );
 }
 
-function RecipeIngredientCloneModal({ recipes, items, outletById, excludedRecipeId, onClone, onClose }) {
-  const [search, setSearch] = useState("");
-  const [selectedRecipeId, setSelectedRecipeId] = useState("");
-  const candidates = recipes.filter((entry) => {
-    if (entry.id === excludedRecipeId) return false;
-    const searchText = `${recipeCode(entry)} ${recipeNameEn(entry)} ${recipeNameCn(entry)}`.toLowerCase();
-    return !search.trim() || searchText.includes(search.trim().toLowerCase());
-  });
-  const selectedRecipe = candidates.find((entry) => entry.id === selectedRecipeId) || null;
-  const ingredients = selectedRecipe?.ingredients || selectedRecipe?.items || [];
-  const summary = selectedRecipe ? recipeCostSummary(selectedRecipe, items) : null;
 
-  return <Modal title="Clone Ingredients" description="Copy ingredient rows into this draft only. Review and save the current recipe when ready." size="lg" onClose={onClose} footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={!selectedRecipe || !ingredients.length} onClick={() => { onClone(selectedRecipe); onClose(); }}>Clone {ingredients.length || ""} Ingredients</button></>}>
-    <div className="space-y-4">
-      <label><div className="mb-1 type-caption font-semibold text-text-secondary">Search existing recipe</div><input className="control h-9 w-full text-[13px]" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search recipe name or code" autoFocus /></label>
-      <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
-        {candidates.length ? candidates.map((entry) => {
-          const count = (entry.ingredients || entry.items || []).length;
-          const selected = entry.id === selectedRecipeId;
-          return <button key={entry.id} className={`flex w-full items-start justify-between gap-3 rounded-xl border p-3 text-left transition ${selected ? "border-primary bg-primary/5" : "border-border bg-white hover:border-primary/40"}`} type="button" onClick={() => setSelectedRecipeId(entry.id)}><span className="min-w-0"><span className="block font-bold text-text-primary">{recipeNameEn(entry) || recipeNameCn(entry) || recipeCode(entry) || "Recipe"}</span><span className="mt-0.5 block type-caption text-text-secondary">{recipeCode(entry) || "No code"} · {outletById.get(entry.outletId)?.name || "Outlet"}</span></span><Badge tone={count ? "success" : "neutral"}>{count} ingredient{count === 1 ? "" : "s"}</Badge></button>;
-        }) : <EmptyState title="No matching recipes" description="Try another recipe name or code." />}
-      </div>
-      {selectedRecipe ? <div className="rounded-xl border border-border bg-slate-50 p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-bold text-text-primary">{recipeNameEn(selectedRecipe) || recipeNameCn(selectedRecipe) || recipeCode(selectedRecipe) || "Recipe"}</div><div className="mt-1 type-caption text-text-secondary">{outletById.get(selectedRecipe.outletId)?.name || "Outlet"} · {ingredients.length} ingredient{ingredients.length === 1 ? "" : "s"}</div></div><Badge tone="success">Cost {formatRestaurantRecipeCurrency(summary?.totalCost || 0)}</Badge></div>{ingredients.length ? <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-white">{ingredients.map((line) => { const item = items.find((entry) => entry.id === (line.itemId || line.inventory_item_id)); return <div key={line.id || `${line.itemId}-${line.quantityUsed}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span className="font-semibold text-text-primary">{item?.name || "Unavailable inventory item"}</span><span className="text-text-secondary">{line.quantityUsed ?? line.quantity_used ?? 0} {line.unit || item?.unit || ""} · {line.wastagePercent ?? line.wastage_percent ?? 0}% wastage{line.remark ? ` · ${line.remark}` : ""}</span></div>; })}</div> : <div className="mt-3 type-caption text-text-secondary">This recipe has no ingredients to clone.</div>}</div> : null}
-    </div>
-  </Modal>;
-}
 
-export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existingRecipes = [], outletById = new Map(), onClose, onSave }) {
-  const [isSaving, setIsSaving] = useState(false);
-  const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
-  const [photoError, setPhotoError] = useState("");
-  const [touched, setTouched] = useState({});
-  const [submitAttempted, setSubmitAttempted] = useState(false);
-  const [duplicateCodeError, setDuplicateCodeError] = useState("");
-  const [checkingRecipeCode, setCheckingRecipeCode] = useState(false);
-  const [cloneOpen, setCloneOpen] = useState(false);
-  const [cloneFeedback, setCloneFeedback] = useState("");
-  const duplicateCheckRef = useRef({ requestId: 0, submitting: false, saving: false });
-  const [form, setForm] = useState(() => ({
-    id: recipe?.id || "",
-    outletId: recipe?.outletId || outletId || "",
-    recipeCode: recipeCode(recipe),
-    recipeNameEn: recipeNameEn(recipe),
-    recipeNameCn: recipeNameCn(recipe),
-    menuCategory: recipe?.menuCategory || recipe?.menu_category || menuCategories.find((category) => category.status === "active")?.name || recipeMenuCategories[0],
-    recipePhotoUrl: recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "",
-    recipePhotoFile: null,
-    sellingPrice: recipe?.sellingPrice ?? recipe?.selling_price ?? "",
-    servingSize: recipe?.servingSize || recipe?.serving_size || "1",
-    status: recipe?.status || "active",
-    notes: recipe?.notes || "",
-    ingredients: (recipe?.ingredients || recipe?.items || []).map((line) => ({
-      id: line.id || makeId("recipe_item"),
-      itemId: line.itemId || line.inventory_item_id || "",
-      quantityUsed: line.quantityUsed ?? line.quantity_used ?? 0,
-      unit: line.unit || "",
-      wastagePercent: line.wastagePercent ?? line.wastage_percent ?? 0,
-      remark: line.remark || "",
-    })),
-  }));
-  const availableItems = items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, form.outletId));
-  const update = (key, value) => setForm((current) => {
-    return { ...current, [key]: value };
-  });
-  const updateIngredient = (id, patch) => setForm((current) => ({
-    ...current,
-    ingredients: current.ingredients.map((line) => {
-      if (line.id !== id) return line;
-      const next = { ...line, ...patch };
-      if (patch.itemId) {
-        next.unit = items.find((item) => item.id === patch.itemId)?.unit || next.unit;
-        next.cloneUnavailable = !availableItems.some((item) => item.id === patch.itemId);
-      }
-      return next;
-    }),
-  }));
-  const addIngredient = () => {
-    const firstItem = availableItems[0];
-    setForm((current) => ({
-      ...current,
-      ingredients: [
-        ...current.ingredients,
-        {
-          id: makeId("recipe_item"),
-          itemId: firstItem?.id || "",
-          quantityUsed: 0,
-          unit: firstItem?.unit || "",
-          wastagePercent: 0,
-          remark: "",
-        },
-      ],
-    }));
-  };
-  const removeIngredient = (id) => setForm((current) => ({ ...current, ingredients: current.ingredients.filter((line) => line.id !== id) }));
-  const cloneIngredients = (sourceRecipe) => {
-    const sourceIngredients = sourceRecipe?.ingredients || sourceRecipe?.items || [];
-    const existingItemIds = new Set(form.ingredients.map((line) => line.itemId).filter(Boolean));
-    const cloned = [];
-    let skipped = 0;
-    let unavailable = 0;
-    sourceIngredients.forEach((line) => {
-      const itemId = line.itemId || line.inventory_item_id || "";
-      if (!itemId || existingItemIds.has(itemId)) {
-        skipped += 1;
-        return;
-      }
-      existingItemIds.add(itemId);
-      const available = availableItems.some((item) => item.id === itemId);
-      if (!available) unavailable += 1;
-      cloned.push({
-        id: makeId("recipe_item"),
-        itemId,
-        quantityUsed: line.quantityUsed ?? line.quantity_used ?? 0,
-        unit: line.unit || items.find((item) => item.id === itemId)?.unit || "",
-        wastagePercent: line.wastagePercent ?? line.wastage_percent ?? 0,
-        remark: line.remark || "",
-        cloneUnavailable: !available,
-      });
-    });
-    setForm((current) => ({ ...current, ingredients: [...current.ingredients, ...cloned] }));
-    setCloneFeedback(`${cloned.length} ingredient${cloned.length === 1 ? "" : "s"} cloned${skipped ? `; ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}${unavailable ? `; ${unavailable} unavailable for this outlet` : ""}.`);
-  };
-  const summary = recipeCostSummary(form, items);
-  const margin = recipeMarginPercent(form.sellingPrice, summary.totalCost);
-  const profit = Number(form.sellingPrice || 0) - Number(summary.totalCost || 0);
-  const normalizedRecipeCode = recipeCode(form).toLowerCase();
-  const duplicateValidationSuppressed = isSaving || duplicateCheckRef.current.saving;
-  const setRecipeDuplicateError = (message, source, meta = {}) => {
-    debugLog("[RecipeDuplicateErrorSource]", {
-      source,
-      value: recipeCode(form),
-      mode: form.id ? "edit" : "create",
-      recipeId: form.id || "",
-      timestamp: new Date().toISOString(),
-      message,
-      ...meta,
-    });
-    setDuplicateCodeError(message);
-  };
-  const localDuplicateRecipeCode = !duplicateValidationSuppressed && Boolean(normalizedRecipeCode && existingRecipes.some((entry) => entry.id !== form.id && recipeCode(entry).toLowerCase() === normalizedRecipeCode));
-  const duplicateRecipeCode = !duplicateValidationSuppressed && Boolean(localDuplicateRecipeCode || duplicateCodeError);
-  const sellingPriceValue = Number(form.sellingPrice);
-  const sellingPriceInvalid = form.sellingPrice === "" || !Number.isFinite(sellingPriceValue) || sellingPriceValue <= 0;
-  const identityErrors = {
-    recipeCode: !form.recipeCode.trim() ? "Recipe code is required." : duplicateRecipeCode ? "Recipe code already exists." : "",
-    recipeNameEn: !form.recipeNameEn.trim() ? "Recipe Name EN is required." : "",
-    recipeNameCn: !form.recipeNameCn.trim() ? "Recipe Name CN is required." : "",
-    sellingPrice: sellingPriceInvalid ? "Selling price must be greater than 0." : "",
-  };
-  const categoryOptions = menuCategories
-    .filter((category) => category.status === "active")
-    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name))
-    .map((category) => ({ value: category.name, label: category.name }));
-  const safeCategoryOptions = categoryOptions.length ? categoryOptions : recipeMenuCategories.map((category) => ({ value: category, label: category }));
-  const handlePhotoChange = async (event) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setPhotoError("");
-    try {
-      const optimized = await optimizeImageFileForPreview(file);
-      setPhotoPreview(optimized.dataUrl);
-      update("recipePhotoFile", file);
-    } catch (error) {
-      setPhotoError(error.message || "Unable to read image.");
-    }
-  };
-  const hasInvalidIngredients = !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0 || line.cloneUnavailable);
-  const invalid = Boolean(identityErrors.recipeCode || identityErrors.recipeNameEn || identityErrors.recipeNameCn || identityErrors.sellingPrice || !form.outletId || hasInvalidIngredients);
-  const showError = (key) => Boolean(touched[key] || submitAttempted);
-  const touchField = (key) => setTouched((current) => ({ ...current, [key]: true }));
-  const ingredientFieldKey = (lineId, field) => `ingredient.${lineId}.${field}`;
-  const handleRecipeCodeChange = (value) => {
-    duplicateCheckRef.current.requestId += 1;
-    setRecipeDuplicateError("", "recipe-code-change");
-    update("recipeCode", value);
-  };
-  const checkDuplicateRecipeCode = async ({ forSubmit = false } = {}) => {
-    const code = recipeCode(form);
-    const codeKey = normalizeProductRecipeKey(code);
-    const requestId = duplicateCheckRef.current.requestId + 1;
-    duplicateCheckRef.current.requestId = requestId;
-    if (forSubmit) duplicateCheckRef.current.submitting = true;
-    touchField("recipeCode");
-    if (!code) {
-      if (duplicateCheckRef.current.requestId === requestId) setRecipeDuplicateError("", forSubmit ? "submit-duplicate-check-blank" : "onBlur-duplicate-check-blank", { requestId });
-      debugLog("[RecipeCodeValidation]", { value: code, duplicateResult: false, submitBlocked: forSubmit && true, reason: "blank" });
-      return false;
-    }
-    const localDuplicate = Boolean(codeKey && existingRecipes.some((entry) => entry.id !== form.id && normalizeProductRecipeKey(recipeCode(entry)) === codeKey));
-    if (localDuplicate) {
-      if (duplicateCheckRef.current.requestId === requestId && !duplicateCheckRef.current.saving) setRecipeDuplicateError("Recipe code already exists.", forSubmit ? "submit-duplicate-check-local" : "onBlur-duplicate-check-local", { requestId });
-      debugLog("[RecipeCodeValidation]", { value: code, duplicateResult: true, submitBlocked: forSubmit, source: "local" });
-      return true;
-    }
-    setCheckingRecipeCode(true);
-    try {
-      const result = await findRecipeCodeMatches(code);
-      if (result.error) throw result.error;
-      const duplicate = (result.data || []).some((row) => row.id !== form.id && normalizeProductRecipeKey(recipeCode(row)) === codeKey);
-      const isLatest = duplicateCheckRef.current.requestId === requestId && recipeCode(form).toLowerCase() === code.toLowerCase();
-      if (isLatest && !duplicateCheckRef.current.saving) setRecipeDuplicateError(duplicate ? "Recipe code already exists." : "", forSubmit ? "submit-duplicate-check-remote" : "onBlur-duplicate-check-remote", { requestId, duplicateResult: duplicate });
-      debugLog("[RecipeCodeValidation]", { value: code, duplicateResult: duplicate, submitBlocked: forSubmit && duplicate, source: "remote", stale: !isLatest });
-      return duplicate;
-    } catch (error) {
-      debugLog("[RecipeCodeDuplicateDebug]", { recipeId: form.id, recipeCode: code, error });
-      if (duplicateCheckRef.current.requestId === requestId && !duplicateCheckRef.current.saving) setRecipeDuplicateError("", forSubmit ? "submit-duplicate-check-error-clear" : "onBlur-duplicate-check-error-clear", { requestId, error });
-      return false;
-    } finally {
-      if (duplicateCheckRef.current.requestId === requestId) setCheckingRecipeCode(false);
-      if (forSubmit) duplicateCheckRef.current.submitting = false;
-    }
-  };
-  const handleSave = async () => {
-    setSubmitAttempted(true);
-    if (isSaving) return;
-    const blockingInvalid = Boolean(!form.recipeCode.trim() || !form.recipeNameEn.trim() || !form.recipeNameCn.trim() || identityErrors.sellingPrice || !form.outletId || hasInvalidIngredients);
-    if (blockingInvalid) return;
-    const hasDuplicate = await checkDuplicateRecipeCode({ forSubmit: true });
-    if (hasDuplicate) return;
-    duplicateCheckRef.current.saving = true;
-    duplicateCheckRef.current.requestId += 1;
-    setRecipeDuplicateError("", "submit-no-duplicate-clear");
-    setIsSaving(true);
-    try {
-      await onSave({ ...form });
-      setRecipeDuplicateError("", "save-success-clear");
-      setTouched({});
-      setSubmitAttempted(false);
-    } catch (error) {
-      if (/inventory_recipes_recipe_code_unique|recipe_code/i.test(String(error?.message || error?.details || ""))) {
-        duplicateCheckRef.current.saving = false;
-        setRecipeDuplicateError("Recipe code already exists.", "supabase-unique-fallback", { error });
-        touchField("recipeCode");
-      }
-    } finally {
-      duplicateCheckRef.current.saving = false;
-      setIsSaving(false);
-    }
-  };
-
-  return (
-    <Modal
-      title={recipe ? "Edit Recipe" : "Add Recipe"}
-      description="Build a recipe BOM by linking menu items to outlet-linked inventory ingredients."
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={isSaving || checkingRecipeCode} onClick={handleSave}>{isSaving ? "Saving..." : "Save Recipe"}</button>
-        </>
-      )}
-    >
-      <div className="space-y-4">
-        <section className="rounded-3xl border border-border bg-background p-4">
-          <div className="mb-3">
-            <div className="type-title font-black text-text-primary">Recipe Identity</div>
-            <div className="type-caption text-text-secondary">Core recipe names and lifecycle state.</div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field
-              label="Recipe Code"
-              value={form.recipeCode}
-              required
-              onChange={handleRecipeCodeChange}
-              onBlur={checkDuplicateRecipeCode}
-              error={showError("recipeCode") ? identityErrors.recipeCode : ""}
-              placeholder="RCP-CURRY-001"
-            />
-            {checkingRecipeCode ? <div className="self-end type-caption font-semibold text-text-muted">Checking recipe code...</div> : null}
-            <SelectField label="Menu Category" value={form.menuCategory} options={safeCategoryOptions} onChange={(value) => update("menuCategory", value)} />
-            <Field
-              label="Recipe Name EN"
-              value={form.recipeNameEn}
-              required
-              onChange={(value) => update("recipeNameEn", value)}
-              onBlur={() => touchField("recipeNameEn")}
-              error={showError("recipeNameEn") ? identityErrors.recipeNameEn : ""}
-              placeholder="Classic Dry Curry Noodle"
-            />
-            <Field
-              label="Recipe Name CN"
-              value={form.recipeNameCn}
-              required
-              onChange={(value) => update("recipeNameCn", value)}
-              onBlur={() => touchField("recipeNameCn")}
-              error={showError("recipeNameCn") ? identityErrors.recipeNameCn : ""}
-              placeholder="经典干咖喱面"
-            />
-            <label>
-              <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet</div>
-              <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{outlet?.name || "Selected outlet"}</div>
-            </label>
-            <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-border bg-background p-4">
-          <div className="mb-3">
-            <div className="type-title font-black text-text-primary">Commercial Information</div>
-            <div className="type-caption text-text-secondary">Selling price and yield drive live recipe costing.</div>
-          </div>
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.4fr] lg:items-end">
-            <Field
-              label="Selling Price"
-              type="number"
-              value={form.sellingPrice}
-              required
-              onChange={(value) => update("sellingPrice", parseNonNegativeNumber(value))}
-              onBlur={() => touchField("sellingPrice")}
-              error={showError("sellingPrice") ? identityErrors.sellingPrice : ""}
-              placeholder="0.00"
-            />
-            <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
-            <div className="grid gap-2 sm:grid-cols-3">
-              <MetricCard label="Recipe Cost" value={formatRestaurantRecipeCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
-              <MetricCard label="Profit" value={form.sellingPrice !== "" ? formatRestaurantRecipeCurrency(profit) : "—"} helper="Price - cost" tone={profit >= 0 ? "success" : "danger"} size="compact" />
-              <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-border bg-background p-4">
-          <div className="mb-3">
-            <div className="type-title font-black text-text-primary">Product Display</div>
-            <div className="type-caption text-text-secondary">Photo and notes shown to operators reviewing the recipe.</div>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-            <label>
-              <div className="mb-1 type-caption font-semibold text-text-secondary">Recipe Photo</div>
-              <div className="rounded-2xl border border-border bg-slate-50 p-3">
-                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border border-border bg-slate-100">
-                  {photoPreview ? <img className="h-full w-full object-contain p-2" src={photoPreview} alt="Recipe preview" /> : <div className="text-xs font-bold text-text-muted">No recipe photo</div>}
-                </div>
-                <input type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={handlePhotoChange} className="mt-3 block w-full text-xs text-text-secondary file:mr-3 file:rounded-xl file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary" />
-                {photoError ? <div className="mt-2 type-caption font-semibold text-amber-700">{photoError}</div> : null}
-              </div>
-            </label>
-            <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} placeholder="Prep notes, yield assumptions or special handling." />
-          </div>
-        </section>
-
-        <section className="rounded-3xl border border-border bg-background p-4">
-          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <div className="type-title font-black text-text-primary">Ingredients</div>
-              <div className="type-caption text-text-secondary">Quantity used is per serving/yield above.</div>
-            </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              <Badge tone="success">Running total {formatRestaurantRecipeCurrency(summary.totalCost)}</Badge>
-              <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={() => setCloneOpen(true)} disabled={!existingRecipes.some((entry) => entry.id !== form.id)}>
-                Clone Ingredients
-              </button>
-              <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={addIngredient} disabled={!availableItems.length}>
-                <Plus size={14} /> Add Ingredient
-              </button>
-            </div>
-          </div>
-          <div className="mb-3 rounded-2xl border border-primary/15 bg-primary/5 p-3 type-caption text-text-secondary">
-            Ingredient selector only shows active inventory items linked to the selected outlet.
-          </div>
-          {cloneFeedback ? <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3 type-caption font-semibold text-sky-800">{cloneFeedback}</div> : null}
-          {form.ingredients.length ? (
-            <div className="space-y-2">
-              {form.ingredients.map((line) => {
-                const item = items.find((entry) => entry.id === line.itemId);
-                const cost = recipeIngredientCost(line, item);
-                return (
-                  <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-3 xl:grid-cols-[1.4fr_95px_72px_95px_95px_100px_1fr_auto] xl:items-end">
-                    <div>
-                      <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
-                      {submitAttempted && !line.itemId ? <div className="mt-1 type-caption font-semibold text-rose-600">Inventory item is required.</div> : null}
-                      {line.cloneUnavailable ? <div className="mt-1 type-caption font-semibold text-rose-600">This cloned ingredient is not active or linked to the current outlet. Replace or remove it before saving.</div> : null}
-                    </div>
-                    <Field
-                      label="Qty Used"
-                      type="number"
-                      value={line.quantityUsed}
-                      onChange={(value) => updateIngredient(line.id, { quantityUsed: parseNonNegativeNumber(value) })}
-                      onBlur={() => touchField(ingredientFieldKey(line.id, "quantityUsed"))}
-                      error={(showError(ingredientFieldKey(line.id, "quantityUsed")) && Number(line.quantityUsed || 0) <= 0) ? "Qty must be greater than 0." : ""}
-                    />
-                    <label>
-                      <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
-                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{item?.unit || line.unit || "-"}</div>
-                    </label>
-                    <label>
-                      <div className="mb-1 type-caption font-semibold text-text-secondary">Unit Cost</div>
-                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{formatRestaurantRecipeCurrency(cost.unitCost)}</div>
-                    </label>
-                    <Field label="Wastage %" type="number" value={line.wastagePercent} onChange={(value) => updateIngredient(line.id, { wastagePercent: parseNonNegativeNumber(value) })} />
-                    <label>
-                      <div className="mb-1 type-caption font-semibold text-text-secondary">Total Cost</div>
-                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-primary">{formatRestaurantRecipeCurrency(cost.totalCost + cost.wastageCost)}</div>
-                    </label>
-                    <Field label="Remark" value={line.remark} onChange={(value) => updateIngredient(line.id, { remark: value })} placeholder="Optional" />
-                    <button className="btn-secondary h-9 px-3 text-xs text-rose-700" type="button" onClick={() => removeIngredient(line.id)}>Remove</button>
-                  </div>
-                );
-              })}
-            </div>
-          ) : <EmptyState title="No ingredients yet" description={availableItems.length ? "Add ingredients to define usage per serving." : "No active outlet-linked inventory items are available for this outlet."} />}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-slate-50 p-3">
-            <div>
-              <div className="type-caption font-black uppercase tracking-wide text-text-muted">Total Recipe Cost</div>
-              <div className="type-title font-black text-text-primary">{formatRestaurantRecipeCurrency(summary.totalCost)}</div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge tone="neutral">Ingredient {formatRestaurantRecipeCurrency(summary.ingredientCost)}</Badge>
-              <Badge tone={summary.wastageCost ? "warning" : "neutral"}>Wastage {formatRestaurantRecipeCurrency(summary.wastageCost)}</Badge>
-            </div>
-          </div>
-        </section>
-      </div>
-      {cloneOpen ? <RecipeIngredientCloneModal recipes={existingRecipes} items={items} outletById={outletById} excludedRecipeId={form.id} onClone={cloneIngredients} onClose={() => setCloneOpen(false)} /> : null}
-    </Modal>
-  );
-}
-
-function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit }) {
-  const ingredients = recipe?.ingredients || [];
-  const summary = recipeCostSummary(recipe, items);
-  const margin = recipeMarginPercent(recipe?.sellingPrice ?? recipe?.selling_price, summary.totalCost);
-  const photoUrl = recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "";
-  const code = recipeCode(recipe);
-  const nameEn = recipeNameEn(recipe);
-  const nameCn = recipeNameCn(recipe);
-  return (
-    <Modal
-      title={nameEn || nameCn || code || "Recipe"}
-      description={`${outlet?.name || "Outlet"} · ${recipe?.menuCategory || "Menu Category"}`}
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-          <button className="btn-primary" type="button" onClick={onEdit}>Edit Recipe</button>
-        </>
-      )}
-    >
-      <div className="space-y-4">
-        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
-          <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-3xl border border-border bg-slate-50 lg:h-[240px] lg:w-[240px]">
-            {photoUrl ? (
-              <img className="h-full w-full object-contain p-2" src={photoUrl} alt={nameEn || nameCn || code || "Recipe"} />
-            ) : (
-              <div className="type-body-sm font-bold text-text-muted">No recipe photo</div>
-            )}
-          </div>
-          <div className="rounded-3xl border border-border bg-background p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <div className="type-caption font-black uppercase tracking-wide text-text-muted">{code || "No recipe code"}</div>
-                <div className="type-section-title font-black text-text-primary">{nameEn || "Recipe Name EN required"}</div>
-                <div className="mt-1 type-body-sm font-semibold text-text-secondary">{nameCn || "Recipe Name CN required"}</div>
-                <div className="mt-1 flex flex-wrap gap-2">
-                  <Badge tone="info">{recipe?.menuCategory || "Uncategorized"}</Badge>
-                  <Badge tone={statusTone(recipe?.status || "active")}>{toTitle(recipe?.status || "active")}</Badge>
-                </div>
-                <div className="mt-2 type-body-sm font-semibold text-text-secondary">{outlet?.name || "Outlet"} · {recipe?.servingSize || "1 portion"}</div>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <MetricCard label="Estimated Cost" value={formatRestaurantRecipeCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
-              <MetricCard label="Selling Price" value={recipe?.sellingPrice !== "" && recipe?.sellingPrice !== null && recipe?.sellingPrice !== undefined ? formatRestaurantRecipeCurrency(recipe.sellingPrice) : "—"} helper="Menu price" size="compact" />
-              <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
-              <MetricCard label="Ingredients" value={ingredients.length} helper="BOM rows" size="compact" />
-              <MetricCard label="Ingredient Cost" value={formatRestaurantRecipeCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
-              <MetricCard label="Status" value={toTitle(recipe?.status || "active")} helper="Recipe lifecycle" tone={statusTone(recipe?.status || "active")} size="compact" />
-            </div>
-          </div>
-        </div>
-        <div className="overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[900px] text-left">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-              <tr>
-                <th className="px-3 py-2">Inventory Item</th>
-                <th>Category</th>
-                <th>Qty Used</th>
-                <th>Unit</th>
-                <th>Unit Cost</th>
-                <th>Total Cost</th>
-                <th>Wastage %</th>
-                <th>Remark</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-[13px]">
-              {ingredients.map((line) => {
-                const item = items.find((entry) => entry.id === line.itemId);
-                const category = categories.find((entry) => entry.id === item?.categoryId);
-                const cost = recipeIngredientCost(line, item);
-                return (
-                  <tr key={line.id || line.itemId}>
-                    <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
-                    <td>{category?.name || "Uncategorized"}</td>
-                    <td>{line.quantityUsed}</td>
-                    <td>{line.unit || item?.unit || "-"}</td>
-                    <td>{formatRestaurantRecipeCurrency(cost.unitCost)}</td>
-                    <td>{formatRestaurantRecipeCurrency(cost.totalCost)}</td>
-                    <td>{line.wastagePercent || 0}%</td>
-                    <td>{line.remark || "-"}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {recipe?.notes ? <div className="rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary">{recipe.notes}</div> : null}
-      </div>
-    </Modal>
-  );
-}
 
 function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrders = [], businessPoNo = (order) => order?.poNo || "PO", onClose, onCreateDraftPo, onViewPurchaseOrder }) {
   const [rows, setRows] = useState(suggestions.map((row) => ({
@@ -4592,19 +3627,6 @@ function CompletePurchaseOrderModal({ order, onClose, onComplete }) {
 }
 
 
-function RecipeListPagination({ rows, resetKey, children }) {
-  const pagination = useAdminClientPagination("restaurant.recipes", rows.length, 20, resetKey);
-  return children(
-    rows.slice(pagination.from, pagination.to),
-    <AdminPagination
-      page={pagination.page}
-      pageSize={pagination.pageSize}
-      total={rows.length}
-      onPageChange={pagination.setPage}
-      onPageSizeChange={pagination.setPageSize}
-    />,
-  );
-}
 
 function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const initialStockCheckDate = useMemo(getInitialStockCheckDate, []);
@@ -4620,9 +3642,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState(() => new Set());
   const [uomWriteStatus, setUomWriteStatus] = useState("Not written");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
-  const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
-  const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState("recipes");
-  const [recipeMappingFilters, setRecipeMappingFilters] = useState({ status: "all", search: "" });
+  const recipeFilters = { category: "all", status: "active", search: "" };
   const [recipeAnalysisPeriod] = useState("last3");
   const [recipeTrendYear, setRecipeTrendYear] = useState(() => Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)) || new Date().getFullYear());
   const [recipeReportMonth, setRecipeReportMonth] = useState(() => String(Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(5, 7)) || 1));
@@ -4631,8 +3651,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const [recipeProductItems, setRecipeProductItems] = useState([]);
   const [recipeProductMappings, setRecipeProductMappings] = useState([]);
   const [recipeProductLoading, setRecipeProductLoading] = useState(false);
-  const [recipeMappingSelections, setRecipeMappingSelections] = useState({});
-  const [savingRecipeMappingKey, setSavingRecipeMappingKey] = useState("");
   const [ingredientTrendSearch, setIngredientTrendSearch] = useState("");
   const [ingredientTrendSort, setIngredientTrendSort] = useState("cost");
   const [ingredientTrendSelectedIds, setIngredientTrendSelectedIds] = useState([]);
@@ -4677,7 +3695,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   }, [date, selectedDateSource]);
 
   useEffect(() => {
-    if (!["recipes", "recipe-intelligence"].includes(activeTab) || !activeRecipeOutletId) return undefined;
+    if (activeTab !== "recipe-intelligence" || !activeRecipeOutletId) return undefined;
     let cancelled = false;
     const selectedPeriod = recipeAnalysisPeriodOptions.find((option) => option.value === recipeAnalysisPeriod) || recipeAnalysisPeriodOptions[1];
     const analysisStartSerial = businessMonthSerial(-(selectedPeriod.months - 1));
@@ -4725,7 +3743,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   }, [activeRecipeOutletId, activeTab, recipeAnalysisPeriod, recipeReportMonth, recipeReportYear, recipeTrendYear]);
 
   useEffect(() => {
-    setRecipeMappingSelections({});
     setIngredientTrendSearch("");
     setIngredientTrendSelectedIds([]);
   }, [activeRecipeOutletId, recipeAnalysisPeriod, recipeReportMonth, recipeReportYear, recipeTrendYear]);
@@ -4766,17 +3783,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   useEffect(() => {
     if (activeTab !== "recipes") return;
     if (!outlets.length) return;
-    if (activeTab === "recipes") {
-      const firstAccessibleOutlet = getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "";
-      if (selectedOutletId === "all" && firstAccessibleOutlet) {
-        setSelectedOutletId(firstAccessibleOutlet);
-        return;
-      }
-      if (selectedOutletId !== "all" && !outlets.some((outlet) => outlet.id === selectedOutletId) && firstAccessibleOutlet) {
-        setSelectedOutletId(firstAccessibleOutlet);
-        return;
-      }
-    }
     if (selectedOutletId !== "all" && !outlets.some((outlet) => outlet.id === selectedOutletId)) {
       setSelectedOutletId("all");
     }
@@ -6129,298 +5135,14 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 
 
 
-  async function saveRecipe(recipe) {
-    try {
-      let recipePhotoUrl = recipe.recipePhotoUrl || recipe.recipe_photo_url || "";
-      const previousRecipePhotoUrl = recipe.previousRecipePhotoUrl || recipe.previous_recipe_photo_url || (isUuid(recipe.id) ? data.recipes.find((entry) => entry.id === recipe.id)?.recipePhotoUrl || data.recipes.find((entry) => entry.id === recipe.id)?.recipe_photo_url || "" : "");
-      const hasNewPhotoFile = typeof File !== "undefined" && recipe.recipePhotoFile instanceof File;
-      if (hasNewPhotoFile) {
-        const uploadResult = await uploadRecipePhoto(recipe.recipePhotoFile, isUuid(recipe.id) ? recipe.id : "draft", previousRecipePhotoUrl);
-        recipePhotoUrl = uploadResult.publicUrl;
-        debugLog("[RecipePhotoSaveDebug]", { recipeId: recipe.id || "new", uploadResult, error: null });
-      }
-      const normalized = {
-        ...recipe,
-        recipeCode: recipeCode(recipe),
-        recipe_code: recipeCode(recipe),
-        recipeNameEn: recipeNameEn(recipe),
-        recipe_name: recipeNameEn(recipe),
-        recipe_name_en: recipeNameEn(recipe),
-        recipeNameCn: recipeNameCn(recipe),
-        recipe_name_cn: recipeNameCn(recipe),
-        recipePhotoUrl,
-        recipe_photo_url: recipePhotoUrl,
-        sellingPrice: recipe.sellingPrice === "" || recipe.sellingPrice === null || recipe.sellingPrice === undefined ? "" : Number(recipe.sellingPrice),
-        selling_price: recipe.sellingPrice === "" || recipe.sellingPrice === null || recipe.sellingPrice === undefined ? "" : Number(recipe.sellingPrice),
-        ingredients: (recipe.ingredients || []).map((line) => {
-          const item = itemById.get(line.itemId);
-          return {
-            ...line,
-            unit: line.unit || item?.unit || "",
-            quantityUsed: Number(line.quantityUsed || 0),
-            wastagePercent: Number(line.wastagePercent || 0),
-          };
-        }),
-      };
-      const savedRecipe = await persistRemoteRecipe(normalized, auth?.user?.id);
-      setData((current) => ({
-        ...current,
-        recipes: [savedRecipe, ...current.recipes.filter((entry) => entry.id !== savedRecipe.id)],
-      }));
-      await refreshInventory();
-      setModal(null);
-      notify(isUuid(recipe.id) ? "Recipe updated" : "Recipe created");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to save recipe.", error);
-      debugLog("[RecipeSaveDebug]", { action: "save-recipe", payload: recipe, error });
-      await refreshInventory();
-      const duplicateCodeFailure = /inventory_recipes_recipe_code_unique|duplicate key|recipe_code/i.test(String(`${error?.message || ""} ${error?.details || ""}`));
-      notify(
-        isUuid(recipe.id) ? "Failed to update Recipe" : "Failed to create Recipe",
-        duplicateCodeFailure ? "Recipe code already exists. Please use another code." : error.message || "Please try again.",
-        "error",
-      );
-      throw error;
-    }
-  }
 
-  async function saveRecipeProductMapping(productName, recipeId) {
-    if (!requirePermission(can.manageRecipeIntelligence, "manage Recipe Intelligence mappings")) return;
-    const productKey = normalizeProductRecipeKey(productName);
-    if (!activeRecipeOutletId || !productKey || !isUuid(recipeId)) {
-      notify("Failed to map Product to Recipe", "Choose a recipe before saving the mapping.", "error");
-      return;
-    }
-    setSavingRecipeMappingKey(productKey);
-    try {
-      const existing = recipeProductMappings.find((mapping) => normalizeProductRecipeKey(mapping.product_name) === productKey);
-      const payload = {
-        outlet_id: activeRecipeOutletId,
-        product_name: productName,
-        recipe_id: recipeId,
-        status: "mapped",
-        ignored_reason: null,
-        ignored_at: null,
-        ignored_by: null,
-        updated_at: new Date().toISOString(),
-      };
-      const result = existing?.id
-        ? await supabase
-          .from("product_recipe_mappings")
-          .update(payload)
-          .eq("id", existing.id)
-          .select("*")
-          .single()
-        : await supabase
-          .from("product_recipe_mappings")
-          .insert({ ...payload, created_by: isUuid(auth?.profile?.id) ? auth.profile.id : null })
-          .select("*")
-          .single();
-      debugLog("[RecipeMappingSaveDebug]", { productName, recipeId, payload, result: { data: result.data, error: result.error } });
-      if (result.error) throw result.error;
-      setRecipeProductMappings((current) => [result.data, ...current.filter((mapping) => mapping.id !== result.data.id && normalizeProductRecipeKey(mapping.product_name) !== productKey)]);
-      notify("Product mapped to Recipe");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to save recipe product mapping.", error);
-      debugLog("[RecipeMappingSaveDebug]", { productName, recipeId, error });
-      notify("Failed to map Product to Recipe", error.message || "Please try again.", "error");
-    } finally {
-      setSavingRecipeMappingKey("");
-    }
-  }
 
-  async function ignoreRecipeProductMapping(productName, reason = "Excluded from recipe intelligence") {
-    if (!requirePermission(can.manageRecipeIntelligence, "manage Recipe Intelligence mappings")) return;
-    const productKey = normalizeProductRecipeKey(productName);
-    if (!activeRecipeOutletId || !productKey) {
-      notify("Failed to ignore Product", "Product name is missing.", "error");
-      return;
-    }
-    setSavingRecipeMappingKey(productKey);
-    try {
-      const existing = recipeProductMappings.find((mapping) => normalizeProductRecipeKey(mapping.product_name) === productKey);
-      const payload = {
-        outlet_id: activeRecipeOutletId,
-        product_name: productName,
-        recipe_id: null,
-        status: "ignored",
-        ignored_reason: reason,
-        ignored_at: new Date().toISOString(),
-        ignored_by: isUuid(auth?.profile?.id) ? auth.profile.id : null,
-        updated_at: new Date().toISOString(),
-      };
-      const result = existing?.id
-        ? await supabase
-          .from("product_recipe_mappings")
-          .update(payload)
-          .eq("id", existing.id)
-          .select("*")
-          .single()
-        : await supabase
-          .from("product_recipe_mappings")
-          .insert({ ...payload, created_by: isUuid(auth?.profile?.id) ? auth.profile.id : null })
-          .select("*")
-          .single();
-      debugLog("[RecipeMappingSaveDebug]", { action: "ignore", productName, payload, result: { data: result.data, error: result.error } });
-      if (result.error) throw result.error;
-      setRecipeProductMappings((current) => [result.data, ...current.filter((mapping) => mapping.id !== result.data.id && normalizeProductRecipeKey(mapping.product_name) !== productKey)]);
-      notify("Product ignored for Recipe Intelligence");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to ignore recipe product mapping.", error);
-      debugLog("[RecipeMappingSaveDebug]", { action: "ignore", productName, error });
-      notify("Failed to ignore Product", error.message || "Please try again.", "error");
-    } finally {
-      setSavingRecipeMappingKey("");
-    }
-  }
 
-  async function clearRecipeProductMapping(productName) {
-    if (!requirePermission(can.manageRecipeIntelligence, "manage Recipe Intelligence mappings")) return;
-    const productKey = normalizeProductRecipeKey(productName);
-    const existing = recipeProductMappings.find((mapping) => normalizeProductRecipeKey(mapping.product_name) === productKey);
-    if (!existing?.id) return;
-    setSavingRecipeMappingKey(productKey);
-    try {
-      const result = await supabase.from("product_recipe_mappings").delete().eq("id", existing.id);
-      debugLog("[RecipeMappingSaveDebug]", { action: "clear", productName, result: { error: result.error } });
-      if (result.error) throw result.error;
-      setRecipeProductMappings((current) => current.filter((mapping) => mapping.id !== existing.id));
-      setRecipeMappingSelections((current) => {
-        const next = { ...current };
-        delete next[productKey];
-        return next;
-      });
-      notify("Product mapping reset");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to reset recipe product mapping.", error);
-      debugLog("[RecipeMappingSaveDebug]", { action: "clear", productName, error });
-      notify("Failed to reset Product mapping", error.message || "Please try again.", "error");
-    } finally {
-      setSavingRecipeMappingKey("");
-    }
-  }
 
-  async function archiveRecipe(recipeId) {
-    if (!requirePermission(can.manageRecipes, "archive recipes")) return;
-    try {
-      const archivedRecipe = await archiveRemoteRecipe(recipeId);
-      setData((current) => ({
-        ...current,
-        recipes: current.recipes.map((recipe) => recipe.id === recipeId ? { ...recipe, ...archivedRecipe, ingredients: recipe.ingredients || [] } : recipe),
-      }));
-      await refreshInventory();
-      notify("Recipe archived");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to archive recipe.", error);
-      debugLog("[RecipeSaveDebug]", { action: "archive-recipe", recipeId, error });
-      notify("Failed to archive Recipe", error.message || "Please try again.", "error");
-    }
-  }
 
-  async function saveMenuCategory(category) {
-    if (!requirePermission(can.manageRecipes, "manage recipe menu categories")) return;
-    try {
-      const savedCategory = await persistRemoteMenuCategory({
-        ...category,
-        sortOrder: Number(category.sortOrder ?? category.sort_order ?? 0)
-          || (data.menuCategories?.length ? Math.max(...data.menuCategories.map((entry) => Number(entry.sortOrder || 0))) + 1 : 1),
-      });
-      setData((current) => ({
-        ...current,
-        menuCategories: current.menuCategories?.some((entry) => entry.id === savedCategory.id)
-          ? current.menuCategories.map((entry) => entry.id === savedCategory.id ? savedCategory : entry)
-          : [...(current.menuCategories || []), savedCategory],
-      }));
-      await refreshInventory();
-      setModal({ type: "recipe-menu-categories" });
-      notify(isUuid(category.id) ? "Menu category updated" : "Menu category created");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to save menu category.", error);
-      debugLog("[RecipeMenuCategoryDebug]", { action: "save", payload: category, error });
-      notify(isUuid(category.id) ? "Failed to update menu category" : "Failed to create menu category", error.message || "Please try again.", "error");
-    }
-  }
 
-  async function archiveMenuCategory(category) {
-    if (!requirePermission(can.manageRecipes, "archive recipe menu categories")) return;
-    try {
-      const savedCategory = await persistRemoteMenuCategory({ ...category, status: category.status === "active" ? "inactive" : "active" });
-      setData((current) => ({
-        ...current,
-        menuCategories: (current.menuCategories || []).map((entry) => entry.id === savedCategory.id ? savedCategory : entry),
-      }));
-      await refreshInventory();
-      notify(category.status === "active" ? "Menu category archived" : "Menu category activated");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to archive menu category.", error);
-      debugLog("[RecipeMenuCategoryDebug]", { action: "archive", payload: category, error });
-      notify("Failed to update menu category", error.message || "Please try again.", "error");
-    }
-  }
 
-  async function sortMenuCategories(draggedId, targetId) {
-    if (!requirePermission(can.manageRecipes, "sort recipe menu categories")) return;
-    let sortedCategories = [];
-    setData((current) => {
-      const ordered = [...(current.menuCategories || [])].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name));
-      const fromIndex = ordered.findIndex((category) => category.id === draggedId);
-      const toIndex = ordered.findIndex((category) => category.id === targetId);
-      if (fromIndex < 0 || toIndex < 0) return current;
-      const [moved] = ordered.splice(fromIndex, 1);
-      ordered.splice(toIndex, 0, moved);
-      sortedCategories = ordered.map((category, index) => ({ ...category, sortOrder: index + 1 }));
-      const byId = new Map(sortedCategories.map((category) => [category.id, category]));
-      return {
-        ...current,
-        menuCategories: (current.menuCategories || []).map((category) => byId.get(category.id) || category),
-      };
-    });
-    try {
-      const results = await Promise.all(sortedCategories
-        .filter((category) => isUuid(category.id))
-        .map((category) => supabase
-          .from("inventory_menu_categories")
-          .update({ sort_order: category.sortOrder, updated_at: new Date().toISOString() })
-          .eq("id", category.id)));
-      const sortError = results.find((result) => result.error)?.error;
-      if (sortError) throw sortError;
-      await refreshInventory();
-      notify("Menu category order updated");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to sort menu categories.", error);
-      notify("Failed to update menu category order", error.message || "Please try again.", "error");
-      await refreshInventory();
-    }
-  }
 
-  function exportRecipes() {
-    if (!requirePermission(can.exportRecipes, "export recipes")) return;
-    const activeRecipeOutletId = selectedOutletId === "all" ? (getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "") : selectedOutletId;
-    const rows = data.recipes.filter((recipe) => {
-      const searchText = `${recipeCode(recipe)} ${recipeNameEn(recipe)} ${recipeNameCn(recipe)} ${recipe.menuCategory || ""} ${outletById.get(recipe.outletId)?.name || ""}`.toLowerCase();
-      return recipe.outletId === activeRecipeOutletId
-        && (recipeFilters.category === "all" || recipe.menuCategory === recipeFilters.category)
-        && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
-        && (!recipeFilters.search.trim() || searchText.includes(recipeFilters.search.trim().toLowerCase()));
-    }).map((recipe) => {
-      const outlet = outletById.get(recipe.outletId);
-      return {
-        recipe_code: recipeCode(recipe),
-        recipe_name_en: recipeNameEn(recipe),
-        recipe_name_cn: recipeNameCn(recipe),
-        Outlet: outlet?.name || "",
-        "Menu Category": recipe.menuCategory,
-        "Serving Size": recipe.servingSize,
-        Ingredients: (recipe.ingredients || []).length,
-        Status: recipe.status,
-        Notes: recipe.notes || "",
-      };
-    });
-    const columns = ["recipe_code", "recipe_name_en", "recipe_name_cn", "Outlet", "Menu Category", "Serving Size", "Ingredients", "Status", "Notes"];
-    const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
-    downloadTextFile(`feedx-recipes-${todayInput()}.csv`, csv);
-    notify("Recipes exported successfully");
-  }
 
 
   function renderDashboard() {
@@ -7243,127 +5965,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       return <EmptyState title="Permission required" description={`You do not have permission to view ${activeTab === "recipe-intelligence" ? "Recipe Intelligence" : "Recipes & Usage"}.`} />;
     }
     const isRecipeIntelligencePage = activeTab === "recipe-intelligence";
-    const recipeReadModel = createInventoryRecipeReadModel({
-      recipes: data.recipes,
-      items: data.items,
-      outletsById: outletById,
-      menuCategories: data.menuCategories?.length ? data.menuCategories : recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" })),
-      activeOutletId: activeRecipeOutletId,
-      filters: recipeFilters,
-    });
-    const { activeMenuCategories, filteredRecipes } = recipeReadModel;
-    const updateRecipeFilter = (key, value) => setRecipeFilters((current) => ({ ...current, [key]: value }));
-    const recipeCostRows = filteredRecipes.map((recipe) => {
-      const summary = recipeCostSummary(recipe, data.items);
-      const margin = recipeMarginPercent(recipe.sellingPrice ?? recipe.selling_price, summary.totalCost);
-      return { recipe, summary, margin };
-    });
-    const averageRecipeCost = recipeCostRows.length
-      ? recipeCostRows.reduce((sum, row) => sum + row.summary.totalCost, 0) / recipeCostRows.length
-      : 0;
-    const pricedMargins = recipeCostRows.filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)));
-    const averageMargin = pricedMargins.length
-      ? pricedMargins.reduce((sum, row) => sum + row.margin, 0) / pricedMargins.length
-      : null;
-    const highestCostRecipe = recipeCostRows.reduce((highest, row) => !highest || row.summary.totalCost > highest.summary.totalCost ? row : highest, null);
-    const selectedPeriod = recipeAnalysisPeriodOptions.find((option) => option.value === recipeAnalysisPeriod) || recipeAnalysisPeriodOptions[1];
-    const analysisStartSerial = businessMonthSerial(-(selectedPeriod.months - 1));
-    const analysisEndSerial = businessMonthSerial(0);
-    const analysisMonths = buildMonthSerialRange(analysisStartSerial, analysisEndSerial);
-    const analysisMonthSet = new Set(analysisMonths);
-    const selectedReportSerial = monthSerial(recipeReportYear, recipeReportMonth);
-    const selectedReportMonthSet = new Set([selectedReportSerial]);
-    const selectedReportLabel = formatMonthSerial(selectedReportSerial);
-    const trendMonths = buildMonthSerialRange(monthSerial(recipeTrendYear, 1), monthSerial(recipeTrendYear, 12));
-    const trendMonthSet = new Set(trendMonths);
-    const availableTrendYears = buildDynamicYearOptions([
-      recipeTrendYear,
-      Number(recipeReportYear),
-      ...yearsFromRecords(recipeProductReports, "report_year"),
-    ]);
-    const availableReportYears = availableTrendYears;
-    const reportById = new Map(recipeProductReports.map((report) => [report.id, report]));
-    const buildProductSalesByName = (allowedSerials = null) => recipeProductItems.reduce((totals, item) => {
-        const key = normalizeProductRecipeKey(item.product_name);
-        if (!key) return totals;
-        const report = reportById.get(item.report_id);
-        const monthValue = item.report_month || item.month || report?.report_month || "";
-        const yearValue = item.report_year || item.year || report?.report_year || "";
-        const serial = monthSerial(yearValue || 0, monthValue || 0);
-        if (!serial || serial <= 0) return totals;
-        if (allowedSerials && !allowedSerials.has(serial)) return totals;
-        const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "", monthly: new Map() };
-        const quantity = Number(item.quantity || 0);
-        const revenue = Number(item.nett_sales || item.revenue || 0);
-        current.quantity += quantity;
-        current.revenue += revenue;
-        const monthBucket = current.monthly.get(serial) || { month: serial, quantity: 0, revenue: 0 };
-        monthBucket.quantity += quantity;
-        monthBucket.revenue += revenue;
-        current.monthly.set(serial, monthBucket);
-        if (serial > current.latestSerial) {
-          current.latestSerial = serial;
-          current.latestMonth = yearValue && monthValue ? `${yearValue}-${String(monthValue).padStart(2, "0")}` : "";
-        }
-        totals.set(key, current);
-        return totals;
-      }, new Map());
-    const analysisProductSalesByName = buildProductSalesByName(analysisMonthSet);
-    const monthlyProductSalesByName = buildProductSalesByName(selectedReportMonthSet);
-    const allProductSalesByName = buildProductSalesByName();
-    const productSalesByName = isRecipeIntelligencePage ? monthlyProductSalesByName : analysisProductSalesByName;
-    const yearlyProductSalesByName = buildProductSalesByName(trendMonthSet);
-    const recipeCostById = new Map(recipeCostRows.map((row) => [row.recipe.id, row]));
-    const mappingByProductKey = new Map(recipeProductMappings.map((mapping) => [normalizeProductRecipeKey(mapping.product_name), mapping]).filter(([key]) => key));
-    const mappedMappings = recipeProductMappings.filter((mapping) => mappingDecisionStatus(mapping) === "mapped");
-    const mappingCandidateRecipes = filteredRecipes.filter((recipe) => recipe.status === "active");
-    const productMappingKeys = new Set([
-      ...productSalesByName.keys(),
-      ...allProductSalesByName.keys(),
-      ...recipeProductMappings.map((mapping) => normalizeProductRecipeKey(mapping.product_name)).filter(Boolean),
-    ]);
-    const productMappingRows = [...productMappingKeys]
-      .map((key) => {
-        const product = productSalesByName.get(key) || allProductSalesByName.get(key) || { productName: mappingByProductKey.get(key)?.product_name || "Product", quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "", monthly: new Map() };
-        const allProduct = allProductSalesByName.get(key);
-        const lastSeenSerial = allProduct?.latestSerial || product.latestSerial || 0;
-        const latestBucket = lastSeenSerial ? allProduct?.monthly?.get(lastSeenSerial) || product.monthly?.get(lastSeenSerial) : null;
-        const mapping = mappingByProductKey.get(key);
-        const status = mappingDecisionStatus(mapping);
-        const mappedRecipe = status === "mapped" ? recipeCostById.get(mapping?.recipe_id)?.recipe || data.recipes.find((recipe) => recipe.id === mapping?.recipe_id) : null;
-        const suggestion = suggestRecipeMatch(product.productName, mappingCandidateRecipes);
-        if (!suggestion.recipe) {
-          debugLog("[RecipeMappingNullGuard]", {
-            productName: product.productName,
-            mappingStatus: status,
-            suggestedRecipe: suggestion.recipe,
-          });
-        }
-        return {
-          key,
-          productName: product.productName,
-          quantity: Number(latestBucket?.quantity ?? product.quantity ?? 0),
-          revenue: Number(latestBucket?.revenue ?? product.revenue ?? 0),
-          latestMonth: lastSeenSerial ? formatMonthSerial(lastSeenSerial) : "—",
-          lastSeenSerial,
-          lastSeenLabel: lastSeenSerial ? formatMonthSerial(lastSeenSerial) : "—",
-          activityStatus: lastSeenSerial && lastSeenSerial >= selectedReportSerial - 2 ? "active" : "inactive",
-          mapping,
-          status,
-          mappedRecipe,
-          suggestedRecipe: suggestion.recipe,
-          confidence: suggestion.confidence,
-          matchType: suggestion.matchType,
-          selectedRecipeId: recipeMappingSelections[key] || mapping?.recipe_id || suggestion.recipe?.id || "",
-        };
-      })
-      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0));
-    const recipeMappingSearch = recipeMappingFilters.search.trim().toLowerCase();
-    const visibleProductMappingRows = productMappingRows.filter((row) => {
-      const recipeText = `${recipeCode(row.mappedRecipe || row.suggestedRecipe)} ${recipeNameEn(row.mappedRecipe || row.suggestedRecipe)} ${recipeNameCn(row.mappedRecipe || row.suggestedRecipe)}`.toLowerCase();
-      return (recipeMappingFilters.status === "all" || row.status === recipeMappingFilters.status)
-        && (!recipeMappingSearch || `${row.productName} ${recipeText}`.toLowerCase().includes(recipeMappingSearch));
-    });
+    const {recipeReadModel, activeMenuCategories, filteredRecipes, recipeCostRows, averageRecipeCost, pricedMargins, averageMargin, highestCostRecipe, selectedPeriod, analysisStartSerial, analysisEndSerial, analysisMonths, analysisMonthSet, selectedReportSerial, selectedReportMonthSet, selectedReportLabel, trendMonths, trendMonthSet, availableTrendYears, availableReportYears, reportById, buildProductSalesByName, analysisProductSalesByName, monthlyProductSalesByName, allProductSalesByName, productSalesByName, yearlyProductSalesByName, recipeCostById, mappingByProductKey, mappedMappings, mappingCandidateRecipes, productMappingKeys, productMappingRows, recipeMappingSearch, visibleProductMappingRows} = createRecipeWorkspaceProjection({data, outletById, activeRecipeOutletId, recipeFilters, recipeAnalysisPeriod, recipeReportYear, recipeReportMonth, recipeTrendYear, recipeProductReports, recipeProductItems, recipeProductMappings, isRecipeIntelligencePage});
     const matchedProductKeys = new Set();
     const menuEngineeringRows = mappedMappings
       .map((mapping) => {
@@ -7583,246 +6185,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
               onChange={(value) => setRecipeReportYear(String(value))}
             />
           </AdminFilterToolbar>
-        ) : (
-          <>
-      <AdminFilterToolbar>
-              <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
-              <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
-              <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
-              <AdminSearchField label="Search recipe/menu item" value={recipeFilters.search} onChange={(value) => updateRecipeFilter("search", value)} placeholder="Search recipe, outlet or ingredient" />
-            </AdminFilterToolbar>
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard icon={FileText} label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
-              <MetricCard icon={ShoppingCart} label="Average Recipe Cost" value={formatRestaurantRecipeCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
-              <MetricCard icon={Sparkles} label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
-              <MetricCard
-                icon={AlertTriangle}
-                label="Highest Cost Recipe"
-                value={highestCostRecipe ? recipeNameEn(highestCostRecipe.recipe) || recipeCode(highestCostRecipe.recipe) || "Recipe" : "—"}
-                helper={highestCostRecipe ? `${recipeNameCn(highestCostRecipe.recipe) ? `${recipeNameCn(highestCostRecipe.recipe)} · ` : ""}${formatRestaurantRecipeCurrency(highestCostRecipe.summary.totalCost)}` : "No recipes"}
-                tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"}
-                size="compact"
-              />
-            </div>
-            <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
-              {recipeWorkspaceTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  className={`rounded-xl px-4 py-2 type-body-sm font-black transition ${recipeWorkspaceTab === tab.id ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-primary/10 hover:text-text-primary"}`}
-                  type="button"
-                  onClick={() => setRecipeWorkspaceTab(tab.id)}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
-          </>
-        )}
-        {!isRecipeIntelligencePage && recipeWorkspaceTab === "recipes" ? <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
-          {filteredRecipes.length ? (
-            <RecipeListPagination rows={recipeCostRows} resetKey={[activeRecipeOutletId, recipeFilters.category, recipeFilters.status, recipeFilters.search].join("|")}>
-              {(paginatedRecipeCostRows, pagination) => <>
-            <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[980px] text-left">
-                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr>
-                    <th className="px-3 py-2">Recipe</th>
-                    <th>Category</th>
-                    <th>Ingredients</th>
-                    <th>Estimated Cost</th>
-                    <th>Selling Price</th>
-                    <th>Margin</th>
-                    <th>Status</th>
-                    <th className="pr-8 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {paginatedRecipeCostRows.map(({ recipe, summary, margin }) => (
-                    <tr key={recipe.id} className="transition hover:bg-primary/5">
-                      <td className="px-3 py-3">
-                        <div className="flex items-center gap-3">
-                          <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-slate-100">
-                            {recipe.recipePhotoUrl || recipe.recipe_photo_url
-                              ? <img className="h-full w-full object-cover" src={recipe.recipePhotoUrl || recipe.recipe_photo_url} alt={recipeNameEn(recipe) || recipeNameCn(recipe) || recipeCode(recipe)} />
-                              : <div className="flex h-full w-full items-center justify-center text-sm font-black text-text-muted">{String(recipeNameEn(recipe) || recipeNameCn(recipe) || recipeCode(recipe) || "R").slice(0, 1).toUpperCase()}</div>}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="type-caption font-black uppercase tracking-wide text-text-muted">{recipeCode(recipe) || "No code"}</div>
-                            <div className="font-bold text-text-primary">{recipeNameEn(recipe) || "Recipe Name EN required"}</div>
-                            <div className="type-caption text-text-secondary">{recipeNameCn(recipe) || "Recipe Name CN required"}</div>
-                            <div className="type-caption text-text-secondary">{outletById.get(recipe.outletId)?.name || "Outlet"} · {recipe.servingSize || "1 portion"}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td><Badge tone="info">{recipe.menuCategory || "Uncategorized"}</Badge></td>
-                      <td>
-                        <RecipeIngredientPreviewPill recipe={recipe} itemById={itemById} />
-                      </td>
-                      <td className="font-black text-text-primary">{formatRestaurantRecipeCurrency(summary.totalCost)}</td>
-                      <td className="font-bold text-text-secondary">{recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? formatRestaurantRecipeCurrency(recipe.sellingPrice) : "—"}</td>
-                      <td><Badge tone={recipeMarginTone(margin)}>{formatRecipeMargin(margin)}</Badge></td>
-                      <td><Badge tone={statusTone(recipe.status)}>{toTitle(recipe.status || "active")}</Badge></td>
-                      <td className="pr-8">
-                        <div className="flex justify-end gap-2">
-                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", recipe })}>View</button>
-                          {can.manageRecipes ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageRecipes, "edit recipes") && setModal({ type: "recipe", recipe })}>Edit</button> : null}
-                          {can.manageRecipes && recipe.status === "active" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveRecipe(recipe.id)}>Archive</button> : null}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {pagination}
-              </>}
-            </RecipeListPagination>
-          ) : (
-            <div className="space-y-3">
-              <EmptyState
-                title="No recipes set up yet."
-                description="Create recipes to connect menu items with inventory ingredients and estimate future usage variance."
-              />
-              {can.manageRecipes ? <div className="flex justify-center">
-                <button
-                  className="btn-primary"
-                  type="button"
-                  onClick={() => {
-                    if (!requirePermission(can.manageRecipes, "add recipes")) return;
-                    if (!activeRecipeOutletId) {
-                      notify("Select an outlet before adding a recipe", "Recipes are outlet-specific and use the currently selected outlet context.", "warning");
-                      return;
-                    }
-                    setModal({ type: "recipe", outletId: activeRecipeOutletId });
-                  }}
-                >
-                  Add Recipe
-                </button>
-              </div> : null}
-            </div>
-          )}
-        </DashboardSection> : null}
-        {!isRecipeIntelligencePage && recipeWorkspaceTab === "mapping" ? <DashboardSection
-          title="Product ↔ Recipe Mapping"
-          subtitle="Connect Product Analytics products to recipes so Recipe Intelligence can use real sales volume and revenue."
-          density="compact"
-        >
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="Total Products" value={productMappingRows.length} helper="Product Analytics products" size="compact" />
-            <MetricCard label="Mapped" value={mappedProductCount} helper="Feeds Recipe Intelligence" tone={mappedProductCount ? "success" : "neutral"} size="compact" />
-            <MetricCard label="Pending" value={pendingProductCount} helper="Needs mapping decision" tone={pendingProductCount ? "warning" : "success"} size="compact" />
-            <MetricCard label="Ignored" value={ignoredProductCount} helper="Excluded intentionally" tone={ignoredProductCount ? "neutral" : "success"} size="compact" />
-            <MetricCard label="Coverage %" value={`${mappingCoverage}%`} helper="Mapped / (Mapped + Pending)" tone={mappingCoverage >= 80 ? "success" : mappingCoverage >= 40 ? "warning" : "danger"} size="compact" />
-          </div>
-      <AdminFilterToolbar>
-            <SelectField
-              label="Status"
-              value={recipeMappingFilters.status}
-              options={recipeMappingStatusOptions}
-              onChange={(value) => setRecipeMappingFilters((current) => ({ ...current, status: value }))}
-            />
-            <AdminSearchField label="Search product or recipe" value={recipeMappingFilters.search} onChange={(value) => setRecipeMappingFilters((current) => ({ ...current, search: value }))} placeholder="Search product name or mapped recipe" />
-          </AdminFilterToolbar>
-          <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
-            {visibleProductMappingRows.length ? (
-              <table className="w-full min-w-[980px] text-left">
-                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr>
-                    <th className="px-3 py-2">Product</th>
-                    <th>Sales</th>
-                    <th>Suggested Match</th>
-                    <th>Status</th>
-                    <th>Recipe Mapping</th>
-                    <th className="pr-8 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {visibleProductMappingRows.map((row) => {
-                    const selectedRecipe = mappingCandidateRecipes.find((recipe) => recipe.id === row.selectedRecipeId);
-                    const displayRecipe = row.mappedRecipe || row.suggestedRecipe;
-                    const confidenceTone = row.confidence >= 90 ? "success" : row.confidence >= 60 ? "warning" : row.confidence > 0 ? "neutral" : "danger";
-                    return (
-                      <tr key={row.key} className="transition hover:bg-primary/5">
-                        <td className="px-3 py-3">
-                          <div className="font-bold text-text-primary">{row.productName}</div>
-                          <div className="type-caption text-text-secondary">Outlet: {outletById.get(activeRecipeOutletId)?.name || "Selected outlet"}</div>
-                          <div className="type-caption text-text-muted">Last Seen: {row.lastSeenLabel}</div>
-                        </td>
-                        <td>
-                          <div className="font-bold text-text-primary">{row.latestMonth}</div>
-                          <div className="type-caption font-semibold text-text-secondary">{Number(row.quantity || 0).toLocaleString()} sold</div>
-                          <div className="type-caption font-black text-text-primary">{formatRestaurantRecipeCurrency(row.revenue)}</div>
-                        </td>
-                        <td>
-                          {displayRecipe ? (
-                            <div>
-                              <div className="font-bold text-text-primary">{recipeNameEn(displayRecipe) || recipeCode(displayRecipe)}</div>
-                              <div className="type-caption text-text-muted">{recipeCode(displayRecipe)} · {recipeNameCn(displayRecipe) || "No CN name"}</div>
-                              {row.suggestedRecipe ? <div className="mt-1"><Badge tone={confidenceTone}>{mappingConfidenceLabel(row.confidence)}</Badge></div> : null}
-                            </div>
-                          ) : (
-                            <span className="type-caption font-semibold text-text-muted">No suggestion</span>
-                          )}
-                        </td>
-                        <td>
-                          <div className="flex flex-col items-start gap-1">
-                            <Badge tone={row.status === "mapped" ? "success" : row.status === "ignored" ? "neutral" : "warning"}>{toTitle(row.status)}</Badge>
-                            <Badge tone={row.activityStatus === "active" ? "success" : "neutral"}>{row.activityStatus === "active" ? "Active" : "Inactive"}</Badge>
-                          </div>
-                        </td>
-                        <td>
-                          <SelectField
-                            value={row.selectedRecipeId}
-                            options={[
-                              { value: "", label: "Choose recipe" },
-                              ...mappingCandidateRecipes.map((recipe) => ({
-                                value: recipe.id,
-                                label: `${recipeCode(recipe) || "No code"} · ${recipeNameEn(recipe) || recipeNameCn(recipe) || "Recipe"}`,
-                              })),
-                            ]}
-                            onChange={(value) => setRecipeMappingSelections((current) => ({ ...current, [row.key]: value }))}
-                            searchable
-                          />
-                          {selectedRecipe ? <div className="mt-1 type-caption text-text-muted">{recipeNameCn(selectedRecipe) || "No Chinese name"}</div> : null}
-                        </td>
-                        <td className="pr-8">
-                          <div className="flex justify-end gap-2">
-                            {row.status === "mapped" ? (
-                              <>
-                                <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || !row.selectedRecipeId || savingRecipeMappingKey === row.key} onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}>
-                                  {savingRecipeMappingKey === row.key ? "Saving..." : "Change Mapping"}
-                                </button>
-                                <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || savingRecipeMappingKey === row.key} onClick={() => clearRecipeProductMapping(row.productName)}>Unmap</button>
-                              </>
-                            ) : row.status === "ignored" ? (
-                              <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || savingRecipeMappingKey === row.key} onClick={() => clearRecipeProductMapping(row.productName)}>
-                                Restore to Pending
-                              </button>
-                            ) : (
-                              <>
-                                <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || !row.selectedRecipeId || savingRecipeMappingKey === row.key} onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}>
-                                  {savingRecipeMappingKey === row.key ? "Mapping..." : "Map"}
-                                </button>
-                                <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || savingRecipeMappingKey === row.key} onClick={() => ignoreRecipeProductMapping(row.productName)}>
-                                  Ignore
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            ) : (
-              <EmptyState
-                title={recipeProductLoading ? "Loading Product Analytics products..." : "No products match this filter"}
-                description={recipeProductLoading ? "Recipe mapping suggestions will appear after Product Analytics data loads." : "Try another status or search term. New Product Analytics products will appear as Pending."}
-              />
-            )}
-          </div>
-        </DashboardSection> : null}
+        ) : null}
         {isRecipeIntelligencePage ? <DashboardSection
           title="Recipe Intelligence"
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
@@ -8026,24 +6389,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "recipe-intelligence") {
       return null;
     }
-    if (activeTab === "recipes") {
-      const openAddRecipe = () => {
-        if (!requirePermission(can.manageRecipes, "add recipes")) return;
-        const activeRecipeOutletId = selectedOutletId === "all" ? (getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "") : selectedOutletId;
-        if (!activeRecipeOutletId) {
-          notify("Select an outlet before adding a recipe", "Recipes are outlet-specific and use the currently selected outlet context.", "warning");
-          return;
-        }
-        setModal({ type: "recipe", outletId: activeRecipeOutletId });
-      };
-      return (
-        <>
-          <button className="btn-secondary" type="button" onClick={exportRecipes}><Download size={15} /> Export</button>
-          {can.manageRecipes ? <button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageRecipes, "manage recipe menu categories") && setModal({ type: "recipe-menu-categories" })}>Menu Categories</button> : null}
-          {can.manageRecipes ? <button className="btn-primary" type="button" onClick={openAddRecipe}><PackagePlus size={15} /> Add Recipe</button> : null}
-        </>
-      );
-    }
     return (
       <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
         <Download size={15} /> Export
@@ -8126,48 +6471,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
-      {modal?.type === "recipe" ? (
-        <RecipeModal
-          recipe={modal.recipe}
-          outletId={modal.recipe?.outletId || modal.outletId || selectedOutletId}
-          outlet={outletById.get(modal.recipe?.outletId || modal.outletId || selectedOutletId)}
-          items={data.items}
-          menuCategories={data.menuCategories || []}
-          existingRecipes={data.recipes || []}
-          outletById={outletById}
-          onClose={() => setModal(null)}
-          onSave={saveRecipe}
-        />
-      ) : null}
-      {modal?.type === "recipe-menu-categories" ? (
-        <MenuCategorySettingsModal
-          categories={data.menuCategories || []}
-          canManage={can.manageRecipes}
-          requirePermission={requirePermission}
-          onClose={() => setModal(null)}
-          onAdd={() => setModal({ type: "recipe-menu-category", returnToSettings: true })}
-          onEdit={(category) => setModal({ type: "recipe-menu-category", category, returnToSettings: true })}
-          onArchive={archiveMenuCategory}
-          onSort={sortMenuCategories}
-        />
-      ) : null}
-      {modal?.type === "recipe-menu-category" ? (
-        <MenuCategoryModal
-          category={modal.category}
-          onClose={() => setModal(modal.returnToSettings ? { type: "recipe-menu-categories" } : null)}
-          onSave={saveMenuCategory}
-        />
-      ) : null}
-      {modal?.type === "recipe-detail" ? (
-        <RecipeDetailModal
-          recipe={modal.recipe}
-          outlet={outletById.get(modal.recipe?.outletId)}
-          items={data.items}
-          categories={sortedCategories}
-          onClose={() => setModal(null)}
-          onEdit={() => setModal({ type: "recipe", recipe: modal.recipe })}
-        />
-      ) : null}
       {modal?.type === "ingredient-consumption" ? (
         <IngredientConsumptionModal
           rows={modal.rows || []}
@@ -8215,6 +6518,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 }
 
 function InventoryControlPage(props) {
+  if (props.initialTab === "recipes") return <InventoryRecipesPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "movements") return <InventoryMovementsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
   if (props.initialTab === "par-levels") return <InventoryParLevelsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
   if (props.initialTab === "waste") return <InventoryWastePage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;

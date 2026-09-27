@@ -262,3 +262,23 @@ export function focusIndexedInput(containerRef, currentIndex, direction, selecto
   inputs[nextPosition]?.input?.focus?.();
   inputs[nextPosition]?.input?.select?.();
 }
+export function Field({ label, value, onChange, type = "text", placeholder, required = false, onBlur, error }) {
+  return (
+    <label className="block">
+      <div className="mb-1 type-caption font-semibold text-text-secondary">
+        {label} {required ? <span className="text-rose-500">*</span> : null}
+      </div>
+      <input
+        className="control h-9 w-full text-[13px]"
+        type={type}
+        min={type === "number" ? 0 : undefined}
+        value={value ?? ""}
+        placeholder={placeholder}
+        onFocus={type === "number" ? selectInputText : undefined}
+        onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
+      />
+      {error ? <div className="mt-1 type-caption font-semibold text-rose-600">{error}</div> : null}
+    </label>
+  );
+}

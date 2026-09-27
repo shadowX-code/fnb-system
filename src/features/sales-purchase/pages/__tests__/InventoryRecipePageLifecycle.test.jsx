@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => ({
   archiveError: null,
   saveRecipe: vi.fn(),
   from: vi.fn(),
+  completeReports: vi.fn(),
+  completeItems: vi.fn(),
 }));
 
 vi.mock("../../../../lib/supabase.ts", () => ({
@@ -24,6 +26,8 @@ vi.mock("../../../../services/inventoryLifecycleService.js", () => ({
 
 vi.mock("../../../../services/productAnalyticsService.js", () => ({
   productAnalyticsService: {
+    listCompleteReports: mocks.completeReports,
+    listCompleteItemsByReportIds: mocks.completeItems,
     listReports: vi.fn().mockResolvedValue([]),
     listItemsByReportIds: vi.fn().mockResolvedValue([]),
   },
@@ -99,6 +103,7 @@ function createQuery(table) {
   builder.ilike = vi.fn(() => builder);
   builder.limit = vi.fn(() => builder);
   builder.eq = vi.fn((key, value) => { query.filters.push([key, value]); return builder; });
+  builder.in = vi.fn(() => builder);
   builder.update = vi.fn((payload) => { query.operation = "update"; query.payload = payload; mocks.operations.push({ table, kind: "update", payload }); return builder; });
   builder.single = vi.fn(async () => execute());
   builder.then = (resolve, reject) => Promise.resolve(execute()).then(resolve, reject);
@@ -162,11 +167,33 @@ beforeEach(() => {
   mocks.from.mockClear();
   mocks.saveRecipe.mockReset();
   mocks.saveRecipe.mockResolvedValue({ recipe: { ...recipeRow }, items: [] });
+  mocks.completeReports.mockReset().mockResolvedValue([]);
+  mocks.completeItems.mockReset().mockResolvedValue([]);
 });
 
 afterEach(cleanup);
 
 describe("InventoryControlPage Recipe lifecycle", () => {
+  it("owns a focused read set and loads Product Analytics only when Mapping opens", async () => {
+    renderRecipes();
+    await waitForRecipePage();
+    const tables = new Set(mocks.from.mock.calls.map(([table]) => table));
+    expect([...tables].sort()).toEqual(["inventory_categories", "inventory_item_outlets", "inventory_items", "inventory_menu_categories", "inventory_recipe_items", "inventory_recipes"].sort());
+    expect(mocks.completeReports).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", {name: "Product Mapping"}));
+    await screen.findByRole("heading", {name: "Product ↔ Recipe Mapping"});
+    expect(mocks.completeReports).toHaveBeenCalledWith({outletIds: [ids.outlet]});
+  });
+
+  it("does not present Product Analytics failure as an empty mapping result", async () => {
+    mocks.completeReports.mockRejectedValue(new Error("Product Analytics read failed"));
+    renderRecipes();
+    await waitForRecipePage();
+    fireEvent.click(screen.getByRole("button", {name: "Product Mapping"}));
+    await screen.findByText("Product Analytics read failed");
+    expect(screen.queryByText("No products match this filter")).toBeNull();
+    expect(screen.getByRole("button", {name: "Retry"})).toBeTruthy();
+  });
   it("mounts the real Recipes tab with a non-empty selector-filtered recipe list", async () => {
     renderRecipes();
     await waitForRecipePage();

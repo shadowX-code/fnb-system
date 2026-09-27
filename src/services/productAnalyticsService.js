@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
+import { readCompleteInventoryRows } from "./inventoryCompleteRead.js";
 
 const reportFields = "id,outlet_id,report_month,report_year,file_name,uploaded_by,uploaded_at,status,total_net_sales,total_quantity,total_discount,raw_metadata";
 const itemFields = "id,report_id,outlet_id,category_name,product_name,variant_name,quantity,gross_sales,discount,sst,service_charge,nett_sales,created_at";
@@ -48,6 +49,19 @@ function lifecycleRequestId(value) {
 }
 
 export const productAnalyticsService = {
+  async listCompleteReports({ outletIds = [] } = {}) {
+    if (!outletIds.length) return [];
+    const result = await readCompleteInventoryRows("product_sales_reports", {select: reportFields, in: {outlet_id: outletIds}, order: "uploaded_at", ascending: false});
+    return result.data.map(mapReport);
+  },
+  async listCompleteItemsByReportIds(reportIds = []) {
+    if (!reportIds.length) return [];
+    // Bound query size without weakening each chunk's exact completeness check.
+    const chunks = [];
+    for (let i = 0; i < reportIds.length; i += 100) chunks.push(reportIds.slice(i, i + 100));
+    const results = await Promise.all(chunks.map(ids => readCompleteInventoryRows("product_sales_items", {select: itemFields, in: {report_id: ids}, order: "nett_sales", ascending: false})));
+    return results.flatMap(result => result.data.map(mapItem));
+  },
   async listReports({ outletIds = [] } = {}) {
     let query = supabase
       .from("product_sales_reports")
