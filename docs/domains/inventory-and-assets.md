@@ -89,6 +89,8 @@ After a completed scheduled Stock Check, Crew's completion result uses the exist
 
 ## Compatibility And Deferred Scope
 
+Stock Check Groups is owned by `inventory/groups/InventoryGroupsPage`, including required accessible outlet selection, filters, scope details, header actions, GroupModal, existing group/category-link commands and mutation refresh. InventoryControlPage only dispatches this route and supplies Auth/UI and canonical outlet inputs; Groups does not mount the legacy Inventory bootstrap. Its five-table read plan (groups, group-category links, items, categories, item-outlet links) uses exact complete reads, joins atomically, rejects partial/error results, and guards stale responses. Execution/history and other Inventory routes retain their existing owners and authorities.
+
 Full Inventory reads page each canonical collection with exact counts and stable ID tie-breaking through `inventoryCompleteRead`. Read failures, changing counts, overlapping pages and truncation are explicit error/incomplete states, never authoritative empty collections. Only a verified complete read replaces the full Inventory projection. Initial loading and failed refresh block the full data surface; successful-snapshot revalidation is explicitly marked. The focused PO reader and all stock/PO/receiving write authorities remain unchanged.
 
 Inventory Control and Asset Tracking pages are surfaces within this domain, not separate documentation domains.

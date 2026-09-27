@@ -11,9 +11,7 @@ import {
 } from "recharts";
 import {
   AlertTriangle,
-  ArrowRight,
   Boxes,
-  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ClipboardCheck,
@@ -54,11 +52,12 @@ import { findRecipeCodeMatches, uploadRecipePhoto } from "../inventory/recipes/i
 import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
 import InventoryMovementsPage from "../inventory/movements/InventoryMovementsPage.jsx";
 import InventoryManualMovementModal from "../inventory/movements/InventoryManualMovementModal.jsx";
-import InventoryGroupsPage, { InventoryGroupsPageActions } from "../inventory/groups/InventoryGroupsPage.jsx";
+import InventoryGroupsPage from "../inventory/groups/InventoryGroupsPage.jsx";
+import { groupCategoryIds, mapRemoteStockCheckGroup, stockCheckItemsForGroup } from "../inventory/groups/inventoryGroupsModel.js";
 import InventoryStockCheckResultModal from "../inventory/stockChecks/InventoryStockCheckResultModal.jsx";
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
 import InventoryPurchaseOrderDetail from "../inventory/purchaseOrders/InventoryPurchaseOrderDetail.jsx";
-import { orderedQty, poProgress, poSourceLabel, poStatusLabel, receivedQty, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
+import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { formatPurchaseOrderText } from "../inventory/purchaseOrders/purchaseOrderText.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
@@ -141,8 +140,6 @@ const statuses = ["active", "inactive", "archived"];
 const frequencies = ["custom", "monthly"];
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const movementTypes = ["purchase", "transfer_in", "transfer_out", "waste", "adjustment", "staff_meal", "production_usage", "return"];
-const wasteTypes = ["Spoilage", "Expired", "Kitchen Error", "Burnt", "Returned Item", "Staff Consumption", "Unknown"];
 const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 const recipeMenuCategories = ["Main Dish", "Beverage", "Side Dish", "Sauce", "Dessert", "Prep Item", "Combo", "Other"];
 
@@ -369,11 +366,6 @@ function ordinalDay(value) {
   return `${day}${suffix} day`;
 }
 
-function compactFrequencyLabel(group) {
-  if (group.frequency === "custom") return `Custom · ${(group.checkDays || []).length} day${(group.checkDays || []).length === 1 ? "" : "s"}`;
-  if (group.frequency === "monthly") return group.monthDay === "last" ? "Monthly · Last day" : `Monthly · ${ordinalDay(group.monthDay)}`;
-  return frequencyLabel(group);
-}
 
 function isGroupDue(group, date) {
   if (group.status !== "active") return false;
@@ -480,39 +472,11 @@ function latestActualCount(checks = [], itemId, outletId) {
   return Number(rows[0]?.actualCount ?? Number.POSITIVE_INFINITY);
 }
 
-function groupCategoryIds(group = {}, items = []) {
-  const directIds = group.categoryIds || group.category_ids || [];
-  if (directIds.length) return uniqueIds(directIds);
-  const itemIds = group.itemIds || group.item_ids || [];
-  if (!itemIds.length) return [];
-  const categoryIds = itemIds
-    .map((itemId) => items.find((item) => item.id === itemId)?.categoryId)
-    .filter(Boolean);
-  return uniqueIds(categoryIds);
-}
 
 function itemHasActiveOutletLink(item = {}, outletId) {
   return (item.linkedOutletIds || []).includes(outletId);
 }
 
-function stockCheckItemsForGroup(group = {}, items = []) {
-  const selectedItemIds = uniqueIds(group.itemIds || group.item_ids || []);
-  if (group.stockCheckType === "audit" && selectedItemIds.length) {
-    const selected = new Set(selectedItemIds);
-    return items
-      .filter(isActiveInventoryItem)
-      .filter((item) => selected.has(item.id))
-      .filter((item) => itemHasActiveOutletLink(item, group.outletId))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }
-  const selectedCategories = new Set(groupCategoryIds(group, items));
-  if (!selectedCategories.size) return [];
-  return items
-    .filter(isActiveInventoryItem)
-    .filter((item) => selectedCategories.has(item.categoryId))
-    .filter((item) => itemHasActiveOutletLink(item, group.outletId))
-    .sort((a, b) => a.name.localeCompare(b.name));
-}
 
 function parseCsvLine(line = "") {
   const cells = [];
@@ -974,28 +938,6 @@ function mapRemoteInventoryItem(row = {}, configs = [], categoryById = new Map()
   });
 }
 
-function mapRemoteStockCheckGroup(row = {}, categoryIds = []) {
-  const schedule = row.schedule_config || {};
-  const lastCheckedAt = row.last_checked_at || row.lastCheckedAt || "";
-  return {
-    id: row.id,
-    outletId: row.outlet_id || row.outletId || "",
-    name: row.name || "Stock Check Group",
-    description: row.description || "",
-    categoryIds: uniqueIds(categoryIds),
-    itemIds: [],
-    frequency: row.frequency_type || row.frequency || "custom",
-    checkDays: Array.isArray(row.frequency_days) ? row.frequency_days : (schedule.checkDays || []),
-    monthDay: schedule.monthDay || row.month_day || 1,
-    shift: row.shift || "Closing",
-    assignedStaff: schedule.assignedStaff || row.assigned_staff || "",
-    status: row.status || "active",
-    lastChecked: lastCheckedAt || "",
-    lastCheckedAt,
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || "",
-  };
-}
 
 function mapRemoteStockCheckItem(row = {}) {
   return {
@@ -1169,14 +1111,6 @@ function safeRecipe(recipe) {
   return recipe && typeof recipe === "object" ? recipe : {};
 }
 
-function getRecipeDisplay(recipe) {
-  const safe = safeRecipe(recipe);
-  return {
-    code: String(safe.recipeCode || safe.recipe_code || "").trim() || "—",
-    nameEn: String(safe.recipeNameEn || safe.recipe_name_en || safe.recipeName || safe.recipe_name || "").trim() || "Unnamed recipe",
-    nameCn: String(safe.recipeNameCn || safe.recipe_name_cn || "").trim(),
-  };
-}
 
 function recipeCode(recipe = {}) {
   return String(safeRecipe(recipe).recipeCode || safeRecipe(recipe).recipe_code || "").trim();
@@ -1192,9 +1126,6 @@ function recipeNameCn(recipe = {}) {
   return String(safe.recipeNameCn || safe.recipe_name_cn || "").trim();
 }
 
-function recipeDisplayName(recipe = {}) {
-  return recipeNameCn(recipe) || recipeNameEn(recipe) || recipeCode(recipe) || "Recipe";
-}
 
 const recipeAnalysisPeriodOptions = [
   { value: "current", label: "Current Month", months: 1 },
@@ -1928,76 +1859,7 @@ async function persistRemoteParLevelConfig(item, outletId, patch) {
   };
 }
 
-async function persistRemoteStockCheckGroup(group) {
-  const categoryIds = uniqueIds(groupCategoryIds(group, []));
-  const frequency = frequencies.includes(group.frequency) ? group.frequency : "custom";
-  const payload = {
-    outlet_id: isUuid(group.outletId) ? group.outletId : null,
-    name: String(group.name || "").trim(),
-    description: String(group.description || "").trim() || null,
-    shift: group.shift || "Closing",
-    frequency_type: frequency,
-    frequency_days: frequency === "custom" ? (group.checkDays || []) : [],
-    schedule_config: {
-      monthDay: group.monthDay || 1,
-      checkDays: frequency === "custom" ? (group.checkDays || []) : [],
-      assignedStaff: group.assignedStaff || "",
-    },
-    status: group.status || "active",
-    last_checked_at: group.lastCheckedAt || (group.lastChecked ? businessDateToTimestamp(group.lastChecked) : null),
-    updated_at: new Date().toISOString(),
-  };
-  if (!payload.name) throw new Error("Group name is required.");
-  if (!payload.outlet_id) throw new Error("Outlet is required.");
 
-  const mode = isUuid(group.id) ? "edit" : "create";
-  const groupResult = mode === "edit"
-    ? await supabase
-      .from("inventory_stock_check_groups")
-      .update(payload)
-      .eq("id", group.id)
-      .select("*")
-      .single()
-    : await supabase
-      .from("inventory_stock_check_groups")
-      .insert(payload)
-      .select("*")
-      .single();
-  debugLog("[StockCheckGroupSaveDebug]", { action: mode, payload, categoryIds, result: { data: groupResult.data, error: groupResult.error }, error: groupResult.error });
-  if (groupResult.error) throw groupResult.error;
-
-  const groupId = groupResult.data.id;
-  const deleteResult = await supabase
-    .from("inventory_stock_check_group_categories")
-    .delete()
-    .eq("group_id", groupId);
-  debugLog("[StockCheckGroupSaveDebug]", { action: "delete-category-links", groupId, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
-  if (deleteResult.error) throw deleteResult.error;
-
-  if (categoryIds.length) {
-    const linkPayload = categoryIds.map((categoryId) => ({ group_id: groupId, category_id: categoryId }));
-    const linkResult = await supabase
-      .from("inventory_stock_check_group_categories")
-      .insert(linkPayload);
-    debugLog("[StockCheckGroupSaveDebug]", { action: "insert-category-links", groupId, payload: linkPayload, result: { data: linkResult.data || null, error: linkResult.error }, error: linkResult.error });
-    if (linkResult.error) throw linkResult.error;
-  }
-
-  return mapRemoteStockCheckGroup(groupResult.data, categoryIds);
-}
-
-async function archiveRemoteStockCheckGroup(groupId) {
-  if (!isUuid(groupId)) throw new Error("This stock check group has not been saved to Supabase yet.");
-  const result = await supabase
-    .from("inventory_stock_check_groups")
-    .update({ status: "inactive", updated_at: new Date().toISOString() })
-    .eq("id", groupId)
-    .select("*")
-    .single();
-  debugLog("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
-  return mapRemoteStockCheckGroup(result.data);
-}
 
 async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft", userId, employeeId) {
   if (!activeGroup) throw new Error("Stock check is not active.");
@@ -2678,9 +2540,6 @@ function SectionCard({ title, description, action, children, className = "" }) {
   );
 }
 
-function MiniPill({ tone = "neutral", children }) {
-  return <Badge tone={tone}>{children}</Badge>;
-}
 
 function InventoryCategoryIcon({ category, size = "md" }) {
   const initial = (category?.name || "Inventory").slice(0, 1).toUpperCase();
@@ -3905,151 +3764,6 @@ function CategorySettingsModal({ categories, itemCounts, canAdd, canEdit, canDel
   );
 }
 
-function GroupModal({ group, outletId, outlets, items, categories, onClose, onSave }) {
-  const initialGroup = group ? {
-    ...group,
-    categoryIds: groupCategoryIds(group, items),
-    frequency: frequencies.includes(group.frequency) ? group.frequency : "custom",
-    checkDays: group.checkDays?.length ? group.checkDays : [weekdayName()],
-  } : {
-    id: "",
-    outletId: outletId || outlets[0]?.id || "",
-    name: "",
-    description: "",
-    categoryIds: [],
-    itemIds: [],
-    frequency: "custom",
-    checkDays: [weekdayName()],
-    monthDay: 1,
-    shift: "Closing",
-    assignedStaff: "",
-    status: "active",
-    lastChecked: "",
-  };
-  const [form, setForm] = useState(initialGroup);
-  const selected = new Set(form.categoryIds || []);
-  const categoryCounts = useMemo(() => {
-    const counts = new Map();
-    items
-      .filter(isActiveInventoryItem)
-      .filter((item) => itemHasActiveOutletLink(item, form.outletId))
-      .forEach((item) => counts.set(item.categoryId, (counts.get(item.categoryId) || 0) + 1));
-    return counts;
-  }, [items, form.outletId]);
-  const allowedCategories = useMemo(() => categories
-    .filter((category) => category.status !== "archived")
-    .filter((category) => (categoryCounts.get(category.id) || 0) > 0 || selected.has(category.id)),
-  [categories, categoryCounts, selected]);
-
-  function update(key, value) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  return (
-    <Modal
-      title={group ? "Edit Stock Check Group" : "Add Stock Check Group"}
-      description="Group the categories this outlet needs to count for the selected schedule."
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!form.name.trim() || !form.outletId || !form.categoryIds.length} onClick={() => onSave({ ...form, id: form.id || makeId("group"), itemIds: [] })}>Save Group</button>
-        </>
-      )}
-    >
-      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-border bg-slate-50 p-3">
-            <div className="type-caption font-semibold text-text-secondary">Outlet</div>
-            <div className="mt-1 type-body-sm font-bold text-text-primary">{outlets.find((outlet) => outlet.id === form.outletId)?.name || "Selected outlet"}</div>
-          </div>
-          <Field label="Group Name" value={form.name} required onChange={(value) => update("name", value)} placeholder="Kitchen Daily" />
-          <TextArea label="Description" value={form.description} onChange={(value) => update("description", value)} />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <SelectField label="Check Frequency" value={form.frequency} options={frequencies.map((frequency) => ({ value: frequency, label: toTitle(frequency) }))} onChange={(value) => update("frequency", value)} />
-            <SelectField label="Shift" value={form.shift} options={shifts.map((shift) => ({ value: shift, label: shift }))} onChange={(value) => update("shift", value)} />
-          </div>
-          {form.frequency === "monthly" ? (
-            <SelectField
-              label="Monthly Rule"
-              value={String(form.monthDay || 1)}
-              options={[
-                ...Array.from({ length: 28 }, (_, index) => {
-                  const day = index + 1;
-                  const suffix = day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th";
-                  return { value: String(day), label: `${day}${suffix} day of month` };
-                }),
-                { value: "last", label: "Last day of month" },
-              ]}
-              onChange={(value) => update("monthDay", value === "last" ? "last" : Number(value))}
-            />
-          ) : null}
-          {form.frequency === "custom" ? (
-            <div className="rounded-2xl border border-border p-2">
-              <div className="mb-2 type-caption font-semibold text-text-secondary">Check Days</div>
-              <div className="flex flex-wrap gap-2">
-                {weekdays.map((day) => {
-                  const active = (form.checkDays || []).includes(day);
-                  return (
-                    <button
-                      key={day}
-                      className={`rounded-full border px-2.5 py-1 type-caption font-semibold transition ${active ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-text-secondary hover:bg-slate-50"}`}
-                      type="button"
-                      onClick={() => {
-                        const next = new Set(form.checkDays || []);
-                        if (next.has(day)) next.delete(day);
-                        else next.add(day);
-                        update("checkDays", [...next]);
-                      }}
-                    >
-                      {day.slice(0, 3)}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ) : null}
-          <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
-        </div>
-        <div className="rounded-2xl border border-border bg-slate-50/70 p-3">
-          <div className="mb-3 flex items-center justify-between">
-            <div>
-              <div className="type-title font-bold text-text-primary">Linked Categories</div>
-              <div className="type-caption text-text-secondary">Items are loaded automatically from the selected categories for this outlet.</div>
-            </div>
-            <Badge tone="info">{selected.size} selected</Badge>
-          </div>
-          <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-            {allowedCategories.length ? allowedCategories.map((category) => {
-              const active = selected.has(category.id);
-              const linkedCount = categoryCounts.get(category.id) || 0;
-              return (
-                <button
-                  key={category.id}
-                  className={`flex w-full items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${active ? "border-primary/40 bg-white shadow-sm" : "border-border bg-white/70 hover:border-slate-300"}`}
-                  type="button"
-                  onClick={() => {
-                    const next = new Set(selected);
-                    if (next.has(category.id)) next.delete(category.id);
-                    else next.add(category.id);
-                    update("categoryIds", [...next]);
-                  }}
-                >
-                  <span>
-                    <span className="block type-body-sm font-bold text-text-primary">{category.name}</span>
-                    <span className="mt-1 block type-caption text-text-secondary">{linkedCount} linked active item{linkedCount === 1 ? "" : "s"} for {outlets.find((outlet) => outlet.id === form.outletId)?.name || "selected outlet"}</span>
-                  </span>
-                  {active ? <CheckCircle2 className="text-primary" size={18} /> : null}
-                </button>
-              );
-            }) : <EmptyState title="No linked categories" description="Only categories with active items linked to this outlet are shown." />}
-          </div>
-        </div>
-      </div>
-    </Modal>
-  );
-}
 
 function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) {
   const [form, setForm] = useState({
@@ -4418,32 +4132,6 @@ function RecipeIntelligenceLockedState({ mappedCount }) {
   );
 }
 
-function RecipeBarChart({ rows = [], valueFormatter = (value) => value, emptyTitle, emptyDescription, tone = "primary" }) {
-  const maxValue = Math.max(...rows.map((row) => Number(row.value || 0)), 0);
-  const toneClass = tone === "warning" ? "bg-amber-500" : tone === "success" ? "bg-emerald-500" : "bg-primary";
-  if (!rows.length || !maxValue) {
-    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
-  }
-  return (
-    <div className="space-y-3">
-      {rows.map((row) => {
-        const value = Number(row.value || 0);
-        const width = Math.max(6, Math.round((value / maxValue) * 100));
-        return (
-          <div key={row.id || row.label} className="space-y-1">
-            <div className="flex items-center justify-between gap-3 type-caption">
-              <span className="truncate font-bold text-text-primary">{row.label}</span>
-              <span className="shrink-0 font-black text-text-secondary">{valueFormatter(value)}</span>
-            </div>
-            <div className="h-3 overflow-hidden rounded-full bg-slate-100">
-              <div className={`h-full rounded-full ${toneClass}`} style={{ width: `${width}%` }} />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-}
 
 function RecipeMappingHealth({ mapped, unmapped, totalRecipes, loading }) {
   const total = mapped + unmapped;
@@ -5810,7 +5498,7 @@ function RecipeListPagination({ rows, resetKey, children }) {
   );
 }
 
-function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
+function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const initialStockCheckDate = useMemo(getInitialStockCheckDate, []);
   const outlets = useMemo(() => (store?.outlets ?? []).map(normalizeOutletRecord), [store?.outlets]);
   const suppliers = useMemo(() => store?.suppliers ?? [], [store?.suppliers]);
@@ -5832,7 +5520,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
   const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState("recipes");
   const [recipeMappingFilters, setRecipeMappingFilters] = useState({ status: "all", search: "" });
-  const [recipeAnalysisPeriod, setRecipeAnalysisPeriod] = useState("last3");
+  const [recipeAnalysisPeriod] = useState("last3");
   const [recipeTrendYear, setRecipeTrendYear] = useState(() => Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)) || new Date().getFullYear());
   const [recipeReportMonth, setRecipeReportMonth] = useState(() => String(Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(5, 7)) || 1));
   const [recipeReportYear, setRecipeReportYear] = useState(() => String(Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)) || new Date().getFullYear()));
@@ -5981,14 +5669,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [outlets, parLevelOutletId]);
 
   useEffect(() => {
-    if (!["groups", "waste", "recipes"].includes(activeTab)) return;
-    if (activeTab === "groups") {
-      const accessibleOutlets = getAccessibleOutlets(auth, outlets);
-      if (!accessibleOutlets.some((outlet) => outlet.id === selectedOutletId)) {
-        setSelectedOutletId(accessibleOutlets[0]?.id || "");
-      }
-      return;
-    }
+    if (!["waste", "recipes"].includes(activeTab)) return;
     if (!outlets.length) return;
     if (activeTab === "waste" || activeTab === "recipes") {
       const firstAccessibleOutlet = getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "";
@@ -6024,7 +5705,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     createUom: hasPermission(auth, "inventory_uoms.create"),
     editUom: hasPermission(auth, "inventory_uoms.edit"),
     deleteUom: hasPermission(auth, "inventory_uoms.delete"),
-    manageGroups: hasPermission(auth, "inventory_groups.create") || hasPermission(auth, "inventory_groups.edit"),
     createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_stock_check.audit"),
     editCheck: hasPermission(auth, "inventory_stock_check.edit"),
     reviewCheck: hasPermission(auth, "inventory_stock_check.review"),
@@ -6949,39 +6629,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  async function saveGroup(group) {
-    const normalizedGroup = {
-      ...group,
-      categoryIds: groupCategoryIds(group, data.items),
-      frequency: frequencies.includes(group.frequency) ? group.frequency : "custom",
-      itemIds: [],
-    };
-    try {
-      const savedGroup = await persistRemoteStockCheckGroup(normalizedGroup);
-      setData((current) => ({
-        ...current,
-        groups: current.groups.some((entry) => entry.id === normalizedGroup.id || entry.id === savedGroup.id)
-          ? current.groups.map((entry) => (entry.id === normalizedGroup.id || entry.id === savedGroup.id ? savedGroup : entry))
-          : [savedGroup, ...current.groups],
-      }));
-      await refreshInventory();
-      setModal(null);
-      notify("Stock check group saved");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to save stock check group.", error);
-      debugLog("[StockCheckGroupSaveDebug]", { action: isUuid(group.id) ? "edit" : "create", payload: normalizedGroup, result: null, error });
-      notify("Unable to save stock check group", error.message || "Please try again.", "error");
-    }
-  }
 
-  function openCreateGroup() {
-    if (!requirePermission(can.manageGroups, "create stock check groups")) return;
-    if (!getAccessibleOutlets(auth, outlets).some((outlet) => outlet.id === selectedOutletId)) {
-      notify("Select an outlet first", "Select an outlet before creating a stock check group.", "warning");
-      return;
-    }
-    setModal({ type: "group", outletId: selectedOutletId });
-  }
 
   function openRecordWaste() {
     if (!requirePermission(can.recordWaste, "record waste")) return;
@@ -6994,22 +6642,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return wasteOutletId;
   }
 
-  async function archiveGroup(groupId) {
-    if (!requirePermission(can.manageGroups, "archive stock check groups")) return;
-    try {
-      const savedGroup = await archiveRemoteStockCheckGroup(groupId);
-      setData((current) => ({
-        ...current,
-        groups: current.groups.map((group) => group.id === groupId ? savedGroup : group),
-      }));
-      await refreshInventory();
-      notify("Stock check group deactivated");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to archive stock check group.", error);
-      debugLog("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: null, error });
-      notify("Unable to deactivate stock check group", error.message || "Please try again.", "error");
-    }
-  }
 
   function buildStockCheckRowsForGroup(group, sourceRows = checkRows) {
     return sourceRows.map((row) => {
@@ -7920,43 +7552,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Recipes exported successfully");
   }
 
-  function renderFilters() {
-    const outletOptions = getAccessibleOutletOptions(auth, outlets);
-    return (
-      <div className="card flex flex-col gap-3 p-3 lg:flex-row lg:items-end">
-        <SelectField
-          label="Outlet"
-          value={selectedOutletId}
-          options={outletOptions}
-          onChange={setSelectedOutletId}
-          searchable
-          className="lg:w-64"
-        />
-        <SelectField
-          label="Category"
-          value={categoryFilter}
-          options={[{ value: "all", label: "All Categories" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]}
-          onChange={setCategoryFilter}
-          searchable
-          className="lg:w-56"
-        />
-        <SelectField
-          label="Status"
-          value={statusFilter}
-          options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]}
-          onChange={setStatusFilter}
-          className="lg:w-44"
-        />
-        <label className="min-w-0 flex-1">
-          <div className="mb-1 type-caption font-semibold text-text-secondary">Search item</div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-            <input className="control h-9 w-full pl-9 text-[13px]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item name or SKU" />
-          </div>
-        </label>
-      </div>
-    );
-  }
 
   function renderDashboard() {
     const outletRows = outlets.map((outlet) => {
@@ -9897,22 +9492,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "dashboard") return renderDashboard();
     if (activeTab === "master") return renderMasterInventory();
     if (activeTab === "par-levels") return renderParLevels();
-    if (activeTab === "groups") return <InventoryGroupsPage
-      groups={data.groups}
-      items={data.items}
-      categories={data.categories}
-      outletOptions={getAccessibleOutletOptions(auth, outlets, { includeAll: false })}
-      selectedOutletId={selectedOutletId}
-      onSelectedOutletChange={setSelectedOutletId}
-      statuses={statuses}
-      frequencies={frequencies}
-      toTitle={toTitle}
-      groupCategoryIds={groupCategoryIds}
-      stockCheckItemsForGroup={stockCheckItemsForGroup}
-      onEditGroup={(group) => requirePermission(can.manageGroups, "edit stock check groups") && setModal({ type: "group", group })}
-      onDuplicateGroup={(group, categoryIds) => requirePermission(can.manageGroups, "duplicate stock check groups") && setModal({ type: "group", outletId: group.outletId, group: { ...group, id: "", name: `${group.name} Copy`, categoryIds } })}
-      onArchiveGroup={(group) => archiveGroup(group.id)}
-    />;
     if (activeTab === "stock-check") return renderStockCheck();
     if (activeTab === "requests") return renderRequests();
     if (activeTab === "orders") return renderOrders();
@@ -9950,9 +9529,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <Download size={15} /> Export
         </button>
       );
-    }
-    if (activeTab === "groups") {
-      return <InventoryGroupsPageActions onCreateGroup={openCreateGroup} />;
     }
     if (activeTab === "stock-check") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "create audit stock checks") && setModal({ type: "audit-stock-check" })}><ClipboardCheck size={15} /> Audit Stock Check</button>;
@@ -10066,7 +9642,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         />
       ) : null}
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
-      {modal?.type === "group" ? <GroupModal group={modal.group} outletId={modal.outletId || selectedOutletId} outlets={outlets} items={data.items} categories={sortedCategories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
       {modal?.type === "movement" ? <InventoryManualMovementModal outlets={outlets} items={data.items} movements={data.movements} movement={modal.movement} canonical={canonical} isActiveInventoryItem={isActiveInventoryItem} todayInput={todayInput} makeId={makeId} parseNonNegativeNumber={parseNonNegativeNumber} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
@@ -10213,6 +9788,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
   );
+}
+
+function InventoryControlPage(props) {
+  if (props.initialTab === "groups") return <InventoryGroupsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
+  return <InventoryLegacyRoutes {...props} />;
 }
 
 export default InventoryControlPage;
