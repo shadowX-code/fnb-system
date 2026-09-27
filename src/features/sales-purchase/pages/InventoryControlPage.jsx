@@ -56,11 +56,14 @@ import InventoryMovementsPage from "../inventory/movements/InventoryMovementsPag
 import { mapRemoteInventoryMovement, persistRemoteInventoryMovement, persistRemoteInventoryMovementUpdate } from "../inventory/movements/inventoryMovementService.js";
 import InventoryGroupsPage from "../inventory/groups/InventoryGroupsPage.jsx";
 import { groupCategoryIds, mapRemoteStockCheckGroup, stockCheckItemsForGroup } from "../inventory/groups/inventoryGroupsModel.js";
-import InventoryStockCheckResultModal from "../inventory/stockChecks/InventoryStockCheckResultModal.jsx";
+import InventoryStockCheckResultSurface from "../inventory/stockChecks/InventoryStockCheckResultSurface.jsx";
+import { mapRemoteStockCheck } from "../inventory/stockChecks/inventoryStockCheckReadModel.js";
+import { loadSubmittedStockCheck } from "../inventory/stockChecks/inventoryStockCheckResultService.js";
+import InventoryItemThumbnail from "../inventory/InventoryItemThumbnail.jsx";
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
 import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
-import { resolveAdminLocation } from "../../../app/routeOwnership.js";
+import { resolveAdminLocation, navigateAdminRoute } from "../../../app/routeOwnership.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
@@ -594,56 +597,6 @@ function mapRemoteUom(row = {}) {
 
 
 
-function mapRemoteStockCheckItem(row = {}) {
-  return {
-    id: row.id,
-    itemId: row.item_id || "",
-    categoryId: row.category_id || "",
-    expectedQty: row.par_level_quantity === null || row.par_level_quantity === undefined ? "" : Number(row.par_level_quantity),
-    actualCount: row.actual_count_quantity === null || row.actual_count_quantity === undefined ? "" : Number(row.actual_count_quantity),
-    variance: row.variance === null || row.variance === undefined ? 0 : Number(row.variance),
-    unitCostSnapshot: row.unit_cost_snapshot === null || row.unit_cost_snapshot === undefined ? null : Number(row.unit_cost_snapshot),
-    unit: row.unit || "",
-    status: row.skipped ? "skipped" : (row.status || "normal"),
-    notes: row.notes || "",
-    skipped: Boolean(row.skipped),
-    skipReason: row.skip_reason || "",
-    na: row.status === "na",
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || row.created_at || "",
-  };
-}
-
-function mapRemoteStockCheck(row = {}, rows = []) {
-  const checkType = row.stock_check_type || row.check_type || "scheduled";
-  const checkDate = normalizeBusinessDate(row.check_date || row.created_at);
-  const mappedRows = rows.map(mapRemoteStockCheckItem);
-  const categoryIds = row.audit_category_ids?.length
-    ? uniqueIds(row.audit_category_ids)
-    : uniqueIds(mappedRows.map((item) => item.categoryId).filter(Boolean));
-  return {
-    id: row.id,
-    groupId: row.group_id || "",
-    outletId: row.outlet_id || "",
-    date: checkDate,
-    shift: row.shift || "",
-    stockCheckType: checkType,
-    auditType: row.audit_type || "",
-    auditName: row.audit_name || row.check_name || "",
-    auditCategoryIds: categoryIds,
-    checkName: row.check_name || "",
-    notes: row.notes || "",
-    categoryIds,
-    status: row.status || "draft",
-    rows: mappedRows,
-    createdBy: row.created_by || "",
-    submittedBy: row.submitted_by || "",
-    submittedAt: row.submitted_at || "",
-    reviewedAt: row.reviewed_at || "",
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || "",
-  };
-}
 
 function mapRemoteEmployeeLite(row = {}) {
   return {
@@ -1782,42 +1735,6 @@ function ItemPhotoPicker({ value, onChange }) {
   );
 }
 
-function itemInitials(item, category) {
-  const source = item?.name || category?.name || "Item";
-  return source
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((word) => word[0])
-    .join("")
-    .toUpperCase();
-}
-
-function InventoryItemThumbnail({ item, category, onPreview, size = "md" }) {
-  const photo = item?.photo || item?.photo_url || "";
-  const sizeClass = size === "sm" ? "h-10 w-10" : "h-12 w-12";
-  const commonClass = `${sizeClass} shrink-0 overflow-hidden rounded-xl border border-border bg-slate-50`;
-
-  if (photo) {
-    return (
-      <button
-        className={`${commonClass} transition hover:border-primary/40 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/25`}
-        type="button"
-        onClick={() => onPreview?.({ src: photo, title: item?.name || "Inventory item" })}
-        title="View item photo"
-        aria-label={`View photo for ${item?.name || "inventory item"}`}
-      >
-        <img className="h-full w-full object-cover" src={photo} alt={item?.name || "Inventory item"} />
-      </button>
-    );
-  }
-
-  return (
-    <div className={`${commonClass} flex items-center justify-center text-[11px] font-black text-primary`} title="No photo uploaded">
-      {itemInitials(item, category)}
-    </div>
-  );
-}
 
 function StockCheckMobileView({
   activeCheckGroup,
@@ -3008,12 +2925,12 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
   const [stockCheckShiftFilter, setStockCheckShiftFilter] = useState("all");
   const [modal, updateModal] = useState(null);
-  const resultRequest = useRef(0);
+  const restockReadRequest = useRef(0);
   const setModal = useCallback((value) => {
-    resultRequest.current += 1;
+    restockReadRequest.current += 1;
     updateModal(value);
   }, []);
-  useEffect(() => () => { resultRequest.current += 1; }, [initialTab, selectedOutletId, auth?.user?.id, auth?.profile]);
+  useEffect(() => () => { restockReadRequest.current += 1; }, [initialTab, selectedOutletId, auth?.user?.id, auth?.profile]);
   const [editingCostItemId, setEditingCostItemId] = useState(null);
   const [editingCostValue, setEditingCostValue] = useState("");
   const [savingCostItemId, setSavingCostItemId] = useState(null);
@@ -4265,53 +4182,19 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
   }
 
-  async function hydrateStockCheckRows(check) {
-    if (!check?.id) return check;
-    let result;
-    try {
-      result = await readCompleteInventoryRows("inventory_stock_check_items", { eq: { stock_check_id: check.id }, order: "created_at" });
-    } catch (error) {
-      throw Object.assign(error, { stockCheckItemsLoad: true });
-    }
-    debugLog("[StockCheckResultDebug]", { action: "hydrate-items", stockCheckId: check.id, result: { data: result.data, error: result.error }, error: result.error });
-    if (result.error) throw Object.assign(result.error, { stockCheckItemsLoad: true });
-    const hydratedCheck = {
-      ...check,
-      rows: (result.data || []).map(mapRemoteStockCheckItem),
-    };
-    return hydratedCheck;
-  }
-
-  async function openStockCheckResult(check, options = {}) {
-    const requestId = ++resultRequest.current;
-    updateModal(null);
-    try {
-      const hydratedCheck = await hydrateStockCheckRows(check);
-      if (requestId !== resultRequest.current) return;
-      setData((current) => ({ ...current, checks: current.checks.map((entry) => entry.id === hydratedCheck.id ? hydratedCheck : entry) }));
-      const suggestions = options.suggestions || buildPurchaseSuggestions(hydratedCheck);
-      setModal({ type: "check-result", stockCheck: hydratedCheck, suggestions, isAudit: options.isAudit ?? hydratedCheck?.stockCheckType === "audit" });
-    } catch (error) {
-      if (requestId !== resultRequest.current) return;
-      console.warn("[InventoryControl] Unable to load stock check items.", error);
-      debugLog("[StockCheckResultDebug]", { action: "open-result", stockCheckId: check?.id, error });
-      notify(error.readState === "incomplete" ? "Stock check result incomplete." : "Unable to load stock check items.", error.message || "Please try again.", "error");
-    }
-  }
-
   async function openPurchaseSuggestionsForCheck(check) {
     if (!check || check.stockCheckType !== "scheduled" || check.status !== "submitted") {
-      openStockCheckResult(check, { suggestions: [], isAudit: check?.stockCheckType === "audit" });
+      if (check?.id) navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date });
       return;
     }
-    const requestId = ++resultRequest.current;
+    const requestId = ++restockReadRequest.current;
     updateModal(null);
     try {
-      const hydratedCheck = await hydrateStockCheckRows(check);
-      if (requestId !== resultRequest.current) return;
+      const hydratedCheck = await loadSubmittedStockCheck(check.id);
+      if (requestId !== restockReadRequest.current) return;
       const suggestions = buildPurchaseSuggestions(hydratedCheck);
       const existingOrders = await fetchRemotePurchaseOrdersForStockCheck(check.id);
-      if (requestId !== resultRequest.current) return;
+      if (requestId !== restockReadRequest.current) return;
       setData((current) => ({
         ...current,
         checks: current.checks.map((entry) => entry.id === hydratedCheck.id ? hydratedCheck : entry),
@@ -4321,12 +4204,12 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
         ],
       }));
       if (!suggestions.length && !existingOrders.length) {
-        setModal({ type: "check-result", stockCheck: hydratedCheck, suggestions });
+        navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date });
         return;
       }
       setModal({ type: "purchase-suggestions", stockCheck: hydratedCheck, suggestions, existingOrders });
     } catch (error) {
-      if (requestId !== resultRequest.current) return;
+      if (requestId !== restockReadRequest.current) return;
       console.warn("[InventoryControl] Unable to load purchase suggestions.", error);
       debugLog("[PurchaseSuggestionDebug]", { action: "open-suggestions", stockCheckId: check.id, error });
       notify(error?.stockCheckItemsLoad ? "Unable to load stock check items." : "Unable to load purchase suggestions", error.message || "Please try again.", "error");
@@ -5160,7 +5043,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
                           >
                             {linkedOrders.length ? "View Draft PO" : "Review Purchase Suggestions"}
                           </button>
-                          <button className="btn-secondary w-full" type="button" onClick={() => openStockCheckResult(latestCheck)}>View Result</button>
+                          <button className="btn-secondary w-full" type="button" onClick={() => navigateAdminRoute('inventory-stock-check-result', { checkId: latestCheck.id }, { date })}>View Result</button>
                         </>
                       ) : status === "Missed" || status === "Skipped" ? (
                         <div className={status === "Missed" ? "rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-800" : "rounded-2xl border border-border bg-surface px-3 py-3 text-sm font-semibold text-text-secondary"}>
@@ -5205,7 +5088,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
                         <button className="btn-secondary w-full border-rose-200 text-rose-700 hover:bg-rose-50" type="button" onClick={() => deleteAuditDraft(check)}>Delete Draft</button>
                       </div>
                     ) : (
-                      <button className="btn-secondary mt-4 w-full" type="button" onClick={() => openStockCheckResult(check, { suggestions: [], isAudit: true })}>View Audit Result</button>
+                      <button className="btn-secondary mt-4 w-full" type="button" onClick={() => navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date })}>View Audit Result</button>
                     )}
                   </div>
                 );
@@ -5394,20 +5277,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
           onViewPurchaseOrder={(order) => setModal({ type: "po-surface", orderId: order.id })}
         />
       ) : null}
-      {modal?.type === "check-result" ? <InventoryStockCheckResultModal
-        stockCheck={modal.stockCheck || {}}
-        isAuditResult={modal.isAudit || modal.stockCheck?.stockCheckType === "audit"}
-        outletName={outletById.get(modal.stockCheck?.outletId)?.name || "Outlet"}
-        submittedByName={modal.stockCheck?.submittedBy ? actorNameByEmployeeId(modal.stockCheck.submittedBy) : "Unknown User"}
-        itemById={itemById}
-        categoryById={categoryById}
-        formatDate={formatDate}
-        formatDateTimeCompact={formatDateTimeCompact}
-        formatCurrency={formatRestaurantRecipeCurrency}
-        ItemThumbnail={InventoryItemThumbnail}
-        onPhotoPreview={setPhotoPreview}
-        onClose={() => setModal(null)}
-      /> : null}
       {poSurface}
       <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
@@ -5415,6 +5284,8 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 }
 
 function InventoryControlPage(props) {
+  const route = resolveAdminLocation(window.location);
+  if (route?.definitionId === 'inventory-stock-check-result') return <InventoryStockCheckResultSurface checkId={route.params.checkId} auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} onClose={() => navigateAdminRoute('inventory_stock_check', {}, route.query)} />;
   if (props.initialTab === "recipe-intelligence") return <InventoryRecipeIntelligencePage auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "recipes") return <InventoryRecipesPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "movements") return <InventoryMovementsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;

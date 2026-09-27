@@ -19,6 +19,11 @@ import {
 import { moduleRegistry, moduleWorkspace } from "../../../config/modules.ts";
 
 describe("FeedX canonical route contract", () => {
+  it('resolves submitted Stock Check and Audit results by identity under the existing permission', () => {
+    const route = resolveCanonicalPath('/restaurant/inventory/stock-check/results/check-A');
+    expect(route).toMatchObject({ definitionId: 'inventory-stock-check-result', routeId: 'inventory_stock_check', params: { checkId: 'check-A' } });
+    expect(canonicalPathForRoute('inventory-stock-check-result', { checkId: 'check-A' })).toBe('/restaurant/inventory/stock-check/results/check-A');
+  });
   it("derives one canonical taxonomy for every routable workspace module", () => {
     expect(getAdminRouteDefinition("reports")).toMatchObject({ canonicalPath: "/restaurant/reports", legacyHashAliases: ["#reports"], ownership: { domain: "restaurant", moduleId: "reports" } });
     expect(getAdminRouteDefinition("employees")).toMatchObject({ canonicalPath: "/people/employees", ownership: { domain: "people", moduleId: "employees", permission: "employees.view" } });

@@ -207,6 +207,7 @@ const moduleDefinitionByLegacyPath = new Map(
   }),
 );
 const nestedDefinitions = [
+  nestedRouteDefinition({ id: 'inventory-stock-check-result', routeId: 'inventory_stock_check', pathPattern: '/restaurant/inventory/stock-check/results/:checkId', legacyHashPattern: 'inventory_stock_check/results/:checkId', params: ['checkId'] }),
   nestedRouteDefinition({
     id: "legal-entities-contract-templates",
     routeId: "legal-entities",
