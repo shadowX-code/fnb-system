@@ -1,0 +1,22 @@
+// Uses the production renderer; fixture-only outputs under /private/tmp.
+import { createRequire } from 'node:module';
+import { writeFile, readFile } from 'node:fs/promises';
+import assert from 'node:assert/strict';
+import { renderPayslip } from '../../supabase/functions/payroll-payslips/render.js';
+const require = createRequire('/private/tmp/feedx-payroll-pdf-test/package.json');
+const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
+const fontkit = require('@pdf-lib/fontkit');
+const base = { identity:{employer:'QA ONLY Phase 5 Payslip Settlement',registration:'QA-P5-20260927',employee_name:'QA ONLY Phase 5 Monthly',employee_code:'QA-P5-1',workplace:'QA ONLY Phase 5 Workplace'},period_start:'2026-06-01',period_end:'2026-06-30',finalized_at:'2026-09-27T08:07:47.180031+00:00',earnings:[{label:'Basic Salary',amount:3250}],deductions:[],reimbursements:[],gross_earnings:3250,net_pay:2818.25,statutory:[{scheme:'epf',applicable:true,amount:359},{scheme:'socso',applicable:true,amount:16.25},{scheme:'eis',applicable:true,amount:6.5},{scheme:'pcb',applicable:true,amount:50}]};
+const api={PDFDocument,StandardFonts,rgb,fontkit};
+const monthly=await renderPayslip(base,api);
+assert.deepEqual(monthly,await renderPayslip(base,api),'Deterministic retry bytes');
+const hourly={...base,identity:{...base.identity,employee_name:'QA ONLY Phase 5 Hourly',employee_code:'QA-P5-2'},earnings:[{label:'Regular',amount:75}],gross_earnings:75,net_pay:65.4,statutory:[{scheme:'epf',applicable:true,amount:9},{scheme:'socso',applicable:true,amount:.4},{scheme:'eis',applicable:true,amount:.2},{scheme:'pcb',applicable:false,amount:0}]};
+await writeFile('/private/tmp/feedx-phase5-monthly.pdf',monthly);
+await writeFile('/private/tmp/feedx-phase5-hourly.pdf',await renderPayslip(hourly,api));
+const unicodeFont=await readFile('/private/tmp/feedx-payslip-noto.otf');
+const unicode={...base,identity:{...base.identity,employee_name:'QA ONLY 陈伟明 · 长名称测试'},earnings:Array.from({length:40},(_,i)=>({label:`津贴 ${i} · Long financial line wrapping verification`,amount:1}))};
+const bytes=await renderPayslip(unicode,{...api,unicodeFont});
+assert.deepEqual(bytes,await renderPayslip(unicode,{...api,unicodeFont}));
+assert.ok((await PDFDocument.load(bytes)).getPageCount()>1,'Long statement pagination');
+await writeFile('/private/tmp/feedx-phase5-unicode.pdf',bytes);
+console.log('Monthly/Hourly A4, deterministic retry and Unicode pagination PASS');
