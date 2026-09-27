@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { throwSupabaseError } from "./supabaseError";
+import { taskDraftFromTemplate } from "./taskScheduleContract.js";
 import {
   IMAGE_UPLOAD_MAX_BYTES,
   normalizeAssetMasterPhoto,
@@ -481,7 +482,7 @@ export const crewService = {
   async taskAdminDetail(templateId) {
     const { data, error } = await supabase.rpc("crew_tasks_admin_detail", { p_template_id: templateId });
     throwSupabaseError("crew.taskAdminDetail", error);
-    return data;
+    return data ? { ...data, draft: taskDraftFromTemplate(data.draft), definition: taskDraftFromTemplate(data.definition) } : data;
   },
 
   async taskAdminResult(instanceId) {
