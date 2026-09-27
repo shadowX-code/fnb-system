@@ -4,7 +4,7 @@ import "../../../i18n/index.js";
 import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, Clock3, HeartPulse, ListChecks, RotateCcw, Store } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
-import CrewTaskPriority from "./CrewTaskPriority.jsx";
+import CrewTaskPriority, { CrewTaskHeading } from "./CrewTaskPriority.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
@@ -356,7 +356,7 @@ function TaskRow({ task, t, history = false, onOpen }) {
   const tone = taskStatusTone(task.status);
   return <button type="button" className={`crew-ops-task is-${task.status}`} onClick={onOpen}>
     <span className={`crew-ui-icon-container crew-ui-icon-container--compact${tone === "success" ? " is-success" : tone === "warning" ? " is-warning" : ""}`}>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span>
-    <span><strong className="crew-list-dense-primary">{task.name}</strong><CrewTaskPriority priority={task.priority} />
+    <span><CrewTaskHeading title={task.name} priority={task.priority} />
       {history ? <small>{historyContext || task.description || String(task.task_type).replaceAll("_", " ")}</small> : hasProgress ? <small>{t("tasks.completedCount", { completed: task.completed_count, total: task.block_count })}</small> : task.description ? <small>{task.description}</small> : null}
       {!history ? <small className="crew-ops-schedule">{formatTaskSchedule(task, t)}</small> : null}
     </span>
