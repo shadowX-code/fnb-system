@@ -3007,7 +3007,13 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
   const [stockCheckShiftFilter, setStockCheckShiftFilter] = useState("all");
-  const [modal, setModal] = useState(null);
+  const [modal, updateModal] = useState(null);
+  const resultRequest = useRef(0);
+  const setModal = useCallback((value) => {
+    resultRequest.current += 1;
+    updateModal(value);
+  }, []);
+  useEffect(() => () => { resultRequest.current += 1; }, [initialTab, selectedOutletId, auth?.user?.id, auth?.profile]);
   const [editingCostItemId, setEditingCostItemId] = useState(null);
   const [editingCostValue, setEditingCostValue] = useState("");
   const [savingCostItemId, setSavingCostItemId] = useState(null);
@@ -4261,33 +4267,35 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 
   async function hydrateStockCheckRows(check) {
     if (!check?.id) return check;
-    const result = await supabase
-      .from("inventory_stock_check_items")
-      .select("*")
-      .eq("stock_check_id", check.id)
-      .order("created_at", { ascending: true });
+    let result;
+    try {
+      result = await readCompleteInventoryRows("inventory_stock_check_items", { eq: { stock_check_id: check.id }, order: "created_at" });
+    } catch (error) {
+      throw Object.assign(error, { stockCheckItemsLoad: true });
+    }
     debugLog("[StockCheckResultDebug]", { action: "hydrate-items", stockCheckId: check.id, result: { data: result.data, error: result.error }, error: result.error });
     if (result.error) throw Object.assign(result.error, { stockCheckItemsLoad: true });
     const hydratedCheck = {
       ...check,
       rows: (result.data || []).map(mapRemoteStockCheckItem),
     };
-    setData((current) => ({
-      ...current,
-      checks: current.checks.map((entry) => (entry.id === hydratedCheck.id ? hydratedCheck : entry)),
-    }));
     return hydratedCheck;
   }
 
   async function openStockCheckResult(check, options = {}) {
+    const requestId = ++resultRequest.current;
+    updateModal(null);
     try {
       const hydratedCheck = await hydrateStockCheckRows(check);
+      if (requestId !== resultRequest.current) return;
+      setData((current) => ({ ...current, checks: current.checks.map((entry) => entry.id === hydratedCheck.id ? hydratedCheck : entry) }));
       const suggestions = options.suggestions || buildPurchaseSuggestions(hydratedCheck);
       setModal({ type: "check-result", stockCheck: hydratedCheck, suggestions, isAudit: options.isAudit ?? hydratedCheck?.stockCheckType === "audit" });
     } catch (error) {
+      if (requestId !== resultRequest.current) return;
       console.warn("[InventoryControl] Unable to load stock check items.", error);
       debugLog("[StockCheckResultDebug]", { action: "open-result", stockCheckId: check?.id, error });
-      notify("Unable to load stock check items.", error.message || "Please try again.", "error");
+      notify(error.readState === "incomplete" ? "Stock check result incomplete." : "Unable to load stock check items.", error.message || "Please try again.", "error");
     }
   }
 
@@ -4296,12 +4304,17 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       openStockCheckResult(check, { suggestions: [], isAudit: check?.stockCheckType === "audit" });
       return;
     }
+    const requestId = ++resultRequest.current;
+    updateModal(null);
     try {
       const hydratedCheck = await hydrateStockCheckRows(check);
+      if (requestId !== resultRequest.current) return;
       const suggestions = buildPurchaseSuggestions(hydratedCheck);
       const existingOrders = await fetchRemotePurchaseOrdersForStockCheck(check.id);
+      if (requestId !== resultRequest.current) return;
       setData((current) => ({
         ...current,
+        checks: current.checks.map((entry) => entry.id === hydratedCheck.id ? hydratedCheck : entry),
         orders: [
           ...existingOrders,
           ...current.orders.filter((order) => !existingOrders.some((entry) => entry.id === order.id)),
@@ -4313,6 +4326,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       }
       setModal({ type: "purchase-suggestions", stockCheck: hydratedCheck, suggestions, existingOrders });
     } catch (error) {
+      if (requestId !== resultRequest.current) return;
       console.warn("[InventoryControl] Unable to load purchase suggestions.", error);
       debugLog("[PurchaseSuggestionDebug]", { action: "open-suggestions", stockCheckId: check.id, error });
       notify(error?.stockCheckItemsLoad ? "Unable to load stock check items." : "Unable to load purchase suggestions", error.message || "Please try again.", "error");

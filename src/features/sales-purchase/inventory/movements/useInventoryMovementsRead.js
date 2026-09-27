@@ -12,7 +12,7 @@ export default function useInventoryMovementsRead({ outletIds, scopeKey, enabled
   const refresh = useCallback(async () => {
     if (!enabled || activeKey.current !== key) return null;
     const id = ++generation.current;
-    setRead(current => ({ ...current, key, state: current.key === key && current.data ? 'refreshing' : 'loading', error: '' }));
+    setRead(current => ({ key, data: current.key === key ? current.data : null, state: current.key === key && current.data ? 'refreshing' : 'loading', error: '' }));
     try {
       const data = await loadInventoryMovements(outletsKey.split('|').filter(Boolean));
       if (id !== generation.current || activeKey.current !== key) return null;

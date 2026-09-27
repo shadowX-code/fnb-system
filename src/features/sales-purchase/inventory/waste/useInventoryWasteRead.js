@@ -12,14 +12,14 @@ export default function useInventoryWasteRead({ outletId, wasteId, scopeKey = ''
     if (activeKey.current !== key) return null;
     const id = ++request.current;
     if (!enabled) return null;
-    setRead(current => ({ ...current, key, state: current.key === key && current.data ? 'refreshing' : 'loading', error: '' }));
+    setRead(current => ({ key, data: current.key === key ? current.data : null, state: current.key === key && current.data ? 'refreshing' : 'loading', error: '' }));
     try {
       const data = await loadInventoryWaste({ outletId, wasteId });
-      if (id !== request.current) return null;
+      if (id !== request.current || activeKey.current !== key) return null;
       setRead({ key, state: 'ready', data, error: '' });
       return data;
     } catch (error) {
-      if (id !== request.current) return null;
+      if (id !== request.current || activeKey.current !== key) return null;
       setRead({ key, state: error.readState || 'error', data: null, error: error.message || 'Unable to load Wastage.' });
       return null;
     }

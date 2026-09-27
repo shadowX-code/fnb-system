@@ -15,6 +15,13 @@ beforeEach(() => {
 });
 const rows = (start, count) => Array.from({ length: count }, (_, i) => ({ id: `id-${start + i}` }));
 describe("complete Inventory reads", () => {
+  it("reads every submitted Stock Check row with identity scope and stable ordering", async () => {
+    range.mockResolvedValueOnce({ data: rows(0, 500), count: 501 }).mockResolvedValueOnce({ data: rows(500, 1), count: 501 });
+    const result = await readCompleteInventoryRows("inventory_stock_check_items", { eq: { stock_check_id: "check-A" }, order: "created_at" });
+    expect(result.data).toHaveLength(501);
+    expect(eq.mock.calls).toEqual([["stock_check_id", "check-A"], ["stock_check_id", "check-A"]]);
+    expect(order.mock.calls).toEqual([["created_at", { ascending: true }], ["id", { ascending: true }], ["created_at", { ascending: true }], ["id", { ascending: true }]]);
+  });
   it("retains receipt identity scope across every complete-read page", async () => {
     range.mockResolvedValueOnce({ data: rows(0, 500), count: 501 }).mockResolvedValueOnce({ data: rows(500, 1), count: 501 });
     await readCompleteInventoryRows("inventory_purchase_receipt_items", { in: { receipt_id: ["receipt-a", "receipt-b"] } });
