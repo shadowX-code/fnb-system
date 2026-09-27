@@ -7,10 +7,12 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import FilterBar from "../../../components/forms/FilterBar.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import FilterPopover from "../../../components/forms/FilterPopover.jsx";
 import MultiSelectField from "../../../components/forms/MultiSelectField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import { malaysiaBankOptions, MALAYSIA_BANKS } from "../../../constants/malaysiaBanks.js";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
@@ -1177,7 +1179,10 @@ function UserFormModal({
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
             <FormField label="Bank Name">
-              <input className="control" value={values.bank_name || ""} onBlur={() => markTouched("bank_name")} onChange={(event) => updateValue("bank_name", event.target.value)} placeholder="Maybank" />
+              <SelectField ariaLabel="Bank Name" searchable value={values.bank_name || ""}
+                options={malaysiaBankOptions(values.bank_name)} placeholder="Select bank"
+                onChange={(value) => { markTouched("bank_name"); updateValue("bank_name", value); }}
+                helper={values.bank_name && !MALAYSIA_BANKS.includes(values.bank_name) ? "Existing bank value is preserved. Select a bank only to replace it." : undefined} />
             </FormField>
             <FormField label="Account Number">
               <input className="control" value={values.bank_account_number || ""} onBlur={() => markTouched("bank_account_number")} onChange={(event) => updateValue("bank_account_number", event.target.value)} placeholder="Account number" />
@@ -1877,17 +1882,12 @@ export default function UsersPage({ ui, store, auth }) {
 
       <UpcomingCelebrationsCard celebrations={celebrations} outlets={store?.outlets ?? []} />
 
-      <FilterBar compact>
-        <FieldLabel label="Search">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-            <input className="control h-9 min-w-[280px] pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search name, email, IC, contact..." />
-          </div>
-        </FieldLabel>
+      <AdminFilterToolbar compact>
+        <AdminSearchField label="Search" value={query} onChange={setQuery} placeholder="Search name, email, IC, contact..." />
         <FieldLabel label="Role">
           <FilterPopover
             value={roleFilter === "all" ? "" : roleFilter}
-            placeholder="All Roles"
+            placeholder="All"
             options={roles.map((role) => ({ value: role, label: role }))}
             onApply={(nextValue) => setRoleFilter(nextValue || "all")}
           />
@@ -1895,7 +1895,7 @@ export default function UsersPage({ ui, store, auth }) {
         <FieldLabel label="Workplace">
           <FilterPopover
             value={workplaceFilter === "all" ? "" : workplaceFilter}
-            placeholder="All Workplaces"
+            placeholder="All"
             className="min-w-44"
             options={workplaces.map((workplace) => ({ value: workplace, label: workplace }))}
             onApply={(nextValue) => setWorkplaceFilter(nextValue || "all")}
@@ -1904,7 +1904,7 @@ export default function UsersPage({ ui, store, auth }) {
         <FieldLabel label="Employment Type">
           <MultiSelectField
             value={employmentTypeFilter}
-            placeholder="All Types"
+            placeholder="All"
             options={employmentTypeOptions}
             onApply={setEmploymentTypeFilter}
           />
@@ -1912,7 +1912,7 @@ export default function UsersPage({ ui, store, auth }) {
         <FieldLabel label="Employment Status">
           <MultiSelectField
             value={employmentStatusFilter}
-            placeholder="All Status"
+            placeholder="All"
             options={employmentStatusOptions}
             onApply={setEmploymentStatusFilter}
           />
@@ -1920,7 +1920,7 @@ export default function UsersPage({ ui, store, auth }) {
         <FieldLabel label="Access State">
           <FilterPopover
             value={accountFilter}
-            placeholder="All Access"
+            placeholder="All"
             options={[
               { value: EMPLOYEE_ACCESS_STATE.NO_ACCESS, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.NO_ACCESS] },
               { value: EMPLOYEE_ACCESS_STATE.NOT_SENT, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.NOT_SENT] },
@@ -1931,7 +1931,7 @@ export default function UsersPage({ ui, store, auth }) {
             onApply={setAccountFilter}
           />
         </FieldLabel>
-      </FilterBar>
+      </AdminFilterToolbar>
 
       <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
         <div className="flex items-start gap-2">

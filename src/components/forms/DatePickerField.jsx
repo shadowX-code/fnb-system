@@ -93,6 +93,7 @@ export default function DatePickerField({
   yearFirst = false,
   placeholder = "28 May 2026",
   className = "",
+  minDate,
 }) {
   const [open, setOpen] = useState(false);
   const [displayValue, setDisplayValue] = useState(toDisplayDate(value));
@@ -102,6 +103,7 @@ export default function DatePickerField({
   const [viewMode, setViewMode] = useState(yearFirst ? "year" : "day");
   const [yearGridStart, setYearGridStart] = useState(getYearGridStart(selectedDate.getFullYear()));
   const wrapperRef = useRef(null);
+  const calendarRef = useRef(null);
   const calendarCells = useMemo(() => getCalendarCells(visibleYear, visibleMonth), [visibleMonth, visibleYear]);
 
   useEffect(() => {
@@ -137,6 +139,7 @@ export default function DatePickerField({
   }
 
   function selectDate(nextValue) {
+    if (minDate && nextValue < minDate) return;
     onChange(nextValue);
     setOpen(false);
   }
@@ -164,7 +167,8 @@ export default function DatePickerField({
     const currentDate = parseIsoDate(value);
     if (!currentDate) return;
     const nextDay = clampDay(visibleYear, monthIndex, currentDate.getDate());
-    onChange(`${visibleYear}-${pad(monthIndex + 1)}-${pad(nextDay)}`);
+    const nextValue = `${visibleYear}-${pad(monthIndex + 1)}-${pad(nextDay)}`;
+    if (!minDate || nextValue >= minDate) onChange(nextValue);
   }
 
   function handleInputKeyDown(event) {
@@ -191,7 +195,7 @@ export default function DatePickerField({
     setVisibleYear(next.getFullYear());
     setVisibleMonth(next.getMonth());
     window.requestAnimationFrame(() => {
-      wrapperRef.current?.querySelector(`[data-date-cell="${toIsoDate(next)}"]`)?.focus();
+      calendarRef.current?.querySelector(`[data-date-cell="${toIsoDate(next)}"]`)?.focus();
     });
   }
 
@@ -331,7 +335,7 @@ export default function DatePickerField({
             <div className="grid grid-cols-7 gap-1 px-1 text-center type-micro font-black uppercase tracking-wide text-text-muted">
               {weekdayLabels.map((day) => <div key={day} className="py-1">{day}</div>)}
             </div>
-            <div className="mt-1 grid grid-cols-7 gap-1">
+            <div className="mt-1 grid grid-cols-7 gap-1" ref={calendarRef}>
               {calendarCells.map((item) => {
                 const selected = item.value === value;
                 return (
@@ -346,6 +350,8 @@ export default function DatePickerField({
                           : "text-text-secondary hover:bg-primary/10 hover:text-primary"
                     }`}
                     type="button"
+                    disabled={Boolean(minDate && item.value < minDate)}
+                    style={minDate && item.value < minDate ? { opacity: 0.35, cursor: "not-allowed" } : undefined}
                     onClick={() => selectDate(item.value)}
                     onKeyDown={(event) => handleCalendarKeyDown(event, item.value)}
                     aria-label={toDisplayDate(item.value)}

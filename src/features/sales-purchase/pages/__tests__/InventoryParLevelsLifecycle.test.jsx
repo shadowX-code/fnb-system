@@ -112,10 +112,14 @@ describe("InventoryControlPage Par Levels interaction contract", () => {
     expect(gridInput(1, "par").value).toBe("");
     expect(screen.getByRole("button", { name: "Chilli Supplier" })).toBeTruthy();
     expect(screen.getByText("Saved")).toBeTruthy();
+    const filters = screen.getByRole("region", { name: "Filters" });
+    expect(within(filters).queryByText("Saved")).toBeNull();
+    expect(within(filters).queryByRole("tablist")).toBeNull();
+    expect(screen.getByRole("tablist", { name: "Par Level view" }).closest("section")).toBe(screen.getByText("KL Central Par Levels").closest("section"));
   });
 
   it("renders and edits the matrix with exact item/outlet config identity", async () => {
-    mount(); await ready(); fireEvent.click(screen.getByRole("button", { name: "Matrix View" }));
+    mount(); await ready(); fireEvent.click(screen.getByRole("tab", { name: "Matrix View" }));
     await screen.findByText("Par Level Matrix");
     expect(screen.getByTitle("KL Central")).toBeTruthy();
     expect(screen.getByTitle("PJ Hub")).toBeTruthy();
@@ -255,7 +259,7 @@ describe("InventoryControlPage Par Levels interaction contract", () => {
     expect(screen.getByRole("button", { name: "Chilli Supplier" }).disabled).toBe(true);
     fireEvent.change(gridInput(0, "par"), { target: { value: "16" } });
     expect(configWrites()).toHaveLength(0);
-    fireEvent.click(screen.getByRole("button", { name: "Matrix View" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Matrix View" }));
     await screen.findByText("Par Level Matrix");
     expect(matrixInput(0, 0).disabled).toBe(true);
     expect(configWrites()).toHaveLength(0);

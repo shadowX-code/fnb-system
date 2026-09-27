@@ -72,10 +72,11 @@ export default function FilterPopover({
     <div className={`relative min-w-0 ${isFormField ? "admin-form-field" : ""} ${className}`} ref={containerRef}>
       {label ? <div className={isFormField ? "admin-form-field-label" : "mb-1 text-[11px] font-bold uppercase tracking-wide text-text-muted"}>{label}</div> : null}
       <button
-        className={`flex ${isFormField ? "h-10 text-[14px] font-medium" : "h-9 min-w-36 text-sm font-semibold"} w-full items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/15 ${
+        className={`filter-popover-trigger flex ${isFormField ? "h-10 text-[14px] font-medium" : "h-9 min-w-36 text-sm font-semibold"} w-full items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left transition focus:outline-none focus:ring-2 focus:ring-primary/15 ${
           isOpen ? "border-primary/50 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"
         }`}
         type="button"
+        aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
         <span className="flex min-w-0 items-center gap-1.5">

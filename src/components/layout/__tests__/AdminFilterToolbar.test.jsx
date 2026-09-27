@@ -21,6 +21,17 @@ function OutletHarness() {
 afterEach(cleanup);
 
 describe("AdminFilterToolbar", () => {
+  it("keeps compact and standard toolbars full width while selects stay bounded", () => {
+    const view = render(<AdminFilterToolbar compact><AdminSearchField label="Search" value="" onChange={vi.fn()} /><Field label="Status" /></AdminFilterToolbar>);
+    expect(screen.getByRole("region", { name: "Filters" }).className).toContain("w-full min-w-0");
+    expect(screen.getByLabelText("Status").closest('[data-admin-filter-slot]').className).toContain("sm:w-[180px]");
+    view.rerender(<AdminFilterToolbar><Field label="Status" /></AdminFilterToolbar>);
+    expect(screen.getByRole("region", { name: "Filters" }).className).toContain("w-full min-w-0");
+  });
+  it("gives a shared child Search the same responsive space as the Search slot", () => {
+    render(<AdminFilterToolbar><AdminSearchField label="Search" value="" onChange={vi.fn()} /></AdminFilterToolbar>);
+    expect(screen.getByRole("searchbox", { name: "Search" }).closest('[data-admin-filter-role="search"]').className).toContain("sm:flex-[1_1_280px]");
+  });
   it("keeps outlet, period, search, filters and actions in one responsive toolbar", () => {
     render(<AdminFilterToolbar outlet={<Field label="Outlet" />} period={<Field label="Period" />} search={<Field label="Search" />} filters={<Field label="Status" />} secondaryActions={<button type="button">Export</button>} primaryActions={<button type="button">Create</button>} />);
     expect(screen.getByRole("region", { name: "Filters" })).toBeTruthy();
@@ -63,6 +74,16 @@ describe("AdminFilterToolbar", () => {
     expect(range.dataset.adminFilterRole).toBe("date-range");
     expect(range.className).toContain("sm:w-[220px]");
     expect(range.className).toContain("shrink-0");
+  });
+
+  it("can place a shared date range after its primary filters without changing the default order", () => {
+    const { container } = render(<AdminFilterToolbar outlet={<Field label="Outlet" />} search={<Field label="Search" />} filters={<><Field label="Supplier" /><Field label="Status" /></>} period={<Field label="Date Range" />} periodAfterFilters />);
+    expect(Array.from(container.querySelectorAll("[data-admin-filter-fields] [data-admin-filter-slot]")).map((field) => field.textContent)).toEqual(["Outlet", "Search", "Supplier", "Status", "Date Range"]);
+  });
+
+  it("can place shared search after filters for result-table filtering", () => {
+    const { container } = render(<AdminFilterToolbar filters={<><Field label="Category" /><Field label="Status" /></>} search={<Field label="Search Item" />} searchAfterFilters />);
+    expect(Array.from(container.querySelectorAll("[data-admin-filter-fields] [data-admin-filter-slot]")).map((field) => field.textContent)).toEqual(["Category", "Status", "Search Item"]);
   });
 
   it("uses a shared component-declared role when the period has no label prop", () => {

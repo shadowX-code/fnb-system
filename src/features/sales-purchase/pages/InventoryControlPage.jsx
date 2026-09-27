@@ -41,6 +41,9 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
+import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
@@ -51,9 +54,11 @@ import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
 import InventoryMovementsPage from "../inventory/movements/InventoryMovementsPage.jsx";
 import InventoryManualMovementModal from "../inventory/movements/InventoryManualMovementModal.jsx";
 import InventoryGroupsPage, { InventoryGroupsPageActions } from "../inventory/groups/InventoryGroupsPage.jsx";
+import InventoryStockCheckResultModal from "../inventory/stockChecks/InventoryStockCheckResultModal.jsx";
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
 import InventoryPurchaseOrderDetail from "../inventory/purchaseOrders/InventoryPurchaseOrderDetail.jsx";
 import { orderedQty, poProgress, poSourceLabel, poStatusLabel, receivedQty, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
+import { formatPurchaseOrderText } from "../inventory/purchaseOrders/purchaseOrderText.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { resolveAdminLocation } from "../../../app/routeOwnership.js";
@@ -296,23 +301,6 @@ function outletDisplayName(outlet = {}) {
   return normalized.name || normalized.code || normalized.id || "Unknown outlet";
 }
 
-function businessOutletCode(outlet = {}) {
-  const code = outletDisplayCode(outlet);
-  return String(code || "OUTLET").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "OUTLET";
-}
-
-function businessPoDate(value) {
-  const source = String(value || todayInput()).slice(0, 10);
-  const match = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (!match) return todayInput().slice(2).replace(/-/g, "");
-  return `${match[1].slice(2)}${match[2]}${match[3]}`;
-}
-
-function purchaseOrderSortKey(order = {}) {
-  const time = Date.parse(order.createdAt || order.submittedAt || order.updatedAt || "");
-  return Number.isFinite(time) ? time : 0;
-}
-
 function csvEscape(value) {
   const text = String(value ?? "");
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -440,6 +428,7 @@ function draftCheckForGroupRun(group = {}, checks = [], date, shiftFilter = "all
 
 function dueStatus(group, checks, date, shiftFilter = "all") {
   if (submittedCheckForGroupRun(group, checks, date, shiftFilter)) return "Completed";
+  if (checks.some((check) => checkMatchesGroupRun(check, group, date, shiftFilter) && check.status === "skipped")) return "Skipped";
   const draft = draftCheckForGroupRun(group, checks, date, shiftFilter);
   const due = isGroupDue(group, date);
   if (due && isPastBusinessDate(date)) return "Missed";
@@ -450,6 +439,7 @@ function dueStatus(group, checks, date, shiftFilter = "all") {
 
 function dueStatusDescription(status) {
   if (status === "Missed") return "This stock check was not completed on schedule.";
+  if (status === "Skipped") return "Crew reviewed this requirement and skipped the count.";
   if (status === "Completed") return "Stock check completed for this date.";
   if (status === "Draft") return "Draft saved. Continue counting today.";
   if (status === "Due Today") return "Ready to count on the assigned date.";
@@ -461,13 +451,14 @@ function canStartScheduledStockCheckForDate(group, date) {
 }
 
 function isActionableStockCheckStatus(status) {
-  return ["Due Today", "Completed", "Draft", "Missed"].includes(status);
+  return ["Due Today", "Completed", "Draft", "Skipped", "Missed"].includes(status);
 }
 
 function stockCheckCardActionState(status) {
   if (status === "Completed") return "completed";
   if (status === "Draft") return "draft";
   if (status === "Missed") return "missed";
+  if (status === "Skipped") return "skipped";
   if (status === "Due Today") return "start";
   return "none";
 }
@@ -477,15 +468,6 @@ function varianceStatus(parLevel, count) {
   if (variance <= 0) return { label: variance < 0 ? "Excess" : "Normal", tone: variance < 0 ? "info" : "success", variance };
   if (variance >= Math.max(3, Number(parLevel || 0) * 0.35)) return { label: "Critical", tone: "danger", variance };
   return { label: "Shortage", tone: "warning", variance };
-}
-
-function stockCheckResultStatus(row = {}) {
-  if (row.skipped) return { label: "Skipped", tone: "neutral" };
-  if (row.na) return { label: "Not Available", tone: "neutral" };
-  const variance = Number(row.variance || 0);
-  if (variance > 0) return { label: "Shortage", tone: "warning" };
-  if (variance < 0) return { label: "Excess", tone: "info" };
-  return { label: "Normal", tone: "success" };
 }
 
 function latestActualCount(checks = [], itemId, outletId) {
@@ -1022,6 +1004,7 @@ function mapRemoteStockCheckItem(row = {}) {
     expectedQty: row.par_level_quantity === null || row.par_level_quantity === undefined ? "" : Number(row.par_level_quantity),
     actualCount: row.actual_count_quantity === null || row.actual_count_quantity === undefined ? "" : Number(row.actual_count_quantity),
     variance: row.variance === null || row.variance === undefined ? 0 : Number(row.variance),
+    unitCostSnapshot: row.unit_cost_snapshot === null || row.unit_cost_snapshot === undefined ? null : Number(row.unit_cost_snapshot),
     unit: row.unit || "",
     status: row.skipped ? "skipped" : (row.status || "normal"),
     notes: row.notes || "",
@@ -1239,7 +1222,7 @@ const recipeWorkspaceTabs = [
 ];
 
 const recipeMappingStatusOptions = [
-  { value: "all", label: "All Status" },
+  { value: "all", label: "All" },
   { value: "pending", label: "Pending" },
   { value: "mapped", label: "Mapped" },
   { value: "ignored", label: "Ignored" },
@@ -1371,6 +1354,7 @@ function mapRemotePurchaseOrder(row = {}, lines = [], receipts = []) {
   return {
     id: row.id,
     poNo: row.po_no || "PO",
+    businessPoNo: row.business_po_no || "",
     supplierId: row.supplier_id || "",
     outletId: row.outlet_id || "",
     outletIds: row.outlet_id ? [row.outlet_id] : [],
@@ -2091,123 +2075,11 @@ async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft",
     })),
   });
   return mapRemoteStockCheck(result.check || {}, result.items || []);
-
-  const action = status === "submitted" ? "submit" : "save-draft";
-  const logLabel = isAudit ? "[AuditStockCheckDebug]" : status === "submitted" ? "[StockCheckSubmitDebug]" : "[StockCheckSaveDebug]";
-  const debug = { action, payload, rows, checkResult: null, deleteItemsResult: null, insertItemsResult: null, groupUpdateResult: null, error: null };
-
-  const checkResult = existingId
-    ? await supabase
-      .from("inventory_stock_checks")
-      .update(payload)
-      .eq("id", existingId)
-      .select("*")
-      .single()
-    : await supabase
-      .from("inventory_stock_checks")
-      .insert({ ...payload, created_by: userId || null })
-      .select("*")
-      .single();
-  debug.checkResult = { data: checkResult.data, error: checkResult.error };
-  if (checkResult.error) {
-    debug.error = checkResult.error;
-    debugLog(logLabel, debug);
-    throw checkResult.error;
-  }
-
-  const checkId = checkResult.data.id;
-  const deleteItemsResult = await supabase
-    .from("inventory_stock_check_items")
-    .delete()
-    .eq("stock_check_id", checkId);
-  debug.deleteItemsResult = { data: deleteItemsResult.data || null, error: deleteItemsResult.error };
-  if (deleteItemsResult.error) {
-    debug.error = deleteItemsResult.error;
-    debugLog(logLabel, debug);
-    throw deleteItemsResult.error;
-  }
-
-  const itemPayload = rows.map((row) => {
-    const actualMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
-    return {
-      stock_check_id: checkId,
-      item_id: isUuid(row.itemId) ? row.itemId : null,
-      category_id: isUuid(row.categoryId) ? row.categoryId : null,
-      par_level_quantity: row.expectedQty === "" || row.expectedQty === null || row.expectedQty === undefined ? null : Number(row.expectedQty),
-      actual_count_quantity: row.skipped || actualMissing ? null : Number(row.actualCount),
-      variance: row.skipped || row.na ? null : Number(row.variance || 0),
-      unit: row.unit || null,
-      status: row.skipped ? "skipped" : (row.na ? "na" : row.status || "normal"),
-      notes: row.notes || null,
-      skipped: Boolean(row.skipped),
-      skip_reason: row.skipped ? (row.skipReason || null) : null,
-      updated_at: new Date().toISOString(),
-    };
-  });
-
-  if (itemPayload.length) {
-    const insertItemsResult = await supabase
-      .from("inventory_stock_check_items")
-      .insert(itemPayload)
-      .select("*");
-    debug.insertItemsResult = { data: insertItemsResult.data, error: insertItemsResult.error };
-    if (insertItemsResult.error) {
-      debug.error = insertItemsResult.error;
-      debugLog(logLabel, debug);
-      throw insertItemsResult.error;
-    }
-  } else {
-    debug.insertItemsResult = { data: [], error: null };
-  }
-
-  if (!isAudit && status === "submitted") {
-    const groupUpdateResult = await supabase
-      .from("inventory_stock_check_groups")
-      .update({ last_checked_at: checkResult.data.submitted_at || new Date().toISOString(), updated_at: new Date().toISOString() })
-      .eq("id", payload.group_id);
-    debug.groupUpdateResult = { data: groupUpdateResult.data || null, error: groupUpdateResult.error };
-    if (groupUpdateResult.error) {
-      debug.error = groupUpdateResult.error;
-      debugLog(logLabel, debug);
-      throw groupUpdateResult.error;
-    }
-  }
-
-  debugLog(logLabel, debug);
-  const savedItemsResult = await supabase
-    .from("inventory_stock_check_items")
-    .select("*")
-    .eq("stock_check_id", checkId)
-    .order("created_at", { ascending: true });
-  if (savedItemsResult.error) throw savedItemsResult.error;
-  return mapRemoteStockCheck(checkResult.data, savedItemsResult.data || []);
 }
 
 async function deleteRemoteStockCheckDraft(checkId) {
   if (!isUuid(checkId)) throw new Error("This audit draft has not been saved to Supabase yet.");
-  const checkResult = await supabase
-    .from("inventory_stock_checks")
-    .select("id,status,stock_check_type")
-    .eq("id", checkId)
-    .single();
-  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-read", checkId, result: { data: checkResult.data, error: checkResult.error }, error: checkResult.error });
-  if (checkResult.error) throw checkResult.error;
-  if (checkResult.data?.status !== "draft") throw new Error("Only draft audit stock checks can be deleted.");
-  if (checkResult.data?.stock_check_type !== "audit") throw new Error("Only audit drafts can be deleted from this action.");
-
-  const deleteItemsResult = await supabase
-    .from("inventory_stock_check_items")
-    .delete()
-    .eq("stock_check_id", checkId);
-  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-items", checkId, result: { data: deleteItemsResult.data || null, error: deleteItemsResult.error }, error: deleteItemsResult.error });
-  if (deleteItemsResult.error) throw deleteItemsResult.error;
-
-  const deleteCheckResult = await supabase
-    .from("inventory_stock_checks")
-    .delete()
-    .eq("id", checkId);
-  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-check", checkId, result: { data: deleteCheckResult.data || null, error: deleteCheckResult.error }, error: deleteCheckResult.error });
-  if (deleteCheckResult.error) throw deleteCheckResult.error;
+  await inventoryLifecycleService.deleteStockCheckDraft({ checkId });
   return true;
 }
 
@@ -2250,47 +2122,12 @@ async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [],
   const missingSupplier = includedRows.find((row) => !isUuid(row.selectedSupplierId));
   if (missingSupplier) throw new Error("Choose a supplier for every included item before creating Draft PO.");
 
-  const existingOrders = await fetchRemotePurchaseOrdersForStockCheck(stockCheck.id);
-  if (existingOrders.length) {
-    const error = new Error("Draft PO already created for this stock check.");
-    error.existingOrders = existingOrders;
-    throw error;
-  }
-
-  const stockCheckItemIds = uniqueIds(includedRows.map((row) => row.stockCheckItemId).filter(isUuid));
-  if (stockCheckItemIds.length) {
-    const duplicateItemsResult = await supabase
-      .from("inventory_purchase_order_items")
-      .select("id, source_stock_check_item_id, purchase_order_id")
-      .in("source_stock_check_item_id", stockCheckItemIds);
-    debugLog("[CreateDraftPODebug]", { action: "duplicate-item-check", stockCheckId: stockCheck.id, stockCheckItemIds, result: { data: duplicateItemsResult.data, error: duplicateItemsResult.error }, error: duplicateItemsResult.error });
-    if (duplicateItemsResult.error) throw duplicateItemsResult.error;
-    const duplicateOrderIds = uniqueIds((duplicateItemsResult.data || []).map((row) => row.purchase_order_id).filter(isUuid));
-    if (duplicateOrderIds.length) {
-      const duplicateOrdersResult = await supabase
-        .from("inventory_purchase_orders")
-        .select("*")
-        .in("id", duplicateOrderIds)
-        .neq("status", "cancelled");
-      debugLog("[CreateDraftPODebug]", { action: "duplicate-order-check", stockCheckId: stockCheck.id, duplicateOrderIds, result: { data: duplicateOrdersResult.data, error: duplicateOrdersResult.error }, error: duplicateOrdersResult.error });
-      if (duplicateOrdersResult.error) throw duplicateOrdersResult.error;
-      if ((duplicateOrdersResult.data || []).length) {
-        const error = new Error("Draft PO already created for this stock check.");
-        error.existingOrders = existingOrders;
-        throw error;
-      }
-    }
-  }
-
   const supplierGroups = includedRows.reduce((groups, row) => {
     if (!groups.has(row.selectedSupplierId)) groups.set(row.selectedSupplierId, []);
     groups.get(row.selectedSupplierId).push(row);
     return groups;
   }, new Map());
-  const createdOrders = [];
-  const createdAt = new Date().toISOString();
-
-  for (const [supplierId, rows] of supplierGroups.entries()) {
+  const orderIntents = [...supplierGroups.entries()].map(([supplierId, rows]) => {
     const poNo = `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`;
     const itemPayload = rows.map((row) => ({
       item_id: isUuid(row.itemId) ? row.itemId : null,
@@ -2299,7 +2136,7 @@ async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [],
       remark: row.remark || null,
       source_stock_check_item_id: isUuid(row.stockCheckItemId) ? row.stockCheckItemId : null,
     }));
-    const result = await inventoryLifecycleService.savePurchaseOrder({ order: {
+    return {
       po_no: poNo,
       outlet_id: stockCheck.outletId,
       supplier_id: supplierId,
@@ -2307,9 +2144,10 @@ async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [],
       source_type: "stock_check",
       source_stock_check_id: stockCheck.id,
       lines: itemPayload,
-    } });
-    createdOrders.push(mapRemotePurchaseOrder(result.order || {}, result.items || []));
-  }
+    };
+  });
+  const results = await inventoryLifecycleService.createStockCheckPurchaseOrders({ stockCheckId: stockCheck.id, orders: orderIntents });
+  const createdOrders = results.map((result) => mapRemotePurchaseOrder(result.order || {}, result.items || []));
 
   debugLog("[CreateDraftPODebug]", { action: "created-draft-pos", stockCheckId: stockCheck.id, createdOrders, error: null });
   return createdOrders;
@@ -2342,18 +2180,9 @@ async function fetchRemotePurchaseOrder(orderId) {
 
 async function persistRemotePurchaseOrderStatus(orderId, status) {
   if (!isUuid(orderId)) throw new Error("Valid purchase order is required.");
-  const timestamp = new Date().toISOString();
-  const payload = { status, updated_at: timestamp };
-  if (status === "submitted") payload.submitted_at = timestamp;
-  if (status === "supplier_confirmed") payload.confirmed_at = timestamp;
-  const result = await supabase
-    .from("inventory_purchase_orders")
-    .update(payload)
-    .eq("id", orderId)
-    .select("*")
-    .single();
-  debugLog("[POSubmitDebug]", { action: "update-status", orderId, status, payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
+  const action = status === "submitted" ? "submit" : status === "supplier_confirmed" ? "confirm" : "";
+  if (!action) throw new Error("Unsupported purchase order status transition.");
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId, action });
   return fetchRemotePurchaseOrder(orderId);
 }
 
@@ -2366,6 +2195,8 @@ async function persistRemotePurchaseOrderEdit(order = {}) {
       outlet_id: order.outletId || order.outletIds?.[0] || null,
       supplier_id: order.supplierId || null,
       status: order.status,
+      source_type: order.sourceType || "manual",
+      source_stock_check_id: order.sourceStockCheckId || null,
       lines: (order.lines || []).map((line) => ({
         item_id: line.itemId,
         requested_qty: Number(line.requestedQty || 0),
@@ -2377,98 +2208,17 @@ async function persistRemotePurchaseOrderEdit(order = {}) {
     requestId: undefined,
   });
   return mapRemotePurchaseOrder(result.order || {}, result.items || [], []);
-  const timestamp = new Date().toISOString();
-  const orderPayload = {
-    supplier_id: isUuid(order.supplierId) ? order.supplierId : null,
-    updated_at: timestamp,
-  };
-  const orderResult = await supabase
-    .from("inventory_purchase_orders")
-    .update(orderPayload)
-    .eq("id", order.id)
-    .eq("status", "draft")
-    .select("*")
-    .single();
-  debugLog("[POSubmitDebug]", { action: "edit-order", orderId: order.id, payload: orderPayload, result: { data: orderResult.data, error: orderResult.error }, error: orderResult.error });
-  if (orderResult.error) throw orderResult.error;
-
-  const deleteResult = await supabase
-    .from("inventory_purchase_order_items")
-    .delete()
-    .eq("purchase_order_id", order.id);
-  debugLog("[POSubmitDebug]", { action: "replace-order-items-delete", orderId: order.id, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
-  if (deleteResult.error) throw deleteResult.error;
-
-  const itemPayload = (order.lines || [])
-    .filter((line) => isUuid(line.itemId) && Number(line.requestedQty || 0) > 0)
-    .map((line) => ({
-      purchase_order_id: order.id,
-      item_id: line.itemId,
-      requested_qty: Number(line.requestedQty || 0),
-      received_qty: 0,
-      unit: line.unit || null,
-      remark: line.remark || null,
-      source_stock_check_item_id: isUuid(line.sourceStockCheckItemId) ? line.sourceStockCheckItemId : null,
-      created_at: line.createdAt || timestamp,
-      updated_at: timestamp,
-    }));
-  if (!itemPayload.length) throw new Error("Purchase order requires at least one item.");
-  const itemsResult = await supabase
-    .from("inventory_purchase_order_items")
-    .insert(itemPayload)
-    .select("*");
-  debugLog("[POSubmitDebug]", { action: "replace-order-items-insert", orderId: order.id, payload: itemPayload, result: { data: itemsResult.data, error: itemsResult.error }, error: itemsResult.error });
-  if (itemsResult.error) throw itemsResult.error;
-  return mapRemotePurchaseOrder(orderResult.data, itemsResult.data || [], []);
 }
 
 async function persistRemotePurchaseOrderCancel(order = {}, reason = "") {
   if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
-  const hasReceived = receivedQty(order) > 0;
-  const cancellableStatus = ["draft", "submitted", "supplier_confirmed"].includes(order.status);
-  if (!cancellableStatus || hasReceived) throw new Error("PO cannot be cancelled after receiving has started.");
-  const timestamp = new Date().toISOString();
-  const payload = {
-    status: "cancelled",
-    cancellation_reason: reason,
-    cancelled_at: timestamp,
-    updated_at: timestamp,
-  };
-  const result = await supabase
-    .from("inventory_purchase_orders")
-    .update(payload)
-    .eq("id", order.id)
-    .select("*")
-    .single();
-  debugLog("[POCancelDebug]", { action: "cancel-po", orderId: order.id, payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId: order.id, action: "cancel", reason });
   return fetchRemotePurchaseOrder(order.id);
 }
 
 async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
   if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
-  if (!["partial_received", "fully_received"].includes(order.status)) throw new Error("Only received purchase orders can be completed.");
-  const progress = poProgress(order);
-  const remaining = Math.max(0, progress.ordered - progress.received);
-  const completionType = remaining > 0 ? "partial" : "full";
-  if (completionType === "partial" && !String(reason || "").trim()) throw new Error("Completion reason is required for partially fulfilled POs.");
-  const timestamp = new Date().toISOString();
-  const payload = {
-    status: "completed",
-    completed_at: timestamp,
-    completion_type: completionType,
-    completion_reason: reason || null,
-    unfulfilled_qty: remaining,
-    updated_at: timestamp,
-  };
-  const result = await supabase
-    .from("inventory_purchase_orders")
-    .update(payload)
-    .eq("id", order.id)
-    .select("*")
-    .single();
-  debugLog("[POCompleteDebug]", { action: "complete-po", orderId: order.id, payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId: order.id, action: "complete", reason });
   return fetchRemotePurchaseOrder(order.id);
 }
 
@@ -2612,6 +2362,7 @@ async function archiveRemoteRecipe(recipeId) {
 // Existing persistence contracts exposed for focused lifecycle tests; runtime ownership remains in InventoryControlPage.
 export const inventoryLifecycleContracts = {
   persistRemoteStockCheck,
+  deleteRemoteStockCheckDraft,
   persistRemotePurchaseOrderStatus,
   persistRemotePurchaseOrderEdit,
   persistRemotePurchaseOrderCancel,
@@ -5094,15 +4845,12 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
       onClose={onClose}
       footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
     >
-      <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_180px_180px]">
-        <label>
-          <div className="mb-1 type-caption font-semibold text-text-secondary">Search ingredient</div>
-          <input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => onFilter({ ...filters, search: event.target.value })} placeholder="Search ingredient" />
-        </label>
+      <AdminFilterToolbar className="mb-4">
+        <AdminSearchField label="Search ingredient" value={filters.search} onChange={(value) => onFilter({ ...filters, search: value })} placeholder="Search ingredient" />
         <SelectField
           label="Category"
           value={filters.category}
-          options={[{ value: "all", label: "All Categories" }, ...categories.map((category) => ({ value: category, label: category }))]}
+          options={[{ value: "all", label: "All" }, ...categories.map((category) => ({ value: category, label: category }))]}
           onChange={(value) => onFilter({ ...filters, category: value })}
         />
         <SelectField
@@ -5116,7 +4864,7 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
           ]}
           onChange={(value) => onFilter({ ...filters, sort: value })}
         />
-      </div>
+      </AdminFilterToolbar>
       <RecipeRankingTable
         rows={filtered}
         columns={[
@@ -6263,6 +6011,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   useEffect(() => {
     if (!["groups", "waste", "recipes"].includes(activeTab)) return;
+    if (activeTab === "groups") {
+      const accessibleOutlets = getAccessibleOutlets(auth, outlets);
+      if (!accessibleOutlets.some((outlet) => outlet.id === selectedOutletId)) {
+        setSelectedOutletId(accessibleOutlets[0]?.id || "");
+      }
+      return;
+    }
     if (!outlets.length) return;
     if (activeTab === "waste" || activeTab === "recipes") {
       const firstAccessibleOutlet = getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "";
@@ -6332,20 +6087,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return counts;
   }, [data.items]);
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
-  const businessPoByOrderId = useMemo(() => {
-    const sortedOrders = [...(data.orders || [])].sort((a, b) => (
-      purchaseOrderSortKey(a) - purchaseOrderSortKey(b)
-      || String(a.poNo || a.id || "").localeCompare(String(b.poNo || b.id || ""))
-    ));
-    const sequenceByDate = new Map();
-    return new Map(sortedOrders.map((order) => {
-      const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
-      const dateCode = businessPoDate(order.createdAt || order.submittedAt || order.updatedAt);
-      const nextSequence = (sequenceByDate.get(dateCode) || 0) + 1;
-      sequenceByDate.set(dateCode, nextSequence);
-      return [order.id, `${businessOutletCode(outlet)}-${dateCode}-${String(nextSequence).padStart(3, "0")}`];
-    }));
-  }, [data.orders, outletById]);
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items]);
   const peopleById = useMemo(() => new Map((data.people || []).map((person) => [person.id, person])), [data.people]);
   const peopleByAuthId = useMemo(() => new Map((data.people || []).filter((person) => person.authUserId).map((person) => [person.authUserId, person])), [data.people]);
@@ -6368,7 +6109,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const person = peopleById.get(id) || peopleByAuthId.get(id);
     return person?.name || person?.email || "Unknown User";
   };
-  const businessPoNo = (order = {}) => businessPoByOrderId.get(order.id) || order.poNo || "PO";
+  const businessPoNo = (order = {}) => order.businessPoNo || order.poNo || "PO";
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
     const linkedOutletIds = item.linkedOutletIds || [];
@@ -7149,40 +6890,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Purchase orders exported", `${rows.length} PO${rows.length === 1 ? "" : "s"} exported.`);
   }
 
-  function formatPurchaseOrderText(order) {
-    const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-    const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
-    const supplierName = supplier?.name || "Supplier";
-    const statusLine = ["cancelled", "completed"].includes(order.status) ? [`Status: ${poStatusLabel(order.status)}`] : [];
-    const itemLines = (order.lines || []).map((line, index) => {
-      const item = itemById.get(line.itemId);
-      const base = `${index + 1}. ${item?.name || "Inventory item"} — ${Number(line.requestedQty || 0)} ${line.unit || item?.unit || ""}`.trim();
-      return line.remark ? `${base}\n   Remark: ${line.remark}` : base;
-    });
-    const remarks = order.remark || order.notes || "";
-    return [
-      `Hi ${supplierName},`,
-      "",
-      "Please arrange the following order:",
-      "",
-      `PO No.: ${businessPoNo(order) || "-"}`,
-      `Date: ${formatDate(order.createdAt || todayInput())}`,
-      `Outlet: ${outlet?.name || "Outlet"}`,
-      ...statusLine,
-      "",
-      "Items:",
-      ...(itemLines.length ? itemLines : ["1. No items listed"]),
-      ...(remarks ? ["", "Remarks:", remarks] : []),
-      "",
-      "Please confirm stock availability and delivery date.",
-      "",
-      "Thank you.",
-    ].join("\n");
-  }
-
   async function copyPurchaseOrderText(order) {
     if (!requirePermission(can.viewPo, "view purchase orders")) return;
-    const text = formatPurchaseOrderText(order);
+    const text = formatPurchaseOrderText(order, {
+      supplierName: suppliers.find((entry) => entry.id === order.supplierId)?.name,
+      outletName: outletById.get(order.outletId || order.outletIds?.[0])?.name,
+      itemById,
+      businessPoNo,
+      formatDate,
+      today: todayInput(),
+    });
     try {
       if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
       await navigator.clipboard.writeText(text);
@@ -7288,7 +7005,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function openCreateGroup() {
     if (!requirePermission(can.manageGroups, "create stock check groups")) return;
-    if (selectedOutletId === "all") {
+    if (!getAccessibleOutlets(auth, outlets).some((outlet) => outlet.id === selectedOutletId)) {
       notify("Select an outlet first", "Select an outlet before creating a stock check group.", "warning");
       return;
     }
@@ -7315,11 +7032,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         groups: current.groups.map((group) => group.id === groupId ? savedGroup : group),
       }));
       await refreshInventory();
-      notify("Stock check group archived");
+      notify("Stock check group deactivated");
     } catch (error) {
       console.warn("[InventoryControl] Unable to archive stock check group.", error);
       debugLog("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: null, error });
-      notify("Unable to archive stock check group", error.message || "Please try again.", "error");
+      notify("Unable to deactivate stock check group", error.message || "Please try again.", "error");
     }
   }
 
@@ -8543,17 +8260,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <MetricCard icon={Warehouse} label="Outlets Linked" value={masterSummary.outletsLinked} helper="Unique outlet links" tone="info" size="compact" />
         </div>
 
-        <div className="card grid gap-3 p-3 xl:grid-cols-[1.15fr_220px_180px_170px] xl:items-end">
-          <label className="min-w-0">
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Search item</div>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-              <input className="control h-9 w-full pl-9 text-[13px]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item name or SKU" />
-            </div>
-          </label>
+      <AdminFilterToolbar>
+          <AdminSearchField label="Search item" value={query} onChange={(value) => setQuery(value)} placeholder="Search item name or SKU" />
           <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable />
-          <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All Categories" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
-          <SelectField label="Status" value={statusFilter} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setStatusFilter} />
+          <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
+          <SelectField label="Status" value={statusFilter} options={[{ value: "all", label: "All" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setStatusFilter} />
           <div className="xl:col-start-4">
             <SelectField
               label="Group by"
@@ -8574,7 +8285,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               <RefreshCw size={15} /> Hard Refresh Inventory
             </button>
           ) : null}
-        </div>
+        </AdminFilterToolbar>
 
         <SectionCard
           title="Inventory Items"
@@ -8842,79 +8553,46 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       );
     };
 
+    const contentActions = <div className="flex flex-wrap items-center justify-end gap-3">
+      <span role="status" aria-live="polite">
+        <Badge tone={parLevelSaveState === "saving" ? "info" : parLevelSaveState === "error" ? "danger" : "neutral"}>
+          {parLevelSaveState === "saving" ? "Saving..." : parLevelSaveState === "error" ? "Save failed" : "Saved"}
+        </Badge>
+      </span>
+      <AdminSegmentedControl label="Par Level view" value={parLevelView} onChange={setParLevelView} options={[
+        { value: "outlet", label: "Outlet View" },
+        { value: "matrix", label: "Matrix View" },
+      ]} />
+    </div>;
+
     return (
       <div className="space-y-4">
-        <div className="card flex flex-col gap-3 p-3 lg:flex-row lg:items-end lg:justify-between">
-          <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-end">
-            {parLevelView === "outlet" ? (
+        <AdminFilterToolbar outlet={parLevelView === "outlet" ? (
               <SelectField
                 label="Outlet"
                 value={activeOutletId}
                 options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
                 onChange={setParLevelOutletId}
                 searchable
-                className="lg:w-72"
               />
             ) : (
-              <div className="lg:w-72">
+              <div className="min-w-0">
                 <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet Scope</div>
                 <div className="control flex h-9 items-center justify-between text-[13px] font-semibold text-text-primary">
                   <span>All accessible outlets</span>
                   <Badge tone="info">{outlets.length}</Badge>
                 </div>
               </div>
-            )}
-            <SelectField
-              label="Category"
-              value={categoryFilter}
-              options={[{ value: "all", label: "All Categories" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]}
-              onChange={setCategoryFilter}
-              searchable
-              className="lg:w-56"
-            />
-            <label className="min-w-0 flex-1">
-              <div className="mb-1 type-caption font-semibold text-text-secondary">Search item</div>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                <input className="control h-9 w-full pl-9 text-[13px]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item name or SKU" />
-              </div>
-            </label>
-          </div>
-          {parLevelView === "outlet" ? (
-            <SelectField
-              label="Group by"
-              value={parLevelGroupBy}
-              options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]}
-              onChange={setParLevelGroupBy}
-              className="lg:w-44"
-            />
-          ) : null}
-          <div className="flex min-w-[92px] justify-end">
-            <Badge tone={parLevelSaveState === "saving" ? "info" : parLevelSaveState === "error" ? "danger" : "success"}>
-              {parLevelSaveState === "saving" ? "Saving..." : parLevelSaveState === "error" ? "Save failed" : "Saved"}
-            </Badge>
-          </div>
-          <div className="inline-flex rounded-xl border border-border bg-slate-50 p-1">
-            {[
-              ["outlet", "Outlet View"],
-              ["matrix", "Matrix View"],
-            ].map(([value, label]) => (
-              <button
-                key={value}
-                className={`rounded-lg px-3 py-1.5 type-caption font-bold transition ${parLevelView === value ? "bg-white text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
-                type="button"
-                onClick={() => setParLevelView(value)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
+            )} search={<AdminSearchField label="Search item" value={query} onChange={setQuery} placeholder="Search item name or SKU" />} filters={<>
+            <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
+            {parLevelView === "outlet" ? <SelectField label="Group by" value={parLevelGroupBy} options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]} onChange={setParLevelGroupBy} /> : null}
+          </>} />
 
         {parLevelView === "outlet" ? (
           <SectionCard
             title={`${outletById.get(activeOutletId)?.name ?? "Outlet"} Par Levels`}
             description="Set the minimum quantity this outlet should keep for each linked item."
+            action={contentActions}
           >
             {outletScopedItems.length ? (
               <div className="overflow-x-auto" ref={parLevelGridRef}>
@@ -8966,7 +8644,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             ) : <EmptyState title="No linked items for this outlet" description="Link items to this outlet from Master Inventory before setting par levels." />}
           </SectionCard>
         ) : (
-          <SectionCard title="Par Level Matrix" description="HQ view for comparing item par levels across outlets.">
+          <SectionCard title="Par Level Matrix" description="HQ view for comparing item par levels across outlets." action={contentActions}>
             {parItems.length ? (
               <div className="space-y-3">
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
@@ -9316,11 +8994,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     return (
       <div className="space-y-4">
-        <div className="card flex flex-col gap-3 p-3 md:flex-row md:items-end">
-          <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable className="md:w-64" />
+      <AdminFilterToolbar>
+          <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable />
           <DatePickerField label="Date" value={date} onChange={setDate} />
-          <SelectField label="Shift" value={stockCheckShiftFilter} options={[{ value: "all", label: "All Shifts" }, ...shifts.map((shift) => ({ value: shift, label: shift }))]} onChange={setStockCheckShiftFilter} className="md:w-48" />
-        </div>
+          <SelectField label="Shift" value={stockCheckShiftFilter} options={[{ value: "all", label: "All" }, ...shifts.map((shift) => ({ value: shift, label: shift }))]} onChange={setStockCheckShiftFilter} />
+        </AdminFilterToolbar>
         <SectionCard title="Today's Required Checks" description="Only due groups appear here; outlets are not asked to count every item every day.">
           {dueGroups.length ? (
             <div className="grid gap-3 xl:grid-cols-3">
@@ -9381,9 +9059,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           </button>
                           <button className="btn-secondary w-full" type="button" onClick={() => openStockCheckResult(latestCheck)}>View Result</button>
                         </>
-                      ) : status === "Missed" ? (
-                        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-800">
-                          This stock check was not completed on schedule.
+                      ) : status === "Missed" || status === "Skipped" ? (
+                        <div className={status === "Missed" ? "rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-800" : "rounded-2xl border border-border bg-surface px-3 py-3 text-sm font-semibold text-text-secondary"}>
+                          {dueStatusDescription(status)}
                         </div>
                       ) : (
                         <button className="btn-primary w-full" type="button" onClick={() => requirePermission(can.createCheck, "start stock checks") && startScheduledStockCheck(group)}>
@@ -9452,7 +9130,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       orders={data.orders}
       items={data.items}
       suppliers={suppliers}
-      outletOptions={getAccessibleOutletOptions(auth, outlets)}
+      outletOptions={getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all")}
       outletById={outletById}
       getBusinessPoNo={businessPoNo}
       formatDate={formatDate}
@@ -9828,7 +9506,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return (
       <div className="space-y-4">
         {isRecipeIntelligencePage ? (
-          <div className="card grid gap-3 p-3 lg:grid-cols-[240px_160px_140px] lg:items-end">
+      <AdminFilterToolbar>
             <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
             <SelectField
               label="Month"
@@ -9842,21 +9520,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               options={availableReportYears.map((year) => ({ value: String(year), label: String(year) }))}
               onChange={(value) => setRecipeReportYear(String(value))}
             />
-          </div>
+          </AdminFilterToolbar>
         ) : (
           <>
-            <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
+      <AdminFilterToolbar>
               <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
-              <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
-              <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
-              <label>
-                <div className="mb-1 type-caption font-semibold text-text-secondary">Search recipe/menu item</div>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                  <input className="control h-9 w-full pl-9 text-[13px]" value={recipeFilters.search} onChange={(event) => updateRecipeFilter("search", event.target.value)} placeholder="Search recipe, outlet or ingredient" />
-                </div>
-              </label>
-            </div>
+              <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
+              <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
+              <AdminSearchField label="Search recipe/menu item" value={recipeFilters.search} onChange={(value) => updateRecipeFilter("search", value)} placeholder="Search recipe, outlet or ingredient" />
+            </AdminFilterToolbar>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard icon={FileText} label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
               <MetricCard icon={ShoppingCart} label="Average Recipe Cost" value={formatRestaurantRecipeCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
@@ -9980,26 +9652,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <MetricCard label="Ignored" value={ignoredProductCount} helper="Excluded intentionally" tone={ignoredProductCount ? "neutral" : "success"} size="compact" />
             <MetricCard label="Coverage %" value={`${mappingCoverage}%`} helper="Mapped / (Mapped + Pending)" tone={mappingCoverage >= 80 ? "success" : mappingCoverage >= 40 ? "warning" : "danger"} size="compact" />
           </div>
-          <div className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr]">
+      <AdminFilterToolbar>
             <SelectField
               label="Status"
               value={recipeMappingFilters.status}
               options={recipeMappingStatusOptions}
               onChange={(value) => setRecipeMappingFilters((current) => ({ ...current, status: value }))}
             />
-            <label>
-              <div className="mb-1 type-caption font-semibold text-text-secondary">Search product or recipe</div>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                <input
-                  className="control h-9 w-full pl-9 text-[13px]"
-                  value={recipeMappingFilters.search}
-                  onChange={(event) => setRecipeMappingFilters((current) => ({ ...current, search: event.target.value }))}
-                  placeholder="Search product name or mapped recipe"
-                />
-              </div>
-            </label>
-          </div>
+            <AdminSearchField label="Search product or recipe" value={recipeMappingFilters.search} onChange={(value) => setRecipeMappingFilters((current) => ({ ...current, search: value }))} placeholder="Search product name or mapped recipe" />
+          </AdminFilterToolbar>
           <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
             {visibleProductMappingRows.length ? (
               <table className="w-full min-w-[980px] text-left">
@@ -10268,22 +9929,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "groups") return <InventoryGroupsPage
       groups={data.groups}
       items={data.items}
-      checks={data.checks}
       categories={data.categories}
-      outlets={outlets}
-      outletOptions={getAccessibleOutletOptions(auth, outlets)}
+      outletOptions={getAccessibleOutletOptions(auth, outlets, { includeAll: false })}
       selectedOutletId={selectedOutletId}
       onSelectedOutletChange={setSelectedOutletId}
-      date={date}
       statuses={statuses}
       frequencies={frequencies}
       toTitle={toTitle}
-      statusTone={statusTone}
-      formatDate={formatDate}
       groupCategoryIds={groupCategoryIds}
       stockCheckItemsForGroup={stockCheckItemsForGroup}
-      dueStatus={dueStatus}
-      compactFrequencyLabel={compactFrequencyLabel}
       onEditGroup={(group) => requirePermission(can.manageGroups, "edit stock check groups") && setModal({ type: "group", group })}
       onDuplicateGroup={(group, categoryIds) => requirePermission(can.manageGroups, "duplicate stock check groups") && setModal({ type: "group", outletId: group.outletId, group: { ...group, id: "", name: `${group.name} Copy`, categoryIds } })}
       onArchiveGroup={(group) => archiveGroup(group.id)}
@@ -10543,113 +10197,20 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           onViewPurchaseOrder={(order) => setModal({ type: "po-detail", order })}
         />
       ) : null}
-      {modal?.type === "check-result" ? (() => {
-        const stockCheck = modal.stockCheck || {};
-        const isAuditResult = modal.isAudit || stockCheck.stockCheckType === "audit";
-        const rows = stockCheck.rows || [];
-        const summary = rows.reduce((acc, row) => {
-          const result = stockCheckResultStatus(row);
-          acc.total += 1;
-          if (result.label === "Normal") acc.normal += 1;
-          if (result.label === "Shortage") acc.shortage += 1;
-          if (result.label === "Excess") acc.excess += 1;
-          if (result.label === "Skipped") acc.skipped += 1;
-          return acc;
-        }, { total: 0, normal: 0, shortage: 0, excess: 0, skipped: 0 });
-        const submittedByName = stockCheck.submittedBy ? actorNameByEmployeeId(stockCheck.submittedBy) : "Unknown User";
-        const outletName = outletById.get(stockCheck.outletId)?.name || "Outlet";
-        const shiftLabel = isAuditResult ? (stockCheck.auditType || "Audit") : (stockCheck.shift || "Stock Check");
-        return (
-          <Modal
-            title={isAuditResult ? "Audit Stock Check Result" : "Stock Check Result"}
-            description={`${outletName} · ${formatDate(stockCheck.date)} · ${shiftLabel}`}
-            size="xl"
-            onClose={() => setModal(null)}
-            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
-          >
-            <div className="mb-4 rounded-2xl border border-border bg-slate-50 p-4">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div>
-                  <div className="type-caption font-black uppercase text-text-muted">Checked by</div>
-                  <div className="type-section-title font-black text-text-primary">{submittedByName}</div>
-                </div>
-                <div>
-                  <div className="type-caption font-black uppercase text-text-muted">Submitted at</div>
-                  <div className="type-section-title font-black text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
-                {[
-                  ["Total Items", summary.total, "neutral"],
-                  ["Normal", summary.normal, "success"],
-                  ["Shortage", summary.shortage, "warning"],
-                  ["Excess", summary.excess, "info"],
-                  ["Skipped", summary.skipped, "neutral"],
-                ].map(([label, value, tone]) => (
-                  <div key={label} className="rounded-xl border border-border bg-white p-3">
-                    <div className="type-micro font-black uppercase text-text-muted">{label}</div>
-                    <div className="mt-1 flex items-center justify-between">
-                      <span className="text-primary-type-kpi-value text-text-primary">{value}</span>
-                      <Badge tone={tone}>{label}</Badge>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[820px] text-left">
-                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr>
-                    <th className="px-3 py-2">Item</th>
-                    <th>Par</th>
-                    <th>Actual</th>
-                    <th>Variance</th>
-                    <th>UOM</th>
-                    <th>Status</th>
-                    <th>Notes</th>
-                    <th>Skip Reason</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {rows.length ? rows.map((row) => {
-                    const item = itemById.get(row.itemId);
-                    const category = categoryById.get(item?.categoryId);
-                    const result = stockCheckResultStatus(row);
-                    return (
-                      <tr key={row.id || row.itemId}>
-                        <td className="px-3 py-2">
-                          <div className="flex min-w-[240px] items-center gap-3">
-                            <InventoryItemThumbnail item={item} category={category} onPreview={setPhotoPreview} size="sm" />
-                            <div className="min-w-0">
-                              <div className="font-bold text-text-primary">{item?.name || "Inventory item"}</div>
-                              <div className="type-caption text-text-secondary">
-                                {category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td>{row.expectedQty || "-"}</td>
-                        <td>{row.skipped ? "Skipped" : row.actualCount}</td>
-                        <td>{row.skipped ? "Skipped" : row.variance}</td>
-                        <td>{row.unit || item?.unit || "-"}</td>
-                        <td><Badge tone={result.tone}>{result.label}</Badge></td>
-                        <td className="max-w-[220px] whitespace-pre-wrap py-2 pr-3 text-text-secondary">{row.notes || "-"}</td>
-                        <td className="max-w-[220px] whitespace-pre-wrap py-2 pr-3 text-text-secondary">{row.skipReason || "-"}</td>
-                      </tr>
-                    );
-                  }) : (
-                    <tr>
-                      <td colSpan={8} className="px-4 py-8 text-center text-sm font-semibold text-text-secondary">
-                        No checked items were saved for this stock check.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </Modal>
-        );
-      })() : null}
+      {modal?.type === "check-result" ? <InventoryStockCheckResultModal
+        stockCheck={modal.stockCheck || {}}
+        isAuditResult={modal.isAudit || modal.stockCheck?.stockCheckType === "audit"}
+        outletName={outletById.get(modal.stockCheck?.outletId)?.name || "Outlet"}
+        submittedByName={modal.stockCheck?.submittedBy ? actorNameByEmployeeId(modal.stockCheck.submittedBy) : "Unknown User"}
+        itemById={itemById}
+        categoryById={categoryById}
+        formatDate={formatDate}
+        formatDateTimeCompact={formatDateTimeCompact}
+        formatCurrency={formatRestaurantRecipeCurrency}
+        ItemThumbnail={InventoryItemThumbnail}
+        onPhotoPreview={setPhotoPreview}
+        onClose={() => setModal(null)}
+      /> : null}
       {modal?.type === "po-detail" ? <InventoryPurchaseOrderDetail
         order={modal.order}
         getBusinessPoNo={businessPoNo}

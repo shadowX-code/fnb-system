@@ -11,6 +11,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import FactoryRowActions from "../../factory/components/FactoryRowActions.jsx";
 import { employeeComplianceService } from "../../../services/employeeComplianceService.js";
 import { getAccessibleOutlets, hasPermission } from "../../../utils/accessControl.js";
 
@@ -22,8 +23,8 @@ const requirementOptions = [
 const statusOptions = [
   { value: "all", label: "All" },
   { value: "missing", label: "Missing" },
-  { value: "pending_verification", label: "Pending Verification" },
-  { value: "verified", label: "Verified" },
+  { value: "pending_verification", label: "Needs Verification" },
+  { value: "verified", label: "Compliant" },
   { value: "expiring_soon", label: "Expiring Soon" },
   { value: "expired", label: "Expired" },
   { value: "rejected", label: "Rejected" },
@@ -32,6 +33,22 @@ const labels = Object.fromEntries(statusOptions.map((item) => [item.value, item.
 const tones = { verified: "success", expiring_soon: "warning", pending_verification: "warning", expired: "danger", rejected: "danger", missing: "neutral" };
 const formatDate = (value) => value ? new Date(`${value}T12:00:00+08:00`).toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" }) : "—";
 const submissionIdFor = (row) => row.state?.pending_submission_id || row.state?.rejected_submission_id || row.state?.effective_submission_id;
+
+function RequirementStatus({ requirement }) {
+  if (!requirement) return <span className="text-text-muted">—</span>;
+  const state = requirement.state || {};
+  const expiry = state.status === "pending_verification" ? state.pending_expiry_date : state.status === "rejected" ? state.rejected_expiry_date : state.effective_expiry_date;
+  return <div className="space-y-1"><Badge tone={tones[state.status]}>{labels[state.status] || state.status || "Missing"}</Badge>{expiry ? <div className="text-xs text-text-muted">Expires {formatDate(expiry)}</div> : null}</div>;
+}
+
+function EmployeeRequirementsModal({ employee, onClose, onReview }) {
+  return <Modal title={employee.full_name} description={[employee.position, employee.outlet_name].filter(Boolean).join(" · ")} size="md" onClose={onClose}>
+    <div className="divide-y divide-border">{employee.requirements.map((requirement) => <div key={requirement.requirement_id} className="flex flex-wrap items-center justify-between gap-3 py-4">
+      <div><strong className="mb-2 block text-sm text-text-primary">{requirement.requirement_name}</strong><RequirementStatus requirement={requirement} />{requirement.state?.replacement_pending ? <p className="mt-2 text-xs text-text-secondary">Existing verified evidence remains effective while the replacement is reviewed.</p> : null}</div>
+      {submissionIdFor(requirement) ? <FactoryRowActions onView={() => onReview({ ...employee, ...requirement })} viewLabel={requirement.state?.status === "pending_verification" ? `Review ${requirement.requirement_name}` : `View ${requirement.requirement_name}`} /> : <span className="text-xs text-text-muted">No evidence submitted</span>}
+    </div>)}</div>
+  </Modal>;
+}
 
 function ReviewModal({ row, canReview, onClose, onReviewed }) {
   const [evidenceUrl, setEvidenceUrl] = useState("");
@@ -73,6 +90,7 @@ export default function EmployeeCompliancePage({ store, auth }) {
   const [requirement, setRequirement] = useState("all");
   const [status, setStatus] = useState("all");
   const [selected, setSelected] = useState(null);
+  const [reviewing, setReviewing] = useState(null);
   const canReview = hasPermission(auth, "employee_compliance.review");
   const signature = JSON.stringify({ outletId, query: query.trim(), requirement, status });
   const [listing, actions] = useAdminPagedQuery({
@@ -82,14 +100,13 @@ export default function EmployeeCompliancePage({ store, auth }) {
   });
   const summary = listing.summary || {};
   const columns = [
-    { key: "crew", header: "Crew", render: (row) => <div><strong className="block text-text-primary">{row.full_name}</strong><span className="text-xs text-text-muted">{row.employee_code || row.position || "Active employee"}</span></div> },
+    { key: "employee", header: "Employee", render: (row) => <div><strong className="block text-text-primary">{row.full_name}</strong><span className="text-xs text-text-muted">{row.position || "—"}</span></div> },
     { key: "outlet", header: "Outlet", render: (row) => row.outlet_name || "—" },
-    { key: "requirement", header: "Requirement", render: (row) => <div><strong className="block text-text-primary">{row.requirement_name}</strong>{row.requires_expiry ? <span className="text-xs text-text-muted">Expiry required</span> : null}</div> },
-    { key: "expiry", header: "Expiry", render: (row) => formatDate(row.state?.effective_expiry_date || row.state?.pending_expiry_date || row.state?.rejected_expiry_date) },
-    { key: "status", header: "Status", render: (row) => <Badge tone={tones[row.state?.status]}>{labels[row.state?.status] || "Missing"}</Badge> },
-    { key: "action", header: "Actions", align: "right", width: "112px", className: "whitespace-nowrap", render: (row) => <div className="table-action-cell">{submissionIdFor(row) ? <button className="btn-secondary px-3 py-2 text-xs" type="button" onClick={() => setSelected(row)}>{row.state?.status === "pending_verification" ? "Review" : "View"}</button> : <span className="text-text-muted">—</span>}</div> },
+    ...["food_handler_certificate", "typhoid_injection"].map((code) => ({ key: code, header: requirementOptions.find((option) => option.value === code).label, render: (row) => <RequirementStatus requirement={row.requirements.find((item) => item.requirement_code === code)} /> })),
+    { key: "status", header: "Overall Status", render: (row) => <Badge tone={tones[row.overall_status]}>{labels[row.overall_status] || row.overall_status}</Badge> },
+    { key: "action", header: "Actions", align: "right", width: "72px", render: (row) => <FactoryRowActions onView={() => setSelected(row)} viewLabel={`View ${row.full_name} compliance`} /> },
   ];
-  const outletOptions = [{ value: "all", label: "All Accessible Outlets" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))];
+  const outletOptions = [{ value: "all", label: "All" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))];
   const activeFilters = [
     outletId !== "all" && { key: "outlet", label: "Outlet", value: outletOptions.find((option) => option.value === outletId)?.label || outletId, onRemove: () => setOutletId("all") },
     query.trim() && { key: "query", label: "Search", value: query.trim(), onRemove: () => setQuery("") },
@@ -99,19 +116,21 @@ export default function EmployeeCompliancePage({ store, auth }) {
 
   return <div className="space-y-5">
     <PageHeader section="People" title="Food Handling Compliance" description="Review Food Handler Certificate and Typhoid Injection records, verification and expiry status across accessible outlets." />
-    <AdminFilterToolbar outlet={<SelectField label="Outlet" value={outletId} options={outletOptions} onChange={setOutletId} />} search={<AdminSearchField label="Search Crew" value={query} onChange={setQuery} placeholder="Name or employee code" />} filters={<><SelectField label="Requirement" value={requirement} options={requirementOptions} onChange={setRequirement} /><SelectField label="Status" value={status} options={statusOptions} onChange={setStatus} /></>} activeFilters={activeFilters} onClear={() => { setOutletId("all"); setQuery(""); setRequirement("all"); setStatus("all"); }} />
+    <AdminFilterToolbar outlet={<SelectField label="Outlet" ariaLabel="Outlet" value={outletId} options={outletOptions} onChange={setOutletId} />} search={<AdminSearchField label="Search Crew" value={query} onChange={setQuery} placeholder="Name or employee code" />} filters={<><SelectField label="Requirement" ariaLabel="Requirement" value={requirement} options={requirementOptions} onChange={setRequirement} /><SelectField label="Status" ariaLabel="Status" value={status} options={statusOptions} onChange={setStatus} /></>} activeFilters={activeFilters} onClear={() => { setOutletId("all"); setQuery(""); setRequirement("all"); setStatus("all"); }} />
     <AdminSummaryGrid variant="standard" ariaLabel="Food handling compliance summary" items={[
-      { key: "compliant", label: "Compliant", value: summary.compliant ?? 0, helper: "Currently effective", tone: "success", icon: CheckCircle2 },
+      { key: "compliant", label: "Compliant", value: summary.compliant ?? 0, helper: "All requirements compliant", tone: "success", icon: CheckCircle2 },
       { key: "verification", label: "Needs Verification", value: summary.needs_verification ?? 0, helper: "Pending Admin review", tone: "warning", icon: ShieldCheck },
       { key: "expiring", label: "Expiring Soon", value: summary.expiring_soon ?? 0, helper: "Within 30 days", tone: "warning", icon: Clock3 },
       { key: "missing", label: "Missing or Expired", value: summary.missing_or_expired ?? 0, helper: "Action required", tone: "danger", icon: AlertTriangle },
     ]} />
+    <p className="text-xs text-text-muted">Employee counts for the current filters, grouped once by the most actionable requirement: Missing / Expired / Rejected, then Needs Verification, Expiring Soon, Compliant.</p>
     <AdminDataSection>
       <AsyncDataSurface loading={listing.loading} error={listing.error} hasData={listing.hasLoaded && listing.rows.length > 0} isEmpty={listing.hasLoaded && !listing.rows.length} emptyTitle="No food handling records" emptyDescription="No active employees match these filters." onRetry={actions.retry}>
-        <DataTable columns={columns} rows={listing.rows} getRowKey={(row) => `${row.employee_id}:${row.requirement_id}`} density="compact" />
-        <AdminPagination page={listing.loadedPage} pageSize={listing.loadedPageSize} total={listing.loadedTotal} loading={listing.loading} noun="requirements" onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize} />
+        <DataTable columns={columns} rows={listing.rows} getRowKey={(row) => row.employee_id} density="compact" />
+        <AdminPagination page={listing.loadedPage} pageSize={listing.loadedPageSize} total={listing.loadedTotal} loading={listing.loading} noun="employees" onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize} />
       </AsyncDataSurface>
     </AdminDataSection>
-    {selected ? <ReviewModal row={selected} canReview={canReview} onClose={() => setSelected(null)} onReviewed={async () => { setSelected(null); await actions.refreshNow(); }} /> : null}
+    {selected && !reviewing ? <EmployeeRequirementsModal employee={selected} onClose={() => setSelected(null)} onReview={setReviewing} /> : null}
+    {reviewing ? <ReviewModal row={reviewing} canReview={canReview} onClose={() => setReviewing(null)} onReviewed={async () => { setReviewing(null); setSelected(null); await actions.refreshNow(); }} /> : null}
   </div>;
 }

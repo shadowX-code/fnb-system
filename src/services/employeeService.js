@@ -48,6 +48,15 @@ function mapEmployee(row) {
 }
 
 export const employeeService = {
+  async readBankInfo(employeeIds) {
+    const ids = [...new Set(employeeIds)].filter(isSupabaseUuid);
+    if (!ids.length) return [];
+    // Employee RLS remains the visibility owner; do not widen Payroll permissions.
+    const { data, error } = await supabase.from("employees")
+      .select("id,bank_name,bank_account_name,bank_account_number").in("id", ids);
+    throwSupabaseError("employeeService.readBankInfo", error);
+    return data || [];
+  },
   async listEmployees() {
     const { data, error } = await supabase
       .from("employees")

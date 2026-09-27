@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, CheckCircle2, Edit3, Plus, Power, Search, Trash2, Users } from "lucide-react";
+import { BriefcaseBusiness, CheckCircle2, Edit3, Plus, Power, Trash2, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
-import FilterBar from "../../../components/forms/FilterBar.jsx";
+import AdminFilterToolbar from "../../../components/layout/AdminFilterToolbar.jsx";
+import AdminSearchField from "../../../components/forms/AdminSearchField.jsx";
 import FilterPopover from "../../../components/forms/FilterPopover.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -604,17 +605,12 @@ export default function JobPositionsPage({ store, ui, auth }) {
         <StatCard label="Inactive Positions" value={stats.inactive} helper="Hidden from new user forms" tone={stats.inactive ? "warning" : "neutral"} icon={Power} />
       </div>
 
-      <FilterBar compact>
-        <FieldLabel label="Search">
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-            <input className="control h-9 min-w-[260px] pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search position or department..." />
-          </div>
-        </FieldLabel>
+      <AdminFilterToolbar compact>
+        <AdminSearchField label="Search" value={query} onChange={setQuery} placeholder="Search position or department..." />
         <FieldLabel label="Department">
           <FilterPopover
             value={departmentFilter === "all" ? "" : departmentFilter}
-            placeholder="All Departments"
+            placeholder="All"
             className="min-w-44"
             options={[
               { value: "unassigned", label: "Unassigned" },
@@ -626,7 +622,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
         <FieldLabel label="Status">
           <FilterPopover
             value={statusFilter === "all" ? "" : statusFilter}
-            placeholder="All Status"
+            placeholder="All"
             options={[
               { value: "active", label: "Active" },
               { value: "inactive", label: "Inactive" },
@@ -634,7 +630,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
             onApply={(nextValue) => setStatusFilter(nextValue || "all")}
           />
         </FieldLabel>
-      </FilterBar>
+      </AdminFilterToolbar>
       {!canCreatePosition && !canEditPosition && !canDeletePosition ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
           Read-only access. You need Job Positions create, edit, or delete permission to change records.

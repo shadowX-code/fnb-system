@@ -51,6 +51,30 @@ export const inventoryLifecycleService = {
     });
   },
 
+  async createStockCheckPurchaseOrders({ stockCheckId, orders, requestId: suppliedRequestId }) {
+    return call("inventory.purchase_order.from_stock_check", "inventory_create_stock_check_purchase_orders", {
+      p_request_id: suppliedRequestId || requestId(),
+      p_check_id: requireUuid(stockCheckId, "Stock check"),
+      p_orders: orders,
+    });
+  },
+
+  async deleteStockCheckDraft({ checkId, requestId: suppliedRequestId }) {
+    return call("inventory.stock_check.draft.delete", "inventory_delete_stock_check_draft", {
+      p_check_id: requireUuid(checkId, "Stock check draft"),
+      p_request_id: suppliedRequestId || requestId(),
+    });
+  },
+
+  async transitionPurchaseOrder({ orderId, action, reason = null, requestId: suppliedRequestId }) {
+    return call("inventory.purchase_order.transition", "inventory_transition_purchase_order", {
+      p_order_id: requireUuid(orderId, "Purchase order"),
+      p_request_id: suppliedRequestId || requestId(),
+      p_action: action,
+      p_reason: reason,
+    });
+  },
+
   async receivePurchaseOrder({ order, rows, receiptRemark, requestId: suppliedRequestId }) {
     requireUuid(order?.id, "Purchase order");
     const request_id = suppliedRequestId || requestId();

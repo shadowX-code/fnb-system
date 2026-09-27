@@ -1,5 +1,6 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+const FloatingAncestors = createContext([]);
 
 function clamp(value, min, max) {
   return Math.min(Math.max(value, min), max);
@@ -31,6 +32,8 @@ export default function FloatingLayer({
   mobileSheet = false,
   layer = "popover",
 }) {
+  const ancestors = useContext(FloatingAncestors);
+  const layerId = useId();
   const layerRef = useRef(null);
   const [position, setPosition] = useState({ top: 0, left: 0, width: minWidth, maxHeight: 320, placement: "bottom", ready: false });
   const zClass = layer === "tooltip" ? "z-tooltip-layer" : layer === "lightbox" ? "z-lightbox-layer" : "z-popover-layer";
@@ -84,6 +87,8 @@ export default function FloatingLayer({
     function handlePointerDown(event) {
       if (!closeOnOutsideClick) return;
       if (anchorRef?.current?.contains(event.target) || layerRef.current?.contains(event.target)) return;
+      // React descendants may render their options in another DOM portal.
+      if (event.target.closest?.("[data-floating-ancestors]")?.dataset.floatingAncestors.split(" ").includes(layerId)) return;
       close();
     }
 
@@ -115,13 +120,14 @@ export default function FloatingLayer({
   if (!open) return null;
 
   return createPortal(
-    <div
+    <FloatingAncestors.Provider value={[...ancestors, layerId]}><div
       ref={layerRef}
       className={`fixed ${zClass} overflow-y-auto overscroll-contain rounded-2xl border border-border bg-surface shadow-xl ring-1 ring-slate-900/5 transition duration-150 ${
         position.ready ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0"
       } p-2 ${mobileSheet ? "max-h-[78vh]" : ""} ${className}`}
       style={{ top: position.top, left: position.left, width: position.width, maxHeight: position.maxHeight }}
       data-placement={position.placement}
+      data-floating-ancestors={ancestors.join(" ")}
     >
       <div
         className={contentClassName}
@@ -129,7 +135,9 @@ export default function FloatingLayer({
       >
         {children}
       </div>
-    </div>,
-    document.body,
+    </div></FloatingAncestors.Provider>,
+    // Keep popovers within their modal's accessible tree. A body-level portal
+    // outside aria-modal is visually present but hidden to assistive technology.
+    anchorRef?.current?.closest('[role="dialog"]') || document.body,
   );
 }

@@ -10,7 +10,7 @@ async function invokeEvidence(body) {
 
 export const employeeComplianceService = {
   async adminPage({ outletId, filters = {}, page = 1, pageSize = 20 }) {
-    const { data, error } = await supabase.rpc("employee_compliance_admin_page", {
+    const { data, error } = await supabase.rpc("employee_compliance_admin_employee_page", {
       p_outlet_id: outletId === "all" ? null : outletId || null,
       p_filters: filters,
       p_page: page,

@@ -48,7 +48,7 @@ export default function SelectField({
   return (
     <div className={`relative min-w-0 ${className}`} ref={containerRef}>
       {label ? (
-        <div className="mb-1 type-caption font-semibold text-text-secondary">
+        <div className="admin-form-field-label mb-2">
           {label} {required ? <span className="text-rose-500">*</span> : null}
         </div>
       ) : null}

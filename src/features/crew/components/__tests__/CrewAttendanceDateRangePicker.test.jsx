@@ -52,6 +52,14 @@ describe("Crew Attendance Date Range Picker", () => {
     expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
   });
 
+  it("clears an applied range through the shared Date Range control", () => {
+    const onApply = vi.fn();
+    render(<CrewAttendanceDateRangePicker from="2026-08-10" to="2026-08-14" today={today} onApply={onApply} />);
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear" }));
+    expect(onApply).toHaveBeenCalledWith({ from: "", to: "" });
+  });
+
   it("supports direct month and year selection without changing the applied range", () => {
     const onApply = vi.fn();
     render(<CrewAttendanceDateRangePicker from={today} to={today} today={today} onApply={onApply} />);

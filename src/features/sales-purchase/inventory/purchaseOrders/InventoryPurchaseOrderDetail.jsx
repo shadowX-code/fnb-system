@@ -52,7 +52,7 @@ export default function InventoryPurchaseOrderDetail({
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3"><div className="type-caption font-semibold text-text-muted">Business PO Number</div><div className="mt-1 font-mono text-lg font-black text-text-primary">{displayPoNo}</div></div>
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3"><div className="type-caption font-semibold text-text-muted">PO No.</div><div className="mt-1 font-mono text-lg font-black text-text-primary">{displayPoNo}</div></div>
         <div className="rounded-2xl border border-border bg-surface p-3"><div className="type-caption font-semibold text-text-muted">Internal System ID</div><div className="mt-1 font-mono text-sm font-bold text-text-secondary">{order.poNo}</div></div>
       </div>
       <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">

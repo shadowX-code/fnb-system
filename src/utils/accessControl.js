@@ -68,9 +68,8 @@ export function canAccessOutlet(auth, outletId) {
 
 export function getAccessibleOutletOptions(auth, outlets = [], { includeAll = true } = {}) {
   const accessibleOutlets = getAccessibleOutlets(auth, outlets);
-  const allLabel = !auth || hasAllOutletAccess(auth) ? "All Outlets" : "All Accessible Outlets";
   return [
-    ...(includeAll ? [{ value: "all", label: allLabel }] : []),
+    ...(includeAll ? [{ value: "all", label: "All" }] : []),
     ...accessibleOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
   ];
 }
