@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-const sql = readFileSync("supabase/migrations/20260926132505_payroll_monthly_entitlement.sql", "utf8");
-const windowSql = readFileSync("supabase/migrations/20260926134251_payroll_statutory_employment_window.sql", "utf8");
+const sql = readFileSync("supabase/migrations/20260926133431_payroll_monthly_entitlement.sql", "utf8");
+const windowSql = readFileSync("supabase/migrations/20260926134501_payroll_statutory_employment_window.sql", "utf8");
 describe("Monthly calendar-day entitlement authority", () => {
   it("uses a confirmed immutable calendar formula, never the ordinary-rate divisor", () => {
     expect(sql).toContain("formula_code is not distinct from 'ea18a_calendar_days_v1'");

@@ -6,12 +6,29 @@ import { routeDetails } from "../../../../app/routes.jsx";
 import { getAdminRouteDefinition, resolveCanonicalPath } from "../../../../app/routeOwnership.js";
 import PayrollPage from "../PayrollPage.jsx";
 
-const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925083003_payroll_foundation.sql"), "utf8");
+const migration = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925084053_payroll_foundation.sql"), "utf8");
 const approverProjection = readFileSync(resolve(process.cwd(), "supabase/migrations/20260925160342_payroll_run_approver_projection.sql"), "utf8");
 const service = readFileSync(resolve(process.cwd(), "src/services/payrollService.js"), "utf8");
 const page = readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollPage.jsx"), "utf8");
 
 describe("People Payroll Phase 1 foundation", () => {
+  it("preserves foundation protections through their applied forward authorities", () => {
+    const readMigration = (name) => readFileSync(resolve(process.cwd(), `supabase/migrations/${name}`), "utf8");
+    const finalized = readMigration("20260925084828_payroll_finalized_effective_date_guard.sql");
+    for (const table of ["compensation", "statutory", "recurring"]) {
+      expect(finalized).toContain(`payroll_${table}_finalized_guard before insert`);
+    }
+    expect(finalized).toContain("period.period_end>=new.effective_from");
+    expect(finalized).toContain("r.status in ('finalized','paid')");
+    const scope = readMigration("20260925085222_payroll_cost_attribution_guard.sql");
+    expect(scope).toContain("v_employee.legal_entity_id is distinct from new.legal_entity_id");
+    expect(scope).toContain("public.crew_resolve_employee_outlet(v_employee.id)");
+    expect(scope).toContain("create trigger payroll_compensation_scope_guard before insert");
+    const commands = readMigration("20260925084327_payroll_foundation_guard_fix.sql");
+    expect(commands).toContain("if tg_op='UPDATE' and tg_table_name='payroll_runs' then");
+    expect(commands).toContain("Finalized payroll runs are immutable.");
+  });
+
   it("has one People route and dedicated payroll permissions", () => {
     expect(moduleRegistry.find((module) => module.id === "payroll")).toMatchObject({
       section: "People", route: "/people/payroll",

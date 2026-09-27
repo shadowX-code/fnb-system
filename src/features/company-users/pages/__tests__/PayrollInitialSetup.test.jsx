@@ -47,7 +47,7 @@ it("allows truthful unresolved setup and reevaluates Off to On",async()=>{
   expect(mocks.readInitialSetup).toHaveBeenLastCalledWith("qa","2026-05-01",{epf:true,socso:false,eis:false,pcb:false},expect.stringMatching(/^\d{4}-\d{2}-01$/));
 });
 it("keeps one private resolver and an atomic scoped append-only initial command",()=>{
-  const sql=readFileSync("supabase/migrations/20260926114822_payroll_initial_statutory_setup.sql","utf8");
+  const sql=readFileSync("supabase/migrations/20260926115140_payroll_initial_statutory_setup.sql","utf8");
   expect(sql.match(/recommendation:=case/g)).toHaveLength(1);
   expect(sql).toContain("payroll_statutory_setup_core(");
   expect(sql).toContain("for update");

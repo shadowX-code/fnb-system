@@ -197,56 +197,11 @@ begin
      'payroll_statutory_profile_versions','payroll_run_profile_snapshots','payroll_events') then
     raise exception using errcode='55000',message='Payroll historical evidence is immutable.';
   end if;
-  if tg_op='UPDATE' and tg_table_name='payroll_runs' then
-    if old.status in ('finalized','paid') then
-      raise exception using errcode='55000',message='Finalized payroll runs are immutable.';
-    end if;
+  if tg_op='UPDATE' and tg_table_name='payroll_runs' and old.status in ('finalized','paid') then
+    raise exception using errcode='55000',message='Finalized payroll runs are immutable.';
   end if;
   return case when tg_op='DELETE' then old else new end;
 end; $$;
-
-create or replace function public.payroll_effective_version_guard()
-returns trigger language plpgsql set search_path=public as $$
-begin
-  if exists(select 1 from public.payroll_run_profile_snapshots s
-      join public.payroll_runs r on r.id=s.run_id
-      join public.payroll_periods period on period.id=r.period_id
-      where s.profile_id=new.profile_id and r.status in ('finalized','paid')
-        and period.period_end>=new.effective_from) then
-    raise exception using errcode='55000',message='Use a controlled correction for a finalized period.';
-  end if;
-  return new;
-end; $$;
-
-create trigger payroll_compensation_finalized_guard before insert on public.payroll_compensation_versions
-  for each row execute function public.payroll_effective_version_guard();
-create trigger payroll_statutory_finalized_guard before insert on public.payroll_statutory_profile_versions
-  for each row execute function public.payroll_effective_version_guard();
-create trigger payroll_recurring_finalized_guard before insert on public.payroll_recurring_component_versions
-  for each row execute function public.payroll_effective_version_guard();
-
--- Cost attribution is a People workplace projection, never a client-selected outlet.
-create or replace function public.payroll_compensation_scope_guard()
-returns trigger language plpgsql set search_path=public as $$
-declare v_employee public.employees%rowtype; v_resolved_outlet uuid;
-begin
-  select e.* into v_employee from public.payroll_profiles p
-    join public.employees e on e.id=p.employee_id where p.id=new.profile_id;
-  if v_employee.id is null or v_employee.legal_entity_id is distinct from new.legal_entity_id then
-    raise exception using errcode='23514',message='Payroll Legal Employer must match the employee assignment.';
-  end if;
-  v_resolved_outlet:=public.crew_resolve_employee_outlet(v_employee.id);
-  if new.default_cost_outlet_id is not null and new.default_cost_outlet_id is distinct from v_resolved_outlet then
-    raise exception using errcode='23514',message='Cost outlet must match the canonical employee workplace.';
-  end if;
-  new.default_cost_outlet_id:=v_resolved_outlet;
-  new.workplace_snapshot:=v_employee.workplace;
-  return new;
-end; $$;
-create trigger payroll_compensation_scope_guard before insert on public.payroll_compensation_versions
-  for each row execute function public.payroll_compensation_scope_guard();
-revoke all on function public.payroll_compensation_scope_guard() from public,anon,authenticated;
-
 
 do $$ declare t text; begin
   foreach t in array array[
@@ -450,11 +405,6 @@ begin
   if p_effective_from<=v_previous.effective_from or nullif(btrim(p_reason),'') is null then
     raise exception using errcode='22023',message='A later effective date and reason are required.';
   end if;
-  if exists(select 1 from public.payroll_run_profile_snapshots s join public.payroll_runs r on r.id=s.run_id
-      join public.payroll_periods period on period.id=r.period_id
-      where s.profile_id=p_profile_id and r.status in ('finalized','paid') and period.period_end>=p_effective_from) then
-    raise exception using errcode='55000',message='Use a controlled correction for a finalized period.';
-  end if;
   perform set_config('feedx.payroll_command','yes',true);
   insert into public.payroll_statutory_profile_versions(profile_id,effective_from,epf_applicable,socso_applicable,eis_applicable,pcb_applicable,reason,approved_by_employee_id)
   values(p_profile_id,p_effective_from,p_epf,p_socso,p_eis,p_pcb,btrim(p_reason),v_actor) returning id into v_id;
@@ -482,11 +432,6 @@ begin
     or p_effective_from is null or nullif(btrim(p_reason),'') is null
     or (p_is_active and coalesce(p_amount,0)<=0) or (not p_is_active and p_amount<>0) then
     raise exception using errcode='22023',message='A valid later effective date, amount and reason are required.';
-  end if;
-  if exists(select 1 from public.payroll_run_profile_snapshots s join public.payroll_runs r on r.id=s.run_id
-      join public.payroll_periods period on period.id=r.period_id
-      where s.profile_id=p_profile_id and r.status in ('finalized','paid') and period.period_end>=p_effective_from) then
-    raise exception using errcode='55000',message='Use a controlled correction for a finalized period.';
   end if;
   perform set_config('feedx.payroll_command','yes',true);
   insert into public.payroll_recurring_component_versions(profile_id,component_id,effective_from,amount,is_active,reason,approved_by_employee_id)
@@ -660,7 +605,6 @@ revoke all on function public.payroll_admin_actor() from public,anon,authenticat
 revoke all on function public.payroll_can_access_employee(uuid,text) from public,anon,authenticated;
 revoke all on function public.payroll_can_manage_entity(uuid,text) from public,anon,authenticated;
 revoke all on function public.payroll_command_guard() from public,anon,authenticated;
-revoke all on function public.payroll_effective_version_guard() from public,anon,authenticated;
 revoke all on function public.payroll_foundation_read(uuid,uuid) from public,anon;
 revoke all on function public.payroll_profile_create(uuid,date,text,numeric,text,text,uuid,uuid,boolean,boolean,boolean,boolean) from public,anon;
 revoke all on function public.payroll_compensation_adjust(uuid,date,text,numeric,text,text,uuid,uuid) from public,anon;

@@ -1,6 +1,6 @@
 import {readFileSync} from 'node:fs';
 import {describe,it,expect} from 'vitest';
-const sql=readFileSync('supabase/migrations/20260927055007_payroll_effective_date_contract.sql','utf8');
+const sql=readFileSync('supabase/migrations/20260927061128_payroll_effective_date_contract.sql','utf8');
 describe('Payroll effective-date contract',()=>{
  it('retains legacy evidence and appends explicit monthly revisions',()=>{
   expect(sql).toContain("default 'exact_date'");

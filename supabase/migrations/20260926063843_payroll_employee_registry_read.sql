@@ -1,4 +1,3 @@
--- Existing scoped read only: add canonical Employee joined date; all guards remain unchanged.
 create or replace function public.payroll_foundation_read(p_profile_id uuid default null,p_period_id uuid default null)
 returns jsonb language plpgsql stable security definer set search_path=public as $$
 declare v_profiles jsonb; v_candidates jsonb; v_entities jsonb; v_components jsonb;

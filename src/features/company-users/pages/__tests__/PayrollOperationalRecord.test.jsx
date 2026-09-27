@@ -25,7 +25,7 @@ it("shows frozen employee identity, earnings and contributions without editable 
   expect(screen.queryByText(/EPF · Not Applicable/)).toBeNull();
 });
 it("keeps the canonical append-only cores and snapshot-only financial reads", () => {
-  const sql=readFileSync("supabase/migrations/20260926122835_payroll_operational_record.sql","utf8");
+  const sql=readFileSync("supabase/migrations/20260926123834_payroll_operational_record.sql","utf8");
   expect(sql).toContain("public.payroll_run_component_reverse(v_reverse_id,v_source.id,v_reason)");
   expect(sql).toContain("public.payroll_run_component_add(p_request_id,p_run_id,p_employee_id,p_component_id,p_amount,v_reason)");
   expect(sql).toContain("for update");
