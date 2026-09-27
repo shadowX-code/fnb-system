@@ -1,3 +1,6 @@
+import InventoryParLevelsPage from "../inventory/parLevels/InventoryParLevelsPage.jsx";
+import { mapRemoteInventoryItem, normalizeOutletRecord, normalizeInventoryItem, uniqueIds, buildOutletConfig, mapRemoteCategory, outletConfigForItem, isActiveInventoryItem, categoryForItem, canonical, isUuid, outletDisplayName, outletDisplayCode } from "../inventory/inventoryItemModel.js";
+import { InventoryCategoryIcon, SectionCard, selectInputText, parseNonNegativeNumber, csvEscape, downloadTextFile, todayInput, getBusinessDateInput, toDateInputValue } from "../inventory/InventorySharedPresentation.jsx";
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
@@ -146,36 +149,8 @@ const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 const recipeMenuCategories = ["Main Dish", "Beverage", "Side Dish", "Sauce", "Dessert", "Prep Item", "Combo", "Other"];
 
-function toDateInputValue(value) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
 
-function getBusinessDateInput(timeZone = "Asia/Kuala_Lumpur", value = new Date()) {
-  const date = value instanceof Date ? value : new Date(value);
-  if (Number.isNaN(date.getTime())) return toDateInputValue(new Date());
-  try {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    }).formatToParts(date);
-    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-    if (byType.year && byType.month && byType.day) return `${byType.year}-${byType.month}-${byType.day}`;
-  } catch {
-    // Fall back to browser local date if the requested timezone is unavailable.
-  }
-  return toDateInputValue(date);
-}
 
-function todayInput(timeZone = "Asia/Kuala_Lumpur") {
-  return getBusinessDateInput(timeZone);
-}
 
 function normalizeBusinessDate(value, fallback = todayInput()) {
   if (value instanceof Date) return toDateInputValue(value) || fallback;
@@ -255,67 +230,11 @@ function parseInventoryCostInput(value) {
   return parsed;
 }
 
-function canonical(value = "") {
-  return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
 
-function normalizeOutletRecord(outlet = {}) {
-  const relatedOutlet = Array.isArray(outlet.outlets) ? outlet.outlets[0] : outlet.outlets;
-  const source = relatedOutlet || outlet.outlet || outlet;
-  const id = source?.id ?? outlet.outlet_id ?? outlet.outletId ?? outlet.id ?? "";
-  const code =
-    source?.code ??
-    source?.outlet_code ??
-    source?.shortCode ??
-    source?.short_code ??
-    source?.abbreviation ??
-    outlet.code ??
-    outlet.outlet_code ??
-    outlet.shortCode ??
-    outlet.short_code ??
-    outlet.abbreviation ??
-    "";
-  const name =
-    source?.name ??
-    source?.outlet_name ??
-    source?.outletName ??
-    outlet.name ??
-    outlet.outlet_name ??
-    outlet.outletName ??
-    "";
-  return {
-    ...outlet,
-    ...source,
-    id,
-    code: String(code || "").trim(),
-    name: String(name || "").trim(),
-  };
-}
 
-function outletDisplayCode(outlet = {}) {
-  const normalized = normalizeOutletRecord(outlet);
-  return normalized.code || normalized.name || normalized.id || "Outlet";
-}
 
-function outletDisplayName(outlet = {}) {
-  const normalized = normalizeOutletRecord(outlet);
-  return normalized.name || normalized.code || normalized.id || "Unknown outlet";
-}
 
-function csvEscape(value) {
-  const text = String(value ?? "");
-  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-}
 
-function downloadTextFile(filename, text, type = "text/csv;charset=utf-8") {
-  const blob = new Blob([text], { type });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-}
 
 function clearInventoryBrowserCache() {
   INVENTORY_BROWSER_CACHE_KEYS.forEach((key) => {
@@ -609,9 +528,6 @@ async function uploadInventoryItemPhoto(file, itemId = "draft", previousPublicUr
 }
 
 
-function uniqueIds(values = []) {
-  return [...new Set(values.filter(Boolean))];
-}
 
 function sameIdSet(first = [], second = []) {
   const left = uniqueIds(first).sort();
@@ -623,9 +539,6 @@ function isImageDataUrl(value) {
   return isStandardImageDataUrl(value);
 }
 
-function isUuid(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
-}
 
 function getStockCheckResponsiveLayout() {
   if (typeof window === "undefined") return "desktop";
@@ -656,90 +569,9 @@ function useStockCheckResponsiveLayout() {
   return layout;
 }
 
-function selectInputText(event) {
-  if (!event.target.value) return;
-  event.target.select?.();
-}
 
-function parseNonNegativeNumber(value) {
-  if (value === "" || value === null || value === undefined) return "";
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return "";
-  return Math.max(0, parsed);
-}
 
-function focusEditableGridInput(gridRef, currentRow, currentField, direction) {
-  const fields = ["par", "storage"];
-  const visibleInputs = [...(gridRef.current?.querySelectorAll("[data-grid-row][data-grid-field]") || [])]
-    .filter((input) => !input.disabled && input.offsetParent !== null)
-    .map((input) => ({
-      input,
-      row: Number(input.dataset.gridRow),
-      field: input.dataset.gridField,
-      fieldIndex: fields.indexOf(input.dataset.gridField),
-    }))
-    .filter((entry) => Number.isFinite(entry.row) && entry.fieldIndex >= 0)
-    .sort((a, b) => a.row - b.row || a.fieldIndex - b.fieldIndex);
-  if (!visibleInputs.length) return;
 
-  const currentIndex = visibleInputs.findIndex((entry) => entry.row === currentRow && entry.field === currentField);
-  let nextIndex = currentIndex;
-  if (direction === "next-row") nextIndex = visibleInputs.findIndex((entry) => entry.row > currentRow && entry.field === currentField);
-  if (direction === "previous-row") {
-    for (let index = visibleInputs.length - 1; index >= 0; index -= 1) {
-      if (visibleInputs[index].row < currentRow && visibleInputs[index].field === currentField) {
-        nextIndex = index;
-        break;
-      }
-    }
-  }
-  if (direction === "right") nextIndex = Math.min(visibleInputs.length - 1, currentIndex + 1);
-  if (direction === "left") nextIndex = Math.max(0, currentIndex - 1);
-  if (nextIndex < 0 || nextIndex === currentIndex) return;
-  const target = visibleInputs[nextIndex]?.input;
-  target?.focus?.();
-  target?.select?.();
-}
-
-function focusMatrixGridInput(gridRef, currentRow, currentColumn, direction) {
-  const visibleInputs = [...(gridRef.current?.querySelectorAll("[data-matrix-row][data-matrix-column]") || [])]
-    .filter((input) => !input.disabled && input.offsetParent !== null)
-    .map((input) => ({
-      input,
-      row: Number(input.dataset.matrixRow),
-      column: Number(input.dataset.matrixColumn),
-    }))
-    .filter((entry) => Number.isFinite(entry.row) && Number.isFinite(entry.column))
-    .sort((a, b) => a.row - b.row || a.column - b.column);
-  if (!visibleInputs.length) return;
-
-  const currentIndex = visibleInputs.findIndex((entry) => entry.row === currentRow && entry.column === currentColumn);
-  let nextIndex = currentIndex;
-  if (direction === "next-row") nextIndex = visibleInputs.findIndex((entry) => entry.row > currentRow && entry.column === currentColumn);
-  if (direction === "previous-row") {
-    for (let index = visibleInputs.length - 1; index >= 0; index -= 1) {
-      if (visibleInputs[index].row < currentRow && visibleInputs[index].column === currentColumn) {
-        nextIndex = index;
-        break;
-      }
-    }
-  }
-  if (direction === "right") {
-    nextIndex = visibleInputs.findIndex((entry) => entry.row === currentRow && entry.column > currentColumn);
-  }
-  if (direction === "left") {
-    for (let index = visibleInputs.length - 1; index >= 0; index -= 1) {
-      if (visibleInputs[index].row === currentRow && visibleInputs[index].column < currentColumn) {
-        nextIndex = index;
-        break;
-      }
-    }
-  }
-  if (nextIndex < 0 || nextIndex === currentIndex) return;
-  const target = visibleInputs[nextIndex]?.input;
-  target?.focus?.();
-  target?.select?.();
-}
 
 function focusIndexedInput(containerRef, currentIndex, direction, selector = "[data-entry-index]") {
   const inputs = [...(containerRef.current?.querySelectorAll(selector) || [])]
@@ -757,105 +589,9 @@ function focusIndexedInput(containerRef, currentIndex, direction, selector = "[d
   inputs[nextPosition]?.input?.select?.();
 }
 
-function getLinkedOutletIds(item = {}) {
-  if (Array.isArray(item.linkedOutletIds)) return uniqueIds(item.linkedOutletIds);
-  if (Array.isArray(item.linked_outlet_ids)) return uniqueIds(item.linked_outlet_ids);
-  return uniqueIds([
-    ...(item.linkedOutlets || []).map((outlet) => normalizeOutletRecord(outlet).id),
-    ...(item.linked_outlets || []).map((outlet) => normalizeOutletRecord(outlet).id),
-    ...(item.outletConfigs || []).map((config) => config.outletId),
-    ...(item.outlet_configs || []).map((config) => config.outlet_id || config.outletId),
-  ]);
-}
 
-function buildOutletConfig(item = {}, outletId, existing = {}) {
-  const rawParLevel = existing.parLevel ?? existing.par_level ?? item.parLevel ?? item.par_level ?? null;
-  const parLevel = rawParLevel === "" || rawParLevel === null || rawParLevel === undefined ? "" : Number(rawParLevel);
-  return {
-    id: existing.id || `${item.id || "draft"}_${outletId}`,
-    inventoryItemId: existing.inventoryItemId || existing.inventory_item_id || item.id || "",
-    outletId,
-    parLevel,
-    storageLocation: existing.storageLocation ?? existing.storage_location ?? "",
-    supplierIds: uniqueIds(existing.supplierIds || existing.supplier_ids || []),
-    isActive: existing.isActive ?? existing.is_active ?? true,
-    createdAt: existing.createdAt || existing.created_at || item.createdAt || item.created_at || "",
-    updatedAt: existing.updatedAt || existing.updated_at || item.updatedAt || item.updated_at || "",
-  };
-}
 
-function normalizeInventoryItem(item = {}) {
-  const rawCategoryRecord = item.category || item.inventory_categories || item.inventory_category || {};
-  const categoryRecord = Array.isArray(rawCategoryRecord) ? rawCategoryRecord[0] || {} : rawCategoryRecord;
-  const rawUomRecord = item.uom || item.inventory_uoms || item.inventory_uom || {};
-  const uomRecord = Array.isArray(rawUomRecord) ? rawUomRecord[0] || {} : rawUomRecord;
-  const linkedOutlets = (item.linkedOutlets || item.linked_outlets || [])
-    .map(normalizeOutletRecord)
-    .filter((outlet) => outlet.id);
-  const linkedOutletIds = getLinkedOutletIds(item);
-  const existingConfigs = new Map([...(item.outletConfigs || []), ...(item.outlet_configs || [])].map((config) => [config.outletId || config.outlet_id, config]));
-  const id = item.id || "";
-  const name = item.name ?? item.item_name ?? item.itemName ?? "Inventory item";
-  const sku = item.sku ?? item.sku_code ?? item.skuCode ?? "";
-  const categoryId = item.categoryId ?? item.category_id ?? categoryRecord.id ?? "";
-  const categoryName = item.categoryName ?? item.category_name ?? categoryRecord.name ?? "";
-  const categoryCode = item.categoryCode ?? item.category_code ?? categoryRecord.code ?? categoryRecord.category_code ?? "";
-  const uomCode = item.unit ?? item.uomCode ?? item.uom_code ?? uomRecord.code ?? "";
-  const photoUrl = item.photo_url ?? item.photoUrl ?? item.image_url ?? item.item_photo_url ?? item.photo ?? item.image ?? "";
-  const rawCost = item.cost ?? item.defaultCost ?? item.default_cost ?? "";
-  const cost = rawCost === "" || rawCost === null || rawCost === undefined ? "" : Number(rawCost);
-  const description = item.description ?? "";
-  const rawActiveFlag = item.isActive ?? item.is_active;
-  const rawStatus = String(item.status ?? "").toLowerCase();
-  const status = rawActiveFlag === false ? "inactive" : rawStatus || "active";
-  const isActive = rawActiveFlag ?? status !== "inactive";
-  const createdAt = item.createdAt ?? item.created_at ?? "";
-  const updatedAt = item.updatedAt ?? item.updated_at ?? "";
-  return {
-    ...item,
-    id,
-    name,
-    item_name: name,
-    sku,
-    sku_code: sku,
-    description,
-    categoryId,
-    category_id: categoryId,
-    categoryName,
-    category_name: categoryName,
-    categoryCode,
-    category_code: categoryCode,
-    unit: uomCode,
-    uomCode,
-    uom_code: uomCode,
-    cost: Number.isFinite(cost) ? cost : "",
-    defaultCost: Number.isFinite(cost) ? cost : "",
-    costUpdatedAt: item.costUpdatedAt ?? item.cost_updated_at ?? "",
-    cost_updated_at: item.costUpdatedAt ?? item.cost_updated_at ?? "",
-    costUpdatedBy: item.costUpdatedBy ?? item.cost_updated_by ?? "",
-    cost_updated_by: item.costUpdatedBy ?? item.cost_updated_by ?? "",
-    status,
-    isActive,
-    is_active: isActive,
-    photo: photoUrl,
-    photo_url: photoUrl,
-    linkedOutlets,
-    linked_outlets: linkedOutlets,
-    linkedOutletIds,
-    linked_outlet_ids: linkedOutletIds,
-    outletConfigs: linkedOutletIds.map((outletId) => buildOutletConfig(item, outletId, existingConfigs.get(outletId))),
-    createdAt,
-    created_at: createdAt,
-    updatedAt,
-    updated_at: updatedAt,
-  };
-}
 
-function isActiveInventoryItem(item = {}) {
-  const normalized = normalizeInventoryItem(item);
-  const status = String(normalized.status || "active").toLowerCase();
-  return normalized.isActive !== false && !["inactive", "archived", "deleted"].includes(status);
-}
 
 function normalizeUom(uom = {}) {
   const code = String(uom.code ?? uom.uom_code ?? "").trim();
@@ -871,17 +607,6 @@ function normalizeUom(uom = {}) {
   };
 }
 
-function mapRemoteCategory(row = {}) {
-  return {
-    id: row.id,
-    name: row.name || "Uncategorized",
-    description: row.description || "",
-    sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
-    status: row.status || "active",
-    createdAt: row.created_at || row.createdAt || "",
-    updatedAt: row.updated_at || row.updatedAt || "",
-  };
-}
 
 function mapRemoteUom(row = {}) {
   return normalizeUom({
@@ -896,45 +621,6 @@ function mapRemoteUom(row = {}) {
   });
 }
 
-function mapRemoteInventoryItem(row = {}, configs = [], categoryById = new Map(), supplierIdsByConfigId = new Map()) {
-  const category = categoryById.get(row.category_id) || row.inventory_categories || row.category || {};
-  const linkedOutlets = configs
-    .map((config) => normalizeOutletRecord(config.outlets || config.outlet || { id: config.outlet_id }))
-    .filter((outlet) => outlet.id);
-  const outletConfigs = configs.map((config) => ({
-    id: config.id,
-    inventoryItemId: config.inventory_item_id,
-    outletId: config.outlet_id,
-    parLevel: config.par_level === null || config.par_level === undefined ? "" : Number(config.par_level),
-    storageLocation: config.storage_location || "",
-    supplierIds: supplierIdsByConfigId.get(config.id) || [],
-    isActive: config.is_active !== false,
-    createdAt: config.created_at || "",
-    updatedAt: config.updated_at || "",
-  }));
-  return normalizeInventoryItem({
-    id: row.id,
-    name: row.item_name || row.name || "Inventory item",
-    sku: row.sku_code || row.sku || "",
-    categoryId: row.category_id || "",
-    categoryName: row.category_name || category?.name || "",
-    categoryCode: row.category_code || category?.code || category?.category_code || "",
-    unit: row.unit || row.uom_code || row.uom || "",
-    cost: row.cost === null || row.cost === undefined ? "" : Number(row.cost),
-    costUpdatedAt: row.cost_updated_at || "",
-    costUpdatedBy: row.cost_updated_by || "",
-    photo: row.photo_url || row.image_url || row.item_photo_url || row.photo || row.image || "",
-    description: row.description || "",
-    inventoryType: row.inventory_type || "",
-    defaultSupplierId: row.default_supplier_id || "",
-    status: row.status || "active",
-    linkedOutletIds: uniqueIds(outletConfigs.map((config) => config.outletId)),
-    linkedOutlets,
-    outletConfigs,
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || "",
-  });
-}
 
 
 function mapRemoteStockCheckItem(row = {}) {
@@ -1782,61 +1468,6 @@ async function countRemoteInventoryItemsForUom(code) {
   return (data || []).filter((item) => canonical(item.unit) === canonical(rawCode)).length;
 }
 
-async function persistRemoteParLevelConfig(item, outletId, patch) {
-  const normalized = normalizeInventoryItem(item);
-  if (!isUuid(normalized.id) || !isUuid(outletId)) throw new Error("Valid item and outlet are required.");
-  const existing = outletConfigForItem(normalized, outletId);
-  const payload = {
-    inventory_item_id: normalized.id,
-    outlet_id: outletId,
-    par_level: Object.prototype.hasOwnProperty.call(patch, "parLevel")
-      ? (patch.parLevel === "" || patch.parLevel === null || patch.parLevel === undefined ? null : Number(patch.parLevel))
-      : (existing.parLevel === "" || existing.parLevel === null || existing.parLevel === undefined ? null : Number(existing.parLevel)),
-    storage_location: Object.prototype.hasOwnProperty.call(patch, "storageLocation") ? (patch.storageLocation || null) : (existing.storageLocation || null),
-    is_active: true,
-    updated_at: new Date().toISOString(),
-  };
-  if (payload.par_level !== null && (!Number.isFinite(payload.par_level) || payload.par_level < 0)) throw new Error("Par Level must be a non-negative number.");
-
-  const configResult = await supabase
-    .from("inventory_item_outlets")
-    .upsert(payload, { onConflict: "inventory_item_id,outlet_id" })
-    .select("*")
-    .single();
-  debugLog("[ParLevelSaveDebug]", { action: "upsert-config", itemId: normalized.id, outletId, payload, result: { data: configResult.data, error: configResult.error }, error: configResult.error });
-  if (configResult.error) throw configResult.error;
-
-  if (Object.prototype.hasOwnProperty.call(patch, "supplierIds")) {
-    const supplierIds = uniqueIds(patch.supplierIds || []).filter(isUuid);
-    const deleteResult = await supabase
-      .from("inventory_item_outlet_suppliers")
-      .delete()
-      .eq("inventory_item_outlet_id", configResult.data.id);
-    debugLog("[ParLevelSaveDebug]", { action: "delete-suppliers", itemId: normalized.id, outletId, payload: { supplierIds }, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
-    if (deleteResult.error) throw deleteResult.error;
-    if (supplierIds.length) {
-      const supplierPayload = supplierIds.map((supplierId) => ({
-        inventory_item_outlet_id: configResult.data.id,
-        supplier_id: supplierId,
-        updated_at: new Date().toISOString(),
-      }));
-      const supplierResult = await supabase
-        .from("inventory_item_outlet_suppliers")
-        .insert(supplierPayload);
-      debugLog("[ParLevelSaveDebug]", { action: "insert-suppliers", itemId: normalized.id, outletId, payload: supplierPayload, result: { data: supplierResult.data || null, error: supplierResult.error }, error: supplierResult.error });
-      if (supplierResult.error) throw supplierResult.error;
-    }
-  }
-
-  return {
-    ...buildOutletConfig(normalized, outletId, existing),
-    id: configResult.data.id,
-    parLevel: configResult.data.par_level === null || configResult.data.par_level === undefined ? "" : Number(configResult.data.par_level),
-    storageLocation: configResult.data.storage_location || "",
-    supplierIds: Object.prototype.hasOwnProperty.call(patch, "supplierIds") ? uniqueIds(patch.supplierIds || []) : existing.supplierIds,
-    updatedAt: configResult.data.updated_at || new Date().toISOString(),
-  };
-}
 
 
 
@@ -2216,11 +1847,6 @@ function uomOptionLabel(uom = {}) {
     : uom.code;
 }
 
-function outletConfigForItem(item = {}, outletId) {
-  if (!outletId) return buildOutletConfig(item, "");
-  const existing = (item.outletConfigs || []).find((config) => config.outletId === outletId);
-  return buildOutletConfig(item, outletId, existing);
-}
 
 function outletConfigsForScope(item = {}, outletIds = []) {
   const allowed = new Set(outletIds);
@@ -2508,24 +2134,8 @@ function TextArea({ label, value, onChange, placeholder }) {
   );
 }
 
-function SectionCard({ title, description, action, children, className = "" }) {
-  return (
-    <DashboardSection title={title} subtitle={description} action={action} className={className}>
-      {children}
-    </DashboardSection>
-  );
-}
 
 
-function InventoryCategoryIcon({ category, size = "md" }) {
-  const initial = (category?.name || "Inventory").slice(0, 1).toUpperCase();
-  const sizeClass = size === "sm" ? "h-10 w-10 text-sm" : "h-11 w-11 text-base";
-  return (
-    <div className={`${sizeClass} grid shrink-0 place-items-center rounded-2xl border border-primary/15 bg-primary/10 font-black text-primary shadow-sm`}>
-      {initial}
-    </div>
-  );
-}
 
 function MultiOutletPicker({ outlets, selectedIds, onChange }) {
   const selected = new Set(selectedIds || []);
@@ -2641,92 +2251,6 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
   );
 }
 
-function SupplierAssignmentPicker({ suppliers, outletId, selectedIds = [], onSave, disabled = false }) {
-  const anchorRef = useRef(null);
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const [draftIds, setDraftIds] = useState(selectedIds);
-  const selected = new Set(draftIds);
-  const outletSuppliers = useMemo(() => suppliers
-    .filter((supplier) => supplier.status === "active" || supplier.is_active === true)
-    .filter((supplier) => (supplier.outletIds || supplier.assignedOutletIds || []).includes(outletId))
-    .filter((supplier) => !query.trim() || supplier.name.toLowerCase().includes(query.trim().toLowerCase()))
-    .sort((a, b) => a.name.localeCompare(b.name)), [suppliers, outletId, query]);
-  const selectedSuppliers = suppliers.filter((supplier) => selectedIds.includes(supplier.id));
-  const label = selectedSuppliers.length === 0
-    ? "No supplier"
-    : selectedSuppliers.length === 1
-      ? selectedSuppliers[0].name
-      : `${selectedSuppliers.length} suppliers`;
-
-  useEffect(() => {
-    if (open) setDraftIds(selectedIds);
-  }, [open, selectedIds]);
-
-  return (
-    <>
-      <button
-        ref={anchorRef}
-        className="inline-flex h-8 max-w-[180px] items-center gap-1 rounded-full border border-border bg-white px-2.5 type-caption font-bold text-text-primary transition hover:border-primary/30 hover:text-primary"
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen(true)}
-      >
-        <span className="truncate">{label}</span>
-        <ChevronDown size={13} className="shrink-0 text-text-muted" />
-      </button>
-      <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" minWidth={280} estimatedHeight={340}>
-        <div className="space-y-2">
-          <div className="px-1">
-            <div className="type-caption font-bold text-text-primary">Assign suppliers</div>
-            <div className="type-micro text-text-muted">Only suppliers linked to this outlet are shown.</div>
-          </div>
-          <input
-            className="control h-8 w-full text-[12px]"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search suppliers"
-          />
-          {draftIds.length ? (
-            <div className="flex flex-wrap gap-1">
-              {suppliers.filter((supplier) => draftIds.includes(supplier.id)).map((supplier) => (
-                <span key={supplier.id} className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">{supplier.name}</span>
-              ))}
-            </div>
-          ) : null}
-          <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
-            {outletSuppliers.length ? outletSuppliers.map((supplier) => {
-              const checked = selected.has(supplier.id);
-              return (
-                <label key={supplier.id} className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 transition hover:bg-primary/5">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(event) => {
-                      const next = new Set(draftIds);
-                      if (event.target.checked) next.add(supplier.id);
-                      else next.delete(supplier.id);
-                      setDraftIds([...next]);
-                    }}
-                  />
-                  <span className="min-w-0 flex-1 truncate type-body-sm font-semibold text-text-primary">{supplier.name}</span>
-                </label>
-              );
-            }) : (
-              <div className="rounded-xl bg-slate-50 px-3 py-2 type-caption font-semibold text-text-secondary">
-                No active suppliers linked to this outlet.
-              </div>
-            )}
-          </div>
-          <div className="flex justify-end gap-2 border-t border-border pt-2">
-            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="btn-primary h-8 px-2.5 text-xs" type="button" disabled={disabled} onClick={() => { onSave(draftIds); setOpen(false); }}>Save</button>
-          </div>
-        </div>
-      </FloatingLayer>
-    </>
-  );
-}
 
 function ItemPhotoPicker({ value, onChange }) {
   const [error, setError] = useState("");
@@ -3226,20 +2750,6 @@ function categoryByIdName(categories, categoryId) {
   return categories.find((category) => category.id === categoryId)?.name || "Uncategorized";
 }
 
-function categoryForItem(item = {}, categoryById = new Map()) {
-  const category = categoryById.get(item.categoryId || item.category_id);
-  if (category) return category;
-  if (item.categoryName || item.category_name) {
-    return {
-      id: item.categoryId || item.category_id || canonical(item.categoryName || item.category_name) || "uncategorized",
-      name: item.categoryName || item.category_name,
-      code: item.categoryCode || item.category_code || "",
-      sortOrder: 9999,
-      status: "active",
-    };
-  }
-  return null;
-}
 
 function UomModal({ uom, onClose, onSave }) {
   const [form, setForm] = useState(() => normalizeUom(uom ?? {
@@ -5450,11 +4960,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const [statusFilter, setStatusFilter] = useState("active");
   const [masterGroupBy, setMasterGroupBy] = useState("category");
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState(() => new Set());
-  const [parLevelView, setParLevelView] = useState("outlet");
-  const [parLevelGroupBy, setParLevelGroupBy] = useState("category");
-  const [collapsedParCategoryIds, setCollapsedParCategoryIds] = useState(() => new Set());
-  const [parLevelOutletId, setParLevelOutletId] = useState(outlets[0]?.id ?? "");
-  const [parLevelSaveState, setParLevelSaveState] = useState("saved");
   const [uomWriteStatus, setUomWriteStatus] = useState("Not written");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
@@ -5483,10 +4988,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const [editingCostValue, setEditingCostValue] = useState("");
   const [savingCostItemId, setSavingCostItemId] = useState(null);
   const skipCostBlurSaveRef = useRef(false);
-  const parLevelGridRef = useRef(null);
-  const parLevelMatrixRef = useRef(null);
-  const parLevelSaveRequestsRef = useRef(new Map());
-  const parLevelSaveStatusRequestRef = useRef(0);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
@@ -5603,9 +5104,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     setActiveTab(initialTab);
   }, [initialTab]);
 
-  useEffect(() => {
-    if (!parLevelOutletId && outlets[0]?.id) setParLevelOutletId(outlets[0].id);
-  }, [outlets, parLevelOutletId]);
 
   useEffect(() => {
     if (activeTab !== "recipes") return;
@@ -5635,7 +5133,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     export: hasPermission(auth, "inventory_master.export") || hasPermission(auth, "inventory_par_levels.export") || hasPermission(auth, "inventory_stock_check.export") || hasPermission(auth, "inventory_orders.export") || hasPermission(auth, "inventory_movements.export") || hasPermission(auth, "inventory_waste.export") || hasPermission(auth, "inventory_recipes.export"),
     manageMaster: hasPermission(auth, "inventory_master.create") || hasPermission(auth, "inventory_master.edit"),
     editParLevels: hasPermission(auth, "inventory_par_levels.edit"),
-    exportParLevels: hasPermission(auth, "inventory_par_levels.export"),
     viewCategories: hasPermission(auth, "inventory_categories.view") || hasPermission(auth, "inventory_master.view"),
     createCategory: hasPermission(auth, "inventory_categories.create"),
     editCategory: hasPermission(auth, "inventory_categories.edit"),
@@ -6395,48 +5892,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Master inventory exported successfully", `${rows.length} item${rows.length === 1 ? "" : "s"} exported.`);
   }
 
-  function supplierNamesForConfig(config = {}) {
-    return (config.supplierIds || [])
-      .map((id) => suppliers.find((supplier) => supplier.id === id)?.name)
-      .filter(Boolean)
-      .join(", ");
-  }
 
-  function exportParLevels() {
-    const activeOutletId = parLevelOutletId || outlets[0]?.id || "";
-    const scopedOutlets = parLevelView === "outlet"
-      ? outlets.filter((outlet) => outlet.id === activeOutletId)
-      : outlets;
-    const rows = [];
-    data.items
-      .filter((item) => {
-        const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
-        const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter || item.category_id === categoryFilter;
-        return matchesQuery && matchesCategory;
-      })
-      .forEach((item) => {
-        const category = categoryForItem(item, categoryById);
-        scopedOutlets.forEach((outlet) => {
-          if (!item.linkedOutletIds?.includes(outlet.id)) return;
-          const config = outletConfigForItem(item, outlet.id);
-          rows.push({
-            "Item Name": item.name,
-            "SKU Code": item.sku_code || item.sku,
-            Category: category?.name || "",
-            Unit: item.uom_code || item.unit,
-            Outlet: outlet.name,
-            "Par Level": config.parLevel,
-            "Storage Location": config.storageLocation,
-            Suppliers: supplierNamesForConfig(config),
-          });
-        });
-      });
-    const columns = ["Item Name", "SKU Code", "Category", "UOM", "Outlet", "Par Level", "Storage Location", "Suppliers"];
-    rows.forEach((row) => { row.UOM = row.Unit; delete row.Unit; });
-    const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
-    downloadTextFile(`feedx-par-levels-${todayInput()}.csv`, csv);
-    notify("Par levels exported successfully", `${rows.length} outlet item config${rows.length === 1 ? "" : "s"} exported.`);
-  }
 
   function exportPurchaseOrders() {
     const rows = data.orders.filter((order) => {
@@ -6508,63 +5964,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  async function saveParLevelConfig(itemId, outletId, patch) {
-    if (!requirePermission(can.editParLevels, "edit par levels")) return;
-    const item = data.items.find((entry) => entry.id === itemId);
-    if (!item) {
-      notify("Unable to save Par Level", "Inventory item was not found.", "error");
-      return;
-    }
-    const configKey = `${itemId}:${outletId}`;
-    const priorRequest = parLevelSaveRequestsRef.current.get(configKey);
-    const currentConfig = outletConfigForItem(item, outletId);
-    const baseConfig = priorRequest?.intentConfig || currentConfig;
-    const intentConfig = {
-      ...baseConfig,
-      ...(Object.prototype.hasOwnProperty.call(patch, "parLevel") ? { parLevel: patch.parLevel } : {}),
-      ...(Object.prototype.hasOwnProperty.call(patch, "storageLocation") ? { storageLocation: patch.storageLocation } : {}),
-      ...(Object.prototype.hasOwnProperty.call(patch, "supplierIds") ? { supplierIds: uniqueIds(patch.supplierIds || []) } : {}),
-    };
-    const requestSequence = (priorRequest?.sequence || 0) + 1;
-    const statusSequence = parLevelSaveStatusRequestRef.current + 1;
-    parLevelSaveRequestsRef.current.set(configKey, { sequence: requestSequence, intentConfig });
-    parLevelSaveStatusRequestRef.current = statusSequence;
-    setParLevelSaveState("saving");
-    const persistencePatch = {
-      ...patch,
-      parLevel: intentConfig.parLevel,
-      storageLocation: intentConfig.storageLocation,
-    };
-    const isLatestRequest = () => parLevelSaveRequestsRef.current.get(configKey)?.sequence === requestSequence;
-    const isLatestStatus = () => parLevelSaveStatusRequestRef.current === statusSequence;
-    try {
-      const savedConfig = await persistRemoteParLevelConfig(item, outletId, persistencePatch);
-      if (isLatestRequest()) {
-        parLevelSaveRequestsRef.current.set(configKey, { sequence: requestSequence, intentConfig: savedConfig });
-        setData((current) => ({
-          ...current,
-          items: current.items.map((entry) => {
-            if (entry.id !== itemId) return entry;
-            const normalized = normalizeInventoryItem(entry);
-            const linkedOutletIds = uniqueIds(normalized.linkedOutletIds);
-            const existing = new Map((normalized.outletConfigs || []).map((config) => [config.outletId, config]));
-            existing.set(outletId, savedConfig);
-            const outletConfigs = linkedOutletIds.map((id) => buildOutletConfig({ ...normalized, linkedOutletIds }, id, existing.get(id)));
-            return normalizeInventoryItem({ ...normalized, linkedOutletIds, outletConfigs });
-          }),
-        }));
-      }
-      if (isLatestStatus()) setParLevelSaveState("saved");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to save Par Level config.", error);
-      debugLog("[ParLevelSaveDebug]", { action: "save", itemId, outletId, payload: persistencePatch, result: null, error });
-      if (isLatestRequest()) {
-        parLevelSaveRequestsRef.current.set(configKey, { sequence: requestSequence, intentConfig: currentConfig });
-        if (isLatestStatus()) setParLevelSaveState("error");
-        notify("Unable to save Par Level", error.message || "Please try again.", "error");
-      }
-    }
-  }
 
 
 
@@ -7835,357 +7234,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     );
   }
 
-  function renderParLevels() {
-    const activeOutletId = parLevelOutletId || outlets[0]?.id || "";
-    const operationalItems = data.items.filter(isActiveInventoryItem);
-    const outletScopedItems = operationalItems.filter((item) => {
-      const matchesOutlet = item.linkedOutletIds?.includes(activeOutletId);
-      const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
-      const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
-      return matchesOutlet && matchesQuery && matchesCategory;
-    });
-    const parItems = operationalItems.filter((item) => {
-      const hasLinkedOutlet = item.linkedOutletIds?.length;
-      const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
-      const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
-      return hasLinkedOutlet && matchesQuery && matchesCategory;
-    });
-    const parItemGroups = [...outletScopedItems.reduce((groups, item) => {
-      const category = categoryById.get(item.categoryId);
-      const key = item.categoryId || "uncategorized";
-      if (!groups.has(key)) groups.set(key, { id: key, category, items: [] });
-      groups.get(key).items.push(item);
-      return groups;
-    }, new Map()).values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
-    const matrixOutlets = outlets;
-    const matrixItemGroups = [...parItems.reduce((groups, item) => {
-      const category = categoryById.get(item.categoryId);
-      const key = item.categoryId || "uncategorized";
-      if (!groups.has(key)) groups.set(key, { id: key, category, items: [] });
-      groups.get(key).items.push(item);
-      return groups;
-    }, new Map()).values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
-    const visibleMatrixItems = matrixItemGroups.flatMap((group) => group.items);
-    const visibleMatrixRowIndex = new Map(visibleMatrixItems.map((item, index) => [item.id, index]));
-    const configuredMatrixCount = visibleMatrixItems.reduce((count, item) => count + matrixOutlets.filter((outlet) => {
-      if (!item.linkedOutletIds?.includes(outlet.id)) return false;
-      const value = outletConfigForItem(item, outlet.id).parLevel;
-      return value !== "" && value !== null && value !== undefined;
-    }).length, 0);
-    const linkedMatrixCount = visibleMatrixItems.reduce((count, item) => count + matrixOutlets.filter((outlet) => item.linkedOutletIds?.includes(outlet.id)).length, 0);
-    const matrixValuesByItem = new Map(visibleMatrixItems.map((item) => {
-      const values = matrixOutlets
-        .filter((outlet) => item.linkedOutletIds?.includes(outlet.id))
-        .map((outlet) => Number(outletConfigForItem(item, outlet.id).parLevel))
-        .filter((value) => Number.isFinite(value) && value > 0);
-      return [item.id, values];
-    }));
-    const visibleParItems = parLevelGroupBy === "category"
-      ? parItemGroups.flatMap((group) => collapsedParCategoryIds.has(group.id) ? [] : group.items)
-      : outletScopedItems;
-    const visibleParRowIndex = new Map(visibleParItems.map((item, index) => [item.id, index]));
-
-    function handleParGridKeyDown(event, itemId, field) {
-      const rowIndex = visibleParRowIndex.get(itemId);
-      if (rowIndex === undefined) return;
-      const keyMap = {
-        Enter: event.shiftKey ? "previous-row" : "next-row",
-        Tab: event.shiftKey ? "left" : "right",
-        ArrowDown: "next-row",
-        ArrowUp: "previous-row",
-        ArrowRight: "right",
-        ArrowLeft: "left",
-      };
-      const direction = keyMap[event.key];
-      if (!direction) return;
-      event.preventDefault();
-      focusEditableGridInput(parLevelGridRef, rowIndex, field, direction);
-    }
-
-    function handleMatrixKeyDown(event, itemId, outletIndex) {
-      const rowIndex = visibleMatrixRowIndex.get(itemId);
-      if (rowIndex === undefined) return;
-      const keyMap = {
-        Enter: event.shiftKey ? "previous-row" : "next-row",
-        ArrowDown: "next-row",
-        ArrowUp: "previous-row",
-        ArrowRight: "right",
-        ArrowLeft: "left",
-      };
-      const direction = keyMap[event.key];
-      if (!direction) return;
-      event.preventDefault();
-      focusMatrixGridInput(parLevelMatrixRef, rowIndex, outletIndex, direction);
-    }
-
-    function matrixInputClass(item, outlet) {
-      const value = outletConfigForItem(item, outlet.id).parLevel;
-      const numericValue = Number(value);
-      const values = matrixValuesByItem.get(item.id) || [];
-      const positiveValues = values.filter((entry) => entry > 0);
-      const average = positiveValues.length ? positiveValues.reduce((sum, entry) => sum + entry, 0) / positiveValues.length : 0;
-      const isMissing = value === "" || value === null || value === undefined;
-      const isZero = !isMissing && Number(value) === 0;
-      const isInvalid = !isMissing && numericValue < 0;
-      const isOutlier = positiveValues.length >= 3 && numericValue > 0 && average > 0 && (numericValue > average * 2.2 || numericValue < average * 0.45);
-      if (isInvalid) return "border-rose-300 bg-rose-50 text-rose-800 focus:ring-rose-200";
-      if (isZero || isMissing) return "border-amber-200 bg-amber-50/60 text-amber-800 placeholder:text-amber-600 focus:ring-amber-100";
-      if (isOutlier) return "border-sky-200 bg-sky-50/70 text-sky-800 focus:ring-sky-100";
-      return "border-border bg-white text-text-primary";
-    }
-
-    const renderParRow = (item) => {
-      const category = categoryById.get(item.categoryId);
-      const config = outletConfigForItem(item, activeOutletId);
-      const photo = item.photo || item.photo_url;
-      const rowIndex = visibleParRowIndex.get(item.id) ?? -1;
-      return (
-        <tr key={item.id} className="transition hover:bg-primary/5">
-          <td className="py-3.5">
-            <div className="flex items-center gap-3">
-              {photo ? (
-                <button
-                  className="h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-border bg-slate-50 transition hover:border-primary/40 hover:shadow-sm"
-                  type="button"
-                  onClick={() => setPhotoPreview({ src: photo, title: item.name })}
-                  aria-label={`View photo for ${item.name}`}
-                >
-                  <img className="h-full w-full object-cover" src={photo} alt={item.name} />
-                </button>
-              ) : (
-                <InventoryCategoryIcon category={category} size="sm" />
-              )}
-              <div className="min-w-0">
-                <div className="truncate font-bold text-text-primary">{item.name}</div>
-                <div className="truncate type-caption text-text-secondary">{item.sku || "No SKU"} · {category?.name ?? "Uncategorized"}</div>
-              </div>
-            </div>
-          </td>
-          <td className="font-semibold text-text-secondary">{item.unit}</td>
-          <td>
-            <input
-              className="control h-8 w-28 text-[13px]"
-              type="number"
-              min="0"
-              value={config.parLevel ?? ""}
-              placeholder="Enter quantity"
-              data-grid-row={rowIndex}
-              data-grid-field="par"
-              onFocus={selectInputText}
-              onKeyDown={(event) => handleParGridKeyDown(event, item.id, "par")}
-              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { parLevel: parseNonNegativeNumber(event.target.value) })}
-              disabled={!can.editParLevels}
-            />
-          </td>
-          <td>
-            <input
-              className="control h-8 min-w-44 text-[13px]"
-              value={config.storageLocation}
-              data-grid-row={rowIndex}
-              data-grid-field="storage"
-              onFocus={selectInputText}
-              onKeyDown={(event) => handleParGridKeyDown(event, item.id, "storage")}
-              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { storageLocation: event.target.value })}
-              placeholder="Optional"
-              disabled={!can.editParLevels}
-            />
-          </td>
-          <td>
-            <SupplierAssignmentPicker
-              suppliers={suppliers}
-              outletId={activeOutletId}
-              selectedIds={config.supplierIds}
-              onSave={(supplierIds) => saveParLevelConfig(item.id, activeOutletId, { supplierIds })}
-              disabled={!can.editParLevels}
-            />
-          </td>
-        </tr>
-      );
-    };
-
-    const contentActions = <div className="flex flex-wrap items-center justify-end gap-3">
-      <span role="status" aria-live="polite">
-        <Badge tone={parLevelSaveState === "saving" ? "info" : parLevelSaveState === "error" ? "danger" : "neutral"}>
-          {parLevelSaveState === "saving" ? "Saving..." : parLevelSaveState === "error" ? "Save failed" : "Saved"}
-        </Badge>
-      </span>
-      <AdminSegmentedControl label="Par Level view" value={parLevelView} onChange={setParLevelView} options={[
-        { value: "outlet", label: "Outlet View" },
-        { value: "matrix", label: "Matrix View" },
-      ]} />
-    </div>;
-
-    return (
-      <div className="space-y-4">
-        <AdminFilterToolbar outlet={parLevelView === "outlet" ? (
-              <SelectField
-                label="Outlet"
-                value={activeOutletId}
-                options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
-                onChange={setParLevelOutletId}
-                searchable
-              />
-            ) : (
-              <div className="min-w-0">
-                <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet Scope</div>
-                <div className="control flex h-9 items-center justify-between text-[13px] font-semibold text-text-primary">
-                  <span>All accessible outlets</span>
-                  <Badge tone="info">{outlets.length}</Badge>
-                </div>
-              </div>
-            )} search={<AdminSearchField label="Search item" value={query} onChange={setQuery} placeholder="Search item name or SKU" />} filters={<>
-            <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
-            {parLevelView === "outlet" ? <SelectField label="Group by" value={parLevelGroupBy} options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]} onChange={setParLevelGroupBy} /> : null}
-          </>} />
-
-        {parLevelView === "outlet" ? (
-          <SectionCard
-            title={`${outletById.get(activeOutletId)?.name ?? "Outlet"} Par Levels`}
-            description="Set the minimum quantity this outlet should keep for each linked item."
-            action={contentActions}
-          >
-            {outletScopedItems.length ? (
-              <div className="overflow-x-auto" ref={parLevelGridRef}>
-                <table className="w-full min-w-[960px] text-left">
-                  <thead className="text-[11px] uppercase tracking-wide text-text-muted">
-                    <tr className="border-b border-border">
-                      <th className="py-2">Item</th>
-                      <th>UOM</th>
-                      <th>Par Level</th>
-                      <th>Storage Location</th>
-                      <th>Suppliers</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border text-[13px]">
-                    {parLevelGroupBy === "category" ? parItemGroups.map((group) => {
-                      const collapsed = collapsedParCategoryIds.has(group.id);
-                      return (
-                        <Fragment key={group.id}>
-                          <tr className="bg-primary/5">
-                            <td className="py-2.5" colSpan={5}>
-                              <button
-                                className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-left transition hover:bg-primary/8"
-                                type="button"
-                                onClick={() => setCollapsedParCategoryIds((current) => {
-                                  const next = new Set(current);
-                                  if (next.has(group.id)) next.delete(group.id);
-                                  else next.add(group.id);
-                                  return next;
-                                })}
-                              >
-                                <span className="flex min-w-0 items-center gap-2.5">
-                                  <Folder className="shrink-0 text-primary" size={18} strokeWidth={2.2} />
-                                  <span className="min-w-0">
-                                    <span className="block text-[15px] font-black leading-tight text-text-primary">{group.category?.name || "Uncategorized"}</span>
-                                    <span className="block type-caption font-semibold text-text-secondary">{group.items.length} item{group.items.length === 1 ? "" : "s"}</span>
-                                  </span>
-                                </span>
-                                <ChevronDown className={`text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={16} />
-                              </button>
-                            </td>
-                          </tr>
-                          {collapsed ? null : group.items.map(renderParRow)}
-                        </Fragment>
-                      );
-                    }) : outletScopedItems.map(renderParRow)}
-                  </tbody>
-                </table>
-              </div>
-            ) : <EmptyState title="No linked items for this outlet" description="Link items to this outlet from Master Inventory before setting par levels." />}
-          </SectionCard>
-        ) : (
-          <SectionCard title="Par Level Matrix" description="HQ view for comparing item par levels across outlets." action={contentActions}>
-            {parItems.length ? (
-              <div className="space-y-3">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-                  <MetricCard label="Items" value={visibleMatrixItems.length} helper="Linked inventory rows" size="compact" />
-                  <MetricCard label="Categories" value={matrixItemGroups.length} helper="Grouped for scanning" size="compact" />
-                  <MetricCard label="Outlets" value={matrixOutlets.length} helper="All accessible outlets" size="compact" />
-                  <MetricCard label="Configured" value={configuredMatrixCount} helper="Cells with par level" tone="success" size="compact" />
-                  <MetricCard label="Missing" value={Math.max(0, linkedMatrixCount - configuredMatrixCount)} helper="Linked but not set" tone={linkedMatrixCount - configuredMatrixCount ? "warning" : "success"} size="compact" />
-                </div>
-                <div className="overflow-x-auto rounded-2xl border border-border" ref={parLevelMatrixRef}>
-                  <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left">
-                    <thead className="text-[11px] uppercase tracking-wide text-text-muted">
-                      <tr className="border-b border-border">
-                        <th className="sticky left-0 z-10 w-[260px] border-b border-border bg-surface px-3 py-2">Item</th>
-                        <th className="sticky left-[260px] z-10 w-[120px] border-b border-border bg-surface px-3 py-2">Category / UOM</th>
-                        {matrixOutlets.map((outlet) => (
-                          <th key={outlet.id} className="min-w-[150px] border-b border-border bg-primary/5 px-3 py-2">
-                            <div className="rounded-2xl border border-primary/10 bg-white/80 px-3 py-2 normal-case shadow-sm">
-                              <div className="type-body-sm font-black text-text-primary" title={outletDisplayName(outlet)}>{outletDisplayCode(outlet)}</div>
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="text-[13px]">
-                      {matrixItemGroups.map((group) => (
-                        <Fragment key={group.id}>
-                          <tr className="bg-primary/5">
-                            <td className="sticky left-0 z-10 border-b border-border bg-primary/5 px-3 py-2.5" colSpan={2}>
-                              <div className="flex min-h-14 items-center gap-2.5 rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3">
-                                <Folder className="shrink-0 text-primary" size={18} strokeWidth={2.2} />
-                                <div className="min-w-0">
-                                  <div className="text-[15px] font-black leading-tight text-text-primary">{group.category?.name || "Uncategorized"}</div>
-                                  <div className="type-caption font-semibold text-text-secondary">{group.items.length} item{group.items.length === 1 ? "" : "s"}</div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="border-b border-border bg-primary/5 px-3 py-2.5" colSpan={matrixOutlets.length} />
-                          </tr>
-                          {group.items.map((item) => {
-                            const rowIndex = visibleMatrixRowIndex.get(item.id) ?? -1;
-                            return (
-                              <tr key={item.id} className="transition hover:bg-primary/5">
-                                <td className="sticky left-0 z-10 border-b border-border bg-surface px-3 py-3">
-                                  <div className="font-bold text-text-primary">{item.name}</div>
-                                  <div className="truncate type-caption text-text-secondary">{item.sku || "No SKU"}</div>
-                                </td>
-                                <td className="sticky left-[260px] z-10 border-b border-border bg-surface px-3 py-3">
-                                  <div className="type-caption font-semibold text-text-secondary">{group.category?.name ?? "Uncategorized"}</div>
-                                  <div className="type-body-sm font-black text-text-primary">{item.unit}</div>
-                                </td>
-                                {matrixOutlets.map((outlet, outletIndex) => {
-                                  const linked = item.linkedOutletIds?.includes(outlet.id);
-                                  const config = outletConfigForItem(item, outlet.id);
-                                  return (
-                                    <td key={outlet.id} className="border-b border-border px-3 py-3">
-                                      {linked ? (
-                                        <input
-                                          className={`h-9 w-28 rounded-xl border px-3 text-[13px] font-bold outline-none transition focus:ring-2 ${matrixInputClass(item, outlet)}`}
-                                          type="number"
-                                          min="0"
-                                          value={config.parLevel ?? ""}
-                                          placeholder="Not set"
-                                          data-matrix-row={rowIndex}
-                                          data-matrix-column={outletIndex}
-                                          onFocus={selectInputText}
-                                          onKeyDown={(event) => handleMatrixKeyDown(event, item.id, outletIndex)}
-                                          onChange={(event) => saveParLevelConfig(item.id, outlet.id, { parLevel: parseNonNegativeNumber(event.target.value) })}
-                                          disabled={!can.editParLevels}
-                                        />
-                                      ) : (
-                                        <span className="inline-flex h-9 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 type-body-sm font-black text-text-muted" title={`${item.name} is not linked to ${outlet.name}`}>⊘</span>
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            );
-                          })}
-                        </Fragment>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ) : <EmptyState title="No inventory items found" description="Adjust filters or create inventory items first." />}
-          </SectionCard>
-        )}
-      </div>
-    );
-  }
 
   function renderStockCheck() {
     const auditChecks = data.checks
@@ -9370,7 +8418,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   function renderActiveTab() {
     if (activeTab === "dashboard") return renderDashboard();
     if (activeTab === "master") return renderMasterInventory();
-    if (activeTab === "par-levels") return renderParLevels();
     if (activeTab === "stock-check") return renderStockCheck();
     if (activeTab === "requests") return renderRequests();
     if (activeTab === "orders") return renderOrders();
@@ -9399,13 +8446,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
             <PackagePlus size={15} /> Add Item
           </button>
         </>
-      );
-    }
-    if (activeTab === "par-levels") {
-      return (
-        <button className="btn-secondary" type="button" onClick={() => requirePermission(can.exportParLevels, "export par levels") && exportParLevels()}>
-          <Download size={15} /> Export
-        </button>
       );
     }
     if (activeTab === "stock-check") {
@@ -9667,6 +8707,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 }
 
 function InventoryControlPage(props) {
+  if (props.initialTab === "par-levels") return <InventoryParLevelsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
   if (props.initialTab === "waste") return <InventoryWastePage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "groups") return <InventoryGroupsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   return <InventoryLegacyRoutes {...props} />;

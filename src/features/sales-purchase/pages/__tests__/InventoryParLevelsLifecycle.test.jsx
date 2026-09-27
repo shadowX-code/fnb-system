@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ tables: {}, operations: [], notifications: [], singleResponses: {}, from: vi.fn() }));
+const mocks = vi.hoisted(() => ({ tables: {}, operations: [], notifications: [], singleResponses: {}, readResponses: {}, from: vi.fn() }));
 
 vi.mock("../../../../lib/supabase.ts", () => {
   const rowsFor = (table, filters = []) => (mocks.tables[table] || []).filter((row) => filters.every(({ key, value }) => String(row[key]) === String(value)));
@@ -19,6 +19,8 @@ vi.mock("../../../../lib/supabase.ts", () => {
     builder.in = vi.fn(() => builder);
     builder.order = vi.fn(() => builder);
     builder.range = vi.fn(async (from, to) => {
+      const queued = mocks.readResponses[table]?.shift();
+      if (queued) return queued;
       const rows = rowsFor(table, filters).map((row, index) => ({ ...row, id: row.id || `fixture-${table}-${index}` }));
       return { data: rows.slice(from, to + 1), count: rows.length, error: null };
     });
@@ -47,6 +49,7 @@ vi.mock("../../../../services/productAnalyticsService.js", () => ({ productAnaly
 vi.mock("../../../../services/auditLogService.js", () => ({ auditLogService: { createAuditLog: vi.fn().mockResolvedValue(undefined) } }));
 
 import InventoryControlPage from "../InventoryControlPage.jsx";
+import InventoryParLevelsPage from "../../inventory/parLevels/InventoryParLevelsPage.jsx";
 
 const ids = {
   outletA: "00000000-0000-4000-8000-000000000001", outletB: "00000000-0000-4000-8000-000000000002",
@@ -100,12 +103,48 @@ function deferred() {
 
 const offsetParentDescriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "offsetParent");
 beforeEach(() => {
-  seed(); mocks.operations.length = 0; mocks.notifications.length = 0; mocks.singleResponses = {}; mocks.from.mockClear();
+  seed(); mocks.operations.length = 0; mocks.notifications.length = 0; mocks.singleResponses = {}; mocks.readResponses = {}; mocks.from.mockClear();
   Object.defineProperty(HTMLElement.prototype, "offsetParent", { configurable: true, get() { return this.parentElement || document.body; } });
 });
 afterEach(() => { cleanup(); if (offsetParentDescriptor) Object.defineProperty(HTMLElement.prototype, "offsetParent", offsetParentDescriptor); });
 
 describe("InventoryControlPage Par Levels interaction contract", () => {
+  it("loads only its four canonical collections, not the broad Inventory bootstrap", async () => {
+    mount(); await ready();
+    expect([...new Set(mocks.from.mock.calls.map(([table]) => table))].sort()).toEqual([
+      "inventory_categories", "inventory_item_outlet_suppliers", "inventory_item_outlets", "inventory_items",
+    ]);
+  });
+
+  it.each([
+    {data: [], count: 1, error: null},
+    {data: null, count: null, error: new Error("Read denied")},
+  ])("blocks incomplete/error bundles and retries atomically", async (result) => {
+    mocks.readResponses.inventory_item_outlets = [result];
+    mount();
+    await screen.findByText("Par Level data unavailable or incomplete");
+    expect(screen.queryByText("Dried Chilli")).toBeNull();
+    fireEvent.click(screen.getByRole("button", {name: "Retry"}));
+    await ready();
+    expect(gridInput(0, "par").value).toBe("12");
+  });
+
+  it("ignores a stale complete read after outlet access changes", async () => {
+    const first = deferred();
+    mocks.readResponses.inventory_items = [first.promise];
+    const outlets = Object.values(mocks.tables.outletsById);
+    const props = {outlets, suppliers: [], ui: {}, auth: {user: {id: "user"}, accessibleOutletIds: [ids.outletA], hasPermission: () => false}};
+    const view = render(<InventoryParLevelsPage {...props}/>);
+    await waitFor(() => expect(itemReads()).toBe(1));
+    view.rerender(<InventoryParLevelsPage {...props} auth={{...props.auth, accessibleOutletIds: [ids.outletB]}}/>);
+    await screen.findByText("PJ Hub Par Levels");
+    await ready();
+    expect(gridInput(0, "par").value).toBe("8");
+    first.resolve({data: [{...mocks.tables.inventory_items[0], item_name: "Stale item"}],count:1,error:null});
+    await waitFor(() => expect(screen.queryByText("Stale item")).toBeNull());
+    expect(screen.getByText("PJ Hub Par Levels")).toBeTruthy();
+    expect(gridInput(0, "par").value).toBe("8");
+  });
   it("renders the current outlet mode with configured and unconfigured normalized item configs", async () => {
     mount(); await ready();
     expect(screen.getByText("KL Central Par Levels")).toBeTruthy();
