@@ -12,6 +12,7 @@ describe("shared Admin Select", () => {
       <SelectField label="Pay Basis" value="monthly" onChange={change}
         options={[{ value: "monthly", label: "Monthly" }, { value: "hourly", label: "Hourly" }]} />
     </Modal>);
+    expect(screen.getByText("Pay Basis").classList.contains("admin-form-field-label")).toBe(true);
     fireEvent.click(screen.getByRole("button", { name: "Monthly" }));
     const option = screen.getByRole("button", { name: "Hourly" });
     expect(screen.getByRole("dialog").contains(option)).toBe(true);
