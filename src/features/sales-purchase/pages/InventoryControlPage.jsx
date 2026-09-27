@@ -66,7 +66,7 @@ import InventoryGroupsPage from "../inventory/groups/InventoryGroupsPage.jsx";
 import { groupCategoryIds, mapRemoteStockCheckGroup, stockCheckItemsForGroup } from "../inventory/groups/inventoryGroupsModel.js";
 import InventoryStockCheckResultModal from "../inventory/stockChecks/InventoryStockCheckResultModal.jsx";
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
-import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
+import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty, isPurchaseOrderReference } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { resolveAdminLocation } from "../../../app/routeOwnership.js";
@@ -7355,7 +7355,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   function renderMovements() {
     const openMovementReference = (movement) => {
       const referenceType = canonical(movement.referenceType || "");
-      if (referenceType === "purchase_order" || referenceType === "po") {
+      if (isPurchaseOrderReference(movement)) {
         if (isUuid(movement.referenceId)) return setModal({ type: "po-surface", orderId: movement.referenceId });
         const order = data.orders.find((entry) => entry.id === movement.referenceId || entry.poNo === movement.reference);
         if (order) return setModal({ type: "po-surface", orderId: order.id });

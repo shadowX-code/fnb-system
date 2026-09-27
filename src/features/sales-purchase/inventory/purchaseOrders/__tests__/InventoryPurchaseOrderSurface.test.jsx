@@ -6,6 +6,7 @@ vi.mock("../inventoryPurchaseOrderService.js", () => ({
 }));
 vi.mock("../../../../../lib/supabase.ts", () => ({ supabase: {} }));
 import InventoryPurchaseOrderSurface from "../InventoryPurchaseOrderSurface.jsx";
+import { isPurchaseOrderReference } from "../inventoryPurchaseOrderHelpers.js";
 import { subscribeInventoryRevalidation } from "../../../../../services/inventoryRevalidation.js";
 const outletId = "00000000-0000-4000-8000-000000000001";
 const orderId = "00000000-0000-4000-8000-000000000002";
@@ -18,6 +19,12 @@ const props = { orderId, auth: { hasPermission: () => true, isProtectedRole: tru
   ui: { notify: vi.fn() }, outlets: [{ id: outletId, name: "Outlet" }], suppliers: [{ id: "supplier", name: "Supplier" }], onClose: vi.fn() };
 beforeEach(() => { vi.clearAllMocks(); mocks.load.mockResolvedValue(data); mocks.receive.mockResolvedValue({ status: "partial_received" }); });
 afterEach(cleanup);
+it("recognizes canonical/legacy PO references without depending on separator spelling", () => {
+  expect(isPurchaseOrderReference({ referenceType: "purchase_order" })).toBe(true);
+  expect(isPurchaseOrderReference({ referenceType: "PO" })).toBe(true);
+  expect(isPurchaseOrderReference({ reference_type: "Purchase Order" })).toBe(true);
+  expect(isPurchaseOrderReference({ referenceType: "waste" })).toBe(false);
+});
 it("loads by identity, refreshes, and owns Receiving + receipt read-back with one revalidation signal", async () => {
   const invalidate = vi.fn(), unsubscribe = subscribeInventoryRevalidation(invalidate);
   render(<InventoryPurchaseOrderSurface {...props} />);

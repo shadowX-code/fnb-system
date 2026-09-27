@@ -1,3 +1,9 @@
+import { canonical } from "../inventoryItemModel.js";
+
+export function isPurchaseOrderReference(movement = {}) {
+  return ["purchaseorder", "po"].includes(canonical(movement.referenceType || movement.reference_type || ""));
+}
+
 function toTitle(value = "") {
   return String(value)
     .replace(/_/g, " ")
