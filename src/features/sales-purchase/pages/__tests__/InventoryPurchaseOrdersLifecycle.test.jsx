@@ -119,6 +119,25 @@ afterEach(() => {
 });
 
 describe("InventoryControlPage Purchase Orders lifecycle", () => {
+  it("exports only the verified filtered PO projection", async () => {
+    let exportedBlob;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(blob => { exportedBlob = blob; return 'blob:po-export'; });
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      mount(); await ready();
+      fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "PO-DRAFT" } });
+      fireEvent.click(screen.getByRole('button', { name: 'Export', exact: true }));
+      const csv = await new Promise(resolve => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsText(exportedBlob); });
+      expect(csv).toContain('PO-DRAFT');
+      expect(csv).not.toContain('PO-SUBMITTED');
+      expect(csv).toContain('Chilli Supplier');
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: 'Purchase orders exported', message: '1 PO exported.' }));
+    } finally { click.mockRestore(); URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke; }
+  });
   it("keeps the PO page loading until its own read model resolves", async () => {
     let resolveOrders;
     mocks.deferredTables.inventory_purchase_orders = new Promise((resolve) => { resolveOrders = resolve; });
