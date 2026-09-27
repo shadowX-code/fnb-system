@@ -661,4 +661,26 @@ Bank Info remains an Admin preparation read, not a Payroll readiness gate.
 
 ## Deferred
 
+### V1 release hardening
+
+Calculation, readiness and Finalize use `payroll_run_employee_ids` for the same
+period membership. Finalized membership resolves only from frozen profile
+snapshots, never today's employment/profile eligibility. Missing Legal Employer
+blocks profile creation; missing Joined Date remains unresolved, not inferred.
+
+Overview and Run Review share the read-only `payrollRunPresentation` projection
+and run-keyed `usePayrollRunRead` loader. Financial authority stays server-owned;
+stale async successes and failures cannot replace another Run's evidence.
+
+Unicode rendering uses the release-controlled, hash-verified gzip font in the
+private `payroll-renderer-assets` bucket. Upload the repository asset before
+deploying the payslip gateway. No upstream font fetch occurs at runtime; existing
+immutable artifact bytes and renderer a4_v3 remain unchanged.
+
+The local-only migration rehearsal script lists the exact ordered manifest and
+the equivalent Staging ledger timestamps. Applied history is not renamed or
+replayed to reconcile ledger identifiers. Dormant settlement functions, reserved
+PCB compatibility fields and live `pre_*` lifecycle helpers remain intentional
+compatibility debt; they are not permission to expose those features in V1.
+
 Payment/Settlement, bank transfers/payment files and Finance projections remain deferred.

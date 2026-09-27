@@ -1,0 +1,5 @@
+project_id = "feedx"
+
+[functions.payroll-payslips]
+# Admin Auth and opaque Crew tokens are validated in the existing function body.
+verify_jwt = false

@@ -69,7 +69,7 @@ describe("People Payroll Phase 1 foundation", () => {
     expect(migration).toContain("current_finalized_run_id uuid");
     expect(migration).toContain("supersedes_run_id uuid references public.payroll_runs");
     expect(migration).toContain("No Paid transition until settlement authority exists");
-    expect(page).toContain("No payslip or payment is created.");
+    expect(page).toContain("Finalization freezes Payroll evidence for the Final Payslip. No payment occurs.");
     expect(page).toContain("Adjust Compensation");
     expect(page).toContain("History");
     expect(page).toContain("Ready and Finalize require complete time, pay and statutory evidence");

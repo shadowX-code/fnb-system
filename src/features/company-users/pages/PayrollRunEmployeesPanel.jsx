@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -16,7 +16,7 @@ import PayrollPhWork from "./PayrollPhWork.jsx";
 import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 import { Eye } from 'lucide-react';
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
-import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel } from "./payrollRunPresentation.js";
+import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel } from "./payrollRunPresentation.js";
 
 const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -28,7 +28,7 @@ const hours = (minutes) => minutes == null ? "—" : `${(Number(minutes) / 60).t
 const signedMoney = (amount) => `${amount < 0 ? "−" : "+"}${money(Math.abs(amount))}`;
 const signedAdjustments = (items) => signedMoney(items.reduce((sum, item) => sum + Number(item.amount) * (item.component_type === "deduction" ? -1 : 1), 0));
 
-export default function PayrollRunEmployeesPanel({ run, data, entityId, month, canManage, onChanged, focusEmployeeId = "", stage = "prepare", onSnapshot }) {
+export default function PayrollRunEmployeesPanel({ run, data, entityId, month, canManage, onChanged, focusEmployeeId = "", stage = "prepare", onSnapshot, runRead }) {
   const [evidence, setEvidence] = useState(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -42,38 +42,40 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const [search, setSearch] = useState("");
   const [banks, setBanks] = useState(null);
   const [bankRetry, setBankRetry] = useState(0);
+  const requests = useRef(0);
+  const scope = `${run.id}:${entityId}:${month}`;
   const load = useCallback(async () => {
+    const request = ++requests.current;
     try {
       const [time, calculation, statutory, pcb, preparation] = await Promise.all([
         payrollService.readTime(entityId, `${month}-01`, periodEnd(month)),
-        payrollService.readCalculation(run.id), payrollService.readStatutory(run.id), payrollService.readPcb(run.id),
-        payrollService.readPreparation(run.id),
+        runRead ? Promise.resolve(runRead.data?.calculation) : payrollService.readCalculation(run.id),
+        runRead ? Promise.resolve(runRead.data?.statutory) : payrollService.readStatutory(run.id), payrollService.readPcb(run.id),
+        runRead ? Promise.resolve(runRead.data?.preparation) : payrollService.readPreparation(run.id),
       ]);
-      setEvidence({ time, calculation, statutory, pcb, preparation }); setError("");
-    } catch (cause) { setError(cause.message || "Unable to load employee payroll evidence."); }
-  }, [entityId, month, run.id]);
-  useEffect(() => { setEvidence(null); setEmployeeId(""); load(); }, [load]);
+      if (requests.current !== request) return;
+      setEvidence({ scope, time, calculation, statutory, pcb, preparation }); setError("");
+    } catch (cause) { if (requests.current === request) setError(cause.message || "Unable to load employee payroll evidence."); }
+  }, [entityId, month, run.id, runRead?.data]);
+  useEffect(() => { setEvidence(null); setEmployeeId(""); if (!runRead || runRead.data) load(); return () => { ++requests.current; }; }, [load]);
   useEffect(() => { if (focusEmployeeId) setEmployeeId(focusEmployeeId); }, [focusEmployeeId]);
-  const rows = useMemo(() => (evidence?.pcb?.results || []).map((member) => {
+  const rows = useMemo(() => (evidence?.scope === scope ? payrollReviewRows(evidence) : []).map((member) => {
     const employee = (data.employees || []).find((item) => item.id === member.employee_id)
       || { id: member.employee_id, name: evidence?.calculation?.results?.find((item) => item.employee_id === member.employee_id)?.employee_name || "Employee", employee_code: "" };
     const profile = (data.profiles || []).find((item) => item.employee_id === employee.id);
     const time = (evidence?.time || []).filter((item) => item.employee_id === employee.id);
     const calculation = evidence?.calculation?.results?.find((item) => item.employee_id === employee.id);
     const statutory = evidence?.statutory?.results?.find((item) => item.employee_id === employee.id);
-    const pcb = member;
+    const pcb = evidence?.pcb?.results?.find(item => item.employee_id === employee.id);
     const preparation = evidence?.preparation?.results?.find((item) => item.employee_id === employee.id);
     const projection = preparation?.projection;
     const adjustments = (evidence?.calculation?.adjustments || []).filter((item) => item.employee_id === employee.id);
     const pay = projection?.inputs?.compensation_start?.id ? projection.inputs.compensation_start : projection?.inputs?.compensation_end;
     const timeRelevant = preparation?.time_relevant === true;
     const timeNeedsReview = timeRelevant && time.some((item) => item.status === "review_required");
-    const needsReview = !pay || preparation?.statutory_setup?.complete !== true || timeNeedsReview || projection?.status === "review_required"
-      || !calculation || calculation.status !== "ready" || calculation.is_stale
-      || !statutory || statutory.status !== "ready" || statutory.is_stale
-      || (pcb?.applicable === true && !pcb?.confirmation);
+    const needsReview = member.needsReview;
     return { ...employee, profile, time, calculation, statutory, result: payrollEmployeeResult(calculation, statutory), pcb, adjustments, pay, preparation, projection, timeRelevant, timeNeedsReview, needsReview };
-  }), [data, entityId, evidence, month]);
+  }), [data, entityId, evidence, month, scope]);
   useEffect(() => { if (evidence) onSnapshot?.({ runId: run.id, rows }); }, [evidence, rows, run.id, onSnapshot]);
   const bankIds = JSON.stringify(rows.map(row => row.id).sort());
   useEffect(() => {
@@ -107,7 +109,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       {selected.result.earningsCurrent && <PayrollMonthlyBasicBreakdown line={line} />}
       <PayrollRecurringBreakdown line={line} /></div>;
   };
-  const refresh = async () => { await load(); await onChanged?.(); };
+  const refresh = async () => { if (runRead) await runRead.refresh(); else await load(); await onChanged?.(); };
   const reconcile = async () => {
     setBusy(true); setError("");
     try {

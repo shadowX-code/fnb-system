@@ -2,6 +2,8 @@
 import { createRequire } from 'node:module';
 import { writeFile, readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import { gunzipSync } from 'node:zlib';
+import { createHash } from 'node:crypto';
 import { renderPayslip } from '../../supabase/functions/payroll-payslips/render.js';
 const require = createRequire('/private/tmp/feedx-payroll-pdf-test/package.json');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
@@ -14,7 +16,8 @@ const hourly={...base,pay_basis:'hourly',identity:{...base.identity,employee_nam
 await writeFile('/private/tmp/feedx-phase5-monthly.pdf',monthly);
 await writeFile('/private/tmp/feedx-phase5-hourly.pdf',await renderPayslip(hourly,api));
 await writeFile('/private/tmp/feedx-phase5-draft.pdf',await renderPayslip({...base,draft:true},api));
-const unicodeFont=await readFile('/private/tmp/feedx-payslip-noto-ttf.ttf');
+const unicodeFont=gunzipSync(await readFile(new URL('../../supabase/functions/payroll-payslips/fonts/NotoSansSC-VF.ttf.gz',import.meta.url)));
+assert.equal(createHash('sha256').update(unicodeFont).digest('hex'),'d68bafcb48a2707749396aa12bbbd833cb70401f3a9a689fd2902c7e0d295964');
 const unicode={...base,identity:{...base.identity,employee_name:'QA ONLY 陈伟明 · 长名称测试'},earnings:Array.from({length:40},(_,i)=>({label:`津贴 ${i} · Long financial line wrapping verification`,amount:1}))};
 const bytes=await renderPayslip(unicode,{...api,unicodeFont});
 assert.deepEqual(bytes,await renderPayslip(unicode,{...api,unicodeFont}));

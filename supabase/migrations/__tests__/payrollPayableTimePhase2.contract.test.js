@@ -44,8 +44,9 @@ describe("Payroll Phase 2 payable-time authority", () => {
       expect(service).toContain(rpc);
     expect(service).not.toContain('.from("crew_attendance_records")');
     expect(page).toContain('"Prepare Payroll"');
-    expect(employeeReview).toContain("<DecisionModal");
-    expect(workspace).toContain("Reconcile Evidence");
+    expect(employeeReview).toContain("<PayrollPayableTimeReview");
+    expect(readFileSync(resolve(process.cwd(), "src/features/company-users/pages/PayrollPayableTimeReview.jsx"), "utf8")).toContain("<DecisionModal");
+    expect(employeeReview).toContain("Refresh time evidence");
     expect(workspace).toContain("Record Decision");
     expect(workspace).toContain("Original Roster, Attendance and Leave evidence is never edited.");
   });

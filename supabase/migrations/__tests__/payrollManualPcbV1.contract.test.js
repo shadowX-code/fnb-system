@@ -12,7 +12,7 @@ const categories = readFileSync(resolve(process.cwd(),
   "supabase/migrations/20260925145221_payroll_statutory_input_scoped_read.sql"), "utf8");
 const service = readFileSync(resolve(process.cwd(), "src/services/payrollService.js"), "utf8");
 const panel = readFileSync(resolve(process.cwd(),
-  "src/features/company-users/pages/PayrollRunCalculationPanel.jsx"), "utf8");
+  "src/features/company-users/pages/PayrollRunEmployeesPanel.jsx"), "utf8");
 
 describe("Payroll V1 manual PCB statutory authority", () => {
   it("pins per-Run/employee/period confirmations and retains append-only correction history", () => {
@@ -45,7 +45,7 @@ describe("Payroll V1 manual PCB statutory authority", () => {
     expect(categories).toContain("payroll_can_access_employee(v_employee_id,'payroll.view')");
     expect(service).toContain('command("payroll_run_pcb_confirm"');
     expect(service).toContain('command("payroll_run_pcb_read"');
-    expect(panel).toContain("Draft corrections retain audit history.");
+    expect(panel).toContain("The confirmed amount is statutory evidence for this employee and period.");
     expect(panel).toContain("Confirm PCB / MTD");
   });
 });

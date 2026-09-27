@@ -26,10 +26,11 @@ describe("Payroll final Admin workflow and shared controls", () => {
     expect(page).toContain("readRunHistory");
     expect(page).toContain("PayrollRunEmployeesPanel");
     expect(time).toContain("payrollService.decideTime");
-    expect(employees).toContain("DecisionModal");
+    expect(employees).toContain("PayrollPayableTimeReview");
     expect(employees).toContain("payrollService.confirmPcb");
     expect(employees).not.toContain("payrollService.createProfile");
-    expect(calculation).toContain("payrollService.calculateRun");
+    expect(employees).toContain("payrollService.recalculateRun");
+    expect(calculation).toContain("export function ResultDetail");
   });
 
   it("uses shared FeedX selects, dates and months instead of native controls", () => {

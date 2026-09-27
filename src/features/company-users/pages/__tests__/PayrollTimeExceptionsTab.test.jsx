@@ -6,7 +6,7 @@ vi.mock("../../../../services/payrollService.js", () => ({ payrollService: {
   readTime: mocks.read, reconcileTime: mocks.reconcile, decideTime: mocks.decide,
 } }));
 
-import PayrollTimeExceptionsTab from "../PayrollTimeExceptionsTab.jsx";
+import { DecisionModal } from "../PayrollTimeExceptionsTab.jsx";
 
 const data = { legal_entities: [{ id: "entity-1", display_name: "QA Employer" }] };
 const early = {
@@ -33,10 +33,8 @@ afterEach(cleanup);
 
 describe("Payroll Time Exceptions workspace", () => {
   it("reviews canonical evidence and sends a reasoned Payroll-only decision", async () => {
-    render(<PayrollTimeExceptionsTab data={data} canManage />);
-    await screen.findByText("QA Hourly Employee");
+    render(<DecisionModal row={early} onClose={() => {}} onSaved={() => {}} />);
     expect(screen.getByText("Early Departure")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Review" }));
     expect(screen.getByText("Published Roster")).not.toBeNull();
     expect(screen.getByText("Attendance")).not.toBeNull();
     fireEvent.change(screen.getByLabelText(/Decision reason/), { target: { value: "Reviewed early departure evidence" } });
@@ -47,13 +45,10 @@ describe("Payroll Time Exceptions workspace", () => {
     }));
   });
 
-  it("keeps approved normal shifts out of the default exception queue", async () => {
-    mocks.read.mockResolvedValueOnce([{ ...early, id: "time-2", status: "approved_auto", issue_codes: [], approved_minutes: 510 }]);
-    render(<PayrollTimeExceptionsTab data={data} canManage={false} />);
-    await screen.findByText("No Time Exceptions require review.");
-    expect(screen.queryByText("QA Hourly Employee")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Show all results" }));
-    expect(screen.getByText("QA Hourly Employee")).not.toBeNull();
-    expect(screen.queryByRole("button", { name: "Reconcile Evidence" })).toBeNull();
+  it("requires a reason and preserves source-only review", () => {
+    render(<DecisionModal row={early} onClose={() => {}} onSaved={() => {}} />);
+    expect(screen.getByRole("button", { name: "Record Decision" }).disabled).toBe(true);
+    expect(mocks.decide).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 });

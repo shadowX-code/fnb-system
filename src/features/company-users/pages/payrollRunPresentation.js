@@ -30,6 +30,30 @@ export function payrollRunSummary(rows = []) {
   };
 }
 
+// One display projection from server results. Never prices wages or grants Finalize.
+export function payrollReviewRows(evidence, finalized = false) {
+  const members = finalized ? evidence?.results : evidence?.preparation?.results;
+  return (members || []).map(member => {
+    const calculation = finalized ? member.calculation : evidence.calculation?.results?.find(row => row.employee_id === member.employee_id);
+    const statutory = finalized ? member.statutory : evidence.statutory?.results?.find(row => row.employee_id === member.employee_id);
+    const result = payrollEmployeeResult(calculation, statutory);
+    const timeNeedsReview = !finalized && member.time_relevant && (member.projection?.issues || []).some(issue => /time|attendance|clock|roster/.test(issue));
+    const payNeedsReview = !result.earningsCurrent || (!finalized && member.projection?.status !== "ready");
+    const statutoryNeedsReview = !result.statutoryCurrent || (!finalized && member.statutory_setup?.complete !== true);
+    return { ...member, calculation, statutory, result, timeNeedsReview, payNeedsReview, statutoryNeedsReview,
+      needsReview: Boolean(timeNeedsReview || payNeedsReview || statutoryNeedsReview) };
+  });
+}
+
+export function payrollReviewSummary(rows = []) {
+  return { ...payrollRunSummary(rows), employeeCount: rows.length,
+    readyCount: rows.filter(row => !row.needsReview).length,
+    needCount: rows.filter(row => row.needsReview).length,
+    timeCount: rows.filter(row => row.timeNeedsReview).length,
+    payCount: rows.filter(row => row.payNeedsReview).length,
+    statutoryCount: rows.filter(row => row.statutoryNeedsReview).length };
+}
+
 export function payrollIssueLabel(issue, context = {}) {
   const [code, detail] = String(issue).split(":");
   const range = value => value?.replaceAll("..", " – ");

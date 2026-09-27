@@ -20,7 +20,8 @@ import { hasPermission } from "../../../utils/accessControl.js";
 import { payrollService } from "../../../services/payrollService.js";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
 import PayrollFinalizedRecord from "./PayrollFinalizedRecord.jsx";
-import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel, payrollRunSummary } from "./payrollRunPresentation.js";
+import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel, payrollRunSummary, payrollReviewRows, payrollReviewSummary } from "./payrollRunPresentation.js";
+import { usePayrollRunRead } from "./usePayrollRunRead.js";
 import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
 import PayrollAnnualHolidays from "./PayrollAnnualHolidays.jsx";
 import { PayrollPhPolicy } from "./PayrollPhWork.jsx";
@@ -297,13 +298,12 @@ export function ProfilesTab({ data, canManage, reload }) {
 
 const runSteps = ["Prepare Payroll", "Review Payroll", "Finalize"];
 
-function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, month, setMonth, step, setStep, openRunId, setOpenRunId, readiness }) {
+function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, month, setMonth, step, setStep, openRunId, setOpenRunId, readiness, runRead }) {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [pendingTransition, setPendingTransition] = useState(null);
   const [transitionReason, setTransitionReason] = useState("");
-  const [totals, setTotals] = useState(null);
   const [employeeSnapshot, setEmployeeSnapshot] = useState(null);
   const [focusEmployeeId, setFocusEmployeeId] = useState("");
   const [history, setHistory] = useState(null);
@@ -321,14 +321,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
   const period = (data.periods || []).find((item) => item.legal_entity_id === entityId && item.period_start?.slice(0, 7) === month);
   const runs = [...(period?.runs || [])].sort((a, b) => Number(b.revision) - Number(a.revision));
   const run = runs.find((item) => item.id === openRunId);
-  useEffect(() => {
-    if (!run?.id || ["finalized", "paid"].includes(run.status)) { setTotals(null); return; }
-    let active = true;
-    setTotals(null);
-    Promise.all([payrollService.readStatutory(run.id), payrollService.readPreparation(run.id), payrollService.readCalculation(run.id)]).then(([result, preparation, calculation]) => { if (active) setTotals({ ...result, preparation, calculation, runId: run.id }); })
-      .catch(() => { if (active) setTotals({ error: true }); });
-    return () => { active = false; };
-  }, [run?.id, data]);
+  const totals = runRead?.data ? { ...runRead.data.statutory, ...runRead.data, runId: run?.id } : null;
   const create = async (supersedesRunId = null) => {
     setBusy(true); setError("");
     try {
@@ -369,14 +362,9 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
   const statutoryRows = totals?.results || [];
   const total = (key) => statutoryRows.length && statutoryRows.every((item) => item[key] != null && !item.is_stale && item.status === "ready") ? money(statutoryRows.reduce((sum, item) => sum + Number(item[key]), 0)) : "—";
   const allReady = Boolean(state?.time?.ready && (run.foundation_only || (state?.calculation?.ready && state?.statutory?.ready)));
-  const commandRows = run?.id && employeeSnapshot?.runId === run.id ? employeeSnapshot.rows : run?.id && totals?.runId === run.id ? (totals.preparation?.results || []).map(member => {
-    const calculation = totals.calculation?.results?.find(row => row.employee_id === member.employee_id);
-    const statutory = statutoryRows.find(row => row.employee_id === member.employee_id);
-    const result = payrollEmployeeResult(calculation, statutory);
-    return { result, statutory, needsReview: result.status !== "Ready" || member.projection?.status === "review_required" || member.statutory_setup?.complete !== true };
-  }) : [];
-  const commandTotals = payrollRunSummary(commandRows);
-  const readyCount = commandRows.filter(row => !row.needsReview).length;
+  const commandRows = run?.id && employeeSnapshot?.runId === run.id ? employeeSnapshot.rows : payrollReviewRows(runRead?.data, ["finalized", "paid"].includes(run?.status));
+  const commandTotals = payrollReviewSummary(commandRows);
+  const readyCount = commandTotals.readyCount;
   const displayMoney = value => value == null ? "—" : money(value);
   const approverName = run?.finalized_by_name || (employeeSnapshot?.runId === run?.id && employeeSnapshot?.approverName) || (data.employees || []).find((item) => item.id === run?.finalized_by_employee_id)?.name || "Authorized approver";
   const yearOptions = [...new Set([String(new Date().getFullYear()), ...(history || []).map((item) => item.period_start?.slice(0, 4)).filter(Boolean)])]
@@ -429,9 +417,9 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
     {run && !["finalized", "paid"].includes(run.status) && <><nav aria-label="Payroll Run stages" className="grid gap-1 rounded-xl border border-border bg-surface p-1 sm:grid-cols-3">{runSteps.map((name, index) => <button key={name} type="button" onClick={() => setStep(index)}
       className={`rounded-lg px-3 py-2 text-left text-sm font-semibold ${step === index ? "bg-primary text-white" : "text-text-secondary hover:bg-surface-muted"}`}><span className="mr-2 text-xs opacity-70">{index + 1}.</span>{name}</button>)}</nav>
       {step === 0 && <>
-        <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} onChanged={reload} onSnapshot={setEmployeeSnapshot} focusEmployeeId={focusEmployeeId} />
+        <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} onChanged={reload} onSnapshot={setEmployeeSnapshot} runRead={runRead} focusEmployeeId={focusEmployeeId} />
         <div className="flex justify-end"><button className="btn-primary" type="button" onClick={() => setStep(1)}>Review Payroll <ChevronRight size={16} /></button></div></>}
-      {step === 1 && <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} onChanged={reload} onSnapshot={setEmployeeSnapshot} stage="review" />}
+      {step === 1 && <PayrollRunEmployeesPanel run={run} data={data} entityId={entityId} month={month} canManage={canManage && mutable} onChanged={reload} onSnapshot={setEmployeeSnapshot} runRead={runRead} stage="review" />}
       {step === 2 && <Card className="space-y-4 p-5"><div><h3 className="text-lg font-bold">Finalize Payroll</h3><p className="text-sm text-text-secondary">Review current revision totals and required evidence before the irreversible finalization step.</p></div>
         {totals?.error ? <p role="alert" className="text-sm text-rose-700">Unable to load final totals. Retry this step before finalizing.</p> : !totals ? <p className="text-sm text-text-secondary">Loading final evidence…</p> : <div className="grid gap-3 sm:grid-cols-5"><div><p className="text-xs text-text-secondary">Employees</p><strong>{employeeCount ?? statutoryRows.length}</strong></div><div><p className="text-xs text-text-secondary">Gross Payroll</p><strong>{total("gross_earnings")}</strong></div><div><p className="text-xs text-text-secondary">Employee Deductions</p><strong>{statutoryRows.length && statutoryRows.every((row) => row.status === "ready" && !row.is_stale) ? money(statutoryRows.reduce((sum, row) => sum + Number(row.non_statutory_deductions || 0) + (row.lines || []).reduce((subtotal, line) => subtotal + Number(line.employee_amount || 0), 0), 0)) : "Pending review"}</strong></div><div><p className="text-xs text-text-secondary">Employer Contributions</p><strong>{total("employer_statutory_cost")}</strong></div><div><p className="text-xs text-text-secondary">Net Payroll</p><strong className="tabular-nums">{total("net_pay")}</strong></div></div>}
         {run.status === "finalized" ? <div className="rounded-xl bg-surface-muted p-4 text-sm"><Badge tone="success">Finalized</Badge><p className="mt-2">Revision {run.revision} is immutable. Corrections require a new revision; this evidence is retained.</p><p className="text-text-secondary">{run.finalized_at ? `Finalized ${new Date(run.finalized_at).toLocaleString()}` : "Finalized evidence retained"} · {approverName}</p></div> : <>
@@ -461,10 +449,11 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
   </div>;
 }
 
-export function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun, onOpenEmployees }) {
+export function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun, onOpenEmployees, runRead }) {
   const [history, setHistory] = useState(null);
-  const [details, setDetails] = useState(null);
-  const [detailError, setDetailError] = useState(false);
+  const localRead = usePayrollRunRead(run, data, !runRead);
+  const details = (runRead || localRead).data;
+  const detailError = (runRead || localRead).error;
   const [historyError, setHistoryError] = useState(false);
   useEffect(() => {
     if (!entityId) return;
@@ -474,34 +463,18 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
     return () => { active = false; };
   }, [entityId, data]);
   const finalized = ["finalized", "paid"].includes(run?.status);
-  useEffect(() => {
-    let active = true;
-    setDetails(null); setDetailError(false);
-    if (!run?.id) return () => { active = false; };
-    const read = finalized ? payrollService.readFinalizedRecord(run.id).then(record => ({ rows: record.results || [] }))
-      : Promise.all([payrollService.readPreparation(run.id), payrollService.readCalculation(run.id), payrollService.readStatutory(run.id)])
-        .then(([preparation, calculation, statutory]) => ({ rows: (preparation.results || []).map(row => ({ ...row,
-          calculation: calculation.results?.find(item => item.employee_id === row.employee_id),
-          statutory: statutory.results?.find(item => item.employee_id === row.employee_id),
-        })) }));
-    read.then(value => { if (active) setDetails({ ...value, runId: run.id }); })
-      .catch(() => { if (active) setDetailError(true); });
-    return () => { active = false; };
-  }, [run?.id, finalized, data]);
   const periodTitle = new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${month}-01T00:00:00Z`));
-  const rows = details?.runId === run?.id ? details?.rows : null;
+  const rows = details ? payrollReviewRows(details, finalized) : null;
+  const summary = rows ? payrollReviewSummary(rows) : null;
   const employees = (data.employees || []).filter((item) => item.legal_entity_id === entityId);
   const withoutProfile = employees.filter((item) => !(data.profiles || []).some((profile) => profile.employee_id === item.id));
-  const timeIssue = row => row.time_relevant && (row.projection?.issues || []).some(issue => /time|attendance|clock|roster/.test(issue));
-  const readyRow = row => payrollEmployeeResult(row.calculation, row.statutory).statutoryCurrent
-    && (finalized || (row.projection?.status === "ready" && row.statutory_setup?.complete === true));
-  const readyCount = rows ? rows.filter(readyRow).length : null;
-  const employeeCount = rows?.length ?? employees.length;
-  const needCount = readyCount == null ? null : employeeCount - readyCount;
+  const readyCount = summary?.readyCount ?? null;
+  const employeeCount = summary?.employeeCount ?? employees.length;
+  const needCount = summary?.needCount ?? null;
   const countCopy = (count, action) => `${count} employee${count === 1 ? " needs" : "s need"} ${action}`;
-  const timeCount = rows?.filter(timeIssue).length || 0;
-  const payCount = rows?.filter(row => !payrollEmployeeResult(row.calculation, row.statutory).earningsCurrent || row.projection?.status !== "ready").length || 0;
-  const statutoryCount = rows?.filter(row => row.statutory_setup?.complete !== true || !payrollEmployeeResult(row.calculation, row.statutory).statutoryCurrent).length || 0;
+  const timeCount = summary?.timeCount || 0;
+  const payCount = summary?.payCount || 0;
+  const statutoryCount = summary?.statutoryCount || 0;
   const attention = finalized ? [] : [
     (timeCount || (readiness?.time && !readiness.time.ready)) && { group: "Time & Attendance", label: timeCount ? countCopy(timeCount, "time reconciliation") : "Review time readiness for this period", open: () => onOpenRun(0) },
     (payCount || (!run && withoutProfile.length) || (readiness?.calculation && !readiness.calculation.ready)) && { group: "Payroll Calculation", label: payCount ? countCopy(payCount, "payroll review") : !run && withoutProfile.length ? countCopy(withoutProfile.length, "pay setup") : "Review employee calculations", open: !run ? onOpenEmployees : () => onOpenRun(0) },
@@ -512,11 +485,9 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
     const versions = historyRows.filter(item => item.period_start === date);
     return versions.find(item => item.current) || versions.sort((a, b) => Number(b.revision) - Number(a.revision))[0];
   });
-  const total = getter => rows?.length && rows.every(row => getter(row) != null) ? money(rows.reduce((sum, row) => sum + Number(getter(row)), 0)) : "—";
-  const metrics = [["Gross Payroll", total(row => payrollEmployeeResult(row.calculation, row.statutory).gross)],
-    ["Employee Deductions", total(row => payrollEmployeeResult(row.calculation, row.statutory).deductions)],
-    ["Net Payroll", total(row => payrollEmployeeResult(row.calculation, row.statutory).net)],
-    ["Employer Cost", total(row => readyRow(row) ? row.statutory?.total_employer_cost : null)]];
+  const value = amount => amount == null ? "—" : money(amount);
+  const metrics = [["Gross Payroll", value(summary?.gross)], ["Employee Deductions", value(summary?.deductions)],
+    ["Net Payroll", value(summary?.net)], ["Employer Cost", value(summary?.employerCost)]];
   return <div className="space-y-4">
     <Card className="p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-4">
       <div className="min-w-0"><h2 className="text-xl font-bold text-text-primary">{periodTitle} Payroll</h2><p className="mt-1 text-sm text-text-secondary">{entityName(data.legal_entities || [], entityId)}</p>
@@ -742,6 +713,7 @@ export default function PayrollPage({ auth }) {
       .catch(() => { if (active) setReadiness({ runId: activeRun.id, error: true }); });
     return () => { active = false; };
   }, [activeRun?.id, activeRun?.foundation_only, data]);
+  const runRead = usePayrollRunRead(activeRun, data, tab === "overview" || (tab === "runs" && Boolean(openRunId)));
   const openRun = (step = 0, targetPeriod, runId) => {
     if (targetPeriod) { setEntityId(targetPeriod.legal_entity_id); setMonth(targetPeriod.period_start.slice(0, 7)); }
     setOpenRunId(runId || activeRun?.id || "new"); setRunStep(step); setTab("runs");
@@ -756,9 +728,9 @@ export default function PayrollPage({ auth }) {
           {tab === "overview" && <AdminFilterToolbar compact ariaLabel="Payroll context"
             outlet={<SelectField label="Legal Entity" value={entityId} onChange={(value) => { setEntityId(value); setOpenRunId(""); }} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
             period={<MonthPickerField label="Pay Period" value={month} onChange={(value) => { setMonth(value); setOpenRunId(""); }} />} />}
-          {tab === "overview" && <Overview data={data} canManage={canManage} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} />}
+          {tab === "overview" && <Overview data={data} canManage={canManage} entityId={entityId} month={month} run={activeRun} readiness={readiness?.runId === activeRun?.id ? readiness : null} onOpenRun={openRun} onOpenEmployees={() => setTab("employees")} runRead={runRead} />}
           {tab === "employees" && <ProfilesTab data={data} canManage={canManage} reload={reload} />}
-          {tab === "runs" && <RunsTab data={data} canManage={canManage} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={setEntityId} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} />}
+          {tab === "runs" && <RunsTab data={data} canManage={canManage} canFinalize={canFinalize} reload={reload} entityId={entityId} setEntityId={setEntityId} month={month} setMonth={setMonth} step={runStep} setStep={setRunStep} openRunId={openRunId} setOpenRunId={setOpenRunId} readiness={readiness} runRead={runRead} />}
           {tab === "settings" && <SettingsTab data={data} canManage={canManage} reload={reload} />}
         </>}
   </div>;

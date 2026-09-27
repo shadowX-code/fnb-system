@@ -27,7 +27,8 @@ describe("Payroll UI and holiday ownership consolidation", () => {
     expect(migration).toContain("Create a new component for changed name or statutory treatment");
     expect(migration).toContain("'before',to_jsonb(v_old),'after',v_new");
     expect(migration).toContain("payroll_component_history_read");
-    expect(page).toContain("Advanced / System Information");
+    expect(page).not.toContain("Advanced / System Information");
+    expect(page).toContain("Available for use");
     expect(page).toContain("Set Up Employee");
     expect(page).toContain("AdminUnderlineTabs");
   });

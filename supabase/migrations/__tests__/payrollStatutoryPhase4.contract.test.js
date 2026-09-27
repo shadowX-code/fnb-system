@@ -39,12 +39,12 @@ describe("Payroll Phase 4 statutory safety boundary", () => {
   });
 
   it("never presents a pre-statutory Ready result as payroll Ready", () => {
-    expect(calculationPanel).toContain("payrollEmployeeResult(calculation, statutory).status");
+    expect(calculationPanel).toContain("Employee Deductions");
     expect(payrollEmployeeResult({status:"ready"}, null).status).toBe("Complete Calculation");
     expect(payrollEmployeeResult({status:"ready"}, {status:"review_required"}).status).toBe("Needs Attention");
     expect(payrollEmployeeResult({status:"ready"}, {status:"ready"}).status).toBe("Ready");
     expect(payrollEmployeeResult({status:"ready"}, {status:"ready",is_stale:true,net_pay:2000}).net).toBeNull();
-    expect(calculationPanel).toContain("overallStatus(row, statutoryRows.find");
-    expect(calculationPanel).toContain("Pre-statutory Pay");
+    expect(page).toContain("payrollReviewSummary(commandRows)");
+    expect(calculationPanel).toContain("statutory?.net_pay");
   });
 });
