@@ -1,6 +1,6 @@
 {
   "productionBaseline": "56029c15388dce0121454aec72bbe0313b7be70d",
-  "canonicalStaging": "a5011eb3e22192a18d4a92069930ec162e01bc80",
+  "canonicalStaging": "ffec9d01bed86e5b94a60a967ae4e59d5e1cf65a",
   "files": [
     {
       "file": "config/modules.ts",
@@ -12,7 +12,7 @@
     },
     {
       "file": "docs/domains/payroll.md",
-      "sha256": "ffd3cb7b92e6e57b9f1d9497c36a328aa083f64b901f25e4ae33622e6a9731f7"
+      "sha256": "989a391ece8cc33193d72c0877dc7955382eeb44e66f1511046d867b3bd78ace"
     },
     {
       "file": "qa/staging/payrollMembershipClosure.rollback.sql",
@@ -20,11 +20,11 @@
     },
     {
       "file": "qa/staging/payrollPayslipRender.mjs",
-      "sha256": "995bdb67b21123e37c163a9627ac204e29477d4900e05dd3f99313edd702cd27"
+      "sha256": "dcb0f87c5b7a2fb9605084ea769579a5d50043ade38d71b08def0e433cba3629"
     },
     {
       "file": "qa/staging/payrollProductionRehearsal.mjs",
-      "sha256": "a52fbd3e24beb4fd1bdfe90223859922486db141ba15cbd784d61cd212dd0956"
+      "sha256": "c42c600a6702fd2ff91659a2c76b1cac6112304e005cffd1c2eb1d5c944a3df9"
     },
     {
       "file": "qa/staging/payrollRehearsalBootstrap.sql",
@@ -36,7 +36,7 @@
     },
     {
       "file": "qa/staging/payrollV1ReleaseManifest.json",
-      "sha256": "ec7d9c99547bd1b748cdc171d0611069b7158deae327605bb4b17365ea065127"
+      "sha256": "76c023fc0d39268d43e714a5aa8eff95348c8968c7d4ecf295dce75d7f51f44c"
     },
     {
       "file": "qa/staging/preparePayslipFonts.py",
@@ -1180,7 +1180,7 @@
     },
     {
       "file": "supabase/functions/payroll-payslips/render.js",
-      "sha256": "13becb7c86ccf8ca7cd0289d876b2f09288794a46f1e48178f6979f4beeb0d2b"
+      "sha256": "d6d114633ba1bb559a490e8fd3f414e6be609f51517c5c2e8cf600d457ab9d25"
     },
     {
       "file": "supabase/migrations/20260925084053_payroll_foundation.sql",
@@ -1447,6 +1447,10 @@
       "sha256": "9537c5827ac090b53ce3afebcdc20e347b527809566f7b336bab14c525341441"
     },
     {
+      "file": "supabase/migrations/20260927124520_payroll_payslip_corporate_identity.sql",
+      "sha256": "5ff9a7652ea000ae9f46c402d1b1fd1643fb4c0e3b9ea8eaade02c0e2e2d6991"
+    },
+    {
       "file": "supabase/migrations/__tests__/payrollCalculationPhase3.contract.test.js",
       "sha256": "45897aa6fc61b53bf4c9c83eedeac6895ea456a212bdb182bc88083373dd2c16"
     },
@@ -1523,5 +1527,6 @@
     "Deploy isolated application only"
   ],
   "data": "No Staging fixtures, employee onboarding backfills or published holiday/company policy data copied.",
-  "rendererFixCommit": "c4122f77"
+  "rendererFixCommit": "c4122f77",
+  "payslipPresentationCommit": "6063a6c2ae237d81a0924c6bb1bd4b53b1ea2f55"
 }
