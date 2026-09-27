@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase";
 
 // Full Inventory collections feed balances and joins: a capped response is not
 // an authoritative empty/complete collection. Keep PO's focused reader separate.
-export async function readCompleteInventoryRows(table, { select = "*", order = "id", ascending = true, eq = {} } = {}) {
+export async function readCompleteInventoryRows(table, { select = "*", order = "id", ascending = true, eq = {}, in: inFilters = {} } = {}) {
   const rows = [];
   const ids = new Set();
   let expected;
@@ -10,6 +10,7 @@ export async function readCompleteInventoryRows(table, { select = "*", order = "
     let query = supabase.from(table).select(select, { count: "exact" }).order(order, { ascending });
     if (order !== "id") query = query.order("id", { ascending: true });
     for (const [column, value] of Object.entries(eq)) query = query.eq(column, value);
+    for (const [column, values] of Object.entries(inFilters)) query = query.in(column, values);
     const result = await query.range(offset, offset + 499);
     if (result.error) throw Object.assign(new Error(`${table}: ${result.error.message || "read failed"}`), { readState: "error", cause: result.error });
     if (!Number.isInteger(result.count) || result.count < 0 || !Array.isArray(result.data)) {

@@ -238,4 +238,27 @@ export function toDateInputValue(value) {
   return `${year}-${month}-${day}`;
 }
 
+export function TextArea({ label, value, onChange, placeholder }) {
+  return (
+    <label className="block">
+      <div className="mb-1 type-caption font-semibold text-text-secondary">{label}</div>
+      <textarea className="control min-h-20 w-full resize-none text-[13px]" value={value ?? ""} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
+    </label>
+  );
+}
 
+export function focusIndexedInput(containerRef, currentIndex, direction, selector = "[data-entry-index]") {
+  const inputs = [...(containerRef.current?.querySelectorAll(selector) || [])]
+    .filter((input) => !input.disabled && input.offsetParent !== null)
+    .map((input) => ({ input, index: Number(input.dataset.entryIndex) }))
+    .filter((entry) => Number.isFinite(entry.index))
+    .sort((a, b) => a.index - b.index);
+  if (!inputs.length) return;
+  const currentPosition = inputs.findIndex((entry) => entry.index === currentIndex);
+  const nextPosition = direction === "previous"
+    ? Math.max(0, currentPosition - 1)
+    : Math.min(inputs.length - 1, currentPosition + 1);
+  if (nextPosition < 0 || nextPosition === currentPosition) return;
+  inputs[nextPosition]?.input?.focus?.();
+  inputs[nextPosition]?.input?.select?.();
+}

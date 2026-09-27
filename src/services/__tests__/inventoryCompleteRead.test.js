@@ -3,16 +3,23 @@ const range = vi.hoisted(() => vi.fn());
 const select = vi.hoisted(() => vi.fn());
 const order = vi.hoisted(() => vi.fn());
 const eq = vi.hoisted(() => vi.fn());
+const inFilter = vi.hoisted(() => vi.fn());
 vi.mock("../../lib/supabase", () => ({ supabase: { from: () => ({ select }) } }));
 import { readCompleteInventoryRows } from "../inventoryCompleteRead.js";
 beforeEach(() => {
-  range.mockReset(); select.mockReset(); order.mockReset(); eq.mockReset();
-  const query = { order, range, eq };
+  range.mockReset(); select.mockReset(); order.mockReset(); eq.mockReset(); inFilter.mockReset();
+  const query = { order, range, eq, in: inFilter };
   select.mockReturnValue(query); order.mockReturnValue(query);
   eq.mockReturnValue(query);
+  inFilter.mockReturnValue(query);
 });
 const rows = (start, count) => Array.from({ length: count }, (_, i) => ({ id: `id-${start + i}` }));
 describe("complete Inventory reads", () => {
+  it("retains receipt identity scope across every complete-read page", async () => {
+    range.mockResolvedValueOnce({ data: rows(0, 500), count: 501 }).mockResolvedValueOnce({ data: rows(500, 1), count: 501 });
+    await readCompleteInventoryRows("inventory_purchase_receipt_items", { in: { receipt_id: ["receipt-a", "receipt-b"] } });
+    expect(inFilter.mock.calls).toEqual([["receipt_id", ["receipt-a", "receipt-b"]], ["receipt_id", ["receipt-a", "receipt-b"]]]);
+  });
   it('retains identical outlet/reference scope on every exact-count page', async () => {
     range.mockResolvedValueOnce({ data: rows(0, 500), count: 501 }).mockResolvedValueOnce({ data: rows(500, 1), count: 501 });
     await readCompleteInventoryRows('inventory_movements', { eq: { outlet_id: 'outlet', reference_type: 'waste' } });

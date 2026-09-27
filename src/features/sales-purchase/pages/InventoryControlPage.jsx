@@ -1,3 +1,8 @@
+import InventoryPurchaseOrderSurface from "../inventory/purchaseOrders/InventoryPurchaseOrderSurface.jsx";
+import { mapRemotePurchaseOrderItem, mapRemotePurchaseReceiptItem, mapRemotePurchaseReceipt, mapRemotePurchaseOrder, persistRemotePurchaseOrderReceive, fetchRemotePurchaseOrder } from "../inventory/purchaseOrders/inventoryPurchaseOrderService.js";
+export { ReceiveInventoryModal } from "../inventory/purchaseOrders/ReceiveInventoryModal.jsx";
+import { subscribeInventoryRevalidation } from "../../../services/inventoryRevalidation.js";
+import { TextArea, focusIndexedInput } from "../inventory/InventorySharedPresentation.jsx";
 import InventoryParLevelsPage from "../inventory/parLevels/InventoryParLevelsPage.jsx";
 import { mapRemoteInventoryItem, normalizeOutletRecord, normalizeInventoryItem, uniqueIds, buildOutletConfig, mapRemoteCategory, outletConfigForItem, isActiveInventoryItem, categoryForItem, canonical, isUuid, outletDisplayName, outletDisplayCode } from "../inventory/inventoryItemModel.js";
 import { InventoryCategoryIcon, SectionCard, selectInputText, parseNonNegativeNumber, csvEscape, downloadTextFile, todayInput, getBusinessDateInput, toDateInputValue } from "../inventory/InventorySharedPresentation.jsx";
@@ -62,9 +67,7 @@ import InventoryGroupsPage from "../inventory/groups/InventoryGroupsPage.jsx";
 import { groupCategoryIds, mapRemoteStockCheckGroup, stockCheckItemsForGroup } from "../inventory/groups/inventoryGroupsModel.js";
 import InventoryStockCheckResultModal from "../inventory/stockChecks/InventoryStockCheckResultModal.jsx";
 import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
-import InventoryPurchaseOrderDetail from "../inventory/purchaseOrders/InventoryPurchaseOrderDetail.jsx";
 import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
-import { formatPurchaseOrderText } from "../inventory/purchaseOrders/purchaseOrderText.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { resolveAdminLocation } from "../../../app/routeOwnership.js";
@@ -573,21 +576,6 @@ function useStockCheckResponsiveLayout() {
 
 
 
-function focusIndexedInput(containerRef, currentIndex, direction, selector = "[data-entry-index]") {
-  const inputs = [...(containerRef.current?.querySelectorAll(selector) || [])]
-    .filter((input) => !input.disabled && input.offsetParent !== null)
-    .map((input) => ({ input, index: Number(input.dataset.entryIndex) }))
-    .filter((entry) => Number.isFinite(entry.index))
-    .sort((a, b) => a.index - b.index);
-  if (!inputs.length) return;
-  const currentPosition = inputs.findIndex((entry) => entry.index === currentIndex);
-  const nextPosition = direction === "previous"
-    ? Math.max(0, currentPosition - 1)
-    : Math.min(inputs.length - 1, currentPosition + 1);
-  if (nextPosition < 0 || nextPosition === currentPosition) return;
-  inputs[nextPosition]?.input?.focus?.();
-  inputs[nextPosition]?.input?.select?.();
-}
 
 
 
@@ -685,46 +673,8 @@ function mapRemoteEmployeeLite(row = {}) {
   };
 }
 
-function mapRemotePurchaseOrderItem(row = {}) {
-  return {
-    id: row.id,
-    itemId: row.item_id || "",
-    requestedQty: row.requested_qty === null || row.requested_qty === undefined ? 0 : Number(row.requested_qty),
-    receivedQty: row.received_qty === null || row.received_qty === undefined ? 0 : Number(row.received_qty),
-    unit: row.unit || "",
-    remark: row.remark || "",
-    sourceStockCheckItemId: row.source_stock_check_item_id || "",
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || "",
-  };
-}
 
-function mapRemotePurchaseReceiptItem(row = {}) {
-  return {
-    id: row.id,
-    receiptId: row.receipt_id || "",
-    purchaseOrderItemId: row.purchase_order_item_id || "",
-    itemId: row.item_id || "",
-    receivedQty: row.received_qty === null || row.received_qty === undefined ? 0 : Number(row.received_qty),
-    unit: row.unit || "",
-    remark: row.remark || "",
-    createdAt: row.created_at || "",
-  };
-}
 
-function mapRemotePurchaseReceipt(row = {}, items = []) {
-  return {
-    id: row.id,
-    purchaseOrderId: row.purchase_order_id || "",
-    outletId: row.outlet_id || "",
-    supplierId: row.supplier_id || "",
-    receivedBy: row.received_by || "",
-    receivedAt: row.received_at || row.created_at || "",
-    remark: row.remark || "",
-    createdAt: row.created_at || "",
-    items: items.map(mapRemotePurchaseReceiptItem),
-  };
-}
 
 function mapRemoteInventoryMovement(row = {}) {
   return {
@@ -947,34 +897,6 @@ function mapRemoteRecipe(row = {}, items = []) {
   };
 }
 
-function mapRemotePurchaseOrder(row = {}, lines = [], receipts = []) {
-  return {
-    id: row.id,
-    poNo: row.po_no || "PO",
-    businessPoNo: row.business_po_no || "",
-    supplierId: row.supplier_id || "",
-    outletId: row.outlet_id || "",
-    outletIds: row.outlet_id ? [row.outlet_id] : [],
-    requestIds: row.source_stock_request_id ? [row.source_stock_request_id] : [],
-    status: row.status || "draft",
-    sourceType: row.source_type || "manual",
-    sourceStockCheckId: row.source_stock_check_id || row.source_check_id || "",
-    sourceStockRequestId: row.source_stock_request_id || "",
-    createdBy: row.created_by || "",
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || "",
-    submittedAt: row.submitted_at || "",
-    confirmedAt: row.confirmed_at || "",
-    completedAt: row.completed_at || "",
-    cancelledAt: row.cancelled_at || "",
-    cancellationReason: row.cancellation_reason || "",
-    completionType: row.completion_type || "",
-    completionReason: row.completion_reason || "",
-    unfulfilledQty: Number(row.unfulfilled_qty || 0),
-    lines: lines.map(mapRemotePurchaseOrderItem),
-    receipts: receipts.map((receipt) => mapRemotePurchaseReceipt(receipt, receipt.items || [])),
-  };
-}
 
 async function loadRemoteInventoryMaster() {
   const itemsResult = await readCompleteInventoryRows("inventory_items", { order: "created_at", ascending: false });
@@ -1595,30 +1517,6 @@ async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [],
   return createdOrders;
 }
 
-async function fetchRemotePurchaseOrder(orderId) {
-  if (!isUuid(orderId)) throw new Error("Valid purchase order is required.");
-  const [orderResult, itemsResult, receiptsResult, receiptItemsResult] = await Promise.all([
-    supabase.from("inventory_purchase_orders").select("*").eq("id", orderId).single(),
-    supabase.from("inventory_purchase_order_items").select("*").eq("purchase_order_id", orderId).order("created_at", { ascending: true }),
-    supabase.from("inventory_purchase_receipts").select("*").eq("purchase_order_id", orderId).order("received_at", { ascending: false }),
-    supabase.from("inventory_purchase_receipt_items").select("*").order("created_at", { ascending: true }),
-  ]);
-  if (orderResult.error) throw orderResult.error;
-  if (itemsResult.error) throw itemsResult.error;
-  if (receiptsResult.error) throw receiptsResult.error;
-  if (receiptItemsResult.error) throw receiptItemsResult.error;
-  const receiptIds = new Set((receiptsResult.data || []).map((receipt) => receipt.id));
-  const receiptItemsByReceiptId = new Map();
-  (receiptItemsResult.data || [])
-    .filter((row) => receiptIds.has(row.receipt_id))
-    .forEach((row) => {
-      const list = receiptItemsByReceiptId.get(row.receipt_id) || [];
-      list.push(row);
-      receiptItemsByReceiptId.set(row.receipt_id, list);
-    });
-  const receipts = (receiptsResult.data || []).map((receipt) => ({ ...receipt, items: receiptItemsByReceiptId.get(receipt.id) || [] }));
-  return mapRemotePurchaseOrder(orderResult.data, itemsResult.data || [], receipts);
-}
 
 async function persistRemotePurchaseOrderStatus(orderId, status) {
   if (!isUuid(orderId)) throw new Error("Valid purchase order is required.");
@@ -1664,12 +1562,6 @@ async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
   return fetchRemotePurchaseOrder(order.id);
 }
 
-async function persistRemotePurchaseOrderReceive(order = {}, rows = [], receiptRemark = "", userId) {
-  if (["cancelled", "completed"].includes(order.status)) throw new Error("Cannot receive a Cancelled or Completed PO.");
-  const invalidRow = rows.find((row) => Number(row.receiveNowQty || 0) < 0 || Number(row.receiveNowQty || 0) > remainingQty(row));
-  if (invalidRow) throw new Error("Receive quantity cannot exceed remaining quantity.");
-  return inventoryLifecycleService.receivePurchaseOrder({ order, rows, receiptRemark });
-}
 
 async function persistRemoteInventoryMovement(movement = {}, userId) {
   if (!isUuid(movement.outletId)) throw new Error("Outlet is required.");
@@ -2101,6 +1993,8 @@ function useInventoryData(outlets, suppliers, readScope = "full") {
     };
   }, [refreshInventory]);
 
+  useEffect(() => subscribeInventoryRevalidation(() => { refreshInventory(); }), [refreshInventory]);
+
   return [data, setData, meta, refreshInventory];
 }
 
@@ -2125,14 +2019,6 @@ function Field({ label, value, onChange, type = "text", placeholder, required = 
   );
 }
 
-function TextArea({ label, value, onChange, placeholder }) {
-  return (
-    <label className="block">
-      <div className="mb-1 type-caption font-semibold text-text-secondary">{label}</div>
-      <textarea className="control min-h-20 w-full resize-none text-[13px]" value={value ?? ""} placeholder={placeholder} onChange={(event) => onChange(event.target.value)} />
-    </label>
-  );
-}
 
 
 
@@ -4721,127 +4607,6 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
   );
 }
 
-export function ReceiveInventoryModal({ order, supplier, outlet, items, displayPoNo, onClose, onReceive }) {
-  const [remark, setRemark] = useState("");
-  const [rows, setRows] = useState((order.lines || []).map((line) => ({ ...line, receiveNowQty: "", receiveRemark: "" })));
-  const [saving, setSaving] = useState(false);
-  const receiveGridRef = useRef(null);
-  const receivable = rows.filter((row) => remainingQty(row) > 0);
-  const hasValidQty = rows.some((row) => Number(row.receiveNowQty || 0) > 0);
-  const invalid = rows.some((row) => Number(row.receiveNowQty || 0) < 0 || Number(row.receiveNowQty || 0) > remainingQty(row));
-  const totalOrdered = orderedQty({ lines: rows });
-  const totalReceivingNow = rows.reduce((sum, row) => sum + Number(row.receiveNowQty || 0), 0);
-  const totalRemainingBeforeReceive = rows.reduce((sum, row) => sum + remainingQty(row), 0);
-  const receivingStatus = totalReceivingNow > 0 && totalReceivingNow >= totalRemainingBeforeReceive ? "Full Receive" : "Partial Receive";
-  const updateRow = (id, patch) => setRows((current) => current.map((row) => (row.id || row.itemId) === id ? { ...row, ...patch } : row));
-  const fillRemaining = () => setRows((current) => current.map((row) => ({ ...row, receiveNowQty: remainingQty(row) > 0 ? remainingQty(row) : "" })));
-  const submitReceive = async () => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      await onReceive(rows, remark);
-    } catch {
-      // Parent owns the error notification; keeping this modal open preserves retry.
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  function handleReceiveKeyDown(event, rowIndex) {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    focusIndexedInput(receiveGridRef, rowIndex, event.shiftKey ? "previous" : "next");
-  }
-
-  return (
-    <Modal
-      title="Receive Inventory"
-      description={`${displayPoNo || order.poNo} · ${supplier?.name || "Supplier"} · ${outlet?.name || "Outlet"} · ${poStatusLabel(order.status)}`}
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={saving || !hasValidQty || invalid || ["cancelled", "completed"].includes(order.status)} onClick={submitReceive}>{saving ? "Receiving…" : "Confirm Receive"}</button>
-        </>
-      )}
-    >
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/15 bg-primary/5 p-3">
-          <div>
-            <div className="type-body-sm font-black text-text-primary">Receiving entry</div>
-            <div className="type-caption text-text-secondary">Fill quantities from delivery order or invoice. Attachments can be added in a future receiving step.</div>
-          </div>
-          <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!receivable.length} onClick={fillRemaining}>Fill Remaining</button>
-        </div>
-        <div className="overflow-x-auto rounded-2xl border border-border" ref={receiveGridRef}>
-          <table className="w-full min-w-[860px] text-left">
-            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-              <tr>
-                <th className="px-3 py-2">Item</th>
-                <th>Ordered</th>
-                <th>Previously Received</th>
-                <th>Remaining</th>
-                <th>Receive Now</th>
-                <th>Balance</th>
-                <th>Status</th>
-                <th>Unit</th>
-                <th>Remark</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border text-[13px]">
-              {rows.map((row, rowIndex) => {
-                const item = items.find((entry) => entry.id === row.itemId);
-                const remaining = remainingQty(row);
-                const receiveNow = Number(row.receiveNowQty || 0);
-                const balance = Math.max(0, remaining - receiveNow);
-                const rowStatus = receiveNow > 0 && balance === 0 ? "Full Receive" : receiveNow > 0 ? "Partial Receive" : "Pending";
-                return (
-                  <tr key={row.id || row.itemId}>
-                    <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
-                    <td>{row.requestedQty}</td>
-                    <td>{row.receivedQty || 0}</td>
-                    <td>{remaining}</td>
-                    <td>
-                      <div className="flex items-center gap-1.5">
-                        <input
-                          className="[appearance:textfield] control h-8 w-24 text-[13px] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                          type="number"
-                          inputMode="decimal"
-                          min="0"
-                          max={remaining}
-                          disabled={remaining <= 0}
-                          value={row.receiveNowQty ?? ""}
-                          placeholder="Qty"
-                          data-entry-index={rowIndex}
-                          onFocus={selectInputText}
-                          onKeyDown={(event) => handleReceiveKeyDown(event, rowIndex)}
-                          onChange={(event) => updateRow(row.id || row.itemId, { receiveNowQty: parseNonNegativeNumber(event.target.value) })}
-                        />
-                        <button className="btn-secondary h-8 px-2 text-xs" type="button" disabled={remaining <= 0} onClick={() => updateRow(row.id || row.itemId, { receiveNowQty: remaining })}>Fill</button>
-                      </div>
-                    </td>
-                    <td className={balance > 0 && receiveNow > 0 ? "font-bold text-amber-700" : "font-semibold text-text-secondary"}>{balance}</td>
-                    <td><Badge tone={rowStatus === "Full Receive" ? "success" : rowStatus === "Partial Receive" ? "warning" : "neutral"}>{rowStatus}</Badge></td>
-                    <td>{row.unit || item?.unit || ""}</td>
-                    <td><input className="control h-8 min-w-40 text-[13px]" value={row.receiveRemark} onChange={(event) => updateRow(row.id || row.itemId, { receiveRemark: event.target.value })} placeholder="Optional" /></td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-        {!receivable.length ? <EmptyState title="No remaining quantity to receive." description="This PO has already been fully received." /> : null}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <MetricCard label="Total Ordered" value={totalOrdered} helper="Original PO quantity" size="compact" />
-          <MetricCard label="Receiving Now" value={totalReceivingNow} helper="Quantity entered now" tone={totalReceivingNow ? "info" : "neutral"} size="compact" />
-          <MetricCard label="Receiving Status" value={hasValidQty ? receivingStatus : "Not Started"} helper="Based on entered quantities" tone={receivingStatus === "Full Receive" && hasValidQty ? "success" : hasValidQty ? "warning" : "neutral"} size="compact" />
-        </div>
-        <TextArea label="Receipt Remark" value={remark} onChange={setRemark} />
-      </div>
-    </Modal>
-  );
-}
 
 function CancelPurchaseOrderModal({ order, displayPoNo, onClose, onCancel }) {
   const [reason, setReason] = useState("");
@@ -4910,29 +4675,6 @@ function CompletePurchaseOrderModal({ order, onClose, onComplete }) {
   );
 }
 
-function CopyPoTextModal({ text, onClose, onCopy }) {
-  return (
-    <Modal
-      title="Copy PO Text"
-      description="Clipboard access was blocked. Copy the supplier message manually."
-      size="lg"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-          <button className="btn-primary" type="button" onClick={() => onCopy(text)}><Copy size={15} /> Copy</button>
-        </>
-      )}
-    >
-      <textarea
-        className="control min-h-[360px] w-full whitespace-pre-wrap font-mono text-[12px]"
-        readOnly
-        value={text}
-        onFocus={(event) => event.target.select()}
-      />
-    </Modal>
-  );
-}
 
 function RecipeListPagination({ rows, resetKey, children }) {
   const pagination = useAdminClientPagination("restaurant.recipes", rows.length, 20, resetKey);
@@ -5934,35 +5676,9 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Purchase orders exported", `${rows.length} PO${rows.length === 1 ? "" : "s"} exported.`);
   }
 
-  async function copyPurchaseOrderText(order) {
-    if (!requirePermission(can.viewPo, "view purchase orders")) return;
-    const text = formatPurchaseOrderText(order, {
-      supplierName: suppliers.find((entry) => entry.id === order.supplierId)?.name,
-      outletName: outletById.get(order.outletId || order.outletIds?.[0])?.name,
-      itemById,
-      businessPoNo,
-      formatDate,
-      today: todayInput(),
-    });
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
-      await navigator.clipboard.writeText(text);
-      notify("PO text copied.");
-    } catch {
-      setModal({ type: "po-copy-text", text });
-    }
-  }
 
-  async function copyRawText(text) {
-    try {
-      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
-      await navigator.clipboard.writeText(text);
-      setModal(null);
-      notify("PO text copied.");
-    } catch {
-      notify("Unable to copy automatically", "Select and copy the text manually.", "warning");
-    }
-  }
+
+
 
 
 
@@ -6494,19 +6210,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  async function receivePurchaseOrder(order, rows, receiptRemark) {
-    try {
-      const result = await persistRemotePurchaseOrderReceive(order, rows, receiptRemark, auth?.user?.id);
-      await refreshInventory();
-      notify("Inventory received", result.status === "fully_received" ? "PO fully received. Inventory movement records were created." : "PO partially received. Inventory movement records were created.");
-      return result;
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to receive PO.", error);
-      debugLog("[POReceiveDebug]", { action: "receive-po", orderId: order?.id, rows, receiptRemark, error });
-      notify("Failed to receive inventory", error.message || "Please try again.", "error");
-      throw error;
-    }
-  }
+
 
   async function saveMovement(movement) {
     try {
@@ -7641,11 +7345,11 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       onRequestEdit={(order) => requirePermission(can.editPo, "edit purchase orders") && setModal({ type: "po-edit", order })}
       onSubmit={(order) => requirePermission(can.submitPo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted")}
       onConfirm={(order) => requirePermission(can.submitPo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}
-      onRequestReceive={(order) => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order })}
+      onRequestReceive={(order) => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-surface", orderId: order.id, action: "receive" })}
       onComplete={(order) => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order })}
       onCancel={(order) => requirePermission(can.cancelPo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}
-      onView={(order) => setModal({ type: "po-detail", order })}
-      onCopyPurchaseOrder={copyPurchaseOrderText}
+      onView={(order) => setModal({ type: "po-surface", orderId: order.id })}
+      onCopyPurchaseOrder={(order) => setModal({ type: "po-surface", orderId: order.id, action: "copy" })}
     />;
   }
 
@@ -7653,8 +7357,9 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     const openMovementReference = (movement) => {
       const referenceType = canonical(movement.referenceType || "");
       if (referenceType === "purchase_order" || referenceType === "po") {
+        if (isUuid(movement.referenceId)) return setModal({ type: "po-surface", orderId: movement.referenceId });
         const order = data.orders.find((entry) => entry.id === movement.referenceId || entry.poNo === movement.reference);
-        if (order) return setModal({ type: "po-detail", order });
+        if (order) return setModal({ type: "po-surface", orderId: order.id });
       }
       if (referenceType === "waste") {
         return setModal({ type: "waste-detail", wasteId: movement.referenceId });
@@ -8487,6 +8192,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   const meta = pageMeta[activeTab] ?? pageMeta.dashboard;
+  const poSurface = modal?.type === "po-surface" ? <InventoryPurchaseOrderSurface key={modal.orderId + (modal.action || "")} orderId={modal.orderId} initialAction={modal.action || "detail"} auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} onClose={() => setModal(null)} /> : null;
 
   if (activeTab !== "orders" && !["supabase", "refreshing"].includes(inventoryMeta.dataSource)) {
     const failed = inventoryMeta.dataSource === "remote_error";
@@ -8496,6 +8202,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
         <h2 className="font-semibold">{failed ? "Inventory data unavailable or incomplete" : "Loading complete Inventory data…"}</h2>
         {failed ? <><p className="mt-2 text-sm text-text-secondary">{inventoryMeta.purchaseOrdersError} No partial results are presented as complete.</p><button type="button" className="btn-secondary mt-3" onClick={refreshInventory}>Retry</button></> : null}
       </div>
+      {poSurface}
     </div>;
   }
 
@@ -8644,20 +8351,10 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
         />
       ) : null}
       {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={async (order) => { const result = await savePurchaseOrder(order); setModal(null); return result; }} /> : null}
-      {modal?.type === "po-receive" ? (
-        <ReceiveInventoryModal
-          order={modal.order}
-          displayPoNo={businessPoNo(modal.order)}
-          supplier={suppliers.find((supplier) => supplier.id === modal.order.supplierId)}
-          outlet={outletById.get(modal.order.outletId || modal.order.outletIds?.[0])}
-          items={data.items}
-          onClose={() => setModal(null)}
-          onReceive={async (rows, remark) => { const result = await receivePurchaseOrder(modal.order, rows, remark); setModal(null); return result; }}
-        />
-      ) : null}
+
       {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} displayPoNo={businessPoNo(modal.order)} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
       {modal?.type === "po-complete" ? <CompletePurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onComplete={(reason) => completePurchaseOrder(modal.order, reason)} /> : null}
-      {modal?.type === "po-copy-text" ? <CopyPoTextModal text={modal.text} onClose={() => setModal(null)} onCopy={copyRawText} /> : null}
+
       {modal?.type === "purchase-suggestions" ? (
         <PurchaseSuggestionsModal
           suggestions={modal.suggestions}
@@ -8667,7 +8364,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
           businessPoNo={businessPoNo}
           onClose={() => setModal(null)}
           onCreateDraftPo={(rows) => createDraftPurchaseOrders(modal.stockCheck, rows)}
-          onViewPurchaseOrder={(order) => setModal({ type: "po-detail", order })}
+          onViewPurchaseOrder={(order) => setModal({ type: "po-surface", orderId: order.id })}
         />
       ) : null}
       {modal?.type === "check-result" ? <InventoryStockCheckResultModal
@@ -8684,22 +8381,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
         onPhotoPreview={setPhotoPreview}
         onClose={() => setModal(null)}
       /> : null}
-      {modal?.type === "po-detail" ? <InventoryPurchaseOrderDetail
-        order={modal.order}
-        getBusinessPoNo={businessPoNo}
-        suppliers={suppliers}
-        outletById={outletById}
-        itemById={itemById}
-        checks={data.checks}
-        actorNameByAnyId={actorNameByAnyId}
-        formatDate={formatDate}
-        statusTone={statusTone}
-        onClose={() => setModal(null)}
-        onRequestReceive={(order) => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order })}
-        onCopyPurchaseOrder={copyPurchaseOrderText}
-        onNotify={notify}
-        onPrint={() => window.print()}
-      /> : null}
+      {poSurface}
       {modal?.type === "waste-detail" ? <InventoryWasteDetail wasteId={modal.wasteId} auth={auth} outlets={outlets} onClose={() => setModal(null)} /> : null}
       <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
