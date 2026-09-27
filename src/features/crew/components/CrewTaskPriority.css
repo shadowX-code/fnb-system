@@ -1,23 +1,53 @@
 .crew-task-heading {
-  display: flex;
-  align-items: baseline;
-  gap: 5px;
+  display: block;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .crew-task-heading > strong {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  overflow: hidden;
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
-.crew-task-heading > .crew-ui-status {
-  min-height: 18px;
-  padding: 1px 5px;
+.crew-task-metadata {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  max-width: 96px;
+  justify-self: end;
+}
+
+.crew-task-metadata > .crew-ui-status {
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+  overflow-wrap: anywhere;
+}
+
+.crew-task-priority {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4px;
+  color: var(--crew-color-warning);
   font-size: var(--crew-type-badge);
-  vertical-align: baseline;
+  font-weight: 600;
+  line-height: 1.25;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.crew-task-priority.is-critical {
+  color: var(--crew-color-danger);
+  font-weight: 700;
+}
+
+.crew-task-priority > i {
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: currentColor;
 }
