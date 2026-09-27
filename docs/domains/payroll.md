@@ -672,10 +672,16 @@ Overview and Run Review share the read-only `payrollRunPresentation` projection
 and run-keyed `usePayrollRunRead` loader. Financial authority stays server-owned;
 stale async successes and failures cannot replace another Run's evidence.
 
-Unicode rendering uses the release-controlled, hash-verified gzip font in the
-private `payroll-renderer-assets` bucket. Upload the repository asset before
-deploying the payslip gateway. No upstream font fetch occurs at runtime; existing
-immutable artifact bytes and renderer a4_v3 remain unchanged.
+Unicode rendering uses release-prepared static font shards in the private
+`payroll-renderer-assets` bucket. Preparation preserves every mapped character
+from the repository Noto source; the release manifest maps characters to
+content-addressed, size/hash-verified assets. Only required shards are loaded and
+embedded without request-time subsetting or full variable-font processing.
+Characters outside source coverage fail closed rather than disappearing. Upload
+the repository prepared assets before the gateway release. No upstream font
+fetch occurs at runtime. Draft and Final retain one a4_v3 layout/projection;
+previous immutable artifact bytes remain unchanged. Operational render timings
+contain no employee identity, financial values, token or document content.
 
 The local-only migration rehearsal script lists the exact ordered manifest and
 the equivalent Staging ledger timestamps. Applied history is not renamed or

@@ -2,23 +2,30 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.105.4';
 import { PDFDocument, StandardFonts, rgb } from 'npm:pdf-lib@1.17.1';
 import fontkit from 'npm:@pdf-lib/fontkit@1.1.1';
 import { renderPayslip } from './render.js';
+import { loadPayslipFonts } from './fonts/load.js';
 
 const headers = { 'Access-Control-Allow-Origin':'*', 'Access-Control-Allow-Headers':'authorization, apikey, x-client-info, content-type', 'Access-Control-Allow-Methods':'POST, OPTIONS' };
 const reply = (data: unknown,status=200) => new Response(JSON.stringify(data),{status,headers:{...headers,'Content-Type':'application/json','Cache-Control':'no-store'}});
 const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map(v=>v.toString(16).padStart(2,'0')).join('');
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-// Release-controlled private asset, not a mutable upstream URL. Preserve a4_v3 bytes.
-let fontBytes: Uint8Array | undefined;
-async function unicodeFont(manifest: unknown, service: ReturnType<typeof createClient>) {
- if (!/[^\u0000-\u007f]/.test(JSON.stringify(manifest))) return undefined;
- if (!fontBytes) {
-  const { data, error } = await service.storage.from('payroll-renderer-assets').download('d68bafcb48a2707749396aa12bbbd833cb70401f3a9a689fd2902c7e0d295964.ttf.gz');
+async function unicodeFonts(manifest: unknown, service: ReturnType<typeof createClient>) {
+ return loadPayslipFonts(manifest,async path => {
+  const { data, error } = await service.storage.from('payroll-renderer-assets').download(path);
   if(error || !data) throw new Error('Release font unavailable.');
-  const bytes=new Uint8Array(await new Response(data.stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
-  if(bytes.length>18000000 || hex(await crypto.subtle.digest('SHA-256',bytes))!=='d68bafcb48a2707749396aa12bbbd833cb70401f3a9a689fd2902c7e0d295964') throw new Error('Font evidence changed.');
-  fontBytes=bytes;
- }
- return fontBytes;
+  return data;
+ });
+}
+let rendered = false;
+async function render(manifest: any, service: ReturnType<typeof createClient>) {
+ const cold = !rendered;
+ const started=performance.now();
+ const fonts=await unicodeFonts(manifest,service);
+ const metrics: Record<string,number>={font_load_ms:Math.round(performance.now()-started),font_bytes:fonts.reduce((sum: number,font: Uint8Array)=>sum+font.length,0)};
+ const bytes=await renderPayslip(manifest,{PDFDocument,StandardFonts,rgb,fontkit,unicodeFonts:fonts,onTiming:(name: string,value: number)=>{metrics[name]=Math.round(value);}});
+ rendered=true;
+ // Operational timings only: no employee, remuneration, token or document text.
+ console.info(JSON.stringify({event:'payslip_render',cold,draft:!!manifest.draft,pdf_bytes:bytes.length,...metrics}));
+ return bytes;
 }
 
 Deno.serve(async request => {
@@ -37,7 +44,7 @@ Deno.serve(async request => {
   if(draft) {
    const {data:manifest,error}=await caller.rpc('payroll_draft_payslip_read',{p_run_id:body.run_id,p_employee_id:body.employee_id});
    if(error || !manifest) return reply({error:error?.message || 'Draft payslip unavailable.'},403);
-   const bytes=await renderPayslip(manifest,{PDFDocument,StandardFonts,rgb,fontkit,unicodeFont:await unicodeFont(manifest,service)});
+   const bytes=await render(manifest,service);
    // Transient response only. Drafts never enter private immutable artifact storage.
    return new Response(bytes,{headers:{...headers,'Content-Type':'application/pdf','Cache-Control':'no-store','Content-Disposition':'inline; filename="draft-payslip.pdf"'}});
   }
@@ -46,7 +53,7 @@ Deno.serve(async request => {
   const {data:context,error}=await caller.rpc(rpc,args);
   if (error || !context) return reply({error:error?.message || 'Payslip unavailable.'},403);
   if (!context.ready) {
-   const bytes=await renderPayslip(context.manifest,{PDFDocument,StandardFonts,rgb,fontkit,unicodeFont:await unicodeFont(context.manifest,service)});
+   const bytes=await render(context.manifest,service);
    const {error:uploadError}=await service.storage.from(context.bucket).upload(context.object_path,bytes,{contentType:'application/pdf',upsert:false,cacheControl:'private, max-age=0'});
    if (uploadError && !/already exists|duplicate/i.test(uploadError.message)) throw new Error('Payslip could not be stored. Retry safely.');
    // Under a concurrent retry use the bytes actually stored, never overwrite.
