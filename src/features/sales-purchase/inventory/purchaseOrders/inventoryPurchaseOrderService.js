@@ -20,6 +20,92 @@ export async function fetchRemotePurchaseOrder(orderId) {
   })));
 }
 
+const ordersSuffix = value => String(value || "GEN").slice(-3).toUpperCase();
+export async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [], { requestId, poTimestamp = Date.now() } = {}) {
+  if (!isUuid(stockCheck?.id)) throw new Error("Stock check must be saved before creating Draft PO.");
+  if (stockCheck.stockCheckType !== "scheduled" || stockCheck.status !== "submitted") {
+    throw new Error("Purchase Suggestions are only available for submitted scheduled stock checks.");
+  }
+  const includedRows = suggestionRows.filter((row) => Number(row.suggestedOrderQty || 0) > 0 && row.include !== false);
+  if (!includedRows.length) throw new Error("No included shortage items to create Draft PO.");
+  const missingSupplier = includedRows.find((row) => !isUuid(row.selectedSupplierId));
+  if (missingSupplier) throw new Error("Choose a supplier for every included item before creating Draft PO.");
+
+  const supplierGroups = includedRows.reduce((groups, row) => {
+    if (!groups.has(row.selectedSupplierId)) groups.set(row.selectedSupplierId, []);
+    groups.get(row.selectedSupplierId).push(row);
+    return groups;
+  }, new Map());
+  const orderIntents = [...supplierGroups.entries()].map(([supplierId, rows]) => {
+    const poNo = `PO-${poTimestamp.toString().slice(-6)}-${ordersSuffix(supplierId)}`;
+    const itemPayload = rows.map((row) => ({
+      item_id: isUuid(row.itemId) ? row.itemId : null,
+      requested_qty: Number(row.suggestedOrderQty || 0),
+      unit: row.unit || null,
+      remark: row.remark || null,
+      source_stock_check_item_id: isUuid(row.stockCheckItemId) ? row.stockCheckItemId : null,
+    }));
+    return {
+      po_no: poNo,
+      outlet_id: stockCheck.outletId,
+      supplier_id: supplierId,
+      status: "draft",
+      source_type: "stock_check",
+      source_stock_check_id: stockCheck.id,
+      lines: itemPayload,
+    };
+  });
+  const results = await inventoryLifecycleService.createStockCheckPurchaseOrders({ stockCheckId: stockCheck.id, orders: orderIntents, requestId });
+  const createdOrders = results.map((result) => mapRemotePurchaseOrder(result.order || {}, result.items || []));
+
+  return createdOrders;
+}
+
+
+export async function persistRemotePurchaseOrderStatus(orderId, status) {
+  if (!isUuid(orderId)) throw new Error("Valid purchase order is required.");
+  const action = status === "submitted" ? "submit" : status === "supplier_confirmed" ? "confirm" : "";
+  if (!action) throw new Error("Unsupported purchase order status transition.");
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId, action });
+  return fetchRemotePurchaseOrder(orderId);
+}
+
+export async function persistRemotePurchaseOrderEdit(order = {}) {
+  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
+  if (order.status !== "draft") throw new Error("Only Draft purchase orders can be edited.");
+  const result = await inventoryLifecycleService.savePurchaseOrder({
+    order: {
+      id: order.id,
+      outlet_id: order.outletId || order.outletIds?.[0] || null,
+      supplier_id: order.supplierId || null,
+      status: order.status,
+      source_type: order.sourceType || "manual",
+      source_stock_check_id: order.sourceStockCheckId || null,
+      lines: (order.lines || []).map((line) => ({
+        item_id: line.itemId,
+        requested_qty: Number(line.requestedQty || 0),
+        unit: line.unit || null,
+        remark: line.remark || null,
+        source_stock_check_item_id: line.sourceStockCheckItemId || null,
+      })),
+    },
+    requestId: undefined,
+  });
+  return mapRemotePurchaseOrder(result.order || {}, result.items || [], []);
+}
+
+export async function persistRemotePurchaseOrderCancel(order = {}, reason = "") {
+  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId: order.id, action: "cancel", reason });
+  return fetchRemotePurchaseOrder(order.id);
+}
+
+export async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
+  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
+  await inventoryLifecycleService.transitionPurchaseOrder({ orderId: order.id, action: "complete", reason });
+  return fetchRemotePurchaseOrder(order.id);
+}
+
 export async function loadPurchaseOrderDetail(orderId) {
   const order = await fetchRemotePurchaseOrder(orderId);
   const itemIds = [...new Set(order.lines.map(line => line.itemId))];

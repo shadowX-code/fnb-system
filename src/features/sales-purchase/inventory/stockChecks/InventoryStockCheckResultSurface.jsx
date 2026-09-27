@@ -7,6 +7,7 @@ import InventoryItemThumbnail from '../InventoryItemThumbnail.jsx';
 import InventoryItemPhotoPreview from '../InventoryItemPhotoPreview.jsx';
 import { employeeDisplayName, formatDate } from '../waste/inventoryWasteService.js';
 import { formatRestaurantRecipeCurrency } from '../recipes/inventoryRecipeReadModel.js';
+import { navigateAdminRoute, resolveAdminLocation } from '../../../../app/routeOwnership.js';
 
 const formatDateTimeCompact = value => value ? new Date(value).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-';
 
@@ -36,6 +37,7 @@ export default function InventoryStockCheckResultSurface({ checkId, auth, outlet
   useEffect(() => { reload(); setPreview(null); return () => { generation.current += 1; }; }, [reload]);
   const close = () => { generation.current += 1; activeKey.current = null; onClose(); };
   const data = read.key === key ? read.data : null;
+  const onRestock = data?.check.stockCheckType === 'scheduled' && (hasPermission(auth, 'inventory_orders.create') || hasPermission(auth, 'inventory_stock_check.review')) ? () => navigateAdminRoute('inventory-stock-check-restock', { checkId }, resolveAdminLocation(window.location)?.query || {}) : undefined;
   if (!data) return <Modal title="Stock Check Result" onClose={close}><p role={read.key === key && read.error ? 'alert' : 'status'}>{read.key === key && read.error ? `${read.state === 'incomplete' ? 'Result incomplete. ' : ''}${read.error}` : 'Loading submitted evidence…'}</p>{read.key === key && read.error ? <button className="btn-secondary mt-3" onClick={reload}>Retry</button> : null}</Modal>;
-  return <><InventoryStockCheckResultModal key={key} stockCheck={data.check} isAuditResult={data.check.stockCheckType === 'audit'} outletName={outlets.find(outlet => outlet.id === data.check.outletId)?.name || 'Outlet'} submittedByName={data.actor ? employeeDisplayName(data.actor) : 'Unknown User'} itemById={data.itemById} categoryById={data.categoryById} formatDate={formatDate} formatDateTimeCompact={formatDateTimeCompact} formatCurrency={formatRestaurantRecipeCurrency} ItemThumbnail={InventoryItemThumbnail} onPhotoPreview={setPreview} onClose={close} /><InventoryItemPhotoPreview preview={preview} onClose={() => setPreview(null)} /></>;
+  return <><InventoryStockCheckResultModal key={key} onRestock={onRestock} stockCheck={data.check} isAuditResult={data.check.stockCheckType === 'audit'} outletName={outlets.find(outlet => outlet.id === data.check.outletId)?.name || 'Outlet'} submittedByName={data.actor ? employeeDisplayName(data.actor) : 'Unknown User'} itemById={data.itemById} categoryById={data.categoryById} formatDate={formatDate} formatDateTimeCompact={formatDateTimeCompact} formatCurrency={formatRestaurantRecipeCurrency} ItemThumbnail={InventoryItemThumbnail} onPhotoPreview={setPreview} onClose={close} /><InventoryItemPhotoPreview preview={preview} onClose={() => setPreview(null)} /></>;
 }

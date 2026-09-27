@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
-import { Copy } from "lucide-react";
+import { useState } from "react";
+import { Copy, Download } from "lucide-react";
+import PageHeader from '../../../../components/layout/PageHeader.jsx';
 import DashboardSection from "../../../../components/layout/DashboardSection.jsx";
 import AdminFilterToolbar, { ALL_FILTER_OPTION } from "../../../../components/layout/AdminFilterToolbar.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
@@ -31,16 +32,17 @@ export default function InventoryPurchaseOrdersPage({
   onCancel,
   onView,
   onCopyPurchaseOrder,
-  onFiltersChange,
+  selectedOutletId: providedOutletId,
+  onOutletChange,
+  onExport,
   loadState = "supabase",
   loadError = "",
   onRetry,
 }) {
   const accessibleOutletOptions = outletOptions.filter((option) => option.value !== "all");
   const [filters, setFilters] = useState({ outletId: accessibleOutletOptions[0]?.value || "", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
-  const selectedOutletId = accessibleOutletOptions.some((option) => option.value === filters.outletId) ? filters.outletId : accessibleOutletOptions[0]?.value || "";
-  useEffect(() => { onFiltersChange?.({ ...filters, outletId: selectedOutletId }); }, [filters, selectedOutletId, onFiltersChange]);
-  const update = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
+  const selectedOutletId = providedOutletId ?? (accessibleOutletOptions.some((option) => option.value === filters.outletId) ? filters.outletId : accessibleOutletOptions[0]?.value || "");
+  const update = (key, value) => { setFilters((current) => ({ ...current, [key]: value })); if (key === 'outletId') onOutletChange?.(value); };
   const filtered = orders.filter((order) => {
     const outletId = order.outletId || order.outletIds?.[0] || "";
     const supplier = suppliers.find((entry) => entry.id === order.supplierId);
@@ -83,6 +85,7 @@ export default function InventoryPurchaseOrdersPage({
             : { label: "View", tone: "secondary", action: () => onView(order) };
 
   return <div className="space-y-4">
+    <PageHeader section="INVENTORY CONTROL" title="Purchase Orders" description="Review and track supplier purchase orders." actions={onExport ? <button className="btn-secondary" disabled={!!loadError || loadState === 'loading'} onClick={() => onExport(filtered)}><Download size={15} /> Export</button> : null} />
     <AdminFilterToolbar ariaLabel="Purchase order filters" denseFields periodAfterFilters
       outlet={<SelectField label="Outlet" value={selectedOutletId} options={accessibleOutletOptions} onChange={(value) => update("outletId", value)} searchable />}
       search={<label><div className="mb-1 type-caption font-semibold text-text-secondary">Search</div><input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => update("search", event.target.value)} placeholder="Search PO no., supplier or item" /></label>}

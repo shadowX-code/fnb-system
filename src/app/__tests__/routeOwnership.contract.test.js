@@ -73,6 +73,15 @@ describe("FeedX canonical route contract", () => {
     });
   });
 
+  it("hands submitted Stock Check identity to the PO-owned restock surface", () => {
+    const path = "/restaurant/inventory/purchase-orders/restock/check-1";
+    expect(resolveCanonicalPath(path, "?date=2026-09-26")).toMatchObject({
+      definitionId: "inventory-stock-check-restock", routeId: "inventory_stock_check",
+      params: { checkId: "check-1" }, query: { date: "2026-09-26" },
+    });
+    expect(canonicalPathForRoute("inventory-stock-check-restock", { checkId: "check-1" }, { date: "2026-09-26" })).toBe(`${path}?date=2026-09-26`);
+  });
+
   it("dual-reads direct Admin and Factory pathnames while a recognized legacy hash remains authoritative", () => {
     expect(resolveAdminLocation({ pathname: "/restaurant/reports", search: "?qa=external", hash: "" })).toMatchObject({ routeId: "reports", source: "pathname", query: {} });
     expect(resolveAdminLocation({ pathname: "/people/employees", hash: "" })).toMatchObject({ routeId: "employees", source: "pathname" });

@@ -316,6 +316,7 @@ describe("InventoryControlPage Purchase Orders lifecycle", () => {
     mount({ tab: "stock-check", includeCheck: true });
     await screen.findByText("Daily Count");
     fireEvent.click(screen.getByRole("button", { name: "Review Purchase Suggestions" }));
+    await screen.findByRole('button', { name: 'Create Draft PO' });
     const dialog = await modal("Purchase Suggestions");
     expect(within(dialog).getAllByText("Chilli Supplier").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("6")).toBeTruthy();

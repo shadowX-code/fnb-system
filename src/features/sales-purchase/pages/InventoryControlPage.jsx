@@ -1,6 +1,7 @@
-import InventoryPurchaseOrderSurface from "../inventory/purchaseOrders/InventoryPurchaseOrderSurface.jsx";
+import InventoryPurchaseOrdersWorkspace from "../inventory/purchaseOrders/InventoryPurchaseOrdersWorkspace.jsx";
+import InventoryStockCheckRestockSurface from "../inventory/purchaseOrders/InventoryStockCheckRestockSurface.jsx";
 import useAdminLocation from '../../../app/useAdminLocation.js';
-import { mapRemotePurchaseOrder, persistRemotePurchaseOrderReceive, fetchRemotePurchaseOrder } from "../inventory/purchaseOrders/inventoryPurchaseOrderService.js";
+import { mapRemotePurchaseOrder, persistRemotePurchaseOrderReceive, persistRemotePurchaseOrderStatus, persistRemotePurchaseOrderEdit, persistRemotePurchaseOrderCancel, persistRemotePurchaseOrderComplete } from "../inventory/purchaseOrders/inventoryPurchaseOrderService.js";
 export { ReceiveInventoryModal } from "../inventory/purchaseOrders/ReceiveInventoryModal.jsx";
 import { subscribeInventoryRevalidation } from "../../../services/inventoryRevalidation.js";
 import { TextArea } from "../inventory/InventorySharedPresentation.jsx";
@@ -59,10 +60,8 @@ import InventoryGroupsPage from "../inventory/groups/InventoryGroupsPage.jsx";
 import { groupCategoryIds, mapRemoteStockCheckGroup, stockCheckItemsForGroup } from "../inventory/groups/inventoryGroupsModel.js";
 import InventoryStockCheckResultSurface from "../inventory/stockChecks/InventoryStockCheckResultSurface.jsx";
 import { mapRemoteStockCheck } from "../inventory/stockChecks/inventoryStockCheckReadModel.js";
-import { loadSubmittedStockCheck } from "../inventory/stockChecks/inventoryStockCheckResultService.js";
 import InventoryItemThumbnail from "../inventory/InventoryItemThumbnail.jsx";
-import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
-import { orderedQty, poProgress, poSourceLabel, poStatusLabel, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
+import { linkedPurchaseOrdersForStockCheck } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { resolveAdminLocation, navigateAdminRoute } from "../../../app/routeOwnership.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
@@ -775,72 +774,6 @@ async function loadRemoteInventoryMaster() {
   };
 }
 
-const PURCHASE_ORDER_PAGE_SIZE = 500;
-
-async function loadAllPurchaseOrderRows(createQuery) {
-  const rows = [];
-  let offset = 0;
-  let expectedCount = null;
-
-  while (true) {
-    const result = await createQuery(offset, offset + PURCHASE_ORDER_PAGE_SIZE - 1);
-    if (result.error) throw result.error;
-    const page = result.data || [];
-    if (expectedCount === null && Number.isFinite(result.count)) expectedCount = result.count;
-    rows.push(...page);
-    if (page.length < PURCHASE_ORDER_PAGE_SIZE) {
-      if (expectedCount !== null && rows.length !== expectedCount) {
-        throw new Error(`Purchase Order read returned ${rows.length} of ${expectedCount} rows.`);
-      }
-      return { rows, count: expectedCount ?? rows.length };
-    }
-    offset += page.length;
-  }
-}
-
-async function loadRemotePurchaseOrdersReadModel() {
-  const [itemsResult, itemOutletsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult] = await Promise.all([
-    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_items").select("*").order("created_at", { ascending: false }).range(from, to)),
-    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_item_outlets").select("*").order("created_at", { ascending: false }).range(from, to)),
-    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_purchase_orders").select("*", { count: "exact" }).order("created_at", { ascending: false }).range(from, to)),
-    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_purchase_order_items").select("*").order("created_at", { ascending: true }).range(from, to)),
-    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_purchase_receipts").select("*").order("received_at", { ascending: false }).range(from, to)),
-    loadAllPurchaseOrderRows((from, to) => supabase.from("inventory_purchase_receipt_items").select("*").order("created_at", { ascending: true }).range(from, to)),
-  ]);
-
-  const configsByItem = new Map();
-  itemOutletsResult.rows.forEach((config) => {
-    const list = configsByItem.get(config.inventory_item_id) || [];
-    list.push(config);
-    configsByItem.set(config.inventory_item_id, list);
-  });
-  const items = itemsResult.rows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || []));
-  const purchaseItemsByOrderId = new Map();
-  purchaseOrderItemsResult.rows.forEach((row) => {
-    const list = purchaseItemsByOrderId.get(row.purchase_order_id) || [];
-    list.push(row);
-    purchaseItemsByOrderId.set(row.purchase_order_id, list);
-  });
-  const receiptItemsByReceiptId = new Map();
-  purchaseReceiptItemsResult.rows.forEach((row) => {
-    const list = receiptItemsByReceiptId.get(row.receipt_id) || [];
-    list.push(row);
-    receiptItemsByReceiptId.set(row.receipt_id, list);
-  });
-  const receiptsByOrderId = new Map();
-  purchaseReceiptsResult.rows.forEach((receipt) => {
-    const list = receiptsByOrderId.get(receipt.purchase_order_id) || [];
-    list.push({ ...receipt, items: receiptItemsByReceiptId.get(receipt.id) || [] });
-    receiptsByOrderId.set(receipt.purchase_order_id, list);
-  });
-
-  return {
-    items,
-    orders: purchaseOrdersResult.rows.map((order) => mapRemotePurchaseOrder(order, purchaseItemsByOrderId.get(order.id) || [], receiptsByOrderId.get(order.id) || [])),
-    purchaseOrderCount: purchaseOrdersResult.count,
-  };
-}
-
 async function persistRemoteInventoryItem(item, userId, accessibleOutletIds = null) {
   const normalized = normalizeInventoryItem(item);
   const mode = isUuid(normalized.id) ? "edit" : "create";
@@ -1168,127 +1101,7 @@ async function deleteRemoteStockCheckDraft(checkId) {
   return true;
 }
 
-async function fetchRemotePurchaseOrdersForStockCheck(stockCheckId) {
-  if (!isUuid(stockCheckId)) return [];
-  const ordersResult = await supabase
-    .from("inventory_purchase_orders")
-    .select("*")
-    .eq("source_type", "stock_check")
-    .eq("source_stock_check_id", stockCheckId)
-    .neq("status", "cancelled")
-    .order("created_at", { ascending: false });
-  debugLog("[PurchaseSuggestionDebug]", { action: "fetch-linked-orders", stockCheckId, result: { data: ordersResult.data, error: ordersResult.error }, error: ordersResult.error });
-  if (ordersResult.error) throw ordersResult.error;
-  const orderIds = (ordersResult.data || []).map((order) => order.id);
-  if (!orderIds.length) return [];
-  const itemsResult = await supabase
-    .from("inventory_purchase_order_items")
-    .select("*")
-    .in("purchase_order_id", orderIds)
-    .order("created_at", { ascending: true });
-  debugLog("[PurchaseSuggestionDebug]", { action: "fetch-linked-order-items", stockCheckId, orderIds, result: { data: itemsResult.data, error: itemsResult.error }, error: itemsResult.error });
-  if (itemsResult.error) throw itemsResult.error;
-  const itemsByOrderId = new Map();
-  (itemsResult.data || []).forEach((row) => {
-    const list = itemsByOrderId.get(row.purchase_order_id) || [];
-    list.push(row);
-    itemsByOrderId.set(row.purchase_order_id, list);
-  });
-  return (ordersResult.data || []).map((order) => mapRemotePurchaseOrder(order, itemsByOrderId.get(order.id) || []));
-}
-
-async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [], userId) {
-  if (!isUuid(stockCheck?.id)) throw new Error("Stock check must be saved before creating Draft PO.");
-  if (stockCheck.stockCheckType !== "scheduled" || stockCheck.status !== "submitted") {
-    throw new Error("Purchase Suggestions are only available for submitted scheduled stock checks.");
-  }
-  const includedRows = suggestionRows.filter((row) => Number(row.suggestedOrderQty || 0) > 0 && row.include !== false);
-  if (!includedRows.length) throw new Error("No included shortage items to create Draft PO.");
-  const missingSupplier = includedRows.find((row) => !isUuid(row.selectedSupplierId));
-  if (missingSupplier) throw new Error("Choose a supplier for every included item before creating Draft PO.");
-
-  const supplierGroups = includedRows.reduce((groups, row) => {
-    if (!groups.has(row.selectedSupplierId)) groups.set(row.selectedSupplierId, []);
-    groups.get(row.selectedSupplierId).push(row);
-    return groups;
-  }, new Map());
-  const orderIntents = [...supplierGroups.entries()].map(([supplierId, rows]) => {
-    const poNo = `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`;
-    const itemPayload = rows.map((row) => ({
-      item_id: isUuid(row.itemId) ? row.itemId : null,
-      requested_qty: Number(row.suggestedOrderQty || 0),
-      unit: row.unit || null,
-      remark: row.remark || null,
-      source_stock_check_item_id: isUuid(row.stockCheckItemId) ? row.stockCheckItemId : null,
-    }));
-    return {
-      po_no: poNo,
-      outlet_id: stockCheck.outletId,
-      supplier_id: supplierId,
-      status: "draft",
-      source_type: "stock_check",
-      source_stock_check_id: stockCheck.id,
-      lines: itemPayload,
-    };
-  });
-  const results = await inventoryLifecycleService.createStockCheckPurchaseOrders({ stockCheckId: stockCheck.id, orders: orderIntents });
-  const createdOrders = results.map((result) => mapRemotePurchaseOrder(result.order || {}, result.items || []));
-
-  debugLog("[CreateDraftPODebug]", { action: "created-draft-pos", stockCheckId: stockCheck.id, createdOrders, error: null });
-  return createdOrders;
-}
-
-
-async function persistRemotePurchaseOrderStatus(orderId, status) {
-  if (!isUuid(orderId)) throw new Error("Valid purchase order is required.");
-  const action = status === "submitted" ? "submit" : status === "supplier_confirmed" ? "confirm" : "";
-  if (!action) throw new Error("Unsupported purchase order status transition.");
-  await inventoryLifecycleService.transitionPurchaseOrder({ orderId, action });
-  return fetchRemotePurchaseOrder(orderId);
-}
-
-async function persistRemotePurchaseOrderEdit(order = {}) {
-  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
-  if (order.status !== "draft") throw new Error("Only Draft purchase orders can be edited.");
-  const result = await inventoryLifecycleService.savePurchaseOrder({
-    order: {
-      id: order.id,
-      outlet_id: order.outletId || order.outletIds?.[0] || null,
-      supplier_id: order.supplierId || null,
-      status: order.status,
-      source_type: order.sourceType || "manual",
-      source_stock_check_id: order.sourceStockCheckId || null,
-      lines: (order.lines || []).map((line) => ({
-        item_id: line.itemId,
-        requested_qty: Number(line.requestedQty || 0),
-        unit: line.unit || null,
-        remark: line.remark || null,
-        source_stock_check_item_id: line.sourceStockCheckItemId || null,
-      })),
-    },
-    requestId: undefined,
-  });
-  return mapRemotePurchaseOrder(result.order || {}, result.items || [], []);
-}
-
-async function persistRemotePurchaseOrderCancel(order = {}, reason = "") {
-  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
-  await inventoryLifecycleService.transitionPurchaseOrder({ orderId: order.id, action: "cancel", reason });
-  return fetchRemotePurchaseOrder(order.id);
-}
-
-async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
-  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
-  await inventoryLifecycleService.transitionPurchaseOrder({ orderId: order.id, action: "complete", reason });
-  return fetchRemotePurchaseOrder(order.id);
-}
-
-
-
-
-
-
-// Existing persistence contracts exposed for focused lifecycle tests; runtime ownership remains in InventoryControlPage.
+// Compatibility test facade; PO commands are owned by the canonical PO service.
 export const inventoryLifecycleContracts = {
   persistRemoteStockCheck,
   deleteRemoteStockCheckDraft,
@@ -1319,11 +1132,6 @@ function outletConfigsForScope(item = {}, outletIds = []) {
 function parLevelForOutlet(item = {}, outletId) {
   return outletConfigForItem(item, outletId).parLevel;
 }
-
-function ordersSuffix(value) {
-  return String(value || "GEN").slice(-3).toUpperCase();
-}
-
 
 function normalizeInventoryData(raw, outlets = [], suppliers = [], options = {}) {
   const fallback = import.meta.env.DEV ? defaultData(outlets, suppliers) : emptyInventoryData();
@@ -1492,7 +1300,7 @@ function defaultData(outlets = [], suppliers = []) {
   };
 }
 
-function useInventoryData(outlets, suppliers, readScope = "full") {
+function useInventoryData(outlets, suppliers) {
   const [data, setData] = useState(() => {
     clearInventoryBrowserCache();
     return normalizeInventoryData({ categories: [], items: [], uoms: [] }, outlets, suppliers, { allowEmptyMaster: true });
@@ -1518,7 +1326,7 @@ function useInventoryData(outlets, suppliers, readScope = "full") {
     clearInventoryBrowserCache();
     setMeta((current) => ({ ...current, dataSource: current.dataSource === "supabase" ? "refreshing" : "loading" }));
     try {
-      const remote = readScope === "orders" ? await loadRemotePurchaseOrdersReadModel() : await loadRemoteInventoryMaster();
+      const remote = await loadRemoteInventoryMaster();
       if (requestId !== refreshRequestRef.current) return null;
       const fetchedAt = new Date().toISOString();
       setData((current) => normalizeInventoryData({
@@ -1552,7 +1360,7 @@ function useInventoryData(outlets, suppliers, readScope = "full") {
       setMeta((current) => ({ ...current, dataSource: "remote_error", completeness: error.readState || "error", lastFetchedAt: current.lastFetchedAt || "", fallbackActive: true, purchaseOrdersError: error.message || "Unable to load Inventory." }));
       return null;
     }
-  }, [outlets, suppliers, readScope]);
+  }, [outlets, suppliers]);
 
   useEffect(() => {
     let cancelled = false;
@@ -2621,298 +2429,12 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
 
 
 
-function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrders = [], businessPoNo = (order) => order?.poNo || "PO", onClose, onCreateDraftPo, onViewPurchaseOrder }) {
-  const [rows, setRows] = useState(suggestions.map((row) => ({
-    ...row,
-    include: true,
-    selectedSupplierId: row.supplierChoices[0]?.id || "",
-    suggestedOrderQty: row.shortageQty,
-    remark: "",
-  })));
-  const includedRows = rows.filter((row) => row.include && Number(row.suggestedOrderQty || 0) > 0);
-  const validRows = includedRows.filter((row) => row.selectedSupplierId);
-  const groupedRows = includedRows.reduce((groups, row) => {
-    const key = row.selectedSupplierId || "unassigned";
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key).push(row);
-    return groups;
-  }, new Map());
-  const hasExistingOrders = existingOrders.length > 0;
-
-  function updateRow(id, patch) {
-    setRows((current) => current.map((row) => row.id === id ? { ...row, ...patch } : row));
-  }
-
-  return (
-    <Modal
-      title="Purchase Suggestions"
-      description="Review shortage items before creating Draft POs. Stock checks suggest ordering; they do not auto-submit purchase orders."
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-          {hasExistingOrders ? (
-            <button className="btn-primary" type="button" onClick={() => onViewPurchaseOrder(existingOrders[0])}>
-              View Purchase Order
-            </button>
-          ) : suggestions.length ? (
-            <button className="btn-primary" type="button" disabled={!validRows.length || validRows.length !== includedRows.length} onClick={() => onCreateDraftPo(validRows)}>
-              Create Draft PO
-            </button>
-          ) : null}
-        </>
-      )}
-    >
-      <div className="space-y-4">
-        {hasExistingOrders ? (
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
-            <div className="type-title font-bold text-text-primary">Draft PO already created</div>
-            <div className="mt-1 type-body-sm text-text-secondary">This stock check already has linked purchase orders. Create Draft PO is disabled to prevent duplicates.</div>
-            <div className="mt-3 space-y-2">
-              {existingOrders.map((order) => {
-                const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-                return (
-                  <button
-                    key={order.id}
-                    className="flex w-full items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 py-2 text-left transition hover:border-primary/30 hover:bg-white"
-                    type="button"
-                    onClick={() => onViewPurchaseOrder(order)}
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate type-body-sm font-bold text-text-primary" title={`Internal system ID: ${order.poNo}`}>{businessPoNo(order)}</span>
-                      <span className="block type-caption text-text-secondary">{supplier?.name || "Supplier"} · {order.lines?.length || 0} item{order.lines?.length === 1 ? "" : "s"}</span>
-                    </span>
-                    <Badge tone={statusTone(order.status)}>{poStatusLabel(order.status)}</Badge>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        ) : null}
-        {!hasExistingOrders && !suggestions.length ? (
-          <EmptyState title="No purchase suggestions found" description="This completed stock check has no shortage items that require Draft PO creation." />
-        ) : null}
-        {!hasExistingOrders && suggestions.length ? <div className="grid gap-3 sm:grid-cols-3">
-          <MetricCard label="Shortage Items" value={suggestions.length} helper={outlet?.name || "Selected outlet"} tone="warning" />
-          <MetricCard label="Supplier Groups" value={groupedRows.size} helper="Based on selected suppliers" tone="info" />
-          <MetricCard label="Ready for Draft PO" value={validRows.length} helper="Included items with supplier" tone={validRows.length === includedRows.length ? "success" : "warning"} />
-        </div> : null}
-        {!hasExistingOrders ? [...groupedRows.entries()].map(([supplierId, groupRows]) => {
-          const supplier = suppliers.find((entry) => entry.id === supplierId);
-          return (
-            <div key={supplierId} className="rounded-2xl border border-border bg-white p-3">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <div className="type-title font-bold text-text-primary">{supplier?.name || "Unassigned Supplier"}</div>
-                  <div className="type-caption text-text-secondary">{outlet?.name || "Outlet"} · {groupRows.length} item{groupRows.length === 1 ? "" : "s"}</div>
-                </div>
-                <Badge tone={supplier ? "info" : "warning"}>{supplier ? "Suggested PO" : "Supplier required"}</Badge>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] text-left">
-                  <thead className="text-[11px] uppercase tracking-wide text-text-muted">
-                    <tr className="border-b border-border">
-                      <th className="py-2">Include</th>
-                      <th>Item</th>
-                      <th>Par</th>
-                      <th>Actual</th>
-                      <th>Shortage</th>
-                      <th>Order Qty</th>
-                      <th>Supplier</th>
-                      <th>Remark</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border text-[13px]">
-                    {groupRows.map((row) => (
-                      <tr key={row.id}>
-                        <td className="py-2">
-                          <input type="checkbox" checked={row.include} onChange={(event) => updateRow(row.id, { include: event.target.checked })} />
-                        </td>
-                        <td>
-                          <div className="font-bold text-text-primary">{row.itemName}</div>
-                          <div className="type-caption text-text-secondary">{row.categoryName} · {row.unit}</div>
-                        </td>
-                        <td>{row.parLevel}</td>
-                        <td>{row.actualCount}</td>
-                        <td className="font-bold text-amber-700">{row.shortageQty}</td>
-                        <td>
-                          <input className="control h-8 w-24 text-[13px]" type="number" min="0" value={row.suggestedOrderQty ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => updateRow(row.id, { suggestedOrderQty: parseNonNegativeNumber(event.target.value) })} />
-                        </td>
-                        <td>
-                          <SelectField
-                            value={row.selectedSupplierId}
-                            placeholder="Choose supplier"
-                            options={[{ value: "", label: "Choose supplier" }, ...row.supplierChoices.map((supplier) => ({ value: supplier.id, label: supplier.name }))]}
-                            onChange={(value) => updateRow(row.id, { selectedSupplierId: value })}
-                            searchable
-                          />
-                        </td>
-                        <td>
-                          <input className="control h-8 min-w-44 text-[13px]" value={row.remark} onChange={(event) => updateRow(row.id, { remark: event.target.value })} placeholder="Optional" />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        }) : null}
-        {!hasExistingOrders && includedRows.length !== validRows.length ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm font-semibold text-amber-800">
-            Choose a supplier for unassigned items before creating Draft POs.
-          </div>
-        ) : null}
-      </div>
-    </Modal>
-  );
-}
-
-function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
-  const [form, setForm] = useState({
-    ...order,
-    lines: (order.lines || []).map((line) => ({ ...line })),
-  });
-  const [saving, setSaving] = useState(false);
-  const submit = async () => {
-    if (saving) return;
-    setSaving(true);
-    try {
-      await onSave(form);
-    } catch {
-      // Parent owns the error notification; keeping this modal open preserves retry.
-    } finally {
-      setSaving(false);
-    }
-  };
-  const updateLine = (index, patch) => setForm((current) => ({
-    ...current,
-    lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line),
-  }));
-  const availableItems = items.filter((item) => isActiveInventoryItem(item) && item.linkedOutletIds?.includes(form.outletId || form.outletIds?.[0]));
-
-  return (
-    <Modal
-      title="Edit Draft PO"
-      description="Draft purchase orders can be adjusted before submission."
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={saving || form.status !== "draft" || !form.lines.length} onClick={submit}>{saving ? "Saving…" : "Save Draft PO"}</button>
-        </>
-      )}
-    >
-      <div className="space-y-4">
-        {form.status !== "draft" ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm font-semibold text-amber-800">
-            This PO has already been submitted. Create an adjustment or cancel if needed.
-          </div>
-        ) : null}
-        <div className="grid gap-3 sm:grid-cols-2">
-          <SelectField label="Supplier" value={form.supplierId} options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))} onChange={(value) => setForm((current) => ({ ...current, supplierId: value }))} searchable disabled={form.status !== "draft"} />
-        </div>
-        <div className="space-y-2">
-          {form.lines.map((line, index) => {
-            const item = items.find((entry) => entry.id === line.itemId);
-            return (
-              <div key={line.id || `${line.itemId}-${index}`} className="grid gap-2 rounded-2xl border border-border p-3 md:grid-cols-[1.4fr_120px_1fr_auto] md:items-end">
-                <SelectField label="Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => {
-                  const nextItem = items.find((entry) => entry.id === value);
-                  updateLine(index, { itemId: value, unit: nextItem?.unit || line.unit });
-                }} searchable disabled={form.status !== "draft"} />
-                <Field label="Order Qty" type="number" value={line.requestedQty} placeholder="Enter quantity" onChange={(value) => updateLine(index, { requestedQty: parseNonNegativeNumber(value) })} />
-                <Field label="Remark" value={line.remark || ""} onChange={(value) => updateLine(index, { remark: value })} />
-                <button className="btn-secondary h-9 px-2.5 text-xs" type="button" disabled={form.status !== "draft"} onClick={() => setForm((current) => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) }))}>Remove</button>
-                <div className="type-caption text-text-secondary md:col-span-4">Unit: <span className="font-bold text-text-primary">{line.unit || item?.unit || "-"}</span></div>
-              </div>
-            );
-          })}
-        </div>
-        <button className="btn-secondary" type="button" disabled={form.status !== "draft"} onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, { id: makeId("po_item"), itemId: availableItems[0]?.id || "", requestedQty: 1, receivedQty: 0, unit: availableItems[0]?.unit || "", remark: "" }] }))}>Add Item</button>
-      </div>
-    </Modal>
-  );
-}
-
-
-function CancelPurchaseOrderModal({ order, displayPoNo, onClose, onCancel }) {
-  const [reason, setReason] = useState("");
-  return (
-    <Modal
-      title="Cancel Purchase Order"
-      description={`${displayPoNo || order.poNo} will be preserved for audit history.`}
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Keep PO</button>
-          <button className="btn-danger" type="button" disabled={!reason.trim()} onClick={() => onCancel(reason)}>Cancel PO</button>
-        </>
-      )}
-    >
-      <TextArea label="Cancellation Reason" value={reason} onChange={setReason} required />
-    </Modal>
-  );
-}
-
-function CompletePurchaseOrderModal({ order, onClose, onComplete }) {
-  const [reason, setReason] = useState("");
-  const progress = poProgress(order);
-  const remaining = Math.max(0, progress.ordered - progress.received);
-  const isPartial = remaining > 0;
-  const reasonRequired = isPartial;
-
-  return (
-    <Modal
-      title="Complete Purchase Order?"
-      description={isPartial ? "This PO has not been fully received." : "All ordered quantities have been received."}
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={reasonRequired && !reason.trim()} onClick={() => onComplete(reason)}>
-            Complete PO
-          </button>
-        </>
-      )}
-    >
-      <div className="space-y-4">
-        <div className="grid gap-3 sm:grid-cols-3">
-          <MetricCard label="Ordered Qty" value={progress.ordered} helper="Original PO quantity" />
-          <MetricCard label="Received Qty" value={progress.received} helper="Confirmed into inventory" tone={progress.received ? "success" : "neutral"} />
-          <MetricCard label="Remaining Qty" value={remaining} helper={isPartial ? "Will be unfulfilled" : "None"} tone={isPartial ? "warning" : "success"} />
-        </div>
-        {isPartial ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm font-semibold text-amber-800">
-            The remaining quantity will be marked as unfulfilled. This PO will be closed and no further receiving can be recorded.
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 type-body-sm font-semibold text-emerald-800">
-            This PO will be closed as fully fulfilled.
-          </div>
-        )}
-        <TextArea
-          label={isPartial ? "Completion Reason" : "Completion Note"}
-          value={reason}
-          onChange={setReason}
-          required={reasonRequired}
-          placeholder={isPartial ? "Supplier cannot fulfill remaining quantity." : "Optional note"}
-        />
-      </div>
-    </Modal>
-  );
-}
-
-
-
 function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const initialStockCheckDate = useMemo(getInitialStockCheckDate, []);
   const outlets = useMemo(() => (store?.outlets ?? []).map(normalizeOutletRecord), [store?.outlets]);
   const suppliers = useMemo(() => store?.suppliers ?? [], [store?.suppliers]);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [data, setData, inventoryMeta, refreshInventory] = useInventoryData(outlets, suppliers, initialTab === "orders" ? "orders" : "full");
+  const [data, setData, inventoryMeta, refreshInventory] = useInventoryData(outlets, suppliers);
   const [selectedOutletId, setSelectedOutletId] = useState("all");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -2920,18 +2442,11 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const [masterGroupBy, setMasterGroupBy] = useState("category");
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState(() => new Set());
   const [uomWriteStatus, setUomWriteStatus] = useState("Not written");
-  const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
   const [date, setDateState] = useState(initialStockCheckDate.date);
   const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
   const [stockCheckShiftFilter, setStockCheckShiftFilter] = useState("all");
-  const [modal, updateModal] = useState(null);
-  const restockReadRequest = useRef(0);
-  const setModal = useCallback((value) => {
-    restockReadRequest.current += 1;
-    updateModal(value);
-  }, []);
-  useEffect(() => () => { restockReadRequest.current += 1; }, [initialTab, selectedOutletId, auth?.user?.id, auth?.profile]);
+  const [modal, setModal] = useState(null);
   const [editingCostItemId, setEditingCostItemId] = useState(null);
   const [editingCostValue, setEditingCostValue] = useState("");
   const [savingCostItemId, setSavingCostItemId] = useState(null);
@@ -3018,15 +2533,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_stock_check.audit"),
     editCheck: hasPermission(auth, "inventory_stock_check.edit"),
     reviewCheck: hasPermission(auth, "inventory_stock_check.review"),
-    viewPo: hasPermission(auth, "inventory_orders.view"),
     generatePo: hasPermission(auth, "inventory_orders.create"),
-    editPo: hasPermission(auth, "inventory_orders.edit"),
-    submitPo: hasPermission(auth, "inventory_orders.submit"),
-    receivePo: hasPermission(auth, "inventory_orders.receive"),
-    completePo: hasPermission(auth, "inventory_orders.complete"),
-    cancelPo: hasPermission(auth, "inventory_orders.cancel"),
-    exportPo: hasPermission(auth, "inventory_orders.export"),
-    managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_orders.submit") || hasPermission(auth, "inventory_orders.receive") || hasPermission(auth, "inventory_orders.complete") || hasPermission(auth, "inventory_orders.cancel"),
     viewInsights: hasPermission(auth, "inventory_dashboard.view"),
   }), [activeTab, auth]);
 
@@ -3063,7 +2570,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     const person = peopleById.get(id) || peopleByAuthId.get(id);
     return person?.name || person?.email || "Unknown User";
   };
-  const businessPoNo = (order = {}) => order.businessPoNo || order.poNo || "PO";
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
     const linkedOutletIds = item.linkedOutletIds || [];
@@ -3763,55 +3269,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 
 
 
-  function exportPurchaseOrders() {
-    const rows = data.orders.filter((order) => {
-      const outletId = order.outletId || order.outletIds?.[0] || "";
-      const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-      const createdDate = (order.createdAt || order.submittedAt || "").slice(0, 10);
-      const searchText = [businessPoNo(order), order.poNo, supplier?.name, ...(order.lines || []).map((line) => itemById.get(line.itemId)?.name)].join(" ").toLowerCase();
-      return (poFilters.outletId === "all" || outletId === poFilters.outletId)
-        && (poFilters.supplierId === "all" || order.supplierId === poFilters.supplierId)
-        && (poFilters.status === "all" || order.status === poFilters.status)
-        && (poFilters.source === "all" || (order.sourceType || "manual") === poFilters.source)
-        && (!poFilters.search.trim() || searchText.includes(poFilters.search.trim().toLowerCase()))
-        && (!poFilters.from || !createdDate || createdDate >= poFilters.from)
-        && (!poFilters.to || !createdDate || createdDate <= poFilters.to);
-    }).map((order) => {
-      const progress = poProgress(order);
-      return {
-        "PO No.": businessPoNo(order),
-        "Internal System ID": order.poNo,
-        Supplier: suppliers.find((supplier) => supplier.id === order.supplierId)?.name || "",
-        Outlet: outletById.get(order.outletId || order.outletIds?.[0])?.name || "",
-        Items: order.lines.length,
-        "Ordered Qty": progress.ordered,
-        "Received Qty": progress.received,
-        "Remaining Qty": Math.max(0, progress.ordered - progress.received),
-        Status: poStatusLabel(order.status),
-        Source: poSourceLabel(order.sourceType),
-        "Created Date": order.createdAt || "",
-        "Submitted Date": order.submittedAt || "",
-        "Completed Date": order.completedAt || "",
-        "Completion Type": order.completionType ? toTitle(order.completionType) : "",
-        "Completion Reason": order.completionReason || "",
-        "Cancelled Reason": order.cancellationReason || "",
-      };
-    });
-    const columns = ["PO No.", "Internal System ID", "Supplier", "Outlet", "Items", "Ordered Qty", "Received Qty", "Remaining Qty", "Status", "Source", "Created Date", "Submitted Date", "Completed Date", "Completion Type", "Completion Reason", "Cancelled Reason"];
-    const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
-    downloadTextFile(`feedx-purchase-orders-${todayInput()}.csv`, csv);
-    notify("Purchase orders exported", `${rows.length} PO${rows.length === 1 ? "" : "s"} exported.`);
-  }
-
-
-
-
-
-
-
-
-
-
   function buildStockCheckRowsForGroup(group, sourceRows = checkRows) {
     return sourceRows.map((row) => {
       const item = itemById.get(row.itemId);
@@ -4140,190 +3597,11 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  function buildPurchaseSuggestions(record) {
-    if (!record || record.stockCheckType !== "scheduled" || record.status !== "submitted") return [];
-    return (record.rows || [])
-      .filter((row) => !row.skipped && !row.na && Number(row.actualCount || 0) < Number(row.expectedQty || 0))
-      .map((row) => {
-        const item = itemById.get(row.itemId);
-        const config = outletConfigForItem(item, record.outletId);
-        const shortageQty = Math.max(0, Number(row.expectedQty || 0) - Number(row.actualCount || 0));
-        const supplierChoices = suppliers
-          .filter((supplier) => (config.supplierIds || []).includes(supplier.id))
-          .filter((supplier) => supplier.status === "active" || supplier.is_active === true)
-          .filter((supplier) => (supplier.outletIds || supplier.assignedOutletIds || []).includes(record.outletId));
-        return {
-          id: row.id || makeId("suggest"),
-          stockCheckId: record.id,
-          stockCheckItemId: row.id,
-          itemId: row.itemId,
-          itemName: item?.name || "Inventory item",
-          categoryName: categoryById.get(item?.categoryId)?.name || "Uncategorized",
-          unit: item?.unit || row.unit || "",
-          parLevel: row.expectedQty,
-          actualCount: row.actualCount,
-          shortageQty,
-          supplierChoices,
-        };
-      });
-  }
-
-  function linkedPurchaseOrdersForStockCheck(stockCheckId) {
-    if (!stockCheckId) return [];
-    return data.orders.filter((order) => (
-      (order.sourceType || "") === "stock_check"
-      && order.sourceStockCheckId === stockCheckId
-      && order.status !== "cancelled"
-    ));
-  }
-
   function latestCheckForGroup(group) {
     return [...data.checks]
       .filter((check) => checkMatchesGroupRun(check, group, date, stockCheckShiftFilter))
       .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
   }
-
-  async function openPurchaseSuggestionsForCheck(check) {
-    if (!check || check.stockCheckType !== "scheduled" || check.status !== "submitted") {
-      if (check?.id) navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date });
-      return;
-    }
-    const requestId = ++restockReadRequest.current;
-    updateModal(null);
-    try {
-      const hydratedCheck = await loadSubmittedStockCheck(check.id);
-      if (requestId !== restockReadRequest.current) return;
-      const suggestions = buildPurchaseSuggestions(hydratedCheck);
-      const existingOrders = await fetchRemotePurchaseOrdersForStockCheck(check.id);
-      if (requestId !== restockReadRequest.current) return;
-      setData((current) => ({
-        ...current,
-        checks: current.checks.map((entry) => entry.id === hydratedCheck.id ? hydratedCheck : entry),
-        orders: [
-          ...existingOrders,
-          ...current.orders.filter((order) => !existingOrders.some((entry) => entry.id === order.id)),
-        ],
-      }));
-      if (!suggestions.length && !existingOrders.length) {
-        navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date });
-        return;
-      }
-      setModal({ type: "purchase-suggestions", stockCheck: hydratedCheck, suggestions, existingOrders });
-    } catch (error) {
-      if (requestId !== restockReadRequest.current) return;
-      console.warn("[InventoryControl] Unable to load purchase suggestions.", error);
-      debugLog("[PurchaseSuggestionDebug]", { action: "open-suggestions", stockCheckId: check.id, error });
-      notify(error?.stockCheckItemsLoad ? "Unable to load stock check items." : "Unable to load purchase suggestions", error.message || "Please try again.", "error");
-    }
-  }
-
-  async function createDraftPurchaseOrders(stockCheck, suggestionRows) {
-    if (!requirePermission(can.generatePo, "create draft purchase orders")) return;
-    try {
-      const orders = await persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows, auth?.user?.id);
-      setData((current) => ({
-        ...current,
-        checks: current.checks.map((check) => check.id === stockCheck.id ? { ...check, generatedPoIds: orders.map((order) => order.id) } : check),
-        orders: [
-          ...orders,
-          ...current.orders.filter((order) => !orders.some((entry) => entry.id === order.id)),
-        ],
-      }));
-      await refreshInventory();
-      setModal({ type: "purchase-suggestions", stockCheck, suggestions: buildPurchaseSuggestions(stockCheck), existingOrders: orders });
-      notify("Draft PO created", `${orders.length} draft PO${orders.length === 1 ? "" : "s"} ready for review.`);
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to create Draft PO.", error);
-      debugLog("[CreateDraftPODebug]", { action: "create-draft-po", stockCheckId: stockCheck?.id, suggestionRows, error });
-      const existingOrders = error?.existingOrders?.length ? error.existingOrders : linkedPurchaseOrdersForStockCheck(stockCheck?.id);
-      if (existingOrders.length) {
-        setModal({ type: "purchase-suggestions", stockCheck, suggestions: buildPurchaseSuggestions(stockCheck), existingOrders });
-      }
-      notify("Failed to create Draft PO", error.message || "Please try again.", "error");
-    }
-  }
-
-  async function updatePurchaseOrderStatus(orderId, status) {
-    try {
-      const updatedOrder = await persistRemotePurchaseOrderStatus(orderId, status);
-      setData((current) => ({
-        ...current,
-        orders: current.orders.map((order) => order.id === orderId ? updatedOrder : order),
-      }));
-      await refreshInventory();
-      notify(status === "submitted" ? "PO submitted" : status === "supplier_confirmed" ? "PO supplier confirmed" : "PO status updated", poStatusLabel(status));
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to update PO status.", error);
-      debugLog("[POSubmitDebug]", { action: "update-status", orderId, status, error });
-      notify(status === "submitted" ? "Failed to submit PO" : "Failed to update PO", error.message || "Please try again.", "error");
-    }
-  }
-
-  async function savePurchaseOrder(order) {
-    try {
-      const updatedOrder = await persistRemotePurchaseOrderEdit(order);
-      setData((current) => ({
-        ...current,
-        orders: current.orders.map((entry) => entry.id === order.id ? updatedOrder : entry),
-      }));
-      await refreshInventory();
-      notify("Draft PO saved");
-      return updatedOrder;
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to save Draft PO.", error);
-      debugLog("[POSubmitDebug]", { action: "save-draft-po", orderId: order?.id, order, error });
-      notify("Failed to update Draft PO", error.message || "Please try again.", "error");
-      throw error;
-    }
-  }
-
-  async function cancelPurchaseOrder(order, reason) {
-    try {
-      const updatedOrder = await persistRemotePurchaseOrderCancel(order, reason);
-      setData((current) => ({
-        ...current,
-        orders: current.orders.map((entry) => entry.id === order.id ? updatedOrder : entry),
-      }));
-      await refreshInventory();
-      setModal(null);
-      notify("PO cancelled");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to cancel PO.", error);
-      debugLog("[POCancelDebug]", { action: "cancel-po", orderId: order?.id, reason, error });
-      notify("Failed to cancel PO", error.message || "Please try again.", "error");
-    }
-  }
-
-  async function completePurchaseOrder(order, reason = "") {
-    try {
-      const updatedOrder = await persistRemotePurchaseOrderComplete(order, reason);
-      setData((current) => ({
-        ...current,
-        orders: current.orders.map((entry) => entry.id === order.id ? updatedOrder : entry),
-      }));
-      await refreshInventory();
-      setModal(null);
-      notify("PO completed", updatedOrder.completionType === "partial" ? "Remaining quantity marked as unfulfilled." : "PO closed as fully fulfilled.");
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to complete PO.", error);
-      debugLog("[POCompleteDebug]", { action: "complete-po", orderId: order?.id, reason, error });
-      notify("Failed to complete PO", error.message || "Please try again.", "error");
-    }
-  }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   function renderDashboard() {
     const outletRows = outlets.map((outlet) => {
@@ -4996,7 +4274,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
                 const hasDraft = Boolean(draftCheck);
                 const itemCount = stockCheckItemsForGroup(group, data.items).length;
                 const latestCheck = submittedCheck || latestCheckForGroup(group);
-                const linkedOrders = latestCheck ? linkedPurchaseOrdersForStockCheck(latestCheck.id) : [];
+                const linkedOrders = latestCheck ? linkedPurchaseOrdersForStockCheck(data.orders, latestCheck.id) : [];
                 const canReviewSuggestions = can.generatePo || can.reviewCheck;
                 const cardDebug = {
                   groupId: group.id,
@@ -5040,7 +4318,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
                             className="btn-primary w-full"
                             type="button"
                             disabled={!latestCheck || !canReviewSuggestions}
-                            onClick={() => requirePermission(canReviewSuggestions, "review purchase suggestions") && openPurchaseSuggestionsForCheck(latestCheck)}
+                            onClick={() => requirePermission(canReviewSuggestions, "review purchase suggestions") && navigateAdminRoute('inventory-stock-check-restock', { checkId: latestCheck.id }, { date })}
                           >
                             {linkedOrders.length ? "View Draft PO" : "Review Purchase Suggestions"}
                           </button>
@@ -5112,41 +4390,11 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     );
   }
 
-  function renderOrders() {
-    return <InventoryPurchaseOrdersPage
-      orders={data.orders}
-      items={data.items}
-      suppliers={suppliers}
-      outletOptions={getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all")}
-      outletById={outletById}
-      getBusinessPoNo={businessPoNo}
-      formatDate={formatDate}
-      todayInput={todayInput}
-      statusTone={statusTone}
-      onFiltersChange={setPoFilters}
-      loadState={inventoryMeta.dataSource}
-      loadError={inventoryMeta.purchaseOrdersError}
-      onRetry={refreshInventory}
-      onRequestEdit={(order) => requirePermission(can.editPo, "edit purchase orders") && setModal({ type: "po-edit", order })}
-      onSubmit={(order) => requirePermission(can.submitPo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted")}
-      onConfirm={(order) => requirePermission(can.submitPo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}
-      onRequestReceive={(order) => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-surface", orderId: order.id, action: "receive" })}
-      onComplete={(order) => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order })}
-      onCancel={(order) => requirePermission(can.cancelPo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}
-      onView={(order) => setModal({ type: "po-surface", orderId: order.id })}
-      onCopyPurchaseOrder={(order) => setModal({ type: "po-surface", orderId: order.id, action: "copy" })}
-    />;
-  }
-
-
-
-
   function renderActiveTab() {
     if (activeTab === "dashboard") return renderDashboard();
     if (activeTab === "master") return renderMasterInventory();
     if (activeTab === "stock-check") return renderStockCheck();
     if (activeTab === "requests") return renderRequests();
-    if (activeTab === "orders") return renderOrders();
     return null;
   }
 
@@ -5176,9 +4424,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "create audit stock checks") && setModal({ type: "audit-stock-check" })}><ClipboardCheck size={15} /> Audit Stock Check</button>;
     }
     if (activeTab === "requests") return null;
-    if (activeTab === "orders") {
-      return <button className="btn-secondary" type="button" onClick={() => requirePermission(can.exportPo, "export purchase orders") && exportPurchaseOrders()}><Download size={15} /> Export</button>;
-    }
     return (
       <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
         <Download size={15} /> Export
@@ -5187,9 +4432,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   const meta = pageMeta[activeTab] ?? pageMeta.dashboard;
-  const poSurface = modal?.type === "po-surface" ? <InventoryPurchaseOrderSurface key={modal.orderId + (modal.action || "")} orderId={modal.orderId} initialAction={modal.action || "detail"} auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} onClose={() => setModal(null)} /> : null;
-
-  if (activeTab !== "orders" && !["supabase", "refreshing"].includes(inventoryMeta.dataSource)) {
+  if (!["supabase", "refreshing"].includes(inventoryMeta.dataSource)) {
     const failed = inventoryMeta.dataSource === "remote_error";
     return <div className="space-y-4">
       <PageHeader section="INVENTORY CONTROL" title={meta.title} description={meta.description} />
@@ -5197,7 +4440,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
         <h2 className="font-semibold">{failed ? "Inventory data unavailable or incomplete" : "Loading complete Inventory data…"}</h2>
         {failed ? <><p className="mt-2 text-sm text-text-secondary">{inventoryMeta.purchaseOrdersError} No partial results are presented as complete.</p><button type="button" className="btn-secondary mt-3" onClick={refreshInventory}>Retry</button></> : null}
       </div>
-      {poSurface}
     </div>;
   }
 
@@ -5261,24 +4503,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
-      {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={async (order) => { const result = await savePurchaseOrder(order); setModal(null); return result; }} /> : null}
-
-      {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} displayPoNo={businessPoNo(modal.order)} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
-      {modal?.type === "po-complete" ? <CompletePurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onComplete={(reason) => completePurchaseOrder(modal.order, reason)} /> : null}
-
-      {modal?.type === "purchase-suggestions" ? (
-        <PurchaseSuggestionsModal
-          suggestions={modal.suggestions}
-          suppliers={suppliers}
-          outlet={outletById.get(modal.stockCheck.outletId)}
-          existingOrders={modal.existingOrders || linkedPurchaseOrdersForStockCheck(modal.stockCheck?.id)}
-          businessPoNo={businessPoNo}
-          onClose={() => setModal(null)}
-          onCreateDraftPo={(rows) => createDraftPurchaseOrders(modal.stockCheck, rows)}
-          onViewPurchaseOrder={(order) => setModal({ type: "po-surface", orderId: order.id })}
-        />
-      ) : null}
-      {poSurface}
       <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
   );
@@ -5286,6 +4510,8 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 
 function InventoryControlPage(props) {
   const route = useAdminLocation();
+  if (route?.definitionId === 'inventory-stock-check-restock') return <InventoryStockCheckRestockSurface checkId={route.params.checkId} auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} onClose={() => navigateAdminRoute('inventory_stock_check', {}, route.query)} />;
+  if (props.initialTab === 'orders') return <InventoryPurchaseOrdersWorkspace auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
   if (route?.definitionId === 'inventory-stock-check-result') return <InventoryStockCheckResultSurface checkId={route.params.checkId} auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} onClose={() => navigateAdminRoute('inventory_stock_check', {}, route.query)} />;
   if (props.initialTab === "recipe-intelligence") return <InventoryRecipeIntelligencePage auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "recipes") return <InventoryRecipesPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
