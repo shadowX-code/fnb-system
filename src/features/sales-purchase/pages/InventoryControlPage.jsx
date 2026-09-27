@@ -50,6 +50,9 @@ import { readCompleteInventoryRows } from "../../../services/inventoryCompleteRe
 import { createInventoryRecipeReadModel } from "../inventory/recipes/inventoryRecipeReadModel.js";
 import { findRecipeCodeMatches, uploadRecipePhoto } from "../inventory/recipes/inventoryRecipeModalSupportReads.js";
 import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
+import InventoryWasteDetail from "../inventory/waste/InventoryWasteDetail.jsx";
+import InventoryItemPhotoPreview from "../inventory/InventoryItemPhotoPreview.jsx";
+import { mapRemoteWasteRecord, persistRemoteWasteRecord } from "../inventory/waste/inventoryWasteService.js";
 import InventoryMovementsPage from "../inventory/movements/InventoryMovementsPage.jsx";
 import InventoryManualMovementModal from "../inventory/movements/InventoryManualMovementModal.jsx";
 import InventoryGroupsPage from "../inventory/groups/InventoryGroupsPage.jsx";
@@ -605,11 +608,6 @@ async function uploadInventoryItemPhoto(file, itemId = "draft", previousPublicUr
   return uploadOptimizedImage(file, { bucket, path, previousPublicUrl });
 }
 
-async function uploadWasteEvidencePhoto(file, wasteId = "draft", previousPublicUrl = "") {
-  const bucket = "inventory-item-photos";
-  const path = `waste_evidence/${wasteId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-  return uploadOptimizedImage(file, { bucket, path, previousPublicUrl });
-}
 
 function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean))];
@@ -1062,25 +1060,6 @@ function mapRemoteInventoryMovement(row = {}) {
   };
 }
 
-function mapRemoteWasteRecord(row = {}) {
-  return {
-    id: row.id,
-    date: normalizeBusinessDate(row.waste_date || row.created_at),
-    itemId: row.inventory_item_id || "",
-    outletId: row.outlet_id || "",
-    wasteType: row.waste_type || "Unknown",
-    quantity: row.quantity === null || row.quantity === undefined ? 0 : Number(row.quantity),
-    unit: row.unit || "",
-    notes: row.notes || "",
-    photoUrl: row.photo_url || "",
-    photo_url: row.photo_url || "",
-    user: row.created_by || "",
-    recordedBy: row.created_by || "",
-    createdAt: row.created_at || "",
-    updatedAt: row.updated_at || row.created_at || "",
-    value: 0,
-  };
-}
 
 function mapRemoteRecipeItem(row = {}) {
   return {
@@ -2125,9 +2104,6 @@ async function persistRemoteInventoryMovementUpdate(movement = {}, userId) {
   return mapRemoteInventoryMovement(rpcResult.movement || {});
 }
 
-async function persistRemoteWasteRecord(waste = {}, userId) {
-  return inventoryLifecycleService.saveInventoryWaste({ waste: { ...waste, date: normalizeBusinessDate(waste.date || waste.wasteDate) } });
-}
 
 async function persistRemoteRecipe(recipe = {}, userId) {
   if (!isUuid(recipe.outletId)) throw new Error("Outlet is required.");
@@ -3031,42 +3007,6 @@ function StockCheckMobileView({
   );
 }
 
-function InventoryItemPhotoPreview({ preview, onClose }) {
-  useEffect(() => {
-    if (!preview?.src) return undefined;
-    function handleKeyDown(event) {
-      if (event.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, preview?.src]);
-
-  if (!preview?.src) return null;
-  return (
-    <div
-      className="fixed inset-0 z-lightbox-layer flex items-center justify-center bg-slate-950/80 p-4 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-label={preview.title || "Item photo preview"}
-      onMouseDown={onClose}
-    >
-      <div className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-950 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3">
-          <div className="min-w-0">
-            <div className="truncate type-title font-bold text-white">{preview.title || "Item Photo"}</div>
-            <div className="type-caption text-slate-300">Inventory item photo preview</div>
-          </div>
-          <button className="rounded-full border border-white/15 px-3 py-1 text-sm font-bold text-white transition hover:bg-white/10" type="button" onClick={onClose}>
-            Close
-          </button>
-        </div>
-        <div className="min-h-0 flex-1 p-3">
-          <img className="mx-auto max-h-[72vh] w-auto max-w-full rounded-xl object-contain" src={preview.src} alt={preview.title || "Item photo"} />
-        </div>
-      </div>
-    </div>
-  );
-}
 
 const inventoryImportColumns = ["Item Name", "SKU Code", "Category", "UOM", "Cost", "Description", "Status", "Linked Outlet Codes"];
 
@@ -5539,7 +5479,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
   const [stockCheckShiftFilter, setStockCheckShiftFilter] = useState("all");
   const [modal, setModal] = useState(null);
-  const wasteActionsRef = useRef(null);
   const [editingCostItemId, setEditingCostItemId] = useState(null);
   const [editingCostValue, setEditingCostValue] = useState("");
   const [savingCostItemId, setSavingCostItemId] = useState(null);
@@ -5669,9 +5608,9 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
   }, [outlets, parLevelOutletId]);
 
   useEffect(() => {
-    if (!["waste", "recipes"].includes(activeTab)) return;
+    if (activeTab !== "recipes") return;
     if (!outlets.length) return;
-    if (activeTab === "waste" || activeTab === "recipes") {
+    if (activeTab === "recipes") {
       const firstAccessibleOutlet = getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "";
       if (selectedOutletId === "all" && firstAccessibleOutlet) {
         setSelectedOutletId(firstAccessibleOutlet);
@@ -5718,8 +5657,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     exportPo: hasPermission(auth, "inventory_orders.export"),
     managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_orders.submit") || hasPermission(auth, "inventory_orders.receive") || hasPermission(auth, "inventory_orders.complete") || hasPermission(auth, "inventory_orders.cancel"),
     recordMovement: hasPermission(auth, "inventory_movements.create"),
-    recordWaste: hasPermission(auth, "inventory_waste.create") || hasPermission(auth, "inventory_waste.manage"),
-    viewWaste: hasPermission(auth, "inventory_waste.view"),
     viewInsights: hasPermission(auth, "inventory_dashboard.view"),
     viewRecipes: activeTab === "recipe-intelligence" ? hasPermission(auth, "recipe_intelligence.view") : hasPermission(auth, "inventory_recipes.view"),
     manageRecipeIntelligence: hasPermission(auth, "recipe_intelligence.manage"),
@@ -6631,16 +6568,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
 
 
 
-  function openRecordWaste() {
-    if (!requirePermission(can.recordWaste, "record waste")) return;
-    const wasteOutletId = selectedOutletId === "all" ? getAccessibleOutlets(auth, outlets)[0]?.id : selectedOutletId;
-    if (!wasteOutletId) {
-      notify("Select an outlet first", "Select an outlet before recording waste.", "warning");
-      return "";
-    }
-    if (selectedOutletId === "all") setSelectedOutletId(wasteOutletId);
-    return wasteOutletId;
-  }
 
 
   function buildStockCheckRowsForGroup(group, sourceRows = checkRows) {
@@ -7215,49 +7142,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  async function saveWaste(waste) {
-    try {
-      let evidenceUrl = waste.photoUrl || waste.photo_url || "";
-      const previousEvidenceUrl = waste.previousPhotoUrl || waste.previous_photo_url || "";
-      const hasEvidenceFile = typeof File !== "undefined" && waste.photoFile instanceof File;
-      let evidenceDebug = {
-        wasteRecordId: waste.id || "new",
-        uploadSuccess: false,
-        evidenceUrl,
-        savedEvidenceUrl: "",
-        displayEvidenceUrl: "",
-      };
-      if (hasEvidenceFile) {
-        const uploadResult = await uploadWasteEvidencePhoto(waste.photoFile, waste.id || "draft", previousEvidenceUrl);
-        evidenceUrl = uploadResult.publicUrl;
-        evidenceDebug = { ...evidenceDebug, uploadSuccess: true, evidenceUrl };
-      }
-      const result = await persistRemoteWasteRecord({ ...waste, photoUrl: evidenceUrl, photo_url: evidenceUrl }, auth?.user?.id);
-      debugLog("[WasteEvidenceDebug]", {
-        ...evidenceDebug,
-        wasteRecordId: result.waste_id || waste.id || "new",
-        savedEvidenceUrl: evidenceUrl,
-        displayEvidenceUrl: evidenceUrl,
-      });
-      await refreshInventory();
-      notify("Waste record created", "A waste movement was added to the inventory audit trail.");
-      return true;
-    } catch (error) {
-      console.warn("[InventoryControl] Unable to save waste record.", error);
-      debugLog("[WasteSaveDebug]", { action: "save-waste", payload: waste, error });
-      debugLog("[WasteEvidenceDebug]", {
-        wasteRecordId: waste?.id || "new",
-        uploadSuccess: false,
-        evidenceUrl: waste?.photoUrl || waste?.photo_url || "",
-        savedEvidenceUrl: "",
-        displayEvidenceUrl: "",
-        error,
-      });
-      await refreshInventory();
-      notify("Failed to create Waste Record", error.message || "Please try again.", "error");
-      return false;
-    }
-  }
 
   async function saveRecipe(recipe) {
     try {
@@ -8725,8 +8609,7 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
         if (order) return setModal({ type: "po-detail", order });
       }
       if (referenceType === "waste") {
-        const waste = data.waste.find((entry) => entry.id === movement.referenceId);
-        if (waste) return setModal({ type: "waste-detail", waste });
+        return setModal({ type: "waste-detail", wasteId: movement.referenceId });
       }
       if (referenceType === "transfer") {
         const transferMovements = data.movements.filter((entry) => entry.reference && movement.reference && entry.reference === movement.reference);
@@ -8737,10 +8620,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     return <InventoryMovementsPage movements={data.movements} itemById={itemById} outletById={outletById} outletOptions={getAccessibleOutletOptions(auth, outlets)} actorNameByAnyId={actorNameByAnyId} formatDateTimeCompact={formatDateTimeCompact} canonical={canonical} toTitle={toTitle} canEditMovement={canEditInventoryMovement} canRecordMovement={can.recordMovement} onEditMovement={(movement) => setModal({ type: "movement", movement })} onOpenReference={openMovementReference} />;
   }
 
-  function renderWaste() {
-    const outletOptions = getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all");
-    return <InventoryWastePage wasteRecords={data.waste} movements={data.movements} selectedOutletId={selectedOutletId} onSelectedOutletChange={setSelectedOutletId} outletOptions={outletOptions} itemById={itemById} categoryById={categoryById} outletById={outletById} actorNameByAnyId={actorNameByAnyId} formatDate={formatDate} outletDisplayCode={outletDisplayCode} todayInput={todayInput} parseNonNegativeNumber={parseNonNegativeNumber} selectableItems={(outletId) => data.items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, outletId))} onRequestRecordWaste={openRecordWaste} onSaveWaste={saveWaste} onPreviewPhoto={setPhotoPreview} actionRef={wasteActionsRef} canView={can.viewWaste} canRecord={can.recordWaste} />;
-  }
 
   function renderRecipes() {
     if (!can.viewRecipes) {
@@ -9496,7 +9375,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "requests") return renderRequests();
     if (activeTab === "orders") return renderOrders();
     if (activeTab === "movements") return renderMovements();
-    if (activeTab === "waste") return renderWaste();
     if (activeTab === "recipe-intelligence") return renderRecipes();
     return renderRecipes();
   }
@@ -9539,9 +9417,6 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
     }
     if (activeTab === "movements") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>;
-    }
-    if (activeTab === "waste") {
-      return can.recordWaste ? <button className="btn-primary" type="button" onClick={() => wasteActionsRef.current?.()}>Record Waste</button> : null;
     }
     if (activeTab === "recipe-intelligence") {
       return null;
@@ -9785,12 +9660,14 @@ function InventoryLegacyRoutes({ store, auth, ui, initialTab = "dashboard" }) {
         onNotify={notify}
         onPrint={() => window.print()}
       /> : null}
+      {modal?.type === "waste-detail" ? <InventoryWasteDetail wasteId={modal.wasteId} auth={auth} outlets={outlets} onClose={() => setModal(null)} /> : null}
       <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
   );
 }
 
 function InventoryControlPage(props) {
+  if (props.initialTab === "waste") return <InventoryWastePage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "groups") return <InventoryGroupsPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   return <InventoryLegacyRoutes {...props} />;
 }
