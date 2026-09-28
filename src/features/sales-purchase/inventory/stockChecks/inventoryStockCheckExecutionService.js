@@ -1,4 +1,5 @@
 import { readCompleteInventoryRows } from "../../../../services/inventoryCompleteRead.js";
+import { supabase } from "../../../../lib/supabase.ts";
 import { inventoryLifecycleService } from "../../../../services/inventoryLifecycleService.js";
 import { mapRemoteInventoryItem, mapRemoteCategory, uniqueIds, isUuid } from "../inventoryItemModel.js";
 import { mapRemoteStockCheckGroup } from "../groups/inventoryGroupsModel.js";
@@ -12,8 +13,28 @@ async function readByIds(table, column, ids, options = {}) {
   return pages.flatMap((page) => page.data);
 }
 
-// All joins are assembled from verified complete reads. Submitted rows are used
-// only for the audit-card counts; Result owns the submitted evidence surface.
+async function readCheckSummaries(checkIds) {
+  const ids = uniqueIds(checkIds);
+  if (!ids.length) return new Map();
+  const { data, error } = await supabase.rpc("inventory_stock_check_row_summaries", { p_check_ids: ids });
+  if (error) throw Object.assign(new Error(`Stock Check summaries: ${error.message}`), { readState: "error", cause: error });
+  if (!data || !Array.isArray(data.summaries) || data.check_count !== ids.length
+      || data.summaries.length !== ids.length) {
+    throw Object.assign(new Error("Stock Check summary completeness could not be verified."), { readState: "incomplete" });
+  }
+  const summaries = new Map();
+  for (const summary of data.summaries) {
+    if (!ids.includes(summary.check_id) || summaries.has(summary.check_id)
+        || ![summary.total, summary.skipped, summary.shortage].every((value) => Number.isInteger(value) && value >= 0)) {
+      throw Object.assign(new Error("Stock Check summary identities or counts are incomplete."), { readState: "incomplete" });
+    }
+    summaries.set(summary.check_id, { total: summary.total, skipped: summary.skipped, shortage: summary.shortage });
+  }
+  return summaries;
+}
+
+// All joins are assembled from verified complete reads. Historical cards use
+// server summaries; Result alone loads complete submitted evidence by identity.
 export async function loadStockCheckExecution(outletIds) {
   if (!outletIds.length) return { items: [], categories: [], groups: [], checks: [], orders: [], people: [], completeness: "complete" };
   const [outletLinks, groupsRaw, checksRaw, categoriesRaw] = await Promise.all([
@@ -22,10 +43,13 @@ export async function loadStockCheckExecution(outletIds) {
     readByIds("inventory_stock_checks", "outlet_id", outletIds, { order: "created_at", ascending: false }),
     readCompleteInventoryRows("inventory_categories", { order: "sort_order" }),
   ]);
-  const [itemRows, groupLinks, checkRows, orderRows, submittedActors, createdActors] = await Promise.all([
+  const draftIds = checksRaw.filter((check) => check.status === "draft").map((check) => check.id);
+  const historicalIds = checksRaw.filter((check) => check.status !== "draft").map((check) => check.id);
+  const [itemRows, groupLinks, draftRows, summaries, orderRows, submittedActors, createdActors] = await Promise.all([
     readByIds("inventory_items", "id", outletLinks.map((link) => link.inventory_item_id), { order: "created_at", ascending: false }),
     readByIds("inventory_stock_check_group_categories", "group_id", groupsRaw.map((group) => group.id)),
-    readByIds("inventory_stock_check_items", "stock_check_id", checksRaw.map((check) => check.id), { order: "created_at" }),
+    readByIds("inventory_stock_check_items", "stock_check_id", draftIds, { order: "created_at" }),
+    readCheckSummaries(historicalIds),
     readByIds("inventory_purchase_orders", "source_stock_check_id", checksRaw.map((check) => check.id), { order: "created_at", ascending: false }),
     readByIds("employees", "id", checksRaw.map((check) => check.submitted_by), { select: "id, auth_user_id, full_name, nickname, email" }),
     readByIds("employees", "auth_user_id", checksRaw.map((check) => check.created_by), { select: "id, auth_user_id, full_name, nickname, email" }),
@@ -37,21 +61,17 @@ export async function loadStockCheckExecution(outletIds) {
   const groupCategoryIds = new Map();
   for (const link of groupLinks) groupCategoryIds.set(link.group_id, [...(groupCategoryIds.get(link.group_id) || []), link.category_id]);
   const rowsByCheck = new Map();
-  for (const row of checkRows) rowsByCheck.set(row.stock_check_id, [...(rowsByCheck.get(row.stock_check_id) || []), row]);
+  for (const row of draftRows) rowsByCheck.set(row.stock_check_id, [...(rowsByCheck.get(row.stock_check_id) || []), row]);
   return {
     categories,
     items: itemRows.map((row) => mapRemoteInventoryItem(row, linksByItem.get(row.id) || [], categoryById)),
     groups: groupsRaw.map((row) => mapRemoteStockCheckGroup(row, groupCategoryIds.get(row.id) || [])),
     checks: checksRaw.map((row) => {
-      const rows = rowsByCheck.get(row.id) || [];
+      const rows = row.status === "draft" ? (rowsByCheck.get(row.id) || []) : [];
       const check = mapRemoteStockCheck(row, row.status === "draft" ? rows : []);
       return row.status === "draft" ? check : {
         ...check,
-        rowSummary: {
-          total: rows.length,
-          skipped: rows.filter((item) => item.skipped).length,
-          shortage: rows.filter((item) => !item.skipped && Number(item.variance || 0) > 0).length,
-        },
+        rowSummary: summaries.get(row.id),
       };
     }),
     orders: orderRows.map((row) => ({ id: row.id, sourceType: row.source_type, sourceStockCheckId: row.source_stock_check_id, status: row.status })),
