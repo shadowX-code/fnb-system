@@ -120,9 +120,9 @@ export default function InventoryPurchaseOrdersPage({
               <div className="mt-2 h-2 rounded-full bg-white"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress.percent, 100)}%` }} /></div>
             </div>
             <div className="mt-4 flex flex-col gap-2">
-              <button className={action.tone === "primary" ? "btn-primary w-full justify-center" : "btn-secondary w-full justify-center"} type="button" onClick={action.action}>{action.label}</button>
+              {action.label !== "View" ? <button className={action.tone === "primary" ? "btn-primary w-full justify-center" : "btn-secondary w-full justify-center"} type="button" onClick={action.action}>{action.label}</button> : null}
               <div className="flex flex-wrap gap-2">
-                {action.label !== "View" ? <button className="icon-btn h-9 w-9" type="button" title="View PO" aria-label={`View PO ${getBusinessPoNo(order)}`} onClick={() => onView(order)}><Eye size={16} /></button> : null}
+                <button className="icon-btn h-9 w-9" type="button" title="View PO" aria-label={`View PO ${getBusinessPoNo(order)}`} onClick={() => onView(order)}><Eye size={16} /></button>
                 <button className="icon-btn h-9 w-9" type="button" title="Copy PO text" aria-label={`Copy PO text ${getBusinessPoNo(order)}`} onClick={() => onCopyPurchaseOrder(order)}><Copy size={16} /></button>
                 {order.status === "draft" ? <button className="icon-btn h-9 w-9" type="button" title="Edit draft PO" aria-label={`Edit draft PO ${getBusinessPoNo(order)}`} onClick={() => onRequestEdit(order)}><Pencil size={16} /></button> : null}
                 {canCancel ? <button className="icon-btn h-9 w-9 text-rose-700" type="button" title="Cancel PO" aria-label={`Cancel PO ${getBusinessPoNo(order)}`} onClick={() => onCancel(order)}><X size={16} /></button> : null}
@@ -132,7 +132,7 @@ export default function InventoryPurchaseOrdersPage({
         })}
       </div>
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[1040px] text-left">
+        <table className="w-full min-w-[1280px] text-left">
           <thead className="text-[11px] uppercase tracking-wide text-text-muted">
             <tr className="border-b border-border">
               <th className="py-2">PO No.</th><th>Supplier</th><th>Items</th><th>Received Progress</th><th>Status</th><th>Source</th><th>Created Date</th><th>Created By</th><th className="text-right">Actions</th>
