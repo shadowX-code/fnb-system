@@ -1,9 +1,9 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ read: vi.fn(), edit: vi.fn(), save: vi.fn(), translate: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { localizedContentAdmin: mocks.read, editLocalizedTranslation: mocks.edit, saveLocalizedContentUnits: mocks.save, translateLocalizedContent: mocks.translate } }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), edit: vi.fn(), review: vi.fn(), save: vi.fn(), translate: vi.fn() }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { localizedContentAdmin: mocks.read, editLocalizedTranslation: mocks.edit, reviewLocalizedTranslation: mocks.review, saveLocalizedContentUnits: mocks.save, translateLocalizedContent: mocks.translate } }));
 import LocalizedContentEditor from "../LocalizedContentEditor.jsx";
-afterEach(cleanup);
+afterEach(() => { cleanup(); Object.values(mocks).forEach((mock) => mock.mockReset()); });
 describe("Task language comparison", () => {
   it("keeps English visible while switching targets and excludes stale stored units", async () => {
     mocks.read.mockResolvedValue({ units: {
@@ -69,5 +69,56 @@ describe("SOP language comparison", () => {
     fireEvent.click(screen.getByRole("button", { name: "Translate Missing" }));
     await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "draft", ["unit-1", "unit-2", "unit-3"], ["zh-CN"]));
     expect(mocks.translate.mock.calls[0][2]).not.toContain("unit-0");
+  });
+
+  it("saves dirty SOP source before translating from the saved unit identities", async () => {
+    const savedUnits = [{ ...sourceUnits[0], source_value: "Saved title" }];
+    const units = { "sop.title": { id: "saved-id", source_language: "en", source_value: "Saved title", translations: {} } };
+    mocks.read.mockResolvedValue({ units });
+    mocks.save.mockResolvedValue({ units });
+    mocks.translate.mockResolvedValue({ units });
+    const saveSource = vi.fn().mockResolvedValue(savedUnits);
+    render(<LocalizedContentEditor domain="sop" versionId="draft" sourceLanguage="en" sourceUnits={sourceUnits} sourceDirty onSaveSource={saveSource} />);
+    expect(screen.getByText(/Save Draft changes before translating/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Translate Missing" }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft & Translate" }));
+    await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "draft", ["saved-id"], ["zh-CN"]));
+    expect(mocks.save).toHaveBeenCalledWith("sop", "draft", savedUnits);
+  });
+
+  it("reviews only current existing translations for the selected language", async () => {
+    const units = {
+      "sop.title": { id: "title", source_language: "en", source_value: "Opening SOP", translations: { "zh-CN": { value: "开店", status: "ai_translated" }, ms: { value: "Buka", status: "ai_translated" } } },
+      "sections.section-a.title": { id: "missing", source_language: "en", source_value: "Prepare the counter", translations: {} },
+      "sections.section-a.content": { id: "outdated", source_language: "en", source_value: sourceUnits[2].source_value, translations: { "zh-CN": { value: "旧版", status: "outdated" } } },
+      "sections.section-b.title": { id: "reviewed", source_language: "en", source_value: "Open the shop", translations: { "zh-CN": { value: "开店", status: "reviewed" } } },
+    };
+    mocks.read.mockResolvedValue({ units });
+    mocks.review.mockResolvedValue({ units });
+    render(<LocalizedContentEditor domain="sop" versionId="draft" sourceLanguage="en" sourceUnits={sourceUnits} />);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Mark All Reviewed" }).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Mark All Reviewed" }));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("title", "zh-CN"));
+    expect(mocks.review).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders and edits localized SOP lists as rich text, never raw markup", async () => {
+    const html = "<p>检查准备。</p><ol><li><p>清点现金</p></li></ol>";
+    const units = { "sections.section-a.content": { id: "rich", source_language: "en", source_value: sourceUnits[2].source_value, translations: { "zh-CN": { value: html, status: "ai_translated" } } } };
+    mocks.read.mockResolvedValue({ units });
+    mocks.edit.mockResolvedValue({ units });
+    render(<LocalizedContentEditor domain="sop" versionId="draft" sourceLanguage="en" sourceUnits={[sourceUnits[2]]} />);
+    await waitFor(() => expect(screen.getByRole("textbox", { name: "Content" }).innerHTML).toContain("清点现金"));
+    const editor = screen.getByRole("textbox", { name: "Content" });
+    expect(screen.queryByText(html)).toBeNull();
+    editor.focus();
+    const range = document.createRange();
+    range.selectNodeContents(editor.querySelector("p"));
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+    fireEvent(document, new Event("selectionchange"));
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Save Translation" }));
+    await waitFor(() => expect(mocks.edit).toHaveBeenCalledWith("rich", "zh-CN", expect.stringContaining("<ol>")));
   });
 });

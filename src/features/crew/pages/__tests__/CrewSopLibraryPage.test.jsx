@@ -309,17 +309,19 @@ describe("Crew SOP Library Admin", () => {
     expect(await screen.findByDisplayValue("欢迎标准")).not.toBeNull();
   });
 
-  it("requires saving source edits before a translation request", async () => {
+  it("offers Save Draft & Translate beside the action for unsaved source", async () => {
+    mocks.saveLocalization.mockImplementation(async (_domain, _versionId, units) => ({ units: Object.fromEntries(units.map((unit, index) => [unit.unit_key, { id: `unit-${index}`, source_language: "en", source_value: unit.source_value, translations: {} }])) }));
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     fireEvent.change(await screen.findByLabelText("Section Title *"), { target: { value: "Unsaved source" } });
     await screen.findByText("Unsaved changes");
     fireEvent.click(screen.getByRole("button", { name: "Languages" }));
-    fireEvent.click(screen.getByRole("button", { name: "Translate Missing" }));
-    expect((await screen.findByRole("alert")).textContent).toContain("Save Draft source changes before translating");
-    expect(mocks.saveLocalization).not.toHaveBeenCalled();
-    expect(mocks.translate).not.toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: "Translate Missing" }).disabled).toBe(true);
+    expect(screen.getByText(/Save Draft changes before translating/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft & Translate" }));
+    await waitFor(() => expect(mocks.saveSections).toHaveBeenCalled());
+    await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "v2", expect.any(Array), ["zh-CN"]));
   });
 
   it("warns before closing with retained unsaved changes", async () => {

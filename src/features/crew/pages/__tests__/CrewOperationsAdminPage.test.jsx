@@ -45,6 +45,25 @@ describe("Crew unified Tasks Admin", () => {
     expect(screen.getByRole("button", { name: "View Opening Checklist" })).not.toBeNull();
   });
 
+  it("shows canonical creation identity and all persisted time-window variants", async () => {
+    const base = fixture.definitions[0];
+    const rows = [
+      { ...base, id: "both", name: "Both times", available_from: "09:00:00", available_until: "11:00:00", task_created_at: "2026-08-01T16:30:00Z", created_by_name: "Aina" },
+      { ...base, id: "start", name: "Start only", schedule_type: "one_time", available_from: "09:00:00", available_until: null, created_by_name: null },
+      { ...base, id: "due", name: "Due only", schedule_type: "shift_based", available_from: null, available_until: "11:00:00" },
+      { ...base, id: "none", name: "No time", available_from: null, available_until: null },
+    ];
+    mocks.data.mockImplementation(({ listing }) => Promise.resolve({ rows: listing === "review_queue" ? [] : rows, total_count: listing === "review_queue" ? 0 : rows.length, page: 1, page_size: 20, summary: { published_sops: [], employees: [] } }));
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("Both times");
+    expect(screen.getByText("Time Window")).toBeTruthy();
+    expect(screen.getByText("9:00 am – 11:00 am")).toBeTruthy();
+    expect(screen.getByText("From 9:00 am")).toBeTruthy();
+    expect(screen.getByText("Due 11:00 am")).toBeTruthy();
+    expect(screen.getByText("Aina")).toBeTruthy();
+    expect(screen.getByText("02/08/2026")).toBeTruthy();
+  });
+
   it("saves schedule, assignment and content through one Task authority", async () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("button", { name: /Create Task/ }));
