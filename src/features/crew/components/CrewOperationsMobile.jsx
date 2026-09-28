@@ -4,6 +4,7 @@ import "../../../i18n/index.js";
 import { AlertTriangle, CheckCircle2, ChevronRight, ClipboardCheck, Clock3, HeartPulse, ListChecks, RotateCcw, Store } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
 import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
+import CrewTaskPriority, { CrewTaskHeading, CrewTaskMetadata } from "./CrewTaskPriority.jsx";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
 import CrewSopDocument from "./CrewSopDocument.jsx";
@@ -208,6 +209,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     const canRedo = !unavailable && detailContext?.view !== "history" && ["not_started", "in_progress"].includes(detail.status);
     return <section className="crew-ops-mobile">
       <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} variant="workflow" />
+      <CrewTaskPriority priority={detail.priority} />
       <TaskDetailSummary detail={detail} completed={completed} total={actionable.length} canRedo={canRedo} onRedo={() => setRedoOpen(true)} />
       {unavailable ? <TaskAvailabilityNotice availableFrom={detail.available_from} /> : null}
       <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} unavailable={unavailable} saving={savingBlockId === block.id} compactCompletedResult={["completed", "completed_with_exceptions"].includes(detail.status) && actionable.length === 1 && completed === 1} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
@@ -354,10 +356,10 @@ function TaskRow({ task, t, history = false, onOpen }) {
   const tone = taskStatusTone(task.status);
   return <button type="button" className={`crew-ops-task is-${task.status}`} onClick={onOpen}>
     <span className={`crew-ui-icon-container crew-ui-icon-container--compact${tone === "success" ? " is-success" : tone === "warning" ? " is-warning" : ""}`}>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span>
-    <span><strong className="crew-list-dense-primary">{task.name}</strong>
+    <span><CrewTaskHeading title={task.name} />
       {history ? <small>{historyContext || task.description || String(task.task_type).replaceAll("_", " ")}</small> : hasProgress ? <small>{t("tasks.completedCount", { completed: task.completed_count, total: task.block_count })}</small> : task.description ? <small>{task.description}</small> : null}
       {!history ? <small className="crew-ops-schedule">{formatTaskSchedule(task, t)}</small> : null}
     </span>
-    <CrewStatusBadge tone={tone}>{translateStatus(task.status, t)}</CrewStatusBadge><ChevronRight aria-hidden="true" size={17} />
+    <CrewTaskMetadata priority={task.priority} tone={tone}>{translateStatus(task.status, t)}</CrewTaskMetadata><ChevronRight aria-hidden="true" size={17} />
   </button>;
 }

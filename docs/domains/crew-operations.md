@@ -51,6 +51,7 @@ Published task/content versions, completion evidence, cash calculations, float a
 
 Admins create and publish operational templates, monitor daily execution, review exceptions, configure outlet cash rules, review Cash Checkouts, coordinate collections, and inspect the Deposit Ledger.
 Crew view assigned daily work, complete tasks with required evidence, perform eligible Cash Checkout steps, and confirm assigned handovers.
+Task Builder uses shared date/time controls. The service hydrates persisted template time-of-day values into Draft Start/Due fields without changing server schedule authority. Crew task priority is presented consistently on Home, list rows, and detail; it does not change eligibility or execution.
 
 ## Integrations
 

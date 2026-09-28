@@ -86,8 +86,9 @@ export function taskLocalizationUnits(task, sourceLanguage) {
   const rows = [unit("task.name", "plain_text", sourceLanguage, task?.name, "Task name")];
   (task?.blocks || []).forEach((block, index) => {
     const key = `blocks.${taskBlockSegment(block, index + 1)}`;
-    rows.push(unit(`${key}.title`, "plain_text", sourceLanguage, block.title, `Block ${index + 1} title`));
-    if (block.description) rows.push(unit(`${key}.description`, "plain_text", sourceLanguage, block.description, `Block ${index + 1} instruction`));
+    const context = `Block ${String(index + 1).padStart(2, "0")} · ${block.block_type === "checklist_item" ? "Checklist" : String(block.block_type || "Content").replaceAll("_", " ")}`;
+    rows.push(unit(`${key}.title`, "plain_text", sourceLanguage, block.title, `${context} title`));
+    if (block.description) rows.push(unit(`${key}.description`, "plain_text", sourceLanguage, block.description, `${context} instruction`));
     (block.config?.options || []).forEach((option, optionIndex) => rows.push(unit(`${key}.options.${stableSegment(typeof option === "string" ? null : option, optionIndex + 1)}`, "plain_text", sourceLanguage, typeof option === "string" ? option : option.label, `Block ${index + 1} option ${optionIndex + 1}`)));
   });
   return rows.filter((row) => String(row.source_value || "").trim());

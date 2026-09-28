@@ -91,4 +91,5 @@ Object.assign(resources.performance.components, { peer: "同事互评" });
 Object.assign(resources.performance.strengths, { peer: "团队评价已完成。" });
 Object.assign(resources.performance, { earnedPoints: "已评估 {{score}} 分", pendingNames: "待完成：{{names}}", finalScore: "最终分数" });
 Object.assign(resources.performance, { googleUnavailable: "本月顾客评价数据尚未就绪。此项保持待评估，不计为零分，也不会扣减已评估得分。", googleEvidence: "本月新增的 Google 评价用于计算门店共享的顾客评分。已定稿的结果保留当时的记录。" });
+Object.assign(resources.tasks, { priority: { important: "重要", critical: "紧急" } });
 export default resources;

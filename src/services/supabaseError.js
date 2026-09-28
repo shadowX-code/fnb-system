@@ -1,6 +1,7 @@
 export function formatSupabaseError(error) {
   if (!error) return "Unknown system error";
   const clean = (value) => String(value)
+    .replace(/Localized content contains duplicate unit keys\.?/gi, "Some content shares the same translation identity. Reopen the Draft and save it again.")
     .replace(/Supabase/gi, "the system")
     .replace(/row-level security policy/gi, "access rule")
     .replace(/\bRLS\b/gi, "access control")
