@@ -80,4 +80,23 @@ describe("Stock Check execution scoped read", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
     await waitFor(() => expect(mocks.persist).toHaveBeenLastCalledWith(expect.objectContaining({ existingCheckId: "draft" }), [expect.objectContaining({ itemId: "item", actualCount: 8, expectedQty: 10, variance: 2 })], "draft", "admin", undefined));
   });
+
+  it("starts an Audit draft and renders the skip-reason flow", async () => {
+    const data = {
+      categories: [{ id: "category", name: "Frozen", status: "active" }],
+      items: [{ id: "item", name: "QA Item", categoryId: "category", unit: "kg", status: "active", linkedOutletIds: ["A"], outletConfigs: [{ outletId: "A", parLevel: 10 }] }],
+      groups: [], checks: [], orders: [], people: [], completeness: "complete",
+    };
+    mocks.load.mockResolvedValue(data);
+    mocks.persist.mockResolvedValue({ id: "audit", outletId: "A", stockCheckType: "audit", status: "draft", rows: [] });
+    window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
+    render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
+    fireEvent.change(screen.getByPlaceholderText("Month-end closing count"), { target: { value: "QA Audit" } });
+    fireEvent.click(screen.getByRole("button", { name: /Frozen.*1 items/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Start Audit" }));
+    await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ stockCheckType: "audit", auditName: "QA Audit" }), expect.any(Array), "draft", "admin", undefined));
+    fireEvent.click(await screen.findByRole("button", { name: "Skip" }));
+    expect((await screen.findByRole("dialog", { name: "Skip stock check item" })).textContent).toContain("Skip Reason");
+  });
 });
