@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ tables: {}, operations: [], notifications: [], singleResponses: {}, from: vi.fn() }));
+const mocks = vi.hoisted(() => ({ tables: {}, readResponses: {}, operations: [], notifications: [], singleResponses: {}, from: vi.fn() }));
 
 vi.mock("../../../../lib/supabase.ts", () => {
   const rowsFor = (table, filters = []) => (mocks.tables[table] || []).filter((row) => filters.every(({ key, value }) => String(row[key]) === String(value)));
@@ -17,6 +17,11 @@ vi.mock("../../../../lib/supabase.ts", () => {
     builder.eq = vi.fn((key, value) => { filters.push({ key, value }); return builder; });
     builder.in = vi.fn(() => builder);
     builder.order = vi.fn(() => builder);
+    builder.range = vi.fn(async (from, to) => {
+      if (mocks.readResponses[table]) return await mocks.readResponses[table];
+      const rows = rowsFor(table, filters).map((row, index) => ({ ...row, id: row.id || `fixture-${table}-${index}` }));
+      return { data: rows.slice(from, to + 1), count: rows.length, error: null };
+    });
     builder.limit = vi.fn(() => builder);
     builder.ilike = vi.fn(() => builder);
     builder.single = vi.fn(async () => {
@@ -95,7 +100,7 @@ function seed() {
 const groupPermissions = ["inventory_stock_check.view", "inventory_groups.create", "inventory_groups.edit"];
 function mount(granted = groupPermissions) {
   window.history.replaceState(null, "", "#inventory_groups?date=2026-08-10");
-  render(<InventoryControlPage
+  return render(<InventoryControlPage
     initialTab="groups"
     store={{ outlets: [{ id: ids.outletA, name: "KL Central", code: "KLC" }, { id: ids.outletB, name: "PJ Hub", code: "PJH" }], suppliers: [] }}
     auth={{ user: { id: "user" }, profile: { id: "employee", role_outlet_access_type: "all" }, hasPermission: (key) => granted.includes(key) }}
@@ -118,13 +123,77 @@ async function clickGroupAction(name, action) {
 }
 async function choose(fieldLabel, option) { const field = screen.getAllByText(fieldLabel, { exact: true }).map((label) => label.parentElement).find((container) => container?.querySelector("button[aria-haspopup='listbox']")); fireEvent.click(within(field).getByRole("button")); fireEvent.click((await screen.findAllByRole("button", { name: option })).find((button) => !button.hasAttribute("aria-haspopup"))); }
 
-beforeEach(() => { seed(); mocks.operations.length = 0; mocks.notifications.length = 0; mocks.singleResponses = {}; mocks.from.mockClear(); });
+beforeEach(() => { seed(); mocks.readResponses = {}; mocks.operations.length = 0; mocks.notifications.length = 0; mocks.singleResponses = {}; mocks.from.mockClear(); });
 afterEach(() => {
   window.history.replaceState(null, "", "/");
   cleanup();
 });
 
 describe("InventoryControlPage Groups lifecycle", () => {
+  it("loads only the five complete Groups collections, never execution/history", async () => {
+    mount(); await ready();
+    expect([...new Set(mocks.from.mock.calls.map(([table]) => table))].sort()).toEqual(["inventory_categories", "inventory_item_outlets", "inventory_items", "inventory_stock_check_group_categories", "inventory_stock_check_groups"]);
+  });
+  it.each([
+    { data: null, count: null, error: { message: "Read denied" } },
+    { data: [], count: 2, error: null },
+  ])("blocks half-joined data on error/incomplete read and retries atomically", async (response) => {
+    mocks.readResponses.inventory_items = response;
+    mount();
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.queryByText("Morning Produce Count")).toBeNull();
+    delete mocks.readResponses.inventory_items;
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await ready();
+  });
+  it("ignores an older route read after switching scope", async () => {
+    let resolve;
+    mocks.readResponses.inventory_stock_check_groups = new Promise(done => { resolve = done; });
+    const view = mount();
+    await waitFor(() => expect(mocks.from).toHaveBeenCalled());
+    delete mocks.readResponses.inventory_stock_check_groups;
+    view.rerender(<InventoryControlPage initialTab="groups" store={{ outlets: [{ id: ids.outletA, name: "KL Central" }] }} auth={{ user: { id: "new-user" }, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} />);
+    await ready();
+    resolve({ data: [groupRow(ids.activeGroup, "Stale previous scope", "active", ids.outletA)], count: 1, error: null });
+    await waitFor(() => expect(screen.queryByText("Stale previous scope")).toBeNull());
+    expect(screen.getByText("Morning Produce Count")).toBeTruthy();
+  });
+  it("hides a verified previous scope and its row actions while the next scope loads", async () => {
+    const view = mount();
+    await ready();
+    expect(groupRowElement("Morning Produce Count")).toBeTruthy();
+    let resolveNext;
+    mocks.readResponses.inventory_stock_check_groups = new Promise(done => { resolveNext = done; });
+    view.rerender(<InventoryControlPage initialTab="groups" store={{ outlets: [{ id: ids.outletA, name: "KL Central" }, { id: ids.outletB, name: "PJ Hub" }] }} auth={{ user: { id: "new-user" }, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} />);
+    expect(screen.getByText("Loading complete Stock Check Groups…")).toBeTruthy();
+    expect(screen.queryByText("Morning Produce Count")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add Group" }).disabled).toBe(true);
+    resolveNext({ data: [groupRow(ids.activeGroup, "New Scope Count", "active", ids.outletA)], count: 1, error: null });
+    await screen.findByText("New Scope Count");
+    expect(screen.queryByText("Morning Produce Count")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add Group" }).disabled).toBe(false);
+    expect(within(groupRowElement("New Scope Count")).getByRole("button", { name: "Edit" })).toBeTruthy();
+  });
+  it("switches away and back without retaining a Group modal or stale filter rows", async () => {
+    const view = mount(); await ready();
+    fireEvent.change(screen.getByPlaceholderText("Search group or category"), { target: { value: "unmatched" } });
+    const props = { store: { outlets: [{ id: ids.outletA, name: "KL Central", code: "KLC" }], suppliers: [] }, auth: { profile: { role_outlet_access_type: "all" }, hasPermission: () => true }, ui: { notify: vi.fn() } };
+    view.rerender(<InventoryControlPage {...props} initialTab="master" />);
+    await screen.findByText("Master Inventory", { selector: "h1" });
+    view.rerender(<InventoryControlPage {...props} initialTab="groups" />);
+    await ready();
+    expect(screen.getByPlaceholderText("Search group or category").value).toBe("");
+  });
+
+  it("restricts required Outlet to the caller's accessible scope", async () => {
+    render(<InventoryControlPage initialTab="groups" store={{ outlets: [{ id: ids.outletA, name: "KL Central" }, { id: ids.outletB, name: "PJ Hub" }], suppliers: [] }} auth={{ profile: { role_outlet_access_type: "selected", role_outlet_ids: [ids.outletA] }, hasPermission: () => true }} ui={{ notify: vi.fn() }} />);
+    await ready();
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    expect(screen.queryByRole("button", { name: "PJ Hub", exact: true })).toBeNull();
+    expect(screen.queryByText("Legacy Packaging Count")).toBeNull();
+  });
   it("renders outlet-scoped configuration without execution status, timing, or category chips", async () => {
     mount(); await ready();
     expect(screen.getByRole("table").className).toContain("admin-data-table");

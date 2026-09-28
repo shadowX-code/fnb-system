@@ -23,6 +23,7 @@ export default function InventoryPurchaseOrderDetail({
   onCopyPurchaseOrder,
   onNotify,
   onPrint,
+  onRefresh,
 }) {
   const progress = poProgress(order);
   const supplier = suppliers.find((entry) => entry.id === order.supplierId);
@@ -45,6 +46,7 @@ export default function InventoryPurchaseOrderDetail({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Badge tone={order.status === "partial_received" ? "warning" : statusTone(order.status)}>{poStatusLabel(order.status)}</Badge>
         <div className="flex flex-wrap justify-end gap-2">
+          {onRefresh ? <button className="btn-secondary" type="button" onClick={onRefresh}>Refresh</button> : null}
           {isReceivable ? <button className="btn-primary" type="button" onClick={() => onRequestReceive(order)}><Truck size={15} /> Receive</button> : null}
           <button className="btn-secondary" type="button" onClick={() => onCopyPurchaseOrder(order)}><Copy size={15} /> Copy PO Text</button>
           <button className="btn-secondary" type="button" onClick={() => { onNotify("Export PDF", "Use the print dialog to save this PO as PDF."); onPrint(); }}><Download size={15} /> Export PDF</button>

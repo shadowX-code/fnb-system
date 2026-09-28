@@ -29,7 +29,7 @@ vi.mock("../../../../lib/supabase.ts", () => {
     builder.then = (resolve, reject) => {
       const deferred = mocks.deferredTables[table];
       if (deferred) return deferred.then(resolve, reject);
-      return Promise.resolve({ data: rowsFor(table, filters), error: mocks.tableErrors[table] || null }).then(resolve, reject);
+      return Promise.resolve({ data: rowsFor(table, filters), count: rowsFor(table, filters).length, error: mocks.tableErrors[table] || null }).then(resolve, reject);
     };
     return builder;
   };
@@ -71,9 +71,9 @@ function seed({ includeCheck = false } = {}) {
     inventory_items: [{ id: ids.item, item_name: "Dried Chilli", sku_code: "RM-CHILLI", category_id: ids.category, unit: "kg", status: "active" }],
     inventory_categories: [{ id: ids.category, name: "Raw Materials", status: "active", sort_order: 1 }], inventory_uoms: [],
     inventory_item_outlets: [{ id: "item-link", inventory_item_id: ids.item, outlet_id: ids.outlet, is_active: true, outlets: { id: ids.outlet, name: "KL Central", code: "KLC" } }],
-    inventory_item_outlet_suppliers: [{ inventory_item_outlet_id: "item-link", supplier_id: ids.supplierA }],
+    inventory_item_outlet_suppliers: [{ id: "supplier-link", inventory_item_outlet_id: "item-link", supplier_id: ids.supplierA }],
     inventory_stock_check_groups: includeCheck ? [{ id: ids.group, outlet_id: ids.outlet, name: "Daily Count", frequency_type: "custom", frequency_days: ["Monday"], status: "active", shift: "Opening" }] : [],
-    inventory_stock_check_group_categories: includeCheck ? [{ group_id: ids.group, category_id: ids.category }] : [],
+    inventory_stock_check_group_categories: includeCheck ? [{ id: "group-category-link", group_id: ids.group, category_id: ids.category }] : [],
     inventory_stock_checks: includeCheck ? [{ id: ids.check, outlet_id: ids.outlet, group_id: ids.group, stock_check_type: "scheduled", check_name: "Daily Count", check_date: "2026-08-10", shift: "Opening", status: "submitted", created_at: now, submitted_at: now }] : [],
     inventory_stock_check_items: includeCheck ? [{ id: ids.checkItem, stock_check_id: ids.check, item_id: ids.item, category_id: ids.category, par_level_quantity: 10, actual_count_quantity: 4, variance: -6, unit: "kg", status: "shortage", created_at: now }] : [],
     inventory_purchase_orders: orders, inventory_purchase_order_items: orders.map((entry, index) => ({ id: `00000000-0000-4000-8000-${String(index + 100).padStart(12, "0")}`, purchase_order_id: entry.id, item_id: ids.item, requested_qty: 10, received_qty: entry.id === ids.partial || entry.id === ids.completed ? 4 : entry.id === ids.full ? 10 : 0, unit: "kg", remark: "Current line", created_at: now })),
@@ -92,7 +92,11 @@ function rpcCalls(name) { return mocks.operations.filter((entry) => entry.kind =
 function mutations(table) { return mocks.operations.filter((entry) => entry.table === table && entry.kind === "update"); }
 async function ready() { await screen.findAllByText(/PO-DRAFT/); }
 async function modal(title) {
-  const heading = await screen.findByRole("heading", { name: title });
+  let heading = await screen.findByRole("heading", { name: title });
+  if (title === "Purchase Order Detail") {
+    await screen.findByRole("button", { name: "Copy PO Text" });
+    heading = screen.getByRole("heading", { name: title });
+  }
   return heading.closest(".fixed");
 }
 function orderCard(poNo) {
@@ -115,6 +119,25 @@ afterEach(() => {
 });
 
 describe("InventoryControlPage Purchase Orders lifecycle", () => {
+  it("exports only the verified filtered PO projection", async () => {
+    let exportedBlob;
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    URL.createObjectURL = vi.fn(blob => { exportedBlob = blob; return 'blob:po-export'; });
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    try {
+      mount(); await ready();
+      fireEvent.change(screen.getByPlaceholderText("Search PO no., supplier or item"), { target: { value: "PO-DRAFT" } });
+      fireEvent.click(screen.getByRole('button', { name: 'Export', exact: true }));
+      const csv = await new Promise(resolve => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsText(exportedBlob); });
+      expect(csv).toContain('PO-DRAFT');
+      expect(csv).not.toContain('PO-SUBMITTED');
+      expect(csv).toContain('Chilli Supplier');
+      expect(click).toHaveBeenCalledTimes(1);
+      expect(mocks.notifications).toContainEqual(expect.objectContaining({ title: 'Purchase orders exported', message: '1 PO exported.' }));
+    } finally { click.mockRestore(); URL.createObjectURL = originalCreate; URL.revokeObjectURL = originalRevoke; }
+  });
   it("keeps the PO page loading until its own read model resolves", async () => {
     let resolveOrders;
     mocks.deferredTables.inventory_purchase_orders = new Promise((resolve) => { resolveOrders = resolve; });
@@ -286,12 +309,14 @@ describe("InventoryControlPage Purchase Orders lifecycle", () => {
     mount(); await ready();
     fireEvent.click(within(orderCard("PO-PARTIAL")).getByRole("button", { name: "View" }));
     const partial = await modal("Purchase Order Detail");
+    await within(partial).findByText("4 / 10 received");
     expect(within(partial).getByText("4 / 10 received")).toBeTruthy();
     expect(within(partial).getAllByText("Balance").length).toBeGreaterThan(0);
     expect(within(partial).getByRole("button", { name: "Receive" })).toBeTruthy();
     fireEvent.click(within(partial).getByRole("button", { name: "Close" }));
     fireEvent.click(within(orderCard("PO-FULL")).getByRole("button", { name: "View" }));
     const full = await modal("Purchase Order Detail");
+    await within(full).findByText("10 / 10 received");
     expect(within(full).getByText("10 / 10 received")).toBeTruthy();
     expect(within(full).queryByRole("button", { name: "Receive" })).toBeNull();
   });
@@ -310,6 +335,7 @@ describe("InventoryControlPage Purchase Orders lifecycle", () => {
     mount({ tab: "stock-check", includeCheck: true });
     await screen.findByText("Daily Count");
     fireEvent.click(screen.getByRole("button", { name: "Review Purchase Suggestions" }));
+    await screen.findByRole('button', { name: 'Create Draft PO' });
     const dialog = await modal("Purchase Suggestions");
     expect(within(dialog).getAllByText("Chilli Supplier").length).toBeGreaterThan(0);
     expect(within(dialog).getByText("6")).toBeTruthy();

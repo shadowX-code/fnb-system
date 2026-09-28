@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PackagePlus, Pencil } from "lucide-react";
 import AdminFilterToolbar, { ALL_FILTER_OPTION, AdminOutletField } from "../../../../components/layout/AdminFilterToolbar.jsx";
 import AdminSearchField from "../../../../components/forms/AdminSearchField.jsx";
@@ -8,6 +8,11 @@ import AdminSummaryGrid from "../../../../components/ui/AdminSummaryGrid.jsx";
 import { FactoryDataSurface, FactoryTable } from "../../../factory/components/FactoryDataDisplay.jsx";
 import FactoryRowActions from "../../../factory/components/FactoryRowActions.jsx";
 import FactoryStatusBadge from "../../../factory/components/FactoryStatusBadge.jsx";
+import PageHeader from "../../../../components/layout/PageHeader.jsx";
+import { getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../../utils/accessControl.js";
+import GroupModal from "./GroupModal.jsx";
+import { frequencies, statuses, toTitle, groupCategoryIds, stockCheckItemsForGroup } from "./inventoryGroupsModel.js";
+import { loadInventoryGroups, persistRemoteStockCheckGroup, archiveRemoteStockCheckGroup } from "./inventoryGroupsService.js";
 
 function scheduleLabel(group, toTitle) {
   if (group.frequency === "monthly") return "Monthly";
@@ -44,26 +49,65 @@ function GroupScopeDetails({ group, categoryById, onClose }) {
   </Modal>;
 }
 
-export function InventoryGroupsPageActions({ onCreateGroup }) {
-  return <button className="btn-primary" type="button" onClick={onCreateGroup}><PackagePlus size={15} /> Add Group</button>;
+export function InventoryGroupsPageActions({ onCreateGroup, disabled = false }) {
+  return <button className="btn-primary" type="button" onClick={onCreateGroup} disabled={disabled}><PackagePlus size={15} /> Add Group</button>;
 }
 
-export default function InventoryGroupsPage({
-  groups,
-  items,
-  categories,
-  outletOptions,
-  selectedOutletId,
-  onSelectedOutletChange,
-  statuses,
-  frequencies,
-  toTitle,
-  groupCategoryIds,
-  stockCheckItemsForGroup,
-  onEditGroup,
-  onDuplicateGroup,
-  onArchiveGroup,
-}) {
+export default function InventoryGroupsPage({ auth, ui, outlets }) {
+  const outletOptions = getAccessibleOutletOptions(auth, outlets, { includeAll: false });
+  const [outletId, onSelectedOutletChange] = useState("");
+  const selectedOutletId = outletOptions.some(option => option.value === outletId) ? outletId : outletOptions[0]?.value || "";
+  const [snapshot, setSnapshot] = useState({ key: "", data: null, state: "loading", error: "" });
+  const [modal, setModal] = useState(null);
+  const request = useRef(0);
+  const scopeKey = `${auth?.user?.id || ""}:${outletOptions.map(option => option.value).join(",")}`;
+  const currentScope = useRef(scopeKey);
+  currentScope.current = scopeKey;
+  const read = snapshot.key === scopeKey ? snapshot : { key: scopeKey, data: null, state: "loading", error: "" };
+  const { groups = [], items = [], categories = [] } = read.data || {};
+  const refresh = useCallback(async () => {
+    const id = ++request.current;
+    setSnapshot(current => ({ key: scopeKey, data: current.key === scopeKey ? current.data : null, state: current.key === scopeKey && current.data ? "refreshing" : "loading", error: "" }));
+    try {
+      const next = await loadInventoryGroups();
+      if (id !== request.current || currentScope.current !== scopeKey) return null;
+      setSnapshot({ key: scopeKey, data: next, state: "ready", error: "" });
+      return next;
+    } catch (error) {
+      if (id !== request.current || currentScope.current !== scopeKey) return null;
+      setSnapshot({ key: scopeKey, data: null, state: error.readState || "error", error: error.message || "Unable to load Stock Check Groups." });
+      return null;
+    }
+  }, [scopeKey]);
+  useEffect(() => {
+    setModal(null);
+    refresh();
+    return () => { request.current += 1; };
+  }, [refresh]);
+  const notify = (title, message = "", tone = "success") => ui?.notify?.({ title, message, tone });
+  const canManage = hasPermission(auth, "inventory_groups.create") || hasPermission(auth, "inventory_groups.edit");
+  const allowed = (action) => { if (canManage) return true; notifyPermissionDenied(ui, action); return false; };
+  const onEditGroup = group => { if (allowed("edit stock check groups")) setModal({ group }); };
+  const onDuplicateGroup = (group, categoryIds) => { if (allowed("duplicate stock check groups")) setModal({ outletId: group.outletId, group: { ...group, id: "", name: `${group.name} Copy`, categoryIds } }); };
+  const createGroup = () => {
+    if (!allowed("create stock check groups")) return;
+    if (!selectedOutletId) return notify("Select an outlet first", "Select an outlet before creating a stock check group.", "warning");
+    setModal({ outletId: selectedOutletId });
+  };
+  const saveGroup = async group => {
+    if (!allowed("edit stock check groups")) return;
+    try {
+      await persistRemoteStockCheckGroup({ ...group, categoryIds: groupCategoryIds(group, items), frequency: frequencies.includes(group.frequency) ? group.frequency : "custom", itemIds: [] });
+      await refresh();
+      setModal(null);
+      notify("Stock check group saved");
+    } catch (error) { notify("Unable to save stock check group", error.message || "Please try again.", "error"); }
+  };
+  const onArchiveGroup = async group => {
+    if (!allowed("archive stock check groups")) return;
+    try { await archiveRemoteStockCheckGroup(group.id); await refresh(); notify("Stock check group deactivated"); }
+    catch (error) { notify("Unable to deactivate stock check group", error.message || "Please try again.", "error"); }
+  };
   const [statusFilter, setStatusFilter] = useState("all");
   const [frequencyFilter, setFrequencyFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -92,6 +136,12 @@ export default function InventoryGroupsPage({
   ];
 
   return <div className="space-y-4">
+    <PageHeader section="INVENTORY CONTROL" title="Stock Check Groups" description="Manage outlet-level stock check groups and frequencies." actions={<InventoryGroupsPageActions onCreateGroup={createGroup} disabled={!read.data} />} />
+    {read.state === "refreshing" ? <p role="status" className="text-sm text-text-secondary">Refreshing Groups. Showing the last verified complete read.</p> : null}
+    {!read.data ? <div className="card p-4" role={read.error ? "alert" : "status"}>
+      <h2 className="font-semibold">{read.error ? "Stock Check Groups unavailable or incomplete" : "Loading complete Stock Check Groups…"}</h2>
+      {read.error ? <><p className="mt-2 text-sm text-text-secondary">{read.error} No partial results are presented as complete.</p><button type="button" className="btn-secondary mt-3" onClick={refresh}>Retry</button></> : null}
+    </div> : <>
     <AdminFilterToolbar ariaLabel="Stock check group filters" denseFields
       outlet={<AdminOutletField label="Outlet" value={selectedOutletId} options={outletOptions} searchable onChange={onSelectedOutletChange} />}
       search={<AdminSearchField label="Search Group" value={search} onChange={setSearch} placeholder="Search group or category" />}
@@ -106,5 +156,7 @@ export default function InventoryGroupsPage({
       <FactoryTable columns={columns} rows={tableRows} rowHover="mint" emptyTitle={selectedOutletId ? "No stock check groups for this outlet" : "No accessible outlet"} emptyDescription="Groups configure which items appear in scheduled checks." />
     </FactoryDataSurface>
     {selectedScope ? <GroupScopeDetails group={selectedScope} categoryById={categoryById} onClose={() => setScopeGroupId("")} /> : null}
+    {modal ? <GroupModal group={modal.group} outletId={modal.outletId || selectedOutletId} outlets={outlets} items={items} categories={categories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
+    </>}
   </div>;
 }

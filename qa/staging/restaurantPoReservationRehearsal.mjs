@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { spawnSync, spawn } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
 const container='feedx-payroll-v1-rehearsal';
-const database='restaurant_po_reservation_replay';
+const database=process.env.REHEARSAL_DATABASE || 'restaurant_po_reservation_replay';
 const evidence=JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const sourceLines=JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
 const migration='20260927151034_restaurant_po_source_reservations.sql';
@@ -15,6 +15,7 @@ const manifest=[
  '20260924112642_stock_check_audit_cost_snapshot.sql',
  '20260927131345_employee_compliance_employee_registry.sql',
  migration,
+ '20260927154339_restaurant_legacy_financial_read_permissions.sql',
 ];
 const args=['exec','-i',container,'psql','-U','supabase_admin','-d',database,'-v','ON_ERROR_STOP=1','-Atq'];
 function sql(query) {
@@ -60,7 +61,8 @@ seed+=insert('public.inventory_purchase_receipts',orders.flatMap(e=>e.receipts.m
 seed+=insert('public.inventory_purchase_receipt_items',orders.flatMap(e=>e.receipts.flatMap(r=>r.lines)));
 seed+=insert('public.inventory_movements',orders.flatMap(e=>e.movements));
 seed+=insert('public.inventory_lifecycle_requests',evidence.dependencies.filter(d=>d.kind==='request').map(d=>d.evidence));
-seed+='commit;';sql(seed);
+seed+='commit;';
+if (!process.env.REHEARSAL_PRESEEDED) sql(seed);
 const tables=['inventory_stock_checks','inventory_stock_check_items','inventory_purchase_orders','inventory_purchase_order_items','inventory_purchase_receipts','inventory_purchase_receipt_items','inventory_movements','inventory_lifecycle_requests'];
 const columns=Object.fromEntries(tables.map(t=>[t,sql(`select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='${t}';`)]));
 const snapshot=()=>Object.fromEntries(tables.map(t=>[t,sql(`select coalesce(jsonb_agg(to_jsonb(x) order by to_jsonb(x)::text),'[]') from(select ${columns[t]} from public.${t})x;`)]));

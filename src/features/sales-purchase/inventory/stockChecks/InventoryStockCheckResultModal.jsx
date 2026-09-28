@@ -38,7 +38,7 @@ function formatQuantity(value) {
 
 export default function InventoryStockCheckResultModal({
   stockCheck, isAuditResult, outletName, submittedByName, itemById, categoryById,
-  formatDate, formatDateTimeCompact, formatCurrency, ItemThumbnail, onPhotoPreview, onClose,
+  formatDate, formatDateTimeCompact, formatCurrency, ItemThumbnail, onPhotoPreview, onClose, onRestock,
 }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -100,7 +100,7 @@ export default function InventoryStockCheckResultModal({
     description={`${outletName} · ${formatDate(stockCheck.date)} · ${isAuditResult ? stockCheck.auditType || "Audit" : stockCheck.shift || "Stock Check"}`}
     size={isAuditResult ? "3xl" : "xl"}
     onClose={onClose}
-    footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    footer={<><button className="btn-secondary" type="button" onClick={onClose}>Close</button>{onRestock ? <button className="btn-primary" type="button" onClick={onRestock}>Review Purchase Suggestions</button> : null}</>}
   >
     <div className="space-y-4">
       <div className="flex flex-wrap gap-x-8 gap-y-2 text-sm"><div><span className="text-text-secondary">Checked by</span><div className="font-semibold text-text-primary">{submittedByName}</div></div><div><span className="text-text-secondary">Submitted at</span><div className="font-semibold text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div></div></div>

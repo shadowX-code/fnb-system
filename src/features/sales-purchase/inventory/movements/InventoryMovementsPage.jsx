@@ -1,28 +1,114 @@
-import { useState } from "react";
-import { PackagePlus, Trash2, Truck, Warehouse } from "lucide-react";
-import MetricCard from "../../../../components/ui/MetricCard.jsx";
-import SelectField from "../../../../components/forms/SelectField.jsx";
-import AdminFilterToolbar from "../../../../components/layout/AdminFilterToolbar.jsx";
-import AdminSearchField from "../../../../components/forms/AdminSearchField.jsx";
-import FeedXDateRangePicker from "../../../../components/ui/FeedXDateRangePicker.jsx";
-import EmptyState from "../../../../components/feedback/EmptyState.jsx";
-import FactoryPagination, { useFactoryClientPagination } from "../../../factory/components/FactoryPagination.jsx";
+import { useEffect, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
+import PageHeader from '../../../../components/layout/PageHeader.jsx';
+import EmptyState from '../../../../components/feedback/EmptyState.jsx';
+import Modal from '../../../../components/feedback/Modal.jsx';
+import Badge from '../../../../components/ui/Badge.jsx';
+import { getAccessibleOutlets, getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from '../../../../utils/accessControl.js';
+import { inventoryLifecycleService } from '../../../../services/inventoryLifecycleService.js';
+import { invalidateInventoryReads } from '../../../../services/inventoryRevalidation.js';
+import { canonical, isActiveInventoryItem } from '../inventoryItemModel.js';
+import { todayInput, parseNonNegativeNumber } from '../InventorySharedPresentation.jsx';
+import InventoryWasteDetail, { wasteActorName } from '../waste/InventoryWasteDetail.jsx';
+import InventoryPurchaseOrderSurface from '../purchaseOrders/InventoryPurchaseOrderSurface.jsx';
+import { isPurchaseOrderReference } from '../purchaseOrders/inventoryPurchaseOrderHelpers.js';
+import InventoryMovementsTable from './InventoryMovementsTable.jsx';
+import InventoryManualMovementModal from './InventoryManualMovementModal.jsx';
+import useInventoryMovementsRead from './useInventoryMovementsRead.js';
+import { toTitle, canEditInventoryMovement, persistRemoteInventoryMovement, persistRemoteInventoryMovementUpdate, resolveMovementPurchaseOrder } from './inventoryMovementService.js';
 
-export default function InventoryMovementsPage({ movements, itemById, outletById, outletOptions, actorNameByAnyId, formatDateTimeCompact, canonical, toTitle, canEditMovement, canRecordMovement, onEditMovement, onOpenReference, todayInput = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" }) }) {
-  const [filters, setFilters] = useState({ outletId: "all", movementType: "all", search: "", from: "", to: "" });
-  const updateFilter = (key, value) => setFilters((current) => ({ ...current, [key]: value }));
-  const movementTypes = [...new Set(movements.map((movement) => movement.movementType || movement.type).filter(Boolean))];
-  const typeKey = (movement) => canonical(movement.movementType || movement.type || "");
-  const typeClass = (movement) => ({ purchase: "border-emerald-200 bg-emerald-50 text-emerald-700", transfer_in: "border-blue-200 bg-blue-50 text-blue-700", transfer_out: "border-purple-200 bg-purple-50 text-purple-700", waste: "border-orange-200 bg-orange-50 text-orange-700", adjustment: "border-slate-200 bg-slate-50 text-text-secondary" }[typeKey(movement)] || "border-slate-200 bg-slate-50 text-text-secondary");
-  const quantityClass = (movement) => { const key = typeKey(movement); if (key === "purchase") return "text-emerald-700"; if (key === "waste") return "text-amber-700"; if (key.includes("transfer")) return "text-blue-700"; if (key === "adjustment") return "text-purple-700"; return "text-text-primary"; };
-  const typeLabel = (movement) => { const key = typeKey(movement); if (key === "transfer_in") return "Transfer In"; if (key === "transfer_out") return "Transfer Out"; return toTitle(movement.movementType || movement.type || "movement"); };
-  const filtered = movements.filter((movement) => { const item = itemById.get(movement.itemId); const date = String(movement.dateTime || movement.date || "").slice(0, 10); const search = `${item?.name || ""} ${movement.reference || ""} ${movement.notes || ""} ${movement.movementType || movement.type || ""}`.toLowerCase(); return (filters.outletId === "all" || movement.outletId === filters.outletId) && (filters.movementType === "all" || typeKey(movement) === canonical(filters.movementType)) && (!filters.search.trim() || search.includes(filters.search.trim().toLowerCase())) && (!filters.from || !date || date >= filters.from) && (!filters.to || !date || date <= filters.to); });
-  const pagination = useFactoryClientPagination("restaurant.inventory-movements", filtered.length, 20, Object.values(filters).join("|"));
-  const paginatedMovements = filtered.slice(pagination.from, pagination.to);
-  const summary = filtered.reduce((value, movement) => { const key = typeKey(movement); if (key === "purchase") value.purchase += 1; else if (key.includes("transfer")) value.transfer += 1; else if (key === "waste") value.waste += 1; else if (key === "adjustment") value.adjustment += 1; return value; }, { purchase: 0, transfer: 0, waste: 0, adjustment: 0 });
+const formatDateTimeCompact = value => value ? new Date(value).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-';
+const makeId = prefix => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+
+export default function InventoryMovementsPage({ auth, ui, outlets, suppliers }) {
+  const accessibleOutlets = getAccessibleOutlets(auth, outlets);
+  const canView = hasPermission(auth, 'inventory_movements.view');
+  const canRecordMovement = hasPermission(auth, 'inventory_movements.create');
+  const read = useInventoryMovementsRead({ outletIds: accessibleOutlets.map(row => row.id), scopeKey: auth?.user?.id || '', enabled: canView && !!accessibleOutlets.length });
+  const { movements = [], items = [], people = [] } = read.data || {};
+  const itemById = new Map(items.map(row => [row.id, row]));
+  const outletById = new Map(accessibleOutlets.map(row => [row.id, row]));
+  const [modal, setModal] = useState(null);
+  const saving = useRef(false);
+  const navigation = useRef(0);
+  useEffect(() => () => { navigation.current += 1; }, []);
+  const notify = (title, message = '', tone = 'success') => ui?.notify?.({ title, message, tone });
+  const close = () => { if (!saving.current) { navigation.current += 1; setModal(null); } };
+  async function saveMovement(movement) {
+    if (saving.current) return;
+    if (!canRecordMovement) return notifyPermissionDenied(ui, 'record inventory movements');
+    saving.current = true;
+    try {
+      if (movement.transfer) {
+        await inventoryLifecycleService.transferInventory({ movement: { ...movement, unit: movement.unit || itemById.get(movement.itemId)?.unit || '', reference: movement.reference || `TRF-${Date.now().toString().slice(-8)}`, referenceType: 'transfer', notes: movement.notes } });
+      } else {
+        const existing = movements.some(entry => entry.id === movement.id);
+        const intent = { ...movement, unit: movement.unit || itemById.get(movement.itemId)?.unit || '' };
+        await (existing ? persistRemoteInventoryMovementUpdate(intent, auth?.user?.id) : persistRemoteInventoryMovement(intent, auth?.user?.id));
+      }
+      // Close committed intent before read-back: a read failure cannot resubmit it.
+      setModal(null);
+      invalidateInventoryReads({ outletId: movement.outletId || movement.fromOutletId, reason: 'movement-saved' });
+      notify(movement.id && movements.some(row => row.id === movement.id) ? 'Inventory movement updated' : 'Inventory movement recorded');
+    } catch (error) { notify('Unable to save movement', error.message || 'Please try again.', 'error'); }
+    finally { saving.current = false; }
+  }
+  async function openReference(movement) {
+    const id = ++navigation.current;
+    try {
+      if (isPurchaseOrderReference(movement)) {
+        setModal({ type: 'reference-loading' });
+        const orderId = await resolveMovementPurchaseOrder(movement);
+        if (navigation.current === id) setModal({ type: 'po', orderId });
+      } else if (canonical(movement.referenceType) === 'waste') setModal({ type: 'waste', wasteId: movement.referenceId });
+      else if (canonical(movement.referenceType) === 'transfer') {
+        const rows = movements.filter(row => row.reference && row.reference === movement.reference);
+        setModal({ type: 'transfer-detail', movement, movements: rows.length ? rows : [movement] });
+      } else notify('Reference detail unavailable', 'No linked detail record is available for this movement.', 'info');
+    } catch (error) { if (navigation.current === id) setModal({ type: 'reference-error', error: error.message, movement }); }
+  }
+  if (!canView) return <EmptyState title="Permission required" description="You do not have permission to view Inventory Movements." />;
   return <div className="space-y-4">
-    <AdminFilterToolbar outlet={<SelectField label="Outlet" value={filters.outletId} options={outletOptions} onChange={(value) => updateFilter("outletId", value)} searchable />} search={<AdminSearchField label="Search Item / Reference" value={filters.search} onChange={(value) => updateFilter("search", value)} placeholder="Search item, PO no, notes" />} filters={<SelectField label="Movement Type" value={filters.movementType} options={[{ value: "all", label: "All" }, ...movementTypes.map((type) => ({ value: type, label: toTitle(type) }))]} onChange={(value) => updateFilter("movementType", value)} />} period={<FeedXDateRangePicker from={filters.from} to={filters.to} today={todayInput()} onApply={({ from, to }) => setFilters((current) => ({ ...current, from, to }))} />} periodAfterFilters />
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><MetricCard icon={PackagePlus} label="Purchase In" value={summary.purchase} helper="Received inventory records" tone="success" size="compact" /><MetricCard icon={Truck} label="Transfer" value={summary.transfer} helper="Transfer in/out records" tone="info" size="compact" /><MetricCard icon={Trash2} label="Waste" value={summary.waste} helper="Waste movement records" tone="warning" size="compact" /><MetricCard icon={Warehouse} label="Adjustments" value={summary.adjustment} helper="Manual correction records" tone="neutral" size="compact" /></div>
-    <div className="card p-4"><div className="mb-3"><div className="type-section-title font-bold text-text-primary">Movement Records</div><div className="type-body-sm text-text-secondary">Showing {filtered.length} record{filtered.length === 1 ? "" : "s"}</div></div>{filtered.length ? <><div className="overflow-x-auto"><table className="w-full min-w-[1080px] text-left"><thead className="text-[11px] uppercase tracking-wide text-text-muted"><tr className="border-b border-border"><th className="py-2">Date & Time</th><th>Outlet</th><th>Item</th><th>Movement Type</th><th>Qty / UOM</th><th>Reference No.</th><th>Notes</th><th>Created By</th><th className="text-right">Actions</th></tr></thead><tbody className="divide-y divide-border text-[13px]">{paginatedMovements.map((movement) => { const item = itemById.get(movement.itemId); const quantity = Number(movement.quantity || 0); const unit = movement.unit || item?.unit || ""; const hasReference = Boolean(movement.reference || movement.referenceId); return <tr key={movement.id}><td className="py-3">{formatDateTimeCompact(movement.dateTime || movement.date)}</td><td>{outletById.get(movement.outletId)?.name ?? "Unknown outlet"}</td><td className="font-bold text-text-primary">{item?.name ?? "Inventory item"}</td><td><span className={`inline-flex rounded-full border px-2 py-0.5 type-caption font-semibold ${typeClass(movement)}`}>{typeLabel(movement)}</span></td><td className={`font-semibold ${quantityClass(movement)}`}>{quantity > 0 ? "+" : ""}{quantity}{unit ? ` ${unit}` : ""}</td><td>{hasReference ? <button className="type-caption font-black text-primary underline-offset-2 hover:underline" type="button" onClick={() => onOpenReference(movement)}>{movement.reference || "Open reference"}</button> : "-"}</td><td>{movement.notes || "-"}</td><td>{actorNameByAnyId(movement.user || movement.createdBy)}</td><td className="text-right">{canEditMovement(movement) && canRecordMovement ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => onEditMovement(movement)}>Edit</button> : <span className="type-caption font-semibold text-text-muted">Read-only</span>}</td></tr>; })}</tbody></table></div><FactoryPagination page={pagination.page} pageSize={pagination.pageSize} total={filtered.length} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} /></> : <EmptyState title="No inventory movements found." description={movements.length ? "Adjust filters to see more movement records." : "Purchase receiving and manual movements will appear here after they are saved to Supabase."} />}</div>
+    <PageHeader section="INVENTORY CONTROL" title="Inventory Movements" description="Track purchases, transfers, waste, usage and adjustments." actions={canRecordMovement ? <button className="btn-primary" disabled={!read.data} onClick={() => setModal({ type: 'movement' })}><RefreshCw size={15} /> Record Movement</button> : null} />
+    {read.state === 'refreshing' ? <p role="status">Refreshing Movements. Showing the last verified complete read.</p> : null}
+    {!read.data ? <div className="card p-4" role={read.error ? 'alert' : 'status'}><p>{!accessibleOutlets.length ? 'No accessible outlet.' : read.error || 'Loading complete Inventory Movements…'}</p>{read.error ? <><p>No partial results are presented as complete.</p><button className="btn-secondary" onClick={read.refresh}>Retry</button></> : null}</div> :
+      <InventoryMovementsTable movements={movements} itemById={itemById} outletById={outletById} outletOptions={getAccessibleOutletOptions(auth, outlets)} actorNameByAnyId={id => wasteActorName(id, people, auth)} formatDateTimeCompact={formatDateTimeCompact} canonical={canonical} toTitle={toTitle} canEditMovement={canEditInventoryMovement} canRecordMovement={canRecordMovement} onEditMovement={movement => setModal({ type: 'movement', movement })} onOpenReference={openReference} />}
+    {modal?.type === 'po' ? <InventoryPurchaseOrderSurface orderId={modal.orderId} auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} onClose={close} /> : null}
+    {modal?.type === 'waste' ? <InventoryWasteDetail wasteId={modal.wasteId} auth={auth} outlets={outlets} onClose={close} /> : null}
+    {modal?.type === 'reference-loading' || modal?.type === 'reference-error' ? <Modal title="Movement Reference" onClose={close}><p role={modal.error ? 'alert' : 'status'}>{modal.error || 'Loading reference…'}</p>{modal.error ? <button className="btn-secondary" onClick={() => openReference(modal.movement)}>Retry</button> : null}</Modal> : null}
+      {modal?.type === "movement" ? <InventoryManualMovementModal outlets={accessibleOutlets} items={items} movements={movements} movement={modal.movement} canonical={canonical} isActiveInventoryItem={isActiveInventoryItem} todayInput={todayInput} makeId={makeId} parseNonNegativeNumber={parseNonNegativeNumber} onClose={close} onSave={saveMovement} /> : null}
+      {modal?.type === "transfer-detail" ? (() => {
+        const rows = modal.movements || [];
+        const reference = modal.movement?.reference || rows[0]?.reference || "Transfer";
+        return (
+          <Modal
+            title="Transfer Detail"
+            description={reference}
+            size="lg"
+            onClose={close}
+            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
+          >
+            <div className="space-y-2">
+              {rows.map((row) => {
+                const item = itemById.get(row.itemId);
+                const quantity = Number(row.quantity || 0);
+                return (
+                  <div key={row.id} className="rounded-2xl border border-border bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-text-primary">{quantity < 0 ? "Transfer Out" : "Transfer In"}</div>
+                        <div className="mt-1 type-caption text-text-secondary">{outletById.get(row.outletId)?.name || "Outlet"} · {item?.name || "Inventory item"}</div>
+                      </div>
+                      <Badge tone="info">{quantity > 0 ? "+" : ""}{quantity} {row.unit || item?.unit || ""}</Badge>
+                    </div>
+                    {row.notes ? <div className="mt-2 type-body-sm text-text-secondary">{row.notes}</div> : null}
+                  </div>
+                );
+              })}
+            </div>
+          </Modal>
+        );
+      })() : null}
+
   </div>;
 }

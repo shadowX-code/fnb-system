@@ -53,6 +53,15 @@ async function readYearlyScopeFinancials(outletId, year) {
 // All Reporting consumers, including the future Poster renderer, must use this
 // service rather than querying Reporting source tables from the browser.
 export const reportingService = {
+  async getYearlyScopeFinancialReport({ outletId = null, year, now }) {
+    const current = malaysiaCurrentPeriod(now);
+    const contract = await readYearlyScopeFinancials(outletId, year);
+    return buildYearlyFinancialDataset({
+      outlet: contract?.outlet ?? { id: outletId }, year,
+      monthlyContracts: contract?.months ?? [],
+      currentYear: current.year, currentMonth: current.month,
+    });
+  },
   async getMonthlyOutletReport({ outletId, year, month }) {
     const [financialContract, productContract] = await Promise.all([
       readMonthlyFinancials(outletId, year, month),

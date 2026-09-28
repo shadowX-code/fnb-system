@@ -1,3 +1,13 @@
+import { canonical } from "../inventoryItemModel.js";
+
+export const businessPoNo = order => order.businessPoNo || order.poNo || 'PO';
+export const linkedPurchaseOrdersForStockCheck = (orders, checkId) => checkId ? orders.filter(order => order.sourceType === 'stock_check' && order.sourceStockCheckId === checkId && order.status !== 'cancelled') : [];
+export const poStatusTone = status => ['completed', 'fully_received'].includes(status) ? 'success' : ['draft', 'partial_received'].includes(status) ? 'warning' : status === 'cancelled' ? 'danger' : ['submitted', 'supplier_confirmed'].includes(status) ? 'info' : 'neutral';
+
+export function isPurchaseOrderReference(movement = {}) {
+  return ["purchaseorder", "po"].includes(canonical(movement.referenceType || movement.reference_type || ""));
+}
+
 function toTitle(value = "") {
   return String(value)
     .replace(/_/g, " ")
