@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ read: vi.fn(), window: vi.fn(), exclude: vi.fn(), assess: vi.fn() }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), dimensions: vi.fn(), window: vi.fn(), exclude: vi.fn(), assess: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   teamReviewAdmin: mocks.read,
+  teamReviewAdminDimensions: mocks.dimensions,
   setTeamReviewWindow: mocks.window,
   excludeTeamReview: mocks.exclude,
   submitTeamAdminReview: mocks.assess,
@@ -26,6 +27,7 @@ const data = {
 
 beforeEach(() => {
   mocks.read.mockReset().mockResolvedValue(data);
+  mocks.dimensions.mockReset().mockResolvedValue({ teamwork: 5, reliability: 4, communication: 5, work_attitude: 4 });
   mocks.window.mockReset().mockResolvedValue({});
   mocks.exclude.mockReset().mockResolvedValue({});
   mocks.assess.mockReset().mockResolvedValue({});
@@ -40,6 +42,7 @@ describe("Team Review Admin workspace", () => {
     expect(screen.getByText("Admin Reviews Required")).not.toBeNull();
     fireEvent.click(screen.getAllByRole("button", { name: "Detail" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Alex Tan" });
+    expect(await within(dialog).findByText(/Teamwork 5.00/)).not.toBeNull();
     expect(within(dialog).getByText("Mina Lee")).not.toBeNull();
     expect(within(dialog).getByText(/Helped during rush/)).not.toBeNull();
     expect(within(dialog).getByText(/Published roster overlap/)).not.toBeNull();
@@ -59,9 +62,11 @@ describe("Team Review Admin workspace", () => {
   });
 
   it("offers Admin fallback only after close when no valid reviews remain", async () => {
+    mocks.dimensions.mockResolvedValue({ teamwork: null, reliability: null, communication: null, work_attitude: null });
     render(<CrewTeamReviewAdminPage auth={auth} store={store} />);
     await screen.findByText("Mina Lee");
     fireEvent.click(screen.getAllByRole("button", { name: "Detail" })[1]);
+    expect(screen.queryByText(/Teamwork 0.00/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Complete Admin Review" }));
     const dialog = screen.getByRole("dialog", { name: "Admin Review" });
     expect(within(dialog).getByRole("button", { name: "Submit Admin Review" }).disabled).toBe(true);
@@ -69,5 +74,11 @@ describe("Team Review Admin workspace", () => {
       fireEvent.click(within(dialog).getByRole("button", { name: `${name}: 4 Often` }));
     fireEvent.click(within(dialog).getByRole("button", { name: "Submit Admin Review" }));
     await waitFor(() => expect(mocks.assess).toHaveBeenCalledWith("mina", expect.any(String), { teamwork: 4, reliability: 4, communication: 4, work_attitude: 4 }));
+  });
+
+  it("shows the final review day rather than the exclusive midnight close boundary", async () => {
+    mocks.read.mockResolvedValue({ ...data, window: { status: "open", closes_at: "2026-10-02T16:00:00Z" } });
+    render(<CrewTeamReviewAdminPage auth={auth} store={store} />);
+    expect(await screen.findByText(/Open until 2 Oct 2026/)).not.toBeNull();
   });
 });

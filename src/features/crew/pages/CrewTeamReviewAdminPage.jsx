@@ -16,6 +16,7 @@ const dimensions = [["teamwork", "Teamwork"], ["reliability", "Reliability"], ["
 const scale = ["Rarely", "Sometimes", "Usually", "Often", "Consistently"];
 const monthNow = () => new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 7) + "-01";
 const stamp = (value) => value ? new Date(value).toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
+const lastDay = (exclusiveClose) => exclusiveClose ? new Date(new Date(exclusiveClose).getTime() - 1).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kuala_Lumpur" }) : "—";
 const stateLabel = { unavailable: "Not available", upcoming: "Upcoming", open: "Open", closed: "Closed", provisional: "Provisional", ready: "Ready", admin_review_required: "Admin Review Required", pending: "Pending" };
 function employeeState(row, windowState) {
   if (row.source === "admin") return "Admin Reviewed";
@@ -111,7 +112,7 @@ export default function CrewTeamReviewAdminPage({ auth, store, ui }) {
     {error ? <p role="alert" className="crew-team-admin-error">{error}</p> : null}
     {loading && !data ? <p className="text-text-secondary">Loading Team Review…</p> : null}
     {data ? <>
-      <div className="crew-team-admin-context"><span><strong>Review Window</strong> · {windowState === "open" ? `Open until ${stamp(data.window.closes_at)}` : windowState === "upcoming" ? `Upcoming · opens ${stamp(data.window.opens_at)}` : windowState === "closed" ? "Closed" : "Not available"}</span>{controls.length ? <details className="crew-team-admin-menu"><summary aria-label="Review window actions"><MoreHorizontal size={19} /></summary><div>{controls.map(([key, label]) => <button type="button" key={key} onClick={() => { setControl(key); setReason(""); setDeadline(""); }}>{label}</button>)}</div></details> : null}</div>
+      <div className="crew-team-admin-context"><span><strong>Review Window</strong> · {windowState === "open" ? `Open until ${lastDay(data.window.closes_at)}` : windowState === "upcoming" ? `Upcoming · opens ${stamp(data.window.opens_at)}` : windowState === "closed" ? "Closed" : "Not available"}</span>{controls.length ? <details className="crew-team-admin-menu"><summary aria-label="Review window actions"><MoreHorizontal size={19} /></summary><div>{controls.map(([key, label]) => <button type="button" key={key} onClick={() => { setControl(key); setReason(""); setDeadline(""); }}>{label}</button>)}</div></details> : null}</div>
       <div className="crew-team-admin-summary" aria-label="Team Review summary">{[["Crew in Review", summary.eligible_crew], ["Reviews Received", summary.reviews_received], ["Team Reviews Ready", summary.ready], ["Admin Reviews Required", summary.admin_required]].map(([label, value]) => <div key={label}><strong>{value ?? 0}</strong><span>{label}</span></div>)}</div>
       <AdminDataSection title="Crew" description={windowState === "upcoming" ? "Eligibility preview from published roster overlap." : `${employees.length} Crew in this outlet and month.`}>
         {employees.length ? <DataTable density="compact" rows={employees} getRowKey={(row) => row.employee_id} tableClassName="min-w-[760px]" columns={[
@@ -128,7 +129,7 @@ export default function CrewTeamReviewAdminPage({ auth, store, ui }) {
     {detail ? <Modal title={detail.employee_name} description={`${detail.reviews_received} valid reviews · ${detail.eligible_teammates} eligible teammates`} onClose={() => setDetailId(null)} footer={<button className="btn-secondary" type="button" onClick={() => setDetailId(null)}>Close</button>}>
       <div className="crew-team-admin-detail"><p><strong>Team Review:</strong> {detail.score == null ? "Pending" : `${Number(detail.score).toFixed(2)} / 5`} · {employeeState(detail, windowState)}</p>
         {detail.status === "admin_review_required" ? <button type="button" className="btn-primary" onClick={() => { setAssessment(detail); setRatings({}); setDetailId(null); }}>Complete Admin Review</button> : null}
-        {detailDimensions ? <p>{dimensions.map(([key, label]) => `${label} ${Number(detailDimensions[key] || 0).toFixed(2)}`).join(" · ")}</p> : null}
+        {detail.score != null && detailDimensions ? <p>{dimensions.map(([key, label]) => `${label} ${Number(detailDimensions[key]).toFixed(2)}`).join(" · ")}</p> : null}
         <h3>Review evidence</h3>{employeeReviews.length ? employeeReviews.map((review) => {
           const values = dimensions.map(([key]) => Number(review.criteria[key]));
           const extreme = values.every((value) => value === 1) || values.every((value) => value === 5);
