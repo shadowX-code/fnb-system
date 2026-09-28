@@ -886,9 +886,9 @@ function InventoryLegacyRoutes({ store, auth, ui }) {
 function InventoryControlPage(props) {
   const route = useAdminLocation();
   if (route?.definitionId === 'inventory-stock-check-restock') return <InventoryStockCheckRestockSurface checkId={route.params.checkId} auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} onClose={() => navigateAdminRoute('inventory_stock_check', {}, route.query)} />;
+  if (route?.definitionId === 'inventory-stock-check-result') return <InventoryStockCheckResultSurface checkId={route.params.checkId} auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} onClose={() => navigateAdminRoute('inventory_stock_check', {}, route.query)} />;
   if (props.initialTab === "stock-check") return <InventoryStockCheckPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === 'orders') return <InventoryPurchaseOrdersWorkspace auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
-  if (route?.definitionId === 'inventory-stock-check-result') return <InventoryStockCheckResultSurface checkId={route.params.checkId} auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} onClose={() => navigateAdminRoute('inventory_stock_check', {}, route.query)} />;
   if (props.initialTab === "recipe-intelligence") return <InventoryRecipeIntelligencePage auth={props.auth} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "recipes") return <InventoryRecipesPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} />;
   if (props.initialTab === "master") return <InventoryMasterPage auth={props.auth} ui={props.ui} outlets={(props.store?.outlets || []).map(normalizeOutletRecord)} suppliers={props.store?.suppliers || []} />;
