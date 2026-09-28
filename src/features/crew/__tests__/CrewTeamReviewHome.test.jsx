@@ -43,10 +43,11 @@ describe("Crew Home Team Review", () => {
   });
 
   it("prompts once per employee and month without interrupting later Home visits", async () => {
-    mocks.teamReviewMobile.mockResolvedValue({ period_start: "2026-09-01", open: true, completed: 0, total: 1,
+    mocks.teamReviewMobile.mockResolvedValue({ period_start: "2026-09-01", deadline: "2026-10-02T16:00:00Z", open: true, completed: 0, total: 1,
       teammates: [{ id: "employee-1", name: "Alex Tan", position: "Kitchen Crew", reviewed: false }] });
     const first = render(<CrewTeamReviewHome token="crew-token" employeeId="reviewer-1" />);
     expect(await screen.findByText("Team Review is open")).toBeTruthy();
+    expect(screen.getByText("Closes 2 Oct 2026")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Later" }));
     first.unmount();
     render(<CrewTeamReviewHome token="crew-token" employeeId="reviewer-1" />);

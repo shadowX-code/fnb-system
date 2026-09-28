@@ -39,7 +39,7 @@ export default function CrewTeamReviewHome({ token, employeeId }) {
   const pending = teammates.filter((teammate) => !teammate.reviewed);
   if (!data?.open && !sheetOpen && !introOpen) return null;
   if (!teammates.length && !sheetOpen && !introOpen) return null;
-  const closingDate = data?.deadline ? new Date(data.deadline).toLocaleDateString(i18n.language === "ms" ? "ms-MY" : i18n.language === "zh-CN" ? "zh-CN" : "en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kuala_Lumpur" }) : "";
+  const closingDate = data?.deadline ? new Date(new Date(data.deadline).getTime() - 1).toLocaleDateString(i18n.language === "ms" ? "ms-MY" : i18n.language === "zh-CN" ? "zh-CN" : "en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "Asia/Kuala_Lumpur" }) : "";
 
   async function submit() {
     if (!selected || dimensions.some((key) => !ratings[key])) return;
