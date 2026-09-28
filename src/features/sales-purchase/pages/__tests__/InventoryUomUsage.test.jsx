@@ -78,6 +78,17 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Master Inventory UOM deletion usage guard", () => {
+  it("leaves the legacy Stock Check route rendering after Master ownership moves", async () => {
+    render(<InventoryControlPage
+      initialTab="stock-check"
+      store={{ outlets: [{ id: outletId, name: "QA Outlet" }], suppliers: [] }}
+      auth={{ user: { id: "user" }, profile: { id: "employee", role_outlet_access_type: "all" }, hasPermission: () => true }}
+      ui={{ notify: vi.fn() }}
+    />);
+    await screen.findByRole("heading", { name: "Stock Check" });
+    expect(screen.getByRole("button", { name: /Audit Stock Check/ })).toBeTruthy();
+  });
+
   it("allows an unused UOM to be deleted after a verified complete read", async () => {
     mount();
     await openUomSettings();
