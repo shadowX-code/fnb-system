@@ -15,16 +15,18 @@ import { isPurchaseOrderReference } from '../purchaseOrders/inventoryPurchaseOrd
 import InventoryMovementsTable from './InventoryMovementsTable.jsx';
 import InventoryManualMovementModal from './InventoryManualMovementModal.jsx';
 import useInventoryMovementsRead from './useInventoryMovementsRead.js';
-import { toTitle, canEditInventoryMovement, persistRemoteInventoryMovement, persistRemoteInventoryMovementUpdate, resolveMovementPurchaseOrder } from './inventoryMovementService.js';
+import { toTitle, canEditInventoryMovement, persistRemoteInventoryMovement, persistRemoteInventoryMovementUpdate, resolveMovementPurchaseOrder, loadTransferReference } from './inventoryMovementService.js';
 
 const formatDateTimeCompact = value => value ? new Date(value).toLocaleString('en-MY', { day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '-';
 const makeId = prefix => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 
 export default function InventoryMovementsPage({ auth, ui, outlets, suppliers }) {
   const accessibleOutlets = getAccessibleOutlets(auth, outlets);
+  const [requestedOutletId, setRequestedOutletId] = useState('');
+  const selectedOutletId = accessibleOutlets.some(outlet => outlet.id === requestedOutletId) ? requestedOutletId : accessibleOutlets[0]?.id || '';
   const canView = hasPermission(auth, 'inventory_movements.view');
   const canRecordMovement = hasPermission(auth, 'inventory_movements.create');
-  const read = useInventoryMovementsRead({ outletIds: accessibleOutlets.map(row => row.id), scopeKey: auth?.user?.id || '', enabled: canView && !!accessibleOutlets.length });
+  const read = useInventoryMovementsRead({ outletIds: selectedOutletId ? [selectedOutletId] : [], scopeKey: auth?.user?.id || '', enabled: canView && !!selectedOutletId });
   const { movements = [], items = [], people = [] } = read.data || {};
   const itemById = new Map(items.map(row => [row.id, row]));
   const outletById = new Map(accessibleOutlets.map(row => [row.id, row]));
@@ -57,13 +59,14 @@ export default function InventoryMovementsPage({ auth, ui, outlets, suppliers })
     const id = ++navigation.current;
     try {
       if (isPurchaseOrderReference(movement)) {
-        setModal({ type: 'reference-loading' });
+        setModal({ type: 'reference-loading', movement });
         const orderId = await resolveMovementPurchaseOrder(movement);
         if (navigation.current === id) setModal({ type: 'po', orderId });
       } else if (canonical(movement.referenceType) === 'waste') setModal({ type: 'waste', wasteId: movement.referenceId });
       else if (canonical(movement.referenceType) === 'transfer') {
-        const rows = movements.filter(row => row.reference && row.reference === movement.reference);
-        setModal({ type: 'transfer-detail', movement, movements: rows.length ? rows : [movement] });
+        setModal({ type: 'reference-loading', movement });
+        const rows = await loadTransferReference(movement.reference, accessibleOutlets.map(outlet => outlet.id));
+        if (navigation.current === id) setModal({ type: 'transfer-detail', movement, movements: rows.length ? rows : [movement] });
       } else notify('Reference detail unavailable', 'No linked detail record is available for this movement.', 'info');
     } catch (error) { if (navigation.current === id) setModal({ type: 'reference-error', error: error.message, movement }); }
   }
@@ -72,7 +75,7 @@ export default function InventoryMovementsPage({ auth, ui, outlets, suppliers })
     <PageHeader section="INVENTORY CONTROL" title="Inventory Movements" description="Track purchases, transfers, waste, usage and adjustments." actions={canRecordMovement ? <button className="btn-primary" disabled={!read.data} onClick={() => setModal({ type: 'movement' })}><RefreshCw size={15} /> Record Movement</button> : null} />
     {read.state === 'refreshing' ? <p role="status">Refreshing Movements. Showing the last verified complete read.</p> : null}
     {!read.data ? <div className="card p-4" role={read.error ? 'alert' : 'status'}><p>{!accessibleOutlets.length ? 'No accessible outlet.' : read.error || 'Loading complete Inventory Movements…'}</p>{read.error ? <><p>No partial results are presented as complete.</p><button className="btn-secondary" onClick={read.refresh}>Retry</button></> : null}</div> :
-      <InventoryMovementsTable movements={movements} itemById={itemById} outletById={outletById} outletOptions={getAccessibleOutletOptions(auth, outlets)} actorNameByAnyId={id => wasteActorName(id, people, auth)} formatDateTimeCompact={formatDateTimeCompact} canonical={canonical} toTitle={toTitle} canEditMovement={canEditInventoryMovement} canRecordMovement={canRecordMovement} onEditMovement={movement => setModal({ type: 'movement', movement })} onOpenReference={openReference} />}
+      <InventoryMovementsTable movements={movements} itemById={itemById} outletOptions={getAccessibleOutletOptions(auth, outlets, { includeAll: false })} selectedOutletId={selectedOutletId} onOutletChange={setRequestedOutletId} actorNameByAnyId={id => wasteActorName(id, people, auth)} formatDateTimeCompact={formatDateTimeCompact} canonical={canonical} toTitle={toTitle} canEditMovement={canEditInventoryMovement} canRecordMovement={canRecordMovement} onEditMovement={movement => setModal({ type: 'movement', movement })} onOpenReference={openReference} />}
     {modal?.type === 'po' ? <InventoryPurchaseOrderSurface orderId={modal.orderId} auth={auth} ui={ui} outlets={outlets} suppliers={suppliers} onClose={close} /> : null}
     {modal?.type === 'waste' ? <InventoryWasteDetail wasteId={modal.wasteId} auth={auth} outlets={outlets} onClose={close} /> : null}
     {modal?.type === 'reference-loading' || modal?.type === 'reference-error' ? <Modal title="Movement Reference" onClose={close}><p role={modal.error ? 'alert' : 'status'}>{modal.error || 'Loading reference…'}</p>{modal.error ? <button className="btn-secondary" onClick={() => openReference(modal.movement)}>Retry</button> : null}</Modal> : null}

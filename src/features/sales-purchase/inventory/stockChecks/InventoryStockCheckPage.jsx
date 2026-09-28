@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ChevronDown, ClipboardCheck, Search } from "lucide-react";
+import { AlertTriangle, ChevronDown, ClipboardCheck, Eye, Search, Trash2 } from "lucide-react";
 import PageHeader from "../../../../components/layout/PageHeader.jsx";
 import Modal from "../../../../components/feedback/Modal.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
@@ -17,6 +17,7 @@ import { getAccessibleOutletOptions, getAccessibleOutlets, hasPermission, notify
 import { resolveAdminLocation, navigateAdminRoute } from "../../../../app/routeOwnership.js";
 import { invalidateInventoryReads, subscribeInventoryRevalidation } from "../../../../services/inventoryRevalidation.js";
 import { loadStockCheckExecution, persistRemoteStockCheck, deleteRemoteStockCheckDraft } from "./inventoryStockCheckExecutionService.js";
+import FactoryPagination from "../../../factory/components/FactoryPagination.jsx";
 
 const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.env.VITE_SHOW_STOCK_CHECK_CARD_DEBUG ?? "false").toLowerCase() === "true";
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
@@ -583,12 +584,15 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   const initialStockCheckDate = useMemo(getInitialStockCheckDate, []);
   const outlets = useMemo(() => suppliedOutlets.map(normalizeOutletRecord), [suppliedOutlets]);
   const [selectedOutletId, setSelectedOutletId] = useState(() => {
-    if (typeof window === "undefined") return "all";
-    const requested = resolveAdminLocation(window.location)?.query?.outletId;
-    return requested && getAccessibleOutlets(auth, suppliedOutlets).some((outlet) => String(outlet.id) === requested) ? requested : "all";
+    const accessible = getAccessibleOutlets(auth, suppliedOutlets);
+    const requested = typeof window === "undefined" ? "" : resolveAdminLocation(window.location)?.query?.outletId;
+    return accessible.find((outlet) => String(outlet.id) === requested)?.id || accessible[0]?.id || "";
   });
   const accessibleOutletIds = useMemo(() => getAccessibleOutlets(auth, outlets).map((outlet) => outlet.id), [auth, outlets]);
-  const selectedOutletIds = selectedOutletId === "all" ? accessibleOutletIds : accessibleOutletIds.filter((id) => id === selectedOutletId);
+  const effectiveOutletId = accessibleOutletIds.includes(selectedOutletId) ? selectedOutletId : accessibleOutletIds[0] || "";
+  const selectedOutletIds = effectiveOutletId ? [effectiveOutletId] : [];
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize, setAuditPageSize] = useState(20);
   const [data, setData, executionRead, refreshExecution] = useStockCheckExecutionData(auth, selectedOutletIds);
   const [date, setDateState] = useState(initialStockCheckDate.date);
   const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
@@ -998,7 +1002,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
   function renderStockCheck() {
     const auditChecks = data.checks
       .filter((check) => check.stockCheckType === "audit")
-      .filter((check) => selectedOutletId === "all" || check.outletId === selectedOutletId)
+      .filter((check) => check.outletId === effectiveOutletId)
       .sort((a, b) => new Date(b.submittedAt || b.date || 0) - new Date(a.submittedAt || a.date || 0));
 
     if (activeCheckGroup) {
@@ -1253,7 +1257,7 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
     return (
       <div className="space-y-4">
       <AdminFilterToolbar>
-          <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable />
+          <SelectField label="Outlet" value={effectiveOutletId} options={getAccessibleOutletOptions(auth, outlets, { includeAll: false })} onChange={(value) => { setSelectedOutletId(value); setAuditPage(1); }} searchable />
           <DatePickerField label="Date" value={date} onChange={setDate} />
           <SelectField label="Shift" value={stockCheckShiftFilter} options={[{ value: "all", label: "All" }, ...shifts.map((shift) => ({ value: shift, label: shift }))]} onChange={setStockCheckShiftFilter} />
         </AdminFilterToolbar>
@@ -1335,37 +1339,11 @@ export default function InventoryStockCheckPage({ auth, ui, outlets: suppliedOut
         </SectionCard>
         <SectionCard title="Audit Stock Checks" description="Special non-scheduled checks for month-end closing, surprise audits and control counts.">
           {auditChecks.length ? (
-            <div className="grid gap-3 xl:grid-cols-3">
-              {auditChecks.slice(0, 9).map((check) => {
-                const shortageCount = check.rowSummary?.shortage ?? (check.rows || []).filter((row) => !row.skipped && Number(row.variance || 0) > 0).length;
-                const skippedCount = check.rowSummary?.skipped ?? (check.rows || []).filter((row) => row.skipped).length;
-                return (
-                  <div key={check.id} className="rounded-2xl border border-border bg-white p-4 transition hover:border-primary/30 hover:shadow-sm">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="type-title font-bold text-text-primary">{check.auditName || "Audit Stock Check"}</div>
-                        <div className="type-caption text-text-secondary">{outletById.get(check.outletId)?.name || "Outlet"} · {formatDate(check.date)}</div>
-                      </div>
-                      <Badge tone={statusTone(check.status)}>{check.status === "submitted" ? "Completed" : toTitle(check.status)}</Badge>
-                    </div>
-                    <div className="mt-3 space-y-1 type-caption text-text-secondary">
-                      <div>Audit Type: <span className="font-semibold text-text-primary">{check.auditType || "Custom Audit"}</span></div>
-                      <div>Items checked: <span className="font-semibold text-text-primary">{check.rowSummary?.total ?? check.rows?.length ?? 0}</span></div>
-                      <div>Skipped items: <span className="font-semibold text-text-primary">{skippedCount}</span></div>
-                      <div>Variance items: <span className="font-semibold text-text-primary">{shortageCount}</span></div>
-                    </div>
-                    {check.status === "draft" ? (
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                        <button className="btn-primary w-full" type="button" onClick={() => continueAuditStockCheck(check)}>Continue Audit</button>
-                        <button className="btn-secondary w-full border-rose-200 text-rose-700 hover:bg-rose-50" type="button" onClick={() => deleteAuditDraft(check)}>Delete Draft</button>
-                      </div>
-                    ) : (
-                      <button className="btn-secondary mt-4 w-full" type="button" onClick={() => navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date })}>View Audit Result</button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+            <><div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left"><thead className="table-head"><tr><th className="px-3 py-2">Date</th><th>Audit Type</th><th>Items Checked</th><th>Skipped</th><th>Variance Items</th><th>Status</th><th>Created By</th><th className="text-right">Actions</th></tr></thead><tbody className="divide-y divide-border text-[13px]">{auditChecks.slice((auditPage - 1) * auditPageSize, auditPage * auditPageSize).map((check) => {
+              const varianceCount = check.rowSummary?.shortage ?? (check.rows || []).filter((row) => !row.skipped && Number(row.variance || 0) > 0).length;
+              const skippedCount = check.rowSummary?.skipped ?? (check.rows || []).filter((row) => row.skipped).length;
+              return <tr key={check.id}><td className="px-3 py-3 font-semibold">{formatDate(check.date)}</td><td>{check.auditType || check.auditName || "Custom Audit"}</td><td>{check.rowSummary?.total ?? check.rows?.length ?? 0}</td><td>{skippedCount}</td><td>{varianceCount}</td><td><Badge tone={statusTone(check.status)}>{check.status === "submitted" ? "Completed" : toTitle(check.status)}</Badge></td><td>{actorNameByAuthUserId(check.createdBy)}</td><td><div className="flex items-center justify-end gap-2">{check.status === "draft" ? <><button className="btn-primary h-9 px-2.5 text-xs" type="button" onClick={() => continueAuditStockCheck(check)}>Continue Audit</button><button className="icon-btn h-9 w-9 text-rose-700" type="button" title="Delete draft" aria-label={`Delete draft audit ${check.auditName || check.date}`} onClick={() => deleteAuditDraft(check)}><Trash2 size={16} /></button></> : <button className="icon-btn h-9 w-9" type="button" title="View audit result" aria-label={`View audit result ${check.auditName || check.date}`} onClick={() => navigateAdminRoute('inventory-stock-check-result', { checkId: check.id }, { date })}><Eye size={16} /></button>}</div></td></tr>;
+            })}</tbody></table></div><FactoryPagination page={auditPage} pageSize={auditPageSize} total={auditChecks.length} onPageChange={setAuditPage} onPageSizeChange={(value) => { setAuditPageSize(value); setAuditPage(1); }} /></>
           ) : <EmptyState title="No audit stock checks yet." description="Use Audit Stock Check for month-end closing, full outlet counts or spot checks." />}
         </SectionCard>
       </div>

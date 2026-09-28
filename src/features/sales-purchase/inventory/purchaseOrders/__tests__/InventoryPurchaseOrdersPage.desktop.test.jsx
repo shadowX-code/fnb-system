@@ -10,6 +10,7 @@ const order = {
   status: "partial_received",
   sourceType: "stock_check",
   createdAt: "2026-08-09T08:00:00.000Z",
+  createdByName: "Operator",
   lines: [
     { id: "line-1", itemId: "item-1", requestedQty: 10, receivedQty: 4, unit: "kg" },
     { id: "line-2", itemId: "item-2", requestedQty: 5, receivedQty: 1, unit: "kg" },
@@ -85,7 +86,13 @@ function actionRow(table, poNo) {
 }
 
 function actionNames(row) {
-  return within(row).getAllByRole("button").map((button) => button.textContent.trim());
+  return within(row).getAllByRole("button").map((button) => actionName(button));
+}
+function actionName(button) {
+  return ({ "View PO": "View", "Copy PO text": "Copy Text", "Edit draft PO": "Edit", "Cancel PO": "Cancel" })[button.title] || button.textContent.trim();
+}
+function actionButton(row, name) {
+  return within(row).getAllByRole("button").find((button) => actionName(button) === name);
 }
 
 function mobileCard(poNo) {
@@ -110,13 +117,13 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
     mount();
     const table = screen.getByRole("table");
     const headers = within(table).getAllByRole("columnheader").map((header) => header.textContent);
-    expect(headers).toEqual(["PO No.", "Supplier", "Outlet", "Items", "Received Progress", "Status", "Source", "Created Date", "Actions"]);
+    expect(headers).toEqual(["PO No.", "Supplier", "Items", "Received Progress", "Status", "Source", "Created Date", "Created By", "Actions"]);
     expect(screen.getByRole("region", { name: "Purchase order filters" }).contains(table)).toBe(false);
     expect(screen.queryByRole("option", { name: "All outlets" })).toBeNull();
     const row = within(table).getByTitle("Internal system ID: INT-PO-001").closest("tr");
     expect(within(row).getByText("PO-2026-001")).toBeTruthy();
     expect(within(row).getByText("Chilli Supplier")).toBeTruthy();
-    expect(within(row).getByText("KL Central")).toBeTruthy();
+    expect(within(row).getByText("Operator")).toBeTruthy();
     expect(within(row).getByText("2")).toBeTruthy();
     expect(within(row).getByText("5 / 15")).toBeTruthy();
     expect(within(row).getByText("Partial Received")).toBeTruthy();
@@ -179,14 +186,14 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
     expect(actionNames(cancelled)).toEqual(["View", "Copy Text"]);
 
     fireEvent.click(within(draft).getByRole("button", { name: "Submit Order" }));
-    fireEvent.click(within(draft).getByRole("button", { name: "Edit" }));
+    fireEvent.click(actionButton(draft, "Edit"));
     fireEvent.click(within(submitted).getByRole("button", { name: "Receive" }));
     fireEvent.click(within(submitted).getByRole("button", { name: "Mark Confirmed" }));
-    fireEvent.click(within(confirmed).getByRole("button", { name: "Cancel" }));
+    fireEvent.click(actionButton(confirmed, "Cancel"));
     fireEvent.click(within(partial).getByRole("button", { name: "Receive More" }));
     fireEvent.click(within(partial).getByRole("button", { name: "Complete PO" }));
-    fireEvent.click(within(completed).getByRole("button", { name: "View" }));
-    fireEvent.click(within(cancelled).getByRole("button", { name: "Copy Text" }));
+    fireEvent.click(actionButton(completed, "View"));
+    fireEvent.click(actionButton(cancelled, "Copy Text"));
 
     expect(callbacks.onSubmit).toHaveBeenCalledWith(expect.objectContaining({ id: "po-draft" }));
     expect(callbacks.onRequestEdit).toHaveBeenCalledWith(expect.objectContaining({ id: "po-draft" }));
@@ -211,8 +218,8 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
 
     expect(within(partial).getByText("Supplier")).toBeTruthy();
     expect(within(partial).getByText("Chilli Supplier")).toBeTruthy();
-    expect(within(partial).getByText("Outlet")).toBeTruthy();
-    expect(within(partial).getByText("KL Central")).toBeTruthy();
+    expect(within(partial).getByText("Created By")).toBeTruthy();
+    expect(within(partial).getByText("Operator")).toBeTruthy();
     expect(within(partial).getByText("Source")).toBeTruthy();
     expect(within(partial).getByText("Stock Check")).toBeTruthy();
     expect(within(partial).getByText("Created Date")).toBeTruthy();
@@ -229,13 +236,13 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
     expect(actionNames(completed)).toEqual(["View", "Copy Text"]);
     expect(actionNames(cancelled)).toEqual(["View", "Copy Text"]);
 
-    fireEvent.click(within(draft).getByRole("button", { name: "Edit" }));
+    fireEvent.click(actionButton(draft, "Edit"));
     fireEvent.click(within(submitted).getByRole("button", { name: "Mark Confirmed" }));
     fireEvent.click(within(confirmed).getByRole("button", { name: "Receive" }));
     fireEvent.click(within(partial).getByRole("button", { name: "Receive More" }));
     fireEvent.click(within(full).getByRole("button", { name: "Complete PO" }));
-    fireEvent.click(within(completed).getByRole("button", { name: "View" }));
-    fireEvent.click(within(cancelled).getByRole("button", { name: "Copy Text" }));
+    fireEvent.click(actionButton(completed, "View"));
+    fireEvent.click(actionButton(cancelled, "Copy Text"));
 
     expect(callbacks.onRequestEdit).toHaveBeenCalledWith(expect.objectContaining({ id: "po-draft" }));
     expect(callbacks.onConfirm).toHaveBeenCalledWith(expect.objectContaining({ id: "po-submitted" }));

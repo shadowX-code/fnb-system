@@ -112,3 +112,9 @@ export async function resolveMovementPurchaseOrder(movement) {
   if (ids.length !== 1) throw new Error('Purchase order reference is unavailable or ambiguous.');
   return ids[0];
 }
+
+export async function loadTransferReference(reference, outletIds) {
+  if (!reference || !outletIds.length) return [];
+  const result = await readCompleteInventoryRows('inventory_movements', { eq: { reference_no: reference }, in: { outlet_id: outletIds } });
+  return result.data.map(mapRemoteInventoryMovement);
+}

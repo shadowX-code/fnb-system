@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { Copy, Download } from "lucide-react";
+import { Copy, Download, Eye, Pencil, X } from "lucide-react";
 import PageHeader from '../../../../components/layout/PageHeader.jsx';
 import DashboardSection from "../../../../components/layout/DashboardSection.jsx";
 import AdminFilterToolbar, { ALL_FILTER_OPTION } from "../../../../components/layout/AdminFilterToolbar.jsx";
 import Badge from "../../../../components/ui/Badge.jsx";
 import SelectField from "../../../../components/forms/SelectField.jsx";
+import AdminSearchField from "../../../../components/forms/AdminSearchField.jsx";
+import AdminDateTimeCell from "../../../../components/tables/AdminDateTimeCell.jsx";
 import FeedXDateRangePicker from "../../../../components/ui/FeedXDateRangePicker.jsx";
 import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import { poProgress, poSourceLabel, poStatusLabel } from "./inventoryPurchaseOrderHelpers.js";
@@ -19,7 +21,6 @@ export default function InventoryPurchaseOrdersPage({
   items,
   suppliers,
   outletOptions,
-  outletById,
   getBusinessPoNo,
   formatDate,
   todayInput,
@@ -68,13 +69,13 @@ export default function InventoryPurchaseOrdersPage({
     const progress = poProgress(order);
     const canCancel = ["draft", "submitted", "supplier_confirmed"].includes(order.status) && progress.received <= 0;
     return <>
-      <button className={tone === "primary" ? "btn-primary h-8 px-2.5 text-xs" : "btn-secondary h-8 px-2.5 text-xs"} type="button" onClick={() => callback(order)}>{label}</button>
-      {label !== "View" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => onView(order)}>View</button> : null}
-      <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => onCopyPurchaseOrder(order)}><Copy size={13} /> Copy Text</button>
-      {order.status === "draft" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => onRequestEdit(order)}>Edit</button> : null}
+      {label !== "View" ? <button className={tone === "primary" ? "btn-primary h-9 px-2.5 text-xs" : "btn-secondary h-9 px-2.5 text-xs"} type="button" onClick={() => callback(order)}>{label}</button> : null}
+      <button className="icon-btn h-9 w-9" type="button" title="View PO" aria-label={`View PO ${getBusinessPoNo(order)}`} onClick={() => onView(order)}><Eye size={16} /></button>
+      <button className="icon-btn h-9 w-9" type="button" title="Copy PO text" aria-label={`Copy PO text ${getBusinessPoNo(order)}`} onClick={() => onCopyPurchaseOrder(order)}><Copy size={16} /></button>
+      {order.status === "draft" ? <button className="icon-btn h-9 w-9" type="button" title="Edit draft PO" aria-label={`Edit draft PO ${getBusinessPoNo(order)}`} onClick={() => onRequestEdit(order)}><Pencil size={16} /></button> : null}
       {order.status === "submitted" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => onConfirm(order)}>Mark Confirmed</button> : null}
       {order.status === "partial_received" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => onComplete(order)}>Complete PO</button> : null}
-      {canCancel ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => onCancel(order)}>Cancel</button> : null}
+      {canCancel ? <button className="icon-btn h-9 w-9 text-rose-700" type="button" title="Cancel PO" aria-label={`Cancel PO ${getBusinessPoNo(order)}`} onClick={() => onCancel(order)}><X size={16} /></button> : null}
     </>;
   };
   const mobilePrimaryAction = (order) => order.status === "draft" ? { label: "Submit Order", tone: "primary", action: () => onSubmit(order) }
@@ -88,7 +89,7 @@ export default function InventoryPurchaseOrdersPage({
     <PageHeader section="INVENTORY CONTROL" title="Purchase Orders" description="Review and track supplier purchase orders." actions={onExport ? <button className="btn-secondary" disabled={!!loadError || loadState === 'loading'} onClick={() => onExport(filtered)}><Download size={15} /> Export</button> : null} />
     <AdminFilterToolbar ariaLabel="Purchase order filters" denseFields periodAfterFilters
       outlet={<SelectField label="Outlet" value={selectedOutletId} options={accessibleOutletOptions} onChange={(value) => update("outletId", value)} searchable />}
-      search={<label><div className="mb-1 type-caption font-semibold text-text-secondary">Search</div><input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => update("search", event.target.value)} placeholder="Search PO no., supplier or item" /></label>}
+      search={<AdminSearchField label="Search" value={filters.search} onChange={(value) => update("search", value)} placeholder="Search PO no., supplier or item" />}
       filters={<>
         <SelectField label="Supplier" value={filters.supplierId} options={[ALL_FILTER_OPTION, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => update("supplierId", value)} searchable />
         <SelectField label="Status" value={filters.status} options={[ALL_FILTER_OPTION, ...statuses.map((status) => ({ value: status, label: poStatusLabel(status) }))]} onChange={(value) => update("status", value)} />
@@ -101,7 +102,6 @@ export default function InventoryPurchaseOrdersPage({
       <div className="space-y-3 md:hidden">
         {paginatedOrders.map((order) => {
           const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-          const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
           const progress = poProgress(order);
           const action = mobilePrimaryAction(order);
           const canCancel = ["draft", "submitted", "supplier_confirmed"].includes(order.status) && progress.received <= 0;
@@ -112,46 +112,45 @@ export default function InventoryPurchaseOrdersPage({
             </div>
             <div className="mt-4 grid gap-3 text-sm">
               <div><div className="type-caption font-semibold text-text-muted">Supplier</div><div className="mt-0.5 font-bold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</div></div>
-              <div className="grid grid-cols-2 gap-3"><div><div className="type-caption font-semibold text-text-muted">Outlet</div><div className="mt-0.5 font-semibold text-text-primary">{outlet?.name ?? "Outlet"}</div></div><div><div className="type-caption font-semibold text-text-muted">Source</div><div className="mt-0.5 font-semibold text-text-primary">{poSourceLabel(order.sourceType)}</div></div></div>
-              <div><div className="type-caption font-semibold text-text-muted">Created Date</div><div className="mt-0.5 font-semibold text-text-primary">{formatDate(order.createdAt || order.submittedAt || todayInput())}</div></div>
+              <div><div className="type-caption font-semibold text-text-muted">Source</div><div className="mt-0.5 font-semibold text-text-primary">{poSourceLabel(order.sourceType)}</div></div>
+              <div className="grid grid-cols-2 gap-3"><div><div className="type-caption font-semibold text-text-muted">Created Date</div><div className="mt-0.5 font-semibold text-text-primary">{formatDate(order.createdAt)}</div></div><div><div className="type-caption font-semibold text-text-muted">Created By</div><div className="mt-0.5 font-semibold text-text-primary">{order.createdByName || "Unknown User"}</div></div></div>
             </div>
             <div className="mt-4 rounded-xl border border-border bg-slate-50 p-3">
               <div className="flex items-center justify-between gap-3"><div><div className="type-caption font-semibold text-text-muted">Items received</div><div className="mt-1 text-lg font-black text-text-primary">{progress.received} / {progress.ordered}</div></div><div className="text-right type-caption font-bold text-text-secondary">{Math.min(progress.percent, 100).toFixed(0)}%</div></div>
               <div className="mt-2 h-2 rounded-full bg-white"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress.percent, 100)}%` }} /></div>
             </div>
             <div className="mt-4 flex flex-col gap-2">
-              <button className={action.tone === "primary" ? "btn-primary w-full justify-center" : "btn-secondary w-full justify-center"} type="button" onClick={action.action}>{action.label}</button>
-              <div className="grid grid-cols-2 gap-2">
-                {action.label !== "View" ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => onView(order)}>View</button> : null}
-                <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => onCopyPurchaseOrder(order)}><Copy size={13} /> Copy Text</button>
-                {order.status === "draft" ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => onRequestEdit(order)}>Edit</button> : null}
-                {canCancel ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs text-rose-700" type="button" onClick={() => onCancel(order)}>Cancel</button> : null}
+              {action.label !== "View" ? <button className={action.tone === "primary" ? "btn-primary w-full justify-center" : "btn-secondary w-full justify-center"} type="button" onClick={action.action}>{action.label}</button> : null}
+              <div className="flex flex-wrap gap-2">
+                <button className="icon-btn h-9 w-9" type="button" title="View PO" aria-label={`View PO ${getBusinessPoNo(order)}`} onClick={() => onView(order)}><Eye size={16} /></button>
+                <button className="icon-btn h-9 w-9" type="button" title="Copy PO text" aria-label={`Copy PO text ${getBusinessPoNo(order)}`} onClick={() => onCopyPurchaseOrder(order)}><Copy size={16} /></button>
+                {order.status === "draft" ? <button className="icon-btn h-9 w-9" type="button" title="Edit draft PO" aria-label={`Edit draft PO ${getBusinessPoNo(order)}`} onClick={() => onRequestEdit(order)}><Pencil size={16} /></button> : null}
+                {canCancel ? <button className="icon-btn h-9 w-9 text-rose-700" type="button" title="Cancel PO" aria-label={`Cancel PO ${getBusinessPoNo(order)}`} onClick={() => onCancel(order)}><X size={16} /></button> : null}
               </div>
             </div>
           </div>;
         })}
       </div>
       <div className="hidden overflow-x-auto md:block">
-        <table className="w-full min-w-[1040px] text-left">
+        <table className="w-full min-w-[1280px] text-left">
           <thead className="text-[11px] uppercase tracking-wide text-text-muted">
             <tr className="border-b border-border">
-              <th className="py-2">PO No.</th><th>Supplier</th><th>Outlet</th><th>Items</th><th>Received Progress</th><th>Status</th><th>Source</th><th>Created Date</th><th className="text-right">Actions</th>
+              <th className="py-2">PO No.</th><th>Supplier</th><th>Items</th><th>Received Progress</th><th>Status</th><th>Source</th><th>Created Date</th><th>Created By</th><th className="text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border text-[13px]">
             {paginatedOrders.map((order) => {
               const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-              const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
               const progress = poProgress(order);
               return <tr key={order.id} className="transition hover:bg-primary/5">
                 <td className="py-3 font-mono text-xs font-bold text-text-primary" title={`Internal system ID: ${order.poNo}`}>{getBusinessPoNo(order)}</td>
                 <td className="font-semibold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</td>
-                <td>{outlet?.name ?? "Outlet"}</td>
                 <td>{order.lines.length}</td>
                 <td><div className="font-semibold text-text-primary">{progress.received} / {progress.ordered}</div><div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress.percent, 100)}%` }} /></div></td>
                 <td><Badge tone={statusTone(order.status)}>{poStatusLabel(order.status)}</Badge></td>
                 <td>{poSourceLabel(order.sourceType)}</td>
-                <td>{formatDate(order.createdAt || order.submittedAt || todayInput())}</td>
+                <td><AdminDateTimeCell date={formatDate(order.createdAt)} /></td>
+                <td>{order.createdByName || "Unknown User"}</td>
                 <td><div className="flex justify-end gap-2">{desktopActions(order)}</div></td>
               </tr>;
             })}

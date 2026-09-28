@@ -215,6 +215,7 @@ export default function DatePickerField({
       <div className="relative">
         <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
         <input
+          data-date-picker-input
           className={`control h-10 w-full pl-9 pr-10 text-[13px] ${error ? "border-rose-200 focus:border-rose-300 focus:ring-rose-50" : ""}`}
           inputMode="text"
           placeholder={placeholder}
