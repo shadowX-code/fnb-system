@@ -10,13 +10,14 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 describe("Crew Special Access", () => {
   const employee = { id: "employee-1", full_name: "Crew QA", workplace: "Friends Corner", crew_access: { access_state: "active", can_initiate_handover: false, can_add_assets: false, can_adjust_assets: false, can_perform_asset_inspections: false } };
 
-  it("updates the per-account Hand Over Cash capability without exposing Admin roles", async () => {
+  it("updates the per-account Initiate Cash Handover capability without exposing Admin roles", async () => {
     crewService.inventorySpecialAccess.mockResolvedValue({});
     crewService.updateSpecialAccess.mockResolvedValue({ can_initiate_handover: true, can_add_assets: true, can_adjust_assets: true, can_perform_asset_inspections: true });
     render(<CrewSpecialAccessModal employee={employee} onClose={() => {}} onSaved={() => {}} />);
-    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Hand Over Cash" }).checked).toBe(false));
+    await waitFor(() => expect(screen.getByRole("checkbox", { name: "Initiate Cash Handover" }).checked).toBe(false));
     expect(screen.queryByText(/Admin Role/)).toBeNull();
-    fireEvent.click(screen.getByRole("checkbox", { name: "Hand Over Cash" }));
+    expect(screen.getByText(/Receiver eligibility is configured separately/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("checkbox", { name: "Initiate Cash Handover" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Add Assets" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Adjust Assets" }));
     fireEvent.click(screen.getByRole("checkbox", { name: "Perform Asset Inspections" }));

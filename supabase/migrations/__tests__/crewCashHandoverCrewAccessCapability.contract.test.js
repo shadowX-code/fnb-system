@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826130618_crew_access_cash_handover_capability.sql"), "utf8").toLowerCase();
+const receiverSql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260826103000_crew_cash_handover_receivers.sql"), "utf8").toLowerCase();
 
 describe("Crew Access Cash Handover capability", () => {
   it("makes initiation a Crew Access capability, not an Admin RBAC inference", () => {
@@ -36,6 +37,15 @@ describe("Crew Access Cash Handover capability", () => {
     expect(sql).toContain("'{can_record_collection}'");
     expect(sql).toContain("'{is_cash_handover_receiver}'");
     expect(sql).toContain("crew_cash_receiver_is_eligible(outlet,employee)");
+  });
+
+  it("keeps receiver configuration fixed-outlet and independent of position and initiation grants", () => {
+    const eligibility = receiverSql.split("function public.crew_cash_receiver_is_eligible")[1]?.split("$$;")[0];
+    expect(eligibility).toContain("crew_cash_handover_receivers");
+    expect(eligibility).toContain("ca.primary_outlet_id=p_outlet_id");
+    expect(eligibility).toContain("ca.access_state='active'");
+    expect(eligibility).not.toContain("position");
+    expect(eligibility).not.toContain("can_initiate_handover");
   });
 
   it("uses the existing Crew Access administration authority with outlet scope and audit evidence", () => {

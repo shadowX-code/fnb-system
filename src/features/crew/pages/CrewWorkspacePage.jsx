@@ -81,7 +81,7 @@ function employmentLabel(row) {
 
 function specialAccessSummary(access) {
   const permissions = [
-    access?.can_initiate_handover && "Hand Over Cash",
+    access?.can_initiate_handover && "Initiate Cash Handover",
     access?.can_add_assets && "Add Assets",
     access?.can_manage_asset_details && "Manage Asset Details",
     access?.can_adjust_assets && "Adjust Assets",
