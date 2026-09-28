@@ -14,6 +14,7 @@ vi.mock("../../../../lib/supabase.ts", () => ({
         select(fields = "*", options = {}) { projection = fields; selectOptions = options; return query; },
         order() { return query; },
         eq(key, value) { filters.push({ key, value }); return query; },
+        in(key, values) { filters.push({ key, values }); return query; },
         delete() { mutation = "delete"; return query; },
         async range(start, end) {
           mocks.queries.push({ table, projection, start, end, filters: [...filters] });
@@ -23,11 +24,11 @@ vi.mock("../../../../lib/supabase.ts", () => ({
               : { data: [], count: 1, error: null };
           }
           const source = table === "inventory_items" && projection === "id,unit" ? mocks.usageItems : (mocks.tables[table] || []);
-          const rows = source.filter((row) => filters.every(({ key, value }) => row[key] === value));
+          const rows = source.filter((row) => filters.every(({ key, value, values }) => values ? values.includes(row[key]) : row[key] === value));
           return { data: rows.slice(start, end + 1), count: rows.length, error: null };
         },
         then(resolve, reject) {
-          const rows = (mocks.tables[table] || []).filter((row) => filters.every(({ key, value }) => row[key] === value));
+          const rows = (mocks.tables[table] || []).filter((row) => filters.every(({ key, value, values }) => values ? values.includes(row[key]) : row[key] === value));
           if (mutation === "delete") {
             mocks.mutations.push({ table, filters: [...filters] });
             mocks.tables[table] = (mocks.tables[table] || []).filter((row) => !rows.includes(row));

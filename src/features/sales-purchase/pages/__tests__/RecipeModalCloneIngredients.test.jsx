@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RecipeModal } from "../InventoryControlPage.jsx";
+import { RecipeModal } from "../../inventory/recipes/InventoryRecipeForms.jsx";
 
 const outletById = new Map([["outlet-a", { name: "KL Central" }], ["outlet-b", { name: "PJ Hub" }]]);
 const items = [

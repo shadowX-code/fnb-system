@@ -94,8 +94,10 @@ export function normalizeInventoryItem(item = {}) {
   const description = item.description ?? "";
   const rawActiveFlag = item.isActive ?? item.is_active;
   const rawStatus = String(item.status ?? "").toLowerCase();
-  const status = rawActiveFlag === false ? "inactive" : rawStatus || "active";
-  const isActive = rawActiveFlag ?? status !== "inactive";
+  // Preserve an explicitly archived lifecycle state. The active flag controls
+  // availability, but must not relabel historical archived records as inactive.
+  const status = rawStatus === "archived" ? "archived" : rawActiveFlag === false ? "inactive" : rawStatus || "active";
+  const isActive = rawActiveFlag === false ? false : !["inactive", "archived", "deleted"].includes(status);
   const createdAt = item.createdAt ?? item.created_at ?? "";
   const updatedAt = item.updatedAt ?? item.updated_at ?? "";
   return {
@@ -225,5 +227,4 @@ export function outletDisplayCode(outlet = {}) {
   const normalized = normalizeOutletRecord(outlet);
   return normalized.code || normalized.name || normalized.id || "Outlet";
 }
-
 

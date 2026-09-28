@@ -36,7 +36,20 @@ vi.mock("../../../../lib/supabase.ts", () => {
 
 vi.mock("../../../../services/auditLogService.js", () => ({ auditLogService: { createAuditLog: vi.fn().mockResolvedValue(undefined) } }));
 
-import { inventoryLifecycleContracts, ReceiveInventoryModal, RecipeModal } from "../InventoryControlPage.jsx";
+import { ReceiveInventoryModal } from "../../inventory/purchaseOrders/ReceiveInventoryModal.jsx";
+import { RecipeModal } from "../../inventory/recipes/InventoryRecipeForms.jsx";
+import { persistRemoteStockCheck, deleteRemoteStockCheckDraft } from "../../inventory/stockChecks/inventoryStockCheckExecutionService.js";
+import { persistRemotePurchaseOrderStatus, persistRemotePurchaseOrderEdit, persistRemotePurchaseOrderCancel, persistRemotePurchaseOrderComplete, persistRemotePurchaseOrderReceive } from "../../inventory/purchaseOrders/inventoryPurchaseOrderService.js";
+import { persistRemoteInventoryMovement, persistRemoteInventoryMovementUpdate } from "../../inventory/movements/inventoryMovementService.js";
+import { persistRemoteWasteRecord } from "../../inventory/waste/inventoryWasteService.js";
+import { persistRemoteRecipe } from "../../inventory/recipes/inventoryRecipeService.js";
+
+const inventoryLifecycleContracts = {
+  persistRemoteStockCheck, deleteRemoteStockCheckDraft, persistRemotePurchaseOrderStatus,
+  persistRemotePurchaseOrderEdit, persistRemotePurchaseOrderCancel, persistRemotePurchaseOrderComplete,
+  persistRemotePurchaseOrderReceive, persistRemoteInventoryMovement, persistRemoteInventoryMovementUpdate,
+  persistRemoteWasteRecord, persistRemoteRecipe,
+};
 
 const ids = {
   order: "00000000-0000-4000-8000-000000000001",
