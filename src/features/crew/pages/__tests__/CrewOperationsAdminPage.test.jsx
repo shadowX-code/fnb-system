@@ -13,6 +13,84 @@ beforeEach(() => { Object.values(mocks).forEach((mock) => mock.mockReset()); moc
 afterEach(cleanup);
 
 describe("Crew unified Tasks Admin", () => {
+  const definitionCalls = () => mocks.data.mock.calls.map(([args]) => args).filter((args) => args.listing !== "review_queue");
+
+  it("starts with All status and a bounded Today range on entry and re-entry", async () => {
+    const view = render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await waitFor(() => expect(definitionCalls().length).toBeGreaterThan(0));
+    expect(screen.getByRole("button", { name: "Status" }).textContent).toContain("All");
+    expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
+    expect(definitionCalls()[0]).toEqual(expect.objectContaining({ filters: expect.objectContaining({ status: "all" }) }));
+    expect(definitionCalls()[0].from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(definitionCalls()[0].to).toBe(definitionCalls()[0].from);
+    view.unmount();
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(screen.getByRole("button", { name: "Status" }).textContent).toContain("All");
+    expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
+  });
+
+  it("applies each explicit status and returns to All with Clear all", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    for (const selected of ["Draft", "Active", "Paused", "Ended", "Archived"]) {
+      fireEvent.click(screen.getByRole("button", { name: "Status" }));
+      fireEvent.click(screen.getByRole("button", { name: selected, exact: true }));
+      await waitFor(() => expect(definitionCalls().at(-1)?.filters.status).toBe(selected.toLowerCase()));
+    }
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    await waitFor(() => expect(definitionCalls().at(-1)?.filters.status).toBe("all"));
+    expect(screen.getByRole("button", { name: "Status" }).textContent).toContain("All");
+    expect(screen.queryByRole("button", { name: "Clear all" })).toBeNull();
+  });
+
+  it("normalizes Date Range Clear and Clear all to the bounded Tasks default", async () => {
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await waitFor(() => expect(definitionCalls().length).toBeGreaterThan(0));
+    const today = definitionCalls()[0].from;
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Yesterday" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    await waitFor(() => expect(definitionCalls().at(-1)?.from).not.toBe(today));
+    expect(screen.getByLabelText("Active filters").textContent).toContain("Date Range");
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear", exact: true }));
+    await waitFor(() => expect(definitionCalls().at(-1)?.from).toBe(today));
+    expect(definitionCalls().at(-1).to).toBe(today);
+    expect(screen.getByRole("button", { name: "Date Range" }).textContent).toContain("Today");
+    expect(screen.queryByLabelText("Active filters")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Date Range" }));
+    fireEvent.click(screen.getByRole("button", { name: "Last 7 days" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Status" }));
+    fireEvent.click(screen.getByRole("button", { name: "Draft", exact: true }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    await waitFor(() => expect(definitionCalls().at(-1)).toEqual(expect.objectContaining({ from: today, to: today, filters: expect.objectContaining({ status: "all" }) })));
+    expect(screen.queryByLabelText("Active filters")).toBeNull();
+    expect(definitionCalls().every(({ from, to }) => Boolean(from && to))).toBe(true);
+  });
+
+  it("keeps a bounded range while switching outlets", async () => {
+    const secondOutlet = { id: "outlet-2", name: "Second Outlet", is_active: true };
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet, secondOutlet] }} />);
+    await waitFor(() => expect(definitionCalls().length).toBeGreaterThan(0));
+    fireEvent.click(screen.getByRole("button", { name: "Outlet" }));
+    fireEvent.click(screen.getByRole("button", { name: "Second Outlet" }));
+    await waitFor(() => expect(definitionCalls().at(-1)?.outletId).toBe("outlet-2"));
+    expect(definitionCalls().at(-1).filters.status).toBe("all");
+    expect(definitionCalls().at(-1).from).toBe(definitionCalls().at(-1).to);
+  });
+
+  it("resets paged Tasks to page one when a filter changes", async () => {
+    mocks.data.mockImplementation(({ listing, page }) => Promise.resolve({ rows: listing === "review_queue" ? [] : fixture.definitions, total_count: listing === "review_queue" ? 0 : 45, page, page_size: 20, summary: { published_sops: [], employees: [] } }));
+    render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click((await screen.findAllByRole("button", { name: "Next" }))[0]);
+    await waitFor(() => expect(definitionCalls().at(-1)?.page).toBe(2));
+    fireEvent.click(screen.getByRole("button", { name: "Status" }));
+    fireEvent.click(screen.getByRole("button", { name: "Draft", exact: true }));
+    await waitFor(() => expect(definitionCalls().at(-1)).toEqual(expect.objectContaining({ page: 1, filters: expect.objectContaining({ status: "draft" }) })));
+    expect(definitionCalls().filter(({ filters }) => filters.status === "draft").every(({ page }) => page === 1)).toBe(true);
+  });
+
   it("duplicates independently, reorders by shared handle and saves unique content identities", async () => {
     render(<CrewOperationsAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("button", { name: /Create Task/ }));
