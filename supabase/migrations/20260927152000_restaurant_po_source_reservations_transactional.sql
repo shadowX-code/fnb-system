@@ -1,3 +1,7 @@
+-- Replacement for the unledgered 20260927151034 migration on runners that execute
+-- statements individually. Keep the capture and trigger installation atomic.
+begin;
+
 -- Forward replacement for the source/supplier index. Historical duplicates are
 -- facts, not candidates for cleanup. No business/evidence row is rewritten.
 -- Release manifests for baselines where 20260924003727 was never applied must
@@ -89,3 +93,5 @@ drop index if exists public.inventory_purchase_orders_active_source_supplier_uni
 
 comment on table inventory_authority.purchase_order_source_reservations is
   'Private prospective PO uniqueness; captured legacy membership is preserved, not adjudicated. Cancelled siblings release only their own membership.';
+
+commit;

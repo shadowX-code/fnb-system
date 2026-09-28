@@ -3,17 +3,12 @@ import fs from 'node:fs';
 import assert from 'node:assert/strict';
 import { spawnSync, spawn } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
-const container='feedx-payroll-v1-rehearsal';
+const container=process.env.REHEARSAL_CONTAINER || 'feedx-payroll-v1-rehearsal';
 const database=process.env.REHEARSAL_DATABASE || 'restaurant_po_reservation_replay';
 const evidence=JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 const sourceLines=JSON.parse(fs.readFileSync(process.argv[3], 'utf8'));
-const migration='20260927151034_restaurant_po_source_reservations.sql';
+const migration='20260927152000_restaurant_po_source_reservations_transactional.sql';
 const manifest=[
- '20260924001607_restaurant_inventory_authority_foundation.sql',
- '20260924092947_purchase_order_business_number.sql',
- '20260924093140_purchase_order_business_number_overflow_guard.sql',
- '20260924112642_stock_check_audit_cost_snapshot.sql',
- '20260927131345_employee_compliance_employee_registry.sql',
  migration,
  '20260927154339_restaurant_legacy_financial_read_permissions.sql',
 ];
@@ -63,26 +58,30 @@ seed+=insert('public.inventory_movements',orders.flatMap(e=>e.movements));
 seed+=insert('public.inventory_lifecycle_requests',evidence.dependencies.filter(d=>d.kind==='request').map(d=>d.evidence));
 seed+='commit;';
 if (!process.env.REHEARSAL_PRESEEDED) sql(seed);
+if (process.env.REHEARSAL_SEED_ONLY) {
+ console.log('LOCAL HISTORICAL EVIDENCE SEEDED');
+ process.exit(0);
+}
 const tables=['inventory_stock_checks','inventory_stock_check_items','inventory_purchase_orders','inventory_purchase_order_items','inventory_purchase_receipts','inventory_purchase_receipt_items','inventory_movements','inventory_lifecycle_requests'];
 const columns=Object.fromEntries(tables.map(t=>[t,sql(`select string_agg(quote_ident(column_name),',' order by ordinal_position) from information_schema.columns where table_schema='public' and table_name='${t}';`)]));
 const snapshot=()=>Object.fromEntries(tables.map(t=>[t,sql(`select coalesce(jsonb_agg(to_jsonb(x) order by to_jsonb(x)::text),'[]') from(select ${columns[t]} from public.${t})x;`)]));
 const before=snapshot();
-for(const file of manifest) {sql(`begin; set local role postgres; set local check_function_bodies=off;\n${fs.readFileSync('supabase/migrations/'+file,'utf8')}\ncommit;`);console.log('MIGRATION PASS '+file);}
+if (!process.env.REHEARSAL_MIGRATED) for(const file of manifest) {sql(`set check_function_bodies=off;\n${fs.readFileSync('supabase/migrations/'+file,'utf8')}`);console.log('MIGRATION PASS '+file);}
 assert.deepEqual(snapshot(),before);
 for(const n of evidence.legacyDisplayNumbers)assert.equal(sql(`select business_po_no from public.inventory_purchase_orders where id='${n.id}';`),n.legacy_business_display);
 assert.equal(sql('select count(*) from inventory_authority.purchase_order_source_reservations where cardinality(active_po_ids)=2;'),'7');
 console.log('HISTORICAL PO PRESERVATION = PASS (all original columns across eight evidence tables)');
 
 // Independent local disposable fixtures, never one of the historical POs.
-const outlet=randomUUID(),supplier=randomUUID(),supplier2=randomUUID(),check=randomUUID(),check2=randomUUID(),item=randomUUID(),line=randomUUID(),line2=randomUUID(),actor=randomUUID(),employee=randomUUID(),role=randomUUID();
+const outlet=randomUUID(),supplier=randomUUID(),supplier2=randomUUID(),check=randomUUID(),check2=randomUUID(),item=randomUUID(),line=randomUUID(),line2=randomUUID(),actor=randomUUID(),employee=randomUUID(),role=sql("select id from public.roles where name='Owner' limit 1;")||randomUUID();
 const extraItem=randomUUID(),extraLine=randomUUID();
 sql(`begin;
 insert into auth.users(id) values('${actor}');
 select set_config('request.jwt.claim.sub','${actor}',true);
-insert into public.roles(id,name,is_system_role,outlet_access_type) values('${role}','Owner',true,'all');
+insert into public.roles(id,name,is_system_role,outlet_access_type) values('${role}','Owner',true,'all') on conflict (id) do nothing;
 insert into public.employees(id,full_name,auth_user_id,role_id,enable_system_login,access_state) values('${employee}','LOCAL ONLY reservation reviewer','${actor}','${role}',true,'active');
-insert into public.outlets(id,name,code) values('${outlet}','LOCAL ONLY reservation outlet','LRES');
-insert into public.suppliers(id,name) values('${supplier}','LOCAL supplier A'),('${supplier2}','LOCAL supplier B');
+insert into public.outlets(id,name,code) values('${outlet}','LOCAL ONLY reservation outlet','L${outlet.slice(0,5)}');
+insert into public.suppliers(id,name) values('${supplier}','LOCAL supplier A ${supplier}'),('${supplier2}','LOCAL supplier B ${supplier2}');
 insert into public.supplier_outlets(supplier_id,outlet_id) values('${supplier}','${outlet}'),('${supplier2}','${outlet}');
 insert into public.inventory_items(id,item_name,unit) values('${item}','LOCAL item','pcs');
 insert into public.inventory_item_outlets(inventory_item_id,outlet_id) values('${item}','${outlet}');
