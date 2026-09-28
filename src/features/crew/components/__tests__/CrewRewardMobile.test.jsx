@@ -94,37 +94,15 @@ describe("Crew Reward mobile reference UI", () => {
     expect(container.querySelector(".crew-reward-hero")).toBeNull();
   });
 
-  it("uses the canonical draft Performance projection without treating it as a final Reward", () => {
-    const onViewPerformance = vi.fn();
+  it("does not render a Reward amount when Performance is not finalized", () => {
     const { container } = render(<CrewRewardMobile data={{
-      ...data,
-      status: "estimated",
-      cycle_status: "finalized",
-      reward_amount: 34.56,
-      estimated_reward: 34.56,
-      performance_score: 75,
-      earn_rate: .45,
-      maximum_share: 76.8,
-      is_draft_performance_projection: true,
-      projection_applicable: true,
-      projections: [{ key: "current", label: "Current", score: 75, earn_rate: .45, amount: 34.56 }, ...data.projections.slice(1)],
-    }} onViewPerformance={onViewPerformance} />);
-    expect(container.querySelector(".crew-reward-hero")).not.toBeNull();
-    expect(screen.getAllByText("Estimated Reward").length).toBeGreaterThan(0);
-    expect(screen.getByText("Not final")).not.toBeNull();
-    expect(screen.getByText("Based on your current Performance")).not.toBeNull();
-    expect(screen.getByText("Your Reward may change until this month’s Performance is finalized.")).not.toBeNull();
-    expect(screen.queryByText("Reward finalized")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "View My Performance" }));
-    expect(onViewPerformance).toHaveBeenCalledTimes(1);
-  });
-
-  it("updates the draft projection presentation when its canonical server payload changes", () => {
-    const { rerender } = render(<CrewRewardMobile data={{ ...data, status: "estimated", is_draft_performance_projection: true, reward_amount: 72.43, estimated_reward: 72.43, performance_score: 75 }} />);
-    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThan(0);
-    rerender(<CrewRewardMobile data={{ ...data, status: "estimated", is_draft_performance_projection: true, reward_amount: 128.77, estimated_reward: 128.77, performance_score: 87 }} />);
-    expect(screen.getAllByText("RM 128.77").length).toBeGreaterThan(0);
-    expect(screen.getByText("87")).not.toBeNull();
+      period_start: "2026-08-01", status: "awaiting_performance", cycle_status: "draft",
+      explanation: "Finalized Performance is required before Reward can be calculated.",
+      history: data.history,
+    }} />);
+    expect(container.querySelector(".crew-reward-hero")).toBeNull();
+    expect(screen.queryByText("Estimated Reward")).toBeNull();
+    expect(screen.getByText("Reward is not ready yet")).not.toBeNull();
   });
 
   it.each([

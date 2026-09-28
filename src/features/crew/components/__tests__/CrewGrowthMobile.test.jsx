@@ -19,19 +19,16 @@ const fullPerformance = {
   period_start: "2026-08-01",
   status: "finalized",
   score: 100,
-  calculation_version: "performance-v1",
+  calculation_version: "performance-v2",
   breakdown: {
     attendance: { score: 30, explanation: "Perfect attendance evidence this month.", evidence: { records: 15, completed: 15, incomplete: 0, location_exceptions: 1, approved_leave_days: 1 } },
     service: { score: 30, explanation: "All reviewed standards met.", criteria: [
       { key: "welcome_greeting", rating: "meets_standard" }, { key: "thank_you_goodbye", rating: "meets_standard" }, { key: "grooming", rating: "meets_standard" },
-      { key: "work_area_cleanliness", rating: "meets_standard" }, { key: "initiative", rating: "meets_standard" }, { key: "guest_interaction", rating: "meets_standard" },
+      { key: "work_area_cleanliness", rating: "meets_standard" }, { key: "guest_interaction", rating: "meets_standard" },
     ] },
-    customer: { score: 15, sample_count: 28, confidence: "established", positive_count: 23, improvement_count: 5, top_positive_tags: [{ tag: "friendly", count: 12 }], top_improvement_tags: [{ tag: "response_time", count: 2 }], explanation: "Consistently positive feedback received." },
+    customer: { score: 20, max_score: 20, calculation_version: "performance-v2", explanation: "Finalized Google evidence." },
     knowledge: { score: 15, explanation: "All required learning evidence completed.", evidence: { onboarding_ratio: 1, sop_ratio: 1, quiz_ratio: 1, growth_ratio: 1 } },
-    conduct: { score: 10, explanation: "All reviewed conduct standards met.", criteria: [
-      { key: "professional_conduct", rating: "meets_standard" }, { key: "teamwork", rating: "meets_standard" }, { key: "responsibility", rating: "meets_standard" },
-      { key: "communication", rating: "meets_standard" }, { key: "policy_compliance", rating: "meets_standard" },
-    ] },
+    peer: { score: 5, max_score: 5, completed: 3, required: 3, dimensions: { teamwork: 5, reliability: 5, communication: 5, work_attitude: 5 } },
   },
   trend: [
     { period_start: "2026-05-01", status: "finalized", score: 78 },
@@ -45,7 +42,7 @@ afterEach(cleanup);
 
 describe("Crew Growth mobile final IA", () => {
   it("makes Performance the sole hero and shows the complete Skills overview directly on Growth", () => {
-    render(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
+    render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 87, trend: [] }} />);
     expect(screen.getByText("Strong")).not.toBeNull();
     expect(screen.getByLabelText("87 / 100")).not.toBeNull();
     expect(document.querySelectorAll(".crew-growth-performance-segment")).toHaveLength(100);
@@ -76,7 +73,7 @@ describe("Crew Growth mobile final IA", () => {
   });
 
   it("presents the score-point comparison without raw floating-point precision", () => {
-    render(<CrewGrowthMobile data={data} performance={{ score: 67, period_start: "2026-09-01", trend: [
+    render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 67, period_start: "2026-09-01", trend: [
       { period_start: "2026-08-01", status: "finalized", score: 86.93 },
       { period_start: "2026-09-01", status: "finalized", score: 67 },
     ] }} />);
@@ -87,18 +84,19 @@ describe("Crew Growth mobile final IA", () => {
 
   it("presents a partial score as current work in progress without a performance band or prior-month comparison", () => {
     const partialPerformance = {
-      period_start: "2026-09-01", status: "review_required", score_state: "partial", score: 51, current_score: 51, total_score: null,
+      period_start: "2026-09-01", status: "review_required", score_state: "partial", score: 44, current_score: 44, total_score: null,
       scored_components: 3, pending_components: 2, total_components: 5,
-      breakdown: { attendance: { score: 24 }, customer: { score: 12 }, knowledge: { score: 15 }, service: { score: null }, conduct: { score: null } },
+      calculation_version: "performance-v2", pending_component_names: ["customer", "service"],
+      breakdown: { attendance: { score: 24 }, customer: { score: null, max_score: 20, status: "pending" }, knowledge: { score: 15 }, service: { score: null }, peer: { score: 5 } },
       trend: [{ period_start: "2026-08-01", status: "finalized", score: 86 }],
     };
     const { rerender } = render(<CrewGrowthMobile data={data} performance={partialPerformance} />);
-    expect(screen.getByText("Current score")).not.toBeNull();
+    expect(screen.getAllByText("44 points assessed").length).toBeGreaterThan(0);
     expect(screen.getByText("3 of 5 components scored · 2 pending")).not.toBeNull();
     expect(screen.queryByText("Below Standard")).toBeNull();
     expect(screen.queryByText("↓ 35 pts")).toBeNull();
     rerender(<CrewGrowthMobile data={data} performance={partialPerformance} initialView="performance" />);
-    expect(screen.getByText("Current score")).not.toBeNull();
+    expect(screen.getAllByText("44 points assessed").length).toBeGreaterThan(0);
     expect(screen.getByText("3 of 5 components scored · 2 pending")).not.toBeNull();
     expect(screen.queryByText("Below Standard")).toBeNull();
     expect(screen.queryByText("vs August 2026")).toBeNull();
@@ -140,22 +138,22 @@ describe("Crew Growth mobile final IA", () => {
   });
 
   it.each([0, 1, 50, 87, 100])("renders exactly %s active score segments", (score) => {
-    render(<CrewGrowthMobile data={data} performance={{ score, trend: [] }} />);
+    render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score, trend: [] }} />);
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(score);
     expect(document.querySelectorAll(".crew-growth-performance-segment:not(.is-active)")).toHaveLength(100 - score);
     expect(document.querySelectorAll(".crew-growth-performance-highlight-segment")).toHaveLength(score);
   });
 
   it("updates the same score ring when the canonical Performance score changes", () => {
-    const { rerender } = render(<CrewGrowthMobile data={data} performance={{ score: 43, trend: [] }} />);
-    rerender(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
+    const { rerender } = render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 43, trend: [] }} />);
+    rerender(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 87, trend: [] }} />);
     expect(screen.getByLabelText("87 / 100")).not.toBeNull();
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(87);
     expect(document.querySelectorAll(".crew-growth-performance-highlight-segment")).toHaveLength(87);
   });
 
   it("uses the shared bottom-sheet help surface and closes with Escape", () => {
-    render(<CrewGrowthMobile data={data} performance={{ score: 75, trend: [] }} />);
+    render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 75, trend: [] }} />);
     fireEvent.click(screen.getByRole("button", { name: "Growth help" }));
     const dialog = screen.getByRole("dialog", { name: "About Growth" });
     expect(dialog).not.toBeNull();
@@ -170,19 +168,19 @@ describe("Crew Growth mobile final IA", () => {
   it.each([
     [100, "Outstanding"], [94, "Excellent"], [87, "Strong"], [82, "Good"], [77, "Meets Standard"], [72, "Developing"], [60, "Below Standard"],
   ])("maps performance score %s to %s without exposing Reward earn rates", (score, level) => {
-    render(<CrewGrowthMobile data={data} performance={{ score, trend: [] }} />);
+    render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score, trend: [] }} />);
     expect(screen.getByText(level)).not.toBeNull();
     expect(document.body.textContent).not.toContain("Earn Rate");
   });
 
   it("routes the performance CTA to the existing Performance detail surface", () => {
-    render(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
+    render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 87, trend: [] }} />);
     fireEvent.click(screen.getByRole("button", { name: "View my performance" }));
     expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
   });
 
   it("opens each direct Growth skill row and returns to the Growth overview", () => {
-    render(<CrewGrowthMobile data={data} performance={{ score: 87, trend: [] }} />);
+    render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 87, trend: [] }} />);
     fireEvent.click(screen.getByRole("button", { name: /Closing Responsibilities/ }));
     expect(screen.getByRole("heading", { name: "Skill Detail" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
@@ -201,7 +199,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText("↑ 13 pts")).not.toBeNull();
     expect(screen.getByText("vs July 2026")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Score Breakdown" })).not.toBeNull();
-    expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Conduct) evidence$/ })).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Peer Review) evidence$/ })).toHaveLength(5);
     expect(document.querySelector(".crew-performance-final-evidence")).toBeNull();
     expect(screen.getByRole("heading", { name: "Your Strengths" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Performance Trend" })).not.toBeNull();
@@ -240,11 +238,10 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText(/Complete both clock-in and clock-out/)).not.toBeNull();
   });
 
-  it("derives Service and Conduct guidance from safe criteria without exposing private notes", () => {
+  it("derives Service guidance from safe criteria without exposing private notes", () => {
     const scoped = { ...fullPerformance, breakdown: {
       ...fullPerformance.breakdown,
-      service: { score: 25, manager_note: "private coaching", criteria: [{ key: "welcome_greeting", rating: "meets_standard" }, { key: "work_area_cleanliness", rating: "needs_improvement" }, { key: "initiative", rating: "not_observed" }] },
-      conduct: { score: 8, manager_note: "private conduct note", criteria: [{ key: "teamwork", rating: "meets_standard" }, { key: "responsibility", rating: "needs_improvement" }] },
+      service: { score: 25, manager_note: "private coaching", criteria: [{ key: "welcome_greeting", rating: "meets_standard" }, { key: "work_area_cleanliness", rating: "needs_improvement" }, { key: "guest_interaction", rating: "not_observed" }] },
     } };
     render(<CrewGrowthMobile data={data} performance={scoped} initialView="performance" />);
     fireEvent.click(screen.getByRole("button", { name: "View Service Standards evidence" }));
@@ -252,26 +249,18 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText("Needs Improvement")).not.toBeNull();
     expect(screen.getByText(/Keep your assigned work area clean/)).not.toBeNull();
     expect(document.body.textContent).not.toContain("private coaching");
-    fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    fireEvent.click(screen.getByRole("button", { name: "View Conduct evidence" }));
-    expect(screen.getByText(/Take ownership of assigned tasks/)).not.toBeNull();
-    expect(document.body.textContent).not.toContain("private conduct note");
+    expect(screen.queryByRole("button", { name: "View Conduct evidence" })).toBeNull();
   });
 
-  it("explains established and insufficient Customer Experience evidence without inventing a rating or CTA", () => {
+  it("shows Google Customer evidence only when available and keeps pending evidence unscored", () => {
     const { rerender } = render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" />);
     fireEvent.click(screen.getByRole("button", { name: "View Customer Experience evidence" }));
-    expect(screen.getByText("28 responses")).not.toBeNull();
-    expect(screen.getByText("Friendly")).not.toBeNull();
-    expect(screen.getByText("Response Time")).not.toBeNull();
-    expect(screen.getByText("Respond to guest requests quickly.")).not.toBeNull();
-    expect(screen.queryByText(/★/)).toBeNull();
+    expect(screen.getByText(/Google reviews/i)).not.toBeNull();
     expect(screen.queryByRole("button", { name: /feedback/i })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    rerender(<CrewGrowthMobile data={data} performance={{ ...fullPerformance, breakdown: { ...fullPerformance.breakdown, customer: { score: 12, sample_count: 0, positive_count: 0, improvement_count: 0, confidence: "insufficient_data" } } }} initialView="performance" />);
+    rerender(<CrewGrowthMobile data={data} performance={{ ...fullPerformance, status: "review_required", score_state: "partial", score: 80, current_score: 80, total_score: null, pending_component_names: ["customer"], breakdown: { ...fullPerformance.breakdown, customer: { score: null, max_score: 20, calculation_version: "performance-v2", status: "pending" } } }} initialView="performance" />);
     fireEvent.click(screen.getByRole("button", { name: "View Customer Experience evidence" }));
-    expect(screen.getAllByText("Insufficient data").length).toBeGreaterThan(0);
-    expect(screen.getByText(/More verified guest feedback is needed/)).not.toBeNull();
+    expect(screen.getAllByText(/Awaiting Evidence/i).length).toBeGreaterThan(0);
   });
 
   it("maps Knowledge evidence to precise missing actions and the existing Learn route", () => {

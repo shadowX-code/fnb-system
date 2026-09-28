@@ -1,19 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), page: vi.fn(), feedbackPage: vi.fn(), peerReview: vi.fn(), review: vi.fn(), finalize: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, peerReviewAdmin: mocks.peerReview, submitPerformanceReview: mocks.review, finalizePerformance: mocks.finalize, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), page: vi.fn(), feedbackPage: vi.fn(), peerReview: vi.fn(), review: vi.fn(), moderate: vi.fn(), correct: vi.fn() }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { performanceAdminData: mocks.data, performanceAdminPage: mocks.page, feedbackAdminPage: mocks.feedbackPage, peerReviewAdmin: mocks.peerReview, submitPerformanceReview: mocks.review, moderateFeedback: mocks.moderate, correctFeedbackAttribution: mocks.correct } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 import CrewPerformanceAdminPage from "../CrewPerformanceAdminPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Friends Corner", is_active: true };
-const row = { employee: { id: "employee-1", full_name: "Alex Tan", employee_code: "QA-01", position: "Service Crew" }, result: { id: "result-1", period_start: "2026-08-01", status: "review_required", current_score: 78, total_score: null, attendance_score: 28, service_score: 25, customer_score: 12, knowledge_score: 13, conduct_score: null, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "reviewed", score: 25, max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "review_required", max_score: 10 } } } };
-const attentionRow = { employee: { id: "employee-2", full_name: "Mina Lee", employee_code: "QA-02", position: "Kitchen Crew" }, result: { id: "result-2", period_start: "2026-08-01", status: "finalized", total_score: 60, attendance_score: 26, service_score: 18, customer_score: 8, knowledge_score: 0, conduct_score: 8, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "reviewed", score: 18, max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "reviewed", score: 8, max_score: 10 } } } };
-const unscoredRow = { employee: { id: "employee-3", full_name: "Pending Score", employee_code: "QA-03", position: "Service Crew" }, result: { id: "result-3", period_start: "2026-08-01", status: "review_required", current_score: 56, total_score: null, attendance_score: 30, service_score: null, customer_score: 12, knowledge_score: 14, conduct_score: null, calculation_version: "performance-v1", components: { attendance: { max_score: 30 }, service: { status: "review_required", max_score: 30 }, customer: { max_score: 15 }, knowledge: { max_score: 15 }, conduct: { status: "review_required", max_score: 10 } } } };
+const row = { employee: { id: "employee-1", full_name: "Alex Tan", employee_code: "QA-01", position: "Service Crew" }, result: { id: "result-1", period_start: "2026-08-01", status: "review_required", current_score: 66, total_score: null, attendance_score: 28, service_score: 25, customer_score: null, knowledge_score: 13, peer_score: null, calculation_version: "performance-v2", components: { attendance: { score: 28, max_score: 30 }, service: { status: "reviewed", score: 25, max_score: 30 }, customer: { score: null, max_score: 20, status: "pending" }, knowledge: { score: 13, max_score: 15 }, peer: { score: null, max_score: 5, status: "pending" } } } };
+const attentionRow = { employee: { id: "employee-2", full_name: "Mina Lee", employee_code: "QA-02", position: "Service Crew" }, result: { id: "result-2", period_start: "2026-08-01", status: "review_required", current_score: 31, total_score: null, attendance_score: 26, service_score: null, customer_score: null, knowledge_score: 0, peer_score: 5, calculation_version: "performance-v2", components: { attendance: { score: 26, max_score: 30 }, service: { status: "review_required", score: null, max_score: 30 }, customer: { score: null, max_score: 20, status: "pending" }, knowledge: { score: 0, max_score: 15 }, peer: { score: 5, max_score: 5 } } } };
 const feedback = [{ id: "feedback-1", scope: "crew", submitted_at: "2026-08-12", employee_id: "employee-1", employee_name: "Alex Tan", experience: "great", positive_tags: ["Friendly"], improvement_tags: [], comment: "Great service", scoring_status: "included", moderation_history: [], attribution_history: [] }, { id: "feedback-2", scope: "crew", submitted_at: "2026-08-13", employee_id: "employee-2", employee_name: "Mina Lee", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "Too slow", scoring_status: "excluded", exclusion_reason: "Duplicate guest submission", excluded_by_name: "Admin", excluded_at: "2026-08-13T10:30:00Z", moderation_history: [{ id: "moderation-1", previous_status: "included", next_status: "excluded", reason: "Duplicate guest submission", changed_by: "Admin", changed_at: "2026-08-13T10:30:00Z" }], attribution_history: [] }, { id: "feedback-3", scope: "crew", submitted_at: "2026-08-14", visit_at: "2026-08-14T11:30:00Z", employee_id: "employee-1", employee_name: "Alex Tan", experience: "needs_improvement", positive_tags: [], improvement_tags: ["Response Time"], comment: "QA review required feedback", trust_state: "review_required", trust_reason_codes: ["same_device_crew_business_day"], scoring_status: "included", trust_history: [{ id: "trust-1", next_trust_state: "review_required", reason_codes: ["same_device_crew_business_day"], decision_source: "system", changed_at: "2026-08-14T12:00:00Z" }], moderation_history: [], attribution_history: [], follow_up_requested: true, follow_up: { preferred_name: "QA Guest", contact_method: "phone", contact_value: "+60123456789", status: "requested", history: [] } }];
-const fixture = { summary: { average_score: 71, reviewed: 1, awaiting_review: 1 }, scoring_framework: [{ key: "attendance", label: "Attendance", max_score: 30 }, { key: "service", label: "Service", max_score: 30 }, { key: "customer", label: "Customer", max_score: 15 }, { key: "knowledge", label: "Knowledge", max_score: 15 }, { key: "conduct", label: "Conduct", max_score: 10 }], crew: [row, attentionRow], reviews: [], feedback, feedback_summary: { total_feedback: 2, included_feedback: 1, positive_feedback: 1, needs_improvement_feedback: 0, excluded_feedback: 1 }, feedback_crew: [{ id: "employee-1", name: "Alex Tan", position: "Service Crew", availability: "active" }, { id: "employee-2", name: "Mina Lee", position: "Kitchen Crew", availability: "active" }] };
+const fixture = { summary: { average_score: null, reviewed: 0, awaiting_review: 2 }, scoring_framework: [{ key: "attendance", label: "Attendance", max_score: 30 }, { key: "service", label: "Service", max_score: 30 }, { key: "customer", label: "Customer", max_score: 20 }, { key: "knowledge", label: "Knowledge", max_score: 15 }, { key: "peer", label: "Peer Review", max_score: 5 }], crew: [row, attentionRow], reviews: [], feedback, feedback_summary: { total_feedback: 2, included_feedback: 1, positive_feedback: 1, needs_improvement_feedback: 0, excluded_feedback: 1 }, feedback_crew: [{ id: "employee-1", name: "Alex Tan", position: "Service Crew", availability: "active" }, { id: "employee-2", name: "Mina Lee", position: "Service Crew", availability: "active" }] };
 const auth = { hasPermission: () => true }; const ui = { notify: vi.fn() };
-beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.page.mockReset().mockImplementation(({ filters = {} }) => { const rows = fixture.crew.filter((item) => !filters.query || `${item.employee.full_name} ${item.employee.employee_code}`.toLowerCase().includes(filters.query.toLowerCase())); return Promise.resolve({ rows, total_count: rows.length, page: 1, page_size: 20 }); }); mocks.feedbackPage.mockReset().mockImplementation(({ filters = {} }) => { const rows = feedback.filter((item) => (!filters.query || `${item.employee_name} ${item.comment} ${(item.positive_tags || []).join(" ")} ${(item.improvement_tags || []).join(" ")}`.toLowerCase().includes(filters.query.toLowerCase())) && (filters.scope === "all" || item.scope === filters.scope) && (filters.experience === "all" || item.experience === filters.experience) && (filters.status === "all" || item.scoring_status === filters.status) && (filters.trust === "all" || item.trust_state === filters.trust)); return Promise.resolve({ rows, total_count: rows.length, page: 1, page_size: 20, summary: { ...fixture.feedback_summary, feedback_crew: fixture.feedback_crew } }); }); mocks.peerReview.mockReset().mockResolvedValue({ assignments: [] }); mocks.review.mockReset().mockResolvedValue({}); mocks.finalize.mockReset().mockResolvedValue({}); mocks.moderate.mockReset().mockResolvedValue({}); mocks.correct.mockReset().mockResolvedValue({}); });
+beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.page.mockReset().mockImplementation(({ filters = {} }) => { const rows = fixture.crew.filter((item) => !filters.query || `${item.employee.full_name} ${item.employee.employee_code}`.toLowerCase().includes(filters.query.toLowerCase())); return Promise.resolve({ rows, total_count: rows.length, page: 1, page_size: 20 }); }); mocks.feedbackPage.mockReset().mockImplementation(({ filters = {} }) => { const rows = feedback.filter((item) => (!filters.query || `${item.employee_name} ${item.comment} ${(item.positive_tags || []).join(" ")} ${(item.improvement_tags || []).join(" ")}`.toLowerCase().includes(filters.query.toLowerCase())) && (filters.scope === "all" || item.scope === filters.scope) && (filters.experience === "all" || item.experience === filters.experience) && (filters.status === "all" || item.scoring_status === filters.status) && (filters.trust === "all" || item.trust_state === filters.trust)); return Promise.resolve({ rows, total_count: rows.length, page: 1, page_size: 20, summary: { ...fixture.feedback_summary, feedback_crew: fixture.feedback_crew } }); }); mocks.peerReview.mockReset().mockResolvedValue({ assignments: [] }); mocks.review.mockReset().mockResolvedValue({}); mocks.moderate.mockReset().mockResolvedValue({}); mocks.correct.mockReset().mockResolvedValue({}); });
 afterEach(cleanup);
 
 describe("Crew Performance Admin", () => {
@@ -32,8 +31,8 @@ describe("Crew Performance Admin", () => {
     expect(await screen.findByRole("heading", { name: "Performance Overview" })).not.toBeNull();
     fireEvent.click(screen.getAllByText("Alex Tan").at(-1));
     expect(screen.getByRole("dialog", { name: /Alex Tan · Performance/ })).not.toBeNull();
-    expect(screen.getAllByText("78").length).toBeGreaterThan(0);
-    expect(screen.getByText("Current score · Review in progress")).not.toBeNull();
+    expect(screen.getAllByText("66").length).toBeGreaterThan(0);
+    expect(screen.getByText("Customer: Pending · Google Review authority not available")).not.toBeNull();
   });
 
   it("shows V2 assessed points and pending Customer without a finalize action", async () => {
@@ -47,12 +46,12 @@ describe("Crew Performance Admin", () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click((await screen.findAllByText("Alex Tan")).at(-1));
     expect(within(screen.getByRole("dialog", { name: /Alex Tan · Performance/ })).getByText("Assessed points")).not.toBeNull();
-    expect(screen.getByText("3 of 5 components scored · Pending: Customer, Peer Review")).not.toBeNull();
+    expect(screen.getByText("3 of 5 components assessed · Pending: Customer, Peer Review")).not.toBeNull();
     expect(screen.getByText("Customer: Pending · Google Review authority not available")).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Finalize Performance" })).toBeNull();
   });
 
-  it("groups Service and Conduct into one employee Review Queue row and submits through the controlled authority", async () => {
+  it("keeps Service and Peer Review in one employee row and submits only Service through the manager authority", async () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect((await screen.findAllByText("Alex Tan")).length).toBeGreaterThan(0);
     expect(screen.getAllByRole("row").filter((entry) => entry.textContent.includes("Alex Tan") && entry.textContent.includes("Service Standards") === false).length).toBeGreaterThan(0);
@@ -61,7 +60,7 @@ describe("Crew Performance Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Review" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Meets Standard" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
-    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith(expect.objectContaining({ employeeId: "employee-1", component: "conduct" })));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith(expect.objectContaining({ employeeId: "employee-2", component: "service" })));
   });
 
   it("uses the five current Service Standards criteria and never submits Initiative", async () => {
@@ -79,7 +78,7 @@ describe("Crew Performance Admin", () => {
 
   it("filters real Crew rows and shows a compact server-backed scoring reference", async () => {
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    expect(await screen.findByText("71 / 100")).not.toBeNull();
+    expect(await screen.findByText("—")).not.toBeNull();
     expect(document.querySelector('[data-admin-summary-grid="standard"]')).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Review Queue" })).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "Needs Attention" })).toBeNull();
@@ -117,8 +116,8 @@ describe("Crew Performance Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Excluded" }));
     expect(await screen.findByText("Too slow")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Restore" }));
-    fireEvent.change(screen.getByPlaceholderText("Explain why this feedback should return to scoring"), { target: { value: "Duplicate was rechecked" } });
-    fireEvent.click(screen.getByRole("button", { name: "Restore To Scoring" }));
+    fireEvent.change(screen.getByPlaceholderText("Explain why this feedback should be restored"), { target: { value: "Duplicate was rechecked" } });
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Restore Feedback" })).getByRole("button", { name: "Restore" }));
     await waitFor(() => expect(mocks.moderate).toHaveBeenCalledWith("feedback-2", false, "Duplicate was rechecked"));
   });
 
@@ -153,7 +152,7 @@ describe("Crew Performance Admin", () => {
     expect(screen.getByText("Feedback Evidence")).not.toBeNull();
     expect(screen.getByText("Review required")).not.toBeNull();
     expect(screen.getAllByText("The same device submitted feedback for this Crew member on the same business day.")).toHaveLength(2);
-    expect(screen.getAllByText("Pending trust review · Not currently contributing to Performance")).toHaveLength(2);
+    expect(screen.getAllByText(/Pending trust review/)).toHaveLength(2);
     expect(screen.getByText("Mobile number")).not.toBeNull();
     expect(screen.getByText("+60123456789")).not.toBeNull();
     expect(screen.queryByText("same_device_crew_business_day")).toBeNull();
@@ -162,10 +161,10 @@ describe("Crew Performance Admin", () => {
   });
 
   it("shows a server-projected current score for incomplete Performance without renormalizing pending components", async () => {
-    mocks.data.mockResolvedValue({ ...fixture, crew: [attentionRow, unscoredRow], summary: { average_score: 60, reviewed: 1, awaiting_review: 1 } }); mocks.page.mockResolvedValue({ rows: [attentionRow, unscoredRow], total_count: 2, page: 1, page_size: 20 });
+    mocks.data.mockResolvedValue({ ...fixture, crew: [attentionRow], summary: { average_score: null, reviewed: 0, awaiting_review: 1 } }); mocks.page.mockResolvedValue({ rows: [attentionRow], total_count: 1, page: 1, page_size: 20 });
     render(<CrewPerformanceAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
-    expect((await screen.findAllByText("Pending Score")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("56").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("Mina Lee")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("31").length).toBeGreaterThan(0);
     expect(screen.getAllByText("— / 30").length).toBeGreaterThan(0);
   });
 });
