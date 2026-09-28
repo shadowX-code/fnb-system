@@ -42,7 +42,7 @@ describe("Team Review Admin workspace", () => {
     const dialog = screen.getByRole("dialog", { name: "Alex Tan" });
     expect(within(dialog).getByText("Mina Lee")).not.toBeNull();
     expect(within(dialog).getByText(/Helped during rush/)).not.toBeNull();
-    expect(within(dialog).getByText(/2 attendance overlaps/)).not.toBeNull();
+    expect(within(dialog).getByText(/Published roster overlap/)).not.toBeNull();
   });
 
   it("requires an audit reason to exclude while leaving evidence visible", async () => {

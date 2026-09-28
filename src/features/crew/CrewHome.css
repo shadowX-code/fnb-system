@@ -323,6 +323,8 @@
 .crew-team-home-entry small, .crew-team-list small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-team-home-entry em, .crew-team-list em { font-style: normal; font-size: var(--crew-type-helper); font-weight: 650; }
 .crew-team-home-entry > svg { flex: 0 0 auto; }
+.crew-team-intro { display: grid; gap: 9px; color: var(--crew-color-text); }
+.crew-team-intro span, .crew-team-intro small { color: var(--crew-color-text-secondary); }
 .crew-team-home-entry:focus-visible, .crew-team-list button:focus-visible { outline: 2px solid var(--crew-color-cyan); outline-offset: 2px; }
 .crew-team-list, .crew-team-form { display: grid; gap: 14px; }
 .crew-team-list > p, .crew-team-form > p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }

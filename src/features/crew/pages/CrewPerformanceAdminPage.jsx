@@ -180,7 +180,7 @@ function PerformanceDetail({ item, onClose }) {
         const value = r.components?.[key]; const max = value?.max_score;
         const explanation = key === "customer"
           ? finalized ? "Finalized Google Customer evidence. Later review changes do not recalculate this score." : "Pending Google Review evidence. This month cannot be finalized."
-          : key === "peer" ? `${value?.completed || 0} of ${value?.required || 0} valid reviews`
+          : key === "peer" ? `${value?.completed || 0} valid teammate reviews${value?.status === "scored" ? " · Ready" : " · Pending"}`
             : value?.explanation || (value?.status === "review_required" ? "Manager review required." : "Evidence is being calculated.");
         return <article key={key}><header><strong>{label}</strong><span>{score(value?.score, max)}</span></header><div className="crew-performance-bar"><i style={{ width: `${value?.score == null || !max ? 0 : Number(value.score) * 100 / max}%` }} /></div><p>{explanation}</p></article>;
       })}</div>

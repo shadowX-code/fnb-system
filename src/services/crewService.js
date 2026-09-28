@@ -581,6 +581,12 @@ export const crewService = {
     return data;
   },
 
+  async teamReviewAdminDimensions(employeeId, period) {
+    const { data, error } = await supabase.rpc("crew_team_review_admin_dimensions", { p_employee_id: employeeId, p_period: period });
+    throwSupabaseError("crew.teamReviewAdminDimensions", error);
+    return data;
+  },
+
   async setTeamReviewWindow(outletId, period, action, deadline, reason) {
     const { data, error } = await supabase.rpc("crew_team_review_window_control", { p_outlet_id: outletId, p_period: period, p_action: action, p_deadline: deadline || null, p_reason: reason });
     throwSupabaseError("crew.setTeamReviewWindow", error);

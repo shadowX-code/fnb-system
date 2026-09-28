@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, ClipboardList, UsersRound } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { MoreHorizontal } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
-import AdminSummaryGrid from "../../../components/ui/AdminSummaryGrid.jsx";
 import AdminDataSection from "../../../components/tables/AdminDataSection.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -18,6 +17,14 @@ const scale = ["Rarely", "Sometimes", "Usually", "Often", "Consistently"];
 const monthNow = () => new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().slice(0, 7) + "-01";
 const stamp = (value) => value ? new Date(value).toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" }) : "—";
 const stateLabel = { unavailable: "Not available", upcoming: "Upcoming", open: "Open", closed: "Closed", provisional: "Provisional", ready: "Ready", admin_review_required: "Admin Review Required", pending: "Pending" };
+function employeeState(row, windowState) {
+  if (row.source === "admin") return "Admin Reviewed";
+  if (row.status === "ready") return "Ready";
+  if (row.status === "admin_review_required") return "Admin Review Required";
+  if (!row.eligible_teammates) return "No eligible teammates";
+  if (row.status === "provisional" && row.reviews_received) return "Provisional";
+  return windowState === "upcoming" ? "Upcoming" : "Awaiting reviews";
+}
 
 function RatingFields({ value, onChange }) {
   return <div className="crew-team-admin-ratings">
@@ -35,6 +42,8 @@ export default function CrewTeamReviewAdminPage({ auth, store, ui }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [detailId, setDetailId] = useState(null);
+  const [detailDimensions, setDetailDimensions] = useState(null);
+  const detailRequest = useRef(0);
   const [control, setControl] = useState("");
   const [deadline, setDeadline] = useState("");
   const [reason, setReason] = useState("");
@@ -82,37 +91,49 @@ export default function CrewTeamReviewAdminPage({ auth, store, ui }) {
   const adminReview = data?.admin_reviews?.find((row) => row.subject_id === detailId);
   const controls = windowState === "upcoming" ? [["open_early", "Open Early"]] : windowState === "open" ? [["close_early", "Close Early"], ["extend_deadline", "Extend Deadline"]] : [];
 
+  async function openDetail(employeeId) {
+    const request = ++detailRequest.current;
+    setDetailId(employeeId);
+    setDetailDimensions(null);
+    try {
+      const result = await crewService.teamReviewAdminDimensions(employeeId, period);
+      if (request === detailRequest.current) setDetailDimensions(result);
+    } catch (cause) {
+      if (request === detailRequest.current) setError(cause.message || "Unable to load Team Review dimensions.");
+    }
+  }
+
+  useEffect(() => { detailRequest.current += 1; setDetailId(null); setDetailDimensions(null); }, [outletId, period]);
+
   return <div className="crew-team-admin-page">
     <PageHeader section="Crew · Performance" title="Team Review" description="Monthly coworker evidence and audited Admin review." />
     <AdminFilterToolbar ariaLabel="Team Review context" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />} period={<MonthPickerField label="Month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
     {error ? <p role="alert" className="crew-team-admin-error">{error}</p> : null}
     {loading && !data ? <p className="text-text-secondary">Loading Team Review…</p> : null}
     {data ? <>
-      <AdminDataSection title="Review window" description={windowState === "open" ? `Open until ${stamp(data.window.closes_at)}` : windowState === "upcoming" ? `Opens ${stamp(data.window.opens_at)}` : windowState === "closed" ? `Closed ${stamp(data.window.closes_at)}` : "Not available for this month"} actions={<div className="crew-team-admin-actions"><Badge tone={windowState === "open" ? "success" : windowState === "closed" ? "neutral" : "warning"}>{stateLabel[windowState] || windowState}</Badge>{controls.map(([key, label]) => <button className="btn-secondary" type="button" key={key} onClick={() => { setControl(key); setReason(""); setDeadline(""); }}>{label}</button>)}</div>}>
-        {data.window.frozen ? <p className="text-sm text-text-secondary">Eligibility is frozen for this month.</p> : <p className="text-sm text-text-secondary">Eligibility follows real overlapping work evidence until the window closes.</p>}
-      </AdminDataSection>
-      <AdminSummaryGrid ariaLabel="Team Review summary" items={[
-        { label: "Eligible Crew", value: summary.eligible_crew ?? 0, icon: UsersRound },
-        { label: "Reviews Received", value: summary.reviews_received ?? 0, icon: ClipboardList },
-        { label: "Team Reviews Ready", value: summary.ready ?? 0, icon: CheckCircle2 },
-        { label: "Admin Reviews Required", value: summary.admin_required ?? 0, icon: AlertTriangle, tone: summary.admin_required ? "warning" : "neutral" },
-      ]} />
-      <AdminDataSection title="Crew" description={windowState === "upcoming" ? "Eligibility preview from completed worked shifts." : `${employees.length} Crew in this outlet and month.`}>
+      <div className="crew-team-admin-context"><span><strong>Review Window</strong> · {windowState === "open" ? `Open until ${stamp(data.window.closes_at)}` : windowState === "upcoming" ? `Upcoming · opens ${stamp(data.window.opens_at)}` : windowState === "closed" ? "Closed" : "Not available"}</span>{controls.length ? <details className="crew-team-admin-menu"><summary aria-label="Review window actions"><MoreHorizontal size={19} /></summary><div>{controls.map(([key, label]) => <button type="button" key={key} onClick={() => { setControl(key); setReason(""); setDeadline(""); }}>{label}</button>)}</div></details> : null}</div>
+      <div className="crew-team-admin-summary" aria-label="Team Review summary">{[["Crew in Review", summary.eligible_crew], ["Reviews Received", summary.reviews_received], ["Team Reviews Ready", summary.ready], ["Admin Reviews Required", summary.admin_required]].map(([label, value]) => <div key={label}><strong>{value ?? 0}</strong><span>{label}</span></div>)}</div>
+      <AdminDataSection title="Crew" description={windowState === "upcoming" ? "Eligibility preview from published roster overlap." : `${employees.length} Crew in this outlet and month.`}>
         {employees.length ? <DataTable density="compact" rows={employees} getRowKey={(row) => row.employee_id} tableClassName="min-w-[760px]" columns={[
           { key: "name", header: "Employee", render: (row) => <strong>{row.employee_name}</strong> },
           { key: "eligible", header: "Eligible Teammates", align: "right", render: (row) => row.eligible_teammates },
-          { key: "received", header: "Reviews Received", align: "right", render: (row) => row.reviews_received },
+          { key: "received", header: "Reviews", align: "right", render: (row) => row.reviews_received },
           { key: "score", header: "Team Review", align: "right", render: (row) => row.score == null ? "— / 5" : `${Number(row.score).toFixed(2)} / 5` },
           { key: "source", header: "Source", render: (row) => row.source === "admin" ? "Admin Review" : row.source === "crew" ? "Crew" : "—" },
-          { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "ready" ? "success" : row.status === "admin_review_required" ? "warning" : "neutral"}>{stateLabel[row.status] || row.status}</Badge> },
-          { key: "action", header: "", render: (row) => <button className="btn-secondary" type="button" onClick={() => setDetailId(row.employee_id)}>Detail</button> },
-        ]} /> : <p className="text-sm text-text-secondary">No eligible worked Service Crew for this month.</p>}
+          { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "ready" ? "success" : row.status === "admin_review_required" ? "warning" : "neutral"}>{employeeState(row, windowState)}</Badge> },
+          { key: "action", header: "", render: (row) => <button className="btn-secondary" type="button" onClick={() => openDetail(row.employee_id)}>Detail</button> },
+        ]} /> : <p className="text-sm text-text-secondary">No participating Crew with scheduled work this month.</p>}
       </AdminDataSection>
     </> : null}
     {detail ? <Modal title={detail.employee_name} description={`${detail.reviews_received} valid reviews · ${detail.eligible_teammates} eligible teammates`} onClose={() => setDetailId(null)} footer={<button className="btn-secondary" type="button" onClick={() => setDetailId(null)}>Close</button>}>
-      <div className="crew-team-admin-detail"><p><strong>Team Review:</strong> {detail.score == null ? "Pending" : `${Number(detail.score).toFixed(2)} / 5`} · {stateLabel[detail.status] || detail.status}</p>
+      <div className="crew-team-admin-detail"><p><strong>Team Review:</strong> {detail.score == null ? "Pending" : `${Number(detail.score).toFixed(2)} / 5`} · {employeeState(detail, windowState)}</p>
         {detail.status === "admin_review_required" ? <button type="button" className="btn-primary" onClick={() => { setAssessment(detail); setRatings({}); setDetailId(null); }}>Complete Admin Review</button> : null}
-        <h3>Review evidence</h3>{employeeReviews.length ? employeeReviews.map((review) => <div key={review.id} className="crew-team-admin-review"><div><strong>{review.reviewer_name}</strong><small>{stamp(review.submitted_at)}</small></div><p>{dimensions.map(([key, label]) => `${label} ${review.criteria[key]}`).join(" · ")}</p>{review.work_evidence ? <small>{review.work_evidence.attendance_overlaps} attendance overlap{review.work_evidence.attendance_overlaps === 1 ? "" : "s"} · {review.work_evidence.roster_overlap ? "Published roster overlaps" : "No matching published roster overlap"}</small> : null}{review.comment ? <p><strong>Internal comment:</strong> {review.comment}</p> : null}{review.excluded_at ? <Badge tone="neutral">Excluded by {review.excluded_by_name || "Admin"} · {stamp(review.excluded_at)} · {review.exclusion_reason}</Badge> : !review.eligible ? <Badge tone="warning">Eligibility changed</Badge> : <button type="button" className="btn-secondary" onClick={() => { setExclusion(review); setReason(""); setDetailId(null); }}>Exclude Review</button>}</div>) : !adminReview ? <p>No Crew reviews received.</p> : null}
+        {detailDimensions ? <p>{dimensions.map(([key, label]) => `${label} ${Number(detailDimensions[key] || 0).toFixed(2)}`).join(" · ")}</p> : null}
+        <h3>Review evidence</h3>{employeeReviews.length ? employeeReviews.map((review) => {
+          const values = dimensions.map(([key]) => Number(review.criteria[key]));
+          const extreme = values.every((value) => value === 1) || values.every((value) => value === 5);
+          return <div key={review.id} className="crew-team-admin-review"><div><strong>{review.reviewer_name}</strong><small>{stamp(review.submitted_at)}</small></div><p>{dimensions.map(([key, label]) => `${label} ${review.criteria[key]}`).join(" · ")}</p>{extreme ? <Badge tone="warning">Uniform extreme ratings · inspect evidence</Badge> : null}{review.work_evidence ? <small>Published roster overlap · {review.work_evidence.attendance_overlaps} matching attendance overlap{review.work_evidence.attendance_overlaps === 1 ? "" : "s"}</small> : null}{review.comment ? <p><strong>Internal comment:</strong> {review.comment}</p> : null}{review.excluded_at ? <Badge tone="neutral">Excluded by {review.excluded_by_name || "Admin"} · {stamp(review.excluded_at)} · {review.exclusion_reason}</Badge> : !review.eligible ? <Badge tone="warning">Eligibility changed</Badge> : <button type="button" className="btn-secondary" onClick={() => { setExclusion(review); setReason(""); setDetailId(null); }}>Exclude Review</button>}</div>;
+        }) : !adminReview ? <p>No Crew reviews received.</p> : null}
         {adminReview ? <div className="crew-team-admin-review"><div><strong>Admin Review · {adminReview.reviewed_by_name}</strong><small>{stamp(adminReview.reviewed_at)}</small></div><p>{dimensions.map(([key, label]) => `${label} ${adminReview.criteria[key]}`).join(" · ")}</p></div> : null}
         {data?.window_events?.length ? <><h3>Window history</h3>{data.window_events.map((event, index) => <p key={index}>{event.action.replaceAll("_", " ")} · {event.actor_name} · {stamp(event.created_at)} · {event.reason}</p>)}</> : null}
       </div>
