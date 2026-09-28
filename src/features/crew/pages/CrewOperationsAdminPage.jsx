@@ -123,13 +123,16 @@ export default function CrewOperationsAdminPage({ auth, ui, store }) {
     <AsyncDataSurface loading={taskListing.loading} error={taskListing.error} errorTitle="Unable to load Tasks" hasData={data.definitions.length > 0 || data.review_queue.length > 0} isEmpty={taskListing.hasLoaded && taskListing.loadedTotal === 0 && reviewListing.loadedTotal === 0} emptyTitle="No Tasks configured" emptyDescription="Create a Task to define its schedule, assignment, and required Crew evidence." emptyIcon={ClipboardCheck} emptyActions={canManage ? <button className="btn-primary" onClick={() => setEditor(blankTask(from))}>Create Task</button> : null} onRetry={refresh}><section className="card overflow-hidden"><DataTable rows={rows} getRowKey={(row) => row.id} columns={[
       { key: "task", header: "Task", render: (row) => <span className="flex flex-col"><strong>{row.name}</strong><small className="text-text-muted">{TASK_TYPES.find((x) => x.value === row.task_type)?.label || "Checklist"} · {row.blocks?.length || 0} blocks</small></span> },
       { key: "schedule", header: "Schedule", render: scheduleLabel },
+      { key: "window", header: "Time Window", className: "whitespace-nowrap", render: taskTimeWindow },
       { key: "assignment", header: "Assignment", render: assignmentLabel },
       { key: "priority", header: "Priority", render: (row) => <Badge tone={taskPriorityTone(row.priority)}>{priorityLabel(row.priority)}</Badge> },
       { key: "version", header: "Version", render: (row) => <TaskVersionCell row={row} /> },
       { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{statusLabel(row.status)}</Badge> },
       { key: "next", header: "Next Run", render: (row) => <TaskDateTime value={row.next_run} /> },
+      { key: "created", header: "Created", className: "whitespace-nowrap", render: (row) => formatCreatedDate(row.task_created_at) },
+      { key: "creator", header: "Created By", render: (row) => row.created_by_name || "—" },
       { key: "actions", header: "Actions", align: "right", className: "whitespace-nowrap", render: (row) => <span className="inline-flex items-center justify-end gap-1.5"><button className="icon-btn h-9 w-9 min-h-9" aria-label={`View ${row.name}`} title="View" onClick={() => setDetail(row)}><Eye size={16} /></button>{canManage ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" onClick={() => openDraft(row)}>{row.has_draft || row.status === "draft" ? "Continue Draft" : "New Revision"}</button> : null}{canManage ? <ActionMenu open={actionMenu?.id === row.id} onOpenChange={(open) => setActionMenu(open ? { id: row.id, row } : null)} ariaLabel={`More actions for ${row.name}`} trigger={({ toggle, ariaLabel }) => <button className="icon-btn h-9 w-9 min-h-9" aria-label={ariaLabel} onClick={toggle}><MoreVertical size={16} /></button>}><TaskActionMenu row={row} onManage={() => { setScheduleTask(row); setActionMenu(null); }} onDuplicate={() => { duplicate(row); setActionMenu(null); }} onArchive={() => { manageSchedule(row, "archive"); setActionMenu(null); }} /></ActionMenu> : null}</span> }
-    ]} density="compact" tableClassName="min-w-[1020px]" /><AdminPagination {...taskListing} onPageChange={taskActions.requestPage} onPageSizeChange={taskActions.requestPageSize} noun="tasks" /></section>
+    ]} density="compact" tableClassName="min-w-[1320px]" /><AdminPagination {...taskListing} onPageChange={taskActions.requestPage} onPageSizeChange={taskActions.requestPageSize} noun="tasks" /></section>
     {data.review_queue?.length || reviewListing.loadedTotal ? <section className="card overflow-hidden"><div className="border-b border-border px-5 py-4"><h2 className="font-bold">Manager Review</h2><p className="text-sm text-text-secondary">Completions that require outlet review before finalization.</p></div><DataTable rows={data.review_queue} getRowKey={(row) => `${row.instance_id}:${row.employee_id}`} columns={[{ key: "task", header: "Task", render: (row) => row.task_name }, { key: "employee", header: "Crew", render: (row) => row.employee_name }, { key: "date", header: "Date", render: (row) => row.business_date }, { key: "status", header: "Status", render: () => <Badge tone={semanticStatusTone("review_required")}>Review Required</Badge> }, { key: "action", header: "Action", align: "right", render: (row) => canReview ? <button className="btn-secondary px-3 py-1.5 text-xs" onClick={() => approveReview(row)}>Approve</button> : null }]} /><AdminPagination {...reviewListing} onPageChange={reviewActions.requestPage} onPageSizeChange={reviewActions.requestPageSize} noun="reviews" /></section> : null}</AsyncDataSurface>
     {editor ? <TaskEditor initial={editor} employees={data.employees} sops={data.published_sops} outletName={outlets.find((row) => row.id === outletId)?.name || "Selected outlet"} onConfirm={ui.confirm} onClose={() => setEditor(null)} onSave={save} onPublish={publish} /> : null}
     {detail ? <TaskDetail task={detail} canManage={canManage} onEditDraft={openDraft} onClose={() => setDetail(null)} /> : null}
@@ -342,6 +345,18 @@ function TaskDateTime({ value }) {
   if (value.state !== "scheduled") return <span className="text-[13px] font-semibold text-text-secondary">{statusLabel(value.state)}</span>;
   return <span className="flex flex-col leading-tight"><strong className="text-[13px] font-semibold text-text-primary">{formatNumericDate(value.date)}</strong>{value.at ? <small className="mt-1 text-[11px] text-text-muted">{formatTime(value.at)}</small> : null}</span>;
 }
+function taskTimeWindow(row) {
+  const clock = (value) => {
+    const match = String(value).match(/^(\d{2}):(\d{2})/);
+    return match ? new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" }).format(new Date(`1970-01-01T${match[1]}:${match[2]}:00Z`)) : "—";
+  };
+  const start = row.available_from || row.start_time;
+  const due = row.available_until || row.due_time;
+  if (start && due) return `${clock(start)} – ${clock(due)}`;
+  if (start) return `From ${clock(start)}`;
+  if (due) return `Due ${clock(due)}`;
+  return "—";
+}
 function scheduleLabel(row) {
   if (row.schedule_type === "one_time") return `One-time · ${formatNumericDate(row.effective_date)}`;
   if (row.schedule_type === "shift_based") return ({ before_shift: "Before shift", start_of_shift: "Shift start", during_shift: "During shift", end_of_shift: "Shift end" }[row.schedule_config?.shift_phase || "during_shift"]);
@@ -360,5 +375,6 @@ function toEditor(row) { return repairDraftTaskIdentity({ ...row, schedule_end_d
 function completionRuleLabel(value) { return ({ any_assigned: "Any assigned Crew", every_assigned: "Every assigned Crew", one_for_team: "One Crew for the team" }[value] || value); }
 function formatDate(value) { if (!value) return "—"; return new Intl.DateTimeFormat("en-MY", { day: "2-digit", month: "short", year: "numeric", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(`${String(value).slice(0, 10)}T12:00:00+08:00`)); }
 function formatNumericDate(value) { if (!value) return "—"; return new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(`${String(value).slice(0, 10)}T12:00:00+08:00`)); }
+function formatCreatedDate(value) { return value ? new Intl.DateTimeFormat("en-GB", { day: "2-digit", month: "2-digit", year: "numeric", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(value)) : "—"; }
 function formatTime(value) { if (!value) return "—"; return new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(value)); }
 function responseValue(value) { if (!value || !Object.keys(value).length) return "Completed"; if (Array.isArray(value)) return value.join(", "); if (value.value !== undefined) return `${value.value}${value.unit ? ` ${value.unit}` : ""}`; return Object.entries(value).map(([key, item]) => `${key.replaceAll("_", " ")}: ${Array.isArray(item) ? item.join(", ") : item}`).join(" · "); }

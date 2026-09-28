@@ -17,3 +17,8 @@
 .crew-localized-comparison .crew-rich-content { margin-top:8px; overflow-wrap:anywhere; }
 @media(max-width:720px) { .crew-localized-units article > .crew-localized-comparison { grid-template-columns:minmax(0,1fr); } .crew-localized-target { flex-wrap:wrap; } }
 @media(max-width:720px) { .crew-localized-language-pair { grid-template-columns:minmax(0,1fr) auto minmax(0,1fr); } .crew-localized-language-pair > small { grid-column:1 / -1; padding-bottom:0; } }
+.crew-localized-actions{display:flex;align-items:center;justify-content:flex-end;flex-wrap:wrap;gap:8px;min-width:0}
+.crew-localized-actions small{flex-basis:100%;text-align:right;color:var(--text-secondary)}
+.crew-localized-rich-field{display:grid;justify-items:start;gap:8px;margin-top:8px;min-width:0}
+.crew-localized-rich-field .admin-rich-text-editor{width:100%;min-width:0}
+@media(max-width:720px){.crew-localized-actions{justify-content:flex-start}.crew-localized-actions small{text-align:left}}
