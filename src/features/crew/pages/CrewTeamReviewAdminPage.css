@@ -1,0 +1,20 @@
+.crew-team-admin-page { display: grid; gap: 18px; min-width: 0; }
+.crew-team-admin-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.crew-team-admin-error { margin: 0; color: var(--color-danger, #b42318); font-size: 13px; }
+.crew-team-admin-detail { display: grid; gap: 12px; min-width: 0; }
+.crew-team-admin-detail > p, .crew-team-admin-review p { margin: 0; overflow-wrap: anywhere; }
+.crew-team-admin-detail h3 { margin: 8px 0 0; font-size: 14px; }
+.crew-team-admin-review { display: grid; gap: 6px; padding: 12px 0; border-top: 1px solid var(--color-border, #dce4e4); }
+.crew-team-admin-review > div { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px; }
+.crew-team-admin-review small { color: var(--color-text-secondary, #607075); }
+.crew-team-admin-review button { justify-self: start; }
+.crew-team-admin-reason { display: grid; gap: 7px; margin-top: 12px; font-size: 13px; font-weight: 600; }
+.crew-team-admin-reason textarea { min-height: 84px; }
+.crew-team-admin-ratings { display: grid; gap: 14px; }
+.crew-team-admin-ratings p { margin: 0; color: var(--color-text-secondary, #607075); font-size: 12px; line-height: 1.5; }
+.crew-team-admin-ratings fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.crew-team-admin-ratings legend { margin-bottom: 7px; font-size: 13px; font-weight: 650; }
+.crew-team-admin-ratings fieldset > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.crew-team-admin-ratings fieldset button { min-height: 40px; border: 1px solid var(--color-border, #bfcaca); border-radius: 6px; background: var(--color-surface, #fff); color: inherit; }
+.crew-team-admin-ratings fieldset button.is-active { border-color: #008d83; background: #e6f8f3; color: #075a55; font-weight: 700; }
+.crew-team-admin-ratings fieldset button:focus-visible { outline: 2px solid #009c91; outline-offset: 2px; }

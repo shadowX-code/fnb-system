@@ -4,10 +4,11 @@ import { canonicalRouteId } from "../routeOwnership.js";
 import { routeDetails, salesPurchaseRoutes } from "../routes.jsx";
 
 describe("Crew Performance navigation ownership", () => {
-  it("shows Performance Overview, Customer Feedback, and Google Reviews", () => {
-    const performance = getSidebarSections("crew").flatMap((section) => section.items).filter((item) => item.id?.startsWith("crew_performance") || item.id === "crew_customer_feedback" || item.id === "crew_google_reviews");
-    expect(performance.map((item) => item.id)).toEqual(["crew_performance", "crew_customer_feedback", "crew_google_reviews"]);
+  it("shows Performance Overview, Customer Feedback, Google Reviews and Team Review", () => {
+    const performance = getSidebarSections("crew").flatMap((section) => section.items).filter((item) => item.id?.startsWith("crew_performance") || item.id === "crew_customer_feedback" || item.id === "crew_google_reviews" || item.id === "crew_team_review");
+    expect(performance.map((item) => item.id)).toEqual(["crew_performance", "crew_customer_feedback", "crew_google_reviews", "crew_team_review"]);
     expect(salesPurchaseRoutes.find((route) => route.id === "crew_google_reviews")?.permission).toBe("crew_performance.view");
+    expect(salesPurchaseRoutes.find((route) => route.id === "crew_team_review")?.permission).toBe("crew_performance.review");
     expect(moduleRegistry.find((item) => item.id === "crew_performance_reviews")?.sidebar).toBe(false);
   });
 

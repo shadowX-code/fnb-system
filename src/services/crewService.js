@@ -194,15 +194,15 @@ export const crewService = {
     return data;
   },
 
-  async peerReviewMobile(token, period) {
-    const { data, error } = await supabase.rpc("crew_peer_review_mobile", { p_token: token, ...(period ? { p_period: period } : {}) });
-    throwSupabaseError("crew.peerReviewMobile", error);
+  async teamReviewMobile(token, period) {
+    const { data, error } = await supabase.rpc("crew_team_review_mobile", { p_token: token, ...(period ? { p_period: period } : {}) });
+    throwSupabaseError("crew.teamReviewMobile", error);
     return data;
   },
 
-  async submitPeerReview(token, assignmentId, criteria) {
-    const { data, error } = await supabase.rpc("crew_peer_review_submit", { p_token: token, p_assignment_id: assignmentId, p_criteria: criteria });
-    throwSupabaseError("crew.submitPeerReview", error);
+  async submitTeamReview(token, period, subjectId, criteria, comment) {
+    const { data, error } = await supabase.rpc("crew_team_review_submit", { p_token: token, p_period: period, p_subject_id: subjectId, p_criteria: criteria, p_comment: comment || null });
+    throwSupabaseError("crew.submitTeamReview", error);
     return data;
   },
 
@@ -575,21 +575,27 @@ export const crewService = {
     return data || { rows: [] };
   },
 
-  async peerReviewAdmin(outletId, period) {
-    const { data, error } = await supabase.rpc("crew_peer_review_admin", { p_outlet_id: outletId, p_period: period });
-    throwSupabaseError("crew.peerReviewAdmin", error);
-    return data || { assignments: [] };
-  },
-
-  async openPeerReviewMonth(outletId, period) {
-    const { data, error } = await supabase.rpc("crew_peer_open_month", { p_outlet_id: outletId, p_period: period });
-    throwSupabaseError("crew.openPeerReviewMonth", error);
+  async teamReviewAdmin(outletId, period) {
+    const { data, error } = await supabase.rpc("crew_team_review_admin", { p_outlet_id: outletId, p_period: period });
+    throwSupabaseError("crew.teamReviewAdmin", error);
     return data;
   },
 
-  async excludePeerReview(assignmentId, reason) {
-    const { data, error } = await supabase.rpc("crew_peer_review_exclude", { p_assignment_id: assignmentId, p_reason: reason });
-    throwSupabaseError("crew.excludePeerReview", error);
+  async setTeamReviewWindow(outletId, period, action, deadline, reason) {
+    const { data, error } = await supabase.rpc("crew_team_review_window_control", { p_outlet_id: outletId, p_period: period, p_action: action, p_deadline: deadline || null, p_reason: reason });
+    throwSupabaseError("crew.setTeamReviewWindow", error);
+    return data;
+  },
+
+  async excludeTeamReview(reviewId, reason) {
+    const { data, error } = await supabase.rpc("crew_team_review_exclude", { p_review_id: reviewId, p_reason: reason });
+    throwSupabaseError("crew.excludeTeamReview", error);
+    return data;
+  },
+
+  async submitTeamAdminReview(employeeId, period, criteria) {
+    const { data, error } = await supabase.rpc("crew_team_review_admin_assess", { p_employee_id: employeeId, p_period: period, p_criteria: criteria });
+    throwSupabaseError("crew.submitTeamAdminReview", error);
     return data;
   },
 

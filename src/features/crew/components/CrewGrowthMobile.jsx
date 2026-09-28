@@ -286,8 +286,8 @@ const percentLabel = (value, t) => value == null ? t("performanceGuidance.eviden
 function buildComponentGuidance(component, t) {
   const { key, item, value, max } = component;
   if (key === "peer") return {
-    why: [{ label: t("peerReview.title"), value: t("peerReview.progress", { completed: item?.completed || 0, total: item?.required || 0 }), tone: "neutral" }, ...Object.entries(item?.dimensions || {}).map(([name, rating]) => ({ label: t(`peerReview.dimensions.${name}`), value: String(rating), tone: "neutral" }))],
-    improve: [], whatCounts: t("peerReview.help"), cta: null,
+    why: [{ label: t("teamReview.title"), value: item?.status === "scored" ? t("status.completed") : t("performance.awaitingEvidence"), tone: "neutral" }, ...Object.entries(item?.dimensions || {}).map(([name, rating]) => ({ label: t(`teamReview.dimensions.${name}`), value: String(rating), tone: "neutral" }))],
+    improve: [], whatCounts: t("teamReview.whatCounts"), cta: null,
     level: value == null ? t("performance.awaitingEvidence") : t("status.completed"),
   };
   if (key === "customer") return {

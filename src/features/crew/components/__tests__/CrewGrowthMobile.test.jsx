@@ -115,12 +115,12 @@ describe("Crew Growth mobile final IA", () => {
     };
     const { rerender } = render(<CrewGrowthMobile data={data} performance={performance} />);
     expect(screen.getByText("45 points assessed")).not.toBeNull();
-    expect(screen.getByText(/Customer.*Peer Review/)).not.toBeNull();
+    expect(screen.getByText(/Customer.*Team Review/)).not.toBeNull();
     expect(screen.queryByText("Final Score /100")).toBeNull();
     expect(screen.queryByText("Below Standard")).toBeNull();
     rerender(<CrewGrowthMobile data={data} performance={performance} initialView="performance" />);
     expect(screen.getAllByText("45 points assessed").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Peer Review").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Team Review").length).toBeGreaterThan(0);
     expect(screen.queryByText("Conduct")).toBeNull();
   });
 
@@ -199,7 +199,7 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText("↑ 13 pts")).not.toBeNull();
     expect(screen.getByText("vs July 2026")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Score Breakdown" })).not.toBeNull();
-    expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Peer Review) evidence$/ })).toHaveLength(5);
+    expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Team Review) evidence$/ })).toHaveLength(5);
     expect(document.querySelector(".crew-performance-final-evidence")).toBeNull();
     expect(screen.getByRole("heading", { name: "Your Strengths" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Performance Trend" })).not.toBeNull();

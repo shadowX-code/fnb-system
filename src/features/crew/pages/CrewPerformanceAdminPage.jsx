@@ -21,7 +21,7 @@ const serviceCriteria = [
   ["welcome_greeting", "Welcome / Greeting"], ["thank_you_goodbye", "Thank You / Goodbye"], ["grooming", "Grooming"],
   ["work_area_cleanliness", "Work Area Cleanliness"], ["guest_interaction", "Guest Interaction"],
 ];
-const performanceComponents = [["attendance", "Attendance"], ["service", "Service"], ["customer", "Customer"], ["knowledge", "Knowledge"], ["peer", "Peer Review"]];
+const performanceComponents = [["attendance", "Attendance"], ["service", "Service"], ["customer", "Customer"], ["knowledge", "Knowledge"], ["peer", "Team Review"]];
 const ratings = [{ value: "meets_standard", label: "Meets Standard" }, { value: "needs_improvement", label: "Needs Improvement" }, { value: "not_observed", label: "Not Observed" }];
 const periodValue = () => new Date().toISOString().slice(0, 7) + "-01";
 const score = (value, max) => max == null ? "—" : value == null ? `— / ${max}` : `${new Intl.NumberFormat("en-MY", { maximumFractionDigits: 2 }).format(Number(value))} / ${max}`;
@@ -51,7 +51,7 @@ export default function CrewPerformanceAdminPage({ auth, ui, store, initialTab =
   async function confirmTrust(values) { await crewService.confirmFeedbackTrust(values.id, values.reason); setTrustReview(null); setFeedbackDetail(null); await refresh(); ui.notify({ title: "Feedback confirmed", message: "The trust decision was retained." }); }
   async function updateFollowUp(feedbackId, status) { await crewService.updateFeedbackFollowUp(feedbackId, status); await refresh(); setFeedbackDetail((current) => current ? { ...current, follow_up: { ...current.follow_up, status } } : current); ui.notify({ title: "Follow-up updated", message: "The status transition was retained." }); }
   const positions = useMemo(() => [...new Set((data.crew || []).map((row) => row.employee.position).filter(Boolean))].sort(), [data.crew]);
-  const meta = isFeedback ? ["Customer Feedback", "Understand guest sentiment without deleting unfavorable feedback."] : ["Performance Overview", "Monthly Service Crew performance from Attendance, Service, Google Reviews, Learning and Peer Review."];
+  const meta = isFeedback ? ["Customer Feedback", "Understand guest sentiment without deleting unfavorable feedback."] : ["Performance Overview", "Monthly Service Crew performance from Attendance, Service, Google Reviews, Learning and Team Review."];
   return <div className="crew-performance-page"><PageHeader section="Crew · Performance" title={meta[0]} description={meta[1]} secondaryActions={isFeedback ? <button type="button" className="btn-secondary" disabled={!outletId} onClick={() => setFeedbackQr(outlets.find((outlet) => outlet.id === outletId) || null)}><QrCode size={15} /> Feedback QR</button> : null} />
     <PerformanceToolbar outlets={outlets} outletId={outletId} setOutletId={setOutletId} period={period} setPeriod={setPeriod} filters={filters} setFilters={setFilters} feedbackFilters={feedbackFilters} setFeedbackFilters={setFeedbackFilters} positions={positions} feedbackOnly={isFeedback} />
     <AsyncDataSurface loading={isFeedback ? feedbackListing.loading : loading} error={isFeedback ? feedbackListing.error : error} errorTitle={`Unable to load ${meta[0]}`} hasData={isFeedback ? feedbackListing.rows.length > 0 : data.crew.length > 0} isEmpty={isFeedback ? feedbackListing.hasLoaded && feedbackListing.loadedTotal === 0 : data.crew.length === 0} emptyTitle={isFeedback ? "No Customer Feedback" : "No performance records yet"} emptyDescription={isFeedback ? "Guest submissions for this outlet and period will appear here." : "Performance records will appear after monthly evidence is available."} onRetry={isFeedback ? feedbackListingActions.retry : refresh}>
@@ -126,46 +126,15 @@ function PerformanceOverview({ data, outletId, period, onChanged, filters, onFil
   const filteredRows = teamListing.rows;
   const reviewRows = reviewListing.rows;
   const maxScore = 100;
-  return <div className="crew-performance-overview"><AdminSummaryGrid variant="standard" ariaLabel="Period summary" items={[{ label: "Final Average", value: s.average_score == null ? "—" : `${Math.round(s.average_score)} / ${maxScore}`, helper: `${rows.length} Service Crew this period`, icon: ChartNoAxesCombined }, { label: "Reviewed", value: `${reviewed} / ${rows.length}`, helper: "Service and Peer Review complete where applicable", tone: "success", icon: CheckCircle2 }, { label: "Awaiting Review", value: awaiting, helper: "Service or Peer Review pending", tone: awaiting ? "warning" : "neutral", icon: AlertTriangle, onClick: () => onFiltersChange((current) => ({ ...current, status: "awaiting" })), title: "Show Crew awaiting review" }]} />
-    <AdminDataSection title="Review Queue" description="Complete Service Standards and Peer Review. Google Customer evidence is pending."><ReviewQueue rows={reviewRows} onReview={onReview} canReview={canReview} /> <AdminPagination {...reviewListing} onPageChange={reviewActions.requestPage} onPageSizeChange={reviewActions.requestPageSize} noun="Crew reviews" /></AdminDataSection>
+  return <div className="crew-performance-overview"><AdminSummaryGrid variant="standard" ariaLabel="Period summary" items={[{ label: "Final Average", value: s.average_score == null ? "—" : `${Math.round(s.average_score)} / ${maxScore}`, helper: `${rows.length} Service Crew this period`, icon: ChartNoAxesCombined }, { label: "Reviewed", value: `${reviewed} / ${rows.length}`, helper: "Service and Team Review complete where applicable", tone: "success", icon: CheckCircle2 }, { label: "Awaiting Review", value: awaiting, helper: "Service or Team Review pending", tone: awaiting ? "warning" : "neutral", icon: AlertTriangle, onClick: () => onFiltersChange((current) => ({ ...current, status: "awaiting" })), title: "Show Crew awaiting review" }]} />
+    <AdminDataSection title="Review Queue" description="Complete Service Standards in Performance; Team Review has its own workspace. Google Customer evidence is pending."><ReviewQueue rows={reviewRows} onReview={onReview} canReview={canReview} /> <AdminPagination {...reviewListing} onPageChange={reviewActions.requestPage} onPageSizeChange={reviewActions.requestPageSize} noun="Crew reviews" /></AdminDataSection>
     <AdminDataSection title="Team Performance" description={`${teamListing.loadedTotal} Crew shown for this period.`} actions={<button type="button" className="btn-secondary inline-flex items-center gap-1.5 whitespace-nowrap" onClick={onScoringInfo}><CircleHelp size={15} /> How scoring works</button>}>{filteredRows.length ? <DataTable density="compact" rows={filteredRows} getRowKey={(row) => row.employee.id} onRowClick={onOpen} tableClassName="min-w-[960px]" columns={[
       { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
       { key: "performance", header: "Performance", align: "right", render: (row) => <div><strong className="tabular-nums text-text-primary">{displayedPerformanceScore(row.result) == null ? "—" : Math.round(displayedPerformanceScore(row.result))}</strong>{row.result.status !== "finalized" ? <small className="block text-xs text-text-secondary">Assessed points</small> : null}</div> },
       ...performanceComponents.map(([key, label]) => ({ key, header: label, align: "right", render: (row) => <span className="tabular-nums text-text-secondary">{row.result.components?.[key] ? componentScore(row, key) : "—"}</span> })),
       { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.result.status)}>{statusLabel(row.result.status)}</Badge> }, { key: "open", header: "", align: "right", render: () => <ChevronRight className="text-text-muted" size={15} /> },
     ]} /> : <EmptyState title={rows.length ? "No Crew match these filters" : "No performance records yet"} description={rows.length ? "Clear or adjust the filters to review the full team." : "Performance records will appear after monthly evidence is available."} />}<AdminPagination {...teamListing} onPageChange={teamActions.requestPage} onPageSizeChange={teamActions.requestPageSize} noun="Crew members" /></AdminDataSection>
-    <PeerReviewAdminSection outletId={outletId} period={period} canReview={canReview} onChanged={onChanged} />
   </div>;
-}
-
-function PeerReviewAdminSection({ outletId, period, canReview, onChanged }) {
-  const [assignments, setAssignments] = useState([]);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [excluding, setExcluding] = useState(null);
-  const [reason, setReason] = useState("");
-  useEffect(() => {
-    let active = true;
-    if (!outletId || !canReview) return undefined;
-    crewService.peerReviewAdmin(outletId, period).then((data) => { if (active) setAssignments(data.assignments || []); }).catch((cause) => { if (active) setError(cause.message); });
-    return () => { active = false; };
-  }, [outletId, period, canReview]);
-  if (!canReview) return null;
-  async function refresh() { const data = await crewService.peerReviewAdmin(outletId, period); setAssignments(data.assignments || []); onChanged(); }
-  async function open() { setBusy(true); setError(""); try { await crewService.openPeerReviewMonth(outletId, period); await refresh(); } catch (cause) { setError(cause.message); } finally { setBusy(false); } }
-  async function exclude() { setBusy(true); setError(""); try { await crewService.excludePeerReview(excluding.id, reason); setExcluding(null); setReason(""); await refresh(); } catch (cause) { setError(cause.message); } finally { setBusy(false); } }
-  return <AdminDataSection title="Peer Review" description="Assignments use completed coworker attendance overlap. Crew sees aggregates only." actions={<button type="button" className="btn-secondary" disabled={busy || !outletId} onClick={open}>Open monthly assignments</button>}>
-    {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-    {assignments.length ? <DataTable density="compact" rows={assignments} getRowKey={(row) => row.id} columns={[
-      { key: "subject", header: "Crew member", render: (row) => row.subject_name },
-      { key: "reviewer", header: "Reviewer · Admin only", render: (row) => row.reviewer_name },
-      { key: "state", header: "State", render: (row) => <Badge tone={row.excluded_at ? "neutral" : row.submitted_at ? "success" : "warning"}>{row.excluded_at ? "Excluded" : row.submitted_at ? "Submitted" : "Pending"}</Badge> },
-      { key: "ratings", header: "Ratings · Admin only", render: (row) => row.criteria ? Object.entries(row.criteria).map(([key, value]) => `${key.replaceAll("_", " ")}: ${value}`).join(" · ") : "—" },
-      { key: "flags", header: "Review flags", render: (row) => [row.flags?.extreme_rating && "Extreme rating", row.flags?.reciprocal && "Reciprocal"].filter(Boolean).join(" · ") || "—" },
-      { key: "action", header: "", render: (row) => row.submitted_at && !row.excluded_at ? <button type="button" className="btn-secondary" onClick={() => setExcluding(row)}>Exclude</button> : row.exclusion_reason || "" },
-    ]} /> : <p className="text-sm text-text-secondary">No monthly assignments have been opened.</p>}
-    {excluding && <Modal title="Exclude Peer Review" description={`${excluding.reviewer_name} → ${excluding.subject_name}. The review remains in the Admin audit record.`} onClose={() => setExcluding(null)} footer={<><button type="button" className="btn-secondary" onClick={() => setExcluding(null)}>Cancel</button><button type="button" className="btn-danger" disabled={busy || reason.trim().length < 10} onClick={exclude}>Exclude review</button></>}><label className="crew-performance-moderation">Reason<textarea className="control" value={reason} onChange={(event) => setReason(event.target.value)} maxLength={1000} /></label></Modal>}
-  </AdminDataSection>;
 }
 
 function ReviewQueue({ rows, onReview, canReview }) {
@@ -173,14 +142,14 @@ function ReviewQueue({ rows, onReview, canReview }) {
   return <DataTable density="compact" rows={rows} getRowKey={(row) => row.employee.id} tableClassName="min-w-[850px]" columns={[
     { key: "employee", header: "Employee", render: (row) => <NameCell row={row.employee} /> },
     { key: "service", header: "Service Standards", render: (row) => <ReviewCell row={row} component="service" onReview={onReview} canReview={canReview} /> },
-    { key: "peer", header: "Peer Review", render: (row) => <Badge tone={reviewDone(row, "peer") ? "success" : "warning"}>{reviewDone(row, "peer") ? "Peer complete" : "Peer pending"}</Badge> },
+      { key: "peer", header: "Team Review", render: (row) => <Badge tone={reviewDone(row, "peer") ? "success" : "warning"}>{reviewDone(row, "peer") ? "Team Review ready" : "Team Review pending"}</Badge> },
     { key: "status", header: "Overall", render: (row) => <Badge tone={semanticStatusTone(rowReviewStatus(row))}>{rowReviewStatus(row) === "completed" ? "Completed" : "Pending"}</Badge> },
   ]} />;
 }
 
 function ReviewCell({ row, component, onReview, canReview }) { const done = reviewDone(row, component); return <div className="flex flex-wrap items-center gap-2"><Badge tone={semanticStatusTone(done ? "completed" : "pending")}>{done ? "Completed" : "Pending"}</Badge><button type="button" className="btn-secondary h-8 px-2 text-xs" disabled={!canReview} onClick={() => onReview({ ...row, component })}>{done ? "View review" : "Review"}</button></div>; }
 
-function PerformanceScoringDialog({ framework, onClose }) { return <Modal title="How scoring works" description="Monthly Service Crew Performance" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="crew-performance-scoring"><dl>{(framework || []).map((item) => <div key={item.key}><dt>{item.label}</dt><dd>{item.max_score} pts</dd></div>)}</dl><p>Customer /20 awaits verified Google Review evidence. Assessed points are not a final score; finalization and Reward stay unavailable until all evidence is ready.</p></div></Modal>; }
+function PerformanceScoringDialog({ framework, onClose }) { return <Modal title="How scoring works" description="Monthly Service Crew Performance" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="crew-performance-scoring"><dl>{(framework || []).map((item) => <div key={item.key}><dt>{item.key === "peer" ? "Team Review" : item.label}</dt><dd>{item.max_score} pts</dd></div>)}</dl><p>Customer /20 awaits verified Google Review evidence. Assessed points are not a final score; finalization and Reward stay unavailable until all evidence is ready.</p></div></Modal>; }
 
 function FeedbackAdmin({ data, summary, onModerate, onDetail, onCorrectAttribution, canModerate, canCorrectAttribution, pagination }) {
   const rows = data || [];
