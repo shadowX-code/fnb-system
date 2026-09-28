@@ -288,7 +288,8 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
-  it("labels the canonical source as Original and hydrates legacy saved draft units before translating", async () => {
+  it("compares the canonical SOP source with one target and hydrates legacy saved draft units before translating", async () => {
+    mocks.saveLocalization.mockImplementation(async (_domain, _versionId, units) => ({ units: Object.fromEntries(units.map((unit, index) => [unit.unit_key, { id: `unit-${index}`, source_language: "en", source_value: unit.source_value, translations: {} }])) }));
     mocks.translate.mockResolvedValue({ units: {
       "sop.title": { id: "unit-title", source_language: "en", translations: { "zh-CN": { status: "ai_translated", value: "欢迎标准" }, ms: { status: "ai_translated", value: "Standard Selamat Datang" } } },
     } });
@@ -297,13 +298,14 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     await screen.findByLabelText("Section Title *");
     fireEvent.click(screen.getByRole("button", { name: "Languages" }));
-    expect((await screen.findAllByText("Original")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Original")).toBeNull();
+    expect(screen.getByText("Section 01 · Welcome")).not.toBeNull();
+    expect(screen.getByText("Welcome within five seconds.")).not.toBeNull();
     expect(screen.queryByText("Unsaved changes")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Translate Missing" }));
     await waitFor(() => expect(mocks.saveLocalization).toHaveBeenCalledWith("sop", "v2", expect.any(Array)));
-    await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "v2"));
+    await waitFor(() => expect(mocks.translate).toHaveBeenCalledWith("sop", "v2", expect.any(Array), ["zh-CN"]));
     expect((await screen.findByRole("status")).textContent).toContain("Translations generated · Saved");
-    fireEvent.click(screen.getByRole("tab", { name: /简体中文.*AI Translated/ }));
     expect(await screen.findByDisplayValue("欢迎标准")).not.toBeNull();
   });
 
