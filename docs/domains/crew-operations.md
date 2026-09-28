@@ -41,6 +41,7 @@ Corrections cannot silently rewrite completed checkout or ledger history.
 
 Crew Admin Tasks, Manager Review, Daily Cash Checkout, and Cash Deposit Ledger use server-paged read projections (20/50/100 rows). Scope, date, search, and lifecycle filters apply before pagination; the Deposit Ledger's page is independent from its canonical append-only balance summary. Crew Cash projections resolve actor display through the canonical `employees` identity: Crew uses its employee name and Admin uses its People/Admin employee name. If no human display identity exists, the projection returns the safe `Admin` label; it never projects a raw auth email. Immutable employee/auth actor IDs remain stored audit evidence and are never rewritten for presentation.
 The Tasks definition page projects its original series creation timestamp and linked employee display name through the authorized paged read; missing human identity displays as unavailable, never a raw Auth ID or email. Its Time Window reads persisted start/due times independently from schedule recurrence and date.
+Admin Tasks opens with Status All and a bounded Today range. Clearing its date picker or all filters restores that same effective range; changing filters resets server paging to page one. The bounded paged RPC contract does not accept an unbounded date range.
 
 ## Permissions, Snapshots, And Audit
 
