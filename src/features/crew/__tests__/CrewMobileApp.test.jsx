@@ -60,8 +60,8 @@ const growth = {
   timeline: [{ type: "sop", label: "Greeting SOP acknowledged", skill_name: "Customer Greeting", occurred_at: "2026-08-12T00:00:00Z" }],
   performance: null,
 };
-const performance = { period_start: "2026-08-01", status: "finalized", score: 87, calculation_version: "performance-v1", breakdown: { attendance: { score: 28, explanation: "Verified attendance evidence." }, service: { score: 26, explanation: "Reviewed standards." }, customer: { score: 13, confidence: "established", explanation: "Five responses." }, knowledge: { score: 14, explanation: "Learning evidence." }, conduct: { score: 6, explanation: "Reviewed conduct." } }, trend: [{ period_start: "2026-08-01", score: 87, status: "finalized" }] };
-const reward = { period_start: "2026-08-01", status: "qualified", cycle_status: "review", reward_label: "Estimated Reward", reward_amount: 120.72, estimated_reward: 120.72, performance_score: 75, performance_level: "Meets Standard", earn_rate: .45, eligible_hours: 235, total_eligible_hours: 730, contribution_share: .3219, maximum_share: 268.33, reward_pool: 500, calculation_version: "reward-tier-v2", projection_applicable: true, projections: [{ key: "current", label: "Current", score: 75, earn_rate: .45, amount: 120.72 }, { key: "on_track", label: "On Track", score: 80, earn_rate: .65, amount: 174.41 }, { key: "great", label: "Great", score: 85, earn_rate: .8, amount: 214.66 }, { key: "max", label: "Max Potential", score: 95, earn_rate: 1, amount: 268.33 }], history: [{ period_start: "2026-07-01", amount: 112.4, status: "paid", paid_at: "2026-08-05T00:00:00Z" }] };
+const performance = { period_start: "2026-08-01", status: "review_required", score: 68, current_score: 68, total_score: null, score_state: "partial", scored_components: 3, pending_components: 2, pending_component_names: ["customer", "peer"], total_components: 5, calculation_version: "performance-v2", breakdown: { attendance: { score: 28, max_score: 30, explanation: "Verified attendance evidence." }, service: { score: 26, max_score: 30, explanation: "Reviewed standards." }, customer: { score: null, max_score: 20, status: "pending" }, knowledge: { score: 14, max_score: 15, explanation: "Learning evidence." }, peer: { score: null, max_score: 5, status: "pending" } }, trend: [{ period_start: "2026-08-01", score: null, status: "review_required" }] };
+const reward = { period_start: "2026-08-01", status: "awaiting_performance", cycle_status: "review", explanation: "Finalized Performance is required before Reward can be calculated.", calculation_version: "reward-tier-v2", history: [] };
 const currentBusinessDate = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const renderCrewApp = ({ crewSession = session, ...props } = {}) => {
   if (crewSession) localStorage.setItem("feedx.crew.session", JSON.stringify(crewSession));
@@ -904,13 +904,12 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-v2-home-header h1 .lucide-hand")).toBeNull();
   });
 
-  it("shows only the signed-in employee's transparent Reward result", async () => {
+  it("keeps Reward pending while Performance is incomplete", async () => {
     renderCrewApp();
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[2]);
-    expect((await screen.findAllByText("RM 120.72")).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("Qualified")).not.toBeNull();
-    expect(screen.getByText("Score 75")).not.toBeNull();
-    expect(screen.getAllByText("32.19%").length).toBeGreaterThan(0);
+    expect(await screen.findByText("Reward is not ready yet")).not.toBeNull();
+    expect(screen.getByText(/after this month’s performance review is complete/)).not.toBeNull();
+    expect(screen.queryByText(/RM 120\.72/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /View My Performance/ }));
     expect(await screen.findByRole("heading", { name: "My Performance" })).not.toBeNull();
     expect(document.body.textContent).not.toContain("Alex");
@@ -939,7 +938,7 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[3]);
     fireEvent.click(await screen.findByRole("button", { name: "View my performance" }));
     expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
-    expect(screen.getAllByText("87").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("68").length).toBeGreaterThan(0);
     expect(screen.getByText("Service Standards")).not.toBeNull();
     expect(document.body.textContent).not.toContain("Manager note");
     expect(mocks.performanceMobile).toHaveBeenCalledWith("crew-token");
