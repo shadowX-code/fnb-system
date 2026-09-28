@@ -29,7 +29,15 @@ export async function loadPurchaseOrders(outletIds) {
     readCompleteInventoryRows('inventory_item_outlets', { in: { outlet_id: outletIds } }),
   ]);
   const items = await readItems(links.data, orders.flatMap(order => order.lines.map(line => line.itemId)));
-  return { orders, items };
+  const creatorIds = [...new Set(orders.map(order => order.createdBy).filter(Boolean))];
+  const creators = creatorIds.length ? await Promise.all([
+    readCompleteInventoryRows('employees', { select: 'id,auth_user_id,full_name,nickname,email', in: { id: creatorIds } }),
+    readCompleteInventoryRows('employees', { select: 'id,auth_user_id,full_name,nickname,email', in: { auth_user_id: creatorIds } }),
+  ]) : [];
+  const creatorById = new Map(creators.flatMap(result => result.data).flatMap(person => [
+    [person.id, person], [person.auth_user_id, person],
+  ]));
+  return { orders: orders.map(order => ({ ...order, createdByName: creatorById.get(order.createdBy)?.nickname || creatorById.get(order.createdBy)?.full_name || creatorById.get(order.createdBy)?.email || 'Unknown User' })), items };
 }
 
 export async function loadStockCheckRestock(checkId, outletIds, suppliers) {

@@ -6,7 +6,8 @@ import { loadPurchaseOrders, loadStockCheckRestock } from '../inventoryPurchaseO
 
 beforeEach(() => {
   mocks.tables = {
-    inventory_purchase_orders: [{ id: 'p1', outlet_id: 'A', source_type: 'stock_check', source_stock_check_id: 'C', supplier_id: 'S', status: 'draft' }, { id: 'p2', outlet_id: 'A', source_type: 'stock_check', source_stock_check_id: 'C', supplier_id: 'S', status: 'submitted' }, { id: 'other', outlet_id: 'B' }],
+    inventory_purchase_orders: [{ id: 'p1', outlet_id: 'A', source_type: 'stock_check', source_stock_check_id: 'C', supplier_id: 'S', status: 'draft', created_by: 'auth-1' }, { id: 'p2', outlet_id: 'A', source_type: 'stock_check', source_stock_check_id: 'C', supplier_id: 'S', status: 'submitted' }, { id: 'other', outlet_id: 'B' }],
+    employees: [{ id: 'employee-1', auth_user_id: 'auth-1', full_name: 'Recorded Creator' }],
     inventory_purchase_order_items: [{ id: 'L', purchase_order_id: 'p1', item_id: 'I', requested_qty: 6 }],
     inventory_item_outlets: [{ id: 'link', outlet_id: 'A', inventory_item_id: 'I', is_active: true }],
     inventory_item_outlet_suppliers: [{ id: 'sl', inventory_item_outlet_id: 'link', supplier_id: 'S' }],
@@ -19,6 +20,8 @@ it('scopes every join to verified headers and retains historical duplicate order
   const data = await loadPurchaseOrders(['A']);
   expect(data.orders.map(order => order.id)).toEqual(['p1', 'p2']);
   expect(data.orders[0].lines[0].requestedQty).toBe(6);
+  expect(data.orders[0].createdByName).toBe('Recorded Creator');
+  expect(data.orders[1].createdByName).toBe('Unknown User');
   expect(mocks.read).toHaveBeenCalledWith('inventory_purchase_order_items', expect.objectContaining({ in: { purchase_order_id: ['p1', 'p2'] } }));
   expect(mocks.read.mock.calls.map(([table]) => table)).not.toContain('inventory_stock_check_items');
 });
