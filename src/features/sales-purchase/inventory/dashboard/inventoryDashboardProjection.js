@@ -1,4 +1,3 @@
-import { isActiveInventoryItem, outletConfigForItem } from "../inventoryItemModel.js";
 import { stockCheckItemsForGroup } from "../groups/inventoryGroupsModel.js";
 import { getBusinessDateInput } from "../waste/inventoryWasteService.js";
 
@@ -30,41 +29,7 @@ function groupStatus(group, checks, date) {
   return due ? "Due Today" : "Not Due";
 }
 
-function latestVerifiedCounts(checks) {
-  const counts = new Map();
-  const ordered = checks.filter((check) => finalStatuses.has(check.status))
-    .sort((left, right) => String(right.submittedAt || right.date).localeCompare(String(left.submittedAt || left.date)));
-  for (const check of ordered) {
-    for (const row of check.rows || []) {
-      const key = `${check.outletId}:${row.itemId}`;
-      if (counts.has(key)) continue;
-      counts.set(key, {
-        check,
-        count: row.skipped || row.na || row.actualCount === "" || row.actualCount === null || !Number.isFinite(Number(row.actualCount))
-          ? null : Number(row.actualCount),
-      });
-    }
-  }
-  return counts;
-}
-
-function movementAfterCheck(movement, check) {
-  const movementAt = Date.parse(movement.dateTime || "");
-  const submittedAt = Date.parse(check.submittedAt || "");
-  if (Number.isFinite(movementAt) && Number.isFinite(submittedAt)) return movementAt > submittedAt;
-  if (movement.date > check.date) return true;
-  // Without comparable times, a same-day movement cannot be ordered safely.
-  return movement.date === check.date ? null : false;
-}
-
 export function projectInventoryDashboard(data, outlets, date) {
-  const counts = latestVerifiedCounts(data.checks);
-  const movementsByPosition = new Map();
-  for (const movement of data.movements) {
-    if (!movement.outletId || !movement.itemId || !Number.isFinite(Number(movement.quantity)) || Number(movement.quantity) === 0) continue;
-    const key = `${movement.outletId}:${movement.itemId}`;
-    movementsByPosition.set(key, [...(movementsByPosition.get(key) || []), movement]);
-  }
   const itemsById = new Map(data.items.map((item) => [item.id, item]));
   const outletById = new Map(outlets.map((outlet) => [outlet.id, outlet]));
   const outletRows = outlets.map((outlet) => {
@@ -72,18 +37,12 @@ export function projectInventoryDashboard(data, outlets, date) {
     const due = groups.filter((group) => groupDue(group, date));
     const completed = due.filter((group) => groupStatus(group, data.checks, date) === "Completed").length;
     const stock = { belowPar: 0, sufficient: 0, changed: 0, unverified: 0 };
-    for (const item of data.items.filter(isActiveInventoryItem)) {
-      if (!item.linkedOutletIds?.includes(outlet.id)) continue;
-      const config = outletConfigForItem(item, outlet.id);
-      if (!config?.isActive || !Number.isFinite(Number(config.parLevel)) || Number(config.parLevel) <= 0) continue;
-      const key = `${outlet.id}:${item.id}`;
-      const evidence = counts.get(key);
-      if (!evidence || evidence.count === null) { stock.unverified += 1; continue; }
-      const movementStates = (movementsByPosition.get(key) || []).map((movement) => movementAfterCheck(movement, evidence.check));
-      if (movementStates.includes(true)) stock.changed += 1;
-      else if (movementStates.includes(null)) stock.unverified += 1;
-      else if (evidence.count < Number(config.parLevel)) stock.belowPar += 1;
-      else stock.sufficient += 1;
+    for (const evidence of data.stockEvidence || []) {
+      if (evidence.outlet_id !== outlet.id) continue;
+      if (evidence.state === "below_par") stock.belowPar += 1;
+      else if (evidence.state === "sufficient") stock.sufficient += 1;
+      else if (evidence.state === "changed") stock.changed += 1;
+      else if (evidence.state === "unverified") stock.unverified += 1;
     }
     const pendingOrders = data.orders.filter((order) => order.outletId === outlet.id && !closedOrders.has(order.status)).length;
     const wasteCount = data.waste.filter((row) => row.outletId === outlet.id).length;

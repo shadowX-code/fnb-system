@@ -1,9 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const read = vi.hoisted(() => vi.fn());
-vi.mock("../../../../../services/inventoryCompleteRead.js", () => ({ readCompleteInventoryRows: read }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), rpc: vi.fn() }));
+vi.mock("../../../../../services/inventoryCompleteRead.js", () => ({ readCompleteInventoryRows: mocks.read }));
 vi.mock("../../../../../services/inventoryLifecycleService.js", () => ({ inventoryLifecycleService: {} }));
+vi.mock("../../../../../lib/supabase.ts", () => ({ supabase: { rpc: mocks.rpc } }));
 import { loadStockCheckExecution } from "../inventoryStockCheckExecutionService.js";
+const read = mocks.read;
 
 const rows = {
   inventory_item_outlets: [{ id: "link", inventory_item_id: "item", outlet_id: "A", par_level: 10 }],
@@ -18,6 +20,7 @@ const rows = {
 };
 beforeEach(() => {
   read.mockReset().mockImplementation(async (table) => ({ data: rows[table] || [], completeness: "complete" }));
+  mocks.rpc.mockReset().mockResolvedValue({ data: { check_count: 1, summaries: [{ check_id: "check", total: 1, skipped: 0, shortage: 1 }] }, error: null });
 });
 
 describe("Stock Check execution read boundary", () => {
@@ -29,6 +32,8 @@ describe("Stock Check execution read boundary", () => {
     expect(result.checks[0].rows).toEqual([]);
     expect(result.checks[0].rowSummary).toEqual({ total: 1, skipped: 0, shortage: 1 });
     expect(result.orders[0].sourceStockCheckId).toBe("check");
+    expect(mocks.rpc).toHaveBeenCalledWith("inventory_stock_check_row_summaries", { p_check_ids: ["check"] });
+    expect(read.mock.calls.map(([table]) => table)).not.toContain("inventory_stock_check_items");
     expect(read.mock.calls.map(([table]) => table)).not.toContain("inventory_purchase_receipts");
     expect(read.mock.calls.map(([table]) => table)).not.toContain("inventory_movements");
     expect(read.mock.calls.map(([table]) => table)).not.toContain("inventory_waste_records");
@@ -36,10 +41,17 @@ describe("Stock Check execution read boundary", () => {
   });
 
   it("does not present a partial linked read as a valid execution snapshot", async () => {
-    read.mockImplementation(async (table) => {
-      if (table === "inventory_stock_check_items") throw Object.assign(new Error("Capped rows"), { readState: "incomplete" });
-      return { data: rows[table] || [], completeness: "complete" };
-    });
+    mocks.rpc.mockResolvedValue({ data: { check_count: 0, summaries: [] }, error: null });
     await expect(loadStockCheckExecution(["A"])).rejects.toMatchObject({ readState: "incomplete" });
+  });
+
+  it("keeps complete Draft rows operational while summarizing submitted history", async () => {
+    read.mockImplementation(async (table, options) => ({ data: table === "inventory_stock_checks"
+      ? [...rows.inventory_stock_checks, { ...rows.inventory_stock_checks[0], id: "draft", status: "draft" }]
+      : table === "inventory_stock_check_items" ? [{ ...rows.inventory_stock_check_items[0], stock_check_id: "draft" }]
+        : rows[table] || [], completeness: "complete" }));
+    const result = await loadStockCheckExecution(["A"]);
+    expect(result.checks.find((check) => check.id === "draft").rows).toHaveLength(1);
+    expect(read).toHaveBeenCalledWith("inventory_stock_check_items", expect.objectContaining({ in: { stock_check_id: ["draft"] } }));
   });
 });
