@@ -49,36 +49,38 @@ function GroupScopeDetails({ group, categoryById, onClose }) {
   </Modal>;
 }
 
-export function InventoryGroupsPageActions({ onCreateGroup }) {
-  return <button className="btn-primary" type="button" onClick={onCreateGroup}><PackagePlus size={15} /> Add Group</button>;
+export function InventoryGroupsPageActions({ onCreateGroup, disabled = false }) {
+  return <button className="btn-primary" type="button" onClick={onCreateGroup} disabled={disabled}><PackagePlus size={15} /> Add Group</button>;
 }
 
 export default function InventoryGroupsPage({ auth, ui, outlets }) {
   const outletOptions = getAccessibleOutletOptions(auth, outlets, { includeAll: false });
   const [outletId, onSelectedOutletChange] = useState("");
   const selectedOutletId = outletOptions.some(option => option.value === outletId) ? outletId : outletOptions[0]?.value || "";
-  const [data, setData] = useState({ groups: [], items: [], categories: [] });
-  const [read, setRead] = useState({ state: "loading", completeness: "loading", error: "" });
+  const [snapshot, setSnapshot] = useState({ key: "", data: null, state: "loading", error: "" });
   const [modal, setModal] = useState(null);
   const request = useRef(0);
-  const { groups, items, categories } = data;
   const scopeKey = `${auth?.user?.id || ""}:${outletOptions.map(option => option.value).join(",")}`;
+  const currentScope = useRef(scopeKey);
+  currentScope.current = scopeKey;
+  const read = snapshot.key === scopeKey ? snapshot : { key: scopeKey, data: null, state: "loading", error: "" };
+  const { groups = [], items = [], categories = [] } = read.data || {};
   const refresh = useCallback(async () => {
     const id = ++request.current;
-    setRead(current => ({ ...current, state: current.completeness === "complete" ? "refreshing" : "loading", error: "" }));
+    setSnapshot(current => ({ key: scopeKey, data: current.key === scopeKey ? current.data : null, state: current.key === scopeKey && current.data ? "refreshing" : "loading", error: "" }));
     try {
       const next = await loadInventoryGroups();
-      if (id !== request.current) return null;
-      setData(next);
-      setRead({ state: "ready", completeness: "complete", error: "" });
+      if (id !== request.current || currentScope.current !== scopeKey) return null;
+      setSnapshot({ key: scopeKey, data: next, state: "ready", error: "" });
       return next;
     } catch (error) {
-      if (id !== request.current) return null;
-      setRead({ state: "error", completeness: error.readState || "error", error: error.message || "Unable to load Stock Check Groups." });
+      if (id !== request.current || currentScope.current !== scopeKey) return null;
+      setSnapshot({ key: scopeKey, data: null, state: error.readState || "error", error: error.message || "Unable to load Stock Check Groups." });
       return null;
     }
   }, [scopeKey]);
   useEffect(() => {
+    setModal(null);
     refresh();
     return () => { request.current += 1; };
   }, [refresh]);
@@ -134,11 +136,11 @@ export default function InventoryGroupsPage({ auth, ui, outlets }) {
   ];
 
   return <div className="space-y-4">
-    <PageHeader section="INVENTORY CONTROL" title="Stock Check Groups" description="Manage outlet-level stock check groups and frequencies." actions={<InventoryGroupsPageActions onCreateGroup={createGroup} />} />
+    <PageHeader section="INVENTORY CONTROL" title="Stock Check Groups" description="Manage outlet-level stock check groups and frequencies." actions={<InventoryGroupsPageActions onCreateGroup={createGroup} disabled={!read.data} />} />
     {read.state === "refreshing" ? <p role="status" className="text-sm text-text-secondary">Refreshing Groups. Showing the last verified complete read.</p> : null}
-    {["loading", "error"].includes(read.state) ? <div className="card p-4" role={read.state === "error" ? "alert" : "status"}>
-      <h2 className="font-semibold">{read.state === "error" ? "Stock Check Groups unavailable or incomplete" : "Loading complete Stock Check Groups…"}</h2>
-      {read.state === "error" ? <><p className="mt-2 text-sm text-text-secondary">{read.error} No partial results are presented as complete.</p><button type="button" className="btn-secondary mt-3" onClick={refresh}>Retry</button></> : null}
+    {!read.data ? <div className="card p-4" role={read.error ? "alert" : "status"}>
+      <h2 className="font-semibold">{read.error ? "Stock Check Groups unavailable or incomplete" : "Loading complete Stock Check Groups…"}</h2>
+      {read.error ? <><p className="mt-2 text-sm text-text-secondary">{read.error} No partial results are presented as complete.</p><button type="button" className="btn-secondary mt-3" onClick={refresh}>Retry</button></> : null}
     </div> : <>
     <AdminFilterToolbar ariaLabel="Stock check group filters" denseFields
       outlet={<AdminOutletField label="Outlet" value={selectedOutletId} options={outletOptions} searchable onChange={onSelectedOutletChange} />}

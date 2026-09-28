@@ -159,6 +159,23 @@ describe("InventoryControlPage Groups lifecycle", () => {
     await waitFor(() => expect(screen.queryByText("Stale previous scope")).toBeNull());
     expect(screen.getByText("Morning Produce Count")).toBeTruthy();
   });
+  it("hides a verified previous scope and its row actions while the next scope loads", async () => {
+    const view = mount();
+    await ready();
+    expect(groupRowElement("Morning Produce Count")).toBeTruthy();
+    let resolveNext;
+    mocks.readResponses.inventory_stock_check_groups = new Promise(done => { resolveNext = done; });
+    view.rerender(<InventoryControlPage initialTab="groups" store={{ outlets: [{ id: ids.outletA, name: "KL Central" }, { id: ids.outletB, name: "PJ Hub" }] }} auth={{ user: { id: "new-user" }, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} />);
+    expect(screen.getByText("Loading complete Stock Check Groups…")).toBeTruthy();
+    expect(screen.queryByText("Morning Produce Count")).toBeNull();
+    expect(screen.queryByRole("table")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add Group" }).disabled).toBe(true);
+    resolveNext({ data: [groupRow(ids.activeGroup, "New Scope Count", "active", ids.outletA)], count: 1, error: null });
+    await screen.findByText("New Scope Count");
+    expect(screen.queryByText("Morning Produce Count")).toBeNull();
+    expect(screen.getByRole("button", { name: "Add Group" }).disabled).toBe(false);
+    expect(within(groupRowElement("New Scope Count")).getByRole("button", { name: "Edit" })).toBeTruthy();
+  });
   it("switches away and back without retaining a Group modal or stale filter rows", async () => {
     const view = mount(); await ready();
     fireEvent.change(screen.getByPlaceholderText("Search group or category"), { target: { value: "unmatched" } });

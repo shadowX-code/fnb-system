@@ -18,7 +18,7 @@ function formatDate(value) {
 }
 function title(value) { return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase()); }
 function stockLabel(stock) {
-  return stock.low + stock.sufficient ? `${stock.low} verified low` : "—";
+  return stock.belowPar + stock.sufficient ? `${stock.belowPar} below Par` : "—";
 }
 
 export default function InventoryDashboardPage({ auth, store }) {
@@ -37,14 +37,15 @@ export default function InventoryDashboardPage({ auth, store }) {
   };
   const result = visibleData ? projectInventoryDashboard(visibleData, visibleOutlets, date) : null;
   const alerts = result ? [
-    result.stock.low ? { title: `${result.stock.low} verified low-stock items`, message: "Submitted counts are below configured Par levels.", tone: "warning" } : null,
-    result.stock.unverified ? { title: `${result.stock.unverified} stock positions unverified`, message: "A submitted count is missing or unusable; stock health is not known.", tone: "warning" } : null,
+    result.stock.belowPar ? { title: `${result.stock.belowPar} below Par at last check`, message: "Submitted counts were below configured Par levels.", tone: "warning" } : null,
+    result.stock.changed ? { title: `${result.stock.changed} changed since check`, message: "Movement evidence followed the last submitted count.", tone: "warning" } : null,
+    result.stock.unverified ? { title: `${result.stock.unverified} stock positions unverified`, message: "A usable submitted count or its sequence is unavailable.", tone: "warning" } : null,
     result.missedCount ? { title: `${result.missedCount} missed stock checks`, message: "Scheduled checks were not completed.", tone: "danger" } : null,
     result.pendingOrders ? { title: `${result.pendingOrders} supplier orders open`, message: "Purchase orders remain in progress.", tone: "info" } : null,
   ].filter(Boolean) : [];
 
   return <div className="space-y-4">
-    <PageHeader section="INVENTORY CONTROL" title="Inventory Dashboard" description="Monitor verified stock health, ordering activity and check completion." />
+    <PageHeader section="INVENTORY CONTROL" title="Inventory Dashboard" description="Review last-check evidence, ordering activity and check completion." />
     <AdminFilterToolbar outlet={<SelectField label="Outlet" value={activeOutletId} onChange={setSelectedOutletId} options={[{ value: "all", label: "All" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} searchable />} secondaryActions={<button className="btn-secondary" type="button" onClick={read.refresh} disabled={read.state === "loading"}>Refresh</button>} />
     {!outlets.length ? <div className="card p-4" role="alert">Inventory Dashboard is unavailable for your outlet access.</div> : null}
     {read.error ? <div className="card p-4" role="alert"><h2 className="font-semibold">Inventory data unavailable or incomplete</h2><p className="mt-2 text-sm text-text-secondary">{read.error} No partial result is shown as complete.</p><button className="btn-secondary mt-3" type="button" onClick={read.refresh}>Retry</button></div> : null}
@@ -53,15 +54,15 @@ export default function InventoryDashboardPage({ auth, store }) {
     {result ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard icon={Warehouse} label="Inventory Value" value="—" helper="Current valuation is unavailable" emphasis="primary" />
-        <MetricCard icon={AlertTriangle} label="Low Stock Positions" value={stockLabel(result.stock)} helper={`${result.stock.unverified} unverified · ${result.stock.sufficient} verified sufficient`} tone={result.stock.low || result.stock.unverified ? "warning" : "success"} />
+        <MetricCard icon={AlertTriangle} label="Below Par at Last Check" value={stockLabel(result.stock)} helper={`${result.stock.sufficient} sufficient · ${result.stock.changed} changed · ${result.stock.unverified} unverified`} tone={result.stock.belowPar || result.stock.changed || result.stock.unverified ? "warning" : "success"} />
         <MetricCard icon={PackagePlus} label="Pending Orders" value={result.pendingOrders} helper="Open supplier orders" tone={result.pendingOrders ? "warning" : "success"} />
         <MetricCard icon={Sparkles} label="Missed Checks" value={result.missedCount} helper="Scheduled checks" tone={result.missedCount ? "danger" : "success"} />
         <MetricCard icon={ClipboardCheck} label="Check Completion" value={result.checkCompletion === null ? "—" : `${result.checkCompletion}%`} helper={result.checkCompletion === null ? "No checks due today" : "Due groups completed"} tone={result.checkCompletion !== null && result.checkCompletion < 80 ? "warning" : "success"} />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.45fr_0.95fr]">
-        <SectionCard title="Inventory Health by Outlet" description="Verified counts, open orders and check completion.">
-          <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left"><thead className="text-[11px] uppercase tracking-wide text-text-muted"><tr className="border-b border-border"><th className="py-2">Outlet</th><th>Check Completion</th><th>Low Stock</th><th>Wastage Records</th><th>Pending Orders</th><th>Status</th><th>Action</th></tr></thead><tbody className="divide-y divide-border text-[13px]">
-            {result.outletRows.map((row) => <tr key={row.outlet.id} className="transition hover:bg-primary/5"><td className="py-3 font-bold text-text-primary">{row.outlet.name}</td><td>{row.completion === null ? "—" : `${row.completion}%`}</td><td>{stockLabel(row.stock)}{row.stock.unverified ? <div className="text-xs text-text-secondary">{row.stock.unverified} unverified</div> : null}</td><td>{row.wasteCount}</td><td>{row.pendingOrders}</td><td><Badge tone={row.status === "Good" ? "success" : row.status === "Critical" ? "danger" : "warning"}>{row.status}</Badge></td><td><button className="text-xs font-bold text-primary" type="button" onClick={() => navigateAdminRoute("inventory_stock_check", {}, { outletId: row.outlet.id })}>Open checks</button></td></tr>)}
+        <SectionCard title="Stock Check Evidence by Outlet" description="Last submitted counts, movement changes and check completion.">
+          <div className="overflow-x-auto"><table className="w-full min-w-[700px] text-left"><thead className="text-[11px] uppercase tracking-wide text-text-muted"><tr className="border-b border-border"><th className="py-2">Outlet</th><th>Check Completion</th><th>Stock Evidence</th><th>Wastage Records</th><th>Pending Orders</th><th>Status</th><th>Action</th></tr></thead><tbody className="divide-y divide-border text-[13px]">
+            {result.outletRows.map((row) => <tr key={row.outlet.id} className="transition hover:bg-primary/5"><td className="py-3 font-bold text-text-primary">{row.outlet.name}</td><td>{row.completion === null ? "—" : `${row.completion}%`}</td><td>{stockLabel(row.stock)}<div className="text-xs text-text-secondary">{row.stock.sufficient} sufficient · {row.stock.changed} changed · {row.stock.unverified} unverified</div></td><td>{row.wasteCount}</td><td>{row.pendingOrders}</td><td><Badge tone={row.status === "Sufficient at Last Check" ? "success" : "warning"}>{row.status}</Badge></td><td><button className="text-xs font-bold text-primary" type="button" onClick={() => navigateAdminRoute("inventory_stock_check", {}, { outletId: row.outlet.id })}>Open checks</button></td></tr>)}
           </tbody></table></div>
         </SectionCard>
         <SectionCard title="Needs Attention" description="Signals from verified stock and workflow evidence.">
