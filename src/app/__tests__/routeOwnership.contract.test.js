@@ -71,6 +71,8 @@ describe("FeedX canonical route contract", () => {
     expect(resolveAdminLocation({ pathname: "/", search: "?stockCheckDate=2026-09-22&audit=external", hash: "#inventory_stock_check" })).toMatchObject({
       routeId: "inventory_stock_check", query: { date: "2026-09-22" }, source: "legacy-hash",
     });
+    expect(canonicalPathForRoute("inventory_stock_check", {}, { date: "2026-09-22", outletId: "outlet-A" }))
+      .toBe("/restaurant/inventory/stock-check?date=2026-09-22&outletId=outlet-A");
   });
 
   it("hands submitted Stock Check identity to the PO-owned restock surface", () => {
