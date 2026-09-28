@@ -13,6 +13,7 @@ const tasks = () => Array.from({ length: 4 }, (_, i) => ({ id: `qa-task-${i}`, s
 const attendance = () => Array.from({ length: 5 }, (_, i) => ({ id: `qa-attendance-${i}`, status: "closed", clock_in_at: `2026-08-${25-i}T02:00:00Z`, clock_out_at: `2026-08-${25-i}T12:00:00Z`, exception_flag: i === 0, exception_reason: i === 0 ? longCopy() : null, outlet_name: longCopy() }));
 const performance = () => ({ period_start: "2026-08-01", status: "finalized", score: 87, breakdown: { attendance: { score: 28, explanation: longCopy() }, service: { score: 26, explanation: longCopy() }, customer: { score: 13, confidence: "established", explanation: longCopy() }, knowledge: { score: 14, explanation: longCopy() }, conduct: { score: 6, explanation: longCopy() } }, trend: [{ period_start: "2026-08-01", score: 87, status: "finalized" }] });
 const data = {
+  outletScope: () => ({ employee_id: session.employee.id, management: false, outlets: [outlet()], default_outlet_id: "qa-outlet" }),
   myAttendance: attendance, myAttendanceMonth: attendance,
   attendanceContext: () => ({ outlet_name: longCopy(), location_enabled: true, latitude: 4.6, longitude: 101.1, radius_meters: 100 }),
   myProfile: () => ({ ...session.employee, employment_type: "full_time" }),
@@ -32,6 +33,8 @@ const data = {
   localizedContentForCrew: () => ({}),
   cashCheckoutMobile: () => ({ outlet: outlet(), business_date: date, can_perform: true, can_initiate_handover: true, settings: { floating_cash: 300, variance_tolerance: 5 }, cash_context: { floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350 }, checkout: null, deposit: { current_balance: 500, available_balance: 500, recent: [], ledger: [] }, receivers: [{ id: "qa-receiver", name: longCopy() }], pending_receipts: [] }),
   cashCheckoutHistory: () => [],
+  teamReviewMobile: () => ({ period_start: "2026-08-01", deadline: "2026-09-02T16:00:00Z", open: true, completed: 0, total: 1,
+    teammates: [{ id: "qa-teammate", name: longCopy(), position: longCopy(), reviewed: false }] }),
 };
 let pending = 0;
 export const crewService = new Proxy({}, { get: (_, method) => async () => {
