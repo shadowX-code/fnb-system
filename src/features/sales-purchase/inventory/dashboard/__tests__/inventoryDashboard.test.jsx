@@ -43,6 +43,11 @@ describe("Inventory Dashboard truthful read projection", () => {
     expect(projected.outletRows[0].wasteCount).toBe(1);
     expect(projected.checkCompletion).toBeNull();
   });
+
+  it("excludes retired groups from the operational Dashboard summary", () => {
+    const group = { id: "retired", outletId: outlet.id, status: "inactive" };
+    expect(projectInventoryDashboard({ ...base, groups: [group] }, [outlet], "2026-09-28").groups).toEqual([]);
+  });
 });
 
 describe("Inventory Dashboard scope read", () => {

@@ -53,7 +53,7 @@ export default function InventoryDashboardPage({ auth, store }) {
     {result ? <>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard icon={Warehouse} label="Inventory Value" value="—" helper="Current valuation is unavailable" emphasis="primary" />
-        <MetricCard icon={AlertTriangle} label="Low Stock Items" value={stockLabel(result.stock)} helper={`${result.stock.unverified} unverified · ${result.stock.sufficient} verified sufficient`} tone={result.stock.low || result.stock.unverified ? "warning" : "success"} />
+        <MetricCard icon={AlertTriangle} label="Low Stock Positions" value={stockLabel(result.stock)} helper={`${result.stock.unverified} unverified · ${result.stock.sufficient} verified sufficient`} tone={result.stock.low || result.stock.unverified ? "warning" : "success"} />
         <MetricCard icon={PackagePlus} label="Pending Orders" value={result.pendingOrders} helper="Open supplier orders" tone={result.pendingOrders ? "warning" : "success"} />
         <MetricCard icon={Sparkles} label="Missed Checks" value={result.missedCount} helper="Scheduled checks" tone={result.missedCount ? "danger" : "success"} />
         <MetricCard icon={ClipboardCheck} label="Check Completion" value={result.checkCompletion === null ? "—" : `${result.checkCompletion}%`} helper={result.checkCompletion === null ? "No checks due today" : "Due groups completed"} tone={result.checkCompletion !== null && result.checkCompletion < 80 ? "warning" : "success"} />

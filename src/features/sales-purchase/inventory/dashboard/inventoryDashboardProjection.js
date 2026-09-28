@@ -80,7 +80,7 @@ export function projectInventoryDashboard(data, outlets, date) {
     pendingOrders: sum((row) => row.pendingOrders),
     missedCount,
     checkCompletion: dueCount ? Math.round(completedCount / dueCount * 100) : null,
-    groups: data.groups.filter((group) => outletById.has(group.outletId)),
+    groups: data.groups.filter((group) => group.status === "active" && outletById.has(group.outletId)),
     recentMovements: [...data.movements].sort((a, b) => String(b.dateTime || b.date).localeCompare(String(a.dateTime || a.date))).slice(0, 6).map((movement) => ({ ...movement, item: itemsById.get(movement.itemId), outlet: outletById.get(movement.outletId) })),
     groupStatus: (group) => groupStatus(group, data.checks, date),
     groupItemCount: (group) => stockCheckItemsForGroup(group, data.items).length,
