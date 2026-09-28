@@ -1,8 +1,12 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-const sql=readFileSync('supabase/migrations/20260927151034_restaurant_po_source_reservations.sql','utf8');
+const sql=readFileSync('supabase/migrations/20260927152000_restaurant_po_source_reservations_transactional.sql','utf8');
 describe('private prospective PO source reservations',()=>{
+ it('keeps the lock, historical capture, and trigger in one explicit transaction',()=>{
+  expect(sql).toMatch(/^--[^]*?\nbegin;\n/);
+  expect(sql.trimEnd()).toMatch(/commit;$/);
+ });
  it('captures historical membership without rewriting business evidence',()=>{
   expect(sql).toContain('lock table public.inventory_purchase_orders in share row exclusive mode');
   expect(sql).toContain('array_agg(id order by id),array_agg(id order by id)');
