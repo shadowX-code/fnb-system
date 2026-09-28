@@ -68,6 +68,9 @@ describe("Stock Check execution scoped read", () => {
     mocks.persist.mockResolvedValue({ id: "draft", groupId: "group", outletId: "A", date: today, status: "draft", rows: [] });
     window.history.replaceState(null, "", "/restaurant/inventory/stock-check");
     render(<InventoryStockCheckPage auth={{ ...auth, profile: { role_outlet_access_type: "all" }, hasPermission: () => true }} ui={{ notify: vi.fn() }} outlets={[{ id: "A", name: "QA Outlet" }]} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Audit Stock Check" }));
+    expect((await screen.findByRole("dialog", { name: "Audit Stock Check" })).textContent).toContain("Notes");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
     const start = await screen.findByRole("button", { name: "Start Check" });
     fireEvent.click(start);
     await waitFor(() => expect(mocks.persist).toHaveBeenCalledWith(expect.objectContaining({ id: "group", date: today }), expect.any(Array), "draft", "admin", undefined));
