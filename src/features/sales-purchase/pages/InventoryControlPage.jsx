@@ -1036,12 +1036,9 @@ function uomSaveErrorMessage(error) {
 
 async function countRemoteInventoryItemsForUom(code) {
   const rawCode = String(code || "").trim();
-  if (!rawCode) return 0;
-  const { data, error } = await supabase
-    .from("inventory_items")
-    .select("id, unit");
-  if (error) throw error;
-  return (data || []).filter((item) => canonical(item.unit) === canonical(rawCode)).length;
+  if (!rawCode) throw new Error("Cannot verify UOM usage without a code.");
+  const { data } = await readCompleteInventoryRows("inventory_items", { select: "id,unit" });
+  return data.filter((item) => canonical(item.unit) === canonical(rawCode)).length;
 }
 
 
