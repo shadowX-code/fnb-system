@@ -25,6 +25,9 @@ describe("Performance period employment authority", () => {
     expect(refresh).toContain("crew_performance_employment_needs_review");
     expect(refresh).toContain("'employment',v_employment");
     expect(refresh).toContain("and outlet_id=outlet");
+    expect(refresh).toContain("public.crew_peer_review_component(p_employee_id,period)");
+    expect(refresh).toContain("prs.outlet_id is distinct from outlet");
+    expect(refresh).not.toContain("crew_team_review");
     expect(refresh).toContain("'google_review_authority_not_available'");
     expect(refresh).not.toContain("crew_growth_employee_outlet");
   });
@@ -35,7 +38,7 @@ describe("Performance period employment authority", () => {
     expect(correction).toContain("current_user_can_access_outlet(v_existing.outlet_id)");
     expect(correction).toContain("crew_refresh_performance(p_employee_id,v_period,true)");
     expect(correction).toContain("insert into public.audit_logs");
-    expect(correction).not.toMatch(/delete from public\.(crew_team_reviews|crew_customer_feedback|crew_performance_reviews)/);
+    expect(correction).not.toMatch(/delete from public\.(crew_peer_review_assignments|crew_customer_feedback|crew_performance_reviews)/);
   });
 
   it("presents period position/outlet and masks stale Admin/Crew reads", () => {

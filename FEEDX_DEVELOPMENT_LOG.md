@@ -2,12 +2,11 @@
 
 ## 2026-09-29 — Performance Employment Period Correctness
 
-- Open monthly Performance now resolves Service Crew eligibility and outlet/position attribution from the People Employment Assignment Timeline. Mixed or unverified months fail closed; historical corrections require an explicit audited recalculation. Existing Team Review, Customer Feedback, Attendance and retained/final Performance evidence remains owned by its source domain. Crew sees only the safe period result, while later People changes never rewrite finalized Performance.
+- Open monthly Performance now resolves Service Crew eligibility and outlet/position attribution from the People Employment Assignment Timeline. Mixed or unverified months fail closed; historical corrections require an explicit audited recalculation. Existing Peer Review, Customer Feedback, Attendance and retained/final Performance evidence remains owned by its source domain. Crew sees only the safe period result, while later People changes never rewrite finalized Performance.
 
 ## 2026-09-29 — Leave Employment Eligibility Phase 2
 
 - Leave Policy versions now own eligible Employment Types, entitlement method, and proration rule. New grants use People employment-as-of spans with half-day final rounding; unverified pre-cutover history fails closed. Existing grants stay durable, and employment/policy changes append review evidence for controlled Leave correction.
-
 
 ## 2026-09-21 — Platform Crew Notification Foundation V1
 
@@ -601,4 +600,3 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Draft Roster employee eligibility and identity now resolve the People Employment Assignment Timeline for each roster date. The picker, week save/copy commands and legacy direct-table policies reject unavailable, inactive or cross-outlet dated assignments rather than using today's Employee fields.
 - Future transfers change scheduling eligibility only on their effective date; current Crew Access remains unchanged until People activates the revision. Existing published roster snapshots remain immutable, while new publication revisions pin dated position evidence.
-
