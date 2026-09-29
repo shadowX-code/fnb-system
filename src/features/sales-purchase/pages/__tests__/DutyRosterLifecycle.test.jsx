@@ -14,15 +14,16 @@ vi.mock("../../../../services/rosterPeriodService.js", () => ({ rosterPeriodServ
 import DutyRosterPage, { RosterDateSelector, rosterPermission } from "../DutyRosterPage.jsx";
 
 const outlet = { id: "outlet-1", name: "Main Outlet", status: "active" };
-const employee = { id: "employee-1", full_name: "Aina", nickname: "Aina", position: "Cook", department: "Kitchen", workplace: "outlet-1", employment_status: "active", is_active: true, roster_eligible: true };
+const employee = { id: "employee-1", full_name: "Aina", nickname: "Aina", position: "Cook", department: "Kitchen", workplace: "outlet-1", employment_status: "active", is_active: true,
+  eligibility_by_date: Object.fromEntries(Array.from({ length: 7 }, (_, index) => [new Date(Date.UTC(2026, 9, 5 + index)).toISOString().slice(0, 10), { state: "eligible" }])) };
 const template = { id: "template-1", outlet_id: "outlet-1", name: "Morning", code: "MORNING", start_time: "09:00", end_time: "17:00", break_minutes: 60, shift_type: "working", color: "green" };
 const eveningTemplate = { id: "template-2", outlet_id: "outlet-1", name: "Evening", code: "EVENING", start_time: "14:00", end_time: "22:00", break_minutes: 60, shift_type: "working", color: "blue" };
 const leaveTemplate = { id: "leave-1", outlet_id: "outlet-1", name: "Annual Leave", code: "AL", start_time: null, end_time: null, break_minutes: 0, shift_type: "annual_leave", color: "purple", is_active: true };
-const period = { id: "period-1", outlet_id: "outlet-1", week_start_date: "2026-08-10", week_end_date: "2026-08-16", status: "draft" };
+const period = { id: "period-1", outlet_id: "outlet-1", week_start_date: "2026-10-05", week_end_date: "2026-10-11", status: "draft" };
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
-  vi.setSystemTime(new Date("2026-08-10T12:00:00"));
+  vi.setSystemTime(new Date("2026-10-05T12:00:00"));
   vi.clearAllMocks();
   mocks.employees.mockResolvedValue([employee]);
   mocks.positions.mockResolvedValue([{ id: "position-1", name: "Cook" }]);
@@ -94,7 +95,7 @@ describe("Duty Roster trusted week snapshot integration", () => {
     const auth = { isProtectedRole: true, hasPermission: () => true };
     const { container } = render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
     fireEvent.click(await screen.findByRole("button", { name: /Bulk Assign/ }));
-    const mobileCell = container.querySelector('div.lg\\:hidden div[role="button"][aria-label="Aina, 2026-08-10, unassigned"]');
+    const mobileCell = container.querySelector('div.lg\\:hidden div[role="button"][aria-label="Aina, 2026-10-05, unassigned"]');
     expect(mobileCell).toBeTruthy();
     fireEvent.click(mobileCell);
     expect(screen.getByText("1 cell selected")).toBeTruthy();
@@ -122,13 +123,13 @@ describe("Duty Roster trusted week snapshot integration", () => {
   it("requires an explicit overwrite state for an existing working shift without opening a confirmation modal", async () => {
     mocks.templates.mockResolvedValue([template, eveningTemplate]);
     mocks.allTemplates.mockResolvedValue([template, eveningTemplate]);
-    mocks.rosters.mockResolvedValue([{ id: "shift-1", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-10", shift_template_id: "template-1", template, status: "draft" }]);
+    mocks.rosters.mockResolvedValue([{ id: "shift-1", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-10-05", shift_template_id: "template-1", template, status: "draft" }]);
     mocks.snapshot.mockResolvedValue({ period, rows: [] });
     const confirm = vi.fn();
     const auth = { isProtectedRole: true, hasPermission: () => true };
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm }} auth={auth} />);
     fireEvent.click(await screen.findByRole("button", { name: /Bulk Assign/ }));
-    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-10, Morning/ })[0]);
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-10-05, Morning/ })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Bulk shift template" }));
     fireEvent.click(screen.getByRole("button", { name: /Evening ·/ }));
     expect(screen.getByText(/1 working/)).toBeTruthy();
@@ -146,20 +147,36 @@ describe("Duty Roster trusted week snapshot integration", () => {
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
     expect((await screen.findAllByText("Aina")).length).toBeGreaterThan(0);
     expect(screen.queryByText("BBB N")).toBeNull();
-    expect(mocks.employees).toHaveBeenCalledWith("outlet-1");
+    expect(mocks.employees).toHaveBeenCalledWith("outlet-1", "2026-10-05", "2026-10-11");
+  });
+
+  it("uses the assignment for each roster date, including a mid-week transfer and position", async () => {
+    mocks.employees.mockResolvedValue([{ ...employee, eligibility_by_date: {
+      ...employee.eligibility_by_date,
+      "2026-10-06": { state: "eligible", position: "Kitchen Crew" },
+      "2026-10-07": { state: "other_outlet", position: "Supervisor" },
+    } }]);
+    const auth = { isProtectedRole: true, hasPermission: () => true };
+    render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
+    const before = (await screen.findAllByRole("button", { name: /Aina, 2026-10-06, Kitchen Crew, unassigned/ }))[0];
+    const after = screen.getAllByRole("button", { name: /Aina, 2026-10-07, Supervisor, unassigned, employment eligibility unverified or unavailable for this outlet/ })[0];
+    expect(before.getAttribute("aria-disabled")).toBe("false");
+    expect(after.getAttribute("aria-disabled")).toBe("true");
+    fireEvent.click(after);
+    expect(mocks.snapshot).not.toHaveBeenCalled();
   });
 
   it("keeps an unrelated historical ineligible snapshot visible but not selectable", async () => {
     mocks.employees.mockResolvedValue([]);
     mocks.rosters.mockResolvedValue([{
-      id: "historical-row", outlet_id: "outlet-1", employee_id: "employee-stale", roster_date: "2026-08-10",
+      id: "historical-row", outlet_id: "outlet-1", employee_id: "employee-stale", roster_date: "2026-10-05",
       shift_template_id: "template-1", template, status: "published",
       employee_snapshot: { id: "employee-stale", full_name: "Former Crew", nickname: "Former Crew", position: "Cook", is_roster_snapshot: true },
     }]);
     const auth = { isProtectedRole: true, hasPermission: () => true };
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
     fireEvent.click(await screen.findByRole("button", { name: /Bulk Assign/ }));
-    const staleCell = screen.getAllByRole("button", { name: /Former Crew, 2026-08-10, Morning, not eligible for this outlet/ })[0];
+    const staleCell = screen.getAllByRole("button", { name: /Former Crew, 2026-10-05, Morning, employment eligibility unverified or unavailable for this outlet/ })[0];
     expect(staleCell.getAttribute("aria-disabled")).toBe("true");
     fireEvent.pointerDown(staleCell);
     expect(screen.getByText("0 cells selected")).toBeTruthy();
@@ -167,11 +184,11 @@ describe("Duty Roster trusted week snapshot integration", () => {
   });
 
   it("keeps approved Leave projection visible and protected from roster edits and bulk assignment", async () => {
-    mocks.rosters.mockResolvedValue([{ id: "leave-row", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-10", shift_template_id: "leave-1", template: leaveTemplate, source: "approved_leave", approved_leave_id: "approved-1", status: "draft" }]);
+    mocks.rosters.mockResolvedValue([{ id: "leave-row", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-10-05", shift_template_id: "leave-1", template: leaveTemplate, source: "approved_leave", approved_leave_id: "approved-1", status: "draft" }]);
     mocks.allTemplates.mockResolvedValue([template, leaveTemplate]);
     const auth = { isProtectedRole: true, hasPermission: () => true };
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn().mockResolvedValue(true) }} auth={auth} />);
-    const leaveCell = (await screen.findAllByRole("button", { name: /Aina, 2026-08-10, Annual Leave, protected leave/ }))[0];
+    const leaveCell = (await screen.findAllByRole("button", { name: /Aina, 2026-10-05, Annual Leave, protected leave/ }))[0];
     expect(screen.getAllByText("Approved leave").length).toBeGreaterThan(0);
     fireEvent.click(leaveCell);
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Approved leave" }));
@@ -185,9 +202,9 @@ describe("Duty Roster trusted week snapshot integration", () => {
   it("bulk removes working and OFF cells while preserving selected approved Leave", async () => {
     const offTemplate = { id: "off-1", outlet_id: "outlet-1", name: "OFF", code: "OFF", shift_type: "off", color: "gray" };
     const rows = [
-      { id: "shift-1", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-10", shift_template_id: template.id, template, status: "draft" },
-      { id: "leave-row", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-11", shift_template_id: leaveTemplate.id, template: leaveTemplate, source: "approved_leave", approved_leave_id: "approved-1", status: "draft" },
-      { id: "off-row", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-12", shift_template_id: offTemplate.id, template: offTemplate, status: "draft" },
+      { id: "shift-1", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-10-05", shift_template_id: template.id, template, status: "draft" },
+      { id: "leave-row", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-10-06", shift_template_id: leaveTemplate.id, template: leaveTemplate, source: "approved_leave", approved_leave_id: "approved-1", status: "draft" },
+      { id: "off-row", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-10-07", shift_template_id: offTemplate.id, template: offTemplate, status: "draft" },
     ];
     mocks.rosters.mockResolvedValue(rows);
     mocks.snapshot.mockResolvedValue({ period, rows: [rows[1]] });
@@ -196,9 +213,9 @@ describe("Duty Roster trusted week snapshot integration", () => {
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
 
     fireEvent.click(await screen.findByRole("button", { name: /Bulk Assign/ }));
-    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-10, Morning/ })[0]);
-    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-11, Annual Leave, protected leave/ })[0], { ctrlKey: true });
-    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-08-12, OFF/ })[0], { ctrlKey: true });
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-10-05, Morning/ })[0]);
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-10-06, Annual Leave, protected leave/ })[0], { ctrlKey: true });
+    fireEvent.pointerDown(screen.getAllByRole("button", { name: /Aina, 2026-10-07, OFF/ })[0], { ctrlKey: true });
 
     expect(screen.getByText("0 empty · 1 working · 2 removable · 1 protected leave")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Remove 2" }));
@@ -208,25 +225,25 @@ describe("Duty Roster trusted week snapshot integration", () => {
       rows: [expect.objectContaining({ id: "leave-row", approved_leave_id: "approved-1" })],
     }));
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Shifts removed", message: expect.stringContaining("approved leave cell was protected") }));
-    expect((await screen.findAllByRole("button", { name: /Aina, 2026-08-10, unassigned/ })).length).toBeGreaterThan(0);
-    expect((await screen.findAllByRole("button", { name: /Aina, 2026-08-12, unassigned/ })).length).toBeGreaterThan(0);
-    expect(screen.getAllByRole("button", { name: /Aina, 2026-08-11, Annual Leave, protected leave/ }).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-10-05, unassigned/ })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-10-07, unassigned/ })).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("button", { name: /Aina, 2026-10-06, Annual Leave, protected leave/ }).length).toBeGreaterThan(0);
   });
 
   it("removes one editable shift and updates the cell to empty immediately", async () => {
-    mocks.rosters.mockResolvedValue([{ id: "shift-1", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-08-10", shift_template_id: template.id, template, status: "draft" }]);
+    mocks.rosters.mockResolvedValue([{ id: "shift-1", outlet_id: "outlet-1", employee_id: "employee-1", roster_date: "2026-10-05", shift_template_id: template.id, template, status: "draft" }]);
     const auth = { isProtectedRole: true, hasPermission: () => true };
     render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
 
-    fireEvent.click((await screen.findAllByRole("button", { name: /Aina, 2026-08-10, Morning/ }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: /Aina, 2026-10-05, Morning/ }))[0]);
     fireEvent.click(screen.getByRole("button", { name: "Remove Shift" }));
 
     await waitFor(() => expect(mocks.snapshot).toHaveBeenCalledWith(expect.objectContaining({
       outletId: "outlet-1",
-      weekStartDate: "2026-08-10",
+      weekStartDate: "2026-10-05",
       rows: [],
     })));
-    expect((await screen.findAllByRole("button", { name: /Aina, 2026-08-10, unassigned/ })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-10-05, unassigned/ })).length).toBeGreaterThan(0);
     expect(mocks.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Shift removed" }));
   });
 
@@ -242,7 +259,7 @@ describe("Duty Roster trusted week snapshot integration", () => {
   });
 
   it("labels an edited published week and republishes through the trusted week authority", async () => {
-    const publishedWithChanges = { ...period, status: "published", has_unpublished_changes: true, published_at: "2026-08-10T02:00:00Z" };
+    const publishedWithChanges = { ...period, status: "published", has_unpublished_changes: true, published_at: "2026-10-05T02:00:00Z" };
     mocks.period.mockResolvedValue(publishedWithChanges);
     mocks.publish.mockResolvedValue({ period: { ...publishedWithChanges, has_unpublished_changes: false }, rows: [] });
     const auth = { isProtectedRole: true, hasPermission: () => true };
@@ -250,7 +267,7 @@ describe("Duty Roster trusted week snapshot integration", () => {
 
     expect(await screen.findByText("Published · Unpublished changes")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Republish Roster" }));
-    await waitFor(() => expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1", weekStartDate: "2026-08-10" })));
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1", weekStartDate: "2026-10-05" })));
   });
 
   it("publishes the selected week from Month view through the same authority", async () => {
@@ -260,6 +277,6 @@ describe("Duty Roster trusted week snapshot integration", () => {
     fireEvent.click(await screen.findByRole("tab", { name: /month/i }));
     expect(await screen.findByText("Publish week")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: "Publish Roster" }));
-    await waitFor(() => expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1", weekStartDate: "2026-08-10" })));
+    await waitFor(() => expect(mocks.publish).toHaveBeenCalledWith(expect.objectContaining({ outletId: "outlet-1", weekStartDate: "2026-10-05" })));
   });
 });

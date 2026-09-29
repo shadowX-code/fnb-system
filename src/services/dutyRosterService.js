@@ -26,7 +26,8 @@ function mapRoster(row) {
         }
       : null;
   const employee = row.employee ?? null;
-  const employeeName = row.employee_name_snapshot || employee?.nickname || employee?.full_name || "";
+  const draft = row.status === "draft";
+  const employeeName = (draft ? employee?.nickname || employee?.full_name || row.employee_name_snapshot : row.employee_name_snapshot || employee?.nickname || employee?.full_name) || "";
   return {
     id: row.id,
     outlet_id: row.outlet_id,
@@ -51,13 +52,13 @@ function mapRoster(row) {
       id: row.employee_id,
       full_name: employeeName,
       nickname: employeeName,
-      position: row.position_snapshot || employee?.position || "",
+      position: (draft ? employee?.position : row.position_snapshot || employee?.position) || "",
       department: row.department_snapshot || employee?.department || "",
-      workplace: row.outlet_snapshot || employee?.workplace || "",
+      workplace: (draft ? employee?.workplace : row.outlet_snapshot || employee?.workplace) || "",
       employee_code: employee?.employee_code || "",
       employment_status: employee?.employment_status || "",
       is_active: employee?.is_active,
-      is_roster_snapshot: Boolean(row.employee_name_snapshot || row.position_snapshot || row.department_snapshot || row.outlet_snapshot || row.publish_timestamp),
+      is_roster_snapshot: !draft && Boolean(row.employee_name_snapshot || row.position_snapshot || row.department_snapshot || row.outlet_snapshot || row.publish_timestamp),
     } : null,
     employee_name_snapshot: row.employee_name_snapshot ?? "",
     position_snapshot: row.position_snapshot ?? "",
@@ -101,9 +102,11 @@ function buildPublishedPayload(status, snapshot) {
 }
 
 export const dutyRosterService = {
-  async listRosterEligibleEmployees(outletId) {
+  async listRosterEligibleEmployees(outletId, startDate, endDate) {
     const { data, error } = await supabase.rpc("list_roster_eligible_employees", {
       p_outlet_id: outletId,
+      p_start_date: startDate,
+      p_end_date: endDate,
     });
     throwSupabaseError("duty_rosters.list_eligible_employees", error);
     return Array.isArray(data) ? data : [];

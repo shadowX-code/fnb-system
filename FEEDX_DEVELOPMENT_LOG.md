@@ -617,3 +617,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Open Payroll membership, review and Draft Payslip identity now consume one People Employment Assignment Timeline period resolver. Unknown pre-cutover history, missing Joined Date and material mid-period assignment changes fail closed with explicit review evidence; today's Employee assignment is not historical truth.
 - Calculation fingerprints include People revision evidence so historical corrections require open-run recalculation. Existing finalized snapshots and Final Payslip artifacts remain untouched; new finalizations pin the verified period identity. Payroll compensation/statutory authority is unchanged.
+
+# 2026-09-29 — Roster Date Employment Evidence
+
+- Draft Roster employee eligibility and identity now resolve the People Employment Assignment Timeline for each roster date. The picker, week save/copy commands and legacy direct-table policies reject unavailable, inactive or cross-outlet dated assignments rather than using today's Employee fields.
+- Future transfers change scheduling eligibility only on their effective date; current Crew Access remains unchanged until People activates the revision. Existing published roster snapshots remain immutable, while new publication revisions pin dated position evidence.

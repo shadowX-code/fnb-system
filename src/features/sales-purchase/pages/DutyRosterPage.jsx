@@ -238,6 +238,18 @@ function snapshotEmployeeFromRoster(roster) {
   };
 }
 
+function rosterEmploymentForDate(employee, date) {
+  return employee?.eligibility_by_date?.[date] ?? { state: "unresolved" };
+}
+
+function rosterEligibleOnDate(employee, date) {
+  return rosterEmploymentForDate(employee, date).state === "eligible";
+}
+
+function rosterPositionOnDate(employee, date) {
+  return rosterEmploymentForDate(employee, date).position || "";
+}
+
 function ShiftBlock({ roster }) {
   if (!roster?.template) {
     return (
@@ -1592,7 +1604,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       setError("");
       try {
         const [employeeRows, positionRows, mappingRows, templateRows, allTemplateRows, rosterRows, nextPeriod] = await Promise.all([
-          dutyRosterService.listRosterEligibleEmployees(outletId),
+          dutyRosterService.listRosterEligibleEmployees(outletId, visibleStart, visibleEnd),
           jobPositionService.listJobPositions(),
           rosterPositionGroupService.listMappings(),
           shiftTemplateService.listShiftTemplates(outletId),
@@ -1693,10 +1705,10 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   }, [rosters, visibleDateValues]);
 
   async function saveShift(employee, date, templateOverride = selectedTemplate, remark = "") {
-    if (employee?.roster_eligible === false) {
+    if (!rosterEligibleOnDate(employee, date)) {
       ui.notify({
         title: "Employee cannot be scheduled",
-        message: `${employee.nickname || employee.full_name} is not currently eligible for this outlet. Update the employee's outlet assignment before scheduling.`,
+        message: `${employee.nickname || employee.full_name} has no verified eligible employment assignment for this outlet on ${date}.`,
         tone: "error",
       });
       return;
@@ -1742,10 +1754,10 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
 
   function handleCellClick(employee, date) {
     if (readOnly) return;
-    if (employee?.roster_eligible === false) {
+    if (!rosterEligibleOnDate(employee, date)) {
       ui.notify({
         title: "Employee cannot be scheduled",
-        message: `${employee.nickname || employee.full_name} is a historical roster snapshot and is not currently eligible for this outlet.`,
+        message: `${employee.nickname || employee.full_name} has no verified eligible employment assignment for this outlet on ${date}.`,
         tone: "error",
       });
       return;
@@ -1790,7 +1802,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         for (let column = dateStart; column <= dateEnd; column += 1) {
           const employee = visibleEmployees[row];
           const date = visibleDateValues[column];
-          if (employee && employee.roster_eligible !== false && date) next.add(selectionKey(employee.id, date));
+          if (employee && date && rosterEligibleOnDate(employee, date)) next.add(selectionKey(employee.id, date));
         }
       }
       return next;
@@ -1801,15 +1813,15 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     if (!selectionMode || readOnly) return;
     event.preventDefault();
     const employee = visibleEmployees[row];
-    if (employee?.roster_eligible === false) {
+    const date = visibleDateValues[column];
+    if (!rosterEligibleOnDate(employee, date)) {
       ui.notify({
         title: "Employee cannot be selected",
-        message: `${employee.nickname || employee.full_name} is not currently eligible for this outlet.`,
+        message: `${employee.nickname || employee.full_name} is not eligible for this outlet on ${date}.`,
         tone: "error",
       });
       return;
     }
-    const date = visibleDateValues[column];
     const key = selectionKey(employee.id, date);
     if (event.metaKey || event.ctrlKey) {
       setSelectedCells((current) => {
@@ -1831,16 +1843,16 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
 
   function selectEmployeeRow(employeeId) {
     const employee = employeesById.get(employeeId);
-    if (employee?.roster_eligible === false) {
+    if (!visibleDateValues.some((date) => rosterEligibleOnDate(employee, date))) {
       ui.notify({
         title: "Employee cannot be selected",
-        message: `${employee.nickname || employee.full_name} is not currently eligible for this outlet.`,
+        message: `${employee.nickname || employee.full_name} has no eligible dates in this view.`,
         tone: "error",
       });
       return;
     }
     setSelectedCells((current) => {
-      const keys = visibleDateValues.map((date) => selectionKey(employeeId, date));
+      const keys = visibleDateValues.filter((date) => rosterEligibleOnDate(employee, date)).map((date) => selectionKey(employeeId, date));
       const allSelected = keys.every((key) => current.has(key));
       const next = new Set(current);
       keys.forEach((key) => allSelected ? next.delete(key) : next.add(key));
@@ -1850,7 +1862,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
 
   function selectDateColumn(date) {
     setSelectedCells((current) => {
-      const keys = visibleEmployees.filter((employee) => employee.roster_eligible !== false).map((employee) => selectionKey(employee.id, date));
+      const keys = visibleEmployees.filter((employee) => rosterEligibleOnDate(employee, date)).map((employee) => selectionKey(employee.id, date));
       const allSelected = keys.every((key) => current.has(key));
       const next = new Set(current);
       keys.forEach((key) => allSelected ? next.delete(key) : next.add(key));
@@ -1863,16 +1875,16 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     return { key, employeeId, date, roster: rosterByEmployeeDate.get(key), employee: employeesById.get(employeeId) };
   }), [employeesById, rosterByEmployeeDate, selectedCells]);
   const protectedSelectionCount = selectedCellDetails.filter((cell) => isLeaveRoster(cell.roster)).length;
-  const ineligibleSelectionCount = selectedCellDetails.filter((cell) => cell.employee?.roster_eligible === false).length;
+  const ineligibleSelectionCount = selectedCellDetails.filter((cell) => !rosterEligibleOnDate(cell.employee, cell.date)).length;
   const editableSelectionCount = selectedCellDetails.length - protectedSelectionCount - ineligibleSelectionCount;
-  const emptySelectionCount = selectedCellDetails.filter((cell) => !cell.roster && cell.employee?.roster_eligible !== false).length;
-  const existingWorkingSelectionCount = selectedCellDetails.filter((cell) => isWorkingRoster(cell.roster) && cell.employee?.roster_eligible !== false).length;
-  const removableSelectionCount = selectedCellDetails.filter((cell) => cell.roster && !isLeaveRoster(cell.roster) && cell.employee?.roster_eligible !== false).length;
+  const emptySelectionCount = selectedCellDetails.filter((cell) => !cell.roster && rosterEligibleOnDate(cell.employee, cell.date)).length;
+  const existingWorkingSelectionCount = selectedCellDetails.filter((cell) => isWorkingRoster(cell.roster) && rosterEligibleOnDate(cell.employee, cell.date)).length;
+  const removableSelectionCount = selectedCellDetails.filter((cell) => cell.roster && !isLeaveRoster(cell.roster) && rosterEligibleOnDate(cell.employee, cell.date)).length;
   const overwriteConflictCount = selectedTemplate
     ? selectedCellDetails.filter((cell) => (
       isWorkingRoster(cell.roster)
       && cell.roster?.shift_template_id !== selectedTemplate.id
-      && cell.employee?.roster_eligible !== false
+      && rosterEligibleOnDate(cell.employee, cell.date)
     )).length
     : 0;
 
@@ -1902,7 +1914,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     bulkSavingRef.current = true;
     setSaving(true);
     try {
-      const editable = selectedCellDetails.filter((cell) => !isLeaveRoster(cell.roster) && cell.employee?.roster_eligible !== false);
+      const editable = selectedCellDetails.filter((cell) => !isLeaveRoster(cell.roster) && rosterEligibleOnDate(cell.employee, cell.date));
       const byWeek = new Map();
       editable.forEach((cell) => {
         const week = toDateInputValue(startOfWeek(`${cell.date}T00:00:00`));
@@ -1962,7 +1974,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     bulkSavingRef.current = true;
     setSaving(true);
     try {
-      const removable = selectedCellDetails.filter((cell) => cell.roster && !isLeaveRoster(cell.roster) && cell.employee?.roster_eligible !== false);
+      const removable = selectedCellDetails.filter((cell) => cell.roster && !isLeaveRoster(cell.roster) && rosterEligibleOnDate(cell.employee, cell.date));
       const byWeek = new Map();
       removable.forEach((cell) => {
         const week = toDateInputValue(startOfWeek(`${cell.date}T00:00:00`));
@@ -2321,6 +2333,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
       />
 
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
+      {visibleStart < "2026-09-29" ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Employment assignments before 29 September 2026 are unverified. Historical shifts remain visible, but an edit requires verified employment evidence for its roster date.</div> : null}
 
       <AdminSummaryGrid ariaLabel="Duty roster summary" items={[
           { label: "Staff Scheduled", value: summary.staff, icon: Users, helper: "Assigned this period" },
@@ -2422,7 +2435,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                               const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
                               const cellSelected = selectedCells.has(rosterKey(employee.id, dateValue));
                               const protectedLeave = isLeaveRoster(roster);
-                              const ineligibleEmployee = employee.roster_eligible === false;
+                              const ineligibleEmployee = !rosterEligibleOnDate(employee, dateValue);
                               return (
                                 <td key={dateValue} className="group border-l border-border px-1.5 py-1.5 align-top">
                                   <div
@@ -2430,7 +2443,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                                     role="button"
                                     tabIndex={readOnly || ineligibleEmployee ? -1 : 0}
                                     aria-disabled={readOnly || ineligibleEmployee}
-                                    aria-label={`${employee.nickname || employee.full_name}, ${dateValue}${roster?.template ? `, ${roster.template.name}` : ", unassigned"}${protectedLeave ? ", protected leave" : ""}${ineligibleEmployee ? ", not eligible for this outlet" : ""}`}
+                                    aria-label={`${employee.nickname || employee.full_name}, ${dateValue}${rosterPositionOnDate(employee, dateValue) ? `, ${rosterPositionOnDate(employee, dateValue)}` : ""}${roster?.template ? `, ${roster.template.name}` : ", unassigned"}${protectedLeave ? ", protected leave" : ""}${ineligibleEmployee ? ", employment eligibility unverified or unavailable for this outlet" : ""}`}
                                     onPointerDown={(event) => beginCellSelection(event, employeeRowIndex, columnIndex)}
                                     onPointerEnter={() => extendCellSelection(employeeRowIndex, columnIndex)}
                                     onClick={() => { if (!selectionMode) handleCellClick(employee, dateValue); }}
@@ -2481,7 +2494,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                           <div className="space-y-2">
                             {group.employees.map((employee) => {
                               const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
-                              const ineligibleEmployee = employee.roster_eligible === false;
+                              const ineligibleEmployee = !rosterEligibleOnDate(employee, dateValue);
                               const cellSelected = selectedCells.has(rosterKey(employee.id, dateValue));
                               return (
                                 <div
@@ -2490,7 +2503,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                                   role="button"
                                   tabIndex={readOnly || ineligibleEmployee ? -1 : 0}
                                   aria-disabled={readOnly || ineligibleEmployee}
-                                  aria-label={`${employee.nickname || employee.full_name}, ${dateValue}${roster?.template ? `, ${roster.template.name}` : ", unassigned"}${isLeaveRoster(roster) ? ", protected leave" : ""}${ineligibleEmployee ? ", not eligible for this outlet" : ""}`}
+                                  aria-label={`${employee.nickname || employee.full_name}, ${dateValue}${rosterPositionOnDate(employee, dateValue) ? `, ${rosterPositionOnDate(employee, dateValue)}` : ""}${roster?.template ? `, ${roster.template.name}` : ", unassigned"}${isLeaveRoster(roster) ? ", protected leave" : ""}${ineligibleEmployee ? ", employment eligibility unverified or unavailable for this outlet" : ""}`}
                                   onClick={() => {
                                     if (readOnly || ineligibleEmployee) return;
                                     if (selectionMode) {
@@ -2523,7 +2536,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
                                 >
                                   <div>
                                     <div className="text-sm font-bold text-text-primary">{employee.nickname || employee.full_name}</div>
-                                    <div className="text-xs text-text-secondary">{employee.position || "Employee"}</div>
+                                    <div className="text-xs text-text-secondary">{rosterPositionOnDate(employee, dateValue) || employee.position || "Employee"}</div>
                                     {employee.is_roster_snapshot ? (
                                       <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-amber-700">Historical snapshot · not schedulable</div>
                                     ) : null}
