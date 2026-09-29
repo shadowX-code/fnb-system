@@ -33,6 +33,13 @@ function malaysiaToday() {
   return `${get("year")}-${get("month")}-${get("day")}`;
 }
 
+function displayAssignmentDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) return value;
+  const [year, month, day] = value.split("-").map(Number);
+  return new Intl.DateTimeFormat("en-MY", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+    .format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 function assignmentOf(revision) {
   return Object.fromEntries(fields.map(([key]) => [key, revision?.[key] ?? ""]));
 }
@@ -47,7 +54,7 @@ function displayValue(key, value, entities) {
   return value || "Missing";
 }
 
-export default function EmployeeEmploymentTimelinePanel({ employeeId, canEdit, positions, workplaces, legalEntities, onSaved }) {
+export default function EmployeeEmploymentTimelinePanel({ employeeId, joinedDate, canEdit, positions, workplaces, legalEntities, onSaved }) {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [effectiveFrom, setEffectiveFrom] = useState(malaysiaToday);
@@ -75,20 +82,26 @@ export default function EmployeeEmploymentTimelinePanel({ employeeId, canEdit, p
     return () => { active = false; };
   }, [employeeId, effectiveFrom, open, editing]);
 
-  const before = assignmentOf(read?.assignment);
+  const currentRead = read?.as_of === effectiveFrom ? read : null;
+  const before = assignmentOf(currentRead?.assignment);
+  const isBaselineCorrection = currentRead?.state === "unresolved" && currentRead?.verified_from && effectiveFrom < currentRead.verified_from;
+  const missingFields = fields.filter(([key]) => key !== "legal_entity_id" && !String(assignment?.[key] || "").trim()).map(([, label]) => label);
   const changed = assignment && fields.some(([key]) => assignment[key] !== before[key]);
   const isHistorical = effectiveFrom < malaysiaToday();
   const isFuture = effectiveFrom > malaysiaToday();
   const revisions = read?.revisions || [];
+  const beforeJoinedDate = isBaselineCorrection && joinedDate && effectiveFrom < joinedDate;
+  const canConfirm = Boolean(currentRead && !loading && !saving && !beforeJoinedDate && !missingFields.length
+    && reason.trim().length >= 3 && (isBaselineCorrection || (currentRead.assignment && changed)));
 
   async function confirm() {
-    if (!read?.assignment || !changed || reason.trim().length < 3 || loading || saving) return;
+    if (!canConfirm) return;
     setSaving(true);
     setError("");
     try {
       await employeeEmploymentService.save({
         employeeId, effectiveFrom, assignment, reason: reason.trim(),
-        expectedRevisionId: read.assignment.id,
+        expectedRevisionId: currentRead.assignment?.id ?? null,
         evidenceReference: evidenceReference.trim() || null,
       });
       setEditing(false);
@@ -126,7 +139,7 @@ export default function EmployeeEmploymentTimelinePanel({ employeeId, canEdit, p
                   <span>{item.effective_from}</span>
                   <span className="text-text-secondary">{displayValue("employment_type", item.employment_type, legalEntities)} · {displayValue("employment_status", item.employment_status, legalEntities)} · {item.position || "Position missing"}</span>
                   {item.effective_from > malaysiaToday() && <span className="text-amber-700">Scheduled</span>}
-                  {item.supersedes_revision_id && <span className="text-text-secondary">Correction</span>}
+                  {item.corrects_revision_id && <span className="text-text-secondary">{item.effective_from < (revisions.find((prior) => prior.id === item.corrects_revision_id)?.effective_from || item.effective_from) ? "Historical baseline correction" : "Correction"}</span>}
                   {revisions.some((other) => other.supersedes_revision_id === item.id) && <span className="text-text-secondary">Superseded</span>}
                 </div>
                 <div className="text-xs text-text-secondary">{displayValue("legal_entity_id", item.legal_entity_id, legalEntities)} · {item.workplace || "Workplace missing"}</div>
@@ -137,27 +150,31 @@ export default function EmployeeEmploymentTimelinePanel({ employeeId, canEdit, p
           </>}
     </div>}
     {editing && createPortal(<Modal title="Change Employment" description="Choose when the complete employment assignment takes effect." size="lg" onClose={() => setEditing(false)}
-      footer={<><button className="btn-secondary" type="button" disabled={saving} onClick={() => setEditing(false)}>Cancel</button><button className="btn-primary" type="button" disabled={saving || loading || !changed || reason.trim().length < 3 || !read?.assignment} onClick={confirm}>{saving ? "Saving…" : "Confirm Employment Change"}</button></>}>
+      footer={<><button className="btn-secondary" type="button" disabled={saving} onClick={() => setEditing(false)}>Cancel</button><button className="btn-primary" type="button" disabled={!canConfirm} onClick={confirm}>{saving ? "Saving…" : isBaselineCorrection ? "Confirm Historical Employment" : "Confirm Employment Change"}</button></>}>
       <div className="space-y-4">
         <DatePickerField label="Effective from" required value={effectiveFrom} onChange={setEffectiveFrom} />
-        {isHistorical && <p className="text-sm text-amber-700">Historical correction. Prior evidence remains in the timeline; finalized records will not change.</p>}
+        {isBaselineCorrection ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><strong>Historical employment correction</strong><p className="mt-1">This assignment will establish verified employment from {displayAssignmentDate(effectiveFrom)}. Enter all known fields. Existing finalized records will not be changed; earlier dates remain unverified.</p></div>
+          : isHistorical && <p className="text-sm text-amber-700">Historical correction. Prior evidence remains in the timeline; finalized records will not change.</p>}
         {isFuture && <p className="text-sm text-text-secondary">Scheduled change. Current Employee and Crew Access remain unchanged until this date.</p>}
-        {loading ? <p className="text-sm text-text-secondary">Loading the assignment for this date…</p>
-          : read?.state === "unresolved" ? <p role="alert" className="text-sm text-amber-700">Employment before the verified baseline is unresolved. Do not guess the earlier assignment.</p>
+        {loading || !currentRead ? <p className="text-sm text-text-secondary">Loading the assignment for this date…</p>
+          : currentRead.state === "unresolved" && !isBaselineCorrection ? <p role="alert" className="text-sm text-amber-700">No verified employment baseline is available for this date.</p>
             : <>
               <div className="grid gap-3 sm:grid-cols-2">
-                <SelectField label="Employment Type" value={assignment?.employment_type || ""} onChange={(value) => setAssignment((current) => ({ ...current, employment_type: value }))} options={typeOptions} />
-                <SelectField label="Employment Status" value={assignment?.employment_status || ""} onChange={(value) => setAssignment((current) => ({ ...current, employment_status: value }))} options={statusOptions} />
-                <SelectField label="Position" searchable value={assignment?.position || ""} onChange={(value) => setAssignment((current) => ({ ...current, position: value }))} options={positions.map((item) => ({ value: item.name, label: item.name }))} />
+                <SelectField label="Employment Type" required value={assignment?.employment_type || ""} onChange={(value) => setAssignment((current) => ({ ...current, employment_type: value }))} options={typeOptions} />
+                <SelectField label="Employment Status" required value={assignment?.employment_status || ""} onChange={(value) => setAssignment((current) => ({ ...current, employment_status: value }))} options={statusOptions} />
+                <SelectField label="Position" required searchable value={assignment?.position || ""} onChange={(value) => setAssignment((current) => ({ ...current, position: value }))} options={positions.map((item) => ({ value: item.name, label: item.name }))} />
                 <SelectField label="Legal Employer" searchable value={assignment?.legal_entity_id || ""} onChange={(value) => setAssignment((current) => ({ ...current, legal_entity_id: value }))} options={[{ value: "", label: "Not assigned" }, ...legalEntities.filter((item) => item.is_active || item.id === assignment?.legal_entity_id).map((item) => ({ value: item.id, label: item.display_name || item.legal_company_name }))]} />
-                <SelectField label="Workplace" searchable value={assignment?.workplace || ""} onChange={(value) => setAssignment((current) => ({ ...current, workplace: value }))} options={workplaces.map((item) => ({ value: item, label: item }))} />
+                <SelectField label="Workplace" required searchable value={assignment?.workplace || ""} onChange={(value) => setAssignment((current) => ({ ...current, workplace: value }))} options={workplaces.map((item) => ({ value: item, label: item }))} />
               </div>
-              {changed && <div className="rounded-xl border border-border bg-slate-50 p-3 text-sm">
-                <div className="font-semibold">Review change · {effectiveFrom}</div>
-                {fields.filter(([key]) => assignment[key] !== before[key]).map(([key, label]) => <div key={key} className="mt-1 grid grid-cols-[120px_1fr] gap-2"><span className="text-text-secondary">{label}</span><span>{displayValue(key, before[key], legalEntities)} → <strong>{displayValue(key, assignment[key], legalEntities)}</strong></span></div>)}
+              {(changed || isBaselineCorrection) && <div className="rounded-xl border border-border bg-slate-50 p-3 text-sm">
+                <div className="font-semibold">{isBaselineCorrection ? "Review verified assignment" : "Review change"} · {effectiveFrom}</div>
+                {fields.filter(([key]) => isBaselineCorrection || assignment[key] !== before[key]).map(([key, label]) => <div key={key} className="mt-1 grid grid-cols-[120px_1fr] gap-2"><span className="text-text-secondary">{label}</span><span>{isBaselineCorrection ? <strong>{displayValue(key, assignment[key], legalEntities)}</strong> : <>{displayValue(key, before[key], legalEntities)} → <strong>{displayValue(key, assignment[key], legalEntities)}</strong></>}</span></div>)}
               </div>}
               <label className="block text-sm font-semibold">Reason <textarea className="control mt-1 min-h-20 w-full py-2" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Why is this assignment changing?" /></label>
               <label className="block text-sm font-semibold">Evidence / reference <span className="font-normal text-text-secondary">(optional)</span><input className="control mt-1 w-full" value={evidenceReference} onChange={(event) => setEvidenceReference(event.target.value)} /></label>
+              {beforeJoinedDate ? <p role="alert" className="text-sm font-semibold text-amber-800">Effective date cannot precede this employee’s Joined Date ({joinedDate}).</p>
+                : isBaselineCorrection && missingFields.length ? <p role="alert" className="text-sm font-semibold text-amber-800">Select {missingFields.join(", ")} to confirm this historical assignment.</p>
+                  : isBaselineCorrection && reason.trim().length < 3 ? <p role="alert" className="text-sm font-semibold text-amber-800">Enter a reason of at least 3 characters to confirm this historical assignment.</p> : null}
             </>}
         {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
       </div>

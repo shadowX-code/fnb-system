@@ -1182,7 +1182,7 @@ function UserFormModal({
             ) : null}
             </div>
           )}
-          {values.id && <EmployeeEmploymentTimelinePanel employeeId={values.id} canEdit={canEditEmployee}
+          {values.id && <EmployeeEmploymentTimelinePanel employeeId={values.id} joinedDate={initialUser?.joined_date} canEdit={canEditEmployee}
             positions={jobPositions} workplaces={workplaceOptions} legalEntities={legalEntities}
             onSaved={refreshEmployment} />}
         </FormSection>
