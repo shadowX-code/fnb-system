@@ -121,7 +121,11 @@ export default function CrewTeamReviewAdminPage({ auth, store, ui }) {
           { key: "received", header: "Reviews", align: "right", render: (row) => row.reviews_received },
           { key: "score", header: "Team Review", align: "right", render: (row) => row.score == null ? <span className="crew-team-admin-score is-pending">— / 5</span> : <strong className="crew-team-admin-score">{Number(row.score).toFixed(2)} <small>/ 5</small></strong> },
           { key: "source", header: "Source", render: (row) => <span className="crew-team-admin-source">{row.source === "admin" ? "Admin" : row.source === "crew" ? "Team" : "—"}</span> },
-          { key: "status", header: "Status", render: (row) => <span className={`crew-team-admin-status is-${row.source === "admin" ? "admin" : row.status || "pending"}`}>{employeeState(row, windowState)}</span> },
+          { key: "status", header: "Status", render: (row) => {
+            const label = employeeState(row, windowState);
+            const tone = label === "Ready" || label === "Admin Reviewed" ? "ready" : label === "Provisional" ? "provisional" : label === "Admin Review Required" ? "admin_review_required" : "pending";
+            return <span className={`crew-team-admin-status is-${tone}`}>{label}</span>;
+          } },
           { key: "action", header: "", render: (row) => <button className="crew-team-admin-row-action" type="button" aria-label={`View Team Review for ${row.employee_name}`} title="View details" onClick={() => openDetail(row.employee_id)}><ChevronRight size={17} /></button> },
         ]} /> : <p className="text-sm text-text-secondary">No participating Crew with scheduled work this month.</p>}
       </AdminDataSection>

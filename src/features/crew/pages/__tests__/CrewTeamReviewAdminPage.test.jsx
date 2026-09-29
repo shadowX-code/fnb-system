@@ -77,8 +77,13 @@ describe("Team Review Admin workspace", () => {
   });
 
   it("shows the final review day rather than the exclusive midnight close boundary", async () => {
-    mocks.read.mockResolvedValue({ ...data, window: { status: "open", closes_at: "2026-10-02T16:00:00Z" } });
+    mocks.read.mockResolvedValue({
+      ...data,
+      window: { status: "open", closes_at: "2026-10-02T16:00:00Z" },
+      employees: [{ ...data.employees[1], status: "provisional" }],
+    });
     render(<CrewTeamReviewAdminPage auth={auth} store={store} />);
     expect(await screen.findByText(/Open until 2 Oct 2026/)).not.toBeNull();
+    expect(screen.getAllByText("Awaiting reviews").every((item) => item.classList.contains("is-pending"))).toBe(true);
   });
 });
