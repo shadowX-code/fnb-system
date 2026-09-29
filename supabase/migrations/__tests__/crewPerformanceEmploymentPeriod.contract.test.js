@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 
-const period = fs.readFileSync(path.resolve("supabase/migrations/20260929054615_crew_performance_employment_period.sql"), "utf8").toLowerCase();
-const reads = fs.readFileSync(path.resolve("supabase/migrations/20260929060047_crew_performance_period_read_closure.sql"), "utf8").toLowerCase();
+const period = fs.readFileSync(path.resolve("supabase/migrations/20260929055243_crew_performance_employment_period.sql"), "utf8").toLowerCase();
+const reads = fs.readFileSync(path.resolve("supabase/migrations/20260929060145_crew_performance_period_read_closure.sql"), "utf8").toLowerCase();
 const section = (sql, start, end) => sql.split(`function public.${start}`)[1]?.split(`function public.${end}`)[0] || "";
 
 describe("Performance period employment authority", () => {
