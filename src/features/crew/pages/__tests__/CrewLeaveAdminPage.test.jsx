@@ -240,6 +240,8 @@ describe("Crew Leave Admin UI", () => {
     const dialog = screen.getByRole("dialog", { name: "Leave Balance" });
     expect(within(dialog).getAllByText("Review Required").length).toBeGreaterThan(0);
     expect(within(dialog).getByText(/Existing grant: 2 days/)).not.toBeNull();
+    expect(within(dialog).getByText("Expected entitlement from verified evidence: Unresolved")).not.toBeNull();
+    expect(within(dialog).queryByText("Final entitlement: 2 days")).toBeNull();
   });
 
   it("shows dated policy eligibility and a reason before saving a version", async () => {
