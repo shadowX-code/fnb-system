@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924004820_crew_inventory_gateway.sql"), "utf8").toLowerCase();
+const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929152648_crew_inventory_gateway_production_compat.sql"), "utf8").toLowerCase();
 const suggestionContext = readFileSync(resolve(process.cwd(), "supabase/migrations/20260924051027_crew_purchase_suggestion_context.sql"), "utf8").toLowerCase();
 
 describe("Crew Inventory Gateway authority contract", () => {
@@ -18,13 +18,16 @@ describe("Crew Inventory Gateway authority contract", () => {
 
   it("uses opaque Crew session and a private outlet gate for every read and command", () => {
     expect(sql).toContain("v_employee uuid:=public.crew_session_employee(p_token)");
-    for (const name of ["crew_inventory_stock_checks", "crew_inventory_purchase_orders", "crew_inventory_attention",
+    for (const name of ["crew_inventory_stock_checks", "crew_inventory_attention",
       "crew_inventory_save_stock_check", "crew_inventory_delete_audit_draft", "crew_inventory_save_purchase_order",
       "crew_inventory_create_stock_check_purchase_orders", "crew_inventory_transition_purchase_order",
       "crew_inventory_receive_purchase_order"]) {
       expect(sql).toContain(`function public.${name}(`);
     }
     expect(sql).toContain("grant execute on function public.crew_inventory_stock_checks");
+    expect(sql).toContain("public.crew_inventory_purchase_orders(text,uuid,uuid)");
+    expect(sql).not.toContain("create function public.crew_inventory_purchase_orders(");
+    expect(sql).toContain("production po read rpc differs from reviewed business-number baseline");
     expect(sql).toContain("to anon,authenticated");
     expect(sql).toContain("revoke all on function inventory_authority.stock_group_due");
   });
