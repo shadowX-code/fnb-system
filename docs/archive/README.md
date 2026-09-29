@@ -6,3 +6,4 @@ Current documentation is routed from the [FeedX Documentation Map](../README.md)
 
 - `2026-05/`: People, Inventory, Asset, Recipe, RBAC, and display-focused evidence.
 - `2026-06/`: production-readiness, cutover, release-candidate, SMTP, and typography evidence.
+- `2026-09/`: superseded Restaurant release-candidate reports, manifests, and scoped rehearsal evidence. See its index before using any historical record.

@@ -1,0 +1,3579 @@
+{
+  "scope": "Read-only Production, 27 Sep 2026; no mutation",
+  "orders": [
+    {
+      "po": {
+        "id": "4fb8bbb1-0108-4b72-88e5-ce10290f1c01",
+        "po_no": "PO-985378-36C",
+        "status": "completed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.436995+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:38:51.697+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "0cee3835-b20d-4c3f-b67d-1e6b7ecf436c",
+        "cancelled_at": null,
+        "completed_at": "2026-09-17T13:38:51.697+00:00",
+        "confirmed_at": "2026-09-17T13:38:31.286+00:00",
+        "submitted_at": "2026-09-17T13:38:29.952+00:00",
+        "completion_type": "full",
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "8d4de1a3-c833-4c3a-b728-4a8940e38d24",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "c0421316-fd07-4761-aee9-881358d82b91",
+          "item_name": "San Remo Sphagetti No.5",
+          "created_at": "2026-09-14T16:56:25.436995+00:00",
+          "updated_at": "2026-09-17T13:38:44.978718+00:00",
+          "received_qty": 20,
+          "requested_qty": 20,
+          "purchase_order_id": "4fb8bbb1-0108-4b72-88e5-ce10290f1c01",
+          "source_stock_check_item_id": "b9c5d8ec-282d-4126-b14f-e7ba0e25cdd5"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [
+        {
+          "id": "1097ed00-51b1-4d80-9816-baadc45dba23",
+          "lines": [
+            {
+              "id": "7c64abae-9ff3-402b-a250-140d7b066d66",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "c0421316-fd07-4761-aee9-881358d82b91",
+              "created_at": "2026-09-17T13:38:44.978718+00:00",
+              "receipt_id": "1097ed00-51b1-4d80-9816-baadc45dba23",
+              "received_qty": 20,
+              "purchase_order_item_id": "8d4de1a3-c833-4c3a-b728-4a8940e38d24"
+            }
+          ],
+          "remark": null,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:38:44.978718+00:00",
+          "received_at": "2026-09-17T13:38:44.978718+00:00",
+          "received_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "supplier_id": "0cee3835-b20d-4c3f-b67d-1e6b7ecf436c",
+          "purchase_order_id": "4fb8bbb1-0108-4b72-88e5-ce10290f1c01"
+        }
+      ],
+      "supplier": "Yee Wah",
+      "movements": [
+        {
+          "id": "ac2b5fdc-144d-4d82-9bc3-ce304db3fd00",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 20,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:38:44.978718+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "4fb8bbb1-0108-4b72-88e5-ce10290f1c01",
+          "reference_no": "PO-985378-36C",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "c0421316-fd07-4761-aee9-881358d82b91"
+        }
+      ],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "cf4005c0-b422-4cea-a568-394e6a2c0c9e",
+        "po_no": "PO-985411-36C",
+        "status": "completed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.4508+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:46:08.36+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "0cee3835-b20d-4c3f-b67d-1e6b7ecf436c",
+        "cancelled_at": null,
+        "completed_at": "2026-09-17T13:46:08.36+00:00",
+        "confirmed_at": "2026-09-14T16:58:26.419+00:00",
+        "submitted_at": "2026-09-14T16:58:24.42+00:00",
+        "completion_type": "full",
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "95b3465e-bb87-4f7f-a4ce-cb3c1af711ca",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "c0421316-fd07-4761-aee9-881358d82b91",
+          "item_name": "San Remo Sphagetti No.5",
+          "created_at": "2026-09-14T16:56:25.4508+00:00",
+          "updated_at": "2026-09-17T13:45:59.548463+00:00",
+          "received_qty": 20,
+          "requested_qty": 20,
+          "purchase_order_id": "cf4005c0-b422-4cea-a568-394e6a2c0c9e",
+          "source_stock_check_item_id": "b9c5d8ec-282d-4126-b14f-e7ba0e25cdd5"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [
+        {
+          "id": "d12143d0-304b-4f69-82cf-1d3c4250bf51",
+          "lines": [
+            {
+              "id": "e1d6dd51-3173-42fc-9863-d668e672a3aa",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "c0421316-fd07-4761-aee9-881358d82b91",
+              "created_at": "2026-09-17T13:45:59.548463+00:00",
+              "receipt_id": "d12143d0-304b-4f69-82cf-1d3c4250bf51",
+              "received_qty": 20,
+              "purchase_order_item_id": "95b3465e-bb87-4f7f-a4ce-cb3c1af711ca"
+            }
+          ],
+          "remark": null,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:45:59.548463+00:00",
+          "received_at": "2026-09-17T13:45:59.548463+00:00",
+          "received_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "supplier_id": "0cee3835-b20d-4c3f-b67d-1e6b7ecf436c",
+          "purchase_order_id": "cf4005c0-b422-4cea-a568-394e6a2c0c9e"
+        }
+      ],
+      "supplier": "Yee Wah",
+      "movements": [
+        {
+          "id": "4cffac26-115f-406f-ac9a-94527c468b84",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 20,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:45:59.548463+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "cf4005c0-b422-4cea-a568-394e6a2c0c9e",
+          "reference_no": "PO-985411-36C",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "c0421316-fd07-4761-aee9-881358d82b91"
+        }
+      ],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "de2d8c26-3407-46fb-a385-cbc04141f538",
+        "po_no": "PO-985249-39D",
+        "status": "completed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.292461+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-19T14:32:14.265+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "44b81674-6fc5-407e-b22c-9481491f839d",
+        "cancelled_at": null,
+        "completed_at": "2026-09-19T14:32:14.265+00:00",
+        "confirmed_at": "2026-09-17T13:46:45.218+00:00",
+        "submitted_at": "2026-09-17T13:46:34.864+00:00",
+        "completion_type": "full",
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "45934b24-771d-43ef-b10a-e93917a4f9ee",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "e7eafd1a-c655-4aca-ad36-1fc6411cda73",
+          "item_name": "Mango Diced",
+          "created_at": "2026-09-14T16:56:25.292461+00:00",
+          "updated_at": "2026-09-19T14:31:56.873184+00:00",
+          "received_qty": 5,
+          "requested_qty": 5,
+          "purchase_order_id": "de2d8c26-3407-46fb-a385-cbc04141f538",
+          "source_stock_check_item_id": "6718dd70-b56c-433e-b191-fee1d0e59f3c"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [
+        {
+          "id": "f09e44d7-8a7a-41d8-81d5-13efb742423e",
+          "lines": [
+            {
+              "id": "eb76d1ef-1a6f-45c9-a6b4-bda9742d5628",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "e7eafd1a-c655-4aca-ad36-1fc6411cda73",
+              "created_at": "2026-09-19T14:31:56.873184+00:00",
+              "receipt_id": "f09e44d7-8a7a-41d8-81d5-13efb742423e",
+              "received_qty": 5,
+              "purchase_order_item_id": "45934b24-771d-43ef-b10a-e93917a4f9ee"
+            }
+          ],
+          "remark": null,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:31:56.873184+00:00",
+          "received_at": "2026-09-19T14:31:56.873184+00:00",
+          "received_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "supplier_id": "44b81674-6fc5-407e-b22c-9481491f839d",
+          "purchase_order_id": "de2d8c26-3407-46fb-a385-cbc04141f538"
+        }
+      ],
+      "supplier": "Sk Group",
+      "movements": [
+        {
+          "id": "c8daf3cf-1c62-4646-a61c-d0dbdd29215a",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 5,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:31:56.873184+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "de2d8c26-3407-46fb-a385-cbc04141f538",
+          "reference_no": "PO-985249-39D",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "e7eafd1a-c655-4aca-ad36-1fc6411cda73"
+        }
+      ],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "bf55a1b6-58c9-4e55-a523-a49a745475b2",
+        "po_no": "PO-985322-39D",
+        "status": "completed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.357669+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-19T14:31:42.349+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "44b81674-6fc5-407e-b22c-9481491f839d",
+        "cancelled_at": null,
+        "completed_at": "2026-09-19T14:31:42.349+00:00",
+        "confirmed_at": "2026-09-17T13:46:26.148+00:00",
+        "submitted_at": "2026-09-17T13:46:24.481+00:00",
+        "completion_type": "full",
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "3b968aa9-463a-4f9e-8c10-c782d85e9828",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "e7eafd1a-c655-4aca-ad36-1fc6411cda73",
+          "item_name": "Mango Diced",
+          "created_at": "2026-09-14T16:56:25.357669+00:00",
+          "updated_at": "2026-09-19T14:31:25.864989+00:00",
+          "received_qty": 5,
+          "requested_qty": 5,
+          "purchase_order_id": "bf55a1b6-58c9-4e55-a523-a49a745475b2",
+          "source_stock_check_item_id": "6718dd70-b56c-433e-b191-fee1d0e59f3c"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [
+        {
+          "id": "4f234d0e-cd23-47d0-85fc-e9aa885ddc76",
+          "lines": [
+            {
+              "id": "89f52206-5186-4f4b-80e6-6cdbe5cd1c15",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "e7eafd1a-c655-4aca-ad36-1fc6411cda73",
+              "created_at": "2026-09-19T14:31:25.864989+00:00",
+              "receipt_id": "4f234d0e-cd23-47d0-85fc-e9aa885ddc76",
+              "received_qty": 5,
+              "purchase_order_item_id": "3b968aa9-463a-4f9e-8c10-c782d85e9828"
+            }
+          ],
+          "remark": null,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:31:25.864989+00:00",
+          "received_at": "2026-09-19T14:31:25.864989+00:00",
+          "received_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "supplier_id": "44b81674-6fc5-407e-b22c-9481491f839d",
+          "purchase_order_id": "bf55a1b6-58c9-4e55-a523-a49a745475b2"
+        }
+      ],
+      "supplier": "Sk Group",
+      "movements": [
+        {
+          "id": "88c87211-5c45-4138-a3a5-6a2e577230a5",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 5,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:31:25.864989+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "bf55a1b6-58c9-4e55-a523-a49a745475b2",
+          "reference_no": "PO-985322-39D",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "e7eafd1a-c655-4aca-ad36-1fc6411cda73"
+        }
+      ],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+        "po_no": "PO-985312-B39",
+        "status": "supplier_confirmed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.362362+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-19T14:31:14.968+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "652f36fd-58ac-42ab-978b-1645b3ee7b39",
+        "cancelled_at": null,
+        "completed_at": null,
+        "confirmed_at": "2026-09-19T14:31:14.968+00:00",
+        "submitted_at": "2026-09-17T13:47:12.901+00:00",
+        "completion_type": null,
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "0b13b4ea-3880-4f2c-9b93-a7636dc4fc22",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "cc88bc80-680a-4dd0-90e2-274d055ad6f8",
+          "item_name": "Olive Oil 橄榄油",
+          "created_at": "2026-09-14T16:56:25.362362+00:00",
+          "updated_at": "2026-09-14T16:56:25.362362+00:00",
+          "received_qty": 0,
+          "requested_qty": 2,
+          "purchase_order_id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+          "source_stock_check_item_id": "575dfa78-eae8-457d-9c08-9d8d08221171"
+        },
+        {
+          "id": "1a96452a-0150-4210-90d0-b4dcc1133a8e",
+          "unit": "tray",
+          "remark": null,
+          "item_id": "73dde516-0ed0-4b8b-8a93-1a4e3b7d7bec",
+          "item_name": "Pasteurized Eggs 无菌蛋",
+          "created_at": "2026-09-14T16:56:25.362362+00:00",
+          "updated_at": "2026-09-14T16:56:25.362362+00:00",
+          "received_qty": 0,
+          "requested_qty": 2,
+          "purchase_order_id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+          "source_stock_check_item_id": "1a836fe7-c9d6-4a67-8925-fe6d86dae995"
+        },
+        {
+          "id": "a032ebe0-0090-4cdb-b337-69cb20b59865",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "f1eb4897-0193-4854-9bac-53fce33522f1",
+          "item_name": "Teriyaki Sauce",
+          "created_at": "2026-09-14T16:56:25.362362+00:00",
+          "updated_at": "2026-09-14T16:56:25.362362+00:00",
+          "received_qty": 0,
+          "requested_qty": 3,
+          "purchase_order_id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+          "source_stock_check_item_id": "528cbe7d-0b1e-41b5-9ffd-d87584a36a3b"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [],
+      "supplier": "Dason",
+      "movements": [],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "8241c0a9-644a-4836-858e-f7f71654e634",
+        "po_no": "PO-985367-B39",
+        "status": "supplier_confirmed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.40323+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:47:20.3+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "652f36fd-58ac-42ab-978b-1645b3ee7b39",
+        "cancelled_at": null,
+        "completed_at": null,
+        "confirmed_at": "2026-09-17T13:47:20.3+00:00",
+        "submitted_at": "2026-09-17T13:47:15.635+00:00",
+        "completion_type": null,
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "67fe1a41-cfe5-4fe3-8ea7-005447ed3cfc",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "f1eb4897-0193-4854-9bac-53fce33522f1",
+          "item_name": "Teriyaki Sauce",
+          "created_at": "2026-09-14T16:56:25.40323+00:00",
+          "updated_at": "2026-09-14T16:56:25.40323+00:00",
+          "received_qty": 0,
+          "requested_qty": 3,
+          "purchase_order_id": "8241c0a9-644a-4836-858e-f7f71654e634",
+          "source_stock_check_item_id": "528cbe7d-0b1e-41b5-9ffd-d87584a36a3b"
+        },
+        {
+          "id": "bb2f8294-f869-4e94-8d7f-ead6f4ffb786",
+          "unit": "tray",
+          "remark": null,
+          "item_id": "73dde516-0ed0-4b8b-8a93-1a4e3b7d7bec",
+          "item_name": "Pasteurized Eggs 无菌蛋",
+          "created_at": "2026-09-14T16:56:25.40323+00:00",
+          "updated_at": "2026-09-14T16:56:25.40323+00:00",
+          "received_qty": 0,
+          "requested_qty": 2,
+          "purchase_order_id": "8241c0a9-644a-4836-858e-f7f71654e634",
+          "source_stock_check_item_id": "1a836fe7-c9d6-4a67-8925-fe6d86dae995"
+        },
+        {
+          "id": "bffaed1d-735c-4bae-b488-920d8bf51a0f",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "cc88bc80-680a-4dd0-90e2-274d055ad6f8",
+          "item_name": "Olive Oil 橄榄油",
+          "created_at": "2026-09-14T16:56:25.40323+00:00",
+          "updated_at": "2026-09-14T16:56:25.40323+00:00",
+          "received_qty": 0,
+          "requested_qty": 2,
+          "purchase_order_id": "8241c0a9-644a-4836-858e-f7f71654e634",
+          "source_stock_check_item_id": "575dfa78-eae8-457d-9c08-9d8d08221171"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [],
+      "supplier": "Dason",
+      "movements": [],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "d71ad746-8bb7-4a8c-ad6b-84f586a57ae1",
+        "po_no": "PO-984618-A1F",
+        "status": "draft",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:24.748355+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-14T16:56:24.748355+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "6f5d9779-4ee2-4590-9a15-3403da0a4a1f",
+        "cancelled_at": null,
+        "completed_at": null,
+        "confirmed_at": null,
+        "submitted_at": null,
+        "completion_type": null,
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "59df8233-6a60-46aa-93fa-a0742adf1fba",
+          "unit": "can",
+          "remark": null,
+          "item_id": "6f518460-31d8-4a6a-a45f-304488f3ab06",
+          "item_name": "7 Up 24/ctn",
+          "created_at": "2026-09-14T16:56:24.748355+00:00",
+          "updated_at": "2026-09-14T16:56:24.748355+00:00",
+          "received_qty": 0,
+          "requested_qty": 48,
+          "purchase_order_id": "d71ad746-8bb7-4a8c-ad6b-84f586a57ae1",
+          "source_stock_check_item_id": "f35912cd-e874-44ad-979c-0030a2011160"
+        },
+        {
+          "id": "86813d05-d2ae-4c27-9a2c-693119682e41",
+          "unit": "can",
+          "remark": null,
+          "item_id": "0dc3a47c-4294-4ad5-bd7e-940ee01c1185",
+          "item_name": "Coke 24/ctn",
+          "created_at": "2026-09-14T16:56:24.748355+00:00",
+          "updated_at": "2026-09-14T16:56:24.748355+00:00",
+          "received_qty": 0,
+          "requested_qty": 48,
+          "purchase_order_id": "d71ad746-8bb7-4a8c-ad6b-84f586a57ae1",
+          "source_stock_check_item_id": "463860b8-e05f-470e-b087-ca70af8024b0"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [],
+      "supplier": "Trend Magic",
+      "movements": [],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "751e69f9-3aad-4fc6-91d6-97054531c353",
+        "po_no": "PO-984946-A1F",
+        "status": "supplier_confirmed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.029688+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:42:02.254+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "6f5d9779-4ee2-4590-9a15-3403da0a4a1f",
+        "cancelled_at": null,
+        "completed_at": null,
+        "confirmed_at": "2026-09-17T13:42:02.254+00:00",
+        "submitted_at": "2026-09-17T13:42:01.005+00:00",
+        "completion_type": null,
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "3760e6d9-6069-440d-af8c-a183b5c1b678",
+          "unit": "can",
+          "remark": null,
+          "item_id": "6f518460-31d8-4a6a-a45f-304488f3ab06",
+          "item_name": "7 Up 24/ctn",
+          "created_at": "2026-09-14T16:56:25.029688+00:00",
+          "updated_at": "2026-09-14T16:56:25.029688+00:00",
+          "received_qty": 0,
+          "requested_qty": 48,
+          "purchase_order_id": "751e69f9-3aad-4fc6-91d6-97054531c353",
+          "source_stock_check_item_id": "f35912cd-e874-44ad-979c-0030a2011160"
+        },
+        {
+          "id": "acbcf833-defe-4cf4-adbd-5c278d4eb4d4",
+          "unit": "can",
+          "remark": null,
+          "item_id": "0dc3a47c-4294-4ad5-bd7e-940ee01c1185",
+          "item_name": "Coke 24/ctn",
+          "created_at": "2026-09-14T16:56:25.029688+00:00",
+          "updated_at": "2026-09-14T16:56:25.029688+00:00",
+          "received_qty": 0,
+          "requested_qty": 48,
+          "purchase_order_id": "751e69f9-3aad-4fc6-91d6-97054531c353",
+          "source_stock_check_item_id": "463860b8-e05f-470e-b087-ca70af8024b0"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [],
+      "supplier": "Trend Magic",
+      "movements": [],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "9ab06733-4a6a-4139-b19d-0666cc3c982b",
+        "po_no": "PO-985085-CDF",
+        "status": "supplier_confirmed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.140416+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:41:54.451+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "9e9c3aa4-fe42-4079-8571-1c7f412bacdf",
+        "cancelled_at": null,
+        "completed_at": null,
+        "confirmed_at": "2026-09-17T13:41:54.451+00:00",
+        "submitted_at": "2026-09-17T13:41:53.218+00:00",
+        "completion_type": null,
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "daf2c907-e008-4aef-9323-bc5aa8f06783",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "a28b3b7e-e854-43f1-b421-80204588f372",
+          "item_name": "Bestari Fried Chicken Powder",
+          "created_at": "2026-09-14T16:56:25.140416+00:00",
+          "updated_at": "2026-09-14T16:56:25.140416+00:00",
+          "received_qty": 0,
+          "requested_qty": 2,
+          "purchase_order_id": "9ab06733-4a6a-4139-b19d-0666cc3c982b",
+          "source_stock_check_item_id": "a23f8307-2c6a-4411-8e04-e46c0b7521de"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [],
+      "supplier": "Lh Sales",
+      "movements": [],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "6fe7b59f-8877-417f-bd9f-074cc5322121",
+        "po_no": "PO-985187-CDF",
+        "status": "supplier_confirmed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.24161+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:46:57.233+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "9e9c3aa4-fe42-4079-8571-1c7f412bacdf",
+        "cancelled_at": null,
+        "completed_at": null,
+        "confirmed_at": "2026-09-17T13:46:57.233+00:00",
+        "submitted_at": "2026-09-17T13:46:38.796+00:00",
+        "completion_type": null,
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "c2c132e3-272d-412d-aad9-c27a20342d1d",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "a28b3b7e-e854-43f1-b421-80204588f372",
+          "item_name": "Bestari Fried Chicken Powder",
+          "created_at": "2026-09-14T16:56:25.24161+00:00",
+          "updated_at": "2026-09-14T16:56:25.24161+00:00",
+          "received_qty": 0,
+          "requested_qty": 2,
+          "purchase_order_id": "6fe7b59f-8877-417f-bd9f-074cc5322121",
+          "source_stock_check_item_id": "a23f8307-2c6a-4411-8e04-e46c0b7521de"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [],
+      "supplier": "Lh Sales",
+      "movements": [],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+        "po_no": "PO-984960-370",
+        "status": "completed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.025754+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:45:38.373+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "ae0ed09d-ed03-406f-b905-2ace16176370",
+        "cancelled_at": null,
+        "completed_at": "2026-09-17T13:45:38.373+00:00",
+        "confirmed_at": "2026-09-17T13:42:10.199+00:00",
+        "submitted_at": "2026-09-17T13:42:08.535+00:00",
+        "completion_type": "full",
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "1798f1b6-aeaf-49a1-82f4-83d44b7a1284",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "65004875-4061-4305-963b-5121f08422cd",
+          "item_name": "Barley 薏米",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 3,
+          "requested_qty": 3,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "eb9df4a7-7543-4041-8678-d69bcc6110fe"
+        },
+        {
+          "id": "4bf11aa8-b9b7-4dd3-95ad-9f5e201e3aa2",
+          "unit": "carton",
+          "remark": null,
+          "item_id": "b073ac1b-656c-4801-a8d1-04fa0396d14e",
+          "item_name": "Oil - Cooking (PCK)",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 2,
+          "requested_qty": 2,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "c9bdb7f0-92c8-4553-8694-a6fabb96b878"
+        },
+        {
+          "id": "5e451ff8-0d5d-4f5c-974d-f0ce2112f845",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "bacf2ec4-6aa5-476d-8c8b-4dac30221549",
+          "item_name": "Oil - Cooking (BTL)",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 12,
+          "requested_qty": 12,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "3cab3716-90ac-4e75-86b1-f4043fb51b16"
+        },
+        {
+          "id": "63769b07-7094-4690-baa3-e1f77497e388",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "0f9920e9-8015-4e7c-8453-ef69bfa7ae77",
+          "item_name": "Rice 10KG 黄金米",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 6,
+          "requested_qty": 6,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "81b09bfb-61e4-4aad-8a55-9c4528577b6a"
+        },
+        {
+          "id": "671131b7-bf1e-43f9-8a85-b6a1bb8a2e49",
+          "unit": "kg",
+          "remark": null,
+          "item_id": "2183ef3b-d0f3-4106-b32d-a8a4788dc3b9",
+          "item_name": "Cordyceps Flower 虫草花",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 1,
+          "requested_qty": 1,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "c57fb417-6571-4965-acf7-0d126de44134"
+        },
+        {
+          "id": "836c04b5-0a2d-4246-ada6-3592947c4024",
+          "unit": "pcs",
+          "remark": null,
+          "item_id": "85b7b71b-5ae1-4b2a-932a-7b7272a6d1cf",
+          "item_name": "Appalam / Papadam",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 10,
+          "requested_qty": 10,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "c41487a9-cfee-4f86-923b-98cdb7d2c34e"
+        },
+        {
+          "id": "93e4745b-542e-49ac-96c8-8fbd9c1736bb",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "cd8917b0-1a54-4a2e-904e-a48c71ef13dc",
+          "item_name": "Maggi Seasoning",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 1,
+          "requested_qty": 1,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "d7eb2b2f-fbc7-4f9f-8f23-f62095ff1316"
+        },
+        {
+          "id": "9aad2ef6-c693-4a87-9c92-0729fec168c4",
+          "unit": "carton",
+          "remark": null,
+          "item_id": "54f144c8-d5ab-4f96-81a6-c65504ccf831",
+          "item_name": "Glass Noodle 红鸡冬粉",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 1,
+          "requested_qty": 1,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "54027ef5-9f60-4288-87be-e779a225a509"
+        },
+        {
+          "id": "c26f7fe9-2770-4015-a7b2-946aa2f7ad3e",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "a795f26c-4540-4c4e-ab53-5ca2f2823fb8",
+          "item_name": "Honey",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 2,
+          "requested_qty": 2,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "3460d897-141c-4d8b-8ed9-7dbd35dc0674"
+        },
+        {
+          "id": "debffb76-dcf4-4401-8cde-1e12aa503863",
+          "unit": "pcs",
+          "remark": null,
+          "item_id": "7a99d676-af05-4db6-93c8-9d91aa20def3",
+          "item_name": "Gula Melaka 椰糖",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 5,
+          "requested_qty": 5,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "3b14598b-cf27-4c07-97e2-c6aa35731c9f"
+        },
+        {
+          "id": "f3ff12e8-4683-4c94-bf04-b5c784eff398",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "31acae1d-a325-4ee1-8fdd-87d45444638e",
+          "item_name": "Hup Loong Frying Powder 合隆炸粉",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 20,
+          "requested_qty": 20,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "e20a872b-f7c2-4021-a264-3005695d3f0b"
+        },
+        {
+          "id": "fe5f9a88-0f3a-4fa9-80b3-4ea5556f1f89",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "aeb1c8f2-391b-40f4-87f3-7ddea3ed723b",
+          "item_name": "Red Bean 红豆",
+          "created_at": "2026-09-14T16:56:25.025754+00:00",
+          "updated_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_qty": 3,
+          "requested_qty": 3,
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "source_stock_check_item_id": "8a71e017-cb28-466e-b8b2-e1e399e0937c"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [
+        {
+          "id": "88aaa341-d338-4869-becd-f61101861ef7",
+          "lines": [
+            {
+              "id": "f29b2304-7f4e-49fd-a9fa-dc8f8a01da99",
+              "unit": "pcs",
+              "remark": null,
+              "item_id": "85b7b71b-5ae1-4b2a-932a-7b7272a6d1cf",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 10,
+              "purchase_order_item_id": "836c04b5-0a2d-4246-ada6-3592947c4024"
+            },
+            {
+              "id": "fc5bf4c4-f6f2-4dba-8748-cd7382af2214",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "65004875-4061-4305-963b-5121f08422cd",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 3,
+              "purchase_order_item_id": "1798f1b6-aeaf-49a1-82f4-83d44b7a1284"
+            },
+            {
+              "id": "f69ead5b-9497-4040-8d32-432cf76090f7",
+              "unit": "kg",
+              "remark": null,
+              "item_id": "2183ef3b-d0f3-4106-b32d-a8a4788dc3b9",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 1,
+              "purchase_order_item_id": "671131b7-bf1e-43f9-8a85-b6a1bb8a2e49"
+            },
+            {
+              "id": "170d756a-c1fd-4ffe-91f5-74d28934491f",
+              "unit": "carton",
+              "remark": null,
+              "item_id": "54f144c8-d5ab-4f96-81a6-c65504ccf831",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 1,
+              "purchase_order_item_id": "9aad2ef6-c693-4a87-9c92-0729fec168c4"
+            },
+            {
+              "id": "9d832e92-2cf4-4ecc-827b-52e3692861c0",
+              "unit": "pcs",
+              "remark": null,
+              "item_id": "7a99d676-af05-4db6-93c8-9d91aa20def3",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 5,
+              "purchase_order_item_id": "debffb76-dcf4-4401-8cde-1e12aa503863"
+            },
+            {
+              "id": "cec0b75f-5ae6-45ed-b051-a2856c38ed81",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "a795f26c-4540-4c4e-ab53-5ca2f2823fb8",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 2,
+              "purchase_order_item_id": "c26f7fe9-2770-4015-a7b2-946aa2f7ad3e"
+            },
+            {
+              "id": "5f1c212b-0a37-4689-a051-076e28abcd99",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "31acae1d-a325-4ee1-8fdd-87d45444638e",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 20,
+              "purchase_order_item_id": "f3ff12e8-4683-4c94-bf04-b5c784eff398"
+            },
+            {
+              "id": "0d43f88d-4b84-403e-9607-3fd4761c2227",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "cd8917b0-1a54-4a2e-904e-a48c71ef13dc",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 1,
+              "purchase_order_item_id": "93e4745b-542e-49ac-96c8-8fbd9c1736bb"
+            },
+            {
+              "id": "cebb9d6e-99b4-47d3-8b18-71d56759f23a",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "bacf2ec4-6aa5-476d-8c8b-4dac30221549",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 12,
+              "purchase_order_item_id": "5e451ff8-0d5d-4f5c-974d-f0ce2112f845"
+            },
+            {
+              "id": "78f204af-07a2-4eb7-bdf7-be92280382dc",
+              "unit": "carton",
+              "remark": null,
+              "item_id": "b073ac1b-656c-4801-a8d1-04fa0396d14e",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 2,
+              "purchase_order_item_id": "4bf11aa8-b9b7-4dd3-95ad-9f5e201e3aa2"
+            },
+            {
+              "id": "4002ffdf-b5bf-4acd-a3f1-6da4b21ac48d",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "aeb1c8f2-391b-40f4-87f3-7ddea3ed723b",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 3,
+              "purchase_order_item_id": "fe5f9a88-0f3a-4fa9-80b3-4ea5556f1f89"
+            },
+            {
+              "id": "32d70b8f-e484-4e4a-a5e1-a3c267fcd031",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "0f9920e9-8015-4e7c-8453-ef69bfa7ae77",
+              "created_at": "2026-09-17T13:42:46.331024+00:00",
+              "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+              "received_qty": 6,
+              "purchase_order_item_id": "63769b07-7094-4690-baa3-e1f77497e388"
+            }
+          ],
+          "remark": null,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_at": "2026-09-17T13:42:46.331024+00:00",
+          "received_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "supplier_id": "ae0ed09d-ed03-406f-b905-2ace16176370",
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb"
+        }
+      ],
+      "supplier": "Sunho Product",
+      "movements": [
+        {
+          "id": "fa269611-1535-4a79-9e70-d179a4a46e07",
+          "unit": "pcs",
+          "notes": "Purchase receive",
+          "quantity": 10,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "85b7b71b-5ae1-4b2a-932a-7b7272a6d1cf"
+        },
+        {
+          "id": "036bbe7a-8ee0-46af-b50d-310ab230e9bd",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 3,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "65004875-4061-4305-963b-5121f08422cd"
+        },
+        {
+          "id": "5fc8d5f8-f9b4-4c8c-ad6a-9bd21d72026f",
+          "unit": "kg",
+          "notes": "Purchase receive",
+          "quantity": 1,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "2183ef3b-d0f3-4106-b32d-a8a4788dc3b9"
+        },
+        {
+          "id": "cbff3072-ceff-47cc-ac23-7d3b07ade4a8",
+          "unit": "carton",
+          "notes": "Purchase receive",
+          "quantity": 1,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "54f144c8-d5ab-4f96-81a6-c65504ccf831"
+        },
+        {
+          "id": "7bc0c6f3-cf3d-4ed1-856e-1672cbe96356",
+          "unit": "pcs",
+          "notes": "Purchase receive",
+          "quantity": 5,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "7a99d676-af05-4db6-93c8-9d91aa20def3"
+        },
+        {
+          "id": "359368b3-a175-46c0-bb70-24617076878e",
+          "unit": "btl",
+          "notes": "Purchase receive",
+          "quantity": 2,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "a795f26c-4540-4c4e-ab53-5ca2f2823fb8"
+        },
+        {
+          "id": "04852768-9eb7-427c-b291-40a8ede24a5f",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 20,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "31acae1d-a325-4ee1-8fdd-87d45444638e"
+        },
+        {
+          "id": "e998dd3f-c5da-49a7-a7d2-454d868b5769",
+          "unit": "btl",
+          "notes": "Purchase receive",
+          "quantity": 1,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "cd8917b0-1a54-4a2e-904e-a48c71ef13dc"
+        },
+        {
+          "id": "28eefa5d-8ef2-4308-9643-8c64a9d7e007",
+          "unit": "btl",
+          "notes": "Purchase receive",
+          "quantity": 12,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "bacf2ec4-6aa5-476d-8c8b-4dac30221549"
+        },
+        {
+          "id": "7935e5ea-0664-4c4c-97b3-3242d74a72f9",
+          "unit": "carton",
+          "notes": "Purchase receive",
+          "quantity": 2,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "b073ac1b-656c-4801-a8d1-04fa0396d14e"
+        },
+        {
+          "id": "3db76d80-57fd-4625-9b8e-e2a2c2f550ac",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 3,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "aeb1c8f2-391b-40f4-87f3-7ddea3ed723b"
+        },
+        {
+          "id": "8b2115b6-e6fe-4ddc-9cf2-8917688baac2",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 6,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:42:46.331024+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+          "reference_no": "PO-984960-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "0f9920e9-8015-4e7c-8453-ef69bfa7ae77"
+        }
+      ],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+        "po_no": "PO-985071-370",
+        "status": "completed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.159138+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:41:34.105+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "ae0ed09d-ed03-406f-b905-2ace16176370",
+        "cancelled_at": null,
+        "completed_at": "2026-09-17T13:41:34.105+00:00",
+        "confirmed_at": "2026-09-17T13:40:49.031+00:00",
+        "submitted_at": "2026-09-17T13:40:47.751+00:00",
+        "completion_type": "full",
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "33912a53-834a-48a6-8149-eead6a7587e7",
+          "unit": "pcs",
+          "remark": null,
+          "item_id": "85b7b71b-5ae1-4b2a-932a-7b7272a6d1cf",
+          "item_name": "Appalam / Papadam",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 10,
+          "requested_qty": 10,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "c41487a9-cfee-4f86-923b-98cdb7d2c34e"
+        },
+        {
+          "id": "51f167c6-665d-495f-9d4b-3f833f0bcec0",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "aeb1c8f2-391b-40f4-87f3-7ddea3ed723b",
+          "item_name": "Red Bean 红豆",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 3,
+          "requested_qty": 3,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "8a71e017-cb28-466e-b8b2-e1e399e0937c"
+        },
+        {
+          "id": "6e5f5ef6-0ebf-4ed9-bf96-1c818488ebb2",
+          "unit": "pcs",
+          "remark": null,
+          "item_id": "7a99d676-af05-4db6-93c8-9d91aa20def3",
+          "item_name": "Gula Melaka 椰糖",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 5,
+          "requested_qty": 5,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "3b14598b-cf27-4c07-97e2-c6aa35731c9f"
+        },
+        {
+          "id": "81afdfe4-ef80-47dc-9d15-f4d075426d7a",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "cd8917b0-1a54-4a2e-904e-a48c71ef13dc",
+          "item_name": "Maggi Seasoning",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 1,
+          "requested_qty": 1,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "d7eb2b2f-fbc7-4f9f-8f23-f62095ff1316"
+        },
+        {
+          "id": "82f73409-37a5-4730-b2f8-7f904b7271c9",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "a795f26c-4540-4c4e-ab53-5ca2f2823fb8",
+          "item_name": "Honey",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 2,
+          "requested_qty": 2,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "3460d897-141c-4d8b-8ed9-7dbd35dc0674"
+        },
+        {
+          "id": "844f65b2-3254-4199-9619-286ed083fd4d",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "bacf2ec4-6aa5-476d-8c8b-4dac30221549",
+          "item_name": "Oil - Cooking (BTL)",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 12,
+          "requested_qty": 12,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "3cab3716-90ac-4e75-86b1-f4043fb51b16"
+        },
+        {
+          "id": "8c1b15ff-5936-4269-b6ea-6c394b11802e",
+          "unit": "kg",
+          "remark": null,
+          "item_id": "2183ef3b-d0f3-4106-b32d-a8a4788dc3b9",
+          "item_name": "Cordyceps Flower 虫草花",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 1,
+          "requested_qty": 1,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "c57fb417-6571-4965-acf7-0d126de44134"
+        },
+        {
+          "id": "9428e8ff-06da-48fc-a25a-49a7405b2c32",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "0f9920e9-8015-4e7c-8453-ef69bfa7ae77",
+          "item_name": "Rice 10KG 黄金米",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 6,
+          "requested_qty": 6,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "81b09bfb-61e4-4aad-8a55-9c4528577b6a"
+        },
+        {
+          "id": "99cf04cf-2e55-45f3-8649-a20549bcd3df",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "31acae1d-a325-4ee1-8fdd-87d45444638e",
+          "item_name": "Hup Loong Frying Powder 合隆炸粉",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 20,
+          "requested_qty": 20,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "e20a872b-f7c2-4021-a264-3005695d3f0b"
+        },
+        {
+          "id": "c9c8ef4c-7430-44bd-84ba-585b10606486",
+          "unit": "carton",
+          "remark": null,
+          "item_id": "b073ac1b-656c-4801-a8d1-04fa0396d14e",
+          "item_name": "Oil - Cooking (PCK)",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 2,
+          "requested_qty": 2,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "c9bdb7f0-92c8-4553-8694-a6fabb96b878"
+        },
+        {
+          "id": "cb084455-8a13-4eff-8bac-8daff4f02044",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "65004875-4061-4305-963b-5121f08422cd",
+          "item_name": "Barley 薏米",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 3,
+          "requested_qty": 3,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "eb9df4a7-7543-4041-8678-d69bcc6110fe"
+        },
+        {
+          "id": "ec203962-2e0a-43c8-9db2-673f6468e898",
+          "unit": "carton",
+          "remark": null,
+          "item_id": "54f144c8-d5ab-4f96-81a6-c65504ccf831",
+          "item_name": "Glass Noodle 红鸡冬粉",
+          "created_at": "2026-09-14T16:56:25.159138+00:00",
+          "updated_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_qty": 1,
+          "requested_qty": 1,
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "source_stock_check_item_id": "54027ef5-9f60-4288-87be-e779a225a509"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [
+        {
+          "id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+          "lines": [
+            {
+              "id": "cab420ca-e284-4971-827b-5146de621c24",
+              "unit": "pcs",
+              "remark": null,
+              "item_id": "85b7b71b-5ae1-4b2a-932a-7b7272a6d1cf",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 10,
+              "purchase_order_item_id": "33912a53-834a-48a6-8149-eead6a7587e7"
+            },
+            {
+              "id": "a992a2b4-c3f1-4a6e-a239-7ea3021c390f",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "65004875-4061-4305-963b-5121f08422cd",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 3,
+              "purchase_order_item_id": "cb084455-8a13-4eff-8bac-8daff4f02044"
+            },
+            {
+              "id": "84dadca8-cafd-46fb-977b-5e77cb0ac669",
+              "unit": "kg",
+              "remark": null,
+              "item_id": "2183ef3b-d0f3-4106-b32d-a8a4788dc3b9",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 1,
+              "purchase_order_item_id": "8c1b15ff-5936-4269-b6ea-6c394b11802e"
+            },
+            {
+              "id": "73e42a2e-7441-4fd6-a40a-1e64240e604e",
+              "unit": "carton",
+              "remark": null,
+              "item_id": "54f144c8-d5ab-4f96-81a6-c65504ccf831",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 1,
+              "purchase_order_item_id": "ec203962-2e0a-43c8-9db2-673f6468e898"
+            },
+            {
+              "id": "8623892f-8026-496e-9d0c-a335bbbdedba",
+              "unit": "pcs",
+              "remark": null,
+              "item_id": "7a99d676-af05-4db6-93c8-9d91aa20def3",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 5,
+              "purchase_order_item_id": "6e5f5ef6-0ebf-4ed9-bf96-1c818488ebb2"
+            },
+            {
+              "id": "0c95eeb0-d829-4463-9ca7-f9d2d7cf74f2",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "a795f26c-4540-4c4e-ab53-5ca2f2823fb8",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 2,
+              "purchase_order_item_id": "82f73409-37a5-4730-b2f8-7f904b7271c9"
+            },
+            {
+              "id": "55cb8c07-9773-4b78-a011-b3e6454d3d07",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "31acae1d-a325-4ee1-8fdd-87d45444638e",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 20,
+              "purchase_order_item_id": "99cf04cf-2e55-45f3-8649-a20549bcd3df"
+            },
+            {
+              "id": "8f917cea-ee26-4aa3-8573-a29f3b0eade1",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "cd8917b0-1a54-4a2e-904e-a48c71ef13dc",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 1,
+              "purchase_order_item_id": "81afdfe4-ef80-47dc-9d15-f4d075426d7a"
+            },
+            {
+              "id": "4956f7a4-be9d-4b99-b5e2-fd6e9c867ddf",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "bacf2ec4-6aa5-476d-8c8b-4dac30221549",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 12,
+              "purchase_order_item_id": "844f65b2-3254-4199-9619-286ed083fd4d"
+            },
+            {
+              "id": "8231d5ed-038b-4b75-88a0-9fb48c012638",
+              "unit": "carton",
+              "remark": null,
+              "item_id": "b073ac1b-656c-4801-a8d1-04fa0396d14e",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 2,
+              "purchase_order_item_id": "c9c8ef4c-7430-44bd-84ba-585b10606486"
+            },
+            {
+              "id": "7c8d829d-7e50-439a-92ca-22924f3a1d72",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "aeb1c8f2-391b-40f4-87f3-7ddea3ed723b",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 3,
+              "purchase_order_item_id": "51f167c6-665d-495f-9d4b-3f833f0bcec0"
+            },
+            {
+              "id": "4d9a74cd-bb66-439d-b94d-798ac8fccf36",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "0f9920e9-8015-4e7c-8453-ef69bfa7ae77",
+              "created_at": "2026-09-17T13:41:23.405091+00:00",
+              "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+              "received_qty": 6,
+              "purchase_order_item_id": "9428e8ff-06da-48fc-a25a-49a7405b2c32"
+            }
+          ],
+          "remark": null,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_at": "2026-09-17T13:41:23.405091+00:00",
+          "received_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "supplier_id": "ae0ed09d-ed03-406f-b905-2ace16176370",
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a"
+        }
+      ],
+      "supplier": "Sunho Product",
+      "movements": [
+        {
+          "id": "1ea56935-563a-484f-a5c9-de4292669f5b",
+          "unit": "pcs",
+          "notes": "Purchase receive",
+          "quantity": 10,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "85b7b71b-5ae1-4b2a-932a-7b7272a6d1cf"
+        },
+        {
+          "id": "5e117a71-1ce0-48b2-b076-110e3bf2566c",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 3,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "65004875-4061-4305-963b-5121f08422cd"
+        },
+        {
+          "id": "0210df5c-e172-439d-b9b8-f1ade463e51e",
+          "unit": "kg",
+          "notes": "Purchase receive",
+          "quantity": 1,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "2183ef3b-d0f3-4106-b32d-a8a4788dc3b9"
+        },
+        {
+          "id": "ec5230d9-bc98-4cba-bbab-c5c0ddebc715",
+          "unit": "carton",
+          "notes": "Purchase receive",
+          "quantity": 1,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "54f144c8-d5ab-4f96-81a6-c65504ccf831"
+        },
+        {
+          "id": "adb30c7d-a43b-4bdc-aa3d-6afe1b5f492d",
+          "unit": "pcs",
+          "notes": "Purchase receive",
+          "quantity": 5,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "7a99d676-af05-4db6-93c8-9d91aa20def3"
+        },
+        {
+          "id": "93d9cfd7-ce4b-4be1-9c65-0f5bb3f76cd6",
+          "unit": "btl",
+          "notes": "Purchase receive",
+          "quantity": 2,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "a795f26c-4540-4c4e-ab53-5ca2f2823fb8"
+        },
+        {
+          "id": "41e59844-46ec-4467-95eb-659fac9ba1b1",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 20,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "31acae1d-a325-4ee1-8fdd-87d45444638e"
+        },
+        {
+          "id": "8cf2744d-01d0-47c5-9656-5335279c2309",
+          "unit": "btl",
+          "notes": "Purchase receive",
+          "quantity": 1,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "cd8917b0-1a54-4a2e-904e-a48c71ef13dc"
+        },
+        {
+          "id": "12a34578-ce70-476c-a24d-73c213d586aa",
+          "unit": "btl",
+          "notes": "Purchase receive",
+          "quantity": 12,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "bacf2ec4-6aa5-476d-8c8b-4dac30221549"
+        },
+        {
+          "id": "d7a58da1-f45b-47db-ac39-5c52e1802437",
+          "unit": "carton",
+          "notes": "Purchase receive",
+          "quantity": 2,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "b073ac1b-656c-4801-a8d1-04fa0396d14e"
+        },
+        {
+          "id": "543ebc89-c1e3-4e9a-a986-87339931fafe",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 3,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "aeb1c8f2-391b-40f4-87f3-7ddea3ed723b"
+        },
+        {
+          "id": "28448b30-ccd9-4ca4-90f8-4f21e8f9c2cf",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 6,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:41:23.405091+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+          "reference_no": "PO-985071-370",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "0f9920e9-8015-4e7c-8453-ef69bfa7ae77"
+        }
+      ],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+        "po_no": "PO-985163-036",
+        "status": "completed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.224502+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-19T14:33:10.246+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "d61b819c-417a-435b-84ca-1ea101dae036",
+        "cancelled_at": null,
+        "completed_at": "2026-09-19T14:33:10.246+00:00",
+        "confirmed_at": "2026-09-19T14:32:23.59+00:00",
+        "submitted_at": "2026-09-17T13:46:49.393+00:00",
+        "completion_type": "full",
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "455e1b87-f548-4353-8ba0-5c86f4e9d509",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "4ab2d6e0-ab6c-440b-9e38-1b52c184e385",
+          "item_name": "Planta  4.8kg",
+          "created_at": "2026-09-14T16:56:25.224502+00:00",
+          "updated_at": "2026-09-19T14:32:39.856629+00:00",
+          "received_qty": 2,
+          "requested_qty": 2,
+          "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+          "source_stock_check_item_id": "f71ec440-5f31-434b-8780-eb1038189c61"
+        },
+        {
+          "id": "9b48dbfd-f6e9-440a-82c0-38f40d5c2bb2",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "1d497c68-fe04-4f77-bdd7-f6d045dc690d",
+          "item_name": "Swiss Bear Tatar",
+          "created_at": "2026-09-14T16:56:25.224502+00:00",
+          "updated_at": "2026-09-19T14:32:39.856629+00:00",
+          "received_qty": 1,
+          "requested_qty": 1,
+          "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+          "source_stock_check_item_id": "2c5bbefe-a810-4780-bf4d-8d881fa54e67"
+        },
+        {
+          "id": "d928c053-1955-431c-a8e9-e21f00f788b5",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "74dc18e9-46b5-4ea6-af6c-874257de3c72",
+          "item_name": "Swiss Bear Coleslaw Dressing",
+          "created_at": "2026-09-14T16:56:25.224502+00:00",
+          "updated_at": "2026-09-19T14:32:39.856629+00:00",
+          "received_qty": 2,
+          "requested_qty": 2,
+          "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+          "source_stock_check_item_id": "a8f32a6c-b3f3-4701-9eac-fa8023f43a52"
+        },
+        {
+          "id": "da9c4312-f4dd-4961-b608-6387eeafb01e",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "8877f5fe-022a-42dc-9a82-d3d0df9f82ce",
+          "item_name": "Kara Coconut Milk 1L",
+          "created_at": "2026-09-14T16:56:25.224502+00:00",
+          "updated_at": "2026-09-19T14:32:39.856629+00:00",
+          "received_qty": 12,
+          "requested_qty": 12,
+          "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+          "source_stock_check_item_id": "da855569-951e-4807-acd2-1afe3d869404"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [
+        {
+          "id": "7136d014-8e3a-4f02-8301-23a2604bbcf3",
+          "lines": [
+            {
+              "id": "8ef0c085-9141-4e11-9349-5042281135b9",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "8877f5fe-022a-42dc-9a82-d3d0df9f82ce",
+              "created_at": "2026-09-19T14:32:39.856629+00:00",
+              "receipt_id": "7136d014-8e3a-4f02-8301-23a2604bbcf3",
+              "received_qty": 12,
+              "purchase_order_item_id": "da9c4312-f4dd-4961-b608-6387eeafb01e"
+            },
+            {
+              "id": "8b949bc7-4c6e-44a0-94d0-a11cc0384300",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "4ab2d6e0-ab6c-440b-9e38-1b52c184e385",
+              "created_at": "2026-09-19T14:32:39.856629+00:00",
+              "receipt_id": "7136d014-8e3a-4f02-8301-23a2604bbcf3",
+              "received_qty": 2,
+              "purchase_order_item_id": "455e1b87-f548-4353-8ba0-5c86f4e9d509"
+            },
+            {
+              "id": "b55d7c32-0fa4-4d72-be80-a415cf936394",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "74dc18e9-46b5-4ea6-af6c-874257de3c72",
+              "created_at": "2026-09-19T14:32:39.856629+00:00",
+              "receipt_id": "7136d014-8e3a-4f02-8301-23a2604bbcf3",
+              "received_qty": 2,
+              "purchase_order_item_id": "d928c053-1955-431c-a8e9-e21f00f788b5"
+            },
+            {
+              "id": "91b03cff-215e-4ce9-9f8b-b81f7ff7ea57",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "1d497c68-fe04-4f77-bdd7-f6d045dc690d",
+              "created_at": "2026-09-19T14:32:39.856629+00:00",
+              "receipt_id": "7136d014-8e3a-4f02-8301-23a2604bbcf3",
+              "received_qty": 1,
+              "purchase_order_item_id": "9b48dbfd-f6e9-440a-82c0-38f40d5c2bb2"
+            }
+          ],
+          "remark": null,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:32:39.856629+00:00",
+          "received_at": "2026-09-19T14:32:39.856629+00:00",
+          "received_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "supplier_id": "d61b819c-417a-435b-84ca-1ea101dae036",
+          "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48"
+        }
+      ],
+      "supplier": "Bintang Utara Distribution",
+      "movements": [
+        {
+          "id": "d233de5b-477a-4700-bf41-4db1f8854355",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 12,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:32:39.856629+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+          "reference_no": "PO-985163-036",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "8877f5fe-022a-42dc-9a82-d3d0df9f82ce"
+        },
+        {
+          "id": "8b3653dc-5bdf-4242-8530-7f55de29a05a",
+          "unit": "btl",
+          "notes": "Purchase receive",
+          "quantity": 2,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:32:39.856629+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+          "reference_no": "PO-985163-036",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "4ab2d6e0-ab6c-440b-9e38-1b52c184e385"
+        },
+        {
+          "id": "d673cca2-0160-4d4c-bbc9-4524f45bb3c9",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 2,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:32:39.856629+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+          "reference_no": "PO-985163-036",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "74dc18e9-46b5-4ea6-af6c-874257de3c72"
+        },
+        {
+          "id": "1328ed1a-cf3f-4b6f-9915-3e40b8cd5e6f",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 1,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-19T14:32:39.856629+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+          "reference_no": "PO-985163-036",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "1d497c68-fe04-4f77-bdd7-f6d045dc690d"
+        }
+      ],
+      "outlet_code": "HLIPH"
+    },
+    {
+      "po": {
+        "id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+        "po_no": "PO-985260-036",
+        "status": "completed",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.297191+00:00",
+        "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "updated_at": "2026-09-17T13:40:04.009+00:00",
+        "source_type": "stock_check",
+        "supplier_id": "d61b819c-417a-435b-84ca-1ea101dae036",
+        "cancelled_at": null,
+        "completed_at": "2026-09-17T13:40:04.009+00:00",
+        "confirmed_at": "2026-09-17T13:39:30.171+00:00",
+        "submitted_at": "2026-09-17T13:39:28.271+00:00",
+        "completion_type": "full",
+        "unfulfilled_qty": 0,
+        "completion_reason": null,
+        "cancellation_reason": null,
+        "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "source_stock_request_id": null
+      },
+      "items": [
+        {
+          "id": "08cf387c-596f-46b5-a1cf-eb09a49dadce",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "74dc18e9-46b5-4ea6-af6c-874257de3c72",
+          "item_name": "Swiss Bear Coleslaw Dressing",
+          "created_at": "2026-09-14T16:56:25.297191+00:00",
+          "updated_at": "2026-09-17T13:39:50.630463+00:00",
+          "received_qty": 2,
+          "requested_qty": 2,
+          "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+          "source_stock_check_item_id": "a8f32a6c-b3f3-4701-9eac-fa8023f43a52"
+        },
+        {
+          "id": "8a12601d-6d70-488a-ad7f-21d6c1447344",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "1d497c68-fe04-4f77-bdd7-f6d045dc690d",
+          "item_name": "Swiss Bear Tatar",
+          "created_at": "2026-09-14T16:56:25.297191+00:00",
+          "updated_at": "2026-09-17T13:39:50.630463+00:00",
+          "received_qty": 1,
+          "requested_qty": 1,
+          "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+          "source_stock_check_item_id": "2c5bbefe-a810-4780-bf4d-8d881fa54e67"
+        },
+        {
+          "id": "c8bb94de-e972-49a7-ab02-0fe76aca0059",
+          "unit": "pack",
+          "remark": null,
+          "item_id": "8877f5fe-022a-42dc-9a82-d3d0df9f82ce",
+          "item_name": "Kara Coconut Milk 1L",
+          "created_at": "2026-09-14T16:56:25.297191+00:00",
+          "updated_at": "2026-09-17T13:39:50.630463+00:00",
+          "received_qty": 12,
+          "requested_qty": 12,
+          "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+          "source_stock_check_item_id": "da855569-951e-4807-acd2-1afe3d869404"
+        },
+        {
+          "id": "d58faac9-7bf0-4218-bd74-51db89f04f0f",
+          "unit": "btl",
+          "remark": null,
+          "item_id": "4ab2d6e0-ab6c-440b-9e38-1b52c184e385",
+          "item_name": "Planta  4.8kg",
+          "created_at": "2026-09-14T16:56:25.297191+00:00",
+          "updated_at": "2026-09-17T13:39:50.630463+00:00",
+          "received_qty": 2,
+          "requested_qty": 2,
+          "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+          "source_stock_check_item_id": "f71ec440-5f31-434b-8780-eb1038189c61"
+        }
+      ],
+      "outlet": "Hola Hola Kopitiam Ipoh",
+      "source": {
+        "id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+        "notes": null,
+        "shift": "Closing",
+        "status": "submitted",
+        "group_id": "6c034083-bd21-4201-a0b5-1691f270b739",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "audit_name": null,
+        "audit_type": null,
+        "check_date": "2026-09-15",
+        "check_name": "Groceries",
+        "created_at": "2026-09-14T16:32:50.867766+00:00",
+        "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "updated_at": "2026-09-14T16:37:21.637427+00:00",
+        "reviewed_at": null,
+        "submitted_at": "2026-09-14T16:37:21.637427+00:00",
+        "submitted_by": "7acd5792-7a7d-45d9-8a8e-965a84e4c006",
+        "stock_check_type": "scheduled",
+        "audit_category_ids": []
+      },
+      "receipts": [
+        {
+          "id": "16b1c8e6-a929-407e-9afa-22fc839f90f6",
+          "lines": [
+            {
+              "id": "a1054dd2-1a07-4ee7-9893-bf94bc5819d6",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "8877f5fe-022a-42dc-9a82-d3d0df9f82ce",
+              "created_at": "2026-09-17T13:39:50.630463+00:00",
+              "receipt_id": "16b1c8e6-a929-407e-9afa-22fc839f90f6",
+              "received_qty": 12,
+              "purchase_order_item_id": "c8bb94de-e972-49a7-ab02-0fe76aca0059"
+            },
+            {
+              "id": "8d4bc3aa-4cfc-4002-a8d8-1f583747e995",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "4ab2d6e0-ab6c-440b-9e38-1b52c184e385",
+              "created_at": "2026-09-17T13:39:50.630463+00:00",
+              "receipt_id": "16b1c8e6-a929-407e-9afa-22fc839f90f6",
+              "received_qty": 2,
+              "purchase_order_item_id": "d58faac9-7bf0-4218-bd74-51db89f04f0f"
+            },
+            {
+              "id": "e6684f0f-b3cc-4087-8824-aec14e7464b8",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "74dc18e9-46b5-4ea6-af6c-874257de3c72",
+              "created_at": "2026-09-17T13:39:50.630463+00:00",
+              "receipt_id": "16b1c8e6-a929-407e-9afa-22fc839f90f6",
+              "received_qty": 2,
+              "purchase_order_item_id": "08cf387c-596f-46b5-a1cf-eb09a49dadce"
+            },
+            {
+              "id": "abe4c4b5-faae-4152-b56b-97bde6936950",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "1d497c68-fe04-4f77-bdd7-f6d045dc690d",
+              "created_at": "2026-09-17T13:39:50.630463+00:00",
+              "receipt_id": "16b1c8e6-a929-407e-9afa-22fc839f90f6",
+              "received_qty": 1,
+              "purchase_order_item_id": "8a12601d-6d70-488a-ad7f-21d6c1447344"
+            }
+          ],
+          "remark": null,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:39:50.630463+00:00",
+          "received_at": "2026-09-17T13:39:50.630463+00:00",
+          "received_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "supplier_id": "d61b819c-417a-435b-84ca-1ea101dae036",
+          "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391"
+        }
+      ],
+      "supplier": "Bintang Utara Distribution",
+      "movements": [
+        {
+          "id": "d4de578e-1ddf-4e08-ab56-afdb2aea428e",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 12,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:39:50.630463+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+          "reference_no": "PO-985260-036",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "8877f5fe-022a-42dc-9a82-d3d0df9f82ce"
+        },
+        {
+          "id": "03d21b44-2479-4ed8-bfde-41366c75547f",
+          "unit": "btl",
+          "notes": "Purchase receive",
+          "quantity": 2,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:39:50.630463+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+          "reference_no": "PO-985260-036",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "4ab2d6e0-ab6c-440b-9e38-1b52c184e385"
+        },
+        {
+          "id": "62029a9c-f2e6-4621-88d0-2571daa75636",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 2,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:39:50.630463+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+          "reference_no": "PO-985260-036",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "74dc18e9-46b5-4ea6-af6c-874257de3c72"
+        },
+        {
+          "id": "5e751736-9d84-4797-ba4a-98874263a668",
+          "unit": "pack",
+          "notes": "Purchase receive",
+          "quantity": 1,
+          "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+          "created_at": "2026-09-17T13:39:50.630463+00:00",
+          "created_by": "88804587-b87a-4b47-a507-7fe15aedfc43",
+          "reference_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+          "reference_no": "PO-985260-036",
+          "movement_type": "Purchase",
+          "reference_type": "purchase_order",
+          "inventory_item_id": "1d497c68-fe04-4f77-bdd7-f6d045dc690d"
+        }
+      ],
+      "outlet_code": "HLIPH"
+    }
+  ],
+  "legacyDisplayNumbers": [
+    {
+      "id": "d71ad746-8bb7-4a8c-ad6b-84f586a57ae1",
+      "legacy_business_display": "HLIPH-260914-007"
+    },
+    {
+      "id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+      "legacy_business_display": "HLIPH-260914-008"
+    },
+    {
+      "id": "751e69f9-3aad-4fc6-91d6-97054531c353",
+      "legacy_business_display": "HLIPH-260914-009"
+    },
+    {
+      "id": "9ab06733-4a6a-4139-b19d-0666cc3c982b",
+      "legacy_business_display": "HLIPH-260914-010"
+    },
+    {
+      "id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+      "legacy_business_display": "HLIPH-260914-011"
+    },
+    {
+      "id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+      "legacy_business_display": "HLIPH-260914-012"
+    },
+    {
+      "id": "6fe7b59f-8877-417f-bd9f-074cc5322121",
+      "legacy_business_display": "HLIPH-260914-013"
+    },
+    {
+      "id": "de2d8c26-3407-46fb-a385-cbc04141f538",
+      "legacy_business_display": "HLIPH-260914-014"
+    },
+    {
+      "id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+      "legacy_business_display": "HLIPH-260914-015"
+    },
+    {
+      "id": "bf55a1b6-58c9-4e55-a523-a49a745475b2",
+      "legacy_business_display": "HLIPH-260914-016"
+    },
+    {
+      "id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+      "legacy_business_display": "HLIPH-260914-017"
+    },
+    {
+      "id": "8241c0a9-644a-4836-858e-f7f71654e634",
+      "legacy_business_display": "HLIPH-260914-018"
+    },
+    {
+      "id": "4fb8bbb1-0108-4b72-88e5-ce10290f1c01",
+      "legacy_business_display": "HLIPH-260914-019"
+    },
+    {
+      "id": "cf4005c0-b422-4cea-a568-394e6a2c0c9e",
+      "legacy_business_display": "HLIPH-260914-020"
+    }
+  ],
+  "dependencies": [
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "c8bb94de-e972-49a7-ab02-0fe76aca0059",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "8877f5fe-022a-42dc-9a82-d3d0df9f82ce",
+              "created_at": "2026-09-14T16:56:25.297191+00:00",
+              "updated_at": "2026-09-14T16:56:25.297191+00:00",
+              "received_qty": 0,
+              "requested_qty": 12,
+              "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+              "source_stock_check_item_id": "da855569-951e-4807-acd2-1afe3d869404"
+            },
+            {
+              "id": "d58faac9-7bf0-4218-bd74-51db89f04f0f",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "4ab2d6e0-ab6c-440b-9e38-1b52c184e385",
+              "created_at": "2026-09-14T16:56:25.297191+00:00",
+              "updated_at": "2026-09-14T16:56:25.297191+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+              "source_stock_check_item_id": "f71ec440-5f31-434b-8780-eb1038189c61"
+            },
+            {
+              "id": "08cf387c-596f-46b5-a1cf-eb09a49dadce",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "74dc18e9-46b5-4ea6-af6c-874257de3c72",
+              "created_at": "2026-09-14T16:56:25.297191+00:00",
+              "updated_at": "2026-09-14T16:56:25.297191+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+              "source_stock_check_item_id": "a8f32a6c-b3f3-4701-9eac-fa8023f43a52"
+            },
+            {
+              "id": "8a12601d-6d70-488a-ad7f-21d6c1447344",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "1d497c68-fe04-4f77-bdd7-f6d045dc690d",
+              "created_at": "2026-09-14T16:56:25.297191+00:00",
+              "updated_at": "2026-09-14T16:56:25.297191+00:00",
+              "received_qty": 0,
+              "requested_qty": 1,
+              "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+              "source_stock_check_item_id": "2c5bbefe-a810-4780-bf4d-8d881fa54e67"
+            }
+          ],
+          "order": {
+            "id": "63a021cb-b6a0-4a58-83d0-5ed37644b391",
+            "po_no": "PO-985260-036",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.297191+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.297191+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "d61b819c-417a-435b-84ca-1ea101dae036",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.297191+00:00",
+        "request_id": "e5e545b6-07a7-4a26-a388-64bbed77218f"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "59df8233-6a60-46aa-93fa-a0742adf1fba",
+              "unit": "can",
+              "remark": null,
+              "item_id": "6f518460-31d8-4a6a-a45f-304488f3ab06",
+              "created_at": "2026-09-14T16:56:24.748355+00:00",
+              "updated_at": "2026-09-14T16:56:24.748355+00:00",
+              "received_qty": 0,
+              "requested_qty": 48,
+              "purchase_order_id": "d71ad746-8bb7-4a8c-ad6b-84f586a57ae1",
+              "source_stock_check_item_id": "f35912cd-e874-44ad-979c-0030a2011160"
+            },
+            {
+              "id": "86813d05-d2ae-4c27-9a2c-693119682e41",
+              "unit": "can",
+              "remark": null,
+              "item_id": "0dc3a47c-4294-4ad5-bd7e-940ee01c1185",
+              "created_at": "2026-09-14T16:56:24.748355+00:00",
+              "updated_at": "2026-09-14T16:56:24.748355+00:00",
+              "received_qty": 0,
+              "requested_qty": 48,
+              "purchase_order_id": "d71ad746-8bb7-4a8c-ad6b-84f586a57ae1",
+              "source_stock_check_item_id": "463860b8-e05f-470e-b087-ca70af8024b0"
+            }
+          ],
+          "order": {
+            "id": "d71ad746-8bb7-4a8c-ad6b-84f586a57ae1",
+            "po_no": "PO-984618-A1F",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:24.748355+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:24.748355+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "6f5d9779-4ee2-4590-9a15-3403da0a4a1f",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:24.748355+00:00",
+        "request_id": "b29e70cf-07f9-4a9a-859a-ca46d793243b"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "3b968aa9-463a-4f9e-8c10-c782d85e9828",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "e7eafd1a-c655-4aca-ad36-1fc6411cda73",
+              "created_at": "2026-09-14T16:56:25.357669+00:00",
+              "updated_at": "2026-09-14T16:56:25.357669+00:00",
+              "received_qty": 0,
+              "requested_qty": 5,
+              "purchase_order_id": "bf55a1b6-58c9-4e55-a523-a49a745475b2",
+              "source_stock_check_item_id": "6718dd70-b56c-433e-b191-fee1d0e59f3c"
+            }
+          ],
+          "order": {
+            "id": "bf55a1b6-58c9-4e55-a523-a49a745475b2",
+            "po_no": "PO-985322-39D",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.357669+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.357669+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "44b81674-6fc5-407e-b22c-9481491f839d",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.357669+00:00",
+        "request_id": "02647482-9b90-4164-97c9-48da37ce4a82"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "3760e6d9-6069-440d-af8c-a183b5c1b678",
+              "unit": "can",
+              "remark": null,
+              "item_id": "6f518460-31d8-4a6a-a45f-304488f3ab06",
+              "created_at": "2026-09-14T16:56:25.029688+00:00",
+              "updated_at": "2026-09-14T16:56:25.029688+00:00",
+              "received_qty": 0,
+              "requested_qty": 48,
+              "purchase_order_id": "751e69f9-3aad-4fc6-91d6-97054531c353",
+              "source_stock_check_item_id": "f35912cd-e874-44ad-979c-0030a2011160"
+            },
+            {
+              "id": "acbcf833-defe-4cf4-adbd-5c278d4eb4d4",
+              "unit": "can",
+              "remark": null,
+              "item_id": "0dc3a47c-4294-4ad5-bd7e-940ee01c1185",
+              "created_at": "2026-09-14T16:56:25.029688+00:00",
+              "updated_at": "2026-09-14T16:56:25.029688+00:00",
+              "received_qty": 0,
+              "requested_qty": 48,
+              "purchase_order_id": "751e69f9-3aad-4fc6-91d6-97054531c353",
+              "source_stock_check_item_id": "463860b8-e05f-470e-b087-ca70af8024b0"
+            }
+          ],
+          "order": {
+            "id": "751e69f9-3aad-4fc6-91d6-97054531c353",
+            "po_no": "PO-984946-A1F",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.029688+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.029688+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "6f5d9779-4ee2-4590-9a15-3403da0a4a1f",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.029688+00:00",
+        "request_id": "a00a2956-2321-41f5-93ee-75c05c6e87de"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "836c04b5-0a2d-4246-ada6-3592947c4024",
+              "unit": "pcs",
+              "remark": null,
+              "item_id": "85b7b71b-5ae1-4b2a-932a-7b7272a6d1cf",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 10,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "c41487a9-cfee-4f86-923b-98cdb7d2c34e"
+            },
+            {
+              "id": "1798f1b6-aeaf-49a1-82f4-83d44b7a1284",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "65004875-4061-4305-963b-5121f08422cd",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 3,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "eb9df4a7-7543-4041-8678-d69bcc6110fe"
+            },
+            {
+              "id": "671131b7-bf1e-43f9-8a85-b6a1bb8a2e49",
+              "unit": "kg",
+              "remark": null,
+              "item_id": "2183ef3b-d0f3-4106-b32d-a8a4788dc3b9",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 1,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "c57fb417-6571-4965-acf7-0d126de44134"
+            },
+            {
+              "id": "9aad2ef6-c693-4a87-9c92-0729fec168c4",
+              "unit": "carton",
+              "remark": null,
+              "item_id": "54f144c8-d5ab-4f96-81a6-c65504ccf831",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 1,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "54027ef5-9f60-4288-87be-e779a225a509"
+            },
+            {
+              "id": "debffb76-dcf4-4401-8cde-1e12aa503863",
+              "unit": "pcs",
+              "remark": null,
+              "item_id": "7a99d676-af05-4db6-93c8-9d91aa20def3",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 5,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "3b14598b-cf27-4c07-97e2-c6aa35731c9f"
+            },
+            {
+              "id": "c26f7fe9-2770-4015-a7b2-946aa2f7ad3e",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "a795f26c-4540-4c4e-ab53-5ca2f2823fb8",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "3460d897-141c-4d8b-8ed9-7dbd35dc0674"
+            },
+            {
+              "id": "f3ff12e8-4683-4c94-bf04-b5c784eff398",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "31acae1d-a325-4ee1-8fdd-87d45444638e",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 20,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "e20a872b-f7c2-4021-a264-3005695d3f0b"
+            },
+            {
+              "id": "93e4745b-542e-49ac-96c8-8fbd9c1736bb",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "cd8917b0-1a54-4a2e-904e-a48c71ef13dc",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 1,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "d7eb2b2f-fbc7-4f9f-8f23-f62095ff1316"
+            },
+            {
+              "id": "5e451ff8-0d5d-4f5c-974d-f0ce2112f845",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "bacf2ec4-6aa5-476d-8c8b-4dac30221549",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 12,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "3cab3716-90ac-4e75-86b1-f4043fb51b16"
+            },
+            {
+              "id": "4bf11aa8-b9b7-4dd3-95ad-9f5e201e3aa2",
+              "unit": "carton",
+              "remark": null,
+              "item_id": "b073ac1b-656c-4801-a8d1-04fa0396d14e",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "c9bdb7f0-92c8-4553-8694-a6fabb96b878"
+            },
+            {
+              "id": "fe5f9a88-0f3a-4fa9-80b3-4ea5556f1f89",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "aeb1c8f2-391b-40f4-87f3-7ddea3ed723b",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 3,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "8a71e017-cb28-466e-b8b2-e1e399e0937c"
+            },
+            {
+              "id": "63769b07-7094-4690-baa3-e1f77497e388",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "0f9920e9-8015-4e7c-8453-ef69bfa7ae77",
+              "created_at": "2026-09-14T16:56:25.025754+00:00",
+              "updated_at": "2026-09-14T16:56:25.025754+00:00",
+              "received_qty": 0,
+              "requested_qty": 6,
+              "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+              "source_stock_check_item_id": "81b09bfb-61e4-4aad-8a55-9c4528577b6a"
+            }
+          ],
+          "order": {
+            "id": "03fed49a-157f-4244-bb94-4bfebfed07eb",
+            "po_no": "PO-984960-370",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.025754+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.025754+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "ae0ed09d-ed03-406f-b905-2ace16176370",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.025754+00:00",
+        "request_id": "fdc01971-308b-4dc6-9ea4-5cb37e523905"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "daf2c907-e008-4aef-9323-bc5aa8f06783",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "a28b3b7e-e854-43f1-b421-80204588f372",
+              "created_at": "2026-09-14T16:56:25.140416+00:00",
+              "updated_at": "2026-09-14T16:56:25.140416+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "9ab06733-4a6a-4139-b19d-0666cc3c982b",
+              "source_stock_check_item_id": "a23f8307-2c6a-4411-8e04-e46c0b7521de"
+            }
+          ],
+          "order": {
+            "id": "9ab06733-4a6a-4139-b19d-0666cc3c982b",
+            "po_no": "PO-985085-CDF",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.140416+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.140416+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "9e9c3aa4-fe42-4079-8571-1c7f412bacdf",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.140416+00:00",
+        "request_id": "5f631df9-235e-42fe-87c3-1d35763089c7"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "33912a53-834a-48a6-8149-eead6a7587e7",
+              "unit": "pcs",
+              "remark": null,
+              "item_id": "85b7b71b-5ae1-4b2a-932a-7b7272a6d1cf",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 10,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "c41487a9-cfee-4f86-923b-98cdb7d2c34e"
+            },
+            {
+              "id": "cb084455-8a13-4eff-8bac-8daff4f02044",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "65004875-4061-4305-963b-5121f08422cd",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 3,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "eb9df4a7-7543-4041-8678-d69bcc6110fe"
+            },
+            {
+              "id": "8c1b15ff-5936-4269-b6ea-6c394b11802e",
+              "unit": "kg",
+              "remark": null,
+              "item_id": "2183ef3b-d0f3-4106-b32d-a8a4788dc3b9",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 1,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "c57fb417-6571-4965-acf7-0d126de44134"
+            },
+            {
+              "id": "ec203962-2e0a-43c8-9db2-673f6468e898",
+              "unit": "carton",
+              "remark": null,
+              "item_id": "54f144c8-d5ab-4f96-81a6-c65504ccf831",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 1,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "54027ef5-9f60-4288-87be-e779a225a509"
+            },
+            {
+              "id": "6e5f5ef6-0ebf-4ed9-bf96-1c818488ebb2",
+              "unit": "pcs",
+              "remark": null,
+              "item_id": "7a99d676-af05-4db6-93c8-9d91aa20def3",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 5,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "3b14598b-cf27-4c07-97e2-c6aa35731c9f"
+            },
+            {
+              "id": "82f73409-37a5-4730-b2f8-7f904b7271c9",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "a795f26c-4540-4c4e-ab53-5ca2f2823fb8",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "3460d897-141c-4d8b-8ed9-7dbd35dc0674"
+            },
+            {
+              "id": "99cf04cf-2e55-45f3-8649-a20549bcd3df",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "31acae1d-a325-4ee1-8fdd-87d45444638e",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 20,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "e20a872b-f7c2-4021-a264-3005695d3f0b"
+            },
+            {
+              "id": "81afdfe4-ef80-47dc-9d15-f4d075426d7a",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "cd8917b0-1a54-4a2e-904e-a48c71ef13dc",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 1,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "d7eb2b2f-fbc7-4f9f-8f23-f62095ff1316"
+            },
+            {
+              "id": "844f65b2-3254-4199-9619-286ed083fd4d",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "bacf2ec4-6aa5-476d-8c8b-4dac30221549",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 12,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "3cab3716-90ac-4e75-86b1-f4043fb51b16"
+            },
+            {
+              "id": "c9c8ef4c-7430-44bd-84ba-585b10606486",
+              "unit": "carton",
+              "remark": null,
+              "item_id": "b073ac1b-656c-4801-a8d1-04fa0396d14e",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "c9bdb7f0-92c8-4553-8694-a6fabb96b878"
+            },
+            {
+              "id": "51f167c6-665d-495f-9d4b-3f833f0bcec0",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "aeb1c8f2-391b-40f4-87f3-7ddea3ed723b",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 3,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "8a71e017-cb28-466e-b8b2-e1e399e0937c"
+            },
+            {
+              "id": "9428e8ff-06da-48fc-a25a-49a7405b2c32",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "0f9920e9-8015-4e7c-8453-ef69bfa7ae77",
+              "created_at": "2026-09-14T16:56:25.159138+00:00",
+              "updated_at": "2026-09-14T16:56:25.159138+00:00",
+              "received_qty": 0,
+              "requested_qty": 6,
+              "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+              "source_stock_check_item_id": "81b09bfb-61e4-4aad-8a55-9c4528577b6a"
+            }
+          ],
+          "order": {
+            "id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a",
+            "po_no": "PO-985071-370",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.159138+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.159138+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "ae0ed09d-ed03-406f-b905-2ace16176370",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.159138+00:00",
+        "request_id": "a7d6f417-4fc7-424d-935b-10613f23b0f4"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "da9c4312-f4dd-4961-b608-6387eeafb01e",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "8877f5fe-022a-42dc-9a82-d3d0df9f82ce",
+              "created_at": "2026-09-14T16:56:25.224502+00:00",
+              "updated_at": "2026-09-14T16:56:25.224502+00:00",
+              "received_qty": 0,
+              "requested_qty": 12,
+              "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+              "source_stock_check_item_id": "da855569-951e-4807-acd2-1afe3d869404"
+            },
+            {
+              "id": "455e1b87-f548-4353-8ba0-5c86f4e9d509",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "4ab2d6e0-ab6c-440b-9e38-1b52c184e385",
+              "created_at": "2026-09-14T16:56:25.224502+00:00",
+              "updated_at": "2026-09-14T16:56:25.224502+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+              "source_stock_check_item_id": "f71ec440-5f31-434b-8780-eb1038189c61"
+            },
+            {
+              "id": "d928c053-1955-431c-a8e9-e21f00f788b5",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "74dc18e9-46b5-4ea6-af6c-874257de3c72",
+              "created_at": "2026-09-14T16:56:25.224502+00:00",
+              "updated_at": "2026-09-14T16:56:25.224502+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+              "source_stock_check_item_id": "a8f32a6c-b3f3-4701-9eac-fa8023f43a52"
+            },
+            {
+              "id": "9b48dbfd-f6e9-440a-82c0-38f40d5c2bb2",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "1d497c68-fe04-4f77-bdd7-f6d045dc690d",
+              "created_at": "2026-09-14T16:56:25.224502+00:00",
+              "updated_at": "2026-09-14T16:56:25.224502+00:00",
+              "received_qty": 0,
+              "requested_qty": 1,
+              "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+              "source_stock_check_item_id": "2c5bbefe-a810-4780-bf4d-8d881fa54e67"
+            }
+          ],
+          "order": {
+            "id": "0fe2c5f5-994e-4257-872f-19b650d61c48",
+            "po_no": "PO-985163-036",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.224502+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.224502+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "d61b819c-417a-435b-84ca-1ea101dae036",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.224502+00:00",
+        "request_id": "bcb59da1-90be-4a64-8196-63c7fe9bb0c7"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "c2c132e3-272d-412d-aad9-c27a20342d1d",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "a28b3b7e-e854-43f1-b421-80204588f372",
+              "created_at": "2026-09-14T16:56:25.24161+00:00",
+              "updated_at": "2026-09-14T16:56:25.24161+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "6fe7b59f-8877-417f-bd9f-074cc5322121",
+              "source_stock_check_item_id": "a23f8307-2c6a-4411-8e04-e46c0b7521de"
+            }
+          ],
+          "order": {
+            "id": "6fe7b59f-8877-417f-bd9f-074cc5322121",
+            "po_no": "PO-985187-CDF",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.24161+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.24161+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "9e9c3aa4-fe42-4079-8571-1c7f412bacdf",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.24161+00:00",
+        "request_id": "79f53660-39a1-4665-89cd-fd56f20a0ca3"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "45934b24-771d-43ef-b10a-e93917a4f9ee",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "e7eafd1a-c655-4aca-ad36-1fc6411cda73",
+              "created_at": "2026-09-14T16:56:25.292461+00:00",
+              "updated_at": "2026-09-14T16:56:25.292461+00:00",
+              "received_qty": 0,
+              "requested_qty": 5,
+              "purchase_order_id": "de2d8c26-3407-46fb-a385-cbc04141f538",
+              "source_stock_check_item_id": "6718dd70-b56c-433e-b191-fee1d0e59f3c"
+            }
+          ],
+          "order": {
+            "id": "de2d8c26-3407-46fb-a385-cbc04141f538",
+            "po_no": "PO-985249-39D",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.292461+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.292461+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "44b81674-6fc5-407e-b22c-9481491f839d",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.292461+00:00",
+        "request_id": "e58e62d8-2b28-4495-a478-c6cacabde805"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "0b13b4ea-3880-4f2c-9b93-a7636dc4fc22",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "cc88bc80-680a-4dd0-90e2-274d055ad6f8",
+              "created_at": "2026-09-14T16:56:25.362362+00:00",
+              "updated_at": "2026-09-14T16:56:25.362362+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+              "source_stock_check_item_id": "575dfa78-eae8-457d-9c08-9d8d08221171"
+            },
+            {
+              "id": "1a96452a-0150-4210-90d0-b4dcc1133a8e",
+              "unit": "tray",
+              "remark": null,
+              "item_id": "73dde516-0ed0-4b8b-8a93-1a4e3b7d7bec",
+              "created_at": "2026-09-14T16:56:25.362362+00:00",
+              "updated_at": "2026-09-14T16:56:25.362362+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+              "source_stock_check_item_id": "1a836fe7-c9d6-4a67-8925-fe6d86dae995"
+            },
+            {
+              "id": "a032ebe0-0090-4cdb-b337-69cb20b59865",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "f1eb4897-0193-4854-9bac-53fce33522f1",
+              "created_at": "2026-09-14T16:56:25.362362+00:00",
+              "updated_at": "2026-09-14T16:56:25.362362+00:00",
+              "received_qty": 0,
+              "requested_qty": 3,
+              "purchase_order_id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+              "source_stock_check_item_id": "528cbe7d-0b1e-41b5-9ffd-d87584a36a3b"
+            }
+          ],
+          "order": {
+            "id": "092d20e5-82fa-4c45-9919-dcb790c3d035",
+            "po_no": "PO-985312-B39",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.362362+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.362362+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "652f36fd-58ac-42ab-978b-1645b3ee7b39",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.362362+00:00",
+        "request_id": "05ebd44c-0f71-4e5c-8644-ec1f6cbb2a9f"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "bffaed1d-735c-4bae-b488-920d8bf51a0f",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "cc88bc80-680a-4dd0-90e2-274d055ad6f8",
+              "created_at": "2026-09-14T16:56:25.40323+00:00",
+              "updated_at": "2026-09-14T16:56:25.40323+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "8241c0a9-644a-4836-858e-f7f71654e634",
+              "source_stock_check_item_id": "575dfa78-eae8-457d-9c08-9d8d08221171"
+            },
+            {
+              "id": "bb2f8294-f869-4e94-8d7f-ead6f4ffb786",
+              "unit": "tray",
+              "remark": null,
+              "item_id": "73dde516-0ed0-4b8b-8a93-1a4e3b7d7bec",
+              "created_at": "2026-09-14T16:56:25.40323+00:00",
+              "updated_at": "2026-09-14T16:56:25.40323+00:00",
+              "received_qty": 0,
+              "requested_qty": 2,
+              "purchase_order_id": "8241c0a9-644a-4836-858e-f7f71654e634",
+              "source_stock_check_item_id": "1a836fe7-c9d6-4a67-8925-fe6d86dae995"
+            },
+            {
+              "id": "67fe1a41-cfe5-4fe3-8ea7-005447ed3cfc",
+              "unit": "btl",
+              "remark": null,
+              "item_id": "f1eb4897-0193-4854-9bac-53fce33522f1",
+              "created_at": "2026-09-14T16:56:25.40323+00:00",
+              "updated_at": "2026-09-14T16:56:25.40323+00:00",
+              "received_qty": 0,
+              "requested_qty": 3,
+              "purchase_order_id": "8241c0a9-644a-4836-858e-f7f71654e634",
+              "source_stock_check_item_id": "528cbe7d-0b1e-41b5-9ffd-d87584a36a3b"
+            }
+          ],
+          "order": {
+            "id": "8241c0a9-644a-4836-858e-f7f71654e634",
+            "po_no": "PO-985367-B39",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.40323+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.40323+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "652f36fd-58ac-42ab-978b-1645b3ee7b39",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.40323+00:00",
+        "request_id": "fb20a9d2-279a-409b-81ef-401358f7214d"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "8d4de1a3-c833-4c3a-b728-4a8940e38d24",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "c0421316-fd07-4761-aee9-881358d82b91",
+              "created_at": "2026-09-14T16:56:25.436995+00:00",
+              "updated_at": "2026-09-14T16:56:25.436995+00:00",
+              "received_qty": 0,
+              "requested_qty": 20,
+              "purchase_order_id": "4fb8bbb1-0108-4b72-88e5-ce10290f1c01",
+              "source_stock_check_item_id": "b9c5d8ec-282d-4126-b14f-e7ba0e25cdd5"
+            }
+          ],
+          "order": {
+            "id": "4fb8bbb1-0108-4b72-88e5-ce10290f1c01",
+            "po_no": "PO-985378-36C",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.436995+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.436995+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "0cee3835-b20d-4c3f-b67d-1e6b7ecf436c",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.436995+00:00",
+        "request_id": "d4e156df-60c7-4806-a7c8-0d2f5d8679d5"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "items": [
+            {
+              "id": "95b3465e-bb87-4f7f-a4ce-cb3c1af711ca",
+              "unit": "pack",
+              "remark": null,
+              "item_id": "c0421316-fd07-4761-aee9-881358d82b91",
+              "created_at": "2026-09-14T16:56:25.4508+00:00",
+              "updated_at": "2026-09-14T16:56:25.4508+00:00",
+              "received_qty": 0,
+              "requested_qty": 20,
+              "purchase_order_id": "cf4005c0-b422-4cea-a568-394e6a2c0c9e",
+              "source_stock_check_item_id": "b9c5d8ec-282d-4126-b14f-e7ba0e25cdd5"
+            }
+          ],
+          "order": {
+            "id": "cf4005c0-b422-4cea-a568-394e6a2c0c9e",
+            "po_no": "PO-985411-36C",
+            "status": "draft",
+            "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+            "created_at": "2026-09-14T16:56:25.4508+00:00",
+            "created_by": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+            "updated_at": "2026-09-14T16:56:25.4508+00:00",
+            "source_type": "stock_check",
+            "supplier_id": "0cee3835-b20d-4c3f-b67d-1e6b7ecf436c",
+            "cancelled_at": null,
+            "completed_at": null,
+            "confirmed_at": null,
+            "submitted_at": null,
+            "completion_type": null,
+            "unfulfilled_qty": 0,
+            "completion_reason": null,
+            "cancellation_reason": null,
+            "source_stock_check_id": "9ce25a41-fe87-4b5b-9454-6b98d6f2505d",
+            "source_stock_request_id": null
+          }
+        },
+        "actor_id": "6cbf2227-1790-491a-aa9a-9d495efe6e15",
+        "operation": "purchase_order",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-14T16:56:25.4508+00:00",
+        "request_id": "49702889-cdd8-4d1d-b673-627a5a0224c0"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "status": "fully_received",
+          "receipt_id": "1097ed00-51b1-4d80-9816-baadc45dba23",
+          "purchase_order_id": "4fb8bbb1-0108-4b72-88e5-ce10290f1c01"
+        },
+        "actor_id": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "operation": "purchase_receipt",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-17T13:38:44.978718+00:00",
+        "request_id": "ab79746e-b1cc-45ae-ad66-9b0642e316c9"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "status": "fully_received",
+          "receipt_id": "16b1c8e6-a929-407e-9afa-22fc839f90f6",
+          "purchase_order_id": "63a021cb-b6a0-4a58-83d0-5ed37644b391"
+        },
+        "actor_id": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "operation": "purchase_receipt",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-17T13:39:50.630463+00:00",
+        "request_id": "777abdf0-b798-404e-ad59-95111df9d77b"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "status": "fully_received",
+          "receipt_id": "1999082d-3451-491a-8e5a-02da98bb78ef",
+          "purchase_order_id": "1e20507c-a954-4e95-9646-c7ee41d3bc9a"
+        },
+        "actor_id": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "operation": "purchase_receipt",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-17T13:41:23.405091+00:00",
+        "request_id": "2c8ea495-9371-47dc-99e5-ee4a58f08f9a"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "status": "fully_received",
+          "receipt_id": "88aaa341-d338-4869-becd-f61101861ef7",
+          "purchase_order_id": "03fed49a-157f-4244-bb94-4bfebfed07eb"
+        },
+        "actor_id": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "operation": "purchase_receipt",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-17T13:42:46.331024+00:00",
+        "request_id": "26f15cd7-b056-4aeb-8bd8-1b20a2c35730"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "status": "fully_received",
+          "receipt_id": "d12143d0-304b-4f69-82cf-1d3c4250bf51",
+          "purchase_order_id": "cf4005c0-b422-4cea-a568-394e6a2c0c9e"
+        },
+        "actor_id": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "operation": "purchase_receipt",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-17T13:45:59.548463+00:00",
+        "request_id": "31f9fa6b-84b8-4e6f-9e59-0a0d041118c9"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "status": "fully_received",
+          "receipt_id": "4f234d0e-cd23-47d0-85fc-e9aa885ddc76",
+          "purchase_order_id": "bf55a1b6-58c9-4e55-a523-a49a745475b2"
+        },
+        "actor_id": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "operation": "purchase_receipt",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-19T14:31:25.864989+00:00",
+        "request_id": "18d60c1d-b040-48d5-9296-18a6a2a16894"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "status": "fully_received",
+          "receipt_id": "f09e44d7-8a7a-41d8-81d5-13efb742423e",
+          "purchase_order_id": "de2d8c26-3407-46fb-a385-cbc04141f538"
+        },
+        "actor_id": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "operation": "purchase_receipt",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-19T14:31:56.873184+00:00",
+        "request_id": "dbe139c0-7d3d-4f52-8ee6-7d364d57a222"
+      }
+    },
+    {
+      "kind": "request",
+      "evidence": {
+        "result": {
+          "status": "fully_received",
+          "receipt_id": "7136d014-8e3a-4f02-8301-23a2604bbcf3",
+          "purchase_order_id": "0fe2c5f5-994e-4257-872f-19b650d61c48"
+        },
+        "actor_id": "88804587-b87a-4b47-a507-7fe15aedfc43",
+        "operation": "purchase_receipt",
+        "outlet_id": "834c04b9-cdef-4e31-89eb-965873fcb8b8",
+        "created_at": "2026-09-19T14:32:39.856629+00:00",
+        "request_id": "a6c5020c-dac4-43a5-aaf7-eccda27edebc"
+      }
+    },
+    {
+      "kind": "fk",
+      "evidence": {
+        "table": "inventory_purchase_receipts",
+        "definition": "FOREIGN KEY (purchase_order_id) REFERENCES inventory_purchase_orders(id) ON DELETE CASCADE"
+      }
+    },
+    {
+      "kind": "fk",
+      "evidence": {
+        "table": "inventory_purchase_receipt_items",
+        "definition": "FOREIGN KEY (receipt_id) REFERENCES inventory_purchase_receipts(id) ON DELETE CASCADE"
+      }
+    },
+    {
+      "kind": "fk",
+      "evidence": {
+        "table": "inventory_purchase_order_items",
+        "definition": "FOREIGN KEY (purchase_order_id) REFERENCES inventory_purchase_orders(id) ON DELETE CASCADE"
+      }
+    },
+    {
+      "kind": "index",
+      "evidence": {
+        "name": "inventory_purchase_orders_pkey",
+        "definition": "CREATE UNIQUE INDEX inventory_purchase_orders_pkey ON public.inventory_purchase_orders USING btree (id)"
+      }
+    }
+  ]
+}
