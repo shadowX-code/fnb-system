@@ -587,3 +587,9 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added a reusable Malaysian Employment Agreement V1 template starter to the existing People-owned Contract Builder V2, with bounded identity/term tokens and server-rendered leave-table/signature blocks.
 - Added optional Employee residential address master data for immutable contract render-manifest use; no separate contract lifecycle, storage authority, or signature claim was introduced.
+
+# 2026-09-29 — Payroll Period Employment Evidence
+
+- Open Payroll membership, review and Draft Payslip identity now consume one People Employment Assignment Timeline period resolver. Unknown pre-cutover history, missing Joined Date and material mid-period assignment changes fail closed with explicit review evidence; today's Employee assignment is not historical truth.
+- Calculation fingerprints include People revision evidence so historical corrections require open-run recalculation. Existing finalized snapshots and Final Payslip artifacts remain untouched; new finalizations pin the verified period identity. Payroll compensation/statutory authority is unchanged.
+

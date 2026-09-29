@@ -58,6 +58,7 @@ export function payrollIssueLabel(issue, context = {}) {
   const [code, detail] = String(issue).split(":");
   const range = value => value?.replaceAll("..", " – ");
   if (code === "pay_history_missing") return `Pay history missing · ${range(detail)}`;
+  if (code === "employment_history_unresolved") return `Employment assignment history unresolved · ${range(detail)}`;
   if (code === "component_proration_policy_required" || code === "component_multiple_amounts_requires_review") {
     const component = context.components?.find(c => c.id === detail);
     return `${component?.name || "Recurring component"} · ${code === "component_proration_policy_required" ? "Component proration policy required" : "Multiple amounts in one period require review"}`;
@@ -67,6 +68,10 @@ export function payrollIssueLabel(issue, context = {}) {
     return `${code === "statutory_applicability_missing" ? "Statutory" : code.split("_")[0].toUpperCase()} applicability missing · ${coverage.start} – ${coverage.missing_through}`;
   }
   const labels = {
+    employment_joined_date_missing: "Joined Date is required to resolve period employment",
+    employment_assignment_requires_review: "Period employment assignment requires review",
+    legal_employer_unresolved: "Legal Employer is unresolved for this period",
+    mid_period_employment_change: "Employment assignment changes during this period; review employer and identity",
     missing_approved_payable_time: "Missing approved payable time",
     missing_punch: "Missing clock-in or clock-out; review payable time",
     pcb_confirmation_required: "PCB amount required",
