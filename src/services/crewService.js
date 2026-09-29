@@ -322,6 +322,12 @@ export const crewService = {
     return data;
   },
 
+  async leavePolicyHistory(outletId, leaveType) {
+    const { data, error } = await supabase.rpc("crew_leave_policy_history", { p_outlet_id: outletId, p_leave_type: leaveType });
+    throwSupabaseError("crew.leavePolicyHistory", error);
+    return data ?? [];
+  },
+
   async reviewLeave(requestId, decision, rejectionReason = null) {
     const { data, error } = await supabase.rpc("crew_leave_review", { p_request_id: requestId, p_decision: decision, p_rejection_reason: rejectionReason || null });
     throwSupabaseError("crew.reviewLeave", error);

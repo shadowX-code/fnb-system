@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   leaveBalancesAdminPage: vi.fn(),
   leaveAdminPolicies: vi.fn(),
   leavePolicyEditContext: vi.fn(),
+  leavePolicyHistory: vi.fn(),
   reviewLeave: vi.fn(),
   adjustLeaveBalance: vi.fn(),
   leaveAdjustmentHistory: vi.fn(),
@@ -102,10 +103,15 @@ beforeEach(() => {
     return Promise.resolve({ verified_cutover_from: "2026-09-29", historical,
       expected_version_id: historical ? null : policy.current_version_id,
       expected_next_version_id: historical ? policy.current_version_id : null,
-      next_effective_from: historical ? "2026-09-29" : null,
+      next_observation_from: historical ? "2026-09-29" : null,
+      next_effective_from: null,
       version: historical ? null : { ...policy, id: policy.current_version_id },
     });
   });
+  mocks.leavePolicyHistory.mockReset().mockResolvedValue([
+    { id: "version-annual", effective_from: "2026-09-29", source_kind: "cutover_current", authority_state: "observation", eligible_employment_types: ["full_time", "part_time"], annual_days: 12, balance_enforced: true, proration_rule: "calendar_days", carry_forward_enabled: false, reason: "Observed policy at cutover", recorded_at: "2026-09-29T01:00:00Z" },
+    { id: "historical-annual", effective_from: "2026-01-01", source_kind: "historical_baseline", authority_state: "effective", eligible_employment_types: ["probation", "full_time"], annual_days: 8, balance_enforced: true, proration_rule: "calendar_days", carry_forward_enabled: false, reason: "Earlier approved terms", evidence_reference: "Approved 2026 policy", recorded_at: "2026-09-30T01:00:00Z" },
+  ]);
   mocks.reviewLeave.mockReset().mockResolvedValue({});
   mocks.adjustLeaveBalance.mockReset().mockResolvedValue({});
   mocks.leaveAdjustmentHistory.mockReset().mockResolvedValue(adjustmentHistory);
@@ -206,6 +212,34 @@ describe("Crew Leave Admin UI", () => {
     expect(await within(dialog).findByText("Unlimited / no balance limit")).not.toBeNull();
     expect(await within(dialog).findByText("Eligible Employment Types")).not.toBeNull();
     expect(within(dialog).queryByText("Annual entitlement")).toBeNull();
+  });
+
+  it("shows historical authority separately from a preserved cutover observation", async () => {
+    render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await screen.findAllByRole("button", { name: "History" });
+    fireEvent.click(within(document.querySelectorAll("tbody tr")[0]).getByRole("button", { name: "History" }));
+    const dialog = await screen.findByRole("dialog", { name: "Annual Leave Policy History" });
+    expect(within(dialog).getByText("Observation only")).not.toBeNull();
+    expect(within(dialog).getByText("Evidenced historical policy")).not.toBeNull();
+    expect(within(dialog).getByText(/Probation, Full-Time/)).not.toBeNull();
+    expect(within(dialog).getByText(/Reference: Approved 2026 policy/)).not.toBeNull();
+    expect(mocks.leavePolicyHistory).toHaveBeenCalledWith("outlet-1", "annual");
+  });
+
+  it("withholds numeric availability for a durable grant that needs review", async () => {
+    const rows = groupedBalances(data.balances.map((row) => row.employee.id === "employee-a" && row.leave_type === "annual"
+      ? { ...row, eligibility_state: "review_required", available: null, recorded_available: 2, prorated: 2 }
+      : row));
+    mocks.leaveBalancesAdminPage.mockResolvedValue(page(rows));
+    render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Balances" }));
+    await screen.findAllByRole("button", { name: "Manage" });
+    expect(screen.getByText("Review Required")).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Manage" })[0]);
+    const dialog = screen.getByRole("dialog", { name: "Leave Balance" });
+    expect(within(dialog).getAllByText("Review Required").length).toBeGreaterThan(0);
+    expect(within(dialog).getByText(/Existing grant: 2 days/)).not.toBeNull();
   });
 
   it("shows dated policy eligibility and a reason before saving a version", async () => {
