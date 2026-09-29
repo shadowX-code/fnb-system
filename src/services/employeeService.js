@@ -166,6 +166,14 @@ export const employeeService = {
       updated_at: new Date().toISOString(),
     };
 
+    // Existing employment assignments are written only by the effective-dated
+    // People command. Ordinary Employee saves may change unrelated profile data.
+    if (isUpdate) {
+      for (const key of ["employment_type", "employment_status", "legal_entity_id", "position", "workplace", "resigned_date", "department"]) {
+        delete payload[key];
+      }
+    }
+
     const query = isUpdate
       ? supabase.from("employees").update(payload).eq("id", employee.id)
       : supabase.from("employees").insert(payload);
