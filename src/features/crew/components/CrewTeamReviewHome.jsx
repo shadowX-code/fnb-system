@@ -60,7 +60,7 @@ export default function CrewTeamReviewHome({ token, employeeId }) {
   return <section className="crew-v2-home-section crew-team-home">
     {data?.open && teammates.length ? <button type="button" className="crew-team-home-entry" onClick={() => { setSheetOpen(true); setSuccess(false); setError(""); }}>
       <i className="crew-ui-icon-container crew-ui-icon-container--compact"><UsersRound size={18} /></i>
-      <span><strong>{t("teamReview.title")}</strong><small>{pending.length ? data.completed ? t("teamReview.availableAfter", { completed: data.completed, available: pending.length }) : t("teamReview.available", { count: pending.length }) : t("teamReview.caughtUp")}</small></span>
+      <span><strong>{t("teamReview.title")}</strong><small>{t("teamReview.closes", { date: closingDate })}</small><b>{pending.length ? t("teamReview.available", { count: pending.length }) : t("teamReview.caughtUp")}</b></span>
       {pending.length ? <em>{t("teamReview.continue")}</em> : null}<ChevronRight size={17} />
     </button> : null}
     {introOpen && <CrewBottomSheet title={t("teamReview.openTitle")} description={t("teamReview.openDescription")} onClose={() => setIntroOpen(false)} footer={<><button type="button" className="crew-mobile-secondary" onClick={() => setIntroOpen(false)}>{t("teamReview.later")}</button><button type="button" className="crew-mobile-primary" onClick={() => { setIntroOpen(false); setSheetOpen(true); }}>{t("teamReview.start")}</button></>}>
@@ -80,9 +80,8 @@ export default function CrewTeamReviewHome({ token, employeeId }) {
         </button>)}
       </div> : <div className="crew-team-form">
         <p>{t("teamReview.help")}</p>
-        <div className="crew-team-scale">{scale.map((word, index) => <span key={word}><b>{index + 1}</b> {t(`teamReview.scale.${word}`)}</span>)}</div>
-        {dimensions.map((key) => <fieldset key={key}><legend>{t(`teamReview.dimensions.${key}`)}</legend><div>{scale.map((word, index) => <button type="button" key={word} className={ratings[key] === index + 1 ? "is-active" : ""} aria-label={`${index + 1} ${t(`teamReview.scale.${word}`)}`} aria-pressed={ratings[key] === index + 1} onClick={() => setRatings((current) => ({ ...current, [key]: index + 1 }))}>{index + 1}</button>)}</div></fieldset>)}
-        <label className="crew-team-comment">{t("teamReview.comment")}<textarea value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} placeholder={t("teamReview.commentPlaceholder")} /></label>
+        {dimensions.map((key) => <fieldset key={key}><legend>{t(`teamReview.dimensions.${key}`)}</legend><div>{scale.map((word, index) => <button type="button" key={word} className={ratings[key] === index + 1 ? "is-active" : ""} aria-label={`${index + 1} ${t(`teamReview.scale.${word}`)}`} aria-pressed={ratings[key] === index + 1} onClick={() => setRatings((current) => ({ ...current, [key]: index + 1 }))}>{index + 1}</button>)}</div><small aria-live="polite">{ratings[key] ? `${ratings[key]} · ${t(`teamReview.scale.${scale[ratings[key] - 1]}`)}` : t("teamReview.chooseRating")}</small></fieldset>)}
+        <div className="crew-team-comment"><label htmlFor="crew-team-comment">{t("teamReview.comment")}</label><p>{t("teamReview.commentPrompt")}</p><textarea id="crew-team-comment" value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} placeholder={t("teamReview.commentPlaceholder")} /><small>{t("teamReview.commentPrivacy")}</small></div>
         {error && <div role="alert" className="crew-v2-error">{error}</div>}
       </div>
       }

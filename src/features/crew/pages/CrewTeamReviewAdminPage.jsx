@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MoreHorizontal } from "lucide-react";
+import { ChevronRight, MoreHorizontal } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
 import MonthPickerField from "../../../components/forms/MonthPickerField.jsx";
@@ -108,21 +108,21 @@ export default function CrewTeamReviewAdminPage({ auth, store, ui }) {
 
   return <div className="crew-team-admin-page">
     <PageHeader section="Crew · Performance" title="Team Review" description="Monthly coworker evidence and audited Admin review." />
-    <AdminFilterToolbar ariaLabel="Team Review context" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />} period={<MonthPickerField label="Month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
+    <AdminFilterToolbar compact denseFields ariaLabel="Team Review context" outlet={<AdminOutletField value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />} period={<MonthPickerField label="Month" value={period.slice(0, 7)} onChange={(value) => setPeriod(`${value}-01`)} />} />
     {error ? <p role="alert" className="crew-team-admin-error">{error}</p> : null}
     {loading && !data ? <p className="text-text-secondary">Loading Team Review…</p> : null}
     {data ? <>
-      <div className="crew-team-admin-context"><span><strong>Review Window</strong> · {windowState === "open" ? `Open until ${lastDay(data.window.closes_at)}` : windowState === "upcoming" ? `Upcoming · opens ${stamp(data.window.opens_at)}` : windowState === "closed" ? "Closed" : "Not available"}</span>{controls.length ? <details className="crew-team-admin-menu"><summary aria-label="Review window actions"><MoreHorizontal size={19} /></summary><div>{controls.map(([key, label]) => <button type="button" key={key} onClick={() => { setControl(key); setReason(""); setDeadline(""); }}>{label}</button>)}</div></details> : null}</div>
-      <div className="crew-team-admin-summary" aria-label="Team Review summary">{[["Crew in Review", summary.eligible_crew], ["Reviews Received", summary.reviews_received], ["Team Reviews Ready", summary.ready], ["Admin Reviews Required", summary.admin_required]].map(([label, value]) => <div key={label}><strong>{value ?? 0}</strong><span>{label}</span></div>)}</div>
+      <div className="crew-team-admin-context"><span className="crew-team-admin-window-label">Review Window</span><strong className={`crew-team-admin-window-state is-${windowState || "unavailable"}`}>{windowState === "open" ? `Open until ${lastDay(data.window.closes_at)}` : windowState === "upcoming" ? "Upcoming" : windowState === "closed" ? "Closed" : "Not available"}</strong>{windowState === "upcoming" ? <span className="crew-team-admin-window-detail">Opens {stamp(data.window.opens_at)}</span> : null}{controls.length ? <details className="crew-team-admin-menu"><summary aria-label="Review window actions"><MoreHorizontal size={19} /></summary><div>{controls.map(([key, label]) => <button type="button" key={key} onClick={() => { setControl(key); setReason(""); setDeadline(""); }}>{label}</button>)}</div></details> : null}</div>
+      <div className="crew-team-admin-summary" aria-label="Team Review summary">{[["Crew", summary.eligible_crew], ["Reviews Received", summary.reviews_received], ["Team Reviews Ready", summary.ready], ["Admin Reviews Required", summary.admin_required]].map(([label, value]) => <div key={label}><strong>{value ?? 0}</strong><span>{label}</span></div>)}</div>
       <AdminDataSection title="Crew" description={windowState === "upcoming" ? "Eligibility preview from published roster overlap." : `${employees.length} Crew in this outlet and month.`}>
         {employees.length ? <DataTable density="compact" rows={employees} getRowKey={(row) => row.employee_id} tableClassName="min-w-[760px]" columns={[
           { key: "name", header: "Employee", render: (row) => <strong>{row.employee_name}</strong> },
           { key: "eligible", header: "Eligible Teammates", align: "right", render: (row) => row.eligible_teammates },
           { key: "received", header: "Reviews", align: "right", render: (row) => row.reviews_received },
-          { key: "score", header: "Team Review", align: "right", render: (row) => row.score == null ? "— / 5" : `${Number(row.score).toFixed(2)} / 5` },
-          { key: "source", header: "Source", render: (row) => row.source === "admin" ? "Admin Review" : row.source === "crew" ? "Crew" : "—" },
-          { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "ready" ? "success" : row.status === "admin_review_required" ? "warning" : "neutral"}>{employeeState(row, windowState)}</Badge> },
-          { key: "action", header: "", render: (row) => <button className="btn-secondary" type="button" onClick={() => openDetail(row.employee_id)}>Detail</button> },
+          { key: "score", header: "Team Review", align: "right", render: (row) => row.score == null ? <span className="crew-team-admin-score is-pending">— / 5</span> : <strong className="crew-team-admin-score">{Number(row.score).toFixed(2)} <small>/ 5</small></strong> },
+          { key: "source", header: "Source", render: (row) => <span className="crew-team-admin-source">{row.source === "admin" ? "Admin" : row.source === "crew" ? "Team" : "—"}</span> },
+          { key: "status", header: "Status", render: (row) => <span className={`crew-team-admin-status is-${row.source === "admin" ? "admin" : row.status || "pending"}`}>{employeeState(row, windowState)}</span> },
+          { key: "action", header: "", render: (row) => <button className="crew-team-admin-row-action" type="button" aria-label={`View Team Review for ${row.employee_name}`} title="View details" onClick={() => openDetail(row.employee_id)}><ChevronRight size={17} /></button> },
         ]} /> : <p className="text-sm text-text-secondary">No participating Crew with scheduled work this month.</p>}
       </AdminDataSection>
     </> : null}

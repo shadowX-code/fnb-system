@@ -40,7 +40,7 @@ describe("Team Review Admin workspace", () => {
     expect(await screen.findByRole("heading", { name: "Team Review" })).not.toBeNull();
     expect(await screen.findByText("Alex Tan")).not.toBeNull();
     expect(screen.getByText("Admin Reviews Required")).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "Detail" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "View Team Review for Alex Tan" }));
     const dialog = screen.getByRole("dialog", { name: "Alex Tan" });
     expect(await within(dialog).findByText(/Teamwork 5.00/)).not.toBeNull();
     expect(within(dialog).getByText("Mina Lee")).not.toBeNull();
@@ -51,7 +51,7 @@ describe("Team Review Admin workspace", () => {
   it("requires an audit reason to exclude while leaving evidence visible", async () => {
     render(<CrewTeamReviewAdminPage auth={auth} store={store} />);
     await screen.findByText("Alex Tan");
-    fireEvent.click(screen.getAllByRole("button", { name: "Detail" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "View Team Review for Alex Tan" }));
     fireEvent.click(screen.getByRole("button", { name: "Exclude Review" }));
     const dialog = screen.getByRole("dialog", { name: "Exclude Team Review" });
     const submit = within(dialog).getByRole("button", { name: "Exclude Review" });
@@ -65,7 +65,7 @@ describe("Team Review Admin workspace", () => {
     mocks.dimensions.mockResolvedValue({ teamwork: null, reliability: null, communication: null, work_attitude: null });
     render(<CrewTeamReviewAdminPage auth={auth} store={store} />);
     await screen.findByText("Mina Lee");
-    fireEvent.click(screen.getAllByRole("button", { name: "Detail" })[1]);
+    fireEvent.click(screen.getByRole("button", { name: "View Team Review for Mina Lee" }));
     expect(screen.queryByText(/Teamwork 0.00/)).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Complete Admin Review" }));
     const dialog = screen.getByRole("dialog", { name: "Admin Review" });
