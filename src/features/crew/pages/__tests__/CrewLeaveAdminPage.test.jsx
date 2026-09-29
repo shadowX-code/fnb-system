@@ -109,6 +109,7 @@ beforeEach(() => {
     });
   });
   mocks.leavePolicyHistory.mockReset().mockResolvedValue([
+    { id: "admin-annual", effective_from: "2027-01-01", source_kind: "admin_change", authority_state: "effective", eligible_employment_types: ["full_time"], annual_days: 10, balance_enforced: true, proration_rule: "calendar_days", carry_forward_enabled: false, reason: "Annual review", recorded_at: "2026-09-30T02:00:00Z", recorded_by_name: "Isaac" },
     { id: "version-annual", effective_from: "2026-09-29", source_kind: "cutover_current", authority_state: "observation", eligible_employment_types: ["full_time", "part_time"], annual_days: 12, balance_enforced: true, proration_rule: "calendar_days", carry_forward_enabled: false, reason: "Observed policy at cutover", recorded_at: "2026-09-29T01:00:00Z" },
     { id: "historical-annual", effective_from: "2026-01-01", source_kind: "historical_baseline", authority_state: "effective", eligible_employment_types: ["probation", "full_time"], annual_days: 8, balance_enforced: true, proration_rule: "calendar_days", carry_forward_enabled: false, reason: "Earlier approved terms", evidence_reference: "Approved 2026 policy", recorded_at: "2026-09-30T01:00:00Z" },
   ]);
@@ -165,8 +166,8 @@ describe("Crew Leave Admin UI", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Manage" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Leave Balance" });
     expect(within(dialog).getAllByText(/original employment eligibility and policy basis were not verified at cutover/).length).toBeGreaterThan(0);
-    expect(within(dialog).getByText(/Existing grant: 12 days/)).not.toBeNull();
-    expect(within(dialog).getAllByText(/Existing grant: Unlimited \/ no balance limit/).length).toBeGreaterThan(0);
+    expect(within(dialog).getByText(/Recorded grant: 12 days/)).not.toBeNull();
+    expect(within(dialog).getAllByText(/Recorded grant: Unlimited \/ no balance limit/).length).toBeGreaterThan(0);
     expect(within(dialog).queryByText(/days days/)).toBeNull();
   });
 
@@ -221,7 +222,9 @@ describe("Crew Leave Admin UI", () => {
     fireEvent.click(within(document.querySelectorAll("tbody tr")[0]).getByRole("button", { name: "History" }));
     const dialog = await screen.findByRole("dialog", { name: "Annual Leave Policy History" });
     expect(within(dialog).getByText("Observation only")).not.toBeNull();
-    expect(within(dialog).getByText("Evidenced historical policy")).not.toBeNull();
+    expect(within(dialog).getByText("Historical baseline")).not.toBeNull();
+    expect(within(dialog).getByText("Cutover observation")).not.toBeNull();
+    expect(within(dialog).getByText("Admin change")).not.toBeNull();
     expect(within(dialog).getByText(/Probation, Full-Time/)).not.toBeNull();
     expect(within(dialog).getByText(/Reference: Approved 2026 policy/)).not.toBeNull();
     expect(mocks.leavePolicyHistory).toHaveBeenCalledWith("outlet-1", "annual");
@@ -229,7 +232,8 @@ describe("Crew Leave Admin UI", () => {
 
   it("withholds numeric availability for a durable grant that needs review", async () => {
     const rows = groupedBalances(data.balances.map((row) => row.employee.id === "employee-a" && row.leave_type === "annual"
-      ? { ...row, eligibility_state: "review_required", available: null, recorded_available: 2, prorated: 2 }
+      ? { ...row, eligibility_state: "review_required", available: null, recorded_available: 2, prorated: 2,
+        expected_entitlement: 0, expected_difference: -2, review_id: "review-a" }
       : row));
     mocks.leaveBalancesAdminPage.mockResolvedValue(page(rows));
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
@@ -239,9 +243,15 @@ describe("Crew Leave Admin UI", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Manage" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Leave Balance" });
     expect(within(dialog).getAllByText("Review Required").length).toBeGreaterThan(0);
-    expect(within(dialog).getByText(/Existing grant: 2 days/)).not.toBeNull();
-    expect(within(dialog).getByText("Expected entitlement from verified evidence: Unresolved")).not.toBeNull();
+    expect(within(dialog).getByText(/Recorded grant: 2 days/)).not.toBeNull();
+    expect(within(dialog).getByText("Verified entitlement: 0 days")).not.toBeNull();
+    expect(within(dialog).getByText("Difference: -2 days")).not.toBeNull();
     expect(within(dialog).queryByText("Final entitlement: 2 days")).toBeNull();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Review correction" }));
+    const correction = screen.getByRole("dialog", { name: "Confirm Leave entitlement correction" });
+    for (const label of ["Recorded grant", "Verified entitlement", "Difference"]) expect(within(correction).getByText(label)).not.toBeNull();
+    expect(within(correction).getByText("-2 days")).not.toBeNull();
+    expect(within(correction).getByText(/recorded grant remains unchanged/)).not.toBeNull();
   });
 
   it("shows dated policy eligibility and a reason before saving a version", async () => {
@@ -297,6 +307,59 @@ describe("Crew Leave Admin UI", () => {
       effective_from: "2026-01-01", annual_days: 12, eligible_employment_types: ["full_time", "part_time"],
       evidence_reference: "HR policy 2026 section 4", historical_terms_verified: true,
       expected_version_id: null, expected_next_version_id: "version-annual",
+    })));
+  });
+
+  it.each([
+    ["medical", "Medical Leave / MC", "Annual allowance", 14],
+    ["other", "Other Leave", "Unlimited / no balance limit", 0],
+    ["unpaid", "Unpaid Leave", "Unlimited / no balance limit", 0],
+  ])("uses the shared evidenced historical flow for %s", async (leaveType, label, method, days) => {
+    const policy = { ...(leaveType === "medical" ? data.policies[0] : data.policies[1]),
+      id: `policy-${leaveType}`, leave_type: leaveType, current_version_id: `version-${leaveType}` };
+    mocks.leaveAdminPolicies.mockResolvedValueOnce([policy]);
+    mocks.leavePolicyEditContext.mockImplementation((outletId, type, effectiveFrom) => {
+      const historical = effectiveFrom < "2026-09-29";
+      return Promise.resolve({ verified_cutover_from: "2026-09-29", historical,
+        expected_version_id: historical ? null : policy.current_version_id,
+        expected_next_version_id: historical ? policy.current_version_id : null,
+        version: historical ? null : { ...policy, id: policy.current_version_id } });
+    });
+    render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await screen.findByText(label);
+    fireEvent.click(screen.getByRole("button", { name: /Edit/ }));
+    const dialog = screen.getByRole("dialog", { name: `Edit ${label}` });
+    fireEvent.change(within(dialog).getByPlaceholderText("28 May 2026"), { target: { value: "01/01/2026" } });
+    expect(await within(dialog).findByRole("region", { name: "Historical policy evidence" })).not.toBeNull();
+    expect(within(dialog).getByText("Complete policy terms")).not.toBeNull();
+    const confirm = within(dialog).getByRole("button", { name: "Establish Historical Policy" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Select employment types" }));
+    fireEvent.click(screen.getByRole("button", { name: "Full-Time" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(within(dialog).getByRole("button", { name: "Select method" }));
+    fireEvent.click(screen.getByRole("button", { name: method }));
+    if (days) {
+      fireEvent.change(within(dialog).getByText("Annual entitlement").closest("label").querySelector("input"), { target: { value: String(days) } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Select rule" }));
+      fireEvent.click(screen.getByRole("button", { name: "Eligible calendar days ÷ year days" }));
+    } else {
+      expect(within(dialog).getByText(/Annual days, proration and carry forward are recorded as zero/)).not.toBeNull();
+    }
+    fireEvent.change(within(dialog).getByPlaceholderText("Why does this policy apply from this earlier date?"), { target: { value: "Approved 2026 policy" } });
+    expect(confirm.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByPlaceholderText("Document title, approval reference or record location"), { target: { value: "Policy archive 2026" } });
+    fireEvent.click(within(dialog).getByRole("checkbox"));
+    expect(confirm.disabled).toBe(false);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.saveLeavePolicy).toHaveBeenCalledWith("outlet-1", leaveType, expect.objectContaining({
+      effective_from: "2026-01-01", eligible_employment_types: ["full_time"],
+      annual_days: days, proration_rule: days ? "calendar_days" : "none",
+      carry_forward_enabled: false, max_carry_forward_days: 0,
+      carry_forward_expiry_month: null, carry_forward_expiry_day: null,
+      reason: "Approved 2026 policy", evidence_reference: "Policy archive 2026",
+      historical_terms_verified: true, expected_version_id: null,
+      expected_next_version_id: `version-${leaveType}`,
     })));
   });
 
