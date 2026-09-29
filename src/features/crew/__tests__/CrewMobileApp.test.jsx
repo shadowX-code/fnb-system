@@ -301,7 +301,7 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
     const employmentRecordsRow = await screen.findByRole("button", { name: /Employment Records/ });
     expect(employmentRecordsRow.querySelector(".crew-ui-count")?.textContent).toBe("2");
-    expect(employmentRecordsRow.querySelector(".crew-ui-count")?.getAttribute("aria-label")).toBe("2 unread warnings");
+    expect(employmentRecordsRow.querySelector(".crew-ui-count")?.getAttribute("aria-label")).toBe("2 unread letters or notices");
     expect(mocks.myDisciplinary).toHaveBeenCalledWith("crew-token");
 
     first.unmount();
@@ -364,9 +364,11 @@ describe("Crew Mobile redesign", () => {
     expect(await screen.findByRole("heading", { name: "My Leave" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     fireEvent.click(screen.getByRole("button", { name: "Log Out" }));
-    expect(screen.getByRole("dialog", { name: "Log out of FeedX?" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "Log out?" })).not.toBeNull();
+    expect(screen.getByText("Are you sure you want to log out?")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("dialog", { name: "Log out of FeedX?" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Log out?" })).toBeNull();
   });
 
   it("keeps passcode changes on their own page and leaves Settings for app preferences", async () => {
@@ -380,6 +382,12 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.queryByRole("button", { name: "Passcode" })).toBeNull();
     expect(screen.getByRole("button", { name: "Language" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "About FeedX" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Privacy Policy" }));
+    expect(screen.getByRole("heading", { name: "Attendance and location" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terms of Use" }));
+    expect(screen.getByRole("heading", { name: "Record accuracy" })).not.toBeNull();
   });
 
   it("keeps profile information master-data backed and scopes photo replacement to the current Crew session", async () => {
@@ -502,7 +510,7 @@ describe("Crew Mobile redesign", () => {
     expect(screen.queryByRole("button", { name: "Clock In" })).toBeNull();
   });
 
-  it("renders Attendance as a three-month operational history without changing the month read model", async () => {
+  it("renders Attendance as a two-month operational history without changing the month read model", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     const currentMonth = currentBusinessDate().slice(0, 7);
     mocks.myAttendance.mockResolvedValueOnce([
@@ -515,7 +523,7 @@ describe("Crew Mobile redesign", () => {
 
     expect(screen.getByText("Track your shifts and attendance")).not.toBeNull();
     expect(screen.queryByRole("combobox", { name: "Month" })).toBeNull();
-    expect(screen.getByRole("navigation", { name: "Month" }).querySelectorAll("button")).toHaveLength(3);
+    expect(screen.getByRole("navigation", { name: "Month" }).querySelectorAll("button")).toHaveLength(2);
     expect(screen.getByRole("region", { name: "Monthly attendance summary" })).not.toBeNull();
     expect(screen.getByText("Attendance History")).not.toBeNull();
     expect(await screen.findByText("Exception")).not.toBeNull();

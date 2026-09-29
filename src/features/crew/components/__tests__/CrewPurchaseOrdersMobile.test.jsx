@@ -4,7 +4,7 @@ import CrewPurchaseOrdersMobile from "../CrewPurchaseOrdersMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
-  inventoryPurchaseOrders: vi.fn(), inventoryMobileCatalog: vi.fn(), receiveInventoryPurchaseOrder: vi.fn(), createInventoryStockCheckOrders: vi.fn(),
+  inventoryPurchaseOrders: vi.fn(), inventoryPurchaseOrderHistory: vi.fn(), inventoryMobileCatalog: vi.fn(), receiveInventoryPurchaseOrder: vi.fn(), createInventoryStockCheckOrders: vi.fn(),
 } }));
 
 const order = { id: "order-1", business_po_no: "FC-260925-01", supplier_name: "Test Supplier", status: "supplier_confirmed",
@@ -64,5 +64,24 @@ describe("Crew PO operational presentation", () => {
     fireEvent.change(screen.getByRole("spinbutton", { name: "Order Qty" }), { target: { value: "6" } });
     expect(screen.getByRole("spinbutton", { name: "Order Qty" }).value).toBe("6");
     expect(crewService.createInventoryStockCheckOrders).not.toHaveBeenCalled();
+  });
+});
+
+describe("Crew PO month history", () => {
+  it("loads one bounded page, filters by status, and requests more explicitly", async () => {
+    crewService.inventoryPurchaseOrders.mockResolvedValue({ orders: [], suggestions: [], can_manage_purchase_orders: true });
+    crewService.inventoryMobileCatalog.mockResolvedValue({ items: [], categories: [], suppliers: [] });
+    const first = Array.from({ length: 20 }, (_, index) => ({ id: `history-${index}`, business_po_no: `H-${index}`, supplier_name: `Supplier ${index}`, status: "completed", line_count: 1, history_at: "2026-09-20T02:00:00Z" }));
+    crewService.inventoryPurchaseOrderHistory.mockResolvedValueOnce({ rows: first, has_more: true }).mockResolvedValueOnce({ rows: [{ ...first[0], id: "history-20", business_po_no: "H-20" }], has_more: false }).mockResolvedValue({ rows: [], has_more: false });
+    render(<CrewPurchaseOrdersMobile token="qa-token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("tab", { name: "History" }));
+    expect(await screen.findByRole("button", { name: /Supplier 0.*H-0/s })).toBeTruthy();
+    expect(crewService.inventoryPurchaseOrderHistory.mock.calls[0]).toEqual(["qa-token", "outlet-1", expect.stringMatching(/^\d{4}-\d{2}$/), null, 0]);
+    fireEvent.click(screen.getByRole("button", { name: "Load more" }));
+    expect(await screen.findByRole("button", { name: /H-20/ })).toBeTruthy();
+    expect(crewService.inventoryPurchaseOrderHistory.mock.calls[1][4]).toBe(20);
+    fireEvent.click(screen.getByRole("button", { name: "Cancelled" }));
+    await waitFor(() => expect(crewService.inventoryPurchaseOrderHistory.mock.calls.at(-1)[3]).toBe("cancelled"));
+    expect(screen.queryByRole("button", { name: /H-20/ })).toBeNull();
   });
 });

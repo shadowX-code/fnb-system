@@ -9,7 +9,7 @@ import { malaysiaDateKey, formatTime } from "../utils/crewMobile.js";
 import { reasonValues, clockInOptions, clockOutOptions } from "../utils/crewClockReasons.js";
 
 export default function CrewAttendanceMobile({ rows, loading, selectedMonth, onMonthChange, onBack, t }) {
-  const months = [0, 1, 2].map((offset) => {
+  const months = [0, 1].map((offset) => {
     const date = new Date();
     date.setMonth(date.getMonth() - offset, 1);
     return { value: malaysiaDateKey(date).slice(0, 7), label: formatCrewDate(date, { month: "short", year: "numeric" }) };

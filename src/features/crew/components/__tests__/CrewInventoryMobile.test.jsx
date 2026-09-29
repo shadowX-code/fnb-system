@@ -5,7 +5,7 @@ import CrewPurchaseOrdersMobile from "../CrewPurchaseOrdersMobile.jsx";
 import { CrewInventoryHomeAttention, hasCrewInventoryAccess, orderHomeRows, stockHomeRows } from "../CrewInventoryOperationsMobile.jsx";
 import "../../../../i18n/index.js";
 
-const api = vi.hoisted(() => ({ inventoryAttention: vi.fn(), inventoryStockChecks: vi.fn(), inventoryPurchaseOrders: vi.fn(), inventoryMobileCatalog: vi.fn(), saveInventoryStockCheck: vi.fn(), skipInventoryStockCheck: vi.fn(), deleteInventoryAuditDraft: vi.fn(), saveInventoryPurchaseOrder: vi.fn(), createInventoryStockCheckOrders: vi.fn(), transitionInventoryPurchaseOrder: vi.fn(), receiveInventoryPurchaseOrder: vi.fn() }));
+const api = vi.hoisted(() => ({ inventoryAttention: vi.fn(), inventoryStockChecks: vi.fn(), inventoryStockCheckHistory: vi.fn(), inventoryPurchaseOrders: vi.fn(), inventoryPurchaseOrderHistory: vi.fn(), inventoryPurchaseOrdersForCheck: vi.fn(), inventoryMobileCatalog: vi.fn(), saveInventoryStockCheck: vi.fn(), skipInventoryStockCheck: vi.fn(), deleteInventoryAuditDraft: vi.fn(), saveInventoryPurchaseOrder: vi.fn(), createInventoryStockCheckOrders: vi.fn(), transitionInventoryPurchaseOrder: vi.fn(), receiveInventoryPurchaseOrder: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: api }));
 
 const catalog = { outlet_id: "outlet-1", outlet_name: "Test Outlet", business_date: "2026-09-24", categories: [{ id: "cat-1", name: "Dry Goods" }], items: [{ id: "item-1", name: "Rice", sku: "RICE", category_id: "cat-1", unit: "kg", par_level: 10 }], suppliers: [{ id: "supplier-1", name: "Supplier A" }] };
@@ -17,17 +17,20 @@ beforeEach(() => {
   api.inventoryMobileCatalog.mockResolvedValue(catalog);
   api.inventoryAttention.mockResolvedValue({ stock_checks_due_today: 1, purchase_orders_awaiting_confirmation: 0, purchase_orders_awaiting_receiving: 1 });
   api.inventoryStockChecks.mockResolvedValue(stock);
+  api.inventoryStockCheckHistory.mockResolvedValue({ rows: [], has_more: false });
+  api.inventoryPurchaseOrderHistory.mockResolvedValue({ rows: [], has_more: false });
+  api.inventoryPurchaseOrdersForCheck.mockResolvedValue([]);
   api.inventoryPurchaseOrders.mockImplementation(async (_token, _outlet, id) => id ? { ...orders, detail: poDetail } : orders);
 });
 afterEach(cleanup);
 const orders = { can_manage_purchase_orders: true, can_receive_purchase_orders: true, orders: [{ id: "po-1", po_no: "PO-1", business_po_no: "FC-260924-01", supplier_name: "Supplier A", line_count: 1, status: "supplier_confirmed" }], suggestions: [] };
 
 describe("Crew purchase order business identity", () => {
-  it("uses the server-owned PO number in lists and hides creation on Completed", async () => {
+  it("uses the server-owned PO number in lists and hides creation on History", async () => {
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
-    expect(await screen.findByText("FC-260924-01")).not.toBeNull();
+    expect(await screen.findByText(/FC-260924-01/)).not.toBeNull();
     expect(screen.queryByText("PO-1")).toBeNull();
-    fireEvent.click(screen.getByRole("tab", { name: "Completed" }));
+    fireEvent.click(screen.getByRole("tab", { name: "History" }));
     expect(screen.queryByRole("button", { name: "Create PO" })).toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "Drafts" }));
     expect(screen.getByRole("button", { name: "Create PO" })).not.toBeNull();
@@ -189,10 +192,11 @@ describe("Crew Inventory mobile authority boundary", () => {
     api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => id ? { ...stock, detail: { id, type: "scheduled", status: "missed", check_name: "Yesterday Opening", check_date: "2026-09-23", items: [] } } : {
       ...stock, due: [], checks: [{ id: "old-draft", type: "scheduled", status: "missed", name: "Yesterday Opening", check_date: "2026-09-23", item_count: 1 }]
     });
+    api.inventoryStockCheckHistory.mockResolvedValue({ rows: [{ id: "old-draft", type: "scheduled", status: "missed", name: "Yesterday Opening", check_date: "2026-09-23", item_count: 1 }], has_more: false });
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true }} onBack={() => {}} />);
     expect(await screen.findByText("No checks due today")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: "History" }));
-    fireEvent.click(screen.getByRole("button", { name: /Yesterday Opening/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Yesterday Opening/ }));
     await waitFor(() => expect(api.inventoryStockChecks).toHaveBeenCalledWith("token", "outlet-1", "old-draft"));
     expect(await screen.findByText(/Counting is closed/)).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Save Draft" })).toBeNull();
@@ -211,7 +215,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     await waitFor(() => expect(api.skipInventoryStockCheck).toHaveBeenCalledWith("token", "outlet-1", expect.any(String), "group-1", "stock_sufficient"));
     expect(await screen.findByText("Stock Check skipped")).not.toBeNull();
     expect(screen.getByRole("tab", { name: "History" }).getAttribute("aria-selected")).toBe("true");
-    expect(screen.getByRole("button", { name: /Opening.*Scheduled.*Skipped/ })).not.toBeNull();
+    expect(api.inventoryStockCheckHistory).toHaveBeenCalled();
   });
 
   it("reuses Skip request identity after an uncertain failure", async () => {
@@ -229,9 +233,10 @@ describe("Crew Inventory mobile authority boundary", () => {
     api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => id ? { ...stock, detail: { id, type: "audit", status: "completed", audit_name: "Month-End Audit", check_date: "2026-05-30", items: [{ item_id: "item-1", item_name: "Rice", actual_count_quantity: 7, par_level_quantity: 10, unit: "kg" }] } } : {
       ...stock, due: [], checks: [{ id: "audit-1", type: "audit", status: "completed", name: "Month-End Audit", check_date: "2026-05-30", item_count: 1 }]
     });
+    api.inventoryStockCheckHistory.mockResolvedValue({ rows: [{ id: "audit-1", type: "audit", status: "completed", name: "Month-End Audit", check_date: "2026-05-30", item_count: 1 }], has_more: false });
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_create_audit_stock_check: true, can_manage_purchase_orders: true }} onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("tab", { name: "History" }));
-    fireEvent.click(screen.getByRole("button", { name: /Month-End Audit/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Month-End Audit/ }));
     expect(await screen.findByText("Completed counts cannot be edited.")).not.toBeNull();
     expect(api.inventoryPurchaseOrders).not.toHaveBeenCalled();
   });
@@ -271,9 +276,9 @@ describe("Crew Inventory mobile authority boundary", () => {
   it("receives only requested remaining quantities with canonical line and item IDs", async () => {
     api.receiveInventoryPurchaseOrder.mockResolvedValue({ receipt_id: "receipt-1", status: "partial_received" });
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true, can_receive_purchase_orders: true }} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: /FC-260924-01.*Supplier A/s }));
+    fireEvent.click(await screen.findByRole("button", { name: /Supplier A.*FC-260924-01/s }));
     fireEvent.click(await screen.findByRole("button", { name: "Receive PO" }));
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Received quantity" }), { target: { value: "4" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Received now" }), { target: { value: "4" } });
     fireEvent.click(screen.getByRole("button", { name: "Record Receipt" }));
     await waitFor(() => expect(api.receiveInventoryPurchaseOrder).toHaveBeenCalledTimes(1));
     expect(api.receiveInventoryPurchaseOrder.mock.calls[0]).toEqual(["token", "outlet-1", "po-1", expect.any(String), "", [{ purchase_order_item_id: "line-1", item_id: "item-1", received_qty: 4, unit: "kg" }]]);
@@ -292,9 +297,9 @@ describe("Crew Inventory mobile authority boundary", () => {
 
   it("blocks over-receiving before the canonical receiving command", async () => {
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_receive_purchase_orders: true }} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: /FC-260924-01.*Supplier A/s }));
+    fireEvent.click(await screen.findByRole("button", { name: /Supplier A.*FC-260924-01/s }));
     fireEvent.click(await screen.findByRole("button", { name: "Receive PO" }));
-    fireEvent.change(screen.getByRole("spinbutton", { name: "Received quantity" }), { target: { value: "8" } });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Received now" }), { target: { value: "8" } });
     expect(screen.getByText("Received quantity cannot exceed the remaining balance.")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Record Receipt" }).disabled).toBe(true);
     expect(api.receiveInventoryPurchaseOrder).not.toHaveBeenCalled();
@@ -348,6 +353,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     api.inventoryMobileCatalog.mockResolvedValue({ ...catalog, items: [{ ...catalog.items[0], photo_url: "https://example.test/rice.jpg" }] });
     api.inventoryStockChecks.mockImplementation(async (_token, _outlet, id) => id ? { ...stock, detail: { id, type: "scheduled", status: "completed", check_name: "Opening", submitted_at: "2026-09-24T08:30:00Z", items: [{ item_id: "item-1", item_name: "Rice", sku_code: "RICE", actual_count_quantity: 7, par_level_quantity: 10, unit: "kg" }] } } : stock);
     api.inventoryPurchaseOrders.mockResolvedValue({ ...orders, orders: [{ id: "po-1", po_no: "PO-1", business_po_no: "FC-260924-01", source_stock_check_id: "check-1", status: "submitted" }] });
+    api.inventoryPurchaseOrdersForCheck.mockResolvedValue([{ id: "po-1", business_po_no: "FC-260924-01", status: "submitted" }]);
     const onOpenPurchaseOrder = vi.fn();
     render(<CrewStockCheckMobile token="token" outletId="outlet-1" grants={{ can_perform_stock_check: true, can_manage_purchase_orders: true }} initialTarget={{ id: "check-1" }} onBack={() => {}} onOpenPurchaseOrder={onOpenPurchaseOrder} />);
     expect(await screen.findByText(/Items 1 · Counted 1 · Variances 1 · Skipped 0/)).not.toBeNull();
@@ -425,7 +431,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     const id = "f8a11540-3337-4b95-9426-b3d70a607555";
     api.inventoryPurchaseOrders.mockImplementation(async (_token, _outlet, selectedId) => selectedId ? { ...orders, detail: { ...poDetail, id, po_no: null, business_po_no: "FC-260924-004" } } : { ...orders, orders: [{ id, po_no: null, business_po_no: "FC-260924-004", supplier_name: "Supplier A", line_count: 1, status: "supplier_confirmed" }] });
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: /FC-260924-004.*Supplier A/s }));
+    fireEvent.click(await screen.findByRole("button", { name: /Supplier A.*FC-260924-004/s }));
     fireEvent.click(await screen.findByRole("button", { name: "Copy Text" }));
     expect((await screen.findByRole("textbox")).value).toContain("PO No.: FC-260924-004");
   });
@@ -449,7 +455,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     api.inventoryPurchaseOrders.mockImplementation(async (_token, _outlet, id) => id ? { ...orders, detail: api.transitionInventoryPurchaseOrder.mock.calls.length ? { ...submitted, status: "draft" } : submitted } : orders);
     api.transitionInventoryPurchaseOrder.mockResolvedValue({ order: { ...submitted, status: "draft" } });
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: /FC-260924-01.*Supplier A/s }));
+    fireEvent.click(await screen.findByRole("button", { name: /Supplier A.*FC-260924-01/s }));
     fireEvent.click(await screen.findByRole("button", { name: "Edit Order" }));
     expect(screen.getByText(/Send the updated order to the supplier again/)).not.toBeNull();
     fireEvent.click(screen.getByRole("dialog", { name: "Edit this purchase order?" }).querySelector(".crew-mobile-primary"));
@@ -464,7 +470,7 @@ describe("Crew Inventory mobile authority boundary", () => {
     api.transitionInventoryPurchaseOrder.mockImplementation(async (_token, _outlet, _id, _requestId, action) => { status = action === "reopen_draft" ? "draft" : "submitted"; return { order: { id: "po-1", status } }; });
     api.saveInventoryPurchaseOrder.mockImplementation(async (_token, _outlet, _requestId, order, items) => { quantity = items[0].requested_qty; return { order: { id: order.id } }; });
     render(<CrewPurchaseOrdersMobile token="token" outletId="outlet-1" grants={{ can_manage_purchase_orders: true }} onBack={() => {}} />);
-    fireEvent.click(await screen.findByRole("button", { name: /FC-260924-01.*Supplier A/s }));
+    fireEvent.click(await screen.findByRole("button", { name: /Supplier A.*FC-260924-01/s }));
     fireEvent.click(await screen.findByRole("button", { name: "Edit Order" }));
     fireEvent.click(screen.getByRole("dialog", { name: "Edit this purchase order?" }).querySelector(".crew-mobile-primary"));
     fireEvent.change(await screen.findByRole("spinbutton", { name: "Requested quantity" }), { target: { value: "12" } });

@@ -9,13 +9,15 @@ import CrewMobileModal from "./CrewMobileModal.jsx";
 import CrewChoicePicker from "./CrewChoicePicker.jsx";
 import CrewQuantityStepper from "./CrewQuantityStepper.jsx";
 import CrewInventoryItemThumb from "./CrewInventoryItemThumb.jsx";
+import CrewHistoryControls from "./CrewHistoryControls.jsx";
+import useCrewInventoryHistory from "../hooks/useCrewInventoryHistory.js";
 import { CrewEmptyState, CrewSearchBar, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 const newId = () => crypto.randomUUID();
 const isActive = (status) => ["submitted", "supplier_confirmed", "partial_received"].includes(status);
 const editableLine = (line) => ({ item_id: line.item_id, requested_qty: String(line.requested_qty ?? ""), unit: line.unit || "", remark: line.remark || "", source_stock_check_item_id: line.source_stock_check_item_id || null });
 const displayPoNo = (order) => order?.business_po_no || "";
-const relevantDate = (order) => order?.completed_at || order?.confirmed_at || order?.submitted_at || order?.created_at;
+const relevantDate = (order) => order?.history_at || order?.completed_at || order?.confirmed_at || order?.submitted_at || order?.created_at;
 const categorySummary = (names, t) => names?.length ? names.length === 1 ? names[0] : t("inventory.homeMoreCategories", { name: names[0], count: names.length - 1 }) : t("inventory.items");
 const sourceRows = (check, orders) => {
   const usedSuppliers = new Set(orders.filter((order) => order.source_stock_check_id === check.stock_check_id && order.status !== "cancelled").map((order) => order.supplier_id));
@@ -33,6 +35,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   const [source, setSource] = useState(null); const [sourceItems, setSourceItems] = useState([]); const [missingSourceId, setMissingSourceId] = useState(null);
   const [supplierId, setSupplierId] = useState(""); const [lines, setLines] = useState([]); const [remark, setRemark] = useState("");
   const [query, setQuery] = useState(""); const [itemPicker, setItemPicker] = useState(false); const [receiveQty, setReceiveQty] = useState({}); const [copyFallback, setCopyFallback] = useState("");
+  const history = useCrewInventoryHistory(crewService.inventoryPurchaseOrderHistory, token, outletId, tab === "history");
   const [discardOpen, setDiscardOpen] = useState(false);
   const [reopenOpen, setReopenOpen] = useState(false);
   const [dirty, setDirty] = useState(false); const request = useRef(null); const newPoNo = useRef(null); const sourcePoNos = useRef({}); const active = useRef(true);
@@ -71,7 +74,7 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   ]), [catalog, detail]);
   const canManage = Boolean(data?.can_manage_purchase_orders);
   const canReceive = Boolean(data?.can_receive_purchase_orders);
-  const filteredOrders = (data?.orders || []).filter((order) => tab === "drafts" ? order.status === "draft" : tab === "completed" ? ["fully_received", "completed", "cancelled"].includes(order.status) : isActive(order.status));
+  const filteredOrders = tab === "history" ? history.rows : (data?.orders || []).filter((order) => tab === "drafts" ? order.status === "draft" : isActive(order.status));
 
   async function openOrder(id, { receive = false, edit = false } = {}) {
     setBusy(true); setError("");
@@ -187,12 +190,16 @@ export default function CrewPurchaseOrdersMobile({ token, outletId, grants, init
   }
 
   if (mode === "list") return <section className="crew-inventory-page"><CrewMobileDetailHeader title={t("inventory.purchaseOrders")} onBack={onBack} />
-    <div className="crew-ui-tabs crew-inventory-tabs" role="tablist">{["active", "drafts", "completed"].map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{t(`inventory.${value}`)}</button>)}</div>
+    <div className="crew-ui-tabs crew-inventory-tabs" role="tablist">{["active", "drafts", "history"].map((value) => <button key={value} type="button" role="tab" aria-selected={tab === value} className={tab === value ? "is-active" : ""} onClick={() => setTab(value)}>{t(`inventory.${value}`)}</button>)}</div>
     {notice && <p className="crew-inventory-notice" role="status">{notice}</p>}{error && <p className="crew-v2-error" role="alert">{error}</p>}
     {!grants?.can_manage_purchase_orders && !grants?.can_receive_purchase_orders ? <CrewEmptyState title={t("inventory.noAccess")} /> : loading ? <p className="crew-inventory-state" role="status">{t("common.loading")}</p> : !data ? <button className="crew-mobile-secondary" type="button" onClick={() => void load()}>{t("common.retry")}</button> : <>
-      {canManage && tab !== "completed" && <button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => setMode("create")}><Plus size={18} />{t("inventory.createPo")}</button>}
+      {canManage && tab !== "history" && <button className="crew-mobile-primary crew-inventory-add" type="button" onClick={() => setMode("create")}><Plus size={18} />{t("inventory.createPo")}</button>}
+      {tab === "history" && <CrewHistoryControls month={history.month} onMonthChange={history.setMonth} status={history.status} onStatusChange={history.setStatus} statuses={["completed", "fully_received", "cancelled"]} />}
+      {tab === "history" && history.error && <p className="crew-v2-error" role="alert">{history.error}</p>}
       <div className="crew-inventory-list crew-inventory-po-list">{filteredOrders.map((order) => <button key={order.id} type="button" onClick={() => void openOrder(order.id)}><span><span className="crew-inventory-po-primary"><strong>{order.supplier_name || t("inventory.supplier")}</strong><CrewStatusBadge tone={["fully_received", "completed"].includes(order.status) ? "success" : order.status === "draft" ? "neutral" : "warning"}>{t(`inventory.status.${order.status}`)}</CrewStatusBadge></span><small>{categorySummary(order.category_names, t)} · {t("inventory.homeItemCount", { count: order.line_count })}</small><small>{displayPoNo(order)} · {formatDate(relevantDate(order))}</small>{Number(order.received_qty) > 0 && <small>{t("inventory.receivingProgress", { received: order.received_qty, ordered: order.requested_qty })}</small>}</span><ChevronRight size={18} /></button>)}</div>
-      {!filteredOrders.length && <CrewEmptyState title={t("inventory.noOrders")} />}
+      {!filteredOrders.length && !history.loading && <CrewEmptyState title={t("inventory.noOrders")} />}
+      {tab === "history" && history.loading && <p className="crew-inventory-state" role="status">{t("common.loading")}</p>}
+      {tab === "history" && history.hasMore && <button className="crew-mobile-secondary crew-inventory-load-more" type="button" disabled={history.loading} onClick={history.loadMore}>{t("inventory.loadMore")}</button>}
     </>}{copyFallback && <CrewBottomSheet title={t("inventory.copyText")} onClose={() => setCopyFallback("")}><textarea className="crew-inventory-copy-fallback" readOnly value={copyFallback} onFocus={(event) => event.target.select()} /></CrewBottomSheet>}
   </section>;
 

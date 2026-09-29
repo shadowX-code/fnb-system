@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Check, ChevronRight, UsersRound } from "lucide-react";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
+import CrewRatingScale from "./CrewRatingScale.jsx";
 import { crewService } from "../../../services/crewService.js";
 
 const dimensions = ["teamwork", "reliability", "communication", "work_attitude"];
@@ -80,7 +81,7 @@ export default function CrewTeamReviewHome({ token, employeeId }) {
         </button>)}
       </div> : <div className="crew-team-form">
         <p>{t("teamReview.help")}</p>
-        {dimensions.map((key) => <fieldset key={key}><legend>{t(`teamReview.dimensions.${key}`)}</legend><div>{scale.map((word, index) => <button type="button" key={word} className={ratings[key] === index + 1 ? "is-active" : ""} aria-label={`${index + 1} ${t(`teamReview.scale.${word}`)}`} aria-pressed={ratings[key] === index + 1} onClick={() => setRatings((current) => ({ ...current, [key]: index + 1 }))}>{index + 1}</button>)}</div><small aria-live="polite">{ratings[key] ? `${ratings[key]} · ${t(`teamReview.scale.${scale[ratings[key] - 1]}`)}` : t("teamReview.chooseRating")}</small></fieldset>)}
+        {dimensions.map((key) => <CrewRatingScale key={key} label={t(`teamReview.dimensions.${key}`)} value={ratings[key]} scale={scale} labelFor={(word) => t(`teamReview.scale.${word}`)} chooseLabel={t("teamReview.chooseRating")} onChange={(value) => setRatings((current) => ({ ...current, [key]: value }))} />)}
         <div className="crew-team-comment"><label htmlFor="crew-team-comment">{t("teamReview.comment")}</label><p>{t("teamReview.commentPrompt")}</p><textarea id="crew-team-comment" value={comment} maxLength={1000} onChange={(event) => setComment(event.target.value)} placeholder={t("teamReview.commentPlaceholder")} /><small>{t("teamReview.commentPrivacy")}</small></div>
         {error && <div role="alert" className="crew-v2-error">{error}</div>}
       </div>

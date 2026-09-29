@@ -1461,6 +1461,30 @@ export const crewService = {
     return data;
   },
 
+  async inventoryPurchaseOrdersForCheck(token, outletId, checkId) {
+    const { data, error } = await supabase.rpc("crew_inventory_purchase_orders_for_check", {
+      p_token: token, p_outlet_id: outletId, p_check_id: checkId,
+    });
+    throwSupabaseError("crew.inventoryPurchaseOrdersForCheck", error);
+    return data;
+  },
+
+  async inventoryPurchaseOrderHistory(token, outletId, month, status = null, offset = 0) {
+    const { data, error } = await supabase.rpc("crew_inventory_purchase_order_history", {
+      p_token: token, p_outlet_id: outletId, p_month: `${month}-01`, p_status: status, p_offset: offset, p_limit: 20,
+    });
+    throwSupabaseError("crew.inventoryPurchaseOrderHistory", error);
+    return data;
+  },
+
+  async inventoryStockCheckHistory(token, outletId, month, status = null, offset = 0) {
+    const { data, error } = await supabase.rpc("crew_inventory_stock_check_history", {
+      p_token: token, p_outlet_id: outletId, p_month: `${month}-01`, p_status: status, p_offset: offset, p_limit: 20,
+    });
+    throwSupabaseError("crew.inventoryStockCheckHistory", error);
+    return data;
+  },
+
   async inventoryAttention(token, outletId = null) {
     const { data, error } = await supabase.rpc("crew_inventory_attention", {
       p_token: token, p_outlet_id: outletId,

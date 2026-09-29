@@ -194,3 +194,8 @@
 .crew-inventory-history small,.crew-inventory-history p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
 .crew-inventory-copy-fallback { box-sizing: border-box; width: 100%; min-height: 45vh; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 12px; color: var(--crew-color-text); font-size: var(--crew-type-secondary); }
 @media(max-width:360px) { .crew-inventory-tabs button { font-size: 12px; } .crew-inventory-detail-actions,.crew-inventory-receive-heading { flex-wrap: wrap; } .crew-inventory-sticky { gap: 6px; } .crew-inventory-sticky button { padding-inline: 8px; font-size: 13px; } .crew-inventory-home-heading { padding-inline: 13px; } .crew-inventory-home-rows { padding-inline: 13px; } .crew-inventory-home-row-action { min-width: 70px; padding-inline: 7px; } .crew-inventory-result-items article { flex-wrap: wrap; } .crew-inventory-result-variance { margin-left: 57px; } }
+.crew-inventory-history-controls { display: grid; gap: 12px; margin: 12px 0; }
+.crew-inventory-month-select { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.crew-inventory-history-controls .crew-inventory-chips { margin: 0; }
+.crew-inventory-load-more { display: block; width: 100%; margin: 12px 0 20px; }
+.crew-inventory-history-controls .crew-inventory-chips button { min-height: 44px; }

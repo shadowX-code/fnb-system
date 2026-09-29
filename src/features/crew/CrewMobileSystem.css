@@ -4,6 +4,9 @@
   --crew-color-deep-teal: #164b50;
   --crew-color-cyan: #00b7c7;
   --crew-color-mist-mint: #b1d5c9;
+  --crew-color-selected-soft: color-mix(in srgb, var(--crew-color-mist-mint) 42%, var(--crew-color-surface));
+  --crew-color-operational-surface: color-mix(in srgb, var(--crew-color-mist-mint) 15%, var(--crew-color-surface));
+  --crew-color-operational-border: color-mix(in srgb, var(--crew-color-mist-mint) 32%, var(--crew-color-border));
   --crew-color-mineral: #f5f7f6;
   --crew-color-surface: #ffffff;
   --crew-color-surface-raised: #ffffff;
@@ -91,6 +94,9 @@
   --crew-color-deep-teal: #d8f3ed;
   --crew-color-cyan: #45cbb5;
   --crew-color-mist-mint: #315f59;
+  --crew-color-selected-soft: color-mix(in srgb, var(--crew-color-mist-mint) 42%, var(--crew-color-surface));
+  --crew-color-operational-surface: color-mix(in srgb, var(--crew-color-mist-mint) 15%, var(--crew-color-surface));
+  --crew-color-operational-border: color-mix(in srgb, var(--crew-color-mist-mint) 32%, var(--crew-color-border));
   --crew-color-mineral: #101a20;
   --crew-color-surface: #17242b;
   --crew-color-surface-raised: #1d2d35;
@@ -951,3 +957,20 @@ to {
 @media (prefers-reduced-motion: reduce) {
   .crew-ui-modal-backdrop,.crew-ui-modal { animation: none; }
 }
+
+/* Compact confirmations use the shared modal focus and action behavior. */
+.crew-ui-confirmation .crew-ui-modal-header { border-bottom: 0; padding: 20px 20px 12px; }
+.crew-ui-confirmation .crew-ui-modal-header h2 { color: var(--crew-color-text); font-weight: 700; }
+.crew-ui-confirmation .crew-ui-modal-header p { margin-top: 8px; line-height: 1.45; }
+.crew-ui-confirmation .crew-ui-modal-footer { border-top: 0; padding: 8px 20px 20px; }
+
+/* Shared Crew 1–5 selector: soft mint selection with a visible teal outline. */
+.crew-ui-rating-scale { min-width: 0; margin: 0; padding: 0; border: 0; }
+.crew-ui-rating-scale legend { margin-bottom: 8px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-label); font-weight: 650; }
+.crew-ui-rating-scale > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
+.crew-ui-rating-scale button { min-width: 0; min-height: 44px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); color: var(--crew-color-deep-teal); font: inherit; }
+.crew-ui-rating-scale button.is-active { border-color: var(--crew-color-success); background: var(--crew-color-selected-soft); color: var(--crew-color-success); font-weight: 700; box-shadow: inset 0 0 0 1px var(--crew-color-success); }
+.crew-ui-rating-scale > small { display: block; min-height: 19px; margin-top: 5px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-ui-rating-scale:has(button.is-active) > small { color: var(--crew-color-success); font-weight: 650; }
+.crew-ui-rating-scale button:focus-visible { outline: 2px solid var(--crew-color-cyan); outline-offset: 2px; }
+@media (max-width: 360px) { .crew-ui-rating-scale > div { gap: 5px; } }

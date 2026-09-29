@@ -91,3 +91,5 @@ Legacy Restaurant Duty Roster routes are compatibility entries into Crew Workfor
 Withdrawn availability and shift-swap experiments are not current product scope.
 Payroll, overtime calculation, biometric verification, and automatic labor optimization remain deferred unless current contracts introduce them.
 The current Employee Master workplace-to-outlet resolver remains a temporary Phase A compatibility relationship. Replacing it with an explicit UUID employee-outlet assignment is deferred Phase B work and must preserve the fail-closed Crew session boundary.
+
+Crew Attendance presents the current and immediately previous calendar month in its month selector. The existing month query and historical attendance records are unchanged.

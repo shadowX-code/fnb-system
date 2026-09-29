@@ -12,7 +12,6 @@ import {
   Grid2X2,
   Search,
   Shapes,
-  SlidersHorizontal,
   Sparkles,
   Soup,
 } from "lucide-react";
@@ -59,16 +58,11 @@ export default function CrewLearnHome({ home, assignment, assignmentLoading, lib
         : new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
   }, [category, query, sort, sops]);
 
-  function focusFilters() {
-    categoryRowRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-    categoryRowRef.current?.querySelector("button")?.focus({ preventScroll: true });
-  }
-
   return (
     <section className="crew-learn-final-home">
       <CrewLearnHero />
       {error && <p className="crew-mobile-error">{error}</p>}
-      <CrewLearnSearch value={query} onChange={setQuery} onFilter={focusFilters} />
+      <CrewLearnSearch value={query} onChange={setQuery} />
       {home?.assignment && <CrewOnboardingProgressCard home={home} assignment={assignment} loading={assignmentLoading} onOpen={onOpenOnboarding} />}
       <CrewSopCategoryCarousel
         ref={categoryRowRef}
@@ -92,12 +86,11 @@ export function CrewLearnHero() {
   return <CrewMobilePageHeader className="crew-learn-final-hero" title={t("learn.title")} subtitle={t("learn.tagline")} />;
 }
 
-export function CrewLearnSearch({ value, onChange, onFilter }) {
+export function CrewLearnSearch({ value, onChange }) {
   const { t } = useTranslation();
   return (
     <div className="crew-learn-final-search-row">
       <label><Search size={21} aria-hidden="true" /><input aria-label={t("learn.search")} value={value} onChange={(event) => onChange(event.target.value)} placeholder={t("learn.search")} /></label>
-      <button type="button" aria-label={t("learn.filters")} onClick={onFilter}><SlidersHorizontal size={21} /></button>
     </div>
   );
 }

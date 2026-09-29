@@ -138,3 +138,5 @@ Moving a menu item does not transfer business ownership unless its authority, da
 
 Update this document when workspace boundaries, module ownership, shared shell responsibility, canonical route ownership, or compatibility strategy changes.
 Update the relevant domain document for feature workflows and business rules.
+
+Crew mobile history views share a two-month selector, compact status chips, and explicit incremental loading. The underlying PO and Stock Check queries remain separate domain authorities. Crew confirmation dialogs use the shared focus-managed modal; actions and dismissal remain accessible without a duplicate close control.

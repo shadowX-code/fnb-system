@@ -317,7 +317,7 @@
 .crew-home-success-content dd { min-width: 0; margin: 0; color: var(--crew-color-deep-teal); font-weight: 800; text-align: right; overflow-wrap: anywhere; }
 
 
-.crew-team-home-entry { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 72px; border: 1px solid color-mix(in srgb, var(--crew-color-success) 32%, var(--crew-color-border)); border-radius: var(--crew-radius-control); background: color-mix(in srgb, var(--crew-color-mist-mint) 32%, var(--crew-color-surface)); padding: 10px 12px; color: var(--crew-color-deep-teal); text-align: left; }
+.crew-team-home-entry { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 72px; border: 1px solid var(--crew-color-operational-border); border-radius: var(--crew-radius-control); background: var(--crew-color-operational-surface); padding: 10px 12px; color: var(--crew-color-deep-teal); text-align: left; }
 .crew-team-home-entry > i { flex: 0 0 auto; color: var(--crew-color-success); }
 .crew-team-home-entry > span { display: grid; flex: 1; min-width: 0; gap: 2px; }
 .crew-team-home-entry strong { color: var(--crew-color-success); font-size: var(--crew-type-badge); letter-spacing: .03em; text-transform: uppercase; }
@@ -337,16 +337,8 @@
 .crew-team-list > button:disabled { opacity: .65; }
 .crew-team-list > button svg { flex: 0 0 auto; }
 .crew-team-success { display: flex; align-items: center; gap: 7px; color: var(--crew-color-success) !important; font-weight: 650; }
-.crew-team-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
-.crew-team-form legend { margin-bottom: 8px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-label); font-weight: 650; }
-.crew-team-form fieldset > div { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; }
-.crew-team-form fieldset button { min-width: 0; min-height: 44px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); color: var(--crew-color-deep-teal); font: inherit; }
-.crew-team-form fieldset button.is-active { border-color: var(--crew-color-success); background: var(--crew-color-success); color: var(--crew-color-surface); font-weight: 700; }
-.crew-team-form fieldset > small { display: block; min-height: 19px; margin-top: 5px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
-.crew-team-form fieldset:has(button.is-active) > small { color: var(--crew-color-success); font-weight: 650; }
-.crew-team-form fieldset button:focus-visible, .crew-team-comment textarea:focus-visible { outline: 2px solid var(--crew-color-cyan); outline-offset: 2px; }
 .crew-team-comment { display: grid; gap: 7px; color: var(--crew-color-deep-teal); font-size: var(--crew-type-label); font-weight: 650; }
 .crew-team-comment p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); font-weight: 400; line-height: 1.4; }
 .crew-team-comment textarea { min-height: 78px; resize: vertical; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); color: var(--crew-color-text); padding: 10px; font: inherit; font-weight: 400; }
 .crew-team-comment small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 400; }
-@media (max-width: 360px) { .crew-team-home-entry { gap: 7px; } .crew-team-home-entry em { max-width: 72px; text-align: right; white-space: normal; } .crew-team-form fieldset > div { gap: 5px; } }
+@media (max-width: 360px) { .crew-team-home-entry { gap: 7px; } .crew-team-home-entry em { max-width: 72px; text-align: right; white-space: normal; } }

@@ -383,3 +383,9 @@
 .crew-language-modal .crew-language-segmented button { min-width: 0; min-height: 42px; padding: 6px 5px; color: var(--crew-color-text-secondary); font-size: clamp(11px, 3.15vw, var(--crew-type-label)); font-weight: 650; line-height: 1.15; white-space: normal; transition: background-color 170ms ease, box-shadow 170ms ease, color 170ms ease; }
 .crew-language-modal .crew-language-segmented button.is-active { background: var(--crew-color-surface); color: var(--crew-color-deep-teal); box-shadow: 0 1px 3px rgb(22 75 80 / .08); font-weight: 700; }
 @media (prefers-reduced-motion: reduce) { .crew-language-modal .crew-language-segmented button { transition: none; } }
+
+.crew-me-legal { display: grid; gap: 14px; padding-bottom: 28px; }
+.crew-me-legal > p { margin: 0; color: var(--crew-color-text-secondary); line-height: 1.5; }
+.crew-me-legal article { padding: 14px 16px; }
+.crew-me-legal h2 { margin: 0 0 6px; color: var(--crew-color-text); font-size: var(--crew-type-secondary); }
+.crew-me-legal article p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); line-height: 1.55; }
