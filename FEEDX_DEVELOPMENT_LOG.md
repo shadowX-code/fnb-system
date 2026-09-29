@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-09-29 — Performance Employment Period Correctness
+
+- Open monthly Performance now resolves Service Crew eligibility and outlet/position attribution from the People Employment Assignment Timeline. Mixed or unverified months fail closed; historical corrections require an explicit audited recalculation. Existing Team Review, Customer Feedback, Attendance and retained/final Performance evidence remains owned by its source domain. Crew sees only the safe period result, while later People changes never rewrite finalized Performance.
+
 ## 2026-09-29 — Leave Employment Eligibility Phase 2
 
 - Leave Policy versions now own eligible Employment Types, entitlement method, and proration rule. New grants use People employment-as-of spans with half-day final rounding; unverified pre-cutover history fails closed. Existing grants stay durable, and employment/policy changes append review evidence for controlled Leave correction. This does not alter finalized Payroll, published Roster, Attendance, or Performance evidence.

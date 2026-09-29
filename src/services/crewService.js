@@ -631,6 +631,14 @@ export const crewService = {
     return data;
   },
 
+  async recalculatePerformanceEmployment({ employeeId, period, reason }) {
+    const { data, error } = await supabase.rpc("crew_performance_recalculate_employment", {
+      p_employee_id: employeeId, p_period: period, p_reason: reason,
+    });
+    throwSupabaseError("crew.recalculatePerformanceEmployment", error);
+    return data;
+  },
+
   async finalizePerformance(employeeId, period) {
     const { data, error } = await supabase.rpc("crew_performance_finalize", { p_employee_id: employeeId, p_period: period });
     throwSupabaseError("crew.finalizePerformance", error);
