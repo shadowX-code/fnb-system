@@ -230,22 +230,18 @@ function GrowthPerformanceScore({ score, label, showDenominator = true }) {
 function GrowthPerformanceHero({ performance, onOpen }) {
   const { t } = useTranslation();
   const presentation = getPerformanceScorePresentation(performance);
-  const v2Incomplete = performance?.status !== "finalized";
+  const incomplete = performance?.status !== "finalized";
   const score = presentation.score == null ? null : Math.round(presentation.score);
-  const comparison = presentation.isComparable ? getPerformanceScoreComparison({ ...performance, score: presentation.score }) : null;
-  const trendCopy = comparison
-    ? { value: comparison.direction === "up" ? t("performance.trendUp", { points: comparison.points }) : comparison.direction === "down" ? t("performance.trendDown", { points: comparison.points }) : t("performance.trendNoChange"), context: t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) }) }
-    : { value: t("growth.noTrend"), context: null };
-  const progressCopy = t("performance.currentScoreProgress", { scored: presentation.scoredComponents, total: presentation.totalComponents, pending: presentation.pendingComponents });
+  const month = performance?.period_start ? formatCrewDate(`${performance.period_start}T00:00:00`, { month: "long" }) : null;
   return <article className="crew-growth-performance-hero" style={{ "--crew-growth-performance-background": `url(${growthPerformanceHeroBackground})` }}>
     <div className="crew-growth-performance-copy">
       <small>{t("growth.performance")}</small>
-      <h2>{v2Incomplete ? score == null ? t("performance.awaitingData") : t("performance.earnedPoints", { score }) : performanceLevel(score, t)}</h2>
-      <p>{v2Incomplete ? progressCopy : t("growth.thisMonth")}</p>
-      <span className={`crew-growth-performance-trend is-${v2Incomplete ? "neutral" : comparison?.direction || "neutral"}`}><span><strong>{v2Incomplete ? t("performance.reviewProgress") : trendCopy.value}</strong>{v2Incomplete && performance ? <small>{t("performance.pendingNames", { names: (performance.pending_component_names || []).map((key) => t(`performance.components.${key}`)).join(", ") })}</small> : trendCopy.context ? <small>{trendCopy.context}</small> : null}</span></span>
+      <h2>{month ? t("growth.performanceMonth", { month }) : t("growth.thisMonth")}</h2>
+      {performance && <CrewStatusBadge tone={incomplete ? "warning" : "success"}>{performanceStatus(performance.status, t)}</CrewStatusBadge>}
+      {(!performance || incomplete) && <p>{performance ? t("performance.areasCompleted", { scored: presentation.scoredComponents, total: presentation.totalComponents }) : t("performance.awaitingData")}</p>}
       <button type="button" className="crew-mobile-secondary" onClick={onOpen}>{t("growth.viewPerformance")} <ChevronRight size={18} /></button>
     </div>
-    <GrowthPerformanceScore score={score} showDenominator={!v2Incomplete} label={v2Incomplete ? score == null ? t("performance.awaitingData") : t("performance.earnedPoints", { score }) : score == null ? t("performance.awaitingData") : `${score} / 100`} />
+    <GrowthPerformanceScore score={score} showDenominator={!incomplete} label={score == null ? t("performance.awaitingData") : incomplete ? t("performance.pointsSoFarWithScore", { score }) : `${score} / 100`} />
   </article>;
 }
 
@@ -268,11 +264,11 @@ function GrowthSkillList({ skills, onOpen }) {
 }
 
 const performanceComponents = (t) => [
-  { key: "attendance", label: t("performance.components.attendance"), max: 30, weight: 30, icon: CalendarCheck2, strength: t("performance.strengths.attendance") },
-  { key: "service", label: t("performance.components.service"), max: 30, weight: 30, icon: ShieldCheck, strength: t("performance.strengths.service") },
-  { key: "customer", label: t("performance.components.customer"), max: 20, weight: 20, icon: SmilePlus, strength: t("performance.strengths.customer") },
-  { key: "knowledge", label: t("performance.components.knowledge"), max: 15, weight: 15, icon: BookOpenCheck, strength: t("performance.strengths.knowledge") },
-  { key: "peer", label: t("performance.components.peer"), max: 5, weight: 5, icon: Star, strength: t("performance.strengths.peer") },
+  { key: "attendance", label: t("performance.components.attendance"), max: 30, icon: CalendarCheck2, strength: t("performance.strengths.attendance") },
+  { key: "service", label: t("performance.components.service"), max: 30, icon: ShieldCheck, strength: t("performance.strengths.service") },
+  { key: "customer", label: t("performance.components.customer"), max: 20, icon: SmilePlus, strength: t("performance.strengths.customer") },
+  { key: "knowledge", label: t("performance.components.knowledge"), max: 15, icon: BookOpenCheck, strength: t("performance.strengths.knowledge") },
+  { key: "peer", label: t("performance.components.peer"), max: 5, icon: Star, strength: t("performance.strengths.peer") },
 ];
 
 const performanceStatus = (status, t) => status === "finalized" ? t("status.finalized") : status === "draft" ? t("performance.draft") : t("performance.inReview");
@@ -405,9 +401,8 @@ function PerformanceHero({ performance }) {
     <div className="crew-performance-final-hero-copy">
       <div className="crew-performance-final-period"><strong>{monthLabel(performance.period_start, "long", t)}</strong><span className={`is-${performance.status}`}>{performanceStatus(performance.status, t)}</span></div>
       <div className="crew-performance-final-total"><strong>{score ?? "—"}</strong>{!v2Incomplete && <span>/100</span>}</div>
-      <h2>{v2Incomplete ? score == null ? t("performance.reviewProgress") : t("performance.earnedPoints", { score }) : score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
-      <p>{v2Incomplete ? t("performance.currentScoreProgress", { scored: presentation.scoredComponents, total: presentation.totalComponents, pending: presentation.pendingComponents }) : score == null ? t("performance.evidenceReview") : performanceMessage(score, t)}</p>
-      {v2Incomplete && <p>{t("performance.pendingNames", { names: (performance.pending_component_names || []).map((key) => t(`performance.components.${key}`)).join(", ") })}</p>}
+      <h2>{v2Incomplete ? score == null ? t("performance.awaitingData") : t("performance.pointsSoFar") : score == null ? t("performance.reviewProgress") : performanceLevel(score, t)}</h2>
+      <p>{v2Incomplete ? t("performance.areasCompleted", { scored: presentation.scoredComponents, total: presentation.totalComponents }) : score == null ? t("performance.evidenceReview") : performanceMessage(score, t)}</p>
       {comparison ? <small className={`is-${comparison.direction}`}><span><strong>{deltaLabel}</strong><span>{t("performance.vsPreviousPeriod", { period: monthLabel(comparison.previousPeriod, "long", t) })}</span></span></small> : null}
     </div>
   </article>;
@@ -415,21 +410,18 @@ function PerformanceHero({ performance }) {
 
 function PerformanceBreakdown({ performance, onSelect }) {
   const { t } = useTranslation();
-  const presentationScore = getPerformanceScorePresentation(performance).score;
-  const total = presentationScore == null ? null : Math.round(presentationScore);
-  const v2Partial = performance?.status !== "finalized";
   return <section className="crew-performance-final-breakdown">
-    <header className="crew-performance-final-breakdown-head"><h2 className="crew-type-section-title">{t("performance.scoreBreakdown")}</h2><strong aria-hidden="true">{v2Partial ? t("performance.earnedPoints", { score: total ?? "—" }) : total == null ? "— / 100" : `${total} / 100`}</strong></header>
+    <header className="crew-performance-final-breakdown-head"><h2 className="crew-type-section-title">{t("performance.scoreBreakdown")}</h2></header>
     <div className="crew-performance-final-breakdown-card">
-      {performanceComponents(t).map(({ key, label, max, weight, icon: Icon }) => {
+      {performanceComponents(t).map(({ key, label, max, icon: Icon }) => {
         const item = performance.breakdown?.[key] || {};
         const value = item.score == null ? null : Math.round(Number(item.score));
         const progress = value == null ? 0 : Math.min(100, value * 100 / max);
-        return <button type="button" key={key} onClick={() => onSelect({ key, label, max, weight, icon: Icon, item, value })} aria-label={t("performance.viewEvidence", { label })}>
+        return <button type="button" className={value == null ? "is-pending" : undefined} key={key} onClick={() => onSelect({ key, label, max, icon: Icon, item, value })} aria-label={t("performance.viewEvidence", { label })}>
           <i className="crew-ui-icon-container crew-ui-icon-container--small"><Icon size={17} /></i>
-          <span><strong>{label}</strong><small>{t("performance.weight", { weight })}</small></span>
-          <div className="crew-performance-final-meter" aria-label={value == null ? `${label}: ${t("performance.awaitingEvidence")}` : `${label} ${value} of ${max}`}><span style={{ width: `${progress}%` }} /></div>
-          <b>{value == null ? "—" : value} / {max}</b><ChevronRight size={17} />
+          <span><strong>{label}</strong></span>
+          {value != null && <div className="crew-performance-final-meter" aria-label={`${label} ${value} of ${max}`}><span style={{ width: `${progress}%` }} /></div>}
+          <b>{value == null ? t("status.pending") : `${value} / ${max}`}</b><ChevronRight size={17} />
         </button>;
       })}
     </div>

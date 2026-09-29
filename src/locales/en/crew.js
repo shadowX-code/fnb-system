@@ -127,5 +127,7 @@ Object.assign(resources.inventory, {
 Object.assign(resources.performance.components, { peer: "Team Review" });
 Object.assign(resources.performance.strengths, { peer: "Your team review is complete." });
 Object.assign(resources.performance, { earnedPoints: "{{score}} points assessed", pendingNames: "Pending: {{names}}", finalScore: "Final score" });
+Object.assign(resources.growth, { performanceMonth: "{{month}} Performance" });
+Object.assign(resources.performance, { areasCompleted: "{{scored}} of {{total}} areas completed", pointsSoFar: "Points so far", pointsSoFarWithScore: "{{score}} points so far" });
 Object.assign(resources.performance, { googleUnavailable: "Monthly customer evidence is not available yet. This component remains pending, not zero, and does not reduce your assessed points.", googleEvidence: "Google reviews created in this month contribute to your outlet’s shared Customer component. Finalized results retain their recorded evidence." });
 export default resources;
