@@ -334,6 +334,12 @@ export const crewService = {
     return data;
   },
 
+  async reconcileLeaveEntitlement(reviewId, reason) {
+    const { data, error } = await supabase.rpc("crew_leave_reconcile_entitlement", { p_review_id: reviewId, p_reason: reason });
+    throwSupabaseError("crew.reconcileLeaveEntitlement", error);
+    return data;
+  },
+
   async leaveAdjustmentHistory(employeeId) {
     const { data, error } = await supabase.rpc("crew_leave_adjustment_history", { p_employee_id: employeeId });
     throwSupabaseError("crew.leaveAdjustmentHistory", error);

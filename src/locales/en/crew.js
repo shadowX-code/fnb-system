@@ -81,6 +81,11 @@ resources.recovery = { offlineTitle:"You're offline", entryTitle:"We couldn't op
 resources.tasks.noOutletTasks = "No tasks at this outlet today.";
 resources.assets.readOnlySubtitle = "View outlet assets";
 resources.leave.managementReadOnly = "Leave applications need an assigned employment outlet. Your leave history remains available.";
+resources.leave.eligibilityReview = "Review Required";
+resources.leave.eligibilityReviewHelp = "Contact your Leave Admin";
+resources.leave.eligibilityReviewBeforeRequest = "Employment history needs review before a new request.";
+resources.leave.notEligible = "Not Eligible";
+resources.leave.notEligibleHelp = "Your current employment type is not eligible for this leave.";
 Object.assign(resources.performance.components, { peer: "Peer Review" });
 Object.assign(resources.performance.strengths, { peer: "Your team review is complete." });
 Object.assign(resources.performance, { earnedPoints: "{{score}} points assessed", pendingNames: "Pending: {{names}}", finalScore: "Final score" });

@@ -1,5 +1,10 @@
 # FeedX Development Log
 
+## 2026-09-29 — Leave Employment Eligibility Phase 2
+
+- Leave Policy versions now own eligible Employment Types, entitlement method, and proration rule. New grants use People employment-as-of spans with half-day final rounding; unverified pre-cutover history fails closed. Existing grants stay durable, and employment/policy changes append review evidence for controlled Leave correction.
+
+
 ## 2026-09-21 — Platform Crew Notification Foundation V1
 
 - Promoted Legal Entities from an Employees-page utility into its own People master-data module. The existing canonical Legal Entity table, RPC authority, permissions and employee relationship remain unchanged; the standalone list now exposes server-derived linked-employee counts and deactivation preserves existing assignments and document history.
