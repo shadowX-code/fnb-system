@@ -87,6 +87,14 @@ describe("Payroll Control Center", () => {
     fireEvent.click(screen.getByRole("button",{name:"Review Statutory"}));
     expect(open).toHaveBeenCalledWith(1);
   });
+  it("does not present unresolved period membership as zero employees ready", async () => {
+    render(<Overview data={fixture} entityId="entity-1" month="2026-09" run={fixture.periods[0].runs[0]}
+      readiness={{calculation:{ready:false,employment_issue:"employment_joined_date_missing"}}}
+      canManage onOpenRun={vi.fn()} onOpenEmployees={vi.fn()} />);
+    await screen.findByText("Membership unresolved");
+    expect(screen.getAllByText("Joined Date is required to resolve period employment").length).toBeGreaterThan(0);
+    expect(screen.queryByText("0 Ready · 0 Need Attention")).toBeNull();
+  });
   it("uses canonical financial totals when all employee results are current", async () => {
     mocks.readPreparation.mockResolvedValue({results:[{employee_id:"a",projection:{status:"ready"},statutory_setup:{complete:true}}]});
     mocks.readCalculation.mockResolvedValue({results:[{employee_id:"a",status:"ready",gross_earnings:2000}]});
