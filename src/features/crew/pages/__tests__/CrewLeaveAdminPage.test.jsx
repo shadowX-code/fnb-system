@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   reviewLeave: vi.fn(),
   adjustLeaveBalance: vi.fn(),
   leaveAdjustmentHistory: vi.fn(),
+  reconcileLeaveEntitlement: vi.fn(),
   saveLeavePolicy: vi.fn(),
 }));
 
@@ -116,6 +117,7 @@ beforeEach(() => {
   mocks.reviewLeave.mockReset().mockResolvedValue({});
   mocks.adjustLeaveBalance.mockReset().mockResolvedValue({});
   mocks.leaveAdjustmentHistory.mockReset().mockResolvedValue(adjustmentHistory);
+  mocks.reconcileLeaveEntitlement.mockReset().mockResolvedValue({});
   mocks.saveLeavePolicy.mockReset().mockResolvedValue({});
   ui.notify.mockReset();
 });
@@ -252,6 +254,10 @@ describe("Crew Leave Admin UI", () => {
     for (const label of ["Recorded grant", "Verified entitlement", "Difference"]) expect(within(correction).getByText(label)).not.toBeNull();
     expect(within(correction).getByText("-2 days")).not.toBeNull();
     expect(within(correction).getByText(/recorded grant remains unchanged/)).not.toBeNull();
+    fireEvent.change(within(correction).getByRole("textbox", { name: "Reason *" }), { target: { value: "Reconcile verified history" } });
+    fireEvent.click(within(correction).getByRole("button", { name: "Confirm Correction" }));
+    await waitFor(() => expect(mocks.reconcileLeaveEntitlement).toHaveBeenCalledWith("review-a", "Reconcile verified history"));
+    expect(mocks.adjustLeaveBalance).not.toHaveBeenCalled();
   });
 
   it("shows dated policy eligibility and a reason before saving a version", async () => {
