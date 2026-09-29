@@ -14,7 +14,7 @@ afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const warning = { id: "warning-1", display_sequence: 1, warning_type: "first_written_warning", subject: "Attendance procedure", issued_date: "2026-09-20", status: "delivered", viewed_at: null };
 const detail = { ...warning, incident_date: "2026-09-19", warning_details: "The issued warning text.", required_action: "Follow the documented procedure.", outlet_name_snapshot: "QA Outlet", has_evidence: false, response: null };
 
-describe("Crew Warnings & Notices", () => {
+describe("Crew Letters & Notices", () => {
   it("shows compact status-driven warning cards", async () => {
     employeeDisciplinaryService.crewOverview.mockResolvedValue({ warnings: [warning] });
     render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
@@ -23,6 +23,18 @@ describe("Crew Warnings & Notices", () => {
     expect(screen.getByText(/Warning #1/)).not.toBeNull();
     expect(screen.getByText(/First Written Warning/)).not.toBeNull();
     expect(screen.getByRole("button", { name: "Review" })).not.toBeNull();
+  });
+
+  it("shows a general notice without warning fields or a response action", async () => {
+    const notice = { id: "notice-1", document_type: "general_notice", type_label: "General Notice", subject: "Workplace update", issued_date: "2026-09-29", status: "viewed", viewed_at: "2026-09-29T02:00:00Z" };
+    employeeDisciplinaryService.crewOverview.mockResolvedValue({ records: [notice] });
+    employeeDisciplinaryService.crewDetail.mockResolvedValue({ ...notice, body: "Please review the new arrangement.", response_allowed: false, has_evidence: false, response: null });
+    render(<CrewDisciplinaryMobile token="opaque-token" onBack={() => {}} />);
+    expect(await screen.findByText("General Notice")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(await screen.findByText("Please review the new arrangement.")).not.toBeNull();
+    expect(screen.queryByText("Incident date")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Add Response" })).toBeNull();
   });
 
   it("distinguishes chronological sequence from the future Written Warning level", async () => {

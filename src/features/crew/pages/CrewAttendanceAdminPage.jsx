@@ -26,6 +26,7 @@ const rosterLabels = {
   medical_leave: "Medical Leave",
   unpaid_leave: "Unpaid Leave",
   other_leave: "Other Leave",
+  replacement_leave: "Replacement Leave",
 };
 
 function businessDate(date = new Date()) {

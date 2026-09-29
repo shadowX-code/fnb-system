@@ -24,7 +24,7 @@ const formatRosterTime = (value) => {
   const [hours, minutes] = String(value).split(":").map(Number);
   return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString(crewLocale(), { hour: "numeric", minute: "2-digit" });
 };
-const entryLabel = (entry, t) => ({ working: t("schedule.working"), off: t("schedule.off"), leave: t("schedule.annualLeave"), medical: "MC", annual_leave: t("schedule.annualLeave"), medical_leave: t("schedule.medicalLeave"), unpaid_leave: t("schedule.unpaidLeave"), other_leave: t("schedule.otherLeave") }[entry?.entry_type] || entry?.template?.name || t("schedule.working"));
+const entryLabel = (entry, t) => ({ working: t("schedule.working"), off: t("schedule.off"), leave: t("schedule.annualLeave"), medical: "MC", annual_leave: t("schedule.annualLeave"), medical_leave: t("schedule.medicalLeave"), unpaid_leave: t("schedule.unpaidLeave"), other_leave: t("schedule.otherLeave"), replacement_leave: t("leave.replacement") }[entry?.entry_type] || entry?.template?.name || t("schedule.working"));
 const entryOutlet = (entry, t) => entry?.outlet?.name || entry?.outlet_name || t("home.yourOutlet");
 const entryTone = (entry) => {
   if (!entry) return "none";

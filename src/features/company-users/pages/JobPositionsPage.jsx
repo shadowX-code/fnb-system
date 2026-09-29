@@ -27,6 +27,7 @@ function createEmptyPosition() {
     department: "",
     active_users: 0,
     status: "active",
+    participates_in_team_review: false,
     description: "",
     updated_at: "",
   };
@@ -183,6 +184,7 @@ function JobPositionModal({
                 ) : <Badge tone="warning">Unassigned</Badge>}
               </ReadOnlyField>
               <ReadOnlyField label="Status"><Badge tone={statusTone(values.status)}>{values.status === "active" ? "Active" : "Inactive"}</Badge></ReadOnlyField>
+              <ReadOnlyField label="Participates in Team Review">{values.participates_in_team_review ? "Yes" : "No"}</ReadOnlyField>
               <ReadOnlyField label="Last Updated">{formatLastUpdated(values.updated_at)}</ReadOnlyField>
             </div>
           ) : (
@@ -218,6 +220,10 @@ function JobPositionModal({
                   onChange={(nextValue) => updateValue("status", nextValue)}
                 />
               </FieldLabel>
+              <label className="flex items-center gap-2 text-sm text-text-primary">
+                <input type="checkbox" checked={values.participates_in_team_review} onChange={(event) => updateValue("participates_in_team_review", event.target.checked)} />
+                Participates in Team Review
+              </label>
             </div>
           )}
         </DetailSection>
@@ -534,6 +540,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
     },
     { key: "active_users", header: "Active Employees", align: "right", render: (row) => <span className="text-sm font-bold text-text-primary">{row.active_users}</span> },
     { key: "status", header: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status === "active" ? "Active" : "Inactive"}</Badge> },
+    { key: "team_review", header: "Team Review", render: (row) => row.participates_in_team_review ? "Participates" : "Excluded" },
     { key: "updated_at", header: "Last Updated", render: (row) => <span className="text-xs font-medium text-text-muted">{formatLastUpdated(row.updated_at)}</span> },
     {
       key: "actions",

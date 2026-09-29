@@ -16,14 +16,26 @@ const payload = {
 
 describe("Crew Assets Mobile", () => {
   it("drops Management Asset actions when the selected outlet has no grant", async () => {
-    crewService.managementAssets.mockImplementation(async (_token, outletId) => ({ ...payload, outlet: { id: outletId, name: outletId }, can_add_assets: outletId === "outlet-1", can_adjust_assets: false, can_perform_asset_inspections: false, can_manage_asset_details: false }));
+    crewService.managementAssets.mockImplementation(async (_token, outletId) => ({ ...payload, outlet: { id: outletId, name: outletId }, can_add_assets: outletId === "outlet-1", can_adjust_assets: outletId === "outlet-1", can_perform_asset_inspections: outletId === "outlet-1", can_manage_asset_details: outletId === "outlet-1" }));
     const view = render(<CrewAssetsMobile key="outlet-1" token="token" management outletId="outlet-1" onBack={() => {}} />);
     expect(await screen.findByRole("button", { name: "Add Asset" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Inspection" })).not.toBeNull();
+    fireEvent.click(screen.getByText("Staging QA Blender"));
+    expect(await screen.findByRole("button", { name: /Adjust Quantity/i })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Inspect Asset/i })).not.toBeNull();
+    expect(screen.getByRole("button", { name: /Edit/i })).not.toBeNull();
+
     view.rerender(<CrewAssetsMobile key="outlet-2" token="token" management outletId="outlet-2" onBack={() => {}} />);
     await screen.findByText("outlet-2");
     expect(screen.queryByRole("button", { name: "Add Asset" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Inspection" })).toBeNull();
     expect(crewService.managementAssets).toHaveBeenCalledWith("token", "outlet-2", undefined);
     expect(crewService.assetsMobile).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Staging QA Blender"));
+    await screen.findByText("Staging QA Blender");
+    expect(screen.queryByRole("button", { name: /Adjust Quantity/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Inspect Asset/i })).toBeNull();
+    expect(screen.queryByRole("button", { name: /Edit/i })).toBeNull();
   });
   it("renders the safe outlet asset projection and capability actions", async () => {
     crewService.assetsMobile.mockResolvedValue(payload);

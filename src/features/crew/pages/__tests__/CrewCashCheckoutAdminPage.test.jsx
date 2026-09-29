@@ -84,6 +84,7 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getByText("Eligible Crew")).not.toBeNull();
     expect(screen.getByText("Handover")).not.toBeNull();
     expect(screen.getByText("Cash Handover Receivers")).not.toBeNull();
+    expect(screen.getByText(/Initiate Cash Handover access is separate/)).not.toBeNull();
     expect(screen.getByText("Review Rules")).not.toBeNull();
     expect(screen.getByText("Require internal receiver confirmation")).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Close modal" }));

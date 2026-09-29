@@ -213,6 +213,30 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByText("This checkout is completed and cannot be edited.")).not.toBeNull();
   });
 
+  it("shows submitted manager-review evidence read-only and returns Home through Done", async () => {
+    const reconciled = { status: "reconciled", review_required: true, denomination_counts: { "100": 5 }, pos_expected_cash: 400, carry_forward: 0, variance_reason: "POS discrepancy" };
+    const submitted = { ...reconciled, status: "submitted", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, counted_cash: 500, variance: 100, amount_for_deposit: 200 };
+    crewService.cashCheckoutMobile.mockResolvedValueOnce({ ...payload, checkout: reconciled }).mockResolvedValue({ ...payload, checkout: submitted });
+    crewService.saveCashCheckout.mockResolvedValue({ checkout: submitted });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue review" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("heading", { name: "Review Cash Checkout" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
+    expect(await screen.findByRole("heading", { name: "Cash Checkout Submitted" })).not.toBeNull();
+    expect(screen.getByText("Manager review required")).not.toBeNull();
+    expect(screen.getByText("POS discrepancy")).not.toBeNull();
+    expect(screen.getByText("Submitted for manager review. This checkout can no longer be edited.")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
+    expect(screen.queryByRole("textbox")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Submit Review" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(screen.getByText("Awaiting Manager Review")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View details" }));
+    expect(screen.getByRole("heading", { name: "Cash Checkout Submitted" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Back" })).toBeNull();
+  });
+
   it("opens a bounded checkout-snapshot history and returns through the existing details page", async () => {
     crewService.cashCheckoutHistory.mockResolvedValue([
       { id: "checkout-new", status: "completed", business_date: "2026-08-21", completed_at: "2026-08-21T22:30:00+08:00", checked_out_by: "QA Crew", amount_for_deposit: 220, variance: 0, denomination_counts: {}, counted_cash: 570, pos_expected_cash: 500, expected_opening_cash: 350, floating_cash: 300, previous_carry_forward: 50, carry_forward: 50 },

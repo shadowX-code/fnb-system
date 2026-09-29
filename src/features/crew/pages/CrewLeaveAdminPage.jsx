@@ -135,6 +135,7 @@ function BalancesPanel({ rows, listing, actions, filtered, onManage }) {
     { key: "medical", header: "Medical / MC", render: (row) => balanceCell(row, "medical") },
     { key: "unpaid", header: "Unpaid Leave", render: (row) => balanceCell(row, "unpaid") },
     { key: "other", header: "Other Leave", render: (row) => balanceCell(row, "other") },
+    { key: "replacement", header: "Replacement Leave", render: (row) => balanceCell(row, "replacement") },
     { key: "period", header: "Period", render: (row) => <span className="whitespace-nowrap text-text-secondary">{formatLeaveDateRange(row.period_start, row.period_end)}</span> },
     { key: "action", header: "Action", align: "right", render: (row) => <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onManage(row)}>Manage</button> },
   ]} /><AdminPagination {...listing} onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize} noun="Crew balances" /></AsyncDataSurface></Card>;

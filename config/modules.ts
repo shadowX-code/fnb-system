@@ -1046,6 +1046,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: {},
   },
   {
+    id: "crew_team_review",
+    section: "Performance",
+    label: "Team Review",
+    route: "/crew/performance/team-review",
+    icon: "crew-performance-reviews",
+    sidebar: true,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
     id: "crew_reward",
     section: "Reward",
     label: "Reward Overview",

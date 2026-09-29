@@ -187,7 +187,7 @@ function CashSettings({ initial, positions, employees, approvedReceivers, receiv
       <SettingsSection title="Handover" description="Control receipt acknowledgement and who can receive new Cash Handovers.">
         <div className="space-y-4">
           <ToggleField checked={form.require_receiver_confirmation} onChange={(checked) => setForm({ ...form, require_receiver_confirmation: checked })} label="Require internal receiver confirmation" helper="Internal handovers remain pending until the named Crew member confirms receipt." />
-          <MultiSelectField variant="form" label="Cash Handover Receivers" helper="Only selected active Crew can receive new handovers. Removing a receiver never changes existing assignments." value={receiverIds} options={receiverOptions} onApply={setReceiverIds} placeholder="Add active Crew account" />
+          <MultiSelectField variant="form" label="Cash Handover Receivers" helper="Only active Crew whose workplace is this outlet can receive new handovers. Initiate Cash Handover access is separate. Removing a receiver does not change existing assignments." value={receiverIds} options={receiverOptions} onApply={setReceiverIds} placeholder="Add active Crew account" />
         </div>
       </SettingsSection>
       <SettingsSection title="Review Rules" description="When checkout must pause for manager review.">

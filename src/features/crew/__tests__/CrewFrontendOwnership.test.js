@@ -32,7 +32,7 @@ describe("Crew frontend canonical ownership", () => {
     const sources = mobileSources();
     expect(sources.size).toBeGreaterThan(20);
     const owners = [...sources].filter(([, text]) => /\bcreatePortal\b|role=["']dialog["']/.test(text)).map(([file]) => relative(root, file)).sort();
-    expect(owners).toEqual(["components/CrewBottomSheet.jsx", "components/CrewMobileModal.jsx"]);
+    expect(owners).toEqual(["components/CrewBottomSheet.jsx", "components/CrewImageViewer.jsx", "components/CrewMobileModal.jsx"]);
   });
 
   it("keeps mobile consumers on canonical services, without direct Supabase/table access or QA fixtures", () => {

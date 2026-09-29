@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   learningHome: vi.fn(),
   growthMobile: vi.fn(),
   performanceMobile: vi.fn(),
-  peerReviewMobile: vi.fn(),
+  teamReviewMobile: vi.fn(),
   rewardMobile: vi.fn(),
   operationsToday: vi.fn(),
   operationsAllTasks: vi.fn(),
@@ -77,7 +77,7 @@ beforeEach(() => {
   mocks.learningHome.mockReset().mockResolvedValue({ assignment: { id: "assignment-1", progress_percentage: 25, lessons_completed: 2, lessons_total: 8 }, required_sops: [] });
   mocks.growthMobile.mockReset().mockResolvedValue(growth);
   mocks.performanceMobile.mockReset().mockResolvedValue(performance);
-  mocks.peerReviewMobile.mockReset().mockResolvedValue({ assignments: [], completed: 0, total: 0, open: false });
+  mocks.teamReviewMobile.mockReset().mockResolvedValue({ teammates: [], completed: 0, total: 0, open: false });
   mocks.rewardMobile.mockReset().mockResolvedValue(reward);
   mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, tasks: [{ id: "ops-1", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", block_count: 2, completed_count: 0 }, { id: "task-1", source: "legacy_daily", name: "Check reservation board", status: "pending", priority: "normal" }] });
   mocks.operationsAllTasks.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, tasks: [{ id: "ops-1", template_id: "template-opening", source: "instance", name: "Opening Checklist", task_type: "checklist", status: "not_started", business_date: currentBusinessDate(), schedule_type: "recurring", schedule_config: { frequency: "every_day" }, available_from: "2026-08-13T02:00:00Z", due_at: "2026-08-13T10:00:00Z", block_count: 2, completed_count: 0 }] });
@@ -128,13 +128,13 @@ describe("Crew Mobile redesign", () => {
     expect(await screen.findByRole("heading", { name: "All Tasks" })).not.toBeNull();
     expect(mocks.operationDetail).not.toHaveBeenCalled();
   });
-
   it("applies a saved Crew theme on the pre-auth login", () => {
     localStorage.setItem("feedx.crew.theme", "dark");
     renderCrewApp({ crewSession: null });
     expect(screen.getByRole("heading", { name: "Let’s make today a good one." })).not.toBeNull();
     expect(document.documentElement.dataset.crewTheme).toBe("dark");
   });
+
   it("applies and persists the Home-only Crew theme choice without adding a second route control", async () => {
     const first = renderCrewApp();
 
@@ -301,7 +301,7 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
     const employmentRecordsRow = await screen.findByRole("button", { name: /Employment Records/ });
     expect(employmentRecordsRow.querySelector(".crew-ui-count")?.textContent).toBe("2");
-    expect(employmentRecordsRow.querySelector(".crew-ui-count")?.getAttribute("aria-label")).toBe("2 unread warnings");
+    expect(employmentRecordsRow.querySelector(".crew-ui-count")?.getAttribute("aria-label")).toBe("2 unread letters or notices");
     expect(mocks.myDisciplinary).toHaveBeenCalledWith("crew-token");
 
     first.unmount();
@@ -364,9 +364,11 @@ describe("Crew Mobile redesign", () => {
     expect(await screen.findByRole("heading", { name: "My Leave" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
     fireEvent.click(screen.getByRole("button", { name: "Log Out" }));
-    expect(screen.getByRole("dialog", { name: "Log out of FeedX?" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "Log out?" })).not.toBeNull();
+    expect(screen.getByText("Are you sure you want to log out?")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
-    expect(screen.queryByRole("dialog", { name: "Log out of FeedX?" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Log out?" })).toBeNull();
   });
 
   it("keeps passcode changes on their own page and leaves Settings for app preferences", async () => {
@@ -380,6 +382,12 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.queryByRole("button", { name: "Passcode" })).toBeNull();
     expect(screen.getByRole("button", { name: "Language" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "About FeedX" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Privacy Policy" }));
+    expect(screen.getByRole("heading", { name: "Attendance and location" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Terms of Use" }));
+    expect(screen.getByRole("heading", { name: "Record accuracy" })).not.toBeNull();
   });
 
   it("keeps profile information master-data backed and scopes photo replacement to the current Crew session", async () => {
@@ -493,15 +501,16 @@ describe("Crew Mobile redesign", () => {
     expect(nav.textContent).not.toContain("Performance");
   });
 
-  it("keeps attendance as a contextual Home action instead of a primary tab", async () => {
+  it("keeps Attendance under Me after Home's shift action opens Schedule", async () => {
     renderCrewApp();
     expect(await screen.findByRole("button", { name: "Clock In" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /View Attendance/ }));
+    fireEvent.click(screen.getByRole("navigation", { name: "Crew navigation" }).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: /Attendance/ }));
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
     expect(screen.queryByRole("button", { name: "Clock In" })).toBeNull();
   });
 
-  it("renders Attendance as a three-month operational history without changing the month read model", async () => {
+  it("renders Attendance as a two-month operational history without changing the month read model", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     const currentMonth = currentBusinessDate().slice(0, 7);
     mocks.myAttendance.mockResolvedValueOnce([
@@ -509,11 +518,12 @@ describe("Crew Mobile redesign", () => {
       { id: "attendance-2", clock_in_at: `${currentMonth}-19T17:00:00+08:00`, clock_out_at: `${currentMonth}-20T01:00:00+08:00`, status: "completed", clock_in_location_verified: true },
     ]);
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: /View Attendance/ }));
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: /Attendance/ }));
 
     expect(screen.getByText("Track your shifts and attendance")).not.toBeNull();
     expect(screen.queryByRole("combobox", { name: "Month" })).toBeNull();
-    expect(screen.getByRole("navigation", { name: "Month" }).querySelectorAll("button")).toHaveLength(3);
+    expect(screen.getByRole("navigation", { name: "Month" }).querySelectorAll("button")).toHaveLength(2);
     expect(screen.getByRole("region", { name: "Monthly attendance summary" })).not.toBeNull();
     expect(screen.getByText("Attendance History")).not.toBeNull();
     expect(await screen.findByText("Exception")).not.toBeNull();
@@ -565,15 +575,16 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myRoster.mockResolvedValueOnce({ from: "2026-08-13", to: "2026-08-26", today: null, entries: [] });
     render(<CrewMobileApp />);
-    expect(await screen.findByText("No published shift today")).not.toBeNull();
-    expect(screen.getByText("Not published")).not.toBeNull();
+    expect(await screen.findByText("Not published")).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "My Schedule" })).toBeNull();
     expect(screen.queryByText("Working", { exact: true })).toBeNull();
   });
 
   it("shows only the token-bound published roster and opens My Schedule without adding a bottom tab", async () => {
     renderCrewApp();
     expect((await screen.findAllByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/)).length).toBeGreaterThan(0);
-    fireEvent.click(screen.getByRole("button", { name: "View all" }));
+    expect(screen.queryByRole("heading", { name: "My Schedule" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /View Schedule/ }));
     expect(screen.getByRole("heading", { name: "My Schedule" })).not.toBeNull();
     expect(screen.getByText(/Hola Hola/)).not.toBeNull();
     expect(screen.getAllByText("OFF").length).toBeGreaterThan(0);
@@ -598,8 +609,9 @@ describe("Crew Mobile redesign", () => {
     });
     render(<CrewMobileApp />);
     await screen.findAllByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/);
-    expect(document.querySelector(".crew-home-schedule-row .crew-list-secondary")?.textContent).toBe("Friends Corner");
-    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    expect(screen.getByRole("button", { name: /View Schedule/ }).textContent).toContain("Today’s shift");
+    expect(document.querySelector(".crew-home-schedule")).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: /View Schedule/ }));
     expect(document.querySelector(".crew-schedule-final-day-meta")?.textContent).toContain("Friends Corner");
     expect(document.querySelector(".crew-schedule-final-day-meta .crew-schedule-final-duration")?.textContent).toContain("8 hrs");
     expect(document.querySelector(".crew-schedule-final-row-meta")?.textContent).toContain("Friends Corner");
@@ -622,7 +634,7 @@ describe("Crew Mobile redesign", () => {
       ],
     });
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    fireEvent.click(await screen.findByRole("button", { name: /View Schedule/ }));
     expect(screen.getByRole("heading", { name: "My Schedule" })).not.toBeNull();
     expect(document.querySelector(".crew-schedule-final-day h2").textContent).toBe("Unpaid Leave");
     expect(screen.getAllByText("Annual Leave").length).toBeGreaterThan(0);
@@ -638,7 +650,7 @@ describe("Crew Mobile redesign", () => {
 
   it("keeps one selected date across the inline seven-day and full-month schedule calendar", async () => {
     renderCrewApp();
-    fireEvent.click(await screen.findByRole("button", { name: "View all" }));
+    fireEvent.click(await screen.findByRole("button", { name: /View Schedule/ }));
     fireEvent.click(screen.getByRole("button", { name: "Expand calendar" }));
     expect(document.querySelector(".crew-schedule-final-calendar.is-expanded")).not.toBeNull();
     expect(screen.getByText("August 2026")).not.toBeNull();
@@ -890,18 +902,17 @@ describe("Crew Mobile redesign", () => {
 
   it("keeps the Home shift footer time on its own readable row", async () => {
     renderCrewApp();
-    const footer = await screen.findByRole("button", { name: /Today’s shift.*View Attendance/ });
+    const footer = await screen.findByRole("button", { name: /Today’s shift.*View Schedule/ });
     expect(footer.querySelector(".crew-ui-icon-container")).not.toBeNull();
     expect(footer.querySelector("small")?.textContent).toBe("Today’s shift");
     expect(footer.querySelector("strong")?.textContent).toMatch(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/);
-    expect(footer.querySelector("em")?.textContent).toContain("View Attendance");
+    expect(footer.querySelector("em")?.textContent).toContain("View Schedule");
   });
 
-  it("uses the compact shift-status icon instead of the decorative hand in the Home header", async () => {
+  it("keeps the employee name free of decorative icons", async () => {
     renderCrewApp();
     await screen.findByText("Today’s Tasks");
-    expect(document.querySelector(".crew-v2-home-header h1 .crew-home-shift-status-icon")).not.toBeNull();
-    expect(document.querySelector(".crew-v2-home-header h1 .lucide-hand")).toBeNull();
+    expect(document.querySelector(".crew-v2-home-header h1 svg")).toBeNull();
   });
 
   it("keeps Reward pending while Performance is incomplete", async () => {

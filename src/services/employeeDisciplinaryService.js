@@ -9,10 +9,15 @@ async function invokeEvidence(body) {
 }
 
 export const employeeDisciplinaryService = {
+  async listTypes() {
+    const { data, error } = await supabase.rpc("employee_letter_notice_type_options");
+    throwSupabaseError("lettersNotices.types", error);
+    return data ?? [];
+  },
   async adminDetail(employeeId) {
     const { data, error } = await supabase.rpc("employee_disciplinary_admin_detail", { p_employee_id: employeeId });
     throwSupabaseError("employeeDisciplinary.detail", error);
-    return data ?? { warnings: [] };
+    return { ...(data ?? {}), records: data?.records ?? data?.warnings ?? [] };
   },
   async saveDraft({ warningId = null, employeeId, payload, requestId, supersedesWarningId = null }) {
     const { data, error } = await supabase.rpc("employee_disciplinary_save_draft", { p_warning_id: warningId, p_employee_id: employeeId, p_payload: payload, p_request_id: requestId, p_supersedes_warning_id: supersedesWarningId });
@@ -40,7 +45,7 @@ export const employeeDisciplinaryService = {
   async crewOverview(token) {
     const { data, error } = await supabase.rpc("crew_employee_disciplinary", { p_token: token });
     throwSupabaseError("employeeDisciplinary.crewOverview", error);
-    return data ?? { warnings: [] };
+    return { ...(data ?? {}), records: data?.records ?? data?.warnings ?? [] };
   },
   async crewDetail(token, warningId) {
     const { data, error } = await supabase.rpc("crew_employee_disciplinary_detail", { p_token: token, p_warning_id: warningId });

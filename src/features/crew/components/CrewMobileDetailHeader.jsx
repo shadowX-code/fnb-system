@@ -7,9 +7,9 @@ export default function CrewMobileDetailHeader({ title, subtitle = null, onBack,
   return (
     <header className={`crew-v2-page-header crew-mobile-detail-header is-${variant} ${className}`.trim()}>
       <div>
-        <button type="button" onClick={onBack} aria-label={t("common.back")}>
+        {onBack && <button type="button" onClick={onBack} aria-label={t("common.back")}>
           <ArrowLeft size={19} />
-        </button>
+        </button>}
         <span className="crew-mobile-detail-copy"><h1 className="crew-type-detail-title" title={title}>{title}</h1>{subtitle ? <p className="crew-type-secondary">{subtitle}</p> : null}</span>
       </div>
       {action ? <span className="crew-mobile-detail-header-action">{action}</span> : null}

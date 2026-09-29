@@ -1,0 +1,201 @@
+.crew-inventory-page {
+  min-height: 100%;
+  padding: 0 var(--crew-mobile-page-inline) var(--crew-mobile-page-bottom);
+  color: var(--crew-color-text);
+}
+.crew-inventory-page:has(.crew-inventory-sticky:not(:empty)) { padding-bottom: calc(var(--crew-mobile-page-bottom) + 72px); }
+.crew-inventory-home { min-width: 0; }
+.crew-inventory-home-modules { display: grid; gap: 12px; }
+.crew-inventory-home-module {
+  --crew-inventory-home-accent: var(--crew-color-success);
+  --crew-inventory-home-tint: var(--crew-color-success-surface);
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--crew-color-border);
+  border-radius: var(--crew-radius-functional);
+  background: var(--crew-color-surface);
+}
+.crew-inventory-home-module.is-orders { --crew-inventory-home-accent: var(--crew-color-info); --crew-inventory-home-tint: var(--crew-color-info-surface); }
+.crew-inventory-home-module::before { position: absolute; z-index: 1; top: 0; bottom: 0; left: 0; width: 3px; background: var(--crew-inventory-home-accent); content: ""; }
+.crew-inventory-home-heading {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 74px;
+  border: 0;
+  background: linear-gradient(110deg, var(--crew-color-surface) 28%, color-mix(in srgb, var(--crew-inventory-home-tint) 48%, var(--crew-color-surface)));
+  padding: 12px 16px 12px 17px;
+  color: var(--crew-color-text);
+  text-align: left;
+}
+.crew-inventory-home-heading:focus-visible,.crew-inventory-home-row-action:focus-visible { outline: 2px solid var(--crew-inventory-home-accent); outline-offset: -3px; }
+.crew-inventory-home-icon { display: grid; width: 42px; height: 42px; flex: 0 0 42px; place-items: center; border-radius: 50%; background: var(--crew-inventory-home-tint); color: var(--crew-inventory-home-accent); }
+.crew-inventory-home-heading-copy { z-index: 1; display: grid; flex: 1; min-width: 0; gap: 2px; }
+.crew-inventory-home-heading-copy strong { font-size: var(--crew-type-card-title); line-height: 1.2; }
+.crew-inventory-home-heading-copy small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); line-height: 1.3; }
+.crew-inventory-home-motif { position: absolute; z-index: -1; top: -7px; right: 31px; color: var(--crew-inventory-home-accent); opacity: .09; transform: rotate(12deg); }
+.crew-inventory-home-chevron { z-index: 1; flex: 0 0 auto; color: var(--crew-color-text); }
+.crew-inventory-home-rows { padding: 0 16px 2px 17px; }
+.crew-inventory-home-row { display: flex; min-width: 0; min-height: 64px; align-items: center; gap: 10px; border-top: 1px solid var(--crew-color-divider); padding: 9px 0; }
+.crew-inventory-home-row-copy { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.crew-inventory-home-row-title { display: flex; min-width: 0; align-items: center; gap: 6px; }
+.crew-inventory-home-row-title strong { min-width: 0; overflow: hidden; color: var(--crew-color-text); font-size: var(--crew-type-list-primary); line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.crew-inventory-home-row-title .crew-ui-status { min-height: 20px; padding: 2px 6px; font-size: var(--crew-type-badge); }
+.crew-inventory-home-row-copy small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); line-height: 1.3; }
+.crew-inventory-home-row-action { display: inline-flex; min-width: 84px; min-height: 40px; flex: 0 0 auto; align-items: center; justify-content: center; gap: 6px; border: 0; border-radius: var(--crew-radius-control); background: var(--crew-inventory-home-tint); padding: 7px 10px; color: var(--crew-inventory-home-accent); font-size: var(--crew-type-secondary); font-weight: 700; white-space: nowrap; }
+.crew-inventory-home-row-action:hover { background: color-mix(in srgb, var(--crew-inventory-home-tint) 70%, var(--crew-inventory-home-accent)); }
+.crew-inventory-home-module.is-clear .crew-inventory-home-heading { min-height: 64px; }
+.crew-inventory-subtle,.crew-inventory-state { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
+.crew-inventory-state { display: grid; gap: 10px; padding: 20px 0; }
+
+.crew-inventory-hub-list,.crew-inventory-list,.crew-inventory-picker-list { display: grid; gap: 6px; margin-top: 10px; }
+.crew-inventory-hub-list>button,.crew-inventory-list>button,.crew-inventory-audit-row>button:first-child,.crew-inventory-picker-list>button {
+  display: flex; align-items: center; gap: 9px; min-width: 0; min-height: 58px;
+  border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional);
+  background: var(--crew-color-surface); padding: 8px 10px; color: var(--crew-color-text); text-align: left;
+}
+.crew-inventory-history-entry { display: flex; align-items: center; gap: 9px; min-width: 0; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); padding: 8px 10px; }
+.crew-inventory-history-entry>button:last-child { display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0; min-height: 48px; border: 0; background: transparent; padding: 0; color: var(--crew-color-text); text-align: left; }
+.crew-inventory-history-entry>button:last-child>span:first-child { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.crew-inventory-history-entry strong { overflow-wrap: anywhere; font-size: var(--crew-type-list-primary); }
+.crew-inventory-history-entry small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-hub-list>button,.crew-inventory-list>button,.crew-inventory-audit-row>button:first-child { width: 100%; }
+.crew-inventory-hub-list>button>span:not(.crew-inventory-thumb):not(.crew-ui-status),.crew-inventory-list>button>span:not(.crew-inventory-thumb):not(.crew-ui-status),.crew-inventory-audit-row>button:first-child>span:not(.crew-inventory-thumb):not(.crew-ui-status) { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.crew-inventory-hub-list small,.crew-inventory-list small,.crew-inventory-picker-list small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-hub-list strong,.crew-inventory-list strong,.crew-inventory-picker-list strong { font-size: var(--crew-type-list-primary); overflow-wrap: anywhere; }
+.crew-inventory-audit-row { display: grid; grid-template-columns: minmax(0,1fr) 44px; gap: 4px; }
+.crew-inventory-audit-row>button:last-child { display: grid; place-items: center; border: 0; border-radius: var(--crew-radius-control); background: transparent; color: var(--crew-color-danger); }
+.crew-inventory-thumb { display: grid; flex: 0 0 48px; width: 48px; height: 48px; place-items: center; overflow: hidden; border-radius: 9px; background: var(--crew-color-success-surface); color: var(--crew-color-success); }
+.crew-inventory-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.crew-inventory-thumb-action,.crew-inventory-row-head>.crew-inventory-thumb-action { display: block; flex: 0 0 48px; width: 48px; height: 48px; min-width: 48px; min-height: 48px; border: 0; border-radius: 9px; background: transparent; padding: 0; color: inherit; cursor: pointer; }
+.crew-inventory-thumb-action:focus-visible { outline: 2px solid var(--crew-color-success); outline-offset: 2px; }
+.crew-inventory-exit-sheet .crew-ui-bottom-sheet-footer { flex-direction: column; }
+.crew-inventory-exit-sheet .crew-ui-bottom-sheet-footer>button { flex: 0 0 auto; min-height: 46px; }
+
+.crew-inventory-tabs { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); margin: 9px 0; }
+.crew-inventory-tabs button { min-width: 0; min-height: 44px; padding: 5px; font-size: var(--crew-type-secondary); }
+.crew-inventory-add { display: flex; align-items: center; justify-content: center; gap: 7px; width: 100%; min-height: 48px; margin: 10px 0; }
+.crew-inventory-notice { margin: 10px 0; color: var(--crew-color-success); font-size: var(--crew-type-helper); font-weight: 700; }
+.crew-inventory-context { margin: 10px 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
+.crew-inventory-scheduled-row { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; align-items: center; gap: 8px; min-width: 0; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); padding: 9px 10px; }
+.crew-inventory-scheduled-copy { display: grid; min-width: 0; gap: 2px; }
+.crew-inventory-scheduled-copy strong { overflow-wrap: anywhere; font-size: var(--crew-type-list-primary); }
+.crew-inventory-scheduled-copy small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-scheduled-actions { display: flex; grid-column: 2 / -1; justify-content: flex-end; gap: 8px; }
+.crew-inventory-scheduled-actions button { min-height: 40px; padding: 0 14px; }
+.crew-inventory-skip-action { border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: transparent; color: var(--crew-color-text-secondary); font-weight: 600; }
+.crew-inventory-lifecycle-result { display: grid; gap: 12px; margin-top: 14px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); padding: 16px; }
+.crew-inventory-lifecycle-result .crew-ui-status { justify-self: start; }
+.crew-inventory-lifecycle-result p { margin: 0; color: var(--crew-color-text-secondary); }
+.crew-inventory-lifecycle-result dl { display: grid; gap: 9px; margin: 0; }
+.crew-inventory-lifecycle-result dl>div { display: flex; justify-content: space-between; gap: 12px; }
+.crew-inventory-lifecycle-result dt { color: var(--crew-color-text-secondary); }
+.crew-inventory-lifecycle-result dd { margin: 0; text-align: right; }
+.crew-inventory-progress { display: grid; gap: 5px; margin: 9px 0 10px; }
+.crew-inventory-progress>span { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.crew-inventory-progress strong { font-size: var(--crew-type-secondary); }
+.crew-inventory-progress em { margin-left: 5px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-style: normal; font-weight: 600; }
+.crew-inventory-progress .crew-ui-progress { height: 5px; }
+.crew-inventory-page .crew-ui-search { min-height: 42px; }
+.crew-inventory-chips { display: flex; gap: 6px; overflow-x: auto; padding: 5px 0; scrollbar-width: none; }
+.crew-inventory-chips button { flex: 0 0 auto; min-height: 34px; white-space: nowrap; }
+.crew-inventory-count-group { display: grid; gap: 7px; margin: 10px 0 16px; }
+.crew-inventory-count-group h2,.crew-inventory-history h2 { margin: 0 0 2px; font-size: var(--crew-type-section-title); }
+.crew-inventory-count-row { display: grid; min-width: 0; gap: 7px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); padding: 10px 11px; }
+.crew-inventory-row-head { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.crew-inventory-row-head>span:not(.crew-inventory-thumb):not(.crew-inventory-count-state) { display: grid; flex: 1; min-width: 0; gap: 1px; }
+.crew-inventory-row-head strong { overflow-wrap: anywhere; font-size: var(--crew-type-list-primary); }
+.crew-inventory-row-head small,.crew-inventory-count-row>small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-row-head>button { display: grid; place-items: center; min-width: 40px; min-height: 40px; border: 0; background: transparent; color: var(--crew-color-danger); }
+.crew-inventory-count-state { align-self: flex-start; flex: 0 0 auto; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 700; }
+.crew-inventory-count-row.is-normal .crew-inventory-count-state { color: var(--crew-color-success); }
+.crew-inventory-count-row.is-shortage .crew-inventory-count-state,.crew-inventory-count-row.is-excess .crew-inventory-count-state { color: var(--crew-color-danger); }
+.crew-inventory-count-row p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-count-row p strong { color: var(--crew-color-text); }
+.crew-inventory-count-row .crew-ui-quantity-stepper { gap: 4px; }
+.crew-inventory-count-row .crew-ui-quantity-stepper>div { min-height: 42px; }
+.crew-inventory-count-row .crew-ui-quantity-stepper button,.crew-inventory-count-row .crew-ui-quantity-stepper input { min-height: 42px !important; }
+.crew-inventory-row-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 34px; }
+.crew-inventory-row-actions small { color: var(--crew-color-text-secondary); }
+.crew-inventory-row-actions button { min-height: 36px; border: 0; background: transparent; color: var(--crew-color-success); font-weight: 700; }
+
+.crew-inventory-form { display: grid; gap: 12px; margin: 12px 0; }
+.crew-inventory-form label { display: grid; gap: 6px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 700; }
+.crew-inventory-form input:not([type=checkbox]),.crew-inventory-form textarea { box-sizing: border-box; width: 100%; min-height: 46px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 10px 11px; color: var(--crew-color-text); font-size: var(--crew-type-input); }
+.crew-inventory-form textarea { min-height: 76px; resize: vertical; }
+.crew-inventory-form fieldset { display: grid; gap: 6px; margin: 0; border: 0; padding: 0; }
+.crew-inventory-form fieldset legend { margin-bottom: 8px; font-weight: 700; }
+.crew-inventory-form fieldset label { display: flex; align-items: center; gap: 10px; min-height: 42px; color: var(--crew-color-text); font-size: var(--crew-type-secondary); }
+.crew-inventory-form fieldset input { width: 19px; height: 19px; accent-color: var(--crew-color-success); }
+.crew-inventory-sticky { position: fixed; z-index: 5; right: 0; bottom: var(--crew-mobile-keyboard-inset, 0px); left: 0; display: flex; gap: 8px; box-sizing: border-box; width: min(100%, var(--crew-mobile-content-max)); margin: 0 auto; border-top: 1px solid var(--crew-color-divider); background: var(--crew-color-surface-raised); padding: 9px var(--crew-mobile-page-inline) calc(9px + env(safe-area-inset-bottom)); }
+.crew-inventory-sticky:empty { display: none; }
+.crew-inventory-sticky button { min-width: 0; min-height: 48px; flex: 1; }
+.crew-inventory-review { display: grid; gap: 8px; }
+.crew-inventory-review>p { color: var(--crew-color-text-secondary); }
+.crew-inventory-review>div { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; border-bottom: 1px solid var(--crew-color-divider); padding: 11px 0; }
+.crew-inventory-review>div>span { display: grid; gap: 3px; }
+.crew-inventory-review small { color: var(--crew-color-text-secondary); }
+.crew-inventory-result>p { display: flex; align-items: center; gap: 7px; color: var(--crew-color-success); font-weight: 700; }
+.crew-inventory-result-summary { display: grid; gap: 4px; margin: 12px 0 14px; padding-bottom: 12px; border-bottom: 1px solid var(--crew-color-divider); }
+.crew-inventory-result-summary>strong { display: flex; align-items: center; gap: 7px; color: var(--crew-color-success); font-size: var(--crew-type-list-primary); }
+.crew-inventory-result-summary>small,.crew-inventory-result-summary>span { color: var(--crew-color-text-secondary); font-size: var(--crew-type-secondary); }
+.crew-inventory-result-items { display: grid; margin-top: 12px; border-top: 1px solid var(--crew-color-divider); }
+.crew-inventory-result-items article { display: flex; align-items: flex-start; gap: 9px; min-width: 0; border-bottom: 1px solid var(--crew-color-divider); padding: 11px 0; }
+.crew-inventory-result-items article>div { display: grid; flex: 1; min-width: 0; gap: 2px; }
+.crew-inventory-result-items article>div>strong { overflow-wrap: anywhere; font-size: var(--crew-type-list-primary); }
+.crew-inventory-result-items article>div>span,.crew-inventory-result-items article>div>small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-result-items .crew-inventory-result-variance { flex: 0 0 auto; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-result-items .has-variance .crew-inventory-result-variance { color: var(--crew-color-danger); }
+.crew-inventory-related-order { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 44px; border: 0; border-bottom: 1px solid var(--crew-color-divider); background: transparent; padding: 7px 0; color: var(--crew-color-success); font-weight: 700; text-align: left; }
+.crew-inventory-purchase-result { display: grid; gap: 8px; margin: 12px 0 18px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-success-surface); padding: 13px; }
+.crew-inventory-purchase-result strong { font-size: var(--crew-type-list-primary); }
+.crew-inventory-purchase-result small { color: var(--crew-color-text-secondary); overflow-wrap: anywhere; }
+.crew-inventory-purchase-result button { min-height: 44px; margin-top: 2px; }
+.crew-inventory-supplier-group { display: grid; gap: 7px; margin: 17px 0; }
+.crew-inventory-supplier-group h2 { margin: 0; font-size: var(--crew-type-section-title); overflow-wrap: anywhere; }
+.crew-inventory-suggestion { display: grid; min-width: 0; gap: 10px; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-functional); background: var(--crew-color-surface); padding: 12px; }
+.crew-inventory-suggestion-name { display: flex; align-items: center; gap: 9px; min-width: 0; }
+.crew-inventory-suggestion-name label { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; }
+.crew-inventory-suggestion-name label span { display: grid; min-width: 0; gap: 2px; }
+.crew-inventory-suggestion-name input { width: 19px; height: 19px; flex: 0 0 auto; accent-color: var(--crew-color-success); }
+.crew-inventory-suggestion-name strong { min-width: 0; overflow-wrap: anywhere; font-size: var(--crew-type-list-primary); }
+.crew-inventory-suggestion-name small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-suggestion-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 6px; }
+.crew-inventory-suggestion-metrics span { display: grid; gap: 2px; min-width: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-suggestion-metrics strong { color: var(--crew-color-text); font-size: var(--crew-type-secondary); overflow-wrap: anywhere; }
+.crew-inventory-suggestion>small { color: var(--crew-color-text-secondary); }
+.crew-inventory-detail-actions { display: flex; gap: 8px; margin: 12px 0; }
+.crew-inventory-detail-actions button { display: flex; align-items: center; gap: 6px; min-height: 44px; }
+.crew-inventory-detail-lines { display: grid; border-top: 1px solid var(--crew-color-divider); }
+.crew-inventory-detail-lines article { display: flex; align-items: center; min-width: 0; gap: 9px; border-bottom: 1px solid var(--crew-color-divider); padding: 10px 0; }
+.crew-inventory-detail-lines article>span { display: grid; gap: 2px; }
+.crew-inventory-detail-lines article>span:last-child { flex: 1; min-width: 0; }
+.crew-inventory-detail-lines article>span strong { overflow-wrap: anywhere; }
+.crew-inventory-detail-lines article small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-po-list>button { min-height: 70px; }
+.crew-inventory-po-primary { display: flex !important; align-items: flex-start; gap: 6px; min-width: 0; }
+.crew-inventory-po-primary strong { flex: 1; min-width: 0; }
+.crew-inventory-po-primary .crew-ui-status { flex: 0 0 auto; }
+.crew-inventory-po-choices { gap: 10px; }
+.crew-inventory-po-choices>button { min-height: 76px; }
+.crew-inventory-receive-heading { display: flex; align-items: center; justify-content: space-between; gap: 9px; margin: 9px 0; }
+.crew-inventory-receive-heading .crew-inventory-context { margin: 0; }
+.crew-inventory-receive-heading button { flex: 0 0 auto; min-height: 40px; padding-inline: 10px; }
+.crew-inventory-po-quantities { display: flex; flex-wrap: wrap; gap: 4px 12px; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-po-quantities strong { color: var(--crew-color-text); font-variant-numeric: tabular-nums; }
+.crew-inventory-page .crew-ui-quantity-stepper input[type=number] { appearance: textfield; -moz-appearance: textfield; }
+.crew-inventory-page .crew-ui-quantity-stepper input[type=number]::-webkit-inner-spin-button,.crew-inventory-page .crew-ui-quantity-stepper input[type=number]::-webkit-outer-spin-button { appearance: none; margin: 0; }
+.crew-inventory-history { display: grid; gap: 8px; margin-top: 20px; }
+.crew-inventory-history article { display: grid; gap: 4px; border-bottom: 1px solid var(--crew-color-divider); padding: 8px 0; }
+.crew-inventory-history small,.crew-inventory-history p { margin: 0; color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); }
+.crew-inventory-copy-fallback { box-sizing: border-box; width: 100%; min-height: 45vh; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); padding: 12px; color: var(--crew-color-text); font-size: var(--crew-type-secondary); }
+@media(max-width:360px) { .crew-inventory-tabs button { font-size: 12px; } .crew-inventory-detail-actions,.crew-inventory-receive-heading { flex-wrap: wrap; } .crew-inventory-sticky { gap: 6px; } .crew-inventory-sticky button { padding-inline: 8px; font-size: 13px; } .crew-inventory-home-heading { padding-inline: 13px; } .crew-inventory-home-rows { padding-inline: 13px; } .crew-inventory-home-row-action { min-width: 70px; padding-inline: 7px; } .crew-inventory-result-items article { flex-wrap: wrap; } .crew-inventory-result-variance { margin-left: 57px; } }
+.crew-inventory-history-controls { display: grid; gap: 12px; margin: 12px 0; }
+.crew-inventory-month-select { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.crew-inventory-history-controls .crew-inventory-chips { margin: 0; }
+.crew-inventory-load-more { display: block; width: 100%; margin: 12px 0 20px; }
+.crew-inventory-history-controls .crew-inventory-chips button { min-height: 44px; }

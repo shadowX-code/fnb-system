@@ -617,8 +617,8 @@ function UserFormModal({
   canResetPassword = false,
   canViewCompliance = false,
   canReviewCompliance = false,
-  canViewDisciplinary = false,
-  canManageDisciplinary = false,
+  canViewLettersNotices = false,
+  canManageLettersNotices = false,
   canViewEmploymentDocuments = false,
   canManageEmploymentDocuments = false,
   legalEntities = [],
@@ -1402,7 +1402,7 @@ function UserFormModal({
 
         <EmployeeCompliancePanel employeeId={values.id} canView={canViewCompliance} canReview={canReviewCompliance} ui={ui} />
         <EmployeeEmploymentDocumentsPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewEmploymentDocuments} canManage={canManageEmploymentDocuments} ui={ui} />
-        <EmployeeDisciplinaryPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewDisciplinary} canManage={canManageDisciplinary} ui={ui} />
+        <EmployeeDisciplinaryPanel employeeId={values.id} employeeName={values.full_name || "Employee"} canView={canViewLettersNotices} canManage={canManageLettersNotices} ui={ui} />
       </div>
     </Modal>
   );
@@ -1435,8 +1435,8 @@ export default function UsersPage({ ui, store, auth }) {
   const canResetPassword = hasPermission(auth, "employees.reset_password");
   const canViewCompliance = hasPermission(auth, "employee_compliance.view");
   const canReviewCompliance = hasPermission(auth, "employee_compliance.review");
-  const canViewDisciplinary = hasPermission(auth, "employee_disciplinary.view");
-  const canManageDisciplinary = hasPermission(auth, "employee_disciplinary.manage");
+  const canViewLettersNotices = hasPermission(auth, "employee_disciplinary.view");
+  const canManageLettersNotices = hasPermission(auth, "employee_disciplinary.manage");
   const canViewLegalEntities = hasPermission(auth, "legal_entities.view");
   const canViewEmploymentDocuments = hasPermission(auth, "employee_employment_documents.view");
   const canManageEmploymentDocuments = hasPermission(auth, "employee_employment_documents.manage");
@@ -2007,8 +2007,8 @@ export default function UsersPage({ ui, store, auth }) {
           canResetPassword={canResetPassword}
           canViewCompliance={canViewCompliance}
           canReviewCompliance={canReviewCompliance}
-          canViewDisciplinary={canViewDisciplinary}
-          canManageDisciplinary={canManageDisciplinary}
+          canViewLettersNotices={canViewLettersNotices}
+          canManageLettersNotices={canManageLettersNotices}
           canViewEmploymentDocuments={canViewEmploymentDocuments}
           canManageEmploymentDocuments={canManageEmploymentDocuments}
           legalEntities={legalEntities}
@@ -2040,8 +2040,8 @@ export default function UsersPage({ ui, store, auth }) {
           canResetPassword={canResetPassword}
           canViewCompliance={canViewCompliance}
           canReviewCompliance={canReviewCompliance}
-          canViewDisciplinary={canViewDisciplinary}
-          canManageDisciplinary={canManageDisciplinary}
+          canViewLettersNotices={canViewLettersNotices}
+          canManageLettersNotices={canManageLettersNotices}
           canViewEmploymentDocuments={canViewEmploymentDocuments}
           canManageEmploymentDocuments={canManageEmploymentDocuments}
           legalEntities={legalEntities}

@@ -21,4 +21,10 @@ describe("CrewMobileDetailHeader", () => {
     expect(container.querySelectorAll(".crew-mobile-detail-header")).toHaveLength(1);
     expect(screen.getByRole("button", { name: "Today" })).toBeTruthy();
   });
+
+  it("can show a read-only result title without a Back affordance", () => {
+    const { container } = render(<CrewMobileDetailHeader title="Cash Checkout Submitted" />);
+    expect(container.querySelector("h1")?.textContent).toBe("Cash Checkout Submitted");
+    expect(container.querySelector("button")).toBeNull();
+  });
 });

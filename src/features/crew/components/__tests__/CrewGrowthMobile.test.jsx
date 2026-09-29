@@ -43,7 +43,8 @@ afterEach(cleanup);
 describe("Crew Growth mobile final IA", () => {
   it("makes Performance the sole hero and shows the complete Skills overview directly on Growth", () => {
     render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 87, trend: [] }} />);
-    expect(screen.getByText("Strong")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "This month" })).not.toBeNull();
+    expect(screen.getByText("Finalized")).not.toBeNull();
     expect(screen.getByLabelText("87 / 100")).not.toBeNull();
     expect(document.querySelectorAll(".crew-growth-performance-segment")).toHaveLength(100);
     expect(document.querySelectorAll(".crew-growth-performance-segment.is-active")).toHaveLength(87);
@@ -72,11 +73,14 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.queryByText("Next Milestone")).toBeNull();
   });
 
-  it("presents the score-point comparison without raw floating-point precision", () => {
+  it("keeps finalized comparison detail in My Performance rather than the Growth summary", () => {
     render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score: 67, period_start: "2026-09-01", trend: [
       { period_start: "2026-08-01", status: "finalized", score: 86.93 },
       { period_start: "2026-09-01", status: "finalized", score: 67 },
     ] }} />);
+    expect(screen.getByRole("heading", { name: "September Performance" })).not.toBeNull();
+    expect(screen.queryByText("↓ 19.9 pts")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View my performance" }));
     expect(screen.getByText("↓ 19.9 pts")).not.toBeNull();
     expect(screen.getByText("vs August 2026")).not.toBeNull();
     expect(document.body.textContent).not.toContain("-19.930000000000007");
@@ -91,18 +95,21 @@ describe("Crew Growth mobile final IA", () => {
       trend: [{ period_start: "2026-08-01", status: "finalized", score: 86 }],
     };
     const { rerender } = render(<CrewGrowthMobile data={data} performance={partialPerformance} />);
-    expect(screen.getAllByText("44 points assessed").length).toBeGreaterThan(0);
-    expect(screen.getByText("3 of 5 components scored · 2 pending")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "September Performance" })).not.toBeNull();
+    expect(screen.getByText("3 of 5 areas completed")).not.toBeNull();
+    expect(screen.queryByText("44 points assessed")).toBeNull();
+    expect(screen.getByLabelText("44 points so far")).not.toBeNull();
     expect(screen.queryByText("Below Standard")).toBeNull();
     expect(screen.queryByText("↓ 35 pts")).toBeNull();
     rerender(<CrewGrowthMobile data={data} performance={partialPerformance} initialView="performance" />);
-    expect(screen.getAllByText("44 points assessed").length).toBeGreaterThan(0);
-    expect(screen.getByText("3 of 5 components scored · 2 pending")).not.toBeNull();
+    expect(screen.getByText("Points so far")).not.toBeNull();
+    expect(screen.getByText("3 of 5 areas completed")).not.toBeNull();
+    expect(screen.queryByText("44 points assessed")).toBeNull();
     expect(screen.queryByText("Below Standard")).toBeNull();
     expect(screen.queryByText("vs August 2026")).toBeNull();
   });
 
-  it("presents V2 earned points and named pending components without a final denominator", () => {
+  it("presents V2 progress without repeating pending component names or a final denominator", () => {
     const performance = {
       period_start: "2026-09-01", status: "review_required", calculation_version: "performance-v2",
       score_state: "partial", score: 45, current_score: 45, total_score: null,
@@ -114,13 +121,16 @@ describe("Crew Growth mobile final IA", () => {
       trend: [{ period_start: "2026-08-01", status: "finalized", score: 88 }],
     };
     const { rerender } = render(<CrewGrowthMobile data={data} performance={performance} />);
-    expect(screen.getByText("45 points assessed")).not.toBeNull();
-    expect(screen.getByText(/Customer.*Peer Review/)).not.toBeNull();
+    expect(screen.getByText("3 of 5 areas completed")).not.toBeNull();
+    expect(screen.queryByText(/Pending: Customer/)).toBeNull();
     expect(screen.queryByText("Final Score /100")).toBeNull();
     expect(screen.queryByText("Below Standard")).toBeNull();
     rerender(<CrewGrowthMobile data={data} performance={performance} initialView="performance" />);
-    expect(screen.getAllByText("45 points assessed").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("Peer Review").length).toBeGreaterThan(0);
+    expect(screen.getByText("Points so far")).not.toBeNull();
+    expect(screen.getAllByText("Pending")).toHaveLength(2);
+    expect(screen.queryByText(/Weight /)).toBeNull();
+    expect(screen.queryByText(/points assessed/)).toBeNull();
+    expect(screen.getAllByText("Team Review").length).toBeGreaterThan(0);
     expect(screen.queryByText("Conduct")).toBeNull();
   });
 
@@ -131,9 +141,10 @@ describe("Crew Growth mobile final IA", () => {
       pending_component_names: ["attendance", "service", "customer", "knowledge", "peer"], trend: [] };
     const { rerender } = render(<CrewGrowthMobile data={data} performance={performance} />);
     expect(document.querySelector(".crew-growth-performance-score-readout b")).toBeNull();
-    expect(screen.getByText("0 of 5 components scored · 5 pending")).not.toBeNull();
+    expect(screen.getByText("0 of 5 areas completed")).not.toBeNull();
     rerender(<CrewGrowthMobile data={data} performance={performance} initialView="performance" />);
     expect(document.querySelector(".crew-performance-final-total span")).toBeNull();
+    expect(screen.getAllByText("Pending")).toHaveLength(5);
     expect(screen.queryByText("Below Standard")).toBeNull();
   });
 
@@ -169,6 +180,8 @@ describe("Crew Growth mobile final IA", () => {
     [100, "Outstanding"], [94, "Excellent"], [87, "Strong"], [82, "Good"], [77, "Meets Standard"], [72, "Developing"], [60, "Below Standard"],
   ])("maps performance score %s to %s without exposing Reward earn rates", (score, level) => {
     render(<CrewGrowthMobile data={data} performance={{ status: "finalized", score, trend: [] }} />);
+    expect(screen.queryByText(level)).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View my performance" }));
     expect(screen.getByText(level)).not.toBeNull();
     expect(document.body.textContent).not.toContain("Earn Rate");
   });
@@ -199,7 +212,10 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText("↑ 13 pts")).not.toBeNull();
     expect(screen.getByText("vs July 2026")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Score Breakdown" })).not.toBeNull();
-    expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Peer Review) evidence$/ })).toHaveLength(5);
+    expect(screen.queryByText(/Weight \d+%/)).toBeNull();
+    expect(screen.queryByText(/points assessed/)).toBeNull();
+    expect(document.querySelector(".crew-performance-final-breakdown-head strong")).toBeNull();
+    expect(screen.getAllByRole("button", { name: /^View (Attendance|Service Standards|Customer Experience|Knowledge & SOP|Team Review) evidence$/ })).toHaveLength(5);
     expect(document.querySelector(".crew-performance-final-evidence")).toBeNull();
     expect(screen.getByRole("heading", { name: "Your Strengths" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Performance Trend" })).not.toBeNull();

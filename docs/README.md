@@ -28,6 +28,7 @@ Choose by durable ownership: architecture docs own cross-domain foundations; dom
 - [`domains/crew-operations.md`](domains/crew-operations.md): Tasks, Daily Operations, scheduling/assignment/completion, Cash Checkout, Floating Cash, Deposit Ledger, and Handover.
 - [`domains/crew-learning.md`](domains/crew-learning.md): Onboarding journeys, SOP Library, learning content, quizzes, versions, skills, and learning-side certification evidence.
 - [`domains/crew-performance-and-reward.md`](domains/crew-performance-and-reward.md): Growth, Performance, monthly evidence/scoring, Reward cycles, payout logic, and operational certification outcomes.
+- [`domains/crew-team-review.md`](domains/crew-team-review.md): worked-together eligibility, monthly Team Review window, Crew submissions, Admin fallback/moderation, and the final `/5` result consumed by Performance.
 - [`domains/crew-localization.md`](domains/crew-localization.md): localized content, source language, translation lifecycle, fallback, provider boundary, and frozen localized snapshots.
 
 ### Factory

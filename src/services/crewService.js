@@ -194,15 +194,15 @@ export const crewService = {
     return data;
   },
 
-  async peerReviewMobile(token, period) {
-    const { data, error } = await supabase.rpc("crew_peer_review_mobile", { p_token: token, ...(period ? { p_period: period } : {}) });
-    throwSupabaseError("crew.peerReviewMobile", error);
+  async teamReviewMobile(token, period) {
+    const { data, error } = await supabase.rpc("crew_team_review_mobile", { p_token: token, ...(period ? { p_period: period } : {}) });
+    throwSupabaseError("crew.teamReviewMobile", error);
     return data;
   },
 
-  async submitPeerReview(token, assignmentId, criteria) {
-    const { data, error } = await supabase.rpc("crew_peer_review_submit", { p_token: token, p_assignment_id: assignmentId, p_criteria: criteria });
-    throwSupabaseError("crew.submitPeerReview", error);
+  async submitTeamReview(token, period, subjectId, criteria, comment) {
+    const { data, error } = await supabase.rpc("crew_team_review_submit", { p_token: token, p_period: period, p_subject_id: subjectId, p_criteria: criteria, p_comment: comment || null });
+    throwSupabaseError("crew.submitTeamReview", error);
     return data;
   },
 
@@ -581,21 +581,33 @@ export const crewService = {
     return data || { rows: [] };
   },
 
-  async peerReviewAdmin(outletId, period) {
-    const { data, error } = await supabase.rpc("crew_peer_review_admin", { p_outlet_id: outletId, p_period: period });
-    throwSupabaseError("crew.peerReviewAdmin", error);
-    return data || { assignments: [] };
-  },
-
-  async openPeerReviewMonth(outletId, period) {
-    const { data, error } = await supabase.rpc("crew_peer_open_month", { p_outlet_id: outletId, p_period: period });
-    throwSupabaseError("crew.openPeerReviewMonth", error);
+  async teamReviewAdmin(outletId, period) {
+    const { data, error } = await supabase.rpc("crew_team_review_admin", { p_outlet_id: outletId, p_period: period });
+    throwSupabaseError("crew.teamReviewAdmin", error);
     return data;
   },
 
-  async excludePeerReview(assignmentId, reason) {
-    const { data, error } = await supabase.rpc("crew_peer_review_exclude", { p_assignment_id: assignmentId, p_reason: reason });
-    throwSupabaseError("crew.excludePeerReview", error);
+  async teamReviewAdminDimensions(employeeId, period) {
+    const { data, error } = await supabase.rpc("crew_team_review_admin_dimensions", { p_employee_id: employeeId, p_period: period });
+    throwSupabaseError("crew.teamReviewAdminDimensions", error);
+    return data;
+  },
+
+  async setTeamReviewWindow(outletId, period, action, deadline, reason) {
+    const { data, error } = await supabase.rpc("crew_team_review_window_control", { p_outlet_id: outletId, p_period: period, p_action: action, p_deadline: deadline || null, p_reason: reason });
+    throwSupabaseError("crew.setTeamReviewWindow", error);
+    return data;
+  },
+
+  async excludeTeamReview(reviewId, reason) {
+    const { data, error } = await supabase.rpc("crew_team_review_exclude", { p_review_id: reviewId, p_reason: reason });
+    throwSupabaseError("crew.excludeTeamReview", error);
+    return data;
+  },
+
+  async submitTeamAdminReview(employeeId, period, criteria) {
+    const { data, error } = await supabase.rpc("crew_team_review_admin_assess", { p_employee_id: employeeId, p_period: period, p_criteria: criteria });
+    throwSupabaseError("crew.submitTeamAdminReview", error);
     return data;
   },
 
@@ -1404,14 +1416,18 @@ export const crewService = {
     throwSupabaseError("crew.manageAccess", error);
     return data;
   },
-  async updateSpecialAccess(employeeId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
-    const { data, error } = await supabase.rpc("crew_update_special_access", {
+  async updateSpecialAccess(employeeId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false, performStockCheck = false, createAuditStockCheck = false, managePurchaseOrders = false, receivePurchaseOrders = false } = {}) {
+    const { data, error } = await supabase.rpc("crew_update_inventory_special_access", {
       p_employee_id: employeeId,
       p_can_initiate_handover: Boolean(handover),
       p_can_adjust_assets: Boolean(adjustAssets),
       p_can_perform_asset_inspections: Boolean(inspectAssets),
       p_can_add_assets: Boolean(addAssets),
       p_can_manage_asset_details: Boolean(manageAssetDetails),
+      p_can_perform_stock_check: Boolean(performStockCheck),
+      p_can_create_audit_stock_check: Boolean(createAuditStockCheck),
+      p_can_manage_purchase_orders: Boolean(managePurchaseOrders),
+      p_can_receive_purchase_orders: Boolean(receivePurchaseOrders),
     });
     throwSupabaseError("crew.updateSpecialAccess", error);
     return data;
@@ -1423,8 +1439,128 @@ export const crewService = {
     return data;
   },
 
-  async updateManagementSpecialAccess(employeeId, outletId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false } = {}) {
-    const { data, error } = await supabase.rpc("crew_update_management_special_access", {
+  async inventorySpecialAccess(employeeId) {
+    const { data, error } = await supabase.rpc("crew_inventory_special_access_admin", { p_employee_id: employeeId });
+    throwSupabaseError("crew.inventorySpecialAccess", error);
+    return data;
+  },
+
+  async inventoryStockChecks(token, outletId = null, checkId = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_stock_checks", {
+      p_token: token, p_outlet_id: outletId, p_check_id: checkId,
+    });
+    throwSupabaseError("crew.inventoryStockChecks", error);
+    return data;
+  },
+
+  async inventoryPurchaseOrders(token, outletId = null, orderId = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_purchase_orders", {
+      p_token: token, p_outlet_id: outletId, p_order_id: orderId,
+    });
+    throwSupabaseError("crew.inventoryPurchaseOrders", error);
+    return data;
+  },
+
+  async inventoryPurchaseOrdersForCheck(token, outletId, checkId) {
+    const { data, error } = await supabase.rpc("crew_inventory_purchase_orders_for_check", {
+      p_token: token, p_outlet_id: outletId, p_check_id: checkId,
+    });
+    throwSupabaseError("crew.inventoryPurchaseOrdersForCheck", error);
+    return data;
+  },
+
+  async inventoryPurchaseOrderHistory(token, outletId, month, status = null, offset = 0) {
+    const { data, error } = await supabase.rpc("crew_inventory_purchase_order_history", {
+      p_token: token, p_outlet_id: outletId, p_month: `${month}-01`, p_status: status, p_offset: offset, p_limit: 20,
+    });
+    throwSupabaseError("crew.inventoryPurchaseOrderHistory", error);
+    return data;
+  },
+
+  async inventoryStockCheckHistory(token, outletId, month, status = null, offset = 0) {
+    const { data, error } = await supabase.rpc("crew_inventory_stock_check_history", {
+      p_token: token, p_outlet_id: outletId, p_month: `${month}-01`, p_status: status, p_offset: offset, p_limit: 20,
+    });
+    throwSupabaseError("crew.inventoryStockCheckHistory", error);
+    return data;
+  },
+
+  async inventoryAttention(token, outletId = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_attention", {
+      p_token: token, p_outlet_id: outletId,
+    });
+    throwSupabaseError("crew.inventoryAttention", error);
+    return data;
+  },
+
+  async inventoryMobileCatalog(token, outletId = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_mobile_catalog", {
+      p_token: token, p_outlet_id: outletId,
+    });
+    throwSupabaseError("crew.inventoryMobileCatalog", error);
+    return data;
+  },
+
+  async saveInventoryStockCheck(token, outletId, requestId, check, items) {
+    const { data, error } = await supabase.rpc("crew_inventory_save_stock_check", {
+      p_token: token, p_outlet_id: outletId, p_request_id: requestId, p_check: check, p_items: items,
+    });
+    throwSupabaseError("crew.saveInventoryStockCheck", error);
+    return data;
+  },
+
+  async skipInventoryStockCheck(token, outletId, requestId, groupId, reason = null) {
+    const { data, error } = await supabase.rpc("crew_inventory_skip_stock_check", {
+      p_token: token, p_outlet_id: outletId, p_request_id: requestId,
+      p_group_id: groupId, p_reason: reason,
+    });
+    throwSupabaseError("crew.skipInventoryStockCheck", error);
+    return data;
+  },
+
+  async deleteInventoryAuditDraft(token, outletId, checkId, requestId) {
+    const { data, error } = await supabase.rpc("crew_inventory_delete_audit_draft", {
+      p_token: token, p_outlet_id: outletId, p_check_id: checkId, p_request_id: requestId,
+    });
+    throwSupabaseError("crew.deleteInventoryAuditDraft", error);
+    return data;
+  },
+
+  async saveInventoryPurchaseOrder(token, outletId, requestId, order, items) {
+    const { data, error } = await supabase.rpc("crew_inventory_save_purchase_order", {
+      p_token: token, p_outlet_id: outletId, p_request_id: requestId, p_order: order, p_items: items,
+    });
+    throwSupabaseError("crew.saveInventoryPurchaseOrder", error);
+    return data;
+  },
+
+  async createInventoryStockCheckOrders(token, outletId, requestId, checkId, orders) {
+    const { data, error } = await supabase.rpc("crew_inventory_create_stock_check_purchase_orders", {
+      p_token: token, p_outlet_id: outletId, p_request_id: requestId, p_check_id: checkId, p_orders: orders,
+    });
+    throwSupabaseError("crew.createInventoryStockCheckOrders", error);
+    return data;
+  },
+
+  async transitionInventoryPurchaseOrder(token, outletId, orderId, requestId, action) {
+    const { data, error } = await supabase.rpc("crew_inventory_transition_purchase_order", {
+      p_token: token, p_outlet_id: outletId, p_order_id: orderId, p_request_id: requestId, p_action: action,
+    });
+    throwSupabaseError("crew.transitionInventoryPurchaseOrder", error);
+    return data;
+  },
+
+  async receiveInventoryPurchaseOrder(token, outletId, orderId, requestId, remark, items) {
+    const { data, error } = await supabase.rpc("crew_inventory_receive_purchase_order", {
+      p_token: token, p_outlet_id: outletId, p_purchase_order_id: orderId,
+      p_request_id: requestId, p_remark: remark, p_items: items,
+    });
+    throwSupabaseError("crew.receiveInventoryPurchaseOrder", error);
+    return data;
+  },
+
+  async updateManagementSpecialAccess(employeeId, outletId, { handover = false, addAssets = false, adjustAssets = false, inspectAssets = false, manageAssetDetails = false, performStockCheck = false, createAuditStockCheck = false, managePurchaseOrders = false, receivePurchaseOrders = false } = {}) {
+    const { data, error } = await supabase.rpc("crew_update_management_inventory_special_access", {
       p_employee_id: employeeId,
       p_outlet_id: outletId,
       p_can_initiate_handover: Boolean(handover),
@@ -1432,6 +1568,10 @@ export const crewService = {
       p_can_manage_asset_details: Boolean(manageAssetDetails),
       p_can_adjust_assets: Boolean(adjustAssets),
       p_can_perform_asset_inspections: Boolean(inspectAssets),
+      p_can_perform_stock_check: Boolean(performStockCheck),
+      p_can_create_audit_stock_check: Boolean(createAuditStockCheck),
+      p_can_manage_purchase_orders: Boolean(managePurchaseOrders),
+      p_can_receive_purchase_orders: Boolean(receivePurchaseOrders),
     });
     throwSupabaseError("crew.updateManagementSpecialAccess", error);
     return data;

@@ -10,6 +10,7 @@ function mapPosition(row, employeeCounts = new Map()) {
     department: row.department ?? "",
     description: row.description ?? "",
     status: row.status ?? "active",
+    participates_in_team_review: Boolean(row.participates_in_team_review),
     active_users: Number(row.active_users ?? employeeCounts.get(row.name) ?? 0),
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -19,7 +20,7 @@ function mapPosition(row, employeeCounts = new Map()) {
 export const jobPositionService = {
   async listJobPositions() {
     const [positionsResult, employeesResult] = await Promise.all([
-      supabase.from("job_positions").select("id,name,department,description,status,created_at,updated_at").order("name", { ascending: true }),
+      supabase.from("job_positions").select("id,name,department,description,status,participates_in_team_review,created_at,updated_at").order("name", { ascending: true }),
       supabase.from("employees").select("position,employment_status"),
     ]);
 
@@ -40,6 +41,7 @@ export const jobPositionService = {
       department: position.department || null,
       description: position.description ?? "",
       status: position.status ?? "active",
+      participates_in_team_review: Boolean(position.participates_in_team_review),
       updated_at: new Date().toISOString(),
     };
 
@@ -49,7 +51,7 @@ export const jobPositionService = {
       : supabase.from("job_positions").insert(payload);
 
     const { data, error } = await query
-      .select("id,name,department,description,status,created_at,updated_at")
+      .select("id,name,department,description,status,participates_in_team_review,created_at,updated_at")
       .single();
 
     throwSupabaseError("job_positions.save", error);

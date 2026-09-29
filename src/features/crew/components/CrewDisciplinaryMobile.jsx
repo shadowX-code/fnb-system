@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Eye, FileWarning, MessageSquareText } from "lucide-react";
+import { Eye, FileText, MessageSquareText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { employeeDisciplinaryService } from "../../../services/employeeDisciplinaryService.js";
+import { isWarningRecord, letterNoticeTypeLabel } from "../../../constants/lettersNotices.js";
 import { formatCrewDate, formatCrewOperationalDateTime } from "../utils/crewI18n.js";
 import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewImageViewer from "./CrewImageViewer.jsx";
@@ -11,12 +12,12 @@ import CrewMobileDetailHeader from "./CrewMobileDetailHeader.jsx";
 import "./CrewDisciplinaryMobile.css";
 
 const tone = { issued: "warning", delivered: "warning", viewed: "info", acknowledged: "success", not_acknowledged: "warning", withdrawn: "neutral", superseded: "neutral" };
-const typeKey = { first_written_warning: "first", written_warning: "written", final_written_warning: "final" };
+const typeKey = { first_written_warning: "first", written_warning: "written", final_written_warning: "final", advisory_reminder: "advisory", general_notice: "general" };
 const dateOnly = (value) => value ? formatCrewDate(`${value}T12:00:00+08:00`, { day: "2-digit", month: "short", year: "numeric" }) : "—";
 
 export default function CrewDisciplinaryMobile({ token, onBack, onViewed }) {
   const { t } = useTranslation();
-  const [warnings, setWarnings] = useState([]);
+  const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [detail, setDetail] = useState(null);
@@ -31,7 +32,7 @@ export default function CrewDisciplinaryMobile({ token, onBack, onViewed }) {
 
   async function load() {
     setLoading(true); setError("");
-    try { setWarnings((await employeeDisciplinaryService.crewOverview(token)).warnings || []); }
+    try { const result = await employeeDisciplinaryService.crewOverview(token); setRecords(result.records || result.warnings || []); }
     catch (cause) { setError(cause.message || t("disciplinary.loadError")); }
     finally { setLoading(false); }
   }
@@ -63,7 +64,8 @@ export default function CrewDisciplinaryMobile({ token, onBack, onViewed }) {
   }
   const closeDetail = () => { setDetail(null); setEvidence(null); setViewerOpen(false); setActionError(""); };
   const canAcknowledge = detail && ["delivered", "viewed"].includes(detail.status);
-  const canRespond = detail && !detail.response && ["delivered", "viewed", "acknowledged", "not_acknowledged"].includes(detail.status);
+  const canRespond = detail && detail.response_allowed !== false && !detail.response && ["delivered", "viewed", "acknowledged", "not_acknowledged"].includes(detail.status);
+  const typeLabel = (record) => t(`disciplinary.type.${typeKey[isWarningRecord(record) ? record.warning_type : record.document_type]}`, { defaultValue: letterNoticeTypeLabel(record) });
 
   return <CrewMobilePage className="crew-disciplinary-page">
     <CrewMobileDetailHeader title={t("disciplinary.title")} onBack={onBack} />
@@ -71,20 +73,20 @@ export default function CrewDisciplinaryMobile({ token, onBack, onViewed }) {
     <CrewPageSection>
       {loading ? <div className="crew-v2-state" role="status">{t("common.loading")}</div> : null}
       {error ? <div className="crew-v2-error" role="alert">{error}<button type="button" onClick={load}>{t("common.retry")}</button></div> : null}
-      {!loading && !warnings.length ? <CrewEmptyState title={t("disciplinary.empty")} body={t("disciplinary.emptyBody")} /> : null}
-      <div className="crew-disciplinary-list">{warnings.map((item) => <article className="crew-ui-functional-surface crew-disciplinary-card" key={item.id}>
-        <header><span className="crew-ui-icon-container"><FileWarning size={20} /></span><div><small>{item.display_sequence ? t("disciplinary.warningNumber", { number: item.display_sequence }) : null} · {t(`disciplinary.type.${typeKey[item.warning_type]}`)}</small><h2>{item.subject}</h2><p>{t("disciplinary.issued", { date: dateOnly(item.issued_date) })}</p></div><CrewStatusBadge tone={tone[item.status]}>{t(`disciplinary.status.${item.status}`)}</CrewStatusBadge></header>
+      {!loading && !records.length ? <CrewEmptyState title={t("disciplinary.empty")} body={t("disciplinary.emptyBody")} /> : null}
+      <div className="crew-disciplinary-list">{records.map((item) => <article className="crew-ui-functional-surface crew-disciplinary-card" key={item.id}>
+        <header><span className="crew-ui-icon-container"><FileText size={20} /></span><div><small>{item.display_sequence ? `${t("disciplinary.warningNumber", { number: item.display_sequence })} · ` : ""}{typeLabel(item)}</small><h2>{item.subject}</h2><p>{t("disciplinary.issued", { date: dateOnly(item.issued_date) })}</p></div><CrewStatusBadge tone={tone[item.status]}>{t(`disciplinary.status.${item.status}`)}</CrewStatusBadge></header>
         <button className="crew-mobile-secondary" type="button" disabled={detailLoading} onClick={() => openDetail(item.id)}><Eye size={17} />{item.viewed_at ? t("disciplinary.view") : t("disciplinary.review")}</button>
       </article>)}</div>
     </CrewPageSection>
 
-    {detail ? <CrewBottomSheet title={detail.subject} description={`${detail.display_sequence ? `${t("disciplinary.warningNumber", { number: detail.display_sequence })} · ` : ""}${t(`disciplinary.type.${typeKey[detail.warning_type]}`)}`} onClose={closeDetail} className="crew-disciplinary-sheet" footer={<><button className="crew-mobile-secondary" type="button" onClick={closeDetail}>{t("common.close")}</button>{canAcknowledge ? <button className="crew-mobile-primary" type="button" onClick={() => setAckOpen(true)}>{t("disciplinary.acknowledge")}</button> : null}</>}>
+    {detail ? <CrewBottomSheet title={detail.subject} description={`${detail.display_sequence ? `${t("disciplinary.warningNumber", { number: detail.display_sequence })} · ` : ""}${typeLabel(detail)}`} onClose={closeDetail} className="crew-disciplinary-sheet" footer={<><button className="crew-mobile-secondary" type="button" onClick={closeDetail}>{t("common.close")}</button>{canAcknowledge ? <button className="crew-mobile-primary" type="button" onClick={() => setAckOpen(true)}>{t("disciplinary.acknowledge")}</button> : null}</>}>
       <div className="crew-disciplinary-detail">
         <CrewStatusBadge tone={tone[detail.status]}>{t(`disciplinary.status.${detail.status}`)}</CrewStatusBadge>
-        <dl><div><dt>{t("disciplinary.incidentDate")}</dt><dd>{dateOnly(detail.incident_date)}</dd></div><div><dt>{t("disciplinary.issuedDate")}</dt><dd>{dateOnly(detail.issued_date)}</dd></div>{detail.outlet_name_snapshot ? <div><dt>{t("common.outlet")}</dt><dd>{detail.outlet_name_snapshot}</dd></div> : null}</dl>
-        <section><h3>{t("disciplinary.details")}</h3><p>{detail.warning_details}</p></section>
-        <section><h3>{t("disciplinary.requiredAction")}</h3><p>{detail.required_action}</p></section>
-        {detail.related_warning ? <section className="crew-disciplinary-response"><h3>{t("disciplinary.relatedWarning")}</h3><p>{t("disciplinary.relatedWarningSummary", { number: detail.related_warning.display_sequence, type: t(`disciplinary.type.${typeKey[detail.related_warning.warning_type]}`), subject: detail.related_warning.subject })}</p></section> : null}
+        <dl>{isWarningRecord(detail) ? <div><dt>{t("disciplinary.incidentDate")}</dt><dd>{dateOnly(detail.incident_date)}</dd></div> : null}<div><dt>{t("disciplinary.issuedDate")}</dt><dd>{dateOnly(detail.issued_date)}</dd></div>{detail.outlet_name_snapshot ? <div><dt>{t("common.outlet")}</dt><dd>{detail.outlet_name_snapshot}</dd></div> : null}</dl>
+        <section><h3>{isWarningRecord(detail) ? t("disciplinary.details") : t("disciplinary.content")}</h3><p>{detail.body || detail.warning_details}</p></section>
+        {isWarningRecord(detail) && detail.required_action ? <section><h3>{t("disciplinary.requiredAction")}</h3><p>{detail.required_action}</p></section> : null}
+        {detail.related_warning ? <section className="crew-disciplinary-response"><h3>{t("disciplinary.relatedWarning")}</h3><p>{t("disciplinary.relatedWarningSummary", { number: detail.related_warning.display_sequence, type: typeLabel(detail.related_warning), subject: detail.related_warning.subject })}</p></section> : null}
         {detail.withdrawal_reason ? <div className="crew-disciplinary-notice">{detail.withdrawal_reason}</div> : null}
         <section className="crew-disciplinary-response crew-disciplinary-receipt"><div className="crew-disciplinary-receipt-heading"><h3>{t("disciplinary.receiptStatus")}</h3>{detail.acknowledged_at ? <CrewStatusBadge tone="success">{t("disciplinary.receiptAcknowledged")}</CrewStatusBadge> : null}</div><dl><div><dt>{t("disciplinary.status.viewed")}</dt><dd>{detail.first_viewed_at ? formatCrewOperationalDateTime(detail.first_viewed_at) : t("disciplinary.notViewed")}</dd></div><div><dt>{t("disciplinary.status.acknowledged")}</dt><dd>{detail.acknowledged_at ? formatCrewOperationalDateTime(detail.acknowledged_at) : t("disciplinary.notAcknowledged")}</dd></div></dl></section>
         {detail.response ? <section className="crew-disciplinary-response"><h3>{t("disciplinary.yourResponse")}</h3><p>{detail.response.text}</p><small>{t("disciplinary.responseSubmitted", { date: formatCrewOperationalDateTime(detail.response.submitted_at) })}</small></section> : canRespond ? <button className="crew-mobile-secondary" type="button" onClick={() => { setResponseOpen(true); setActionError(""); }}><MessageSquareText size={17} />{t("disciplinary.addResponse")}</button> : null}

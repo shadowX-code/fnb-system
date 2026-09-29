@@ -55,6 +55,10 @@ Admins create and publish operational templates, monitor daily execution, review
 Crew view assigned daily work, complete tasks with required evidence, perform eligible Cash Checkout steps, and confirm assigned handovers.
 Task Builder uses shared date/time controls. The service hydrates persisted template time-of-day values into Draft Start/Due fields without changing server schedule authority. Crew task priority is presented consistently on Home, list rows, and detail; it does not change eligibility or execution.
 
+Crew Home exposes outlet-scoped Stock Check and Purchase Orders action lists when the selected outlet has corresponding Special Access. These lists show the complete actionable rows returned by the bounded token-bound Inventory projections, not duplicate Daily Tasks or completed history. Stock Checks prioritize overdue scheduled drafts, due checks, then other resumable drafts; POs show manageable drafts/submitted orders and receivable confirmed/partial orders. The PO read projection derives category names from canonical Inventory items for compact Home context without changing PO lifecycle authority. Fixed-outlet Crew use their workplace outlet; Management must select a Role-authorized outlet and hold each outlet-specific Special Access independently. Home clears prior outlet rows while reloading, and Inventory screens remount on outlet changes so prior outlet state cannot remain actionable.
+
+Crew `From Stock Check` purchasing exposes only remaining below-Par suggestions from a scheduled check submitted within the latest seven days. The token-bound read and both Crew source-order command paths enforce this window against the server timestamp; existing drafts and idempotent retries remain governed by the canonical PO lifecycle. The Crew PO detail read projects Master Inventory imagery, item codes, category context and lifecycle dates without creating Crew-specific item authority. `Receive All Remaining` only fills local quantity inputs; the canonical receipt/inventory movement command still runs solely after explicit `Record Receipt`.
+
 ## Integrations
 
 Crew Workforce provides secure sessions and roster-derived context.
