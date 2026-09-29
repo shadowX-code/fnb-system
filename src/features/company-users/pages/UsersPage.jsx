@@ -617,8 +617,8 @@ function UserFormModal({
   canResetPassword = false,
   canViewCompliance = false,
   canReviewCompliance = false,
-  canViewDisciplinary = false,
-  canManageDisciplinary = false,
+  canViewLettersNotices = false,
+  canManageLettersNotices = false,
   canViewEmploymentDocuments = false,
   canManageEmploymentDocuments = false,
   legalEntities = [],
@@ -2007,8 +2007,8 @@ export default function UsersPage({ ui, store, auth }) {
           canResetPassword={canResetPassword}
           canViewCompliance={canViewCompliance}
           canReviewCompliance={canReviewCompliance}
-          canViewDisciplinary={canViewDisciplinary}
-          canManageDisciplinary={canManageDisciplinary}
+          canViewLettersNotices={canViewLettersNotices}
+          canManageLettersNotices={canManageLettersNotices}
           canViewEmploymentDocuments={canViewEmploymentDocuments}
           canManageEmploymentDocuments={canManageEmploymentDocuments}
           legalEntities={legalEntities}
@@ -2040,8 +2040,8 @@ export default function UsersPage({ ui, store, auth }) {
           canResetPassword={canResetPassword}
           canViewCompliance={canViewCompliance}
           canReviewCompliance={canReviewCompliance}
-          canViewDisciplinary={canViewDisciplinary}
-          canManageDisciplinary={canManageDisciplinary}
+          canViewLettersNotices={canViewLettersNotices}
+          canManageLettersNotices={canManageLettersNotices}
           canViewEmploymentDocuments={canViewEmploymentDocuments}
           canManageEmploymentDocuments={canManageEmploymentDocuments}
           legalEntities={legalEntities}
