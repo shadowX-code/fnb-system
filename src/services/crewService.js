@@ -316,6 +316,12 @@ export const crewService = {
     return data ?? [];
   },
 
+  async leavePolicyEditContext(outletId, leaveType, effectiveFrom) {
+    const { data, error } = await supabase.rpc("crew_leave_policy_edit_context", { p_outlet_id: outletId, p_leave_type: leaveType, p_effective_from: effectiveFrom });
+    throwSupabaseError("crew.leavePolicyEditContext", error);
+    return data;
+  },
+
   async reviewLeave(requestId, decision, rejectionReason = null) {
     const { data, error } = await supabase.rpc("crew_leave_review", { p_request_id: requestId, p_decision: decision, p_rejection_reason: rejectionReason || null });
     throwSupabaseError("crew.reviewLeave", error);
