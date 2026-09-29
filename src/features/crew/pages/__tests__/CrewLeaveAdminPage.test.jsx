@@ -27,6 +27,7 @@ function balance(employee, leaveType, overrides = {}) {
     employee_id: employee.id,
     employee,
     leave_type: leaveType,
+    prorated: unlimited ? 0 : leaveType === "annual" ? 12 : 14,
     entitled: unlimited ? null : leaveType === "annual" ? 12 : 14,
     used: unlimited ? null : 2,
     pending: unlimited ? null : 1,
@@ -147,6 +148,9 @@ describe("Crew Leave Admin UI", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Manage" })[0]);
     const dialog = screen.getByRole("dialog", { name: "Leave Balance" });
     expect(within(dialog).getAllByText(/original employment eligibility and policy basis were not verified at cutover/).length).toBeGreaterThan(0);
+    expect(within(dialog).getByText(/Existing grant: 12 days/)).not.toBeNull();
+    expect(within(dialog).getAllByText(/Existing grant: Unlimited \/ no balance limit/).length).toBeGreaterThan(0);
+    expect(within(dialog).queryByText(/days days/)).toBeNull();
   });
 
   it("uses an eye action for finalized requests and keeps pending requests reviewable", async () => {
