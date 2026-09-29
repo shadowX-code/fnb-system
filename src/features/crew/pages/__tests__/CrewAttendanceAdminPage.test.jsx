@@ -128,7 +128,7 @@ describe("Crew Attendance Admin", () => {
     const unverified = row("old", "Old Attendance", { employment_context: { state: "unverified", position: null, workplace: null } });
     mocks.attendance.mockResolvedValueOnce({ rows: [unverified], total_count: 1, page: 1, page_size: 20, summary: { filter_options: { employees: [unverified.employee], positions: [] } } });
     render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
-    expect(await screen.findByText("Unverified · Unverified")).not.toBeNull();
+    expect(await screen.findByText("Employment unverified")).not.toBeNull();
     fireEvent.click(screen.getByText("Old Attendance").closest("tr"));
     expect(within(screen.getByRole("dialog", { name: "Attendance Details" })).getAllByText("Unverified")).toHaveLength(2);
   });
