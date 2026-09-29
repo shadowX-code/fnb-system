@@ -612,3 +612,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Prepared calendar review/publication, inline company paid-holiday selection and inline PH benefit setup now lead to one operational readiness state. Source capture, exceptions and technical history remain progressive disclosure; no calculation authority changed.
 - Authenticated isolated synthetic Staging workflow passed from empty year through Ready and refresh. QA company deactivated and calendars/import retired through canonical commands; immutable evidence retained. See `qa/staging/payrollHolidayWorkflow.closure.md`.
+
+# 2026-09-29 — Payroll Period Employment Evidence
+
+- Open Payroll membership, review and Draft Payslip identity now consume one People Employment Assignment Timeline period resolver. Unknown pre-cutover history, missing Joined Date and material mid-period assignment changes fail closed with explicit review evidence; today's Employee assignment is not historical truth.
+- Calculation fingerprints include People revision evidence so historical corrections require open-run recalculation. Existing finalized snapshots and Final Payslip artifacts remain untouched; new finalizations pin the verified period identity. Payroll compensation/statutory authority is unchanged.

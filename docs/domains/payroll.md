@@ -371,9 +371,16 @@ not guessed: a protected Owner/Admin with Payroll manage authority must publish
 a reviewed, sourced rule version. Missing or ambiguous rules leave the employee
 in Review Required. Mid-period salary/component changes still require an approved
 policy instead of rate blending or silent proration.
-Run membership is bounded by the employee's known joining/resignation dates.
-An unknown joining date stays visible but requires calculation review rather
-than silently treating an unverified month as payable.
+Open-run membership is resolved from the People Employment Assignment Timeline
+for the payroll period, bounded by the employee's verified Joined Date and
+effective employment end evidence. Today's Employee Legal Employer, status,
+type, position and workplace are not historical authority. A missing Joined
+Date prevents authoritative membership and is surfaced as a run-level Setup
+Required condition rather than silently treating an unverified month as payable.
+Periods before the 29 September 2026 People cutover remain Review Required;
+current Employee fields never backfill that history. A verified mid-period
+assignment change that the current Payroll model cannot represent as one
+employer/identity also remains Review Required with People revision evidence.
 
 `payroll_calculation_project` resolves the effective compensation for each work
 date, current approved Payable Time evidence, effective recurring components,
@@ -676,6 +683,16 @@ Calculation, readiness and Finalize use `payroll_run_employee_ids` for the same
 period membership. Finalized membership resolves only from frozen profile
 snapshots, never today's employment/profile eligibility. Missing Legal Employer
 blocks profile creation; missing Joined Date remains unresolved, not inferred.
+
+For open runs, one private Payroll-period employment resolver consumes People
+as-of revisions and supplies membership, calculation fingerprint/review issues,
+Run review identity and Draft Payslip identity. Later People corrections make
+open calculations stale; Admin must refresh them. A future assignment does not
+affect an earlier period. A new Finalize pins period-resolved identity, while
+previously finalized membership, identity, statutory evidence and private Final
+Payslip artifacts remain immutable. Payroll still owns pay basis, compensation,
+payable time, statutory results and correction commands; Employment Type does
+not imply a salary or pay basis.
 
 Overview and Run Review share the read-only `payrollRunPresentation` projection
 and run-keyed `usePayrollRunRead` loader. Financial authority stays server-owned;

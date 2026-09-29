@@ -356,6 +356,7 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
   const employeeCount = history?.find((item) => item.run_id === run?.id)?.employee_count;
   const blockers = [
     state?.time && !state.time.ready && (state.time.period_in_progress ? "Time review remains open until the pay period ends" : "Time & Attendance requires review"),
+    state?.calculation?.employment_issue && payrollIssueLabel(state.calculation.employment_issue),
     state?.calculation && !state.calculation.ready && "Employee payroll calculations need review",
     state?.statutory && !state.statutory.ready && "Employee statutory results need review",
   ].filter(Boolean);
@@ -477,7 +478,7 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
   const statutoryCount = summary?.statutoryCount || 0;
   const attention = finalized ? [] : [
     (timeCount || (readiness?.time && !readiness.time.ready)) && { group: "Time & Attendance", label: timeCount ? countCopy(timeCount, "time reconciliation") : "Review time readiness for this period", open: () => onOpenRun(0) },
-    (payCount || (!run && withoutProfile.length) || (readiness?.calculation && !readiness.calculation.ready)) && { group: "Payroll Calculation", label: payCount ? countCopy(payCount, "payroll review") : !run && withoutProfile.length ? countCopy(withoutProfile.length, "pay setup") : "Review employee calculations", open: !run ? onOpenEmployees : () => onOpenRun(0) },
+    (payCount || (!run && withoutProfile.length) || (readiness?.calculation && !readiness.calculation.ready)) && { group: "Payroll Calculation", label: readiness?.calculation?.employment_issue ? payrollIssueLabel(readiness.calculation.employment_issue) : payCount ? countCopy(payCount, "payroll review") : !run && withoutProfile.length ? countCopy(withoutProfile.length, "pay setup") : "Review employee calculations", open: !run ? onOpenEmployees : () => onOpenRun(0) },
     (statutoryCount || (readiness?.statutory && !readiness.statutory.ready)) && { group: "Statutory", label: statutoryCount ? countCopy(statutoryCount, "statutory review") : "Review statutory readiness", open: () => onOpenRun(1) },
   ].filter(Boolean);
   const historyRows = history?.entityId === entityId ? history.rows : [];

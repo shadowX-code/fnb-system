@@ -68,13 +68,21 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     const statutory = evidence?.statutory?.results?.find((item) => item.employee_id === employee.id);
     const pcb = evidence?.pcb?.results?.find(item => item.employee_id === employee.id);
     const preparation = evidence?.preparation?.results?.find((item) => item.employee_id === employee.id);
+    const periodAssignment = preparation?.employment?.identity;
     const projection = preparation?.projection;
     const adjustments = (evidence?.calculation?.adjustments || []).filter((item) => item.employee_id === employee.id);
     const pay = projection?.inputs?.compensation_start?.id ? projection.inputs.compensation_start : projection?.inputs?.compensation_end;
     const timeRelevant = preparation?.time_relevant === true;
     const timeNeedsReview = timeRelevant && time.some((item) => item.status === "review_required");
     const needsReview = member.needsReview;
-    return { ...employee, profile, time, calculation, statutory, result: payrollEmployeeResult(calculation, statutory), pcb, adjustments, pay, preparation, projection, timeRelevant, timeNeedsReview, needsReview };
+    return { ...employee,
+      // Current Employee is an identity fallback only; open-run assignment comes from People as-of evidence.
+      workplace: periodAssignment?.workplace || "",
+      position: periodAssignment?.position || "",
+      employment_type: periodAssignment?.employment_type || "",
+      legal_entity_id: periodAssignment?.legal_entity_id || null,
+      profile, time, calculation, statutory, result: payrollEmployeeResult(calculation, statutory), pcb,
+      adjustments, pay, preparation, projection, timeRelevant, timeNeedsReview, needsReview };
   }), [data, entityId, evidence, month, scope]);
   useEffect(() => { if (evidence) onSnapshot?.({ runId: run.id, rows }); }, [evidence, rows, run.id, onSnapshot]);
   const bankIds = JSON.stringify(rows.map(row => row.id).sort());
@@ -194,6 +202,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <SelectField label="Workplace" ariaLabel="Review workplace" value={workplaceFilter} onChange={setWorkplaceFilter} options={[{ value: "all", label: "All" }, ...[...new Set(rows.map(row => row.workplace).filter(Boolean))].sort().map(value => ({ value, label: value }))]} /></>}
       search={<AdminSearchField label="Search Employee" value={search} onChange={setSearch} placeholder="Name or employee code" />} />}
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
+    {evidence?.preparation?.employment_issue && <p role="alert" className="text-sm font-semibold text-amber-800">
+      {payrollIssueLabel(evidence.preparation.employment_issue)}. This open period cannot be finalized until verified People employment history is available.
+    </p>}
     <Card>{!evidence && !error ? <p className="p-6 text-sm text-text-secondary">Loading monthly employee evidence…</p>
       : visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.id} density="compact" onRowClick={(row) => setEmployeeId(row.id)} />
         : <p className="p-6 text-sm text-text-secondary">{rows.length ? "No employees match these review filters." : "No employees included in this payroll revision."}</p>}</Card>
