@@ -203,11 +203,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       search={<AdminSearchField label="Search Employee" value={search} onChange={setSearch} placeholder="Name or employee code" />} />}
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     {evidence?.preparation?.employment_issue && <p role="alert" className="text-sm font-semibold text-amber-800">
-      {payrollIssueLabel(evidence.preparation.employment_issue)}. This open period cannot be finalized until verified People employment history is available.
+      {`${payrollIssueLabel(evidence.preparation.employment_issue)}. This open period cannot be finalized until verified People employment history is available.`}
     </p>}
     <Card>{!evidence && !error ? <p className="p-6 text-sm text-text-secondary">Loading monthly employee evidence…</p>
       : visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.id} density="compact" onRowClick={(row) => setEmployeeId(row.id)} />
-        : <p className="p-6 text-sm text-text-secondary">{rows.length ? "No employees match these review filters." : "No employees included in this payroll revision."}</p>}</Card>
+        : <p className="p-6 text-sm text-text-secondary">{rows.length ? "No employees match these review filters." : evidence?.preparation?.employment_issue ? "Employment evidence is unresolved; no employee list is authoritative yet." : "No employees included in this payroll revision."}</p>}</Card>
     {selected && !reviewHours && !pcbDraft && !adjustment && <Modal title={selected.name} description={`${month} · Monthly Payroll review. Permanent compensation changes belong in Employees.`}
       size="xl" onClose={() => setEmployeeId("")} footer={<button className="btn-secondary" type="button" onClick={() => setEmployeeId("")}>Close</button>}>
       <div className="space-y-5 text-sm">
