@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-09-30 — Verified Historical Employment Baseline Correction
+
+- People Change Employment now accepts a complete, explicitly supplied assignment before the original current-only cutover baseline. The append-only revision and audit event establish the earlier verified start without changing Joined Date or inferring earlier history. Roster uses its existing dated People resolver, while finalized historical evidence and current projection remain intact.
+
 ## 2026-09-29 — Performance Employment Period Correctness
 
 - Open monthly Performance now resolves Service Crew eligibility and outlet/position attribution from the People Employment Assignment Timeline. Mixed or unverified months fail closed; historical corrections require an explicit audited recalculation. Existing Peer Review, Customer Feedback, Attendance and retained/final Performance evidence remains owned by its source domain. Crew sees only the safe period result, while later People changes never rewrite finalized Performance.

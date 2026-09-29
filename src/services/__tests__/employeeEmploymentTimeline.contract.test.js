@@ -9,6 +9,7 @@ import { employeeEmploymentService } from "../employeeEmploymentService.js";
 const authority = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929024532_people_employment_assignment_timeline.sql"), "utf8");
 const validation = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929025028_people_employment_assignment_validation.sql"), "utf8");
 const grants = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929025447_people_employment_assignment_function_grants.sql"), "utf8");
+const historicalCorrection = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929161516_people_historical_employment_baseline_correction.sql"), "utf8");
 
 beforeEach(() => rpc.mockReset());
 
@@ -27,10 +28,14 @@ describe("People Employment Assignment Timeline", () => {
     }));
   });
 
-  it("preserves unresolved pre-cutover dates and never infers an earlier assignment", () => {
+  it("preserves unresolved pre-cutover dates until a complete Admin correction is supplied", () => {
     expect(authority).toContain("'cutover_current','Current Employee assignment at cutover; earlier history is unverified.'");
     expect(authority).toContain("'state',case when v_row.id is null then 'unresolved'");
-    expect(authority).toContain("if v_cutover is null or p_effective_from<v_cutover then");
+    expect(historicalCorrection).toContain("p_assignment ?& array['employment_type','employment_status','position','legal_entity_id','workplace']");
+    expect(historicalCorrection).toContain("v_historical_baseline:=p_effective_from<v_verified_from");
+    expect(historicalCorrection).toContain("when v_historical_baseline then v_next.id");
+    expect(historicalCorrection).toContain("'employee_employment_historical_baseline_corrected'");
+    expect(historicalCorrection).toContain("'verified_from',v_start");
   });
 
   it("pins all five fields, guards direct writes, and keeps corrections append-only", () => {
