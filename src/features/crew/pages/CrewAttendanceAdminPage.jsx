@@ -83,6 +83,17 @@ function rosterContext(row) {
   };
 }
 
+function employmentLabel(row, field) {
+  return row.employment_context?.state === "verified" && row.employment_context[field]
+    ? row.employment_context[field] : "Unverified";
+}
+
+function workplaceDiffersFromActual(row) {
+  const workplace = row.employment_context?.workplace?.trim().toLowerCase();
+  if (!workplace || !row.outlet?.name) return false;
+  return ![row.outlet.name, row.outlet.code].some((value) => value?.trim().toLowerCase() === workplace);
+}
+
 function varianceContext(row) {
   if (row.clock_in_variance_minutes == null || row.schedule?.entry_type !== "working") return null;
   const minutes = Number(row.clock_in_variance_minutes);
@@ -174,7 +185,7 @@ export default function CrewAttendanceAdminPage({ auth, ui, store }) {
   ].filter(Boolean);
 
   const columns = [
-    { key: "employee", header: "Employee", width: "210px", render: (row) => <div><div className="font-bold text-text-primary">{row.employee?.nickname || row.employee?.full_name || "Employee"}</div><div className="mt-0.5 text-xs text-text-secondary">{row.employee?.position || "Crew"} · {row.outlet?.name || row.employee?.workplace || "Outlet"}</div>{row.schedule?.outlet_name && row.outlet?.name && row.schedule.outlet_name !== row.outlet.name ? <div className="mt-1 text-xs font-semibold text-amber-700">Worked at {row.outlet.name}</div> : null}</div> },
+    { key: "employee", header: "Employee", width: "210px", render: (row) => <div><div className="font-bold text-text-primary">{row.employee?.nickname || row.employee?.full_name || "Employee"}</div><div className="mt-0.5 text-xs text-text-secondary">{employmentLabel(row, "position")} · {employmentLabel(row, "workplace")}</div>{workplaceDiffersFromActual(row) ? <div className="mt-1 text-xs font-semibold text-amber-700">Recorded at {row.outlet.name}</div> : null}</div> },
     { key: "schedule", header: "Schedule", width: "210px", render: (row) => { const context = rosterContext(row); const variance = varianceContext(row); return <div><div className="font-semibold text-text-primary">{context.title}</div><div className="mt-0.5 text-xs text-text-secondary">{context.detail}</div>{variance ? <div className="mt-1.5"><Badge tone={variance.tone}>{variance.label}</Badge></div> : null}{context.kind === "not_required" ? <div className="mt-1 text-xs font-semibold text-amber-700">Unexpected attendance</div> : null}</div>; } },
     { key: "clock_in", header: "Clock In", width: "112px", render: (row) => <TimeCell value={row.clock_in_at} /> },
     { key: "clock_out", header: "Clock Out", width: "112px", render: (row) => <TimeCell value={row.clock_out_at} /> },
@@ -235,7 +246,8 @@ function AttendanceDetail({ row, canManage, ui, onChanged, onClose }) {
   const minutes = durationMinutes(row);
   return <Modal title="Attendance Details" description={`${row.employee?.nickname || row.employee?.full_name || "Employee"} · ${formatDate(row.clock_in_at)}`} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
     <div className="space-y-4">
-      <section className="grid gap-4 rounded-xl border border-border bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4"><DetailValue label="Employee" value={row.employee?.full_name || row.employee?.nickname} /><DetailValue label="Position" value={row.employee?.position || row.schedule?.position} /><DetailValue label="Actual Outlet" value={row.outlet?.name || row.employee?.workplace} /><div><dt className="text-xs font-semibold text-text-secondary">Attendance Status</dt><dd className="mt-1"><Badge tone={status.tone}>{status.label}</Badge></dd></div></section>
+      <section className="grid gap-4 rounded-xl border border-border bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-4"><DetailValue label="Employee" value={row.employee?.full_name || row.employee?.nickname} /><DetailValue label="Employment Position" value={employmentLabel(row, "position")} /><DetailValue label="Employment Workplace" value={employmentLabel(row, "workplace")} /><DetailValue label="Actual Attendance Outlet" value={row.outlet?.name || "Unavailable"} /><div><dt className="text-xs font-semibold text-text-secondary">Attendance Status</dt><dd className="mt-1"><Badge tone={status.tone}>{status.label}</Badge></dd></div></section>
+      {workplaceDiffersFromActual(row) ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">The recorded Attendance outlet differs from the employment workplace for this date. Both records are shown unchanged.</p> : null}
       <section><h3 className="mb-3 font-bold text-text-primary">Schedule & Actual</h3><dl className="grid gap-4 rounded-xl border border-border p-4 sm:grid-cols-2 lg:grid-cols-4"><DetailValue label="Scheduled Shift" value={schedule.title} /><DetailValue label="Schedule Context" value={schedule.detail} /><DetailValue label="Actual Clock In" value={row.clock_in_at ? new Date(row.clock_in_at).toLocaleString("en-MY") : "—"} /><DetailValue label="Actual Clock Out" value={row.clock_out_at ? new Date(row.clock_out_at).toLocaleString("en-MY") : "—"} /><DetailValue label="Worked Duration" value={formatDuration(minutes)} /><DetailValue label="Schedule Variance" value={variance?.label || "Not applicable"} /><DetailValue label="Roster Evidence" value={row.evidence_version || "Roster evidence"} />{minutes > 1440 ? <div><dt className="text-xs font-semibold text-text-secondary">Duration Review</dt><dd className="mt-1"><Badge tone="danger">Potential anomaly</Badge></dd></div> : null}</dl>{schedule.kind === "no_roster" ? <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm font-medium text-text-secondary">Attendance was recorded without a published roster for this date.</p> : null}{schedule.kind === "not_required" ? <p className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-medium text-amber-800">{schedule.title}: attendance was not required, but an actual attendance record exists.</p> : null}</section>
       <section><h3 className="mb-3 font-bold text-text-primary">Location Verification</h3><div className="grid gap-3 lg:grid-cols-2"><Evidence title="Clock In" at={row.clock_in_at} verified={row.clock_in_location_verified} exception={row.clock_in_location_exception} reason={row.clock_in_exception_reason} distance={row.clock_in_distance_meters} accuracy={row.clock_in_accuracy_meters} /><Evidence title="Clock Out" at={row.clock_out_at} verified={row.clock_out_location_verified} exception={row.clock_out_location_exception} reason={row.clock_out_exception_reason} distance={row.clock_out_distance_meters} accuracy={row.clock_out_accuracy_meters} /></div></section>
       <AttendancePerformanceException attendanceRecordId={row.id} canManage={canManage} ui={ui} onChanged={onChanged} />

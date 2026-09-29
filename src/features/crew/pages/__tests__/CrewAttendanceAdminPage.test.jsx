@@ -24,7 +24,7 @@ const base = {
   schedule: { date: "2026-08-14", entry_type: "working", start_time: "10:00", end_time: "18:00", outlet_name: "Friends Corner", position: "Service Crew" },
   clock_in_variance_minutes: 0,
 };
-const row = (id, name, patch = {}) => ({ ...base, id, employee_id: `employee-${id}`, employee: employee(`employee-${id}`, name), ...patch });
+const row = (id, name, patch = {}) => ({ ...base, id, employee_id: `employee-${id}`, employee: employee(`employee-${id}`, name), employment_context: { state: "verified", position: "Service Crew", workplace: "Friends Corner" }, ...patch });
 
 const fixture = [
   row("verified", "Verified Crew"),
@@ -64,7 +64,7 @@ describe("Crew Attendance Admin", () => {
     expect(screen.getAllByText("Potential anomaly").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Attendance not required")).toHaveLength(2);
     expect(screen.getAllByText("Unexpected attendance")).toHaveLength(2);
-    expect(screen.getByText("Worked at Hola Hola")).not.toBeNull();
+    expect(screen.getByText("Recorded at Hola Hola")).not.toBeNull();
   });
 
   it("uses the server-filtered date/outlet query and filters issue states", async () => {
@@ -104,6 +104,33 @@ describe("Crew Attendance Admin", () => {
     const exceptionDialog = screen.getByRole("dialog", { name: "Attendance Details" });
     expect(within(exceptionDialog).getByText("GPS unavailable")).not.toBeNull();
     expect(within(exceptionDialog).getAllByText("Distance from Outlet")).toHaveLength(2);
+  });
+
+  it("shows dated employment context separately from actual outlet and published roster evidence", async () => {
+    const historical = row("historical", "Historical Crew", {
+      employee: employee("employee-historical", "Historical Crew", "Supervisor"),
+      employment_context: { state: "verified", position: "Service Crew", workplace: "Friends Corner" },
+      outlet: { id: "outlet-2", name: "Hola Hola" },
+      schedule: { ...base.schedule, outlet_name: "Friends Corner", position: "Roster Position" },
+    });
+    mocks.attendance.mockResolvedValueOnce({ rows: [historical], total_count: 1, page: 1, page_size: 20, summary: { filter_options: { employees: [historical.employee], positions: ["Service Crew"] } } });
+    render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("Service Crew · Friends Corner")).not.toBeNull();
+    expect(screen.queryByText("Supervisor · Friends Corner")).toBeNull();
+    fireEvent.click(screen.getByText("Historical Crew").closest("tr"));
+    const dialog = screen.getByRole("dialog", { name: "Attendance Details" });
+    expect(within(dialog).getByText("Roster Position", { exact: false })).not.toBeNull();
+    expect(within(dialog).getByText("Hola Hola")).not.toBeNull();
+    expect(within(dialog).getByText(/recorded Attendance outlet differs/)).not.toBeNull();
+  });
+
+  it("shows pre-cutover employment context as unverified without hiding attendance", async () => {
+    const unverified = row("old", "Old Attendance", { employment_context: { state: "unverified", position: null, workplace: null } });
+    mocks.attendance.mockResolvedValueOnce({ rows: [unverified], total_count: 1, page: 1, page_size: 20, summary: { filter_options: { employees: [unverified.employee], positions: [] } } });
+    render(<CrewAttendanceAdminPage ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("Unverified · Unverified")).not.toBeNull();
+    fireEvent.click(screen.getByText("Old Attendance").closest("tr"));
+    expect(within(screen.getByRole("dialog", { name: "Attendance Details" })).getAllByText("Unverified")).toHaveLength(2);
   });
 
   it("requires an audited reason before a manager records a scoring exception", async () => {
