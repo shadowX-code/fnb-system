@@ -10,6 +10,7 @@ const authority = readFileSync(resolve(process.cwd(), "supabase/migrations/20260
 const validation = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929025028_people_employment_assignment_validation.sql"), "utf8");
 const grants = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929025447_people_employment_assignment_function_grants.sql"), "utf8");
 const historicalCorrection = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929161516_people_historical_employment_baseline_correction.sql"), "utf8");
+const correctedCutover = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929170845_people_corrected_cutover_effective_resolution.sql"), "utf8");
 
 beforeEach(() => rpc.mockReset());
 
@@ -36,6 +37,13 @@ describe("People Employment Assignment Timeline", () => {
     expect(historicalCorrection).toContain("when v_historical_baseline then v_next.id");
     expect(historicalCorrection).toContain("'employee_employment_historical_baseline_corrected'");
     expect(historicalCorrection).toContain("'verified_from',v_start");
+  });
+
+  it("keeps a corrected cutover as audit evidence without making it effective again", () => {
+    expect(correctedCutover).toContain("r.source_kind='cutover_current' and exists");
+    expect(correctedCutover).toContain("correction.corrects_revision_id=r.id");
+    expect(correctedCutover).toContain("correction.effective_from<r.effective_from");
+    expect(correctedCutover).toContain("order by r.effective_from desc,r.recorded_at desc,r.id desc limit 1");
   });
 
   it("pins all five fields, guards direct writes, and keeps corrections append-only", () => {
