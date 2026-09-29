@@ -20,6 +20,7 @@ import { employeeService } from "../../../services/employeeService.js";
 import { employeeComplianceService } from "../../../services/employeeComplianceService.js";
 import EmployeeDisciplinaryPanel from "../components/EmployeeDisciplinaryPanel.jsx";
 import EmployeeEmploymentDocumentsPanel from "../components/EmployeeEmploymentDocumentsPanel.jsx";
+import EmployeeEmploymentTimelinePanel from "../components/EmployeeEmploymentTimelinePanel.jsx";
 import { legalEntityService } from "../../../services/legalEntityService.js";
 import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
 import { normalizeEmployeeLoginEmail } from "../../../services/employeeIdentity.js";
@@ -621,6 +622,7 @@ function UserFormModal({
   canViewEmploymentDocuments = false,
   canManageEmploymentDocuments = false,
   legalEntities = [],
+  onEmploymentChanged,
 }) {
   const [values, setValues] = useState(() => {
     const merged = { ...createEmptyUser(), ...initialUser };
@@ -754,6 +756,21 @@ function UserFormModal({
       };
     });
     setTouchedFields((current) => (current[key] ? current : { ...current, [key]: true }));
+  }
+
+  async function refreshEmployment() {
+    const updated = await onEmploymentChanged?.(values.id);
+    if (updated) {
+      setValues((current) => ({ ...current,
+        employment_type: updated.employment_type,
+        employment_status: updated.employment_status,
+        position: updated.position,
+        department: updated.department,
+        legal_entity_id: updated.legal_entity_id,
+        workplace: updated.workplace,
+        resigned_date: updated.resigned_date,
+      }));
+    }
   }
 
   function enableAccessSetup() {
@@ -1094,8 +1111,8 @@ function UserFormModal({
           )}
         </FormSection>
 
-        <FormSection title="Employment Info" icon={BriefcaseBusiness}>
-          {isViewMode ? (
+        <FormSection title="Current Employment" icon={BriefcaseBusiness}>
+          {isViewMode || (mode === "edit" && Boolean(values.id)) ? (
             <div className="grid gap-3 md:grid-cols-2">
               <ReadOnlyField label="Employment Type">{employmentTypeLabel(values.employment_type)}</ReadOnlyField>
               <ReadOnlyField label="Employment Status">{employmentStatusLabel(values.employment_status)}</ReadOnlyField>
@@ -1105,8 +1122,10 @@ function UserFormModal({
                 {selectedPosition?.status === "inactive" ? <span className="ml-2"><Badge tone="warning">Disabled</Badge></span> : null}
               </ReadOnlyField>
               <ReadOnlyField label="Workplace">{values.workplace || "Missing"}</ReadOnlyField>
-              <ReadOnlyField label="Employee Code">{values.employee_code || "-"}</ReadOnlyField>
-              <ReadOnlyField label="Joined Date">{formatDateForView(values.joined_date)}</ReadOnlyField>
+              {isViewMode ? <ReadOnlyField label="Employee Code">{values.employee_code || "-"}</ReadOnlyField>
+                : <FormField label="Employee Code"><input className="control" value={values.employee_code || ""} onChange={(event) => updateValue("employee_code", event.target.value)} /></FormField>}
+              {isViewMode ? <ReadOnlyField label="Joined Date">{formatDateForView(values.joined_date)}</ReadOnlyField>
+                : <DatePickerField label="Joined Date" value={values.joined_date} onChange={(value) => updateValue("joined_date", value)} />}
               {isEndedEmployment ? <ReadOnlyField label={values.employment_status === "terminated" ? "Terminated Date" : "Resigned Date"}>{formatDateForView(values.resigned_date)}</ReadOnlyField> : null}
             </div>
           ) : (
@@ -1163,6 +1182,9 @@ function UserFormModal({
             ) : null}
             </div>
           )}
+          {values.id && <EmployeeEmploymentTimelinePanel employeeId={values.id} canEdit={canEditEmployee}
+            positions={jobPositions} workplaces={workplaceOptions} legalEntities={legalEntities}
+            onSaved={refreshEmployment} />}
         </FormSection>
 
         <FormSection title="Bank Info" icon={CreditCard}>
@@ -1718,6 +1740,17 @@ export default function UsersPage({ ui, store, auth }) {
     }
   }
 
+  async function refreshEmploymentEmployee(employeeId) {
+    const refreshed = await employeeService.listEmployees();
+    const updated = refreshed.find((entry) => entry.id === employeeId);
+    setUsers(refreshed);
+    if (updated) {
+      setSelectedUser((current) => current?.id === employeeId ? updated : current);
+      setFormState((current) => current?.user?.id === employeeId ? { ...current, user: updated } : current);
+    }
+    return updated;
+  }
+
   function renderAccountActions(row) {
     const buttonClass = "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50";
     const dangerClass = "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50";
@@ -1979,6 +2012,7 @@ export default function UsersPage({ ui, store, auth }) {
           canViewEmploymentDocuments={canViewEmploymentDocuments}
           canManageEmploymentDocuments={canManageEmploymentDocuments}
           legalEntities={legalEntities}
+          onEmploymentChanged={refreshEmploymentEmployee}
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
@@ -2011,6 +2045,7 @@ export default function UsersPage({ ui, store, auth }) {
           canViewEmploymentDocuments={canViewEmploymentDocuments}
           canManageEmploymentDocuments={canManageEmploymentDocuments}
           legalEntities={legalEntities}
+          onEmploymentChanged={refreshEmploymentEmployee}
           onClose={() => setFormState(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSubmit={saveUser}

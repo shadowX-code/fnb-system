@@ -78,6 +78,9 @@ describe("Employee and Auth lifecycle service contracts", () => {
     await employeeService.saveEmployee({ ...loginEmployee, contact: "0199999999", created_by: "spoofed-editor" });
     expect(mocks.operations[1]).toEqual(expect.objectContaining({ table: "employees", method: "update", filters: [["id", loginEmployee.id]], payload: expect.objectContaining({ auth_user_id: loginEmployee.auth_user_id, email: loginEmployee.email, role_id: loginEmployee.role_id, enable_system_login: true }) }));
     expect(mocks.operations[1].payload).not.toHaveProperty("created_by");
+    for (const field of ["employment_type", "employment_status", "position", "department", "legal_entity_id", "workplace", "resigned_date"]) {
+      expect(mocks.operations[1].payload).not.toHaveProperty(field);
+    }
   });
 
   it("normalizes login email before the canonical employee row is persisted", async () => {
