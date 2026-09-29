@@ -1,8 +1,7 @@
 import { supabase } from "../lib/supabase";
-import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { isSupabaseUuid } from "./idUtils";
-import { enabledActions, getPermissionDefinitions, moduleRegistry, permissionCode } from "../../config/modules.ts";
+import { enabledActions, moduleRegistry, permissionCode } from "../../config/modules.ts";
 import { isProtectedRoleName } from "../auth/rbac.js";
 import { roleHasRestaurantPermissions } from "../features/company-users/utils/roleAccess.js";
 import { normalizeEmployeeAccessState } from "../constants/employeeAccessStates.js";
@@ -35,24 +34,6 @@ const roleOptionSelectFallback = `
 function isMissingOutletAccessColumnError(error) {
   const message = String(error?.message ?? error?.details ?? "");
   return message.includes("outlet_access_type") || message.includes("Could not find") || error?.code === "PGRST200" || error?.code === "PGRST204";
-}
-
-async function syncPermissionCatalog(permissionCodes) {
-  const requestedCodes = new Set(permissionCodes);
-  const definitions = getPermissionDefinitions()
-    .filter((definition) => requestedCodes.has(definition.code))
-    .map((definition) => ({
-      code: definition.code,
-      module: definition.module,
-      description: definition.description,
-    }));
-
-  if (!definitions.length) return;
-
-  const { error } = await supabase
-    .from("permissions")
-    .upsert(definitions, { onConflict: "code" });
-  throwSupabaseError("roles.permissions_sync", error);
 }
 
 function mapRole(row) {
@@ -150,7 +131,11 @@ export const roleService = {
   },
 
   async saveRole(role) {
-    const permissionCodes = [...new Set((role.permissions ?? []).filter((code) => registryPermissionCodeSet.has(code)))];
+    const requestedCodes = role.permissions ?? [];
+    if (requestedCodes.some((code) => !registryPermissionCodeSet.has(code))) {
+      throw new Error("Role includes an unavailable permission. Reload the role before trying again.");
+    }
+    const permissionCodes = [...new Set(requestedCodes)];
     const outletScopeApplicable = roleHasRestaurantPermissions(permissionCodes);
     const outletAccess = outletScopeApplicable ? (role.outletAccess === "selected" ? "selected" : "all") : "none";
     const selectedOutletIds = outletScopeApplicable && outletAccess === "selected" ? (role.selectedOutletIds ?? []) : [];
@@ -161,26 +146,23 @@ export const roleService = {
       is_active: role.is_active !== false,
       outlet_access_type: outletAccess,
     };
-    const isUpdate = isSupabaseUuid(role.id);
     const requestId = role.requestId || crypto.randomUUID();
     const { data, error } = await supabase.rpc("save_role_configuration", {
       p_request_id: requestId, p_role: payload, p_permission_codes: permissionCodes,
       p_outlet_ids: selectedOutletIds,
     });
     throwSupabaseError("roles.save_configuration", error);
+    const persistedPermissions = data?.permissions;
+    if (!Array.isArray(persistedPermissions)
+      || persistedPermissions.length !== permissionCodes.length
+      || persistedPermissions.some((code) => !permissionCodes.includes(code))) {
+      throw new Error("Role permissions were not saved completely. Reload the role before trying again.");
+    }
     const savedRole = data?.role ?? data;
-
-    await auditLogService.createAuditLog({
-      action: isUpdate ? "role_updated" : "role_created",
-      module: "access-control",
-      target: savedRole.name,
-      description: isUpdate ? "Role updated." : "Role created.",
-      after: { ...savedRole, permissions: permissionCodes, outletAccess, selectedOutletIds },
-    }).catch(() => {});
 
     return {
       ...savedRole,
-      permissions: data?.permissions ?? permissionCodes,
+      permissions: persistedPermissions,
       modules: [],
       outletScopeApplicable,
       outletAccess,
