@@ -46,6 +46,34 @@ describe("Crew Leave mobile", () => {
     expect(screen.getByRole("dialog", { name: "Start Date" })).not.toBeNull();
   });
 
+  it("does not present unresolved pre-cutover history as an unlimited balance", async () => {
+    crewService.myLeave.mockResolvedValue({
+      ...payload,
+      balances: [{ entitlement_id: null, leave_type: "annual", available: null,
+        balance_enforced: true, eligibility_state: "review_required" }],
+    });
+    render(<CrewLeaveMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByText("Review Required", { selector: ".crew-leave-balance-card strong" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Apply Leave" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("button", { name: "Continue" }).disabled).toBe(true);
+    expect(screen.getByText("Employment history needs review before a new request.")).not.toBeNull();
+  });
+
+  it("does not present a durable unlimited balance as current eligibility", async () => {
+    crewService.myLeave.mockResolvedValue({
+      ...payload,
+      balances: [{ entitlement_id: "old-unpaid", leave_type: "unpaid", available: null,
+        balance_enforced: false, eligibility_state: "resolved", current_eligibility: "not_eligible" }],
+    });
+    render(<CrewLeaveMobile token="opaque-session" onBack={() => {}} />);
+    expect(await screen.findByText("Not Eligible", { selector: ".crew-leave-balance-card strong" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Apply Leave" }));
+    fireEvent.click(screen.getByRole("button", { name: /Unpaid Leave/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByRole("button", { name: "Continue" }).disabled).toBe(true);
+  });
+
   it("uses the shared selected owner and Mint operational surfaces throughout Apply Leave", async () => {
     render(<CrewLeaveMobile token="opaque-session" onBack={() => {}} />);
     fireEvent.click(await screen.findByRole("button", { name: "Apply Leave" }));

@@ -54,7 +54,7 @@ const data = {
   }],
   balances: employees.flatMap((employee) => ["annual", "medical", "unpaid", "other"].map((type) => balance(employee, type))),
   policies: [
-    { id: "policy-annual", leave_type: "annual", annual_days: 12, balance_enforced: true, proration_enabled: true, carry_forward_enabled: true, max_carry_forward_days: 5, carry_forward_expiry_month: 3, carry_forward_expiry_day: 31 },
+    { id: "policy-annual", leave_type: "annual", annual_days: 12, balance_enforced: true, proration_enabled: true, proration_rule: "calendar_days", entitlement_method: "annual_allowance", eligible_employment_types: ["full_time", "part_time"], current_version_id: "version-annual", carry_forward_enabled: true, max_carry_forward_days: 5, carry_forward_expiry_month: 3, carry_forward_expiry_day: 31 },
     { id: "policy-unpaid", leave_type: "unpaid", annual_days: 0, balance_enforced: false, proration_enabled: false, carry_forward_enabled: false, max_carry_forward_days: 0 },
   ],
 };
@@ -178,8 +178,32 @@ describe("Crew Leave Admin UI", () => {
     fireEvent.click(within(dialog).getByRole("button", { name: "Close modal" }));
     fireEvent.click(within(rows[1]).getByRole("button", { name: /Edit/ }));
     dialog = screen.getByRole("dialog", { name: "Edit Unpaid Leave" });
-    expect(within(dialog).getByText("Unlimited leave")).not.toBeNull();
+    expect(within(dialog).getByText("Unlimited / no balance limit")).not.toBeNull();
+    expect(within(dialog).getByText("Eligible Employment Types")).not.toBeNull();
     expect(within(dialog).queryByText("Annual entitlement")).toBeNull();
+  });
+
+  it("shows dated policy eligibility and a reason before saving a version", async () => {
+    render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
+    await screen.findByText("Alex Tan");
+    fireEvent.click(screen.getByRole("tab", { name: "Settings" }));
+    await screen.findAllByRole("button", { name: /Edit/ });
+    fireEvent.click(within(document.querySelectorAll("tbody tr")[0]).getByRole("button", { name: /Edit/ }));
+    const dialog = screen.getByRole("dialog", { name: "Edit Annual Leave" });
+    expect(within(dialog).getByText("Eligible Employment Types")).not.toBeNull();
+    expect(within(dialog).getByText("Proration Rule")).not.toBeNull();
+    const confirm = within(dialog).getByRole("button", { name: "Confirm Policy" });
+    expect(confirm.disabled).toBe(true);
+    fireEvent.change(within(dialog).getByPlaceholderText("Why is this policy changing?"), { target: { value: "Eligibility update" } });
+    expect(confirm.disabled).toBe(false);
+    fireEvent.click(confirm);
+    await waitFor(() => expect(mocks.saveLeavePolicy).toHaveBeenCalledWith("outlet-1", "annual", expect.objectContaining({
+      eligible_employment_types: ["full_time", "part_time"],
+      entitlement_method: "annual_allowance",
+      proration_rule: "calendar_days",
+      expected_version_id: "version-annual",
+      reason: "Eligibility update",
+    })));
   });
 
   it("shows retry and filter-no-results states", async () => {

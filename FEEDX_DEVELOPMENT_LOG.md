@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-09-29 — Leave Employment Eligibility Phase 2
+
+- Leave Policy versions now own eligible Employment Types, entitlement method, and proration rule. New grants use People employment-as-of spans with half-day final rounding; unverified pre-cutover history fails closed. Existing grants stay durable, and employment/policy changes append review evidence for controlled Leave correction. This does not alter finalized Payroll, published Roster, Attendance, or Performance evidence.
+
 ## 2026-09-27 — Payroll effective-date contract
 
 - Initial pay setup recommends Joined Date for explicit confirmation. New statutory setup uses append-only payroll-month revisions with unchanged legacy exact-date evidence and finalized snapshots. Recurring definitions require an explicit calendar-day/full-active/next-full-period policy; canonical calculation pins its evidence and preserves genuine missing-pay and salary-blending blockers. No statutory schedule, overtime, payment or payslip authority changed.

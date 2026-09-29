@@ -87,6 +87,11 @@ resources.learn.referenceOnly = "Untuk rujukan sahaja";
 resources.tasks.noOutletTasks = "Tiada tugas di cawangan ini hari ini.";
 resources.assets.readOnlySubtitle = "Lihat aset cawangan";
 resources.leave.managementReadOnly = "Permohonan cuti memerlukan cawangan pekerjaan yang ditetapkan. Sejarah cuti anda masih boleh dilihat.";
+resources.leave.eligibilityReview = "Perlu Semakan";
+resources.leave.eligibilityReviewHelp = "Hubungi Pentadbir Cuti";
+resources.leave.eligibilityReviewBeforeRequest = "Sejarah pekerjaan perlu disemak sebelum permohonan baharu.";
+resources.leave.notEligible = "Tidak Layak";
+resources.leave.notEligibleHelp = "Jenis pekerjaan semasa anda tidak layak untuk cuti ini.";
 resources.cash.managementMeSubtitle = "Semak tunai outlet dan serahkan wang";
 resources.inventory = {
   operations:"Operasi",stockCheck:"Semakan Stok",purchaseOrders:"Pesanan Belian",purchaseOrder:"Pesanan Belian",loadError:"Tidak dapat memuatkan operasi outlet.",saveError:"Tidak dapat menyimpan. Input anda kekal untuk dicuba semula.",noAccess:"Tiada akses operasi",noAccessBody:"Minta Admin memberikan akses untuk outlet ini.",stockDueCount:"{{count}} semakan perlu dibuat hari ini",draftsCount:"{{count}} draf untuk disambung",receivingCount:"{{count}} menunggu penerimaan",confirmCount:"{{count}} menunggu pengesahan",stockAllClear:"Selesai hari ini · Tiada semakan tertunggak",ordersAllClear:"Tiada pesanan memerlukan tindakan",start:"Mula",resume:"Sambung",updatedAt:"Dikemas kini {{date}}",stockSummary:"{{due}} perlu dibuat · {{drafts}} draf",poSummary:"{{confirm}} untuk disahkan · {{receive}} untuk diterima",

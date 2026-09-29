@@ -87,6 +87,11 @@ resources.learn.referenceOnly = "仅供查阅";
 resources.tasks.noOutletTasks = "这家门店今天没有任务。";
 resources.assets.readOnlySubtitle = "查看门店资产";
 resources.leave.managementReadOnly = "申请假期需要指定工作门店。您仍可查看请假记录。";
+resources.leave.eligibilityReview = "需要审核";
+resources.leave.eligibilityReviewHelp = "请联系假期管理员";
+resources.leave.eligibilityReviewBeforeRequest = "提交新申请前，需要先审核您的雇佣记录。";
+resources.leave.notEligible = "不符合资格";
+resources.leave.notEligibleHelp = "您目前的雇佣类型不符合此假期的资格。";
 resources.cash.managementMeSubtitle = "查看门店现金并交接款项";
 resources.inventory = {
   operations:"门店营运",stockCheck:"库存盘点",purchaseOrders:"采购订单",purchaseOrder:"采购订单",loadError:"无法加载门店营运资料。",saveError:"保存失败，输入内容仍保留，可重试。",noAccess:"没有营运权限",noAccessBody:"请管理员授予此门店的权限。",stockDueCount:"今天有 {{count}} 项盘点待办",draftsCount:"{{count}} 份草稿待继续",receivingCount:"{{count}} 份订单待收货",confirmCount:"{{count}} 份订单待确认",stockAllClear:"今天已完成 · 没有待办盘点",ordersAllClear:"没有需要处理的订单",start:"开始",resume:"继续",updatedAt:"更新于 {{date}}",stockSummary:"{{due}} 项待办 · {{drafts}} 份草稿",poSummary:"{{confirm}} 份待确认 · {{receive}} 份待收货",
