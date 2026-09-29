@@ -47,6 +47,7 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
   const [correction, setCorrection] = useState(null);
   const [adjustmentHistory, setAdjustmentHistory] = useState({ loading: false, error: "", rows: [] });
   const [policy, setPolicy] = useState(null);
+  const [policyHistory, setPolicyHistory] = useState(null);
   const [saving, setSaving] = useState(false);
   const [policies, setPolicies] = useState({ rows: [], loading: false, error: "" });
   const canReview = auth.hasPermission("crew_leave.review");
@@ -66,6 +67,7 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
     catch (cause) { setPolicies((current) => ({ ...current, loading: false, error: cause.message || "Unable to load leave policies." })); }
   }, [outletId]);
   useEffect(() => { if (tab === "settings") loadPolicies(); }, [loadPolicies, tab]);
+  useEffect(() => { setPolicyHistory(null); }, [outletId]);
   const hasActiveFilters = tab === "requests" ? Boolean(filters.search || filters.type !== "all" || filters.status !== "all") : Boolean(filters.search);
   const clearFilters = () => setFilters({ search: "", type: "all", status: "all" });
 
@@ -86,6 +88,11 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
   const adjust = async (amount, reason) => { const employeeId = adjustment.employee?.id || adjustment.employee_id; setSaving(true); try { await crewService.adjustLeaveBalance(adjustment.entitlement_id, amount, reason); const fresh = await balanceActions.refreshNow(); const group = fresh?.rows?.find((item) => item.employee?.id === employeeId); await loadAdjustmentHistory(employeeId); ui.notify({ title: "Balance adjusted", message: "The immutable adjustment is now included in the employee balance and history.", tone: "success" }); setAdjustment(null); setBalanceEmployee(group || null); } catch (cause) { ui.notify({ title: "Unable to adjust balance", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
   const reconcile = async (reason) => { const employeeId = correction.employee?.id || correction.employee_id; setSaving(true); try { await crewService.reconcileLeaveEntitlement(correction.review_id, reason); const fresh = await balanceActions.refreshNow(); const group = fresh?.rows?.find((item) => item.employee?.id === employeeId); await loadAdjustmentHistory(employeeId); ui.notify({ title: "Leave correction recorded", message: "The prior grant remains unchanged; the correction is auditable.", tone: "success" }); setCorrection(null); setBalanceEmployee(group || null); } catch (cause) { ui.notify({ title: "Unable to correct entitlement", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
   const savePolicy = async (values) => { setSaving(true); try { await crewService.saveLeavePolicy(outletId, policy.leave_type, values); ui.notify({ title: "Leave policy saved", message: values.historical_terms_verified ? "The evidenced historical version is recorded. Existing grants remain unchanged and affected grants are flagged for review." : "New entitlement calculations use the saved effective-dated policy. Existing grants remain unchanged.", tone: "success" }); setPolicy(null); await loadPolicies(); } catch (cause) { ui.notify({ title: "Unable to save policy", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
+  const openPolicyHistory = async (selected) => {
+    setPolicyHistory({ policy: selected, rows: [], loading: true, error: "" });
+    try { const rows = await crewService.leavePolicyHistory(selected.outlet_id, selected.leave_type); setPolicyHistory((current) => current?.policy.id === selected.id ? { ...current, rows, loading: false } : current); }
+    catch (cause) { setPolicyHistory((current) => current?.policy.id === selected.id ? { ...current, loading: false, error: cause.message || "Unable to load policy history." } : current); }
+  };
 
   return <div className="min-w-0 overflow-x-hidden space-y-4">
     <PageHeader section="Crew · Workforce" title="Leave" description="Review requests, understand employee balances and manage auditable outlet leave policy." />
@@ -93,12 +100,13 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
     <LeaveToolbar tab={tab} outlets={outlets} outletId={outletId} setOutletId={setOutletId} filters={filters} setFilters={setFilters} hasActiveFilters={hasActiveFilters} clearFilters={clearFilters} />
     {tab === "requests" ? <RequestsPanel rows={requestListing.rows} listing={requestListing} actions={requestActions} filtered={hasActiveFilters} canReview={canReview} setReview={setReview} /> : null}
     {tab === "balances" ? <BalancesPanel rows={balanceListing.rows} listing={balanceListing} actions={balanceActions} filtered={Boolean(filters.search)} onManage={openBalance} /> : null}
-    {tab === "settings" ? <SettingsPanel rows={policies.rows} loading={policies.loading} error={policies.error} onRetry={loadPolicies} canManage={canSettings} onEdit={setPolicy} /> : null}
+    {tab === "settings" ? <SettingsPanel rows={policies.rows} loading={policies.loading} error={policies.error} onRetry={loadPolicies} canManage={canSettings} onEdit={setPolicy} onHistory={openPolicyHistory} /> : null}
     {review ? <LeaveReview request={review} canReview={canReview} saving={saving} onClose={() => setReview(null)} onDecide={decide} /> : null}
     {balanceEmployee ? <BalanceDetail group={balanceEmployee} history={adjustmentHistory} canAdjust={canAdjust} onRetryHistory={() => loadAdjustmentHistory(balanceEmployee.employee?.id)} onClose={() => setBalanceEmployee(null)} onAdjust={(row) => { setBalanceEmployee(null); setAdjustment(row); }} onCorrect={(row) => { setBalanceEmployee(null); setCorrection(row); }} /> : null}
     {adjustment ? <AdjustmentModal balance={adjustment} saving={saving} onClose={() => setAdjustment(null)} onSave={adjust} /> : null}
     {correction ? <CorrectionModal balance={correction} saving={saving} onClose={() => setCorrection(null)} onSave={reconcile} /> : null}
     {policy ? <PolicyModal policy={policy} saving={saving} onClose={() => setPolicy(null)} onSave={savePolicy} /> : null}
+    {policyHistory ? <PolicyHistoryModal {...policyHistory} onRetry={() => openPolicyHistory(policyHistory.policy)} onClose={() => setPolicyHistory(null)} /> : null}
   </div>;
 }
 
@@ -121,7 +129,7 @@ function requestColumns(canReview, setReview) { return [
   { key: "type", header: "Leave Type", render: (row) => <span className="text-text-primary">{typeLabel[row.leave_type]}</span> },
   { key: "dates", header: "Dates", render: (row) => <span className="whitespace-nowrap text-text-secondary">{formatLeaveDateRange(row.start_date, row.end_date)}</span> },
   { key: "duration", header: "Duration", render: (row) => <span className="text-text-secondary">{formatDays(row.requested_days)}</span> },
-  { key: "balance", header: "Balance", render: (row) => <span className="text-text-secondary">{!row.balance_context ? "—" : row.balance_context.balance_enforced === false ? "Unlimited" : `${formatDays(row.balance_context.available)} available`}</span> },
+  { key: "balance", header: "Balance", render: (row) => <span className="text-text-secondary">{!row.balance_context ? "—" : row.balance_context.eligibility_state === "review_required" ? "Review Required" : row.balance_context.balance_enforced === false ? "Unlimited" : row.balance_context.available == null ? "Unavailable" : `${formatDays(row.balance_context.available)} available`}</span> },
   { key: "conflict", header: "Roster", render: (row) => { const working = row.roster_context?.filter((day) => day.schedule?.entry_type === "working") || []; return working.length ? <Badge tone="warning">{working.length} conflict{working.length === 1 ? "" : "s"}</Badge> : <span className="text-text-secondary">No conflict</span>; } },
   { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{statusLabel(row.status)}</Badge> },
   { key: "action", header: "Action", align: "right", render: (row) => row.status === "pending" && canReview ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => setReview(row)}>Review</button> : <button className="icon-btn h-9 w-9 min-h-9" type="button" aria-label={`View leave request for ${row.employee?.name || "employee"}`} title="View request" onClick={() => setReview(row)}><Eye size={16} /></button> },
@@ -141,7 +149,7 @@ function BalancesPanel({ rows, listing, actions, filtered, onManage }) {
   ]} /><AdminPagination {...listing} onPageChange={actions.requestPage} onPageSizeChange={actions.requestPageSize} noun="Crew balances" /></AsyncDataSurface></Card>;
 }
 
-function SettingsPanel({ rows, loading, error, onRetry, canManage, onEdit }) {
+function SettingsPanel({ rows, loading, error, onRetry, canManage, onEdit, onHistory }) {
   return <Card title="Leave Policy" description="Calendar-year defaults are outlet scoped. Existing annual grants remain unchanged for auditability."><AsyncDataSurface loading={loading} error={error} hasData={rows.length > 0} isEmpty={!rows.length} onRetry={onRetry} emptyTitle="No leave policies" emptyDescription="Outlet leave policies will appear here when configured."><DataTable density="compact" tableClassName="min-w-[920px]" rows={rows} getRowKey={(row) => row.id} columns={[
     { key: "type", header: "Leave Type", render: (row) => <span className="font-semibold text-text-primary">{typeLabel[row.leave_type]}</span> },
     { key: "entitlement", header: "Entitlement", render: (row) => row.balance_enforced ? `${formatDays(row.annual_days)} / year` : "Unlimited" },
@@ -149,8 +157,22 @@ function SettingsPanel({ rows, loading, error, onRetry, canManage, onEdit }) {
     { key: "eligibility", header: "Eligible Employment", render: (row) => <span className="text-text-secondary">{(row.eligible_employment_types || []).map((value) => employmentTypeOptions.find((item) => item.value === value)?.label || value).join(", ") || "Unresolved"}</span> },
     { key: "proration", header: "Proration", render: (row) => <Badge tone={row.proration_rule === "calendar_days" ? "success" : "neutral"}>{row.proration_rule === "calendar_days" ? "Eligible calendar days" : "No proration"}</Badge> },
     { key: "carry", header: "Carry Forward", render: (row) => row.carry_forward_enabled ? <div><span className="text-text-primary">Enabled</span><small className="block text-text-secondary">Max {formatDays(row.max_carry_forward_days)} · Expires {String(row.carry_forward_expiry_day || "").padStart(2, "0")}/{String(row.carry_forward_expiry_month || "").padStart(2, "0")}</small></div> : <span className="text-text-secondary">Off</span> },
-    { key: "action", header: "Action", align: "right", render: (row) => canManage ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onEdit(row)}><Settings2 size={14} /> Edit</button> : "—" },
+    { key: "action", header: "Action", align: "right", render: (row) => canManage ? <div className="flex justify-end gap-2"><button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onHistory(row)}><History size={14} /> History</button><button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onEdit(row)}><Settings2 size={14} /> Edit</button></div> : "—" },
   ]} /></AsyncDataSurface></Card>;
+}
+
+function PolicyHistoryModal({ policy, rows, loading, error, onRetry, onClose }) {
+  const employmentLabel = (types) => (types || []).map((value) => employmentTypeOptions.find((item) => item.value === value)?.label || value).join(", ");
+  return <Modal size="xl" title={`${typeLabel[policy.leave_type]} Policy History`} description="Effective policy terms and preserved audit observations for this outlet." onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+    <AsyncDataSurface loading={loading} error={error} hasData={rows.length > 0} isEmpty={!rows.length} onRetry={onRetry} emptyTitle="No policy versions" emptyDescription="Saved policy versions will appear here.">
+      <div className="space-y-3">{rows.map((row) => <section className="rounded-xl border border-border p-4" key={row.id}>
+        <div className="flex flex-wrap items-start justify-between gap-2"><div><strong className="text-sm text-text-primary">{formatLeaveDate(row.effective_from)}{row.authority_state === "effective" ? ` onward${row.effective_until ? ` to ${formatLeaveDate(row.effective_until)}` : ""}` : ""}</strong><p className="mt-1 text-xs text-text-secondary">{row.source_kind === "historical_baseline" ? "Evidenced historical policy" : row.source_kind === "cutover_current" ? "Verified cutover observation" : "Admin policy change"}</p></div><Badge tone={row.authority_state === "effective" ? "success" : "neutral"}>{row.authority_state === "effective" ? "Effective" : row.authority_state === "observation" ? "Observation only" : "Superseded"}</Badge></div>
+        <p className="mt-3 text-sm text-text-primary">{row.balance_enforced ? `${formatDays(row.annual_days)} / year` : "Unlimited"} · {row.proration_rule === "calendar_days" ? "Eligible calendar days" : "No proration"} · {employmentLabel(row.eligible_employment_types)}</p>
+        <p className="mt-1 text-xs text-text-secondary">Carry forward: {row.carry_forward_enabled ? `up to ${formatDays(row.max_carry_forward_days)}, expires ${String(row.carry_forward_expiry_day || "").padStart(2, "0")}/${String(row.carry_forward_expiry_month || "").padStart(2, "0")}` : "Off"}</p>
+        <div className="mt-3 border-t border-border pt-3 text-xs text-text-secondary"><p>Recorded {formatLeaveDate(row.recorded_at)} by {row.recorded_by_name || "FeedX Admin"}</p><p className="mt-1">Reason: {row.reason}</p>{row.evidence_reference ? <p className="mt-1">Reference: {row.evidence_reference}</p> : null}</div>
+      </section>)}</div>
+    </AsyncDataSurface>
+  </Modal>;
 }
 
 function LeaveReview({ request, canReview, saving, onClose, onDecide }) {
@@ -158,13 +180,14 @@ function LeaveReview({ request, canReview, saving, onClose, onDecide }) {
   const [reason, setReason] = useState("");
   const balance = request.balance_context;
   const requested = Number(request.requested_days || 0);
-  const availableAfter = balance?.balance_enforced === false ? null : Number(balance?.available || 0);
+  const balanceUnavailable = balance?.eligibility_state === "review_required" || balance?.available == null && balance?.balance_enforced !== false;
+  const availableAfter = balanceUnavailable || balance?.balance_enforced === false ? null : Number(balance?.available || 0);
   const availableBefore = availableAfter == null ? null : availableAfter + requested;
-  const footer = mode === "reject" ? <><button className="btn-secondary" type="button" onClick={() => setMode("review")}>Back</button><button className="btn-danger" type="button" disabled={saving || !reason.trim()} onClick={() => onDecide("reject", reason)}>Confirm Rejection</button></> : mode === "approve" ? <><button className="btn-secondary" type="button" onClick={() => setMode("review")}>Back</button><button className="btn-primary" type="button" disabled={saving || (balance?.balance_enforced && Number(balance?.available) < 0)} onClick={() => onDecide("approve")}><Check size={16} /> Approve Leave</button></> : request.status === "pending" && canReview ? <><button className="btn-danger" type="button" onClick={() => setMode("reject")}><X size={16} /> Reject</button><button className="btn-primary" type="button" onClick={() => setMode("approve")}><Check size={16} /> Approve</button></> : <button className="btn-secondary" type="button" onClick={onClose}>Close</button>;
+  const footer = mode === "reject" ? <><button className="btn-secondary" type="button" onClick={() => setMode("review")}>Back</button><button className="btn-danger" type="button" disabled={saving || !reason.trim()} onClick={() => onDecide("reject", reason)}>Confirm Rejection</button></> : mode === "approve" ? <><button className="btn-secondary" type="button" onClick={() => setMode("review")}>Back</button><button className="btn-primary" type="button" disabled={saving || balanceUnavailable || balance?.current_eligibility === "not_eligible" || (balance?.balance_enforced && Number(balance?.available) < 0)} onClick={() => onDecide("approve")}><Check size={16} /> Approve Leave</button></> : request.status === "pending" && canReview ? <><button className="btn-danger" type="button" onClick={() => setMode("reject")}><X size={16} /> Reject</button><button className="btn-primary" type="button" disabled={balanceUnavailable || balance?.current_eligibility === "not_eligible"} onClick={() => setMode("approve")}><Check size={16} /> Approve</button></> : <button className="btn-secondary" type="button" onClick={onClose}>Close</button>;
   return <Modal size="lg" title="Leave Request" description={`${request.employee?.name} · ${request.employee?.position || "Crew"} · ${request.outlet?.name}`} onClose={onClose} footer={footer}><div className="space-y-5">
     <section className="flex flex-wrap items-start justify-between gap-3 border-b border-border pb-4"><div><span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{typeLabel[request.leave_type]}</span><h3 className="mt-1 text-base font-semibold text-text-primary">{formatLeaveDateRange(request.start_date, request.end_date)} · {formatDays(request.requested_days)}</h3></div><Badge tone={semanticStatusTone(request.status)}>{statusLabel(request.status)}</Badge></section>
     {request.status === "pending" && canReview ? <p className="rounded-xl bg-slate-50 p-3 text-sm leading-6 text-text-secondary">This request has reserved entitlement. Approving records it as used leave; rejecting releases the reservation.</p> : null}
-    {balance ? <section><h3 className="mb-2 text-sm font-semibold text-text-primary">Balance summary</h3><div className="grid grid-cols-3 gap-3 rounded-xl border border-border bg-slate-50/60 p-3"><Detail label="Available before request" value={availableBefore == null ? "Unlimited" : formatDays(availableBefore)} /><Detail label="Requested" value={formatDays(request.requested_days)} /><Detail label="Remaining after approval" value={availableAfter == null ? "Unlimited" : formatDays(availableAfter)} emphasize /></div></section> : null}
+    {balance ? <section><h3 className="mb-2 text-sm font-semibold text-text-primary">Balance summary</h3><div className="grid grid-cols-3 gap-3 rounded-xl border border-border bg-slate-50/60 p-3"><Detail label="Available before request" value={balanceUnavailable ? "Review Required" : availableBefore == null ? "Unlimited" : formatDays(availableBefore)} /><Detail label="Requested" value={formatDays(request.requested_days)} /><Detail label="Remaining after approval" value={balanceUnavailable ? "—" : availableAfter == null ? "Unlimited" : formatDays(availableAfter)} emphasize /></div></section> : null}
     <RosterContext request={request} />
     <section><h3 className="text-sm font-semibold text-text-primary">Reason</h3><p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-text-secondary">{request.reason || "No reason provided."}</p></section>
     {mode === "reject" ? <label className="field"><span>Rejection Reason *</span><textarea className="control min-h-24 w-full py-2" rows="3" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain why this request is rejected" /></label> : null}
@@ -182,13 +205,13 @@ function BalanceDetail({ group, history, canAdjust, onRetryHistory, onClose, onA
     <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">
       {Object.keys(typeLabel).map((type) => {
         const row = group.balances[type];
-        const unresolved = row?.eligibility_state === "review_required" && !row?.entitlement_id;
+        const unresolved = row?.eligibility_state === "review_required";
         const ineligible = row?.current_eligibility === "not_eligible";
         const unlimited = row?.balance_enforced === false;
         return <section className="grid gap-3 p-4 sm:grid-cols-[minmax(180px,1fr)_minmax(0,2fr)_auto] sm:items-center" key={type}>
           <div><h3 className="font-semibold text-text-primary">{typeLabel[type]}</h3><p className="mt-1 text-xs text-text-secondary">{!row ? "Not configured" : unlimited ? "No balance limit" : formatLeaveDateRange(row.period_start, row.period_end)}</p></div>
           {!row ? <span className="text-sm text-text-muted">No entitlement record</span> : unresolved ? <Badge tone="warning">Review Required</Badge> : ineligible ? <Badge tone="neutral">Not Eligible</Badge> : unlimited ? <div><span className="font-semibold text-text-primary">Unlimited</span><small className="block text-text-secondary">No balance limit</small></div> : <div className="grid grid-cols-4 gap-3"><Detail label="Entitled" value={formatDays(row.entitled)} /><Detail label="Used" value={formatDays(row.used)} /><Detail label="Pending" value={formatDays(row.pending)} /><Detail label="Available" value={formatDays(row.available)} emphasize /></div>}
-          {canAdjust && row?.entitlement_id && row.balance_enforced ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onAdjust(row)}><SlidersHorizontal size={14} /> Adjust</button> : <span />}
+          {canAdjust && row?.entitlement_id && row.balance_enforced && !unresolved ? <button className="btn-secondary min-h-9 px-3 py-1.5 text-xs font-semibold" type="button" onClick={() => onAdjust(row)}><SlidersHorizontal size={14} /> Adjust</button> : <span />}
         </section>;
       })}
     </div>
@@ -289,7 +312,7 @@ function PolicyModal({ policy, saving, onClose, onSave }) {
       <DatePickerField label="Effective from" value={values.effective_from} onChange={(value) => update("effective_from", value)} required />
       {context.loading ? <p className="text-sm text-text-secondary">Checking the policy timeline…</p> : null}
       {context.error ? <p role="alert" className="text-sm text-rose-700">{context.error}</p> : null}
-      {historical ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This date precedes the verified {formatLeaveDate(context.data.verified_cutover_from)} cutover. Enter the complete terms supported by your evidence. The next verified version begins {formatLeaveDate(context.data.next_effective_from)}; earlier unsupported dates remain unresolved.</p> : null}
+      {historical ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This date precedes the verified {formatLeaveDate(context.data.verified_cutover_from)} cutover observation. Enter the complete terms supported by your evidence. These terms remain effective until a later policy change{context.data.next_effective_from ? ` on ${formatLeaveDate(context.data.next_effective_from)}` : ""}; earlier unsupported dates remain unresolved.</p> : null}
       {historical && context.data.version?.source_kind === "historical_baseline" ? <p className="rounded-xl border border-border p-3 text-xs text-text-secondary">Existing historical version from {formatLeaveDate(context.data.version.effective_from)} · recorded {formatLeaveDate(context.data.version.recorded_at)}. Reference: {context.data.version.evidence_reference}. Reason: {context.data.version.reason}.</p> : null}
       {ready ? <>
         <MultiSelectField variant="form" label="Eligible Employment Types" value={values.eligible_employment_types} onApply={(value) => update("eligible_employment_types", value)} options={employmentTypeOptions} placeholder="Select employment types" />
