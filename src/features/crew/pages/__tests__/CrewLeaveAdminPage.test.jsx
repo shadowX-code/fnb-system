@@ -139,6 +139,16 @@ describe("Crew Leave Admin UI", () => {
     expect(within(adjustDialog).getByText("New available")).not.toBeNull();
   });
 
+  it("labels an existing pre-cutover grant without claiming reconstructed eligibility evidence", async () => {
+    render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
+    await screen.findByText("Alex Tan");
+    fireEvent.click(screen.getByRole("tab", { name: "Balances" }));
+    await screen.findAllByRole("button", { name: "Manage" });
+    fireEvent.click(screen.getAllByRole("button", { name: "Manage" })[0]);
+    const dialog = screen.getByRole("dialog", { name: "Leave Balance" });
+    expect(within(dialog).getAllByText(/original employment eligibility and policy basis were not verified at cutover/).length).toBeGreaterThan(0);
+  });
+
   it("uses an eye action for finalized requests and keeps pending requests reviewable", async () => {
     mocks.leaveRequestsAdminPage.mockResolvedValueOnce(page([data.requests[0], { ...data.requests[0], id: "request-2", status: "approved" }]));
     render(<CrewLeaveAdminPage auth={auth} store={store} ui={ui} />);
