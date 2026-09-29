@@ -1,5 +1,9 @@
 # FeedX Development Log
 
+## 2026-09-30 — Corrected Cutover Effective Resolution
+
+- People now treats a cutover observation explicitly corrected by an earlier historical assignment as audit-only for effective employment resolution. Genuine later Admin changes still take effect, and Leave scans the same effective revisions for entitlement boundaries. Staging rollback QA covered the dated resolver, current projection, Roster, Leave, Performance, same-date correction lineage, and a later change; no finalized evidence or persistent QA employment record was rewritten.
+
 ## 2026-09-30 — Verified Historical Employment Baseline Correction
 
 - People Change Employment now accepts a complete, explicitly supplied assignment before the original current-only cutover baseline. The append-only revision and audit event establish the earlier verified start without changing Joined Date or inferring earlier history. Roster uses its existing dated People resolver, while finalized historical evidence and current projection remain intact.

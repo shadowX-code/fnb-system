@@ -6,6 +6,7 @@ const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929033
 const readCorrection = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929034204_leave_unresolved_balance_read.sql"), "utf8");
 const resignedCorrection = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929034548_leave_resigned_year_grant_guard.sql"), "utf8");
 const currentEligibility = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929034848_leave_current_eligibility_read.sql"), "utf8");
+const correctedCutover = readFileSync(resolve(process.cwd(), "supabase/migrations/20260929170845_people_corrected_cutover_effective_resolution.sql"), "utf8");
 
 describe("Leave Employment Eligibility V2 authority", () => {
   it("uses one versioned policy and People as-of assignment instead of current Employee employment type", () => {
@@ -21,6 +22,11 @@ describe("Leave Employment Eligibility V2 authority", () => {
     expect(sql).toContain("floor(v_raw*2+0.5)/2");
     expect(sql).toContain("v_policy.annual_days*v_days/v_total");
     expect(sql).toContain("v_lookup:=least(v_start,v_asof)");
+  });
+
+  it("scans only effective People revisions for entitlement boundaries", () => {
+    expect(correctedCutover).toContain("(public.employee_employment_assignment_at(p_employee_id,r.effective_from)).id=r.id");
+    expect(correctedCutover).toContain("Leave entitlement employment boundary changed; manual reconciliation required.");
   });
 
   it("preserves prior grants and replacement Leave while corrections use audited Leave adjustment", () => {
