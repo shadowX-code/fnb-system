@@ -626,3 +626,8 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Draft Roster employee eligibility and identity now resolve the People Employment Assignment Timeline for each roster date. The picker, week save/copy commands and legacy direct-table policies reject unavailable, inactive or cross-outlet dated assignments rather than using today's Employee fields.
 - Future transfers change scheduling eligibility only on their effective date; current Crew Access remains unchanged until People activates the revision. Existing published roster snapshots remain immutable, while new publication revisions pin dated position evidence.
+
+# 2026-09-29 — Employment Records Letters & Notices
+
+- Reframed Crew Employment Records as Contracts, Food Handling Compliance, and Letters & Notices. Contracts remain in their own People document authority.
+- Expanded the existing People warning authority with a typed Letters & Notices catalog and a common issued body. Warning retains its specific fields, sequence, receipt/response lifecycle, and immutable issued history. Advisory / Reminder and General Notice use the current receipt workflow without warning fields; other classified types remain unavailable pending their own trusted workflows.

@@ -239,7 +239,7 @@ const crewMobileDefinitions = [
   crewMobileRouteDefinition({ id: "crew-mobile-employment-documents", screen: "employment-documents", path: "me/employment-records/contracts", legacyPath: "crew/me/employment-records/contracts" }),
   crewMobileRouteDefinition({ id: "crew-mobile-payslips", screen: "payslips", path: "me/payslips", legacyPath: "crew/me/payslips" }),
   crewMobileRouteDefinition({ id: "crew-mobile-compliance", screen: "compliance", path: "me/employment-records/food-handling-compliance", legacyPath: "crew/me/employment-records/documents-compliance", aliases: ["#crew/me/compliance"] }),
-  crewMobileRouteDefinition({ id: "crew-mobile-disciplinary", screen: "disciplinary", path: "me/employment-records/warnings-notices", legacyPath: "crew/me/employment-records/warnings", aliases: ["#crew/me/warnings"] }),
+  crewMobileRouteDefinition({ id: "crew-mobile-disciplinary", screen: "disciplinary", path: "me/employment-records/letters-notices", legacyPath: "crew/me/employment-records/warnings", aliases: ["#crew/me/warnings"], pathAliases: ["/me/employment-records/warnings-notices"] }),
   crewMobileRouteDefinition({ id: "crew-mobile-tasks", screen: "operations", path: "tasks", legacyPath: "crew/tasks" }),
   crewMobileRouteDefinition({ id: "crew-mobile-inventory-operations", screen: "inventory-operations", path: "home/operations", legacyPath: "crew/home/operations" }),
   crewMobileRouteDefinition({ id: "crew-mobile-stock-check", screen: "stock-check", path: "home/operations/stock-check", legacyPath: "crew/home/operations/stock-check" }),
