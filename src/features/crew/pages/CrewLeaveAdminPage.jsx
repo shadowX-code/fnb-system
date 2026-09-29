@@ -85,7 +85,7 @@ export default function CrewLeaveAdminPage({ auth, store, ui }) {
   const decide = async (decision, reason = null) => { setSaving(true); try { await crewService.reviewLeave(review.id, decision, reason); ui.notify({ title: decision === "approve" ? "Leave approved" : "Leave rejected", message: decision === "approve" ? "Balance and Duty Roster evidence are updated." : "Reserved balance has been released.", tone: "success" }); setReview(null); await Promise.all([requestActions.refreshNow(), balanceActions.refreshNow()]); } catch (cause) { ui.notify({ title: "Unable to review leave", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
   const adjust = async (amount, reason) => { const employeeId = adjustment.employee?.id || adjustment.employee_id; setSaving(true); try { await crewService.adjustLeaveBalance(adjustment.entitlement_id, amount, reason); const fresh = await balanceActions.refreshNow(); const group = fresh?.rows?.find((item) => item.employee?.id === employeeId); await loadAdjustmentHistory(employeeId); ui.notify({ title: "Balance adjusted", message: "The immutable adjustment is now included in the employee balance and history.", tone: "success" }); setAdjustment(null); setBalanceEmployee(group || null); } catch (cause) { ui.notify({ title: "Unable to adjust balance", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
   const reconcile = async (reason) => { const employeeId = correction.employee?.id || correction.employee_id; setSaving(true); try { await crewService.reconcileLeaveEntitlement(correction.review_id, reason); const fresh = await balanceActions.refreshNow(); const group = fresh?.rows?.find((item) => item.employee?.id === employeeId); await loadAdjustmentHistory(employeeId); ui.notify({ title: "Leave correction recorded", message: "The prior grant remains unchanged; the correction is auditable.", tone: "success" }); setCorrection(null); setBalanceEmployee(group || null); } catch (cause) { ui.notify({ title: "Unable to correct entitlement", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
-  const savePolicy = async (values) => { setSaving(true); try { await crewService.saveLeavePolicy(outletId, policy.leave_type, values); ui.notify({ title: "Leave policy saved", message: "Future entitlements use the updated policy. Existing grants remain historical.", tone: "success" }); setPolicy(null); await loadPolicies(); } catch (cause) { ui.notify({ title: "Unable to save policy", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
+  const savePolicy = async (values) => { setSaving(true); try { await crewService.saveLeavePolicy(outletId, policy.leave_type, values); ui.notify({ title: "Leave policy saved", message: values.historical_terms_verified ? "The evidenced historical version is recorded. Existing grants remain unchanged and affected grants are flagged for review." : "Future entitlements use the updated policy. Existing grants remain historical.", tone: "success" }); setPolicy(null); await loadPolicies(); } catch (cause) { ui.notify({ title: "Unable to save policy", message: cause.message, tone: "error" }); } finally { setSaving(false); } };
 
   return <div className="min-w-0 overflow-x-hidden space-y-4">
     <PageHeader section="Crew · Workforce" title="Leave" description="Review requests, understand employee balances and manage auditable outlet leave policy." />
@@ -228,12 +228,86 @@ function AdjustmentModal({ balance, saving, onClose, onSave }) {
 }
 
 function PolicyModal({ policy, saving, onClose, onSave }) {
-  const [values, setValues] = useState({ annual_days: policy.annual_days, eligible_employment_types: policy.eligible_employment_types || employmentTypeOptions.map((item) => item.value), entitlement_method: policy.entitlement_method || (policy.balance_enforced ? "annual_allowance" : "unlimited"), proration_rule: policy.proration_rule || (policy.proration_enabled ? "calendar_days" : "none"), effective_from: malaysiaToday(), expected_version_id: policy.current_version_id, reason: "", carry_forward_enabled: policy.carry_forward_enabled, max_carry_forward_days: policy.max_carry_forward_days, carry_forward_expiry_month: policy.carry_forward_expiry_month ? String(policy.carry_forward_expiry_month) : "", carry_forward_expiry_day: policy.carry_forward_expiry_day ? String(policy.carry_forward_expiry_day) : "" });
+  const [values, setValues] = useState({
+    effective_from: malaysiaToday(), eligible_employment_types: [], entitlement_method: "",
+    proration_rule: "", annual_days: "", carry_forward_enabled: false,
+    max_carry_forward_days: "", carry_forward_expiry_month: "", carry_forward_expiry_day: "",
+    reason: "", evidence_reference: "", historical_terms_verified: false,
+  });
+  const [context, setContext] = useState({ date: "", loading: false, data: null, error: "" });
   const update = (key, value) => setValues((current) => ({ ...current, [key]: value }));
+  useEffect(() => {
+    const date = values.effective_from;
+    if (!date) { setContext({ date: "", loading: false, data: null, error: "" }); return; }
+    let active = true;
+    setContext({ date, loading: true, data: null, error: "" });
+    crewService.leavePolicyEditContext(policy.outlet_id, policy.leave_type, date)
+      .then((data) => {
+        if (!active) return;
+        const version = data.version;
+        setValues((current) => current.effective_from !== date ? current : {
+          ...current,
+          eligible_employment_types: version?.eligible_employment_types || [],
+          entitlement_method: version?.entitlement_method || "",
+          proration_rule: version?.proration_rule || "",
+          annual_days: version?.annual_days ?? "",
+          carry_forward_enabled: version?.carry_forward_enabled ?? false,
+          max_carry_forward_days: version?.max_carry_forward_days ?? "",
+          carry_forward_expiry_month: version?.carry_forward_expiry_month ? String(version.carry_forward_expiry_month) : "",
+          carry_forward_expiry_day: version?.carry_forward_expiry_day ? String(version.carry_forward_expiry_day) : "",
+          reason: "", evidence_reference: "", historical_terms_verified: false,
+        });
+        setContext({ date, loading: false, data, error: "" });
+      })
+      .catch((cause) => { if (active) setContext({ date, loading: false, data: null, error: cause.message || "Unable to load policy history." }); });
+    return () => { active = false; };
+  }, [policy.outlet_id, policy.leave_type, values.effective_from]);
+  const ready = context.date === values.effective_from && !context.loading && Boolean(context.data);
+  const historical = ready && context.data.historical;
   const unlimited = values.entitlement_method === "unlimited";
-  const invalid = !values.effective_from || values.reason.trim().length < 3 || !values.eligible_employment_types.length || (!unlimited && (Number(values.annual_days) < 0 || !Number.isFinite(Number(values.annual_days)))) || (!unlimited && values.carry_forward_enabled && (Number(values.max_carry_forward_days) < 0 || !values.carry_forward_expiry_month || !values.carry_forward_expiry_day));
-  const submit = () => onSave({ ...values, annual_days: unlimited ? 0 : Number(values.annual_days), proration_rule: unlimited ? "none" : values.proration_rule, carry_forward_enabled: unlimited ? false : values.carry_forward_enabled });
-  return <Modal size="md" title={`Edit ${typeLabel[policy.leave_type]}`} description="Employment eligibility and entitlement are effective from the chosen date. Existing grants stay historical and changes needing correction are flagged for review." onClose={onClose} footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={saving || invalid} onClick={submit}>Confirm Policy</button></>}><div className="space-y-4"><MultiSelectField variant="form" label="Eligible Employment Types" value={values.eligible_employment_types} onApply={(value) => update("eligible_employment_types", value)} options={employmentTypeOptions} placeholder="Select employment types" /><SelectField label="Entitlement Method" value={values.entitlement_method} onChange={(value) => update("entitlement_method", value)} options={[{ value: "annual_allowance", label: "Annual allowance" }, { value: "unlimited", label: "Unlimited / no balance limit" }]} />{!unlimited ? <><label className="field"><span>Annual entitlement</span><input className="control w-full" type="number" min="0" step="0.5" value={values.annual_days} onChange={(event) => update("annual_days", event.target.value)} /></label><SelectField label="Proration Rule" value={values.proration_rule} onChange={(value) => update("proration_rule", value)} options={[{ value: "calendar_days", label: "Eligible calendar days ÷ year days" }, { value: "none", label: "No proration" }]} /><ToggleRow label="Carry forward" help="Allow unused entitlement to carry into the next annual period." checked={values.carry_forward_enabled} onChange={(checked) => update("carry_forward_enabled", checked)} />{values.carry_forward_enabled ? <div className="grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-2"><label className="field sm:col-span-2"><span>Maximum carry-forward</span><input className="control w-full" type="number" min="0" step="0.5" value={values.max_carry_forward_days} onChange={(event) => update("max_carry_forward_days", event.target.value)} /></label><SelectField label="Expiry month" value={values.carry_forward_expiry_month} onChange={(value) => update("carry_forward_expiry_month", value)} options={monthOptions} placeholder="Month" /><SelectField label="Expiry day" value={values.carry_forward_expiry_day} onChange={(value) => update("carry_forward_expiry_day", value)} options={dayOptions} placeholder="Day" /></div> : null}</> : <p className="text-sm text-text-secondary">Requests remain subject to Employment Type eligibility, without an entitlement balance limit.</p>}<DatePickerField label="Effective from" value={values.effective_from} onChange={(value) => update("effective_from", value)} required /><label className="field"><span>Reason *</span><textarea className="control min-h-20 w-full py-2" rows="2" maxLength="500" value={values.reason} onChange={(event) => update("reason", event.target.value)} placeholder="Why is this policy changing?" /></label></div></Modal>;
+  const invalid = !ready || !values.reason.trim() || values.reason.trim().length < 3
+    || !values.eligible_employment_types.length || !values.entitlement_method
+    || (!unlimited && (!values.proration_rule || values.annual_days === "" || Number(values.annual_days) < 0 || !Number.isFinite(Number(values.annual_days))))
+    || (!unlimited && values.carry_forward_enabled && (values.max_carry_forward_days === "" || Number(values.max_carry_forward_days) < 0 || !values.carry_forward_expiry_month || !values.carry_forward_expiry_day))
+    || (historical && (values.evidence_reference.trim().length < 3 || !values.historical_terms_verified));
+  const submit = () => {
+    if (invalid) return;
+    const carry = !unlimited && values.carry_forward_enabled;
+    onSave({ ...values,
+      annual_days: unlimited ? 0 : Number(values.annual_days),
+      proration_rule: unlimited ? "none" : values.proration_rule,
+      carry_forward_enabled: carry,
+      max_carry_forward_days: historical && !carry ? 0 : Number(values.max_carry_forward_days || 0),
+      carry_forward_expiry_month: historical && !carry ? null : values.carry_forward_expiry_month,
+      carry_forward_expiry_day: historical && !carry ? null : values.carry_forward_expiry_day,
+      expected_version_id: context.data.expected_version_id,
+      expected_next_version_id: context.data.expected_next_version_id,
+    });
+  };
+  return <Modal size="md" title={`Edit ${typeLabel[policy.leave_type]}`} description="Set the policy terms for the effective date. Existing grants stay historical; changes needing correction are flagged for review." onClose={onClose} footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={saving || invalid} onClick={submit}>{historical ? "Establish Historical Policy" : "Confirm Policy"}</button></>}>
+    <div className="space-y-4">
+      <DatePickerField label="Effective from" value={values.effective_from} onChange={(value) => update("effective_from", value)} required />
+      {context.loading ? <p className="text-sm text-text-secondary">Checking the policy timeline…</p> : null}
+      {context.error ? <p role="alert" className="text-sm text-rose-700">{context.error}</p> : null}
+      {historical ? <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">This date precedes the verified {formatLeaveDate(context.data.verified_cutover_from)} cutover. Enter the complete terms supported by your evidence. The next verified version begins {formatLeaveDate(context.data.next_effective_from)}; earlier unsupported dates remain unresolved.</p> : null}
+      {historical && context.data.version?.source_kind === "historical_baseline" ? <p className="rounded-xl border border-border p-3 text-xs text-text-secondary">Existing historical version from {formatLeaveDate(context.data.version.effective_from)} · recorded {formatLeaveDate(context.data.version.recorded_at)}. Reference: {context.data.version.evidence_reference}. Reason: {context.data.version.reason}.</p> : null}
+      {ready ? <>
+        <MultiSelectField variant="form" label="Eligible Employment Types" value={values.eligible_employment_types} onApply={(value) => update("eligible_employment_types", value)} options={employmentTypeOptions} placeholder="Select employment types" />
+        <SelectField label="Entitlement Method" value={values.entitlement_method} onChange={(value) => update("entitlement_method", value)} options={[{ value: "annual_allowance", label: "Annual allowance" }, { value: "unlimited", label: "Unlimited / no balance limit" }]} placeholder="Select method" />
+        {!unlimited ? <>
+          <label className="field"><span>Annual entitlement</span><input className="control w-full" type="number" min="0" step="0.5" value={values.annual_days} onChange={(event) => update("annual_days", event.target.value)} /></label>
+          <SelectField label="Proration Rule" value={values.proration_rule} onChange={(value) => update("proration_rule", value)} options={[{ value: "calendar_days", label: "Eligible calendar days ÷ year days" }, { value: "none", label: "No proration" }]} placeholder="Select rule" />
+          <ToggleRow label="Carry forward" help="Allow unused entitlement to carry into the next annual period." checked={values.carry_forward_enabled} onChange={(checked) => update("carry_forward_enabled", checked)} />
+          {values.carry_forward_enabled ? <div className="grid gap-3 rounded-xl bg-slate-50 p-3 sm:grid-cols-2"><label className="field sm:col-span-2"><span>Maximum carry-forward</span><input className="control w-full" type="number" min="0" step="0.5" value={values.max_carry_forward_days} onChange={(event) => update("max_carry_forward_days", event.target.value)} /></label><SelectField label="Expiry month" value={values.carry_forward_expiry_month} onChange={(value) => update("carry_forward_expiry_month", value)} options={monthOptions} placeholder="Month" /><SelectField label="Expiry day" value={values.carry_forward_expiry_day} onChange={(value) => update("carry_forward_expiry_day", value)} options={dayOptions} placeholder="Day" /></div> : null}
+        </> : <p className="text-sm text-text-secondary">Requests remain subject to Employment Type eligibility, without an entitlement balance limit.</p>}
+        <label className="field"><span>Reason *</span><textarea className="control min-h-20 w-full py-2" rows="2" maxLength="500" value={values.reason} onChange={(event) => update("reason", event.target.value)} placeholder={historical ? "Why does this policy apply from this earlier date?" : "Why is this policy changing?"} /></label>
+        {historical ? <>
+          <label className="field"><span>Policy evidence or reference *</span><textarea className="control min-h-20 w-full py-2" rows="2" maxLength="500" value={values.evidence_reference} onChange={(event) => update("evidence_reference", event.target.value)} placeholder="Document title, approval reference or record location" /></label>
+          <label className="flex items-start gap-3 text-sm text-text-secondary"><input type="checkbox" className="mt-1" checked={values.historical_terms_verified} onChange={(event) => update("historical_terms_verified", event.target.checked)} /><span>I verified the effective date and every policy term against the cited evidence. Existing grants and employee employment history remain separate.</span></label>
+        </> : null}
+      </> : null}
+    </div>
+  </Modal>;
 }
 
 function ToggleRow({ label, help, checked, onChange }) { return <button type="button" role="switch" aria-checked={checked} className="flex w-full items-center justify-between gap-4 rounded-xl border border-border bg-white p-3 text-left" onClick={() => onChange(!checked)}><span><strong className="block text-sm text-text-primary">{label}</strong><small className="mt-0.5 block text-text-secondary">{help}</small></span><span className={`relative h-6 w-11 shrink-0 rounded-full transition ${checked ? "bg-primary" : "bg-slate-300"}`}><i className={`absolute top-1 h-4 w-4 rounded-full bg-white transition ${checked ? "left-6" : "left-1"}`} /></span></button>; }
