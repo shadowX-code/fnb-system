@@ -15,7 +15,7 @@ import DutyRosterPage, { RosterDateSelector, rosterPermission } from "../DutyRos
 
 const outlet = { id: "outlet-1", name: "Main Outlet", status: "active" };
 const employee = { id: "employee-1", full_name: "Aina", nickname: "Aina", position: "Cook", department: "Kitchen", workplace: "outlet-1", employment_status: "active", is_active: true,
-  eligibility_by_date: Object.fromEntries(Array.from({ length: 7 }, (_, index) => [new Date(Date.UTC(2026, 9, 5 + index)).toISOString().slice(0, 10), { state: "eligible" }])) };
+  eligibility_by_date: Object.fromEntries(Array.from({ length: 7 }, (_, index) => [new Date(Date.UTC(2026, 9, 5 + index)).toISOString().slice(0, 10), { state: "eligible", employment_status: "active" }])) };
 const template = { id: "template-1", outlet_id: "outlet-1", name: "Morning", code: "MORNING", start_time: "09:00", end_time: "17:00", break_minutes: 60, shift_type: "working", color: "green" };
 const eveningTemplate = { id: "template-2", outlet_id: "outlet-1", name: "Evening", code: "EVENING", start_time: "14:00", end_time: "22:00", break_minutes: 60, shift_type: "working", color: "blue" };
 const leaveTemplate = { id: "leave-1", outlet_id: "outlet-1", name: "Annual Leave", code: "AL", start_time: null, end_time: null, break_minutes: 0, shift_type: "annual_leave", color: "purple", is_active: true };
@@ -148,6 +148,58 @@ describe("Duty Roster trusted week snapshot integration", () => {
     expect((await screen.findAllByText("Aina")).length).toBeGreaterThan(0);
     expect(screen.queryByText("BBB N")).toBeNull();
     expect(mocks.employees).toHaveBeenCalledWith("outlet-1", "2026-10-05", "2026-10-11");
+  });
+
+  it("defaults to Active and combines Employment Status with the existing search and filter chips", async () => {
+    const former = { ...employee, id: "employee-2", full_name: "Ben", nickname: "Ben", employment_status: "resigned",
+      eligibility_by_date: Object.fromEntries(Object.keys(employee.eligibility_by_date).map((date) => [date, { state: "inactive", employment_status: "resigned" }])) };
+    mocks.employees.mockResolvedValue([employee, former]);
+    const auth = { isProtectedRole: true, hasPermission: () => true };
+    render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
+
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-10-05/ })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /Ben, 2026-10-05/ })).toBeNull();
+    expect(screen.getByText("Employment Status: Active")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Employment Status" }));
+    fireEvent.click(screen.getByRole("button", { name: "Resigned" }));
+    expect((await screen.findAllByRole("button", { name: /Ben, 2026-10-05/ })).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: /Aina, 2026-10-05/ })).toBeNull();
+    expect(screen.getByText("Employment Status: Resigned")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Remove Employment Status filter" }));
+    expect(screen.getByRole("button", { name: "Employment Status" }).textContent).toContain("All");
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-10-05/ })).length).toBeGreaterThan(0);
+    expect((await screen.findAllByRole("button", { name: /Ben, 2026-10-05/ })).length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByPlaceholderText("Search name..."), { target: { value: "Ben" } });
+    expect(screen.queryByRole("button", { name: /Aina, 2026-10-05/ })).toBeNull();
+    expect(screen.getByText("Employee: Ben")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    expect((await screen.findAllByRole("button", { name: /Aina, 2026-10-05/ })).length).toBeGreaterThan(0);
+  });
+
+  it("uses dated People status in both week and month views after a later resignation", async () => {
+    const former = { ...employee, id: "employee-2", full_name: "Ben", nickname: "Ben", employment_status: "resigned" };
+    mocks.employees.mockImplementation(async (_outletId, start, end) => {
+      const dates = [];
+      for (let date = new Date(`${start}T00:00:00Z`); date <= new Date(`${end}T00:00:00Z`); date.setUTCDate(date.getUTCDate() + 1)) dates.push(date.toISOString().slice(0, 10));
+      return [{ ...former, eligibility_by_date: Object.fromEntries(dates.map((date) => [date, date < "2026-10-05"
+        ? { state: "eligible", employment_status: "active" }
+        : { state: "inactive", employment_status: "resigned" }])) }];
+    });
+    const auth = { isProtectedRole: true, hasPermission: () => true };
+    render(<DutyRosterPage store={{ outlets: [outlet] }} ui={{ notify: mocks.notify, confirm: vi.fn() }} auth={auth} />);
+
+    await waitFor(() => expect(mocks.employees).toHaveBeenCalledWith("outlet-1", "2026-10-05", "2026-10-11"));
+    expect(screen.queryByRole("button", { name: /Ben, 2026-10-05/ })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Previous week" }));
+    expect((await screen.findAllByRole("button", { name: /Ben, 2026-09-28/ })).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("tab", { name: "month" }));
+    await waitFor(() => expect(mocks.employees).toHaveBeenCalledWith("outlet-1", "2026-09-01", "2026-09-30"));
+    expect((await screen.findAllByRole("button", { name: /Ben, 2026-09-28/ })).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Next month" }));
+    await waitFor(() => expect(mocks.employees).toHaveBeenCalledWith("outlet-1", "2026-10-01", "2026-10-31"));
+    expect((await screen.findAllByRole("button", { name: /Ben, 2026-10-01/ })).length).toBeGreaterThan(0);
   });
 
   it("uses the assignment for each roster date, including a mid-week transfer and position", async () => {

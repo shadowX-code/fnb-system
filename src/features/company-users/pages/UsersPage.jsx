@@ -31,6 +31,7 @@ import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 import { canCreate, canEdit, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
 import { navigateAdminRoute } from "../../../app/routeOwnership.js";
+import { employmentStatusOptions } from "../employmentStatus.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
@@ -42,11 +43,6 @@ const employmentTypeOptions = [
   { value: "part_time", label: "Part-Time" },
   { value: "intern", label: "Intern" },
   { value: "contract", label: "Contract" },
-];
-const employmentStatusOptions = [
-  { value: "active", label: "Active" },
-  { value: "resigned", label: "Resigned" },
-  { value: "terminated", label: "Terminated" },
 ];
 
 function createEmptyUser() {
