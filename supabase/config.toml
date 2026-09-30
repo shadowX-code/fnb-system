@@ -3,3 +3,7 @@ project_id = "feedx"
 [functions.payroll-payslips]
 # Admin Auth and opaque Crew tokens are validated in the existing function body.
 verify_jwt = false
+
+[functions.recruitment-realtime]
+# The candidate has no Auth account. The function validates the invitation and active lease through a service-only RPC.
+verify_jwt = false
