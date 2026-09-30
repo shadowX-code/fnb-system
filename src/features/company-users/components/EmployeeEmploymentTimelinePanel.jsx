@@ -4,6 +4,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { employeeEmploymentService } from "../../../services/employeeEmploymentService.js";
+import { employmentStatusOptions } from "../employmentStatus.js";
 
 const fields = [
   ["employment_type", "Employment Type"],
@@ -18,11 +19,6 @@ const typeOptions = [
   { value: "part_time", label: "Part-Time" },
   { value: "intern", label: "Intern" },
   { value: "contract", label: "Contract" },
-];
-const statusOptions = [
-  { value: "active", label: "Active" },
-  { value: "resigned", label: "Resigned" },
-  { value: "terminated", label: "Terminated" },
 ];
 
 function malaysiaToday() {
@@ -50,7 +46,7 @@ function displayValue(key, value, entities) {
     return entity?.display_name || entity?.legal_company_name || (value ? "Former employer" : "Not assigned");
   }
   if (key === "employment_type") return typeOptions.find((entry) => entry.value === value)?.label || value || "Missing";
-  if (key === "employment_status") return statusOptions.find((entry) => entry.value === value)?.label || value || "Missing";
+  if (key === "employment_status") return employmentStatusOptions.find((entry) => entry.value === value)?.label || value || "Missing";
   return value || "Missing";
 }
 
@@ -161,7 +157,7 @@ export default function EmployeeEmploymentTimelinePanel({ employeeId, joinedDate
             : <>
               <div className="grid gap-3 sm:grid-cols-2">
                 <SelectField label="Employment Type" required value={assignment?.employment_type || ""} onChange={(value) => setAssignment((current) => ({ ...current, employment_type: value }))} options={typeOptions} />
-                <SelectField label="Employment Status" required value={assignment?.employment_status || ""} onChange={(value) => setAssignment((current) => ({ ...current, employment_status: value }))} options={statusOptions} />
+                <SelectField label="Employment Status" required value={assignment?.employment_status || ""} onChange={(value) => setAssignment((current) => ({ ...current, employment_status: value }))} options={employmentStatusOptions} />
                 <SelectField label="Position" required searchable value={assignment?.position || ""} onChange={(value) => setAssignment((current) => ({ ...current, position: value }))} options={positions.map((item) => ({ value: item.name, label: item.name }))} />
                 <SelectField label="Legal Employer" searchable value={assignment?.legal_entity_id || ""} onChange={(value) => setAssignment((current) => ({ ...current, legal_entity_id: value }))} options={[{ value: "", label: "Not assigned" }, ...legalEntities.filter((item) => item.is_active || item.id === assignment?.legal_entity_id).map((item) => ({ value: item.id, label: item.display_name || item.legal_company_name }))]} />
                 <SelectField label="Workplace" required searchable value={assignment?.workplace || ""} onChange={(value) => setAssignment((current) => ({ ...current, workplace: value }))} options={workplaces.map((item) => ({ value: item, label: item }))} />

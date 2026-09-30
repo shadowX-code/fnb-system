@@ -21,6 +21,7 @@ import { rosterPositionGroupService } from "../../../services/rosterPositionGrou
 import { notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { SHIFT_TIME_INPUT_ERROR, buildShiftTimeOptions, formatShiftTimeInput, formatShiftTimeRange, normalizeShiftTimeInput } from "../utils/shiftTime.js";
 import { useCrewAdminOutlet } from "../../crew/context/CrewAdminOutletContext.jsx";
+import { employmentStatusOptions } from "../../company-users/employmentStatus.js";
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const leaveCodes = new Set(["AL", "MC", "UL", "OL"]);
@@ -248,6 +249,20 @@ function rosterEligibleOnDate(employee, date) {
 
 function rosterPositionOnDate(employee, date) {
   return rosterEmploymentForDate(employee, date).position || "";
+}
+
+function matchesEmploymentStatus(employee, status, dates, rosterByEmployeeDate) {
+  if (status === "all") return true;
+  return dates.some((date) => {
+    const assignment = rosterEmploymentForDate(employee, date);
+    if (assignment.employment_status === status) {
+      return status !== "active" || assignment.state !== "outside_employment";
+    }
+    // Keep existing shifts from an unverified period visible; a snapshot is
+    // evidence of the shift, not evidence of an Active employment assignment.
+    return status === "active" && !assignment.employment_status
+      && rosterByEmployeeDate.has(rosterKey(employee.id, date));
+  });
 }
 
 function ShiftBlock({ roster }) {
@@ -1515,6 +1530,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
+  const [employmentStatusFilter, setEmploymentStatusFilter] = useState("active");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [copying, setCopying] = useState(false);
@@ -1674,6 +1690,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
   const groupedEmployees = useMemo(() => {
     const groups = new Map();
     employeesWithGroups
+      .filter((employee) => matchesEmploymentStatus(employee, employmentStatusFilter, visibleDateValues, rosterByEmployeeDate))
       .filter((employee) => groupFilter === "all" || employee.rosterGroup === groupFilter)
       .filter((employee) => positionFilter === "all" || employee.position === positionFilter)
       .filter((employee) => {
@@ -1690,7 +1707,7 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
     return [...groups.entries()]
       .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
       .map(([group, items]) => ({ group, label: groupLabels[group] ?? "OTHER", employees: items }));
-  }, [employeeSearch, employeesWithGroups, groupFilter, positionFilter]);
+  }, [employeeSearch, employeesWithGroups, employmentStatusFilter, groupFilter, positionFilter, rosterByEmployeeDate, visibleDateValues]);
   const visibleEmployees = useMemo(() => groupedEmployees.flatMap((group) => group.employees), [groupedEmployees]);
 
   const summary = useMemo(() => {
@@ -2327,9 +2344,9 @@ export default function DutyRosterPage({ store, ui, auth, ownership = "crew" }) 
         outlet={<FieldLabel label="Outlet"><SelectField ariaLabel="Outlet" value={outletId} options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} /></FieldLabel>}
         period={<FieldLabel label={viewMode === "month" ? "Month" : "Date Range"} adminFilterRole="date-range-navigation"><RosterDateSelector mode={viewMode} weekStart={weekStart} weekDates={weekDates} visibleDates={visibleDates} onSelectDate={selectRosterDate} onPrevious={() => navigateRoster(-1)} onNext={() => navigateRoster(1)} /></FieldLabel>}
         search={<AdminSearchField label="Employee" value={employeeSearch} onChange={setEmployeeSearch} placeholder="Search name..." />}
-        filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel>{viewMode === "month" ? <FieldLabel label="Publish week"><SelectField ariaLabel="Publish week" value={activePublicationWeekStart} options={publicationWeeks.map((date) => ({ value: date, label: formatWeekRange(datesBetween(new Date(`${date}T00:00:00`), new Date(`${toDateInputValue(addDays(`${date}T00:00:00`, 6))}T00:00:00`))) }))} onChange={setPublicationWeekStart} /></FieldLabel> : null}<AdminSegmentedControl value={viewMode} onChange={(mode) => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }} label="Duty Roster view" options={[{ value: "week", label: "week" }, { value: "month", label: "month" }]} /></>}
-        activeFilters={[employeeSearch && { key: "employee", label: "Employee", value: employeeSearch, onRemove: () => setEmployeeSearch("") }, groupFilter !== "all" && { key: "group", label: "Group", value: groupFilter, onRemove: () => setGroupFilter("all") }, positionFilter !== "all" && { key: "position", label: "Position", value: positionFilter, onRemove: () => setPositionFilter("all") }].filter(Boolean)}
-        onClear={() => { setEmployeeSearch(""); setGroupFilter("all"); setPositionFilter("all"); }}
+        filters={<><FieldLabel label="Group"><SelectField value={groupFilter} options={[{ value: "all", label: "All" }, { value: "floor", label: "Floor" }, { value: "kitchen", label: "Kitchen" }, { value: "other", label: "Other" }]} onChange={setGroupFilter} /></FieldLabel><FieldLabel label="Position"><SelectField value={positionFilter} options={[{ value: "all", label: "All" }, ...employeePositions.map((position) => ({ value: position, label: position }))]} onChange={setPositionFilter} /></FieldLabel><FieldLabel label="Employment Status"><SelectField ariaLabel="Employment Status" value={employmentStatusFilter} options={[{ value: "all", label: "All" }, ...employmentStatusOptions]} onChange={setEmploymentStatusFilter} /></FieldLabel>{viewMode === "month" ? <FieldLabel label="Publish week"><SelectField ariaLabel="Publish week" value={activePublicationWeekStart} options={publicationWeeks.map((date) => ({ value: date, label: formatWeekRange(datesBetween(new Date(`${date}T00:00:00`), new Date(`${toDateInputValue(addDays(`${date}T00:00:00`, 6))}T00:00:00`))) }))} onChange={setPublicationWeekStart} /></FieldLabel> : null}<AdminSegmentedControl value={viewMode} onChange={(mode) => { setViewMode(mode); const current = new Date(`${weekStart}T00:00:00`); setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current))); }} label="Duty Roster view" options={[{ value: "week", label: "week" }, { value: "month", label: "month" }]} /></>}
+        activeFilters={[employeeSearch && { key: "employee", label: "Employee", value: employeeSearch, onRemove: () => setEmployeeSearch("") }, groupFilter !== "all" && { key: "group", label: "Group", value: groupFilter, onRemove: () => setGroupFilter("all") }, positionFilter !== "all" && { key: "position", label: "Position", value: positionFilter, onRemove: () => setPositionFilter("all") }, employmentStatusFilter !== "all" && { key: "employment-status", label: "Employment Status", value: employmentStatusOptions.find((option) => option.value === employmentStatusFilter)?.label || employmentStatusFilter, onRemove: () => setEmploymentStatusFilter("all") }].filter(Boolean)}
+        onClear={() => { setEmployeeSearch(""); setGroupFilter("all"); setPositionFilter("all"); setEmploymentStatusFilter("all"); }}
       />
 
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
