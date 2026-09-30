@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>FeedX Recruitment media probe</title>
+<style>
+  body{font:16px system-ui,sans-serif;max-width:680px;margin:auto;padding:20px;color:#16352b;background:#f2f7f4}h1{font-size:1.6rem}button{font:inherit;padding:12px 16px;margin:6px 6px 6px 0;border:1px solid #0a7356;border-radius:9px;background:#fff;color:#0a7356}button:disabled{opacity:.4}video{width:100%;max-height:360px;background:#16352b;border-radius:12px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#fff;padding:12px;border-radius:9px}li{margin:12px 0}small{color:#52665e}
+</style>
+<main>
+  <h1>Recruitment mobile media probe</h1>
+  <p>QA only. Camera and microphone stay on this device. This page does not upload or send recording data. Use test speech, not personal information. Stop the camera when done.</p>
+  <p><button id="start">Allow devices</button><button id="record" disabled>Record two segments</button><button id="stop" disabled>Stop devices</button><button id="clear">Clear saved samples</button></p>
+  <video id="preview" autoplay playsinline muted></video>
+  <p id="status" role="status">Waiting for device access.</p>
+  <h2>Saved segments</h2><ol id="segments"></ol>
+  <p>After recording, reload the page and play both saved segments. To check interruption, repeat once after locking the phone or switching apps during recording.</p>
+  <button id="copy">Copy diagnostic report</button><pre id="report"></pre>
+</main>
+<script>
+const $=id=>document.getElementById(id), dbName='feedx-recruitment-media-probe-v1', store='samples';
+let stream=null, active=false, results=[];
+const log=(message)=>{$('status').textContent=message; refreshReport()};
+const db=()=>new Promise((resolve,reject)=>{const request=indexedDB.open(dbName,1);request.onupgradeneeded=()=>request.result.createObjectStore(store,{keyPath:'id'});request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error)});
+async function transact(mode,fn){const database=await db();return new Promise((resolve,reject)=>{const transaction=database.transaction(store,mode);const request=fn(transaction.objectStore(store));request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);transaction.oncomplete=()=>database.close()})}
+const all=()=>transact('readonly',s=>s.getAll());
+const save=item=>transact('readwrite',s=>s.put(item));
+const clear=()=>transact('readwrite',s=>s.clear());
+const choices=['video/mp4;codecs="avc1.42E01E,mp4a.40.2"','video/mp4','video/webm;codecs=vp8,opus','video/webm'];
+const supported=()=>choices.filter(type=>MediaRecorder.isTypeSupported(type));
+function refreshReport(){const payload={userAgent:navigator.userAgent,time:new Date().toISOString(),mediaRecorder:typeof MediaRecorder!=='undefined',supportedMimeTypes:typeof MediaRecorder==='undefined'?[]:supported(),status:$('status').textContent,results};$('report').textContent=JSON.stringify(payload,null,2)}
+async function playback(blob){return new Promise(resolve=>{const video=document.createElement('video'),url=URL.createObjectURL(blob);let done=false;const finish=value=>{if(done)return;done=true;clearTimeout(timer);video.src='';URL.revokeObjectURL(url);resolve(value)};const timer=setTimeout(()=>finish({loaded:false,error:'metadata timeout'}),8000);video.preload='metadata';video.onloadedmetadata=()=>finish({loaded:true,duration:Number.isFinite(video.duration)?video.duration:null,videoWidth:video.videoWidth,videoHeight:video.videoHeight});video.onerror=()=>finish({loaded:false,error:video.error?.message||'media error'});video.src=url;video.load()})}
+async function render(){const saved=await all();$('segments').replaceChildren();results=await Promise.all(saved.sort((a,b)=>a.id-b.id).map(async item=>{const check=await playback(item.blob);const li=document.createElement('li');li.textContent=`Segment ${item.id}: ${item.blob.size} bytes, ${item.blob.type}, metadata ${check.loaded?'loaded':'failed'}; `;const video=document.createElement('video');video.controls=true;video.playsInline=true;video.src=URL.createObjectURL(item.blob);li.append(video);$('segments').append(li);return {id:item.id,bytes:item.blob.size,mime:item.blob.type,startedAt:item.startedAt,endedAt:item.endedAt,playback:check}}));refreshReport()}
+function capture(type,durationMs,id){return new Promise((resolve,reject)=>{const parts=[],startedAt=new Date().toISOString();let recorder;try{recorder=new MediaRecorder(stream,type?{mimeType:type}:undefined)}catch(error){reject(error);return}recorder.ondataavailable=event=>{if(event.data.size)parts.push(event.data)};recorder.onerror=event=>reject(event.error||new Error('Recorder error'));recorder.onstop=()=>resolve({id,blob:new Blob(parts,{type:recorder.mimeType||type}),startedAt,endedAt:new Date().toISOString(),rawChunkCount:parts.length});recorder.start(1000);setTimeout(()=>{if(recorder.state!=='inactive')recorder.stop()},durationMs)})}
+$('start').onclick=async()=>{try{if(!navigator.mediaDevices?.getUserMedia||typeof MediaRecorder==='undefined')throw Error('getUserMedia or MediaRecorder unavailable');stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:{echoCancellation:true}});$('preview').srcObject=stream;stream.getTracks().forEach(track=>track.onended=()=>log(`${track.kind} track ended unexpectedly`));$('record').disabled=false;$('stop').disabled=false;log('Devices active; record two five-second segments.')}catch(error){log(`Device error: ${error.name}: ${error.message}`)}};
+$('record').onclick=async()=>{if(active||!stream)return;active=true;$('record').disabled=true;try{const mime=supported()[0]||'';log(`Recording with ${mime||'browser default'}; speak test words.`);for(let id=1;id<=2;id++){if(stream.getTracks().some(track=>track.readyState!=='live'))throw Error('Media track ended');const segment=await capture(mime,5000,id);await save(segment);await render();log(`Saved segment ${id}; ${segment.rawChunkCount} raw timeslice chunks were combined into one stopped file.`)}log('Two segments saved. Reload and play both.')}catch(error){log(`Recording interrupted: ${error.name}: ${error.message}`)}finally{active=false;$('record').disabled=!stream}};
+$('stop').onclick=()=>{stream?.getTracks().forEach(track=>{track.onended=null;track.stop()});stream=null;$('preview').srcObject=null;$('record').disabled=true;$('stop').disabled=true;log('Devices stopped.')};
+$('clear').onclick=async()=>{await clear();await render();log('Saved samples cleared.')};
+$('copy').onclick=async()=>{await navigator.clipboard.writeText($('report').textContent);log('Diagnostic report copied; no media included.')};
+render().catch(error=>log(`Storage error: ${error.message}`));
+</script>
+</html>
