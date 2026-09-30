@@ -42,6 +42,7 @@ import { getSidebarSections, moduleRegistry, viewPermission } from "../../config
 const FactoryWorkspacePage = lazy(() => import("../features/factory/pages/FactoryWorkspacePage.jsx"));
 const InventoryControlPage = lazy(() => import("../features/sales-purchase/pages/InventoryControlPage.jsx"));
 const AssetTrackingPage = lazy(() => import("../features/sales-purchase/pages/AssetTrackingPage.jsx"));
+const RecruitmentPage = lazy(() => import("../features/recruitment/RecruitmentPage.jsx"));
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
   const isFactoryModule = String(moduleId).startsWith("factory_");
@@ -132,6 +133,11 @@ export const routeDetails = {
     description: "Manage employee profiles, employment data, bank information and optional system login.",
     component: UsersPage,
     props: { peopleMode: "employees" },
+  },
+  recruitment: {
+    description: "Manage openings, applications and interview invitations.",
+    component: RecruitmentPage,
+    permission: "recruitment.view OR recruitment.manage",
   },
   "legal-entities": {
     description: "Manage legal employing entities referenced by employee records and employment documents.",

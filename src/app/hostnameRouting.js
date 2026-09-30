@@ -1,5 +1,7 @@
 export const PUBLIC_HOSTNAME = "feedx.my";
 export const PRODUCT_FEEDBACK_PUBLIC_HOSTNAME = "feedback.feedx.my";
+export const INTERVIEW_PUBLIC_HOSTNAME = "interview.feedx.my";
+const PREPRODUCTION_INTERVIEW_HOSTNAME = String(import.meta.env?.VITE_INTERVIEW_WEB_APP_HOSTNAME || "fnb-system-staging.vercel.app").trim().toLowerCase();
 export const CREW_WEB_APP_HOSTNAME = "crew.feedx.my";
 export const CREW_WEB_APP_ORIGIN = `https://${CREW_WEB_APP_HOSTNAME}`;
 export const PRODUCT_FEEDBACK_PUBLIC_ORIGIN = `https://${PRODUCT_FEEDBACK_PUBLIC_HOSTNAME}`;
@@ -17,6 +19,16 @@ export function isPublicHostname(hostname) {
 
 export function isProductFeedbackPublicHostname(hostname) {
   return normalizeHostname(hostname) === PRODUCT_FEEDBACK_PUBLIC_HOSTNAME;
+}
+
+export function isInterviewPublicHostname(hostname) {
+  return normalizeHostname(hostname) === INTERVIEW_PUBLIC_HOSTNAME;
+}
+
+export function isInterviewPublicSurface() {
+  if (typeof window === "undefined") return false;
+  return isInterviewPublicHostname(window.location.hostname)
+    || (/^\/i\/[^/]+\/?$/.test(window.location.pathname) && [PREPRODUCTION_INTERVIEW_HOSTNAME, "localhost", "127.0.0.1"].includes(window.location.hostname));
 }
 
 export function isCrewWebAppHostname(hostname) {

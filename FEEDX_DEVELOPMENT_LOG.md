@@ -639,3 +639,7 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Reframed Crew Employment Records as Contracts, Food Handling Compliance, and Letters & Notices. Contracts remain in their own People document authority.
 - Expanded the existing People warning authority with a typed Letters & Notices catalog and a common issued body. Warning retains its specific fields, sequence, receipt/response lifecycle, and immutable issued history. Advisory / Reminder and General Notice use the current receipt workflow without warning fields; other classified types remain unavailable pending their own trusted workflows.
+# 2026-09-30 — Recruitment and AI Interview Phase 1 Foundation
+
+- Added a People-owned Recruitment workspace for single-workplace Job Openings, reusable Applicants, Applications, versioned interview configuration, and secure invitations. Candidates remain separate from Employee/Auth/Crew until a future Hire transition.
+- Added the token-bound `interview.feedx.my/i/<token>` candidate preparation surface with minimal job/profile disclosure, provisional versioned consent, and browser camera/microphone readiness. AI voice, video recording, transcript and hiring decisions remain outside Phase 1.

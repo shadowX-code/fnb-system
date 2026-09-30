@@ -1,6 +1,7 @@
 import {
   PRODUCT_FEEDBACK_PUBLIC_ORIGIN,
   isProductFeedbackPublicHostname,
+  isInterviewPublicHostname,
   isProductionOperationsHostname,
   isPublicHostname,
 } from "./src/app/hostnameRouting.js";
@@ -36,4 +37,8 @@ export default function hostnameRoutingMiddleware(request) {
   // The public Feedback hostname reaches the SPA, whose host gate renders only
   // the anonymous token-bound surface.
   if (isProductFeedbackPublicHostname(url.hostname)) return undefined;
+  if (isInterviewPublicHostname(url.hostname)) {
+    if (!isPublicAsset && !/^\/i\/[a-f0-9]{64}\/?$/.test(url.pathname)) return new Response("Not found", { status: 404 });
+    return undefined;
+  }
 }

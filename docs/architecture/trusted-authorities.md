@@ -18,6 +18,8 @@ Retryable commands should use request identity and payload fingerprinting when s
 ## Row-Level Security
 
 RLS is mandatory for exposed business tables.
+
+Recruitment invitation tokens follow the public token authority pattern: only a random token hash is persisted, all Recruitment tables have RLS with direct anonymous/client table grants revoked, and narrow public RPCs revalidate token expiry, revocation, and opening state on every operation. Versioned candidate consent and Ready transitions are written server-side; a public hostname is never an authorization grant. See the People Recruitment domain contract.
 Policies must align with the actual caller model:
 
 - Admin access uses authenticated identity, permission, and outlet or record scope.

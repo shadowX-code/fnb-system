@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 import hostnameRoutingMiddleware, { isPublicHostname } from "../../../middleware.js";
-import { isCrewWebAppHostname, isProductFeedbackPublicHostname, isPublicHostname as isPublicClientHostname } from "../hostnameRouting.js";
+import { isCrewWebAppHostname, isInterviewPublicHostname, isProductFeedbackPublicHostname, isPublicHostname as isPublicClientHostname } from "../hostnameRouting.js";
 
 it("recognizes only the canonical public hostname", () => {
   [isPublicHostname, isPublicClientHostname].forEach((recognizes) => {
@@ -24,6 +24,15 @@ it("recognizes the dedicated Crew web app host without changing Admin host owner
   expect(isCrewWebAppHostname("CREW.FEEDX.MY")).toBe(true);
   expect(isCrewWebAppHostname("os.feedx.my")).toBe(false);
   expect(isCrewWebAppHostname("fnb-system-staging.vercel.app")).toBe(false);
+});
+
+it("isolates candidate interview paths on the dedicated host", () => {
+  const token = "a".repeat(64);
+  expect(isInterviewPublicHostname("interview.feedx.my")).toBe(true);
+  expect(isInterviewPublicHostname("os.feedx.my")).toBe(false);
+  expect(hostnameRoutingMiddleware(new Request(`https://interview.feedx.my/i/${token}`))).toBeUndefined();
+  expect(hostnameRoutingMiddleware(new Request("https://interview.feedx.my/people/recruitment"))?.status).toBe(404);
+  expect(hostnameRoutingMiddleware(new Request("https://interview.feedx.my/i/an-id"))?.status).toBe(404);
 });
 
 it("redirects every non-root public request to the public root while preserving OS and staging routes", () => {

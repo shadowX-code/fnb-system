@@ -359,6 +359,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, deactivate: true, enable_login: true, reset_password: true },
   },
   {
+    id: "recruitment",
+    section: "People",
+    label: "Recruitment",
+    route: "/people/recruitment",
+    icon: "users",
+    sidebar: true,
+    permissions: { view: true, manage: true },
+  },
+  {
     id: "legal-entities",
     section: "People",
     label: "Legal Entities",

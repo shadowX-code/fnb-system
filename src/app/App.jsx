@@ -1,12 +1,13 @@
 import { lazy, Suspense, useEffect, useSyncExternalStore } from "react";
 import { crewRouteUrlForLegacyHash, crewWorkspaceForLocation } from "../features/crew/crewRoute.js";
-import { isCrewWebAppSurface, isProductFeedbackPublicSurface, isPublicSurface } from "./hostnameRouting.js";
+import { isCrewWebAppSurface, isInterviewPublicSurface, isProductFeedbackPublicSurface, isPublicSurface } from "./hostnameRouting.js";
 import WorkspaceBoundary from "./WorkspaceBoundary.jsx";
 
 const AdminEntry = lazy(() => import("./AdminApp.jsx"));
 const CrewEntry = lazy(() => import("./CrewEntry.jsx"));
 const PublicHomepage = lazy(() => import("../auth/PublicHomepage.jsx"));
 const FactoryProductFeedbackPublic = lazy(() => import("../features/factory/FactoryProductFeedbackPublic.jsx"));
+const RecruitmentInterviewPublic = lazy(() => import("../features/recruitment/RecruitmentInterviewPublic.jsx"));
 
 function subscribe(listener) {
   window.addEventListener("hashchange", listener);
@@ -60,6 +61,7 @@ function LegacyCrewRedirect() {
 }
 
 export default function App() {
+  if (isInterviewPublicSurface()) return <Suspense fallback={null}><RecruitmentInterviewPublic /></Suspense>;
   if (isProductFeedbackPublicSurface()) return <Suspense fallback={null}><FactoryProductFeedbackPublic /></Suspense>;
   if (isPublicSurface()) return <Suspense fallback={null}><PublicHomepage /></Suspense>;
   const workspace = useSyncExternalStore(subscribe, getWorkspace);
