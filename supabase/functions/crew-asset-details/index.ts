@@ -1,3 +1,4 @@
+import { assetPhotoExtension, isAssetPhotoType } from "../_shared/assetPhoto.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 
 const corsHeaders = { "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type", "Access-Control-Allow-Methods": "POST, OPTIONS", "Access-Control-Allow-Origin": "*" };
@@ -16,11 +17,11 @@ Deno.serve(async (request) => {
   let urls: (string | null)[] = [null, null, null]; let uploaded: string[] = [];
   try {
     if (original && display && thumbnail) {
-      if (![original, display, thumbnail].every((file) => file!.size > 0 && file!.size <= 8 * 1024 * 1024) || display.type !== "image/webp" || thumbnail.type !== "image/webp") return reply({ error: "That photo could not be prepared. Choose another photo and try again." }, 400);
+      if (![original, display, thumbnail].every((file) => isAssetPhotoType(file!.type) && file!.size > 0 && file!.size <= 8 * 1024 * 1024) || !isAssetPhotoType(display.type) || !isAssetPhotoType(thumbnail.type)) return reply({ error: "That photo could not be prepared. Choose another photo and try again." }, 400);
       const { data: projection, error } = await crew.rpc(outletId ? "crew_management_asset_mobile_authorized" : "crew_asset_mobile", { p_token: token, p_asset_id: assetId, ...(outletId ? { p_outlet_id: outletId } : {}) });
       if (error || !projection?.outlet?.id) return reply({ error: "You no longer have access to edit this Asset." }, 403);
       const storage = createClient(url, service); const prefix = `asset_master/${projection.outlet.id}/details/${requestId}`;
-      const files = [{ path: `${prefix}/original.webp`, file: original }, { path: `${prefix}/display.webp`, file: display }, { path: `${prefix}/thumbnail.webp`, file: thumbnail }];
+      const files = [{ path: `${prefix}/original.${assetPhotoExtension(original.type)}`, file: original }, { path: `${prefix}/display.${assetPhotoExtension(display.type)}`, file: display }, { path: `${prefix}/thumbnail.${assetPhotoExtension(thumbnail.type)}`, file: thumbnail }];
       for (const item of files) { const { error: uploadError } = await storage.storage.from("asset-photos").upload(item.path, item.file!, { cacheControl: "31536000", contentType: item.file!.type, upsert: true }); if (uploadError) throw uploadError; uploaded.push(item.path); }
       urls = files.map((item) => storage.storage.from("asset-photos").getPublicUrl(item.path).data.publicUrl);
     }

@@ -160,6 +160,12 @@ function coveredImageDimensions(sourceWidth, sourceHeight, canvasWidth, canvasHe
   };
 }
 
+function assetEncodedMetadata(blob) {
+  const extensions = { "image/webp": "webp", "image/png": "png", "image/jpeg": "jpg" };
+  if (!extensions[blob.type]) throw new Error("Unable to prepare Asset photo. Please try another file.");
+  return { contentType: blob.type, extension: extensions[blob.type] };
+}
+
 async function coveredVariant(decoded, { width, height, quality }, crop) {
   const canvas = document.createElement("canvas");
   canvas.width = width;
@@ -171,7 +177,7 @@ async function coveredVariant(decoded, { width, height, quality }, crop) {
   context.fillRect(0, 0, width, height);
   context.drawImage(decoded.image, bounds.x, bounds.y, bounds.width, bounds.height);
   const blob = await canvasToBlob(canvas, OPTIMIZED_MIME_TYPE, quality);
-  return { blob, width, height, contentType: OPTIMIZED_MIME_TYPE, extension: OPTIMIZED_EXTENSION };
+  return { blob, width, height, ...assetEncodedMetadata(blob) };
 }
 
 // Asset master media keeps the supplied file intact and derives fixed 4:3
@@ -196,8 +202,7 @@ export async function normalizeAssetMasterPhoto(file, crop = {}) {
     return {
       original: {
         blob: sourceBlob,
-        contentType: OPTIMIZED_MIME_TYPE,
-        extension: OPTIMIZED_EXTENSION,
+        ...assetEncodedMetadata(sourceBlob),
       },
       display,
       thumbnail,
@@ -343,8 +348,8 @@ export async function uploadAssetMasterPhotoBundle(file, { bucket, pathPrefix, m
   const normalized = await normalizeAssetMasterPhoto(file, crop);
   const paths = {
     original: `${pathPrefix}/original.${normalized.original.extension}`,
-    display: `${pathPrefix}/display.webp`,
-    thumbnail: `${pathPrefix}/thumbnail.webp`,
+    display: `${pathPrefix}/display.${normalized.display.extension}`,
+    thumbnail: `${pathPrefix}/thumbnail.${normalized.thumbnail.extension}`,
   };
   const uploads = [
     ["original", normalized.original],

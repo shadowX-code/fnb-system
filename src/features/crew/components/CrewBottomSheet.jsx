@@ -7,7 +7,7 @@ import useCrewOverlay from "../hooks/useCrewOverlay.js";
 
 const isFormControl = (node) => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement || node instanceof HTMLSelectElement;
 
-export default function CrewBottomSheet({ title, description, headerIcon, onClose, children, footer, className = "", contentClassName = "", backdropClassName = "", allowBackdropClose = true, closeDisabled = false, initialFocusRef }) {
+export default function CrewBottomSheet({ title, description, error, busy = false, headerIcon, onClose, children, footer, className = "", contentClassName = "", backdropClassName = "", allowBackdropClose = true, closeDisabled = false, initialFocusRef }) {
   const { t } = useTranslation();
   const overlay = useCrewOverlay({ onClose, closeDisabled, initialFocusRef });
   const [viewport, setViewport] = useState(() => ({ height: typeof window === "undefined" ? 0 : window.visualViewport?.height || window.innerHeight, top: typeof window === "undefined" ? 0 : window.visualViewport?.offsetTop || 0 }));
@@ -84,7 +84,7 @@ export default function CrewBottomSheet({ title, description, headerIcon, onClos
   if (typeof document === "undefined") return null;
   const viewportStyle = { "--crew-sheet-viewport-height": `${viewport.height || 0}px`, "--crew-sheet-viewport-top": `${viewport.top}px` };
   return createPortal(<div className={`crew-ui-bottom-sheet-backdrop${backdropClassName ? ` ${backdropClassName}` : ""}`} style={viewportStyle} role="presentation" onMouseDown={(event) => allowBackdropClose && !closeDisabled && event.target === event.currentTarget && requestClose()}>
-    <section ref={setSheetRef} tabIndex={-1} className={`crew-ui-bottom-sheet${className ? ` ${className}` : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} onMouseDown={(event) => event.stopPropagation()}>
+    <section ref={setSheetRef} tabIndex={-1} className={`crew-ui-bottom-sheet${className ? ` ${className}` : ""}`} role="dialog" aria-modal="true" aria-busy={busy} aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} onMouseDown={(event) => event.stopPropagation()}>
       <span className="crew-ui-bottom-sheet-handle" aria-hidden="true" onPointerDown={(event) => { dragStartY.current = event.clientY; }} onPointerUp={(event) => { if (dragStartY.current !== null && event.clientY - dragStartY.current > 72) requestClose(); dragStartY.current = null; }} />
       <header className="crew-ui-bottom-sheet-header">
         {headerIcon ? <span className="crew-ui-bottom-sheet-icon" aria-hidden="true">{headerIcon}</span> : null}
@@ -92,6 +92,7 @@ export default function CrewBottomSheet({ title, description, headerIcon, onClos
         <button ref={overlay.closeRef} className="crew-ui-bottom-sheet-close" type="button" onClick={requestClose} aria-label={t("common.close")} disabled={closeDisabled}><X size={19} /></button>
       </header>
       <div ref={contentRef} className={`crew-ui-bottom-sheet-content${contentClassName ? ` ${contentClassName}` : ""}`} onFocusCapture={revealFocusedField} onKeyDown={handleKeyDown} onPointerDown={(event) => { if (event.target === event.currentTarget) dismissKeyboard(); }}>{children}</div>
+      {error ? <p className="crew-ui-form-error" role="alert">{error}</p> : null}
       {footer ? <footer className="crew-ui-bottom-sheet-footer">{footer}</footer> : null}
     </section>
   </div>, document.body);
