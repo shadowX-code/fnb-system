@@ -858,6 +858,59 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("button", { name: "Working off-site" })).not.toBeNull();
   });
 
+  it("refreshes a stale disabled outlet before Clock In and keeps verification pending until the server responds", async () => {
+    const enabled = { outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100, accuracy_limit_meters: 50 };
+    mocks.attendanceContext.mockResolvedValueOnce({ outlet_name: "Friends Corner", location_enabled: false }).mockResolvedValue(enabled);
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 8 } }) } });
+    renderCrewApp();
+    expect(await screen.findByText("Location check not configured")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clock In" }));
+    expect(await screen.findByText("Within clock-in area · confirm to verify")).not.toBeNull();
+    expect(screen.queryByText("Location verified")).toBeNull();
+    expect(mocks.attendanceContext.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("requires an exception for poor GPS accuracy despite an in-range position", async () => {
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100, accuracy_limit_meters: 50 });
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 90 } }) } });
+    renderCrewApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
+    expect(await screen.findByText(/GPS accuracy is too low/)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Retry location" })).not.toBeNull();
+    expect(mocks.clock).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes a GPS timeout and retries with fresh context", async () => {
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100, accuracy_limit_meters: 50 });
+    let attempts = 0;
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success, failure) => {
+      attempts += 1;
+      if (attempts === 1) failure({ code: 3 });
+      else success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 8 } });
+    } } });
+    renderCrewApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
+    expect(await screen.findByText(/Location request timed out/)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm" }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Retry location" }));
+    expect(await screen.findByText("Within clock-in area · confirm to verify")).not.toBeNull();
+    expect(attempts).toBe(2);
+    expect(mocks.attendanceContext.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("uses the live clock-out context and a separate pre-submit label", async () => {
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Scheduled Outlet", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100, accuracy_limit_meters: 50 });
+    mocks.myAttendance.mockResolvedValue([{ id: "open-1", status: "open", clock_in_at: "2026-08-14T02:00:00Z", outlet_id: "outlet-1" }]);
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 8 } }) } });
+    renderCrewApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Clock Out" }));
+    expect(await screen.findByText("Within clock-out area · confirm to verify")).not.toBeNull();
+    expect(screen.queryByText("Location verified")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Clock Out" }).at(-1));
+    await waitFor(() => expect(mocks.clock).toHaveBeenCalledWith("crew-token", "out", expect.objectContaining({ accuracy_meters: 8 }), ""));
+  });
+
   it("shows every true task inline, exposes the canonical reminder badge, and keeps an honest empty state", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1, due_at: "2026-08-13T02:00:00Z" }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1, due_at: "2026-08-13T10:00:00Z" }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue", due_at: "2026-08-13T02:00:00Z" }, { id: "e", source: "legacy_daily", name: "Close register", status: "pending" }] });

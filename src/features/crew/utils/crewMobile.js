@@ -31,11 +31,23 @@ export const distanceMeters = (a, b, c, d) => {
   const point = Math.sin(latitude / 2) ** 2 + Math.cos(radians(a)) * Math.cos(radians(c)) * Math.sin(longitude / 2) ** 2;
   return 6371000 * 2 * Math.atan2(Math.sqrt(point), Math.sqrt(1 - point));
 };
+export const clockLocationState = (draft) => {
+  const context = draft?.context;
+  if (!context?.location_enabled) return "disabled";
+  if (!draft.location) return "unavailable";
+  if (!Number.isFinite(draft.distance)) return "unavailable";
+  if (draft.distance > Number(context.radius_meters)) return "outside";
+  const accuracy = draft.location.accuracy_meters;
+  const limit = context.accuracy_limit_meters ?? Math.min(Number(context.radius_meters) / 2, 50);
+  if (accuracy == null || limit == null || !Number.isFinite(Number(accuracy)) || Number(accuracy) < 0 || Number(accuracy) > Number(limit)) return "inaccurate";
+  return "within";
+};
+const locationError = (code) => Object.assign(new Error("Device location unavailable"), { locationCode: code });
 export const getLocation = () => new Promise((resolve, reject) => {
-  if (!navigator.geolocation) return reject(new Error("Device location unavailable"));
+  if (!navigator.geolocation) return reject(locationError("unavailable"));
   navigator.geolocation.getCurrentPosition(
     (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy_meters: position.coords.accuracy }),
-    (cause) => reject(new Error(cause.code === 1 ? "Location permission unavailable" : "Device location unavailable")),
+    (cause) => reject(locationError(cause.code === 1 ? "permission" : cause.code === 3 ? "timeout" : "unavailable")),
     { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
   );
 });
