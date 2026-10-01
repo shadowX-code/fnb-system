@@ -111,6 +111,14 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); document.documentElement.removeAttribute("data-crew-theme"); document.documentElement.removeAttribute("data-crew-theme-transition"); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it.each([true, false])("shows Management cash entry for configured receiver=%s independently of initiation", async (receiver) => {
+    mocks.outletScope.mockResolvedValue({ employee_id: "employee-a", management: true, outlets: [{ id: "outlet-1", name: "JYMT", special_access: { can_initiate_handover: false }, is_cash_handover_receiver: receiver }], default_outlet_id: "outlet-1" });
+    renderCrewApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Me" }));
+    await screen.findByRole("heading", { name: "Me" });
+    await waitFor(() => expect(Boolean(screen.queryByRole("button", { name: /Cash Checkout/ }))).toBe(receiver));
+  });
+
   it("switches Management's read-only Home context without granting clock or task execution", async () => {
     mocks.outletScope.mockResolvedValue({ employee_id: "employee-a", management: true, outlets: [{ id: "outlet-1", name: "JYMT" }, { id: "outlet-2", name: "Other" }], default_outlet_id: "outlet-1" });
     mocks.attendanceContext.mockResolvedValue({ outlet_id: null, clock_eligible: false, location_enabled: false });

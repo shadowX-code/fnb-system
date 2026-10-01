@@ -26,6 +26,24 @@ beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Pr
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
+  it("selects authorized Management through the same versioned receiver save and readback", async () => {
+    const management = { id: "management-1", name: "Manager QA", position: "Manager", workplace: "Management" };
+    const context = { ...fixture, employees: [...fixture.employees, management], receiver_configuration: { version: 3 } };
+    mocks.context.mockResolvedValueOnce(context).mockResolvedValue({ ...context, eligible_receivers: [...fixture.eligible_receivers, management], receiver_configuration: { version: 4 } });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("QA Crew");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /Receiver QA/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Manager QA · Manager · Management" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+    await waitFor(() => expect(mocks.saveReceivers).toHaveBeenCalledWith("outlet-1", ["employee-2", "management-1"], 3));
+    expect(mocks.settings).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Cash Checkout Settings" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("button", { name: /Receiver QA.*Manager QA/ })).not.toBeNull();
+  });
+
   it("separates daily reconciliation from the append-only deposit ledger", async () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
