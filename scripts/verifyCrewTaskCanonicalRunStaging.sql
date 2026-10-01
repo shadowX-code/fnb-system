@@ -116,8 +116,10 @@ begin
     or exists(select 1 from jsonb_array_elements(public.crew_tasks_today('team-projection-viewer',v_today)->'tasks') x where x->>'id'=old_run::text)
   then raise exception 'Crew split-run Home projection failed'; end if;
 
+  perform public.crew_tasks_reset('team-projection-viewer',team_instance);
+
   -- Partial responses by both Crew; Reset clears shared state on the same run.
-  for item in select id,sort_order from public.crew_operation_instance_items where instance_id=team_instance and sort_order<=2 order by sort_order loop
+  for item in select id,sort_order from public.crew_operation_instance_items where instance_id=team_instance and sort_order<2 order by sort_order loop
     perform public.crew_tasks_update_block(case when item.sort_order=1 then 'team-projection-viewer' else 'team-projection-actor' end,item.id,'completed');
   end loop;
   select execution_started_at into v_started from public.crew_operation_instances where id=team_instance;
