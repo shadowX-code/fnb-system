@@ -19,6 +19,12 @@ const base = {
   clock_out_distance_meters: 14,
   clock_in_accuracy_meters: 8,
   clock_out_accuracy_meters: 9,
+  clock_in_geofence_latitude: 3.1,
+  clock_in_geofence_longitude: 101.7,
+  clock_in_geofence_radius_meters: 100,
+  clock_out_geofence_latitude: 3.1,
+  clock_out_geofence_longitude: 101.7,
+  clock_out_geofence_radius_meters: 100,
   roster_evidence_state: "completed",
   evidence_version: "roster-attendance-evidence-v1",
   schedule: { date: "2026-08-14", entry_type: "working", start_time: "10:00", end_time: "18:00", outlet_name: "Friends Corner", position: "Service Crew" },
@@ -104,6 +110,8 @@ describe("Crew Attendance Admin", () => {
     const exceptionDialog = screen.getByRole("dialog", { name: "Attendance Details" });
     expect(within(exceptionDialog).getByText("GPS unavailable")).not.toBeNull();
     expect(within(exceptionDialog).getAllByText("Distance from Outlet")).toHaveLength(2);
+    expect(within(exceptionDialog).getAllByText("Outlet Centre Used")).toHaveLength(2);
+    expect(within(exceptionDialog).getAllByText("Allowed Radius Used")).toHaveLength(2);
   });
 
   it("shows dated employment context separately from actual outlet and published roster evidence", async () => {

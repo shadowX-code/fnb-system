@@ -5,7 +5,7 @@ import CrewBottomSheet from "./CrewBottomSheet.jsx";
 import CrewMobileModal from "./CrewMobileModal.jsx";
 import { CrewEmptyState, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { formatCrewDate, formatCrewTime } from "../utils/crewI18n.js";
-import { malaysiaDateKey, formatTime } from "../utils/crewMobile.js";
+import { clockLocationState, malaysiaDateKey, formatTime } from "../utils/crewMobile.js";
 import { reasonValues, clockInOptions, clockOutOptions } from "../utils/crewClockReasons.js";
 
 export default function CrewAttendanceMobile({ rows, loading, selectedMonth, onMonthChange, onBack, t }) {
@@ -65,15 +65,19 @@ function ClockReasonSheet({ options, selectedReason, onSelect, onClose }) {
 
 export function CrewClockDialogs({ clock, context, navigate }) {
   const { t } = useTranslation();
-  const { clockDraft, setClockDraft, reasonSheetOpen, setReasonSheetOpen, exception, setException, otherReason, setOtherReason, reasonTriggerRef, loading, error, submitClock, clockSuccess, setClockSuccess } = clock;
-  const exceptionRequired = Boolean(context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters)));
-  const outside = Boolean(clockDraft?.location && clockDraft?.distance > Number(context?.radius_meters));
+  const { clockDraft, setClockDraft, reasonSheetOpen, setReasonSheetOpen, exception, setException, otherReason, setOtherReason, reasonTriggerRef, loading, error, retryLocation, submitClock, clockSuccess, setClockSuccess } = clock;
+  const liveContext = clockDraft?.context || context;
+  const locationState = clockLocationState(clockDraft);
+  const exceptionRequired = ["unavailable", "outside", "inaccurate"].includes(locationState);
   const options = clockDraft?.action === "out" ? clockOutOptions : clockInOptions;
   return <>
-    {clockDraft && !reasonSheetOpen && <CrewBottomSheet title={t("attendance.confirmClock", { action: clockDraft.action === "out" ? t("home.clockOut") : t("home.clockIn") })} description={context?.outlet_name || t("common.outlet")} headerIcon={<Navigation size={19} />} onClose={() => setClockDraft(null)} closeDisabled={loading} allowBackdropClose={!loading} initialFocusRef={exceptionRequired ? reasonTriggerRef : undefined} className="crew-clock-confirm-sheet" contentClassName="crew-clock-confirm-content" footer={<><button type="button" className="crew-mobile-ghost" onClick={() => setClockDraft(null)} disabled={loading}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" onClick={submitClock} disabled={loading || (exceptionRequired && (!exception || (exception === reasonValues.other && !otherReason.trim())))}>{loading ? t("common.saving") : clockDraft.action === "out" ? t("home.clockOut") : t("common.confirm")}</button></>}>
-      {!exceptionRequired && <div className="crew-clock-location-callout is-verified"><Check size={17} /><span>{t("attendance.locationVerified")}</span></div>}
-      {outside && <div className="crew-clock-location-callout is-warning"><MapPin size={17} /><span><strong>{t("attendance.locationDistance", { distance: Math.round(clockDraft.distance) })}</strong><small>{t("attendance.locationAllowed", { meters: context.radius_meters })}</small></span></div>}
-      {!clockDraft.location && <div className="crew-clock-location-callout is-warning"><TriangleAlert size={17} /><span>{t("attendance.locationUnavailable")}</span></div>}
+    {clockDraft && !reasonSheetOpen && <CrewBottomSheet title={t("attendance.confirmClock", { action: clockDraft.action === "out" ? t("home.clockOut") : t("home.clockIn") })} description={liveContext?.outlet_name || t("common.outlet")} headerIcon={<Navigation size={19} />} onClose={() => setClockDraft(null)} closeDisabled={loading} allowBackdropClose={!loading} initialFocusRef={exceptionRequired ? reasonTriggerRef : undefined} className="crew-clock-confirm-sheet" contentClassName="crew-clock-confirm-content" footer={<><button type="button" className="crew-mobile-ghost" onClick={() => setClockDraft(null)} disabled={loading}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="button" onClick={submitClock} disabled={loading || (exceptionRequired && (!exception || (exception === reasonValues.other && !otherReason.trim())))}>{loading ? t("common.saving") : clockDraft.action === "out" ? t("home.clockOut") : t("common.confirm")}</button></>}>
+      {locationState === "within" && <div className="crew-clock-location-callout is-verified"><Check size={17} /><span>{t(clockDraft.action === "out" ? "attendance.withinClockOutArea" : "attendance.withinClockInArea")}</span></div>}
+      {locationState === "disabled" && <div className="crew-clock-location-callout"><MapPin size={17} /><span>{t("attendance.locationCheckDisabled")}</span></div>}
+      {locationState === "outside" && <div className="crew-clock-location-callout is-warning"><MapPin size={17} /><span><strong>{t("attendance.locationDistance", { distance: Math.round(clockDraft.distance) })}</strong><small>{t("attendance.locationAllowed", { meters: liveContext.radius_meters })}</small></span></div>}
+      {locationState === "inaccurate" && <div className="crew-clock-location-callout is-warning"><TriangleAlert size={17} /><span>{t("attendance.locationAccuracyLow", { meters: liveContext.accuracy_limit_meters ?? Math.min(Number(liveContext.radius_meters) / 2, 50) })}</span></div>}
+      {locationState === "unavailable" && <div className="crew-clock-location-callout is-warning"><TriangleAlert size={17} /><span>{t(clockDraft.locationError === "permission" ? "attendance.locationPermissionDenied" : clockDraft.locationError === "timeout" ? "attendance.locationTimedOut" : "attendance.locationUnavailable")}</span></div>}
+      {(locationState === "unavailable" || locationState === "inaccurate") && <button type="button" className="crew-mobile-ghost" onClick={retryLocation} disabled={loading}>{t("attendance.retryLocation")}</button>}
       {exceptionRequired && <label className="crew-clock-reason-field"><span>{t("attendance.reason")}</span><button ref={reasonTriggerRef} type="button" onClick={() => setReasonSheetOpen(true)} aria-label={exception || t("attendance.selectReason")} aria-haspopup="dialog" aria-expanded={reasonSheetOpen}><strong>{exception || t("attendance.selectReason")}</strong><ChevronRight size={18} /></button></label>}
       {exception === reasonValues.other && <label className="crew-clock-other-reason"><span>{t("attendance.briefReason")}</span><input value={otherReason} maxLength="280" onChange={(event) => setOtherReason(event.target.value)} placeholder={t("attendance.briefReason")} /></label>}
       {error && <div className="crew-v2-error">{error}</div>}
