@@ -179,7 +179,7 @@ function CashSettings({ initial, positions, employees, approvedReceivers, receiv
   const [saving, setSaving] = useState(false);
   const [receiverIds, setReceiverIds] = useState(() => approvedReceivers.map((item) => item.id));
   const positionOptions = positions.map((position) => ({ value: position.id, label: `${position.name}${position.status === "inactive" ? " (Inactive)" : ""}` }));
-  const receiverOptions = employees.map((item) => ({ value: item.id, label: `${item.name} · ${item.position || "Crew"}` }));
+  const receiverOptions = employees.map((item) => ({ value: item.id, label: `${item.name} · ${item.position || "Crew"}${item.workplace === "Management" ? " · Management" : ""}` }));
   const receiversChanged = !sameIds(receiverIds, approvedReceivers.map((item) => item.id));
   const settingsChanged = Number(form.variance_tolerance) !== Number(initial.variance_tolerance ?? 0) || !sameIds(form.required_position_ids, initial.required_position_ids || []) || form.closing_deadline !== (initial.closing_deadline || "") || form.require_receiver_confirmation !== (initial.require_receiver_confirmation ?? true) || form.require_manager_review_over_tolerance !== (initial.require_manager_review_over_tolerance ?? true);
   async function submit(event) {
@@ -210,8 +210,8 @@ function CashSettings({ initial, positions, employees, approvedReceivers, receiv
       </SettingsSection>
       <SettingsSection title="Handover" description="Control receipt acknowledgement and who can receive new Cash Handovers.">
         <div className="space-y-4">
-          <ToggleField checked={form.require_receiver_confirmation} onChange={(checked) => setForm({ ...form, require_receiver_confirmation: checked })} label="Require internal receiver confirmation" helper="Internal handovers remain pending until the named Crew member confirms receipt." />
-          <MultiSelectField variant="form" label="Cash Handover Receivers" helper="Only active Crew whose workplace is this outlet can receive new handovers. Initiate Cash Handover access is separate. Removing a receiver does not change existing assignments." value={receiverIds} options={receiverOptions} onApply={setReceiverIds} placeholder="Add active Crew account" />
+          <ToggleField checked={form.require_receiver_confirmation} onChange={(checked) => setForm({ ...form, require_receiver_confirmation: checked })} label="Require internal receiver confirmation" helper="Internal handovers remain pending until the named receiver confirms receipt." />
+          <MultiSelectField variant="form" label="Cash Handover Receivers" helper="Select active Crew at this outlet or active Management authorized for this outlet. Initiate Cash Handover access is separate. Removing a receiver does not change existing assignments." value={receiverIds} options={receiverOptions} onApply={setReceiverIds} placeholder="Add eligible receiver" />
         </div>
       </SettingsSection>
       <SettingsSection title="Review Rules" description="When checkout must pause for manager review.">

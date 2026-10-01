@@ -4,7 +4,7 @@ import CrewCashCheckoutMobile from "../CrewCashCheckoutMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
-  cashCheckoutMobile: vi.fn(), cashCheckoutHistory: vi.fn(), saveCashCheckout: vi.fn(), recordCashCollection: vi.fn(), confirmCashCollection: vi.fn(),
+  managementCashMobile: vi.fn(), cashCheckoutMobile: vi.fn(), cashCheckoutHistory: vi.fn(), saveCashCheckout: vi.fn(), recordCashCollection: vi.fn(), confirmCashCollection: vi.fn(),
 } }));
 
 const payload = {
@@ -24,6 +24,22 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("Crew Cash Checkout mobile", () => {
+  it("lets receiver-only Management confirm assigned cash without exposing initiation or ledger", async () => {
+    const receipt = { id: "management-receipt", amount: 100, sender: "Sender QA", outlet_name: "Friends Corner" };
+    const result = { outlet: payload.outlet, deposit: null, can_perform: false, can_initiate_handover: false, can_record_collection: false, is_cash_handover_receiver: true, pending_receipts: [receipt] };
+    crewService.managementCashMobile.mockResolvedValueOnce(result).mockResolvedValue({ ...result, pending_receipts: [] });
+    crewService.confirmCashCollection.mockResolvedValue({ status: "completed" });
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm Received" }));
+    expect(screen.queryByRole("button", { name: "Hand Over Cash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "View ledger" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Confirm Received" })[1]);
+    await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("management-session", "management-receipt", 100));
+    expect(await screen.findByText("No cash waiting for confirmation")).not.toBeNull();
+    expect(crewService.managementCashMobile).toHaveBeenCalledWith("management-session", "outlet-1", expect.any(String));
+  });
+
   it("renders the server-scoped checkout and deposit summary", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
