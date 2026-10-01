@@ -1,3 +1,4 @@
+import useCrewTaskTitles from "../hooks/useCrewTaskTitles.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
@@ -180,6 +181,9 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     return () => { active = false; };
   }, [token, activeSop?.id, activeSopLanguage, i18n.resolvedLanguage, i18n.language]);
 
+  const localizedAllTasks = useCrewTaskTitles(token, (allTaskData || data)?.tasks || []);
+  const localizedHistoryTasks = useCrewTaskTitles(token, historyTaskData?.tasks || []);
+
   function returnFromDetail() {
     if (detailContext?.from === "home") { onBack?.(detailContext); return; }
     setDetail(null); setDetailLoading(false); setDetailContext(null);
@@ -219,10 +223,10 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   }
 
   const taskData = allTaskData || data || {};
-  const activeGroups = activeTaskResponsibilities(taskData.tasks || [], t);
-  const historical = historyTasks(historyTaskData?.tasks || [], historyFilter);
+  const activeGroups = activeTaskResponsibilities(localizedAllTasks, t);
+  const historical = historyTasks(localizedHistoryTasks, historyFilter);
   const filterOptions = [
-    ["all", t("tasks.all")], ["completed", t("tasks.completedFilter")], ["overdue", t("tasks.overdue")], ["exception", t("tasks.exception")],
+    ["all", t("tasks.all")], ["in_progress", t("status.in_progress")], ["completed", t("tasks.completedFilter")], ["overdue", t("tasks.overdue")], ["exception", t("tasks.exception")],
   ];
   return <section className="crew-ops-mobile">
     <CrewMobileDetailHeader title={t("tasks.title")} onBack={onBack} variant="workflow" />

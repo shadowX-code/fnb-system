@@ -1,3 +1,4 @@
+import useCrewTaskTitles from "../hooks/useCrewTaskTitles.js";
 import { useTranslation } from "react-i18next";
 import { Bell, CalendarCheck, Check, ChevronRight, ClipboardCheck, Clock3, Fingerprint, MapPin, Moon, ShieldCheck, Sun } from "lucide-react";
 import CrewHomeClockMotion from "../CrewHomeClockMotion.jsx";
@@ -18,7 +19,8 @@ export default function CrewHomeMobile({ session, attendance, context, roster, o
   const greeting = hour < 12 ? t("home.morning") : hour < 18 ? t("home.afternoon") : t("home.evening");
   const { openShift, nowTick, clockTransition, loading, prepareClock } = clock;
   const todayRoster = roster?.today;
-  const homeTasks = completedTasksLast(operations?.tasks || []).map((row) => {
+  const localizedTasks = useCrewTaskTitles(session.token, operations?.tasks || []);
+  const homeTasks = completedTasksLast(localizedTasks).map((row) => {
     const progress = row.source === "legacy_daily"
       ? row.description || null
       : t("tasks.completedCount", { completed: row.completed_count || 0, total: row.block_count || 0 });

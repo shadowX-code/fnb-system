@@ -146,6 +146,10 @@ export function applySopLocalization(sop, localizations = {}) {
   };
 }
 
+export function applyTaskTitleLocalization(task, localizations = {}) {
+  return { ...task, name: resolveLocalizedValue(localizations, "task.name", task.name) };
+}
+
 export function applyTaskLocalization(task, localizations = {}) {
   if (!task) return task;
   return {

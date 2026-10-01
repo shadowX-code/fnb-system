@@ -75,3 +75,11 @@ describe("Crew Task schedule formatter", () => {
     expect(historyTasks(tasks, "exception").map((task) => task.id)).toEqual(["exception"]);
   });
 });
+
+ it("keeps a started historical run visible with its canonical In Progress status", () => {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
+    const rows = [{ id: "started", business_date: today, status: "in_progress", completed_count: 1, block_count: 12 }];
+    expect(historyTasks(rows, "all").map((row) => row.id)).toContain("started");
+    expect(historyTasks(rows, "in_progress").map((row) => row.id)).toContain("started");
+    expect(historyTasks(rows, "completed")).toHaveLength(0);
+ });
