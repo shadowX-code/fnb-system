@@ -44,7 +44,7 @@ describe("Crew Task schedule formatter", () => {
       business_date: "2026-08-22",
       start_time: "15:00:00",
       due_time: "16:00:00",
-    }, t)).toBe("Today · Daily · 3:00 pm–4:00 pm");
+    }, t)).toBe("Today · Daily · 3:00 pm – 4:00 pm");
   });
 
   it("shows a recurring responsibility once while retaining immutable instances for history", () => {

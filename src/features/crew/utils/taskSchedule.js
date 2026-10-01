@@ -1,4 +1,4 @@
-import { crewLocale, formatCrewDate, formatCrewTime, MALAYSIA_TIME_ZONE } from "./crewI18n.js";
+import { formatCrewDateWithWeekday, formatCrewTime, MALAYSIA_TIME_ZONE } from "./crewI18n.js";
 
 const WEEKDAY_BY_ISO = [null, "mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
@@ -14,7 +14,7 @@ function dateValue(value) {
 function localDateLabel(value, t) {
   if (!value) return null;
   if (value === crewBusinessDate()) return t("tasks.schedule.today");
-  return formatCrewDate(dateValue(value), { weekday: "short", day: "numeric", month: "short" });
+  return formatCrewDateWithWeekday(dateValue(value));
 }
 
 function localizedWeekdays(days, t) {
@@ -67,7 +67,7 @@ export function formatTaskSchedule(task, t) {
   const date = localDateLabel(task.business_date || task.task_date || task.effective_date, t);
   const start = formattedTime(taskTime(task));
   const due = formattedTime(task.due_time || (task.schedule_type === "one_time" ? (task.due_at || task.available_until) : null));
-  const timing = start && due && start !== due ? `${start}–${due}` : start || due || null;
+  const timing = start && due && start !== due ? `${start} – ${due}` : start || due || null;
 
   if (task.schedule_type === "one_time") return [rule, date, timing].filter(Boolean).join(" · ");
   if (task.schedule_type === "shift_based") return [date, rule].filter(Boolean).join(" · ");
