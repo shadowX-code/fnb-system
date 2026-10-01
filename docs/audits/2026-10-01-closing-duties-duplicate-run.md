@@ -1,5 +1,7 @@
 # Closing Duties duplicate run investigation — 1 October 2026
 
+> Historical investigation: the later approved lifecycle batch supersedes the evidence-merging proposal below. Its reconciliation preserves v1 only for audit and transfers no incomplete responses into canonical v2.
+
 Read-only Production catalog and evidence investigation. No Task code, schema, occurrence or response mutation was performed. Times below are Asia/Kuala_Lumpur (UTC+8).
 
 ## Exact run

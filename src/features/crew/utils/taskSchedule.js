@@ -36,8 +36,8 @@ function formattedTime(value) {
     const [hours, minutes] = value.split(":").map(Number);
     // PostgreSQL `time` values are already wall-clock values. Formatting them in
     // Malaysia again would shift the displayed time by eight hours.
-    return new Intl.DateTimeFormat(crewLocale(), { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" })
-      .format(new Date(Date.UTC(2026, 0, 1, hours, minutes)));
+    return new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" })
+      .format(new Date(Date.UTC(2026, 0, 1, hours, minutes))).toLowerCase();
   }
   return formatCrewTime(value, { hour12: true });
 }
@@ -114,7 +114,7 @@ export function activeTaskResponsibilities(tasks = [], t) {
   const unique = new Map();
   for (const task of current) {
     const recurring = task.source === "instance" && ["recurring", "shift_based"].includes(task.schedule_type);
-    const key = recurring ? `definition:${task.template_id || task.name}:${task.schedule_type}` : `${task.source || "task"}:${task.id}`;
+    const key = recurring ? `definition:${task.series_id || task.template_id || task.name}:${task.schedule_type}` : `${task.source || "task"}:${task.id}`;
     const existing = unique.get(key);
     if (!existing || activePriority(task, today) < activePriority(existing, today)) unique.set(key, task);
   }
@@ -147,4 +147,9 @@ export function historyTasks(tasks = [], filter = "all", now = new Date()) {
       return status === filter;
     })
     .sort((a, b) => String(taskDate(b)).localeCompare(String(taskDate(a))) || String(b.completed_at || "").localeCompare(String(a.completed_at || "")));
+}
+
+export function completedTasksLast(tasks = []) {
+  const final = (task) => ["completed", "completed_with_exceptions"].includes(task.status);
+  return [...tasks.filter((task) => !final(task)), ...tasks.filter(final)];
 }

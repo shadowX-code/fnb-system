@@ -146,4 +146,12 @@ describe("CrewTaskBlockRenderer", () => {
     expect(isTaskBlockActionable({ block_type: "confirmation" })).toBe(true);
   });
 
+  it("shows one compact readonly result while retaining comments and issue evidence", () => {
+    const {container} = render(<CrewTaskBlockRenderer block={base("checklist_item", {status:"completed", response:{value:true}, note:"Door secured"})} mode="readonly" />);
+    expect(screen.getAllByText("Done")).toHaveLength(1);
+    expect(screen.getByText("Door secured")).not.toBeNull();
+    expect(container.querySelector(".crew-task-readonly-result")).toBeNull();
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
 });

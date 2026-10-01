@@ -143,4 +143,5 @@ Object.assign(resources.growth, { performanceMonth: "{{month}}绩效" });
 Object.assign(resources.performance, { areasCompleted: "已完成 {{scored}} / {{total}} 项", pointsSoFar: "目前得分", pointsSoFarWithScore: "目前得分 {{score}}" });
 Object.assign(resources.performance, { googleUnavailable: "本月顾客评价数据尚未就绪。此项保持待评估，不计为零分，也不会扣减已评估得分。", googleEvidence: "本月新增的 Google 评价用于计算门店共享的顾客评分。已定稿的结果保留当时的记录。" });
 Object.assign(resources.attendance, { withinClockInArea: "在打卡范围内 · 确认后验证", withinClockOutArea: "在签退范围内 · 确认后验证", locationCheckDisabled: "此门店尚未启用位置验证。", locationAccuracyLow: "GPS 精度不足（需要在 ±{{meters}} 米以内）。", locationPermissionDenied: "定位权限被拒绝。请在浏览器中允许定位后重试。", locationTimedOut: "定位请求超时。请重试或选择例外原因。", retryLocation: "重试定位" });
+Object.assign(resources.tasks, { responseRecorded:"已记录回复", openTask:"打开任务：{{title}}", completionNote:"完成备注", completionNoteOptional:"完成备注（选填）", requiredNotePlaceholder:"填写所需的完成备注", optionalNotePlaceholder:"可补充备注", evidenceTypes:{note:"备注",optional_note:"选填备注",photo:"照片",structured:"结构化回复"} });
 export default resources;
