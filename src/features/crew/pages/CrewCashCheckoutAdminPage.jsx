@@ -33,7 +33,7 @@ const emptyData = () => ({ settings: null, summary: {}, checkouts: [], ledger: [
 const normalizeData = (payload) => {
   const source = payload && typeof payload === "object" ? payload : {};
   return {
-    settings: source.settings && typeof source.settings === "object" ? source.settings : null,
+    settings: source.settings && typeof source.settings === "object" && Object.keys(source.settings).length ? source.settings : null,
     summary: source.summary && typeof source.summary === "object" ? source.summary : {},
     checkouts: Array.isArray(source.checkouts) ? source.checkouts : [], ledger: Array.isArray(source.ledger) ? source.ledger : [],
     collections: Array.isArray(source.collections) ? source.collections : [], float_history: Array.isArray(source.float_history) ? source.float_history : [], employees: Array.isArray(source.employees) ? source.employees : [], eligible_receivers: Array.isArray(source.eligible_receivers) ? source.eligible_receivers : [], receiver_configuration: source.receiver_configuration || {}, checkout_positions: Array.isArray(source.checkout_positions) ? source.checkout_positions : [],
@@ -55,6 +55,8 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   const [context, setContext] = useState(emptyData);
   const [selected, setSelected] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [floatOpen, setFloatOpen] = useState(false);
+  const [floatHistoryOpen, setFloatHistoryOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
   const canManage = auth.hasPermission("crew_cash_checkout.manage");
   const canReview = auth.hasPermission("crew_cash_checkout.review");
@@ -66,14 +68,31 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   const [ledgerListing, ledgerActions] = useAdminPagedQuery({ storageKey: "crew-cash-ledger", enabled: Boolean(outletId && tab === "deposit"), querySignature: ledgerSignature, loadPage: ({ page, pageSize }) => crewService.cashCheckoutAdminPage({ outletId, from, to, listing: "ledger", page, pageSize }) });
   const listing = tab === "checkout" ? checkoutListing : ledgerListing;
   const listingActions = tab === "checkout" ? checkoutActions : ledgerActions;
-  const data = useMemo(() => normalizeData({ ...context, settings: listing.summary && Object.hasOwn(listing.summary, "settings") ? listing.summary.settings : context.settings, summary: listing.summary || {}, checkouts: tab === "checkout" ? listing.rows : [], ledger: tab === "deposit" ? listing.rows : [], collections: listing.summary?.collections || [] }), [context, listing.rows, listing.summary, tab]);
+  const data = useMemo(() => normalizeData({ ...context, summary: listing.summary || {}, checkouts: tab === "checkout" ? listing.rows : [], ledger: tab === "deposit" ? listing.rows : [], collections: listing.summary?.collections || [] }), [context, listing.rows, listing.summary, tab]);
   const loading = listing.loading;
   const loadError = listing.error;
   const refresh = async () => listingActions.refreshNow();
   useEffect(() => {
-    if (!outletId) { setContext(emptyData()); return; }
-    crewService.cashCheckoutAdminContext(outletId).then((payload) => setContext(normalizeData(payload))).catch(() => setContext(emptyData()));
+    let active = true;
+    setContext(emptyData());
+    if (outletId) crewService.cashCheckoutAdminContext(outletId)
+      .then((payload) => { if (active) setContext(normalizeData(payload)); })
+      .catch(() => { if (active) setContext(emptyData()); });
+    return () => { active = false; };
   }, [outletId]);
+
+  async function afterSettingsSaved(close) {
+    let readbackOk = true;
+    try {
+      const payload = await crewService.cashCheckoutAdminContext(outletId);
+      setContext(normalizeData(payload));
+      await refresh();
+    } catch {
+      readbackOk = false;
+    }
+    close();
+    return readbackOk;
+  }
 
   async function review(checkout, decision) {
     const note = decision === "reject" ? window.prompt("Reason for returning this checkout") : "Reviewed and approved";
@@ -99,7 +118,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
       section="Crew · Operations"
       title="Cash Checkout"
       description="Reconcile daily outlet cash separately from the auditable Cash Deposit ledger."
-      secondaryActions={canManage ? <button className="btn-secondary" disabled={loading || !outletId} onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</button> : null}
+      secondaryActions={<div className="flex flex-wrap gap-2"><button className="btn-secondary" disabled={!outletId} onClick={() => setFloatOpen(true)}><WalletCards size={16} /> Floating Cash</button>{canManage ? <button className="btn-secondary" disabled={!outletId} onClick={() => setSettingsOpen(true)}><Settings2 size={16} /> Settings</button> : null}</div>}
       primaryActions={tab === "deposit" && canCollect ? <button className="btn-primary" onClick={() => setCollectionOpen(true)}><HandCoins size={16} /> Hand Over Cash</button> : null}
     />
     <AdminSegmentedControl value={tab} onChange={setTab} label="Cash Checkout sections" options={[{ value: "checkout", label: "Daily Checkout" }, { value: "deposit", label: "Cash Deposit" }]} />
@@ -134,7 +153,9 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
       {data.collections.some((item) => ["pending_receipt", "review_required"].includes(item.status)) && <AdminDataSection title="Handover Status"><DataTable density="compact" rows={data.collections.filter((item) => ["pending_receipt", "review_required"].includes(item.status))} getRowKey={(row) => row.id} columns={[{ key: "receiver", header: "Receiver", render: (row) => row.receiver_name }, { key: "amount", header: "Handed Over", render: (row) => money(row.amount) }, { key: "received", header: "Received", render: (row) => row.received_amount ? money(row.received_amount) : "Awaiting confirmation" }, { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.status)}>{statusLabel(row.status)}</Badge> }, { key: "action", header: "Action", align: "right", render: (row) => row.status === "review_required" && canReview ? <button className="btn-secondary" onClick={() => reviewCollection(row, refresh, ui)}>Review Difference</button> : null }]} /></AdminDataSection>}
     </>}</AsyncDataSurface>
     {selected && <CheckoutDetail row={selected} canReview={canReview} canManage={canManage} onReview={review} onChanged={refresh} ui={ui} onClose={() => setSelected(null)} />}
-    {settingsOpen && <CashSettings initial={data.settings || {}} positions={data.checkout_positions} employees={data.employees} approvedReceivers={data.eligible_receivers} receiverConfiguration={data.receiver_configuration} history={data.float_history} outletId={outletId} onClose={() => setSettingsOpen(false)} onSaved={async () => { setSettingsOpen(false); await refresh(); }} ui={ui} />}
+    {settingsOpen && <CashSettings initial={data.settings || {}} positions={data.checkout_positions} employees={data.employees} approvedReceivers={data.eligible_receivers} receiverConfiguration={data.receiver_configuration} outletId={outletId} onClose={() => setSettingsOpen(false)} onSaved={() => afterSettingsSaved(() => setSettingsOpen(false))} ui={ui} />}
+    {floatOpen && <FloatingCash initial={data.settings || {}} outletId={outletId} canManage={canManage} onClose={() => setFloatOpen(false)} onHistory={() => { setFloatOpen(false); setFloatHistoryOpen(true); }} onSaved={() => afterSettingsSaved(() => setFloatOpen(false))} ui={ui} />}
+    {floatHistoryOpen && <FloatingCashHistory history={data.float_history} onClose={() => setFloatHistoryOpen(false)} />}
     {collectionOpen && <CollectionForm outletId={outletId} employees={data.eligible_receivers} balance={data.summary.current_balance} onClose={() => setCollectionOpen(false)} onSaved={async () => { setCollectionOpen(false); await refresh(); }} ui={ui} />}
   </div>;
 }
@@ -153,26 +174,31 @@ function CheckoutDetail({ row, canReview, canManage, onReview, onChanged, ui, on
 
 function Detail({ label, value }) { return <div className="rounded-xl border border-border p-3"><small className="text-text-muted">{label}</small><strong className="mt-1 block">{value}</strong></div>; }
 
-function CashSettings({ initial, positions, employees, approvedReceivers, receiverConfiguration, history, outletId, onClose, onSaved, ui }) {
-  const currentEffectiveFloat = Number(initial.effective_floating_cash ?? initial.floating_cash ?? 0);
-  const [form, setForm] = useState({ floating_cash: currentEffectiveFloat, variance_tolerance: initial.variance_tolerance ?? 0, required_position_ids: initial.required_position_ids || [], closing_deadline: initial.closing_deadline || "", require_receiver_confirmation: initial.require_receiver_confirmation ?? true, require_manager_review_over_tolerance: initial.require_manager_review_over_tolerance ?? true, effective_date: localDate(), reason: "" });
+function CashSettings({ initial, positions, employees, approvedReceivers, receiverConfiguration, outletId, onClose, onSaved, ui }) {
+  const [form, setForm] = useState({ variance_tolerance: initial.variance_tolerance ?? 0, required_position_ids: initial.required_position_ids || [], closing_deadline: initial.closing_deadline || "", require_receiver_confirmation: initial.require_receiver_confirmation ?? true, require_manager_review_over_tolerance: initial.require_manager_review_over_tolerance ?? true });
   const [saving, setSaving] = useState(false);
   const [receiverIds, setReceiverIds] = useState(() => approvedReceivers.map((item) => item.id));
-  const floatingCashChanged = Number(form.floating_cash) !== currentEffectiveFloat;
   const positionOptions = positions.map((position) => ({ value: position.id, label: `${position.name}${position.status === "inactive" ? " (Inactive)" : ""}` }));
   const receiverOptions = employees.map((item) => ({ value: item.id, label: `${item.name} · ${item.position || "Crew"}` }));
   const receiversChanged = !sameIds(receiverIds, approvedReceivers.map((item) => item.id));
-  const settingsChanged = floatingCashChanged || Number(form.variance_tolerance) !== Number(initial.variance_tolerance ?? 0) || !sameIds(form.required_position_ids, initial.required_position_ids || []) || form.closing_deadline !== (initial.closing_deadline || "") || form.require_receiver_confirmation !== (initial.require_receiver_confirmation ?? true) || form.require_manager_review_over_tolerance !== (initial.require_manager_review_over_tolerance ?? true);
-  async function submit(event) { event.preventDefault(); if (floatingCashChanged && !form.reason.trim()) { ui.notify({ title: "Reason required", message: "Add a reason before changing Floating Cash.", tone: "error" }); return; } if (!settingsChanged && !receiversChanged) { onClose(); return; } setSaving(true); try { if (settingsChanged) await crewService.saveCashSettings(outletId, { ...form, reason: floatingCashChanged ? form.reason : "" }); if (receiversChanged) await crewService.saveCashHandoverReceivers(outletId, receiverIds, Number(receiverConfiguration?.version || 0)); await onSaved(); ui.notify({ title: "Cash settings saved", message: receiversChanged ? "Cash rules and approved handover receivers were updated." : "Floating Cash history was recorded when the amount changed." }); } catch (cause) { ui.notify({ title: "Unable to save settings", message: cause.message, tone: "error" }); } finally { setSaving(false); } }
-  return <Modal title="Cash Checkout Settings" description="Outlet-level rules for checkout eligibility, cash variance and handover review." size="lg" onClose={onClose} bodyClassName="pb-5" footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving} form="cash-settings" type="submit">{saving ? "Saving…" : "Save Settings"}</button></>}>
+  const settingsChanged = Number(form.variance_tolerance) !== Number(initial.variance_tolerance ?? 0) || !sameIds(form.required_position_ids, initial.required_position_ids || []) || form.closing_deadline !== (initial.closing_deadline || "") || form.require_receiver_confirmation !== (initial.require_receiver_confirmation ?? true) || form.require_manager_review_over_tolerance !== (initial.require_manager_review_over_tolerance ?? true);
+  async function submit(event) {
+    event.preventDefault();
+    if (!settingsChanged && !receiversChanged) { onClose(); return; }
+    setSaving(true);
+    let rulesSaved = false;
+    try {
+      if (settingsChanged) { await crewService.saveCashSettings(outletId, form); rulesSaved = true; }
+      if (receiversChanged) await crewService.saveCashHandoverReceivers(outletId, receiverIds, Number(receiverConfiguration?.version || 0));
+      const readbackOk = await onSaved();
+      ui.notify({ title: readbackOk ? "Cash settings saved" : "Cash settings saved; refresh unavailable", message: readbackOk ? "Outlet checkout rules and handover receivers are up to date." : "Reload the page to verify the saved values.", tone: readbackOk ? undefined : "warning" });
+    } catch (cause) {
+      if (rulesSaved) await onSaved();
+      ui.notify({ title: rulesSaved ? "Checkout rules saved; receivers not updated" : "Unable to save settings", message: cause.message, tone: "error" });
+    } finally { setSaving(false); }
+  }
+  return <Modal title="Cash Checkout Settings" description="Outlet checkout rules, eligibility, handover and review. Floating Cash is managed separately." size="lg" onClose={onClose} bodyClassName="pb-5" footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving} form="cash-settings" type="submit">{saving ? "Saving…" : "Save Settings"}</button></>}>
     <form id="cash-settings" onSubmit={submit} className="space-y-7">
-      <SettingsSection title="Floating Cash" description="Set the outlet opening float and when a changed amount takes effect.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <MoneyField label="Floating Cash (RM)" value={form.floating_cash} onChange={(value) => setForm({ ...form, floating_cash: value })} min="0" />
-          <DatePickerField label="Effective Date" helper="Applies to a changed Floating Cash amount." value={form.effective_date} onChange={(value) => setForm({ ...form, effective_date: value })} />
-          {floatingCashChanged ? <AdminFormField className="sm:col-span-2" label="Reason for change" required><textarea className="control min-h-20" required value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Explain why the effective amount is changing" /></AdminFormField> : null}
-        </div>
-      </SettingsSection>
       <SettingsSection title="Checkout Rules" description="Set the variance threshold and operational closing reference for this outlet.">
         <div className="grid gap-4 sm:grid-cols-2">
           <MoneyField label="Variance Tolerance (RM)" helper="Sets the amount allowed before the review rule applies." value={form.variance_tolerance} onChange={(value) => setForm({ ...form, variance_tolerance: value })} min="0" />
@@ -180,9 +206,7 @@ function CashSettings({ initial, positions, employees, approvedReceivers, receiv
         </div>
       </SettingsSection>
       <SettingsSection title="Eligible Crew" description="Who may perform checkout for this outlet.">
-        <div className="space-y-4">
-          <MultiSelectField variant="form" label="Checkout Positions" helper="Uses canonical Job Positions. Leaving this empty allows all otherwise eligible Crew in the outlet." value={form.required_position_ids} options={positionOptions} onApply={(required_position_ids) => setForm({ ...form, required_position_ids })} placeholder="All active positions" />
-        </div>
+        <MultiSelectField variant="form" label="Checkout Positions" helper="Uses canonical Job Positions. Leaving this empty allows all otherwise eligible Crew in the outlet." value={form.required_position_ids} options={positionOptions} onApply={(required_position_ids) => setForm({ ...form, required_position_ids })} placeholder="All active positions" />
       </SettingsSection>
       <SettingsSection title="Handover" description="Control receipt acknowledgement and who can receive new Cash Handovers.">
         <div className="space-y-4">
@@ -194,7 +218,39 @@ function CashSettings({ initial, positions, employees, approvedReceivers, receiv
         <ToggleField checked={form.require_manager_review_over_tolerance} onChange={(checked) => setForm({ ...form, require_manager_review_over_tolerance: checked })} label="Require review when variance exceeds tolerance" helper="Variances above the configured tolerance stay in review before completion." />
       </SettingsSection>
     </form>
-    <div className="mt-7 border-t border-border pt-5"><div><h3 className="font-semibold">Floating Cash History</h3><p className="mt-1 text-sm text-text-secondary">Previous outlet amounts and their immutable reasons.</p></div>{history.length ? <div className="mt-3 divide-y divide-border overflow-hidden rounded-xl border border-border">{history.map((item) => <div className="grid gap-1 px-3 py-3 text-sm sm:grid-cols-[112px_150px_minmax(0,1fr)_auto]" key={item.id}><span className="text-text-secondary">{date(item.effective_date)}</span><strong>{money(item.previous_amount)} → {money(item.new_amount)}</strong><span className="truncate text-text-secondary">{item.reason || "—"}</span><span className="text-text-muted">{formatCrewEmployee(item.adjusted_by)}</span></div>)}</div> : <p className="mt-3 text-sm text-text-muted">No Floating Cash adjustments recorded.</p>}</div>
+  </Modal>;
+}
+
+function FloatingCash({ initial, outletId, canManage, onClose, onHistory, onSaved, ui }) {
+  const currentAmount = Number(initial.effective_floating_cash ?? initial.floating_cash ?? 0);
+  const [form, setForm] = useState({ floating_cash: currentAmount, effective_date: localDate(), reason: "" });
+  const [saving, setSaving] = useState(false);
+  const amountChanged = Number(form.floating_cash) !== currentAmount;
+  async function submit(event) {
+    event.preventDefault();
+    if (!amountChanged) { onClose(); return; }
+    if (!form.reason.trim()) { ui.notify({ title: "Reason required", message: "Add a reason before changing Floating Cash.", tone: "error" }); return; }
+    setSaving(true);
+    try {
+      await crewService.saveCashSettings(outletId, { floating_cash: form.floating_cash, effective_date: form.effective_date, reason: form.reason });
+      const readbackOk = await onSaved();
+      ui.notify({ title: readbackOk ? "Floating Cash change recorded" : "Change recorded; refresh unavailable", message: readbackOk ? "The adjustment is available in Floating Cash History." : "Reload the page to verify the effective amount and history.", tone: readbackOk ? undefined : "warning" });
+    } catch (cause) { ui.notify({ title: "Unable to change Floating Cash", message: cause.message, tone: "error" }); }
+    finally { setSaving(false); }
+  }
+  return <Modal title="Floating Cash" description="Outlet opening float. Changes create immutable adjustment history." size="lg" onClose={onClose} footer={<div className="flex w-full flex-wrap items-center justify-between gap-2"><button className="btn-secondary" onClick={onHistory}><History size={16} /> View History</button><div className="flex gap-2"><button className="btn-secondary" onClick={onClose}>Close</button>{canManage ? <button className="btn-primary" disabled={saving || !amountChanged} form="floating-cash-change" type="submit">{saving ? "Recording…" : "Record Change"}</button> : null}</div></div>}>
+    <p className="mb-5 rounded-xl border border-border bg-surface-subtle px-4 py-3 text-sm text-text-secondary">Current effective amount: <strong className="text-text-primary">{money(currentAmount)}</strong></p>
+    {canManage ? <form id="floating-cash-change" onSubmit={submit} className="space-y-4">
+      <MoneyField label="Floating Cash (RM)" value={form.floating_cash} onChange={(value) => setForm({ ...form, floating_cash: value })} min="0" />
+      <DatePickerField label="Effective Date" helper="The new amount applies from this date." value={form.effective_date} onChange={(value) => setForm({ ...form, effective_date: value })} />
+      {amountChanged ? <AdminFormField label="Reason for change" required><textarea className="control min-h-20" required value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Explain why the effective amount is changing" /></AdminFormField> : null}
+    </form> : null}
+  </Modal>;
+}
+
+function FloatingCashHistory({ history, onClose }) {
+  return <Modal title="Floating Cash History" description="Immutable outlet adjustments. Saving checkout settings does not change these records." size="lg" onClose={onClose} footer={<button className="btn-secondary" onClick={onClose}>Close</button>}>
+    {history.length ? <div className="divide-y divide-border overflow-hidden rounded-xl border border-border">{history.map((item) => <div className="grid gap-1 px-3 py-3 text-sm sm:grid-cols-[112px_150px_minmax(0,1fr)_auto]" key={item.id}><span className="text-text-secondary">{date(item.effective_date)}</span><strong>{money(item.previous_amount)} → {money(item.new_amount)}</strong><span className="truncate text-text-secondary">{item.reason || "—"}</span><span className="text-text-muted">{formatCrewEmployee(item.adjusted_by)}</span></div>)}</div> : <p className="text-sm text-text-muted">No Floating Cash adjustments recorded.</p>}
   </Modal>;
 }
 

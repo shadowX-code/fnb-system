@@ -64,7 +64,7 @@ describe("Crew Cash Checkout Admin", () => {
   });
 
   it("renders an unconfigured outlet without dereferencing null settings", async () => {
-    mocks.data.mockResolvedValueOnce({ rows: fixture.checkouts, total_count: fixture.checkouts.length, page: 1, page_size: 20, summary: { ...fixture.summary, settings: null, collections: [] } });
+    mocks.context.mockResolvedValueOnce({ ...fixture, settings: {} });
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("Not configured")).not.toBeNull();
     expect(screen.getByText("Set this before Crew can reconcile opening cash")).not.toBeNull();
@@ -79,7 +79,8 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getAllByRole("button", { name: "Settings" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("dialog", { name: "Cash Checkout Settings" })).not.toBeNull();
-    expect(screen.getAllByText("Floating Cash")).toHaveLength(2);
+    expect(screen.getByText("Floating Cash is managed separately.", { exact: false })).not.toBeNull();
+    expect(screen.queryByText("Floating Cash History")).toBeNull();
     expect(screen.getByText("Checkout Rules")).not.toBeNull();
     expect(screen.getByText("Eligible Crew")).not.toBeNull();
     expect(screen.getByText("Handover")).not.toBeNull();
@@ -96,30 +97,47 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getByText(/Only Admin-configured Cash Deposit Receivers/)).not.toBeNull();
   });
 
-  it("requires a reason only when the current effective Floating Cash changes", async () => {
+  it("keeps Floating Cash changes and immutable History outside Save Settings", async () => {
+    mocks.context.mockResolvedValue({ ...fixture, float_history: [{ id: "float-1", effective_date: "2026-08-01", previous_amount: 0, new_amount: 300, reason: "Opening amount", adjusted_by: "Admin" }] });
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByText("QA Crew");
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.queryByLabelText(/Reason for change/)).toBeNull();
-
+    expect(screen.queryByLabelText("Floating Cash (RM)")).toBeNull();
+    expect(screen.queryByText("Floating Cash History")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Floating Cash" }));
+    expect(screen.getByText("Current effective amount:", { exact: false })).not.toBeNull();
     fireEvent.input(screen.getByLabelText("Floating Cash (RM)"), { target: { value: "350" } });
     await waitFor(() => expect(screen.getByLabelText(/Reason for change/).required).toBe(true));
     fireEvent.change(screen.getByLabelText(/Reason for change/), { target: { value: "Weekend operating float" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
-
-    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ floating_cash: "350", reason: "Weekend operating float", required_position_ids: [cashierPositionId] })));
+    fireEvent.click(screen.getByRole("button", { name: "Record Change" }));
+    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", { floating_cash: "350", effective_date: expect.any(String), reason: "Weekend operating float" }));
+    fireEvent.click(screen.getByRole("button", { name: "Floating Cash" }));
+    fireEvent.click(screen.getByRole("button", { name: "View History" }));
+    expect(screen.getByRole("dialog", { name: "Floating Cash History" })).not.toBeNull();
+    expect(screen.getByText("Opening amount")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Save Settings" })).toBeNull();
   });
 
-  it("groups Floating Cash changes separately from Checkout Rules using the shared field grammar", async () => {
+  it("reads saved checkout rules back from the outlet context before reopening", async () => {
+    mocks.context.mockResolvedValueOnce(fixture).mockResolvedValueOnce({ ...fixture, settings: { ...fixture.settings, variance_tolerance: 7.5 } });
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByText("QA Crew");
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.change(screen.getByLabelText("Variance Tolerance (RM)"), { target: { value: "7.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+    await waitFor(() => expect(mocks.context).toHaveBeenCalledTimes(2));
+    expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.not.objectContaining({ floating_cash: expect.anything() }));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByLabelText("Variance Tolerance (RM)").value).toBe("7.5");
+  });
 
-    expect(screen.getByText("Applies to a changed Floating Cash amount.")).not.toBeNull();
-    expect(screen.getByText("Sets the amount allowed before the review rule applies.")).not.toBeNull();
-    expect(screen.getByText("Require review when variance exceeds tolerance")).not.toBeNull();
-    expect(screen.getByLabelText("Floating Cash (RM)").closest("label").className).toContain("admin-form-field");
-    expect(screen.getByLabelText("Variance Tolerance (RM)").closest("label").className).toContain("admin-form-field");
+  it("uses the effective float when a future adjustment is stored", async () => {
+    mocks.context.mockResolvedValueOnce({ ...fixture, settings: { ...fixture.settings, floating_cash: 400, effective_floating_cash: 300 } });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("QA Crew");
+    fireEvent.click(screen.getByRole("button", { name: "Floating Cash" }));
+    expect(screen.getByLabelText("Floating Cash (RM)").value).toBe("300");
   });
 
   it("saves Checkout Positions by canonical Job Position ID", async () => {
@@ -131,7 +149,7 @@ describe("Crew Cash Checkout Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
 
-    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ required_position_ids: [cashierPositionId, supervisorPositionId], reason: "" })));
+    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ required_position_ids: [cashierPositionId, supervisorPositionId] })));
   });
 
   it("shows a recoverable error rather than an empty or crashed page", async () => {
