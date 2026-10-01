@@ -3,6 +3,7 @@ import {
   applyOnboardingLocalization,
   applySopLocalization,
   applyTaskLocalization,
+  applyTaskTitleLocalization,
   detectContentLanguage,
   localizationLanguageStatus,
   localizationStatus,
@@ -12,6 +13,13 @@ import {
 } from "../localizedContent.js";
 
 describe("Crew localized business content", () => {
+  it("resolves list titles from existing units and preserves missing authored names", () => {
+    const row = { id: "run", template_id: "version", name: "Closing Duties", status: "in_progress", completed_count: 1 };
+    expect(applyTaskTitleLocalization(row, { "task.name": "打烊工作" })).toEqual({ ...row, name: "打烊工作" });
+    expect(applyTaskTitleLocalization(row, {})).toEqual(row);
+    expect(row.name).toBe("Closing Duties");
+  });
+
   it("detects supported source languages and preserves an explicit fallback", () => {
     expect(detectContentLanguage("Welcome to the team")).toBe("en");
     expect(detectContentLanguage("欢迎加入我们的团队")).toBe("zh-CN");

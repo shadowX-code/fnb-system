@@ -142,7 +142,7 @@ export function historyTasks(tasks = [], filter = "all", now = new Date()) {
       const date = taskDate(task);
       const status = task.status === "pending" ? "not_started" : task.status;
       if (!date || date < from || date > today) return false;
-      if (filter === "all") return ["completed", "completed_with_exceptions", "review_required", "overdue", "exception"].includes(status);
+      if (filter === "all") return ["completed", "completed_with_exceptions", "review_required", "overdue", "exception", "in_progress"].includes(status);
       if (filter === "completed") return ["completed", "completed_with_exceptions", "review_required"].includes(status);
       return status === filter;
     })

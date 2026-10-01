@@ -34,7 +34,7 @@ Provider output is a draft translation, not a replacement for source authority.
 Manual edits and reviewed translations are protected from accidental regeneration through the current confirmation and lifecycle rules.
 
 Runtime presentation resolves the requested locale, then applies the defined fallback to available content and ultimately the canonical source.
-Missing translation must never hide required operational or learning content.
+Missing translation must never hide required operational or learning content. Crew Home and Task active/history lists resolve title unit `task.name` through the existing token-bound localized-content authority using the frozen Task definition identifier, with the same fallback as Task detail; changing locale does not translate or rewrite authored content.
 Published/assigned workflows freeze the localized values needed to preserve what Crew saw at that version.
 
 ## Permissions, Versions, And Audit
