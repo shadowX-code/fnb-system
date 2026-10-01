@@ -212,7 +212,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
       <CrewTaskPriority priority={detail.priority} />
       <TaskDetailSummary detail={detail} completed={completed} total={actionable.length} canRedo={canRedo} onRedo={() => setRedoOpen(true)} />
       {unavailable ? <TaskAvailabilityNotice availableFrom={detail.available_from} /> : null}
-      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} unavailable={unavailable} saving={savingBlockId === block.id} compactCompletedResult={["completed", "completed_with_exceptions"].includes(detail.status) && actionable.length === 1 && completed === 1} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
+      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} unavailable={unavailable} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
       {error ? <div className="crew-v2-error">{error}</div> : null}
       {redoOpen ? <CrewMobileModal title={t("tasks.redoTitle")} closeDisabled={redoSaving} onClose={() => !redoSaving && setRedoOpen(false)}><div className="crew-ops-redo-dialog"><p>{t("tasks.redoBody")}</p><div><button type="button" className="crew-mobile-secondary" disabled={redoSaving} onClick={() => setRedoOpen(false)}>{t("common.cancel")}</button><button type="button" className="crew-mobile-secondary crew-ops-redo-confirm" disabled={redoSaving} onClick={resetTask}><RotateCcw size={16} />{redoSaving ? t("common.saving") : t("tasks.redo")}</button></div></div></CrewMobileModal> : null}
     </section>;
@@ -285,11 +285,12 @@ function TaskDetailSummary({ detail, completed, total, canRedo, onRedo }) {
   const singleComplete = isFinal && total === 1 && completed === 1;
   const assignment = assignmentLabel(detail.assignment, t);
   const completion = detail.completion_audit;
-  const completionTime = completion?.completed_at || detail.completed_at;
+  const contributors = detail.completion_contributors;
+  const completedBy = Array.isArray(contributors) ? contributors.map((person) => person.employee_name).filter(Boolean).join(", ") : completion?.employee_name;
   return <section className="crew-ops-detail-summary" aria-label={t("tasks.summary")}>
     <div className="crew-ops-detail-summary-status"><CrewStatusBadge tone={taskStatusTone(detail.status)}>{translateStatus(detail.status, t)}</CrewStatusBadge>{canRedo ? <button type="button" className="crew-mobile-ghost crew-ops-redo" onClick={onRedo}><RotateCcw size={15} />{t("tasks.redo")}</button> : null}</div>
     {assignment ? <DetailMeta label={t("tasks.assignedTo")} value={assignment} /> : null}
-    {isFinal && completion ? <DetailMeta label={t("tasks.completedBy")} value={completion.employee_name} supporting={formatTaskAuditDate(completion.completed_at)} /> : null}
+    {isFinal && completedBy ? <DetailMeta label={t("tasks.completedBy")} value={completedBy} supporting={formatTaskAuditDate(detail.completed_at || completion?.completed_at)} /> : null}
     {!singleComplete ? <><small>{t("tasks.completedCount", { completed, total })}</small><div className="crew-task-preview-progress"><span style={{ width: `${total ? (completed / total) * 100 : 100}%` }} /></div></> : null}
   </section>;
 }

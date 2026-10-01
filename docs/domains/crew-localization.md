@@ -60,3 +60,5 @@ Crew Workforce supplies the Crew session and preference context where applicable
 Localization is cross-feature but remains a bounded domain because it has independent data, authority, lifecycle, and provider integration.
 It does not own general Admin-interface translation.
 Additional locales, human translation marketplaces, glossary management, and translation memory are deferred unless introduced explicitly.
+
+Crew system date labels remain localized. Home separates date and weekday with a middle dot. Operational Crew times and shift ranges use the shared 12-hour English `am` / `pm` convention across English, Chinese and Malay; time formatting does not translate authored Task names or response options.

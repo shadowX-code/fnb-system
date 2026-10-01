@@ -68,7 +68,6 @@ export default function CrewTaskBlockRenderer({
   onPreviewChange,
   onOpenSop,
   compact = false,
-  compactCompletedResult = false,
   unavailable = false,
 }) {
   const { t } = useTranslation();
@@ -136,16 +135,19 @@ export default function CrewTaskBlockRenderer({
       <div className="crew-task-block-copy">
         <span><strong>{title}</strong>{block.required === false ? <em>{t("common.optional")}</em> : null}</span>
       </div>
-      {summaryStatus && !compactCompletedResult ? <span className={`crew-ui-status crew-task-block-result${blockStatusTone(status) === "success" ? " is-success" : blockStatusTone(status) === "warning" ? " is-warning" : ""}`}>{summaryStatus}</span> : null}
-      {responded ? <CheckCircle2 className="crew-task-block-saved-icon" size={17} aria-hidden="true" /> : null}
+      {summaryStatus ? <span className={`crew-ui-status crew-task-block-result${blockStatusTone(status) === "success" ? " is-success" : blockStatusTone(status) === "warning" ? " is-warning" : ""}`}>{summaryStatus}</span> : null}
+      {responded && !readonly ? <CheckCircle2 className="crew-task-block-saved-icon" size={17} aria-hidden="true" /> : null}
     </div>
 
     <div className="crew-task-block-panel">
       {block.description && !["key_point", "text"].includes(block.block_type) ? <p>{block.description}</p> : null}
-      {supportsCompletionNote && !readonly && !responded ? <label className="crew-ui-form-field crew-task-additional-note"><span>{requiredCompletionNote ? "Completion note" : "Completion note (optional)"}</span><textarea className="crew-ui-field crew-task-textarea" value={note} disabled={saving || unavailable} onChange={(event) => setNote(event.target.value)} placeholder={requiredCompletionNote ? "Add the required completion note" : "Add a note if useful"} /></label> : null}
-      {readonly && actionable ? (compactCompletedResult ? null : <div className="crew-task-readonly-result">{result}</div>) : <BlockControl block={block} response={response} setResponse={setResponse} mode={mode} saving={saving} responded={responded} unavailable={unavailable} completionNote={note} completionNoteRequired={requiredCompletionNote} submit={submit} onOpenSop={onOpenSop} readMore={readMore} setReadMore={setReadMore} onNeedsAttention={() => { setPendingIssueAction("health"); }} onNoException={() => { setPendingIssueAction("yes_no"); }} />}
+      {supportsCompletionNote && !readonly && !responded ? <label className="crew-ui-form-field crew-task-additional-note"><span>{requiredCompletionNote ? t("tasks.completionNote") : t("tasks.completionNoteOptional")}</span><textarea className="crew-ui-field crew-task-textarea" value={note} disabled={saving || unavailable} onChange={(event) => setNote(event.target.value)} placeholder={requiredCompletionNote ? t("tasks.requiredNotePlaceholder") : t("tasks.optionalNotePlaceholder")} /></label> : null}
+      {readonly && actionable ? null : <BlockControl block={block} response={response} setResponse={setResponse} mode={mode} saving={saving} responded={responded} unavailable={unavailable} completionNote={note} completionNoteRequired={requiredCompletionNote} submit={submit} onOpenSop={onOpenSop} readMore={readMore} setReadMore={setReadMore} onNeedsAttention={() => { setPendingIssueAction("health"); }} onNoException={() => { setPendingIssueAction("yes_no"); }} />}
+      {readonly && responded && block.block_type === "short_text" && response.value ? <p>{String(response.value)}</p> : null}
+      {responded && block.note ? <p className="crew-task-recorded-note"><strong>{t("tasks.note")}</strong>{block.note}</p> : null}
+      {responded && block.exception_reason ? <small>{t(`tasks.reasons.${block.exception_reason}`, { defaultValue: block.exception_reason })}</small> : null}
       {canReportIssue ? <button type="button" className="crew-task-report-link" onClick={() => setExceptionOpen(true)} disabled={saving}><AlertTriangle size={15} /> {t("tasks.reportIssue")}</button> : null}
-      {block.evidence_requirement && block.evidence_requirement !== "none" ? <small className="crew-task-evidence">{t("tasks.evidence", { type: String(block.evidence_requirement).replaceAll("_", " ") })}</small> : null}
+      {block.evidence_requirement && block.evidence_requirement !== "none" ? <small className="crew-task-evidence">{t("tasks.evidence", { type: t(`tasks.evidenceTypes.${block.evidence_requirement}`, { defaultValue: String(block.evidence_requirement).replaceAll("_", " ") }) })}</small> : null}
     </div>
 
     {exceptionOpen ? <ExceptionSheet
@@ -184,11 +186,13 @@ function blockResult(block, t) {
   if (status === "exception") return t("tasks.issueReported");
   if (block.block_type === "checklist_item") return t("tasks.done");
   if (block.block_type === "confirmation") return t("tasks.confirmed");
+  if (block.block_type === "short_text") return t("tasks.responseRecorded");
   if (block.block_type === "health_rating") return t(`status.${status}`, { defaultValue: t("common.save") });
   const value = block.response?.value;
   if (value !== undefined && String(value).trim()) {
     const unit = block.config?.unit || (block.block_type === "temperature" ? "°C" : "");
-    return `${String(value).replaceAll("_", " ")}${unit ? ` ${unit}` : ""}`;
+    const label = block.block_type === "yes_no" ? t(`tasks.${value}`) : String(value).replaceAll("_", " ");
+    return `${label}${unit ? ` ${unit}` : ""}`;
   }
   return t(`status.${status}`, { defaultValue: t("common.save") });
 }
