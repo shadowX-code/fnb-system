@@ -89,6 +89,30 @@ describe("Crew Cash Checkout mobile", () => {
     expect(Boolean(pos.compareDocumentPosition(denominations) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
+  it("keeps Happiness closing variance at zero after float changes and omits stale opening fields", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({
+      ...payload,
+      settings: { ...payload.settings, floating_cash: 500, variance_tolerance: 0 },
+      cash_context: { floating_cash: 500, previous_carry_forward: 0, expected_opening_cash: 500 },
+      checkout: { status: "draft", actual_opening_cash: 0, expected_opening_cash: 0, floating_cash: 0, denomination_counts: { "100": 9, "50": 1, "20": 1, "1": 1 }, pos_expected_cash: 971, carry_forward: 0 },
+    });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Allocate Closing Cash");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Review Cash Checkout");
+    expect(screen.getByText("RM 471.00")).not.toBeNull();
+    expect(document.querySelector(".crew-cash-confirm-card .is-balanced")?.textContent).toContain("0.00");
+    expect(screen.queryByLabelText("Variance reason")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Complete Checkout" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenCalledWith("opaque-session", "complete", expect.objectContaining({ pos_expected_cash: 971 })));
+    const sent = crewService.saveCashCheckout.mock.calls.at(-1)[2];
+    expect(sent).not.toHaveProperty("actual_opening_cash");
+    expect(sent).not.toHaveProperty("opening_variance_reason");
+    expect(sent).not.toHaveProperty("variance");
+  });
+
   it("announces a successful draft only after the server confirms it", async () => {
     const onNotify = vi.fn();
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} onNotify={onNotify} />);
