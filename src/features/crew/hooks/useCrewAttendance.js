@@ -4,7 +4,7 @@ import { crewService } from "../../../services/crewService.js";
 import { clockLocationState, distanceMeters, getLocation } from "../utils/crewMobile.js";
 import { reasonValues } from "../utils/crewClockReasons.js";
 
-export default function useCrewAttendance({ session, attendance, roster, refresh, screen }) {
+export default function useCrewAttendance({ session, attendance, context, roster, refresh, screen }) {
   const { t } = useTranslation();
   const active = useRef(true);
   useEffect(() => { active.current = true; return () => { active.current = false; }; }, []);
