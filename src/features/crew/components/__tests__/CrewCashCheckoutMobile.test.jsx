@@ -188,7 +188,7 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Allocate Closing Cash");
     expect(screen.getByRole("heading", { name: "Allocate Closing Cash" })).not.toBeNull();
-    expect(screen.getByLabelText("Carry Forward for next cycle")).not.toBeNull();
+    expect(screen.getByLabelText("Carry Forward to Next Day")).not.toBeNull();
     expect(screen.getAllByText("For deposit")).toHaveLength(1);
     expect(document.querySelector(".crew-cash-actions-allocate .crew-cash-action-total")).toBeNull();
     expect(screen.queryByText("Keep the outlet float, choose carry forward, and deposit the remainder.")).toBeNull();
@@ -199,7 +199,7 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByRole("heading", { name: "Reconciliation" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Allocation" })).not.toBeNull();
     expect(screen.queryByText("Previous Carry Forward")).toBeNull();
-    expect(screen.getByText("Carry Forward for next cycle")).not.toBeNull();
+    expect(screen.getByText("Carry Forward to Next Day")).not.toBeNull();
     const allocation = screen.getByRole("heading", { name: "Allocation" }).closest("section");
     expect(allocation?.textContent).toContain("Floating cash");
     expect(allocation?.textContent).toMatch(/RM\s+300\.00/);
