@@ -1,3 +1,4 @@
+import { assetPhotoExtension, isAssetPhotoType } from "../_shared/assetPhoto.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 
 const corsHeaders = {
@@ -51,7 +52,7 @@ Deno.serve(async (request) => {
   }
   if (!token || !assetId || !requestId || !original || !display || !thumbnail || !uuidPattern.test(requestId) || (outletId && !uuidPattern.test(outletId))) return response({ error: "Crew session, asset, request and photo bundle are required." }, 400);
   if (!allowedOriginalTypes.has(original.type) || original.size === 0 || original.size > maxBytes
-    || display.type !== "image/webp" || thumbnail.type !== "image/webp"
+    || !isAssetPhotoType(display.type) || !isAssetPhotoType(thumbnail.type)
     || display.size === 0 || thumbnail.size === 0 || display.size > maxBytes || thumbnail.size > maxBytes) return response({ error: "Choose a JPG, PNG, or WebP image up to 5 MB." }, 400);
 
   const authorization = request.headers.get("Authorization") || `Bearer ${anonKey}`;
@@ -66,8 +67,8 @@ Deno.serve(async (request) => {
   const prefix = `asset_master/${context.outlet_id}/${assetId}/${requestId}`;
   const objects = [
     { key: "original", path: `${prefix}/original.${originalExtension(original)}`, file: original },
-    { key: "display", path: `${prefix}/display.webp`, file: display },
-    { key: "thumbnail", path: `${prefix}/thumbnail.webp`, file: thumbnail },
+    { key: "display", path: `${prefix}/display.${assetPhotoExtension(display.type)}`, file: display },
+    { key: "thumbnail", path: `${prefix}/thumbnail.${assetPhotoExtension(thumbnail.type)}`, file: thumbnail },
   ];
   const uploadedPaths: string[] = [];
   for (const object of objects) {

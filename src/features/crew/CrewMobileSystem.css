@@ -974,3 +974,7 @@ to {
 .crew-ui-rating-scale:has(button.is-active) > small { color: var(--crew-color-success); font-weight: 650; }
 .crew-ui-rating-scale button:focus-visible { outline: 2px solid var(--crew-color-cyan); outline-offset: 2px; }
 @media (max-width: 360px) { .crew-ui-rating-scale > div { gap: 5px; } }
+
+/* Fixed overlay feedback remains visible independently of form scrolling. */
+.crew-ui-form-error { flex: 0 0 auto; margin: 0; padding: 12px 20px; color: var(--crew-color-danger); background: var(--crew-color-danger-surface); border-top: 1px solid var(--crew-color-border); font-size: 14px; line-height: 1.4; }
+.crew-ui-form-fields { border: 0; padding: 0; margin: 0; min-width: 0; }

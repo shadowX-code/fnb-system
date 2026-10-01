@@ -1641,9 +1641,9 @@ export const crewService = {
     if (outletId) body.append("outlet_id", outletId);
     body.append("request_id", payload.requestId || crypto.randomUUID());
     body.append("asset", JSON.stringify(payload.asset));
-    body.append("original", preparedPhoto.bundle.original.blob, "original.webp");
-    body.append("display", preparedPhoto.bundle.display.blob, "display.webp");
-    body.append("thumbnail", preparedPhoto.bundle.thumbnail.blob, "thumbnail.webp");
+    body.append("original", preparedPhoto.bundle.original.blob, `original.${preparedPhoto.bundle.original.extension}`);
+    body.append("display", preparedPhoto.bundle.display.blob, `display.${preparedPhoto.bundle.display.extension}`);
+    body.append("thumbnail", preparedPhoto.bundle.thumbnail.blob, `thumbnail.${preparedPhoto.bundle.thumbnail.extension}`);
     const { data, error } = await supabase.functions.invoke("crew-asset-create", { body });
     throwSupabaseError("crew.createAssetWithPhoto", error);
     return data;
@@ -1657,9 +1657,9 @@ export const crewService = {
     body.append("asset_id", payload.assetId);
     body.append("details", JSON.stringify(payload.details || {}));
     if (payload.preparedPhoto?.bundle) {
-      body.append("original", payload.preparedPhoto.bundle.original.blob, "original.webp");
-      body.append("display", payload.preparedPhoto.bundle.display.blob, "display.webp");
-      body.append("thumbnail", payload.preparedPhoto.bundle.thumbnail.blob, "thumbnail.webp");
+      body.append("original", payload.preparedPhoto.bundle.original.blob, `original.${payload.preparedPhoto.bundle.original.extension}`);
+      body.append("display", payload.preparedPhoto.bundle.display.blob, `display.${payload.preparedPhoto.bundle.display.extension}`);
+      body.append("thumbnail", payload.preparedPhoto.bundle.thumbnail.blob, `thumbnail.${payload.preparedPhoto.bundle.thumbnail.extension}`);
     }
     const { data, error } = await supabase.functions.invoke("crew-asset-details", { body });
     throwSupabaseError("crew.updateAssetDetails", error);
@@ -1675,8 +1675,8 @@ export const crewService = {
     body.append("asset_id", assetId);
     body.append("request_id", requestId);
     body.append("original", bundle.original.blob, file.name || `asset.${bundle.original.extension}`);
-    body.append("display", bundle.display.blob, "display.webp");
-    body.append("thumbnail", bundle.thumbnail.blob, "thumbnail.webp");
+    body.append("display", bundle.display.blob, `display.${bundle.display.extension}`);
+    body.append("thumbnail", bundle.thumbnail.blob, `thumbnail.${bundle.thumbnail.extension}`);
     const { data, error } = await supabase.functions.invoke("crew-asset-photo", { body });
     throwSupabaseError("crew.uploadInitialAssetPhoto", error);
     return data;

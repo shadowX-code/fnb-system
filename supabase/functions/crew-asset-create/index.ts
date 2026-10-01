@@ -1,3 +1,4 @@
+import { assetPhotoExtension, isAssetPhotoType } from "../_shared/assetPhoto.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 
 const corsHeaders = {
@@ -51,7 +52,7 @@ Deno.serve(async (request) => {
     return reply({ error: "Asset details and a complete photo are required." }, 400);
   }
   if (!['image/jpeg', 'image/png', 'image/webp'].includes(original.type)
-    || display.type !== 'image/webp' || thumbnail.type !== 'image/webp'
+    || !isAssetPhotoType(display.type) || !isAssetPhotoType(thumbnail.type)
     || !original.size || !display.size || !thumbnail.size
     || original.size > maxVariantBytes || display.size > maxVariantBytes || thumbnail.size > maxVariantBytes) {
     return reply({ error: "That photo could not be prepared. Choose another photo and try again." }, 400);
@@ -72,8 +73,8 @@ Deno.serve(async (request) => {
   const prefix = `asset_master/${context.outlet_id}/create/${requestId}`;
   const objects = [
     { path: `${prefix}/original.${original.type === 'image/png' ? 'png' : original.type === 'image/webp' ? 'webp' : 'jpg'}`, file: original },
-    { path: `${prefix}/display.webp`, file: display },
-    { path: `${prefix}/thumbnail.webp`, file: thumbnail },
+    { path: `${prefix}/display.${assetPhotoExtension(display.type)}`, file: display },
+    { path: `${prefix}/thumbnail.${assetPhotoExtension(thumbnail.type)}`, file: thumbnail },
   ];
   const uploaded: string[] = [];
   try {
