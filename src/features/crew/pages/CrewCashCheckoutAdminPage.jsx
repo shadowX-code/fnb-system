@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import CrewCashAllocationAudit from "../components/CrewCashAllocationAudit.jsx";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Banknote, CheckCircle2, Clipboard, Eye, HandCoins, History, Settings2, WalletCards } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import AdminFilterToolbar, { AdminOutletField } from "../../../components/layout/AdminFilterToolbar.jsx";
@@ -168,6 +169,7 @@ function CheckoutDetail({ row, canReview, canManage, onReview, onChanged, ui, on
     {row.float_shortfall > 0 && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Float shortfall: {money(row.float_shortfall)}</p>}
     {(row.variance_reason || row.opening_variance_reason) && <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm"><strong>Recorded reasons</strong>{row.opening_variance_reason && <p>Opening: {row.opening_variance_reason}</p>}{row.variance_reason && <p>Reconciliation: {row.variance_reason}</p>}</div>}
     <div className="mt-5"><h3 className="font-semibold">Denomination Count</h3><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">{counts.length ? counts.map(([denomination, qty]) => <div className="rounded-lg border border-border p-2 text-sm" key={denomination}><small className="text-text-muted">RM{denomination}</small><strong className="block">× {qty}</strong></div>) : <p className="text-sm text-text-muted">No denomination quantities recorded.</p>}</div></div>
+    <CrewCashAllocationAudit checkout={row} />
     {correcting && <Correction checkout={row} onClose={() => setCorrecting(false)} onSaved={async () => { setCorrecting(false); onClose(); await onChanged(); }} ui={ui} />}
   </Modal>;
 }
@@ -264,7 +266,38 @@ function CollectionForm({ outletId, employees, balance, onClose, onSaved, ui }) 
   return <Modal title="Hand Over Cash" description={`Cash Deposit Balance: ${money(balance)}`} onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button form="collection-form" type="submit" className="btn-primary" disabled={saving || !form.receiver_employee_id}>{saving ? "Saving…" : "Confirm Handover"}</button></>}><form id="collection-form" className="space-y-4" onSubmit={submit}><SelectField label="Receiver" required searchable value={form.receiver_employee_id} options={employeeOptions} placeholder="Select approved receiver" onChange={(receiver_employee_id) => setForm({ ...form, receiver_employee_id })} /><p className="-mt-2 rounded-xl bg-primary/5 px-3 py-2 text-xs text-text-secondary">Only Admin-configured Cash Deposit Receivers can be selected. Confirmation is acknowledgement only.</p><MoneyField label="Amount (RM)" required value={form.amount} min="0.05" max={Number(balance || 0)} onChange={(amount) => setForm({ ...form, amount })} /><Field label="Note (optional)"><textarea className="control min-h-20" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></Field></form></Modal>;
 }
 
-function Correction({ checkout, onClose, onSaved, ui }) { const [form, setForm] = useState({ action: "adjustment", amount: "", reason: "" }); const [saving, setSaving] = useState(false); async function submit(event) { event.preventDefault(); setSaving(true); try { await crewService.adjustCashCheckout(checkout.id, form.action, form.action === "reversal" ? null : form.amount, form.reason); await onSaved(); ui.notify({ title: "Correction recorded", message: "The original completed checkout remains immutable." }); } catch (cause) { ui.notify({ title: "Unable to record correction", message: cause.message, tone: "error" }); } finally { setSaving(false); } } return <Modal title="Record Cash Correction" description="Creates an append-only ledger correction; it never rewrites the completed checkout." onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" type="submit" form="cash-correction" disabled={saving}>{saving ? "Saving…" : "Record Correction"}</button></>}><form id="cash-correction" onSubmit={submit} className="space-y-4"><SelectField label="Action" value={form.action} options={[{ value: "adjustment", label: "Adjustment" }, { value: "reversal", label: "Reversal" }]} onChange={(action) => setForm({ ...form, action })} />{form.action === "adjustment" && <MoneyField label="Signed Amount (RM)" required value={form.amount} onChange={(amount) => setForm({ ...form, amount })} helper="Use a negative value for deduction." />}<Field label="Reason" required><textarea className="control min-h-24" required value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} /></Field><p className="text-xs text-text-muted">This entry is appended to the audit ledger and cannot be edited or removed.</p></form></Modal>; }
+function Correction({ checkout, onClose, onSaved, ui }) {
+  const [form, setForm] = useState({ action: "allocation", carry: String(checkout.carry_forward), amount: "", reason: "" });
+  const [requestId, setRequestId] = useState(() => crypto.randomUUID());
+  const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
+  const allocatable = Number(checkout.carry_forward) + Number(checkout.amount_for_deposit);
+  const change = (key, value) => { setForm((current) => ({ ...current, [key]: value })); setRequestId(crypto.randomUUID()); };
+  async function submit(event) {
+    event.preventDefault(); if (inFlight.current) return;
+    inFlight.current = true; setSaving(true);
+    try {
+      if (form.action === "allocation") await crewService.correctCashCheckoutAllocation(checkout.id, form.carry, checkout.allocation_correction_id || null, requestId, form.reason);
+      else await crewService.adjustCashCheckout(checkout.id, form.action, form.action === "reversal" ? null : form.amount, form.reason);
+      await onSaved(); ui.notify({ title: "Correction recorded", message: "The original completed checkout remains immutable." });
+    } catch (cause) { ui.notify({ title: "Unable to record correction", message: cause.message, tone: "error" }); }
+    finally { inFlight.current = false; setSaving(false); }
+  }
+  return <Modal title="Record Cash Correction" description="Appends audited correction evidence; the completed checkout remains immutable." onClose={saving ? undefined : onClose} footer={<><button className="btn-secondary" disabled={saving} onClick={onClose}>Cancel</button><button className="btn-primary" type="submit" form="cash-correction" disabled={saving}>{saving ? "Saving…" : "Record Correction"}</button></>}>
+    <form id="cash-correction" onSubmit={submit} className="space-y-4">
+      <SelectField label="Action" disabled={saving} value={form.action} options={[{ value: "allocation", label: "Correct Allocation" }, { value: "adjustment", label: "Ledger Adjustment" }, { value: "reversal", label: "Reversal" }]} onChange={(value) => change("action", value)} />
+      {form.action === "allocation" && <>
+        <p>Current allocation: Carry Forward {money(checkout.carry_forward)} · For Deposit {money(checkout.amount_for_deposit)}</p>
+        <AdminFormField label="Carry Forward to Next Day (RM)" required><input aria-label="Carry Forward to Next Day (RM)" className="control h-10" required disabled={saving} type="number" min="0" max={allocatable} step="0.01" value={form.carry} onChange={(event) => change("carry", event.target.value)} /></AdminFormField>
+        <p>For Deposit: {money(allocatable - Number(form.carry))}</p>
+        <p className="text-xs text-text-muted">Counted cash, Floating Cash, POS Expected and Variance are preserved. The linked Cash Deposit adjustment is recorded together with this allocation correction.</p>
+      </>}
+      {form.action === "adjustment" && <MoneyField label="Signed Amount (RM)" required value={form.amount} onChange={(value) => change("amount", value)} helper="Use a negative value for deduction." />}
+      <Field label="Reason" required><textarea aria-label="Reason" className="control min-h-24" disabled={saving} required minLength={3} maxLength={500} value={form.reason} onChange={(event) => change("reason", event.target.value)} /></Field>
+      <p className="text-xs text-text-muted">Correction evidence cannot be edited or removed.</p>
+    </form>
+  </Modal>;
+}
 
 async function reviewCollection(row, refresh, ui) { const note = window.prompt(`Received ${money(row.received_amount)} vs handed over ${money(row.amount)}. Enter review note:`); if (!note) return; const approve = window.confirm("Approve the received amount? The deposit balance remains unchanged."); try { await crewService.reviewCashCollection(row.id, approve ? "approve" : "reject", note); await refresh(); ui.notify({ title: approve ? "Collection completed" : "Collection cancelled", message: "The receipt difference remains in the audit trail; balance was already updated at submission." }); } catch (cause) { ui.notify({ title: "Unable to review collection", message: cause.message, tone: "error" }); } }
 function Field({ label, children, required = false }) { return <AdminFormField label={label} required={required}>{children}</AdminFormField>; }
