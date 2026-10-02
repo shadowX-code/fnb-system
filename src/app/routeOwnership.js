@@ -8,6 +8,7 @@ export const legacyRouteRedirects = Object.freeze({
   // Pre-reset Learning navigation used this name. Keep old saved links on the
   // canonical Onboarding page rather than falling through to another route.
   crew_onboarding: "crew_learning",
+  crew_journeys: "crew_learning",
   crew_operation_templates: "crew_operations",
   crew_growth_people: "crew_growth",
   crew_growth_reviews: "crew_growth",
@@ -76,7 +77,6 @@ const canonicalPathByModuleId = Object.freeze({
   crew_operations: "/crew/operations",
   crew_cash_checkout: "/crew/operations/cash-checkout",
   crew_learning: "/crew/learning",
-  crew_journeys: "/crew/learning/journeys",
   crew_progress: "/crew/learning/progress",
   crew_sop_library: "/crew/learning/sops",
   crew_growth: "/crew/growth/overview",
@@ -139,6 +139,7 @@ function moduleRouteDefinition(module) {
     routeId,
     canonicalPath: canonicalPathForModule(module),
     pathPattern: canonicalPathForModule(module),
+    pathAliases: Object.freeze(module.id === "crew_learning" ? ["/crew/journeys", "/crew/learning/journeys"] : []),
     legacyHashPattern: routeId,
     legacyHashAliases: legacyHashAliasesFor(routeId, routeId),
     params: Object.freeze([]),
@@ -333,8 +334,10 @@ export function resolveCanonicalPath(pathname = "/", search = "") {
   const path = normalizePath(pathWithoutQuery);
   const rawQuery = search || inlineQuery;
   for (const definition of feedxRouteDefinitions) {
-    const params = patternMatch(definition.pathPattern, path);
-    if (params) return resolution(definition, params, ownedQuery(definition, rawQuery), "pathname");
+    for (const pattern of [definition.pathPattern, ...(definition.pathAliases ?? [])]) {
+      const params = patternMatch(pattern, path);
+      if (params) return resolution(definition, params, ownedQuery(definition, rawQuery), "pathname");
+    }
   }
   return null;
 }

@@ -105,6 +105,31 @@ afterEach(() => {
 });
 
 describe("Crew SOP Library Admin", () => {
+  it("uses canonical View/Create/Edit grants without legacy SOP or Manage grants", async () => {
+    const permissions = new Set(["crew_sop_library.view", "crew_sop_library.create", "crew_sop_library.edit"]);
+    render(<CrewSopLibraryPage auth={{ hasPermission: (code) => permissions.has(code) }} ui={ui} store={{ outlets }} />);
+    await screen.findByText("Welcome & Goodbye Standard");
+    expect(screen.getByRole("button", { name: "Create SOP" })).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "Edit Draft" }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Manage Categories" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    await screen.findByLabelText("Section Title *");
+    expect(screen.getByRole("button", { name: "Save Draft" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Publish", exact: true })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Delete Draft", exact: true })).toBeNull();
+  });
+
+  it("keeps View-only read access free of authoring and cleanup actions", async () => {
+    render(<CrewSopLibraryPage auth={{ hasPermission: (code) => code === "crew_sop_library.view" }} ui={ui} store={{ outlets }} />);
+    await screen.findByText("Welcome & Goodbye Standard");
+    expect(screen.queryByRole("button", { name: "Create SOP" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit Draft" })).toBeNull();
+    expect(mocks.resumeMediaCleanup).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
+    expect(await screen.findByText("Welcome within five seconds.")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Continue Editing Draft" })).toBeNull();
+  });
+
   it("uses outlet-scoped table filters and shows draft state", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "SOP Library" });

@@ -936,16 +936,6 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, manage: true },
   },
   {
-    id: "crew_journeys",
-    section: "Learning",
-    label: "Journeys",
-    route: "/crew/journeys",
-    icon: "crew-learning",
-    sidebar: false,
-    workspace: "crew",
-    permissions: { view: true, create: true, edit: true, manage: true },
-  },
-  {
     id: "crew_progress",
     section: "Learning",
     label: "Onboarding Progress",

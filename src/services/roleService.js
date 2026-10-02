@@ -132,7 +132,7 @@ export const roleService = {
 
   async saveRole(role) {
     const requestedCodes = role.permissions ?? [];
-    if (requestedCodes.some((code) => !registryPermissionCodeSet.has(code))) {
+    if (requestedCodes.some((code) => !registryPermissionCodeSet.has(code) && !/^crew_journeys\.(view|create|edit|manage)$/.test(code))) {
       throw new Error("Role includes an unavailable permission. Reload the role before trying again.");
     }
     const permissionCodes = [...new Set(requestedCodes)];
