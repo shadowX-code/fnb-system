@@ -24,6 +24,31 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("Crew Cash Checkout mobile", () => {
+  it("continues a prior-day run on its original date and requires a reasoned cancellation inside the workflow", async () => {
+    const previous = { id: "old-run", business_date: "2026-08-20", status: "draft" };
+    crewService.cashCheckoutMobile.mockImplementation(async (_token, day) => day === previous.business_date ? { ...payload, business_date: day, can_continue_checkout: true, can_cancel_checkout: true, checkout: { ...previous, denomination_counts: { "100": 4 }, pos_expected_cash: 400 } } : { ...payload, action_required_checkouts: [previous] });
+    render(<CrewCashCheckoutMobile token="crew-session" onBack={() => {}} />);
+    expect(await screen.findByText(/Previous Day · Action Required/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue", exact: true }));
+    expect(await screen.findByRole("button", { name: "Cancel Checkout" })).not.toBeNull();
+    expect(crewService.cashCheckoutMobile).toHaveBeenCalledWith("crew-session", "2026-08-20");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Checkout" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel Checkout" });
+    expect(dialog.querySelector('button[type="submit"]').disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "No closing obligation" } });
+    fireEvent.submit(dialog);
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenCalledWith("crew-session", "cancel", expect.objectContaining({ checkout_id: "old-run", reason: "No closing obligation" })));
+  });
+  it("shows a changed opening basis and routes balanced cash through Manager review", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, can_continue_checkout: true, checkout: { id: "basis-run", status: "reconciled", basis_review_required: true, denomination_counts: { "100": 4 }, pos_expected_cash: 400 } });
+    render(<CrewCashCheckoutMobile token="crew-session" onBack={() => {}} />);
+    expect(await screen.findByText("Opening basis · Review Required")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("button", { name: "Submit Review" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
+  });
+
   it("reopens returned cash at Count with the Manager reason and resubmits the same balanced checkout", async () => {
     let result = { ...payload, checkout: { id: "returned-run", status: "reconciled", review_status: "rejected", review_required: true, is_returned: true, return_reason: "Check the POS amount", denomination_counts: { "100": "4" }, pos_expected_cash: 400, carry_forward: 0 } };
     crewService.cashCheckoutMobile.mockImplementation(async () => result);
