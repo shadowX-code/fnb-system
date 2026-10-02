@@ -620,7 +620,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
   const [assignedUsersOpen, setAssignedUsersOpen] = useState(false);
   const [matrixTab, setMatrixTab] = useState("All");
   const [matrixSearch, setMatrixSearch] = useState("");
-  const permissions = new Set(role.permissions ?? []);
+  const permissions = new Set((role.permissions ?? []).filter((code) => !code.startsWith("crew_journeys.")));
   const isProtectedRole = isProtectedRoleName(role.name);
   const activeModuleCount = roleEditorGroups
     .flatMap((group) => group.modules)
