@@ -152,3 +152,5 @@ Object.assign(resources.cash, {"actionRequired": "Tindakan Diperlukan", "returne
 Object.assign(resources.cash, { returnedReadonly: "Dikembalikan kepada Kru yang menghantar untuk pembetulan." });
 
 Object.assign(resources.cash, {"previousDayAction": "Hari Sebelumnya · Tindakan Diperlukan", "previousDayDependency": "Anda boleh mengira dan menyimpan tunai hari ini. Lengkapkan atau batalkan checkout terdahulu sebelum memuktamadkan checkout ini; baki pembukaan masih sementara.", "basisReview": "Asas pembukaan · Semakan Diperlukan", "basisReviewBody": "Penyelesaian terdahulu mengubah asas baki bawa hadapan. Bukti pembukaan dikekalkan; hantar untuk semakan Pengurus.", "cancelCheckout": "Batalkan Checkout", "cancelHelp": "Tamatkan checkout yang belum selesai. Bukti disimpan dalam Sejarah; tiada deposit atau baki bawa hadapan diwujudkan.", "cancelReason": "Sebab", "cancelled": "Dibatalkan", "cancelledReadonly": "Checkout ini dibatalkan dan tidak boleh diedit."});
+
+Object.assign(resources.cash, {"inProgress": "Sedang Dijalankan", "ownerContinues": "Crew yang menyerahkan checkout ini boleh meneruskannya."});
