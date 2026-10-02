@@ -26,6 +26,16 @@ beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Pr
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
+  it("saves Management eligibility separately from Crew positions and receiver configuration", async () => {
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    const toggle = screen.getByRole("switch", { name: /Allow authorized Management to perform Cash Checkout/ });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ allow_authorized_management_checkout: true, required_position_ids: [cashierPositionId] })));
+    expect(mocks.saveReceivers).not.toHaveBeenCalled();
+  });
   it("selects authorized Management through the same versioned receiver save and readback", async () => {
     const management = { id: "management-1", name: "Manager QA", position: "Manager", workplace: "Management" };
     const context = { ...fixture, employees: [...fixture.employees, management], receiver_configuration: { version: 3 } };
@@ -100,7 +110,7 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getByText("Floating Cash is managed separately.", { exact: false })).not.toBeNull();
     expect(screen.queryByText("Floating Cash History")).toBeNull();
     expect(screen.getByText("Checkout Rules")).not.toBeNull();
-    expect(screen.getByText("Eligible Crew")).not.toBeNull();
+    expect(screen.getByText("Checkout Eligibility")).not.toBeNull();
     expect(screen.getByText("Handover")).not.toBeNull();
     expect(screen.getByText("Cash Handover Receivers")).not.toBeNull();
     expect(screen.getByText(/Initiate Cash Handover access is separate/)).not.toBeNull();

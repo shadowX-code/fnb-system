@@ -24,6 +24,51 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("Crew Cash Checkout mobile", () => {
+  it("uses the shared checkout flow for eligible Management and keeps handover rights independent", async () => {
+    const result = { ...payload, can_initiate_handover: false, can_record_collection: false, is_cash_handover_receiver: false, checkout_history: [] };
+    crewService.managementCashMobile.mockResolvedValue(result);
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    expect(screen.getByText("Count Outlet Cash")).not.toBeNull();
+    fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenCalledWith("management-session", "draft", expect.objectContaining({ denomination_counts: expect.objectContaining({ "100": "4" }) }), "outlet-1"));
+    expect(screen.queryByRole("button", { name: "Hand Over Cash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Confirm Received" })).toBeNull();
+    expect(crewService.cashCheckoutMobile).not.toHaveBeenCalled();
+  });
+
+  it("does not expose Checkout when Management only has handover access", async () => {
+    crewService.managementCashMobile.mockResolvedValue({ ...payload, can_perform: false, checkout: null, read_only_checkout: true });
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Hand Over Cash" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+  });
+
+  it("keeps Management on Count → Allocate → Confirm with the shared completion command", async () => {
+    let result = { ...payload, can_initiate_handover: false, can_record_collection: false, checkout_history: [] };
+    crewService.managementCashMobile.mockImplementation(async () => result);
+    crewService.saveCashCheckout.mockImplementation(async (_token, action, draft) => {
+      result = { ...result, checkout: { ...draft, id: "same-run", counted_cash: 400, status: action === "reconcile" ? "reconciled" : "completed", completed_at: "2026-08-21T04:10:00Z" } };
+      return { checkout: result.checkout };
+    });
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("POS closing cash"), { target: { value: "400" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("Carry Forward to Next Day")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Checkout" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenLastCalledWith("management-session", "complete", expect.any(Object), "outlet-1"));
+  });
+
+  it("shows access denial without opening a Management Checkout flow", async () => {
+    crewService.managementCashMobile.mockRejectedValue(new Error("Management Cash Checkout is disabled for this outlet."));
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    expect(await screen.findByText("Management Cash Checkout is disabled for this outlet.")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+  });
   it("lets receiver-only Management confirm assigned cash without exposing initiation or ledger", async () => {
     const receipt = { id: "management-receipt", amount: 100, sender: "Sender QA", outlet_name: "Friends Corner" };
     const result = { outlet: payload.outlet, deposit: null, can_perform: false, can_initiate_handover: false, can_record_collection: false, is_cash_handover_receiver: true, pending_receipts: [receipt] };

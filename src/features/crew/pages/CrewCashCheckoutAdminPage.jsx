@@ -175,13 +175,13 @@ function CheckoutDetail({ row, canReview, canManage, onReview, onChanged, ui, on
 function Detail({ label, value }) { return <div className="rounded-xl border border-border p-3"><small className="text-text-muted">{label}</small><strong className="mt-1 block">{value}</strong></div>; }
 
 function CashSettings({ initial, positions, employees, approvedReceivers, receiverConfiguration, outletId, onClose, onSaved, ui }) {
-  const [form, setForm] = useState({ variance_tolerance: initial.variance_tolerance ?? 0, required_position_ids: initial.required_position_ids || [], closing_deadline: initial.closing_deadline || "", require_receiver_confirmation: initial.require_receiver_confirmation ?? true, require_manager_review_over_tolerance: initial.require_manager_review_over_tolerance ?? true });
+  const [form, setForm] = useState({ variance_tolerance: initial.variance_tolerance ?? 0, required_position_ids: initial.required_position_ids || [], allow_authorized_management_checkout: initial.allow_authorized_management_checkout ?? false, closing_deadline: initial.closing_deadline || "", require_receiver_confirmation: initial.require_receiver_confirmation ?? true, require_manager_review_over_tolerance: initial.require_manager_review_over_tolerance ?? true });
   const [saving, setSaving] = useState(false);
   const [receiverIds, setReceiverIds] = useState(() => approvedReceivers.map((item) => item.id));
   const positionOptions = positions.map((position) => ({ value: position.id, label: `${position.name}${position.status === "inactive" ? " (Inactive)" : ""}` }));
   const receiverOptions = employees.map((item) => ({ value: item.id, label: `${item.name} · ${item.position || "Crew"}${item.workplace === "Management" ? " · Management" : ""}` }));
   const receiversChanged = !sameIds(receiverIds, approvedReceivers.map((item) => item.id));
-  const settingsChanged = Number(form.variance_tolerance) !== Number(initial.variance_tolerance ?? 0) || !sameIds(form.required_position_ids, initial.required_position_ids || []) || form.closing_deadline !== (initial.closing_deadline || "") || form.require_receiver_confirmation !== (initial.require_receiver_confirmation ?? true) || form.require_manager_review_over_tolerance !== (initial.require_manager_review_over_tolerance ?? true);
+  const settingsChanged = Number(form.variance_tolerance) !== Number(initial.variance_tolerance ?? 0) || !sameIds(form.required_position_ids, initial.required_position_ids || []) || form.allow_authorized_management_checkout !== (initial.allow_authorized_management_checkout ?? false) || form.closing_deadline !== (initial.closing_deadline || "") || form.require_receiver_confirmation !== (initial.require_receiver_confirmation ?? true) || form.require_manager_review_over_tolerance !== (initial.require_manager_review_over_tolerance ?? true);
   async function submit(event) {
     event.preventDefault();
     if (!settingsChanged && !receiversChanged) { onClose(); return; }
@@ -205,8 +205,9 @@ function CashSettings({ initial, positions, employees, approvedReceivers, receiv
           <AdminFormField label="Closing Deadline" helper="Operational reference only; this currently does not block checkout."><input className="control h-10" type="time" value={form.closing_deadline} onChange={(event) => setForm({ ...form, closing_deadline: event.target.value })} /></AdminFormField>
         </div>
       </SettingsSection>
-      <SettingsSection title="Eligible Crew" description="Who may perform checkout for this outlet.">
+      <SettingsSection title="Checkout Eligibility" description="Crew positions and authorized Management are configured separately.">
         <MultiSelectField variant="form" label="Checkout Positions" helper="Uses canonical Job Positions. Leaving this empty allows all otherwise eligible Crew in the outlet." value={form.required_position_ids} options={positionOptions} onApply={(required_position_ids) => setForm({ ...form, required_position_ids })} placeholder="All active positions" />
+        <ToggleField checked={form.allow_authorized_management_checkout} onChange={(checked) => setForm({ ...form, allow_authorized_management_checkout: checked })} label="Allow authorized Management to perform Cash Checkout" helper="Active Management must already be authorized for this outlet. This does not grant Initiate Cash Handover or Cash Handover Receiver eligibility." />
       </SettingsSection>
       <SettingsSection title="Handover" description="Control receipt acknowledgement and who can receive new Cash Handovers.">
         <div className="space-y-4">

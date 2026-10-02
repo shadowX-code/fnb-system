@@ -71,7 +71,7 @@ export default function CrewCashCheckoutMobile({ token, management = false, outl
       const [result, checkoutHistory] = management
         ? [await crewService.managementCashMobile(token, outletId, businessDate), []]
         : await Promise.all([crewService.cashCheckoutMobile(token, businessDate), crewService.cashCheckoutHistory(token, businessDate)]);
-      const nextData = { ...result, checkout_history: checkoutHistory };
+      const nextData = { ...result, checkout_history: management ? result.checkout_history || [] : checkoutHistory };
       setData(nextData); setDraft(initialDraft(nextData?.checkout));
       if (nextData?.checkout?.status === "completed") setStep("complete");
       else if (nextData?.checkout?.status === "reconciled") setStep("allocate");
@@ -98,7 +98,9 @@ export default function CrewCashCheckoutMobile({ token, management = false, outl
   async function save(action) {
     setSaving(true); setError("");
     try {
-      const result = await crewService.saveCashCheckout(token, action, draft);
+      const result = management
+        ? await crewService.saveCashCheckout(token, action, draft, outletId)
+        : await crewService.saveCashCheckout(token, action, draft);
       if (result?.checkout?.status === "submitted") setData((current) => ({ ...current, checkout: result.checkout }));
       await load();
       setStep(action === "draft" ? "count" : action === "reconcile" ? "allocate" : action === "submit" ? "confirm" : "complete");
@@ -119,7 +121,7 @@ export default function CrewCashCheckoutMobile({ token, management = false, outl
   if (flowOpen && checkoutStatus === "submitted") return <CheckoutDetails checkout={data.checkout} onBack={closeFlow} submitted />;
   if (flowOpen) return <CheckoutFlow data={data} draft={draft} setDraft={setDraft} step={step} setStep={setStep} counted={counted} posExpected={posExpected} variance={variance} deposit={deposit} floating={floating} previousCarry={previousCarry} expectedOpening={expectedOpening} requiresReview={requiresReview} saving={saving} error={error} onBack={closeFlow} onSave={save} />;
 
-  if (management) return <section className="crew-cash-mobile crew-cash-summary-page">
+  if (management && !data?.can_perform) return <section className="crew-cash-mobile crew-cash-summary-page">
     <CrewMobileDetailHeader title={t(data?.deposit ? "cash.cashDepositBalance" : "cash.pendingConfirmations")} onBack={onBack} variant="workflow" />
     {data?.deposit && <section className="crew-cash-summary"><article className="crew-cash-deposit-summary"><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small>{data?.outlet?.name}</small><strong>{money(data?.deposit?.current_balance)}</strong></div><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}<ChevronRight size={17} /></button><CashHandoverAction canInitiate={data?.can_initiate_handover} balance={data?.deposit?.current_balance} onOpen={() => setCollectionOpen(true)} /></article></section>}
     {data?.is_cash_handover_receiver && <section className="crew-cash-pending-confirmations"><CrewSectionHeader title={t("cash.pendingConfirmations")} /><PendingReceipts rows={data.pending_receipts || []} token={token} onChanged={load} /></section>}
@@ -137,7 +139,7 @@ export default function CrewCashCheckoutMobile({ token, management = false, outl
     {data?.is_cash_handover_receiver && <section className="crew-cash-pending-confirmations"><CrewSectionHeader title={t("cash.pendingConfirmations")} /><PendingReceipts rows={data.pending_receipts || []} token={token} onChanged={load} /></section>}
 
     <section className="crew-cash-recent-activity"><CrewSectionHeader title={t("cash.recentActivity")} />{data?.deposit?.recent?.length ? <div className="crew-cash-recent-activity-list">{data.deposit.recent.slice(0, 3).map((row) => <RecentActivityRow key={row.id} row={row} onOpen={() => setLedgerOpen(true)} />)}</div> : <CrewEmptyState title={t("cash.noLedger")} body={t("cash.noLedgerBody")} />}</section>
-    {collectionOpen && <CollectionSheet data={data} token={token} onClose={() => setCollectionOpen(false)} onSaved={async () => { setCollectionOpen(false); await load(); }} />}
+    {collectionOpen && <CollectionSheet data={data} token={token} outletId={management ? outletId : null} onClose={() => setCollectionOpen(false)} onSaved={async () => { setCollectionOpen(false); await load(); }} />}
   </section>;
 }
 

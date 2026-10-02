@@ -406,8 +406,8 @@ export const crewService = {
     return data || [];
   },
 
-  async saveCashCheckout(token, action, payload = {}) {
-    const { data, error } = await supabase.rpc("crew_cash_save_checkout", { p_token: token, p_action: action, p_payload: payload });
+  async saveCashCheckout(token, action, payload = {}, outletId = null) {
+    const { data, error } = await supabase.rpc(outletId ? "crew_management_cash_save_checkout" : "crew_cash_save_checkout", { p_token: token, ...(outletId ? { p_outlet_id: outletId } : {}), p_action: action, p_payload: payload });
     throwSupabaseError("crew.saveCashCheckout", error);
     return data;
   },
