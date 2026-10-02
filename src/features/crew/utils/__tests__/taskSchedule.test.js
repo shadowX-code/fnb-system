@@ -18,8 +18,8 @@ describe("Crew Task schedule formatter", () => {
   it("uses localized schedule labels and keeps semantic status filtering separate", async () => {
     await i18n.changeLanguage("zh-CN");
     expect(formatTaskSchedule({ schedule_type: "recurring", schedule_config: { frequency: "every_day" }, business_date: "2026-08-24" }, t)).toContain("每天");
-    expect(taskMatchesStatus({ status: "pending" }, "not_started")).toBe(true);
-    expect(taskMatchesStatus({ status: "completed" }, "not_started")).toBe(false);
+    expect(taskMatchesStatus({ status: "pending" }, "start_now")).toBe(true);
+    expect(taskMatchesStatus({ status: "completed" }, "start_now")).toBe(false);
   });
 
   it("does not expose an untimed task's all-day availability window as a fake appointment", () => {
