@@ -18,7 +18,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import ToggleField from "../../../components/forms/ToggleField.jsx";
 import { useCrewAdminOutlet } from "../context/CrewAdminOutletContext.jsx";
 import { crewService } from "../../../services/crewService.js";
-import { formatCrewEmployee, formatCrewMoney, formatCrewOperationalDate, formatCrewTime } from "../utils/crewI18n.js";
+import { formatCrewEmployee, formatCrewMoney, formatCrewOperationalDate, formatCrewOperationalDateTime, formatCrewTime } from "../utils/crewI18n.js";
 import AdminSegmentedControl from "../../../components/forms/AdminSegmentedControl.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import { semanticStatusTone } from "../../../components/ui/semanticStatus.js";
@@ -95,11 +95,9 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
     return readbackOk;
   }
 
-  async function review(checkout, decision) {
-    const note = decision === "reject" ? window.prompt("Reason for returning this checkout") : "Reviewed and approved";
-    if (decision === "reject" && !note) return;
+  async function review(checkout, decision, note = "Reviewed and approved") {
     try { await crewService.reviewCashCheckout(checkout.id, decision, note); setSelected(null); await refresh(); ui.notify({ title: `Cash Checkout ${decision === "approve" ? "completed" : "returned"}`, message: "The audit trail and deposit ledger remain server-controlled." }); }
-    catch (cause) { ui.notify({ title: "Unable to review Cash Checkout", message: cause.message, tone: "error" }); }
+    catch (cause) { ui.notify({ title: "Unable to review Cash Checkout", message: cause.message, tone: "error" }); throw cause; }
   }
 
   async function copySummary() {
@@ -113,7 +111,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
     ui.notify({ title: "Copied ✓", message: "Cash Deposit summary is ready to paste into WhatsApp." });
   }
 
-  const reviewCount = useMemo(() => data.checkouts.filter((item) => item.review_required && item.review_status === "pending").length + data.collections.filter((item) => item.status === "review_required").length, [data]);
+  const reviewCount = useMemo(() => data.checkouts.filter((item) => item.status === "submitted" && item.review_required && item.review_status === "pending").length + data.collections.filter((item) => item.status === "review_required").length, [data]);
   return <div className="space-y-4">
     <PageHeader
       section="Crew · Operations"
@@ -139,7 +137,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
         { key: "variance", header: "Variance", align: "right", render: (row) => <Badge tone={semanticStatusTone(row.reconciliation_status)}>{row.variance == null ? "—" : `${row.variance > 0 ? "+" : ""}${money(row.variance)}`}</Badge> },
         { key: "carry", header: "Carry Forward", align: "right", render: (row) => money(row.carry_forward) },
         { key: "deposit", header: "For Deposit", align: "right", render: (row) => <strong>{money(row.amount_for_deposit)}</strong> },
-        { key: "status", header: "Status", render: (row) => <Badge tone={semanticStatusTone(row.review_required && row.review_status === "pending" ? "review_required" : row.status)}>{row.review_required && row.review_status === "pending" ? "Review Required" : statusLabel(row.status)}</Badge> },
+        { key: "status", header: "Status", render: (row) => <Badge tone={row.is_returned ? "warning" : semanticStatusTone(row.status === "submitted" && row.review_required && row.review_status === "pending" ? "review_required" : row.status)}>{row.is_returned ? "Returned · Action Required" : row.status === "submitted" && row.review_required && row.review_status === "pending" ? "Needs Review" : statusLabel(row.status)}</Badge> },
         { key: "actions", header: "Actions", align: "right", render: (row) => <button className="icon-btn h-9 w-9" aria-label={`View checkout ${date(row.business_date)}`} onClick={() => setSelected(row)}><Eye size={16} /></button> },
       ]} /><AdminPagination {...checkoutListing} onPageChange={checkoutActions.requestPage} onPageSizeChange={checkoutActions.requestPageSize} noun="cash checkouts" /></AdminDataSection>
     </> : <>
@@ -164,12 +162,18 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
 function CheckoutDetail({ row, canReview, canManage, onReview, onChanged, ui, onClose }) {
   const counts = Object.entries(row.denomination_counts || {}).filter(([, qty]) => Number(qty) > 0);
   const [correcting, setCorrecting] = useState(false);
-  return <Modal title={`Cash Checkout · ${date(row.business_date)}`} description={`${formatCrewEmployee(row.checked_out_by)} · ${statusLabel(row.status)}`} size="xl" onClose={onClose} footer={<div className="flex w-full justify-between"><span>{canManage && row.status === "completed" ? <button className="btn-secondary" onClick={() => setCorrecting(true)}>Record Correction</button> : null}</span><span className="flex gap-2">{canReview && row.review_required && row.review_status === "pending" ? <><button className="btn-secondary" onClick={() => onReview(row, "reject")}>Return</button><button className="btn-primary" onClick={() => onReview(row, "approve")}>Approve & Complete</button></> : <button className="btn-secondary" onClick={onClose}>Close</button>}</span></div>}>
+  const [returning, setReturning] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
+  const approve = async () => { if (reviewing) return; setReviewing(true); try { await onReview(row, "approve"); } catch {} finally { setReviewing(false); } };
+  return <Modal title={`Cash Checkout · ${date(row.business_date)}`} description={`${formatCrewEmployee(row.checked_out_by)} · ${statusLabel(row.status)}`} size="xl" onClose={onClose} footer={<div className="flex w-full justify-between"><span>{canManage && row.status === "completed" ? <button className="btn-secondary" onClick={() => setCorrecting(true)}>Record Correction</button> : null}</span><span className="flex gap-2">{canReview && row.status === "submitted" && row.review_required && row.review_status === "pending" ? <><button className="btn-secondary" disabled={reviewing} onClick={() => setReturning(true)}>Return</button><button className="btn-primary" disabled={reviewing} onClick={approve}>{reviewing ? "Completing…" : "Approve & Complete"}</button></> : <button className="btn-secondary" onClick={onClose}>Close</button>}</span></div>}>
     <div className="grid gap-3 sm:grid-cols-3"><Detail label="Expected Opening" value={money(row.expected_opening_cash)} /><Detail label="Counted Cash" value={money(row.counted_cash)} /><Detail label="POS Expected" value={row.pos_expected_cash == null ? "—" : money(row.pos_expected_cash)} /><Detail label="Variance" value={row.variance == null ? "—" : money(row.variance)} /><Detail label="Carry Forward" value={money(row.carry_forward)} /><Detail label="For Deposit" value={money(row.amount_for_deposit)} /></div>
     {row.float_shortfall > 0 && <p className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Float shortfall: {money(row.float_shortfall)}</p>}
     {(row.variance_reason || row.opening_variance_reason) && <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm"><strong>Recorded reasons</strong>{row.opening_variance_reason && <p>Opening: {row.opening_variance_reason}</p>}{row.variance_reason && <p>Reconciliation: {row.variance_reason}</p>}</div>}
     <div className="mt-5"><h3 className="font-semibold">Denomination Count</h3><div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-5">{counts.length ? counts.map(([denomination, qty]) => <div className="rounded-lg border border-border p-2 text-sm" key={denomination}><small className="text-text-muted">RM{denomination}</small><strong className="block">× {qty}</strong></div>) : <p className="text-sm text-text-muted">No denomination quantities recorded.</p>}</div></div>
+    {row.is_returned && <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm"><strong>Returned · Action Required</strong><p>{row.return_reason}</p></div>}
+    {!!row.review_history?.length && <section className="mt-5" aria-label="Review History"><h3 className="font-semibold">Review History</h3><ol className="mt-2 space-y-3">{row.review_history.map((event, index) => <li key={event.id || index} className="border-l-2 border-border pl-3 text-sm"><strong>{{ submitted: "Submitted", resubmitted: "Resubmitted", returned: "Returned to Crew", approved: "Approved & Completed", completed: "Completed" }[event.event]}</strong><p>{event.actor_name} · {formatCrewOperationalDateTime(event.occurred_at)}</p>{event.reason && <p>{event.reason}</p>}</li>)}</ol></section>}
     <CrewCashAllocationAudit checkout={row} />
+    {returning && <ReturnCheckout onClose={() => setReturning(false)} onReturn={(reason) => onReview(row, "reject", reason)} /> }
     {correcting && <Correction checkout={row} onClose={() => setCorrecting(false)} onSaved={async () => { setCorrecting(false); onClose(); await onChanged(); }} ui={ui} />}
   </Modal>;
 }
@@ -302,3 +306,15 @@ function Correction({ checkout, onClose, onSaved, ui }) {
 async function reviewCollection(row, refresh, ui) { const note = window.prompt(`Received ${money(row.received_amount)} vs handed over ${money(row.amount)}. Enter review note:`); if (!note) return; const approve = window.confirm("Approve the received amount? The deposit balance remains unchanged."); try { await crewService.reviewCashCollection(row.id, approve ? "approve" : "reject", note); await refresh(); ui.notify({ title: approve ? "Collection completed" : "Collection cancelled", message: "The receipt difference remains in the audit trail; balance was already updated at submission." }); } catch (cause) { ui.notify({ title: "Unable to review collection", message: cause.message, tone: "error" }); } }
 function Field({ label, children, required = false }) { return <AdminFormField label={label} required={required}>{children}</AdminFormField>; }
 function MoneyField({ label, value, onChange, min, max, required = false, helper }) { return <AdminFormField label={label} required={required} helper={helper}><input aria-label={label} className="control h-10" required={required} type="number" min={min} max={max} step="0.05" inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value)} /></AdminFormField>; }
+
+function ReturnCheckout({ onClose, onReturn }) {
+  const [reason, setReason] = useState("");
+  const [saving, setSaving] = useState(false);
+  const inFlight = useRef(false);
+  async function submit(event) {
+    event.preventDefault(); if (inFlight.current) return;
+    inFlight.current = true; setSaving(true);
+    try { await onReturn(reason.trim()); } catch {} finally { inFlight.current = false; setSaving(false); }
+  }
+  return <Modal title="Return Cash Checkout" description="The checkout will be sent back to the submitting Crew for correction. The same checkout and its submitted financial evidence will be preserved." onClose={saving ? undefined : onClose} footer={<><button className="btn-secondary" disabled={saving} onClick={onClose}>Cancel</button><button className="btn-primary" type="submit" form="return-cash-checkout" disabled={saving || reason.trim().length < 3}>{saving ? "Returning…" : "Return to Crew"}</button></>}><form id="return-cash-checkout" onSubmit={submit}><AdminFormField label="Reason" required><textarea className="control min-h-24" aria-label="Reason" required minLength={3} maxLength={500} disabled={saving} value={reason} onChange={(event) => setReason(event.target.value)} /></AdminFormField></form></Modal>;
+}

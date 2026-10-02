@@ -26,6 +26,36 @@ beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Pr
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
+  it("returns through the canonical required-reason modal with failure retry and single-flight feedback", async () => {
+    const prompt = vi.spyOn(window, "prompt");
+    let reject;
+    mocks.review.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; })).mockResolvedValue({});
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View checkout 20/08/2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return", exact: true }));
+    expect(screen.getByRole("button", { name: "Return to Crew" }).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Recheck the POS amount" } });
+    fireEvent.click(screen.getByRole("button", { name: "Return to Crew" }));
+    expect(screen.getByRole("button", { name: "Returning…" }).disabled).toBe(true);
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("checkout-1", "reject", "Recheck the POS amount"));
+    reject(new Error("Network unavailable"));
+    await waitFor(() => expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ tone: "error" })));
+    expect(screen.getByLabelText("Reason").value).toBe("Recheck the POS amount");
+    fireEvent.click(screen.getByRole("button", { name: "Return to Crew" }));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledTimes(2));
+    expect(prompt).not.toHaveBeenCalled(); prompt.mockRestore();
+  });
+  it("keeps Returned distinct from Needs Review and displays compact review evidence", async () => {
+    const returned = { ...fixture.checkouts[0], status: "reconciled", review_status: "rejected", is_returned: true, return_reason: "Recheck the count", review_history: [{ id: 1, event: "submitted", actor_name: "QA Crew", occurred_at: "2026-08-20T14:00:00Z" }, { id: 2, event: "returned", actor_name: "Manager", occurred_at: "2026-08-20T14:05:00Z", reason: "Recheck the count" }] };
+    mocks.data.mockResolvedValue({ rows: [returned], total_count: 1, page: 1, page_size: 20, summary: fixture.summary });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("Returned · Action Required")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View checkout 20/08/2026" }));
+    expect(screen.getByRole("heading", { name: "Review History" })).not.toBeNull();
+    expect(screen.getByText("Returned to Crew")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve & Complete" })).toBeNull();
+  });
+
   it("corrects allocation with a stable retry request and immediate single-flight feedback", async () => {
     const completed = { ...fixture.checkouts[0], status: "completed", counted_cash: 746, floating_cash: 300, pos_expected_cash: 746, variance: 0, carry_forward: 0, amount_for_deposit: 446, allocation_correction_id: null };
     mocks.data.mockResolvedValue({ rows: [completed], total_count: 1, page: 1, page_size: 20, summary: fixture.summary });
@@ -81,7 +111,7 @@ describe("Crew Cash Checkout Admin", () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
     expect(screen.getByText("QA Crew")).not.toBeNull();
-    expect(screen.getByText("Review Required")).not.toBeNull();
+    expect(screen.getAllByText("Needs Review").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("tab", { name: "Cash Deposit" }));
     expect(await screen.findByText("Deposit Ledger")).not.toBeNull();
     expect(screen.getByText("Cash Checkout · QA Crew")).not.toBeNull();
