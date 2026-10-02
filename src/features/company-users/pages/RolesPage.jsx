@@ -270,7 +270,9 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
       });
       if (!confirmed) return;
     }
-    const nextPermissions = [...values.selectedPermissions].filter((code) => roleEditorPermissionCodeSet.has(code));
+    // Retired Journeys grants remain compatibility evidence, outside the active matrix.
+    const retainedJourneyPermissions = (role?.permissions ?? []).filter((code) => /^crew_journeys\.(view|create|edit|manage)$/.test(code));
+    const nextPermissions = [...new Set([...values.selectedPermissions].filter((code) => roleEditorPermissionCodeSet.has(code)).concat(retainedJourneyPermissions))];
     const modules = [...new Set(nextPermissions.map((code) => defaultPermissions.find((permission) => permission.code === code)?.module).filter(Boolean))];
     setSaving(true);
     try {

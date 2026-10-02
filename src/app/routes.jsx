@@ -508,12 +508,6 @@ export const routeDetails = {
     permission: "crew_learning.view OR crew_learning.manage",
     props: { initialTab: "onboarding" },
   },
-  crew_journeys: {
-    description: "Compatibility route for outlet onboarding.",
-    component: CrewLearningAdminResetPage,
-    permission: "crew_learning.view OR crew_learning.manage",
-    props: { initialTab: "onboarding" },
-  },
   crew_progress: {
     description: "Compatibility route for outlet onboarding progress.",
     component: CrewLearningAdminResetPage,
@@ -523,7 +517,7 @@ export const routeDetails = {
   crew_sop_library: {
     description: "Maintain versioned Crew SOPs and acknowledgement content.",
     component: CrewSopLibraryPage,
-    permission: "crew_sop.view OR crew_sop.manage",
+    permission: "crew_sop_library.view",
   },
   crew_growth: {
     description: "Monitor outlet skill coverage and Crew certification readiness.",
