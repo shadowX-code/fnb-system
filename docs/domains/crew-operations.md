@@ -46,6 +46,8 @@ Crew Admin Tasks, Manager Review, Daily Cash Checkout, and Cash Deposit Ledger u
 The Tasks definition page projects its original series creation timestamp and linked employee display name through the authorized paged read; missing human identity displays as unavailable, never a raw Auth ID or email. Its Time Window reads persisted start/due times independently from schedule recurrence and date.
 Admin Tasks opens with Status All and a bounded Today range. Clearing its date picker or all filters restores that same effective range; changing filters resets server paging to page one. The bounded paged RPC contract does not accept an unbounded date range.
 
+Management Task Detail uses the same internal evidence projection as assigned-Crew detail after validating the live opaque session and selected Role-authorized outlet. Management can inspect shared team evidence and each assignee’s separate execution for individual completion rules, including actual contributors and response actors. This read authority is non-materializing, excludes non-operational occurrences and grants no execution, completion or Reset rights. Task translations use the same authorized outlet boundary.
+
 ## Permissions, Snapshots, And Audit
 
 Admin task and cash actions require the relevant Crew Operations permission plus outlet scope.

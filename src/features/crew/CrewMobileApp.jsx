@@ -13,6 +13,7 @@ import CrewMeMobile from "./components/CrewMeMobile.jsx";
 import CrewPayslipsMobile from './components/CrewPayslipsMobile.jsx';
 import CrewAttendanceMobile, { CrewClockDialogs } from "./components/CrewAttendanceMobile.jsx";
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
+import CrewManagementTodayTeam from "./components/CrewManagementTodayTeam.jsx";
 import CrewManagementTasksMobile from "./components/CrewManagementTasksMobile.jsx";
 import CrewRecoverySurface from "./components/CrewRecoverySurface.jsx";
 import CrewChoicePicker from "./components/CrewChoicePicker.jsx";
@@ -79,15 +80,17 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
   const [operationTarget, setOperationTarget] = useState(null);
   const homeScrollY = useRef(0);
   const logout = () => { navigate("home"); replaceSession(null); };
-  const openTask = (target) => { homeScrollY.current = window.scrollY; setOperationTarget(target); navigate("operations"); };
+  const openTask = (target) => { homeScrollY.current = window.scrollY; setOperationTarget(target ? { ...target, outletId: selectedOutletId } : null); navigate("operations"); };
   const openNotification = async (descriptor, notificationId) => {
     const type = descriptor?.type;
+    let destinationOutletId = selectedOutletId;
     if (outletScope?.management && (type === "task_occurrence" || type === "roster_publication")) {
       const destination = await crewService.notificationDestinationOutlet(session.token, notificationId);
       if (!destination?.available || !destination.outlet_id || !await selectOutlet(destination.outlet_id)) return false;
+      destinationOutletId = destination.outlet_id;
     }
     if (type === "task_occurrence" && descriptor?.occurrence_id) {
-      setOperationTarget(outletScope?.management ? null : { row: { id: descriptor.occurrence_id, name: "Task" }, context: { from: "notification" } });
+      setOperationTarget({ row: { id: descriptor.occurrence_id, name: "Task" }, context: { from: "notification" }, outletId: destinationOutletId });
       navigate("operations");
       return true;
     }
@@ -113,7 +116,7 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "learn" && <CrewLearningMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={refresh} onViewPerformance={() => navigate("growth", { growthInitialView: "performance" })} />}
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading} error={growthError} onRetry={refresh} onNavigate={navigate} onViewChange={(view) => { if (view === "overview" || view === "performance") navigate("growth", { growthInitialView: view }); }} />}
-    {screen === "operations" && (outletScope.management ? <CrewManagementTasksMobile data={operations} onBack={() => navigate("home")} /> : <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={refresh} onBack={(returnContext) => { setOperationTarget(null); navigate("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />)}
+    {screen === "operations" && (outletScope.management ? <CrewManagementTasksMobile key={selectedOutletId} token={session.token} outletId={selectedOutletId} data={operations} initialTarget={operationTarget?.outletId === selectedOutletId ? operationTarget : null} onBack={() => { setOperationTarget(null); navigate("home"); }} /> : <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={refresh} onBack={(returnContext) => { setOperationTarget(null); navigate("home"); requestAnimationFrame(() => window.scrollTo({ top: returnContext?.scrollY || homeScrollY.current || 0 })); }} />)}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => navigate("me")} onChanged={refresh} />}
     {screen === "cash-checkout" && <CrewCashCheckoutMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} onBack={() => navigate("me")} onFlowChange={setCashCheckoutFlow} onNotify={onNotify} />}
     {screen === "assets" && <CrewAssetsMobile key={outletScope.management ? selectedOutletId : "fixed"} token={session.token} management={outletScope.management} outletId={selectedOutletId} onBack={() => navigate("me")} onFlowChange={setAssetInspectionFlow} />}
@@ -122,12 +125,13 @@ function CrewWorkspace({ session, replaceSession, changePasscode, updateProfileP
     {screen === "payslips" && <CrewPayslipsMobile token={session.token} onBack={() => navigate("me")} />}
     {screen === "compliance" && <CrewComplianceMobile token={session.token} onBack={() => navigate("employment-records")} />}
     {screen === "disciplinary" && <CrewDisciplinaryMobile token={session.token} onBack={() => navigate("employment-records")} onViewed={refresh} />}
+    {screen === "today-team" && outletScope.management && <CrewManagementTodayTeam key={selectedOutletId} token={session.token} outletId={selectedOutletId} full onBack={() => navigate("home")} />}
     {screen === "schedule" && <CrewScheduleMobile roster={roster} onBack={() => navigate("home")} />}
     {screen === "attendance" && <CrewAttendanceMobile rows={clock.attendanceMonth} loading={clock.attendanceMonthLoading} selectedMonth={clock.selectedAttendanceMonth} onMonthChange={clock.setSelectedAttendanceMonth} onBack={() => navigate("home")} t={t} />}
     {screen === "me" && <CrewMeMobile key={entry} session={session} context={context} profile={profile} attendance={attendance} leave={leave} assetAccess={assets} cashAvailable={!outletScope.management || Boolean(inventoryGrants.can_initiate_handover || outletScope.outlets.find((outlet) => outlet.id === selectedOutletId)?.is_cash_handover_receiver || outletScope.outlets.find((outlet) => outlet.id === selectedOutletId)?.can_perform_cash_checkout)} management={outletScope.management} disciplinary={disciplinary} onChangePasscode={changePasscode} onUpdateProfilePhoto={updateProfilePhoto} passcodeSuccess={passcodeSuccess} navigate={navigate} onLogout={logout} />}
     </Suspense>
     <CrewClockDialogs clock={clock} context={context} navigate={navigate} />
-    {!cashCheckoutFlow && !assetInspectionFlow && !inventoryFlow && <CrewBottomNav items={navItems} active={["operations", "inventory-operations", "stock-check", "purchase-orders", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "payslips", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
+    {!cashCheckoutFlow && !assetInspectionFlow && !inventoryFlow && <CrewBottomNav items={navItems} active={["today-team", "operations", "inventory-operations", "stock-check", "purchase-orders", "attendance", "schedule", "notifications"].includes(screen) ? "home" : ["leave", "cash-checkout", "assets", "employment-records", "employment-documents", "payslips", "compliance", "disciplinary"].includes(screen) ? "me" : screen} onChange={navigate} />}
   </section></main>;
 }
 

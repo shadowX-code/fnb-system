@@ -342,3 +342,6 @@
 .crew-team-comment textarea { min-height: 78px; resize: vertical; border: 1px solid var(--crew-color-border); border-radius: var(--crew-radius-control); background: var(--crew-color-surface); color: var(--crew-color-text); padding: 10px; font: inherit; font-weight: 400; }
 .crew-team-comment small { color: var(--crew-color-text-secondary); font-size: var(--crew-type-helper); font-weight: 400; }
 @media (max-width: 360px) { .crew-team-home-entry { gap: 7px; } .crew-team-home-entry em { max-width: 72px; text-align: right; white-space: normal; } }
+
+.crew-today-team-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.crew-today-team-row { align-items: flex-start; }
