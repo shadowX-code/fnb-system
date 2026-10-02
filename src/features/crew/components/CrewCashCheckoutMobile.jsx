@@ -1,3 +1,4 @@
+import CrewCashAllocationAudit from "./CrewCashAllocationAudit.jsx";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "./CrewCashCheckoutMobile.css";
@@ -255,6 +256,7 @@ function CheckoutDetails({ checkout, onBack, submitted = false }) {
         [t("cash.forDeposit"), checkout.amount_for_deposit, "is-total"],
       ]} />
       <section className="crew-cash-detail-section crew-cash-detail-denomination-section"><DetailSectionHeader icon={ListChecks} title={t("cash.denominationCount")} />{counts.length ? <div className="crew-cash-detail-denominations">{counts.map(([denomination, quantity]) => <div key={denomination}><span>RM{Number(denomination).toFixed(Number(denomination) < 1 ? 2 : 0)} × {quantity}</span><strong>{money(Number(denomination) * Number(quantity))}</strong></div>)}</div> : <p>{t("cash.noDenominations")}</p>}<div className="crew-cash-detail-result"><span>{t("cash.countedCash")}</span><strong>{money(checkout.counted_cash)}</strong></div></section>
+      <CrewCashAllocationAudit checkout={checkout} />
       {varianceReason && <section className="crew-cash-detail-section crew-cash-detail-reason"><DetailSectionHeader icon={AlertTriangle} tone="warning" title={t("cash.varianceReason")} /><p>{varianceReason}</p></section>}
     </section>
     {submitted && <footer className="crew-ui-sticky-actions crew-cash-actions crew-cash-submitted-actions"><button className="crew-mobile-primary" type="button" onClick={onBack}>{t("common.done")}</button></footer>}

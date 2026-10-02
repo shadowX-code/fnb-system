@@ -478,6 +478,12 @@ export const crewService = {
     return data;
   },
 
+  async correctCashCheckoutAllocation(checkoutId, carryForward, expectedCorrectionId, requestId, reason) {
+    const { data, error } = await supabase.rpc("crew_cash_correct_checkout_allocation", { p_checkout_id: checkoutId, p_carry_forward: carryForward, p_expected_correction_id: expectedCorrectionId, p_request_id: requestId, p_reason: reason });
+    throwSupabaseError("crew.correctCashCheckoutAllocation", error);
+    return data;
+  },
+
   async adjustCashCheckout(checkoutId, action, amount, reason) {
     const { data, error } = await supabase.rpc("crew_cash_adjust_checkout", { p_checkout_id: checkoutId, p_action: action, p_amount: amount, p_reason: reason });
     throwSupabaseError("crew.adjustCashCheckout", error);

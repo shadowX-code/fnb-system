@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), context: vi.fn(), settings: vi.fn(), review: vi.fn(), collect: vi.fn(), saveReceivers: vi.fn(), reviewCollection: vi.fn(), adjust: vi.fn() }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), context: vi.fn(), settings: vi.fn(), review: vi.fn(), collect: vi.fn(), saveReceivers: vi.fn(), reviewCollection: vi.fn(), adjust: vi.fn(), allocation: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   cashCheckoutAdminPage: mocks.data, cashCheckoutAdminContext: mocks.context, saveCashSettings: mocks.settings, reviewCashCheckout: mocks.review,
-  recordAdminCashCollection: mocks.collect, saveCashHandoverReceivers: mocks.saveReceivers, reviewCashCollection: mocks.reviewCollection, adjustCashCheckout: mocks.adjust,
+  recordAdminCashCollection: mocks.collect, saveCashHandoverReceivers: mocks.saveReceivers, reviewCashCollection: mocks.reviewCollection, adjustCashCheckout: mocks.adjust, correctCashCheckoutAllocation: mocks.allocation,
 } }));
 import CrewCashCheckoutAdminPage from "../CrewCashCheckoutAdminPage.jsx";
 
@@ -22,10 +22,33 @@ const fixture = {
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn() };
 
-beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Promise.resolve({ rows: listing === "ledger" ? fixture.ledger : fixture.checkouts, total_count: listing === "ledger" ? fixture.ledger.length : fixture.checkouts.length, page: 1, page_size: 20, summary: { ...fixture.summary, settings: fixture.settings, collections: fixture.collections } })); mocks.context.mockReset().mockResolvedValue(fixture); mocks.settings.mockReset().mockResolvedValue({}); mocks.review.mockReset().mockResolvedValue({}); mocks.collect.mockReset().mockResolvedValue({}); mocks.saveReceivers.mockReset().mockResolvedValue({}); mocks.reviewCollection.mockReset().mockResolvedValue({}); mocks.adjust.mockReset().mockResolvedValue({}); ui.notify.mockReset(); });
+beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Promise.resolve({ rows: listing === "ledger" ? fixture.ledger : fixture.checkouts, total_count: listing === "ledger" ? fixture.ledger.length : fixture.checkouts.length, page: 1, page_size: 20, summary: { ...fixture.summary, settings: fixture.settings, collections: fixture.collections } })); mocks.context.mockReset().mockResolvedValue(fixture); mocks.settings.mockReset().mockResolvedValue({}); mocks.review.mockReset().mockResolvedValue({}); mocks.collect.mockReset().mockResolvedValue({}); mocks.saveReceivers.mockReset().mockResolvedValue({}); mocks.reviewCollection.mockReset().mockResolvedValue({}); mocks.adjust.mockReset().mockResolvedValue({}); mocks.allocation.mockReset().mockResolvedValue({}); ui.notify.mockReset(); });
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
+  it("corrects allocation with a stable retry request and immediate single-flight feedback", async () => {
+    const completed = { ...fixture.checkouts[0], status: "completed", counted_cash: 746, floating_cash: 300, pos_expected_cash: 746, variance: 0, carry_forward: 0, amount_for_deposit: 446, allocation_correction_id: null };
+    mocks.data.mockResolvedValue({ rows: [completed], total_count: 1, page: 1, page_size: 20, summary: fixture.summary });
+    let rejectSave;
+    mocks.allocation.mockImplementationOnce(() => new Promise((_, reject) => { rejectSave = reject; })).mockResolvedValueOnce({});
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: /View checkout/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Record Correction" }));
+    fireEvent.change(screen.getByLabelText("Carry Forward to Next Day (RM)"), { target: { value: "46" } });
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Correct closing allocation" } });
+    expect(screen.getByText(/For Deposit: RM.*400/)).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Record Cash Correction" })).getByRole("button", { name: "Record Correction" }));
+    expect(screen.getByRole("button", { name: "Saving…" }).disabled).toBe(true);
+    await waitFor(() => expect(mocks.allocation).toHaveBeenCalledTimes(1));
+    const requestId = mocks.allocation.mock.calls[0][3];
+    rejectSave(new Error("Retry after connection failure"));
+    await waitFor(() => expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ tone: "error" })));
+    expect(screen.getByLabelText("Carry Forward to Next Day (RM)").value).toBe("46");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Record Cash Correction" })).getByRole("button", { name: "Record Correction" }));
+    await waitFor(() => expect(mocks.allocation).toHaveBeenLastCalledWith("checkout-1", "46", null, requestId, "Correct closing allocation"));
+    expect(mocks.adjust).not.toHaveBeenCalled();
+  });
+
   it("saves Management eligibility separately from Crew positions and receiver configuration", async () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
