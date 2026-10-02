@@ -24,6 +24,25 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("Crew Cash Checkout mobile", () => {
+  it("reopens returned cash at Count with the Manager reason and resubmits the same balanced checkout", async () => {
+    let result = { ...payload, checkout: { id: "returned-run", status: "reconciled", review_status: "rejected", review_required: true, is_returned: true, return_reason: "Check the POS amount", denomination_counts: { "100": "4" }, pos_expected_cash: 400, carry_forward: 0 } };
+    crewService.cashCheckoutMobile.mockImplementation(async () => result);
+    crewService.saveCashCheckout.mockImplementation(async (_token, action, draft) => { result = { ...result, checkout: { ...result.checkout, ...draft, is_returned: action !== "submit", review_status: action === "submit" ? "pending" : "rejected", status: action === "submit" ? "submitted" : "reconciled" } }; return { checkout: result.checkout }; });
+    render(<CrewCashCheckoutMobile token="crew-session" onBack={() => {}} />);
+    expect(await screen.findByText("Action Required")).not.toBeNull();
+    expect(screen.getByText("Check the POS amount")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Correct Cash Checkout" }));
+    expect(screen.getByText("Count Outlet Cash")).not.toBeNull();
+    expect(screen.getByText("Check the POS amount")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("Carry Forward to Next Day")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenLastCalledWith("crew-session", "submit", expect.objectContaining({ checkout_id: "returned-run" })));
+    expect(await screen.findByText("Cash Checkout Submitted")).not.toBeNull();
+  });
+
   it("uses the shared checkout flow for eligible Management and keeps handover rights independent", async () => {
     const result = { ...payload, can_initiate_handover: false, can_record_collection: false, is_cash_handover_receiver: false, checkout_history: [] };
     crewService.managementCashMobile.mockResolvedValue(result);

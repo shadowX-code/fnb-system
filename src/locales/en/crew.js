@@ -141,3 +141,6 @@ Object.assign(resources.performance, { googleUnavailable: "Monthly customer evid
 Object.assign(resources.attendance, { withinClockInArea: "Within clock-in area · confirm to verify", withinClockOutArea: "Within clock-out area · confirm to verify", locationCheckDisabled: "Location check is not enabled for this outlet.", locationAccuracyLow: "GPS accuracy is too low (within ±{{meters}}m required).", locationPermissionDenied: "Location permission denied. Allow access in your browser, then retry.", locationTimedOut: "Location request timed out. Retry or choose an exception reason.", retryLocation: "Retry location" });
 Object.assign(resources.tasks, { responseRecorded:"Response recorded", openTask:"Open task: {{title}}", completionNote:"Completion note", completionNoteOptional:"Completion note (optional)", requiredNotePlaceholder:"Add the required completion note", optionalNotePlaceholder:"Add a note if useful", evidenceTypes:{note:"Note",optional_note:"Optional note",photo:"Photo",structured:"Structured response"} });
 export default resources;
+
+Object.assign(resources.cash, {"actionRequired": "Action Required", "returnedForCorrection": "Returned for correction", "correctCheckout": "Correct Cash Checkout"});
+Object.assign(resources.cash, { returnedReadonly: "Returned to the submitting Crew for correction." });
