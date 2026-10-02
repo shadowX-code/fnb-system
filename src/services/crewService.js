@@ -358,6 +358,18 @@ export const crewService = {
     return data || [];
   },
 
+  async managementTaskDetail(token, outletId, instanceId, source = "instance") {
+    const { data, error } = await supabase.rpc("crew_management_task_detail", { p_token: token, p_outlet_id: outletId, p_instance_id: instanceId, p_source: source });
+    throwSupabaseError("crew.managementTaskDetail", error);
+    return data;
+  },
+
+  async managementTodayTeam(token, outletId) {
+    const { data, error } = await supabase.rpc("crew_management_today_team", { p_token: token, p_outlet_id: outletId });
+    throwSupabaseError("crew.managementTodayTeam", error);
+    return data;
+  },
+
   async operationDetail(token, instanceId) {
     const { data, error } = await supabase.rpc("crew_tasks_detail", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.operationDetail", error);

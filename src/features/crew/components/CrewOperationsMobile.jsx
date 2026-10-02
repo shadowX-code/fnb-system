@@ -280,7 +280,7 @@ function TaskCompletionState({ status, completed, total, completedAt }) {
   return <section className="crew-task-completion-state" aria-live="polite"><CheckCircle2 size={21} /><span><strong>{review ? t("tasks.submittedReview") : t("tasks.completed")}</strong><small>{t("tasks.completedCount", { completed, total })}{time ? ` · ${t("tasks.completedAt", { time })}` : ""}</small></span></section>;
 }
 
-function TaskDetailSummary({ detail, completed, total, now, canRedo, onRedo }) {
+export function TaskDetailSummary({ detail, completed, total, now, canRedo, onRedo }) {
   const { t } = useTranslation();
   const isFinal = ["completed", "completed_with_exceptions", "review_required"].includes(detail.status);
   const presentationStatus = taskPresentationStatus({ ...detail, completed_count: completed }, now);

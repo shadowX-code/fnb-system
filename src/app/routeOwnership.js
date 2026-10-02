@@ -244,6 +244,7 @@ const crewMobileDefinitions = [
   crewMobileRouteDefinition({ id: "crew-mobile-inventory-operations", screen: "inventory-operations", path: "home/operations", legacyPath: "crew/home/operations" }),
   crewMobileRouteDefinition({ id: "crew-mobile-stock-check", screen: "stock-check", path: "home/operations/stock-check", legacyPath: "crew/home/operations/stock-check" }),
   crewMobileRouteDefinition({ id: "crew-mobile-purchase-orders", screen: "purchase-orders", path: "home/operations/purchase-orders", legacyPath: "crew/home/operations/purchase-orders" }),
+  crewMobileRouteDefinition({ id: "crew-mobile-today-team", screen: "today-team", path: "home/today-team", legacyPath: "crew/home/today-team" }),
   crewMobileRouteDefinition({ id: "crew-mobile-schedule", screen: "schedule", path: "schedule", legacyPath: "crew/schedule" }),
 ];
 
