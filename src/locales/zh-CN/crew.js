@@ -152,3 +152,5 @@ Object.assign(resources.cash, {"actionRequired": "需要处理", "returnedForCor
 Object.assign(resources.cash, { returnedReadonly: "已退回给提交结账的员工更正。" });
 
 Object.assign(resources.cash, {"previousDayAction": "前一营业日 · 需要处理", "previousDayDependency": "今天仍可点算并保存现金。完成或取消之前的结账后，才能完成本次结账；期初结转金额目前为暂定值。", "basisReview": "期初依据 · 需要审核", "basisReviewBody": "之前的结账处理改变了结转依据。原期初记录保留，请提交经理审核。", "cancelCheckout": "取消结账", "cancelHelp": "结束尚未完成的结账。历史证据保留，不产生存款或结转。", "cancelReason": "原因", "cancelled": "已取消", "cancelledReadonly": "此结账已取消，无法编辑。"});
+
+Object.assign(resources.cash, {"inProgress": "进行中", "ownerContinues": "提交此结账的员工可继续处理。"});
