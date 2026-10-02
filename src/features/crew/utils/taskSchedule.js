@@ -82,9 +82,24 @@ export function taskGroup(task, t) {
   return t("tasks.groups.ongoing");
 }
 
-export function taskMatchesStatus(task, filter) {
-  if (filter === "all") return true;
+// Presentation only: never persist these labels or use them to authorize writes.
+export function taskPresentationStatus(task, now = Date.now()) {
   const status = task.status === "pending" ? "not_started" : task.status;
+  if (!["not_started", "in_progress", "overdue", undefined].includes(status)) return status;
+  const time = Number(new Date(now));
+  const due = Date.parse(task.due_at || task.available_until || "");
+  if ((Number.isFinite(due) && time > due) || (!Number.isFinite(due) && status === "overdue")) return "overdue";
+  const progress = Number(task.completed_count || 0);
+  if (progress > 0 || (task.completed_count == null && status === "in_progress")) return "in_progress";
+  const date = task.business_date || task.task_date || task.effective_date;
+  const start = Date.parse(task.available_from || (date ? `${date}T00:00:00+08:00` : ""));
+  return Number.isFinite(start) && time < start ? "upcoming" : "start_now";
+}
+
+export function taskMatchesStatus(task, filter, now = Date.now()) {
+  if (filter === "all") return true;
+  const status = taskPresentationStatus(task, now);
+  if (filter === "completed") return ["completed", "completed_with_exceptions", "review_required"].includes(status);
   return status === filter;
 }
 
@@ -92,13 +107,13 @@ function taskDate(task) {
   return task.business_date || task.task_date || task.effective_date || "";
 }
 
-function activePriority(task, today) {
-  const status = task.status === "pending" ? "not_started" : task.status;
+function activePriority(task, today, now) {
+  const status = taskPresentationStatus(task, now);
   const date = taskDate(task);
   if (status === "overdue") return 0;
   if (status === "in_progress") return 1;
-  if (date === today && status === "not_started") return 2;
-  if (date > today && status === "not_started") return 3;
+  if (date === today && status === "start_now") return 2;
+  if (status === "upcoming") return 3;
   if (date === today) return 4;
   return 5;
 }
@@ -108,15 +123,15 @@ function activePriority(task, today) {
  * Recurring and shift-based definitions deliberately appear once while every
  * immutable instance remains available in the execution history read model.
  */
-export function activeTaskResponsibilities(tasks = [], t) {
-  const today = crewBusinessDate();
+export function activeTaskResponsibilities(tasks = [], t, now = new Date()) {
+  const today = crewBusinessDate(new Date(now));
   const current = tasks.filter((task) => taskDate(task) >= today);
   const unique = new Map();
   for (const task of current) {
     const recurring = task.source === "instance" && ["recurring", "shift_based"].includes(task.schedule_type);
     const key = recurring ? `definition:${task.series_id || task.template_id || task.name}:${task.schedule_type}` : `${task.source || "task"}:${task.id}`;
     const existing = unique.get(key);
-    if (!existing || activePriority(task, today) < activePriority(existing, today)) unique.set(key, task);
+    if (!existing || activePriority(task, today, now) < activePriority(existing, today, now)) unique.set(key, task);
   }
   const groups = {
     [t("tasks.groups.needsAttention")]: [],
@@ -124,8 +139,9 @@ export function activeTaskResponsibilities(tasks = [], t) {
     [t("tasks.groups.upcoming")]: [],
   };
   for (const task of unique.values()) {
-    const status = task.status === "pending" ? "not_started" : task.status;
-    if (["overdue", "in_progress"].includes(status)) groups[t("tasks.groups.needsAttention")].push(task);
+    const status = taskPresentationStatus(task, now);
+    if (status === "upcoming") groups[t("tasks.groups.upcoming")].push(task);
+    else if (["overdue", "in_progress"].includes(status)) groups[t("tasks.groups.needsAttention")].push(task);
     else if (["recurring", "shift_based"].includes(task.schedule_type)) groups[t("tasks.groups.recurringScheduled")].push(task);
     else groups[t("tasks.groups.upcoming")].push(task);
   }
@@ -140,9 +156,10 @@ export function historyTasks(tasks = [], filter = "all", now = new Date()) {
   return tasks
     .filter((task) => {
       const date = taskDate(task);
-      const status = task.status === "pending" ? "not_started" : task.status;
+      const status = taskPresentationStatus(task, now);
       if (!date || date < from || date > today) return false;
-      if (filter === "all") return ["completed", "completed_with_exceptions", "review_required", "overdue", "exception", "in_progress"].includes(status);
+      if (!["completed", "completed_with_exceptions", "review_required", "overdue", "exception", "in_progress"].includes(status) && task.status !== "in_progress") return false;
+      if (filter === "all") return true;
       if (filter === "completed") return ["completed", "completed_with_exceptions", "review_required"].includes(status);
       return status === filter;
     })

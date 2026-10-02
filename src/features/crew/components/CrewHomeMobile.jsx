@@ -1,3 +1,4 @@
+import useCrewTaskPresentationTime from "../hooks/useCrewTaskPresentationTime.js";
 import useCrewTaskTitles from "../hooks/useCrewTaskTitles.js";
 import { useTranslation } from "react-i18next";
 import { Bell, CalendarCheck, Check, ChevronRight, ClipboardCheck, Clock3, Fingerprint, MapPin, Moon, ShieldCheck, Sun } from "lucide-react";
@@ -7,7 +8,7 @@ import { translateStatus } from "../utils/crewI18n.js";
 import { formatTime, malaysiaDateKey, formatRosterTime, rosterEntryLabel, formatHomeDate, formatHomeClock, formatDuration } from "../utils/crewMobile.js";
 import crewHomeAttendanceMintBackground from "../assets/crew-home-attendance-mint-background.webp";
 import { CrewInventoryHomeAttention } from "./CrewInventoryOperationsMobile.jsx";
-import { completedTasksLast } from "../utils/taskSchedule.js";
+import { completedTasksLast, taskPresentationStatus } from "../utils/taskSchedule.js";
 import CrewTeamReviewHome from "./CrewTeamReviewHome.jsx";
 import { CrewTaskHeading, CrewTaskMetadata } from "./CrewTaskPriority.jsx";
 
@@ -20,14 +21,16 @@ export default function CrewHomeMobile({ session, attendance, context, roster, o
   const { openShift, nowTick, clockTransition, loading, prepareClock } = clock;
   const todayRoster = roster?.today;
   const localizedTasks = useCrewTaskTitles(session.token, operations?.tasks || []);
+  const [taskNow] = useCrewTaskPresentationTime(localizedTasks);
   const homeTasks = completedTasksLast(localizedTasks).map((row) => {
+    const status = taskPresentationStatus(row, taskNow);
     const progress = row.source === "legacy_daily"
       ? row.description || null
       : t("tasks.completedCount", { completed: row.completed_count || 0, total: row.block_count || 0 });
     const deadline = row.due_at
-      ? { time: formatTime(row.due_at), overdue: row.status === "overdue" }
+      ? { time: formatTime(row.due_at), overdue: status === "overdue" }
       : null;
-    return { kind: row.source === "legacy_daily" ? "legacy_task" : "task", row, id: `${row.source || "task"}-${row.id}`, title: row.name || row.title, progress, deadline, status: row.status || "pending" };
+    return { kind: row.source === "legacy_daily" ? "legacy_task" : "task", row, id: `${row.source || "task"}-${row.id}`, title: row.name || row.title, progress, deadline, status };
   });
   const homeTaskBadgeState = homeTasks.length === 0 ? "empty" : homeTasks.every((task) => ["completed", "completed_with_exceptions"].includes(task.status)) ? "complete" : "alert";
   const completedToday = attendance.find((item) => item.clock_out_at && malaysiaDateKey(item.clock_in_at) === malaysiaDateKey());
