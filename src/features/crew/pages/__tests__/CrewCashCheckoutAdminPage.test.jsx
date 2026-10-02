@@ -26,6 +26,18 @@ beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Pr
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
+  it("offers cancellation only inside unresolved detail and sends a required reason", async () => {
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByRole("button", { name: "View checkout 20/08/2026" });
+    expect(screen.queryByRole("button", { name: "Cancel Checkout" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View checkout 20/08/2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Checkout" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel Checkout" });
+    expect(within(dialog).getByRole("button", { name: "Cancel Checkout" }).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Preserve evidence; no closing obligation" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel Checkout" }));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("checkout-1", "cancel", "Preserve evidence; no closing obligation"));
+  });
   it("returns through the canonical required-reason modal with failure retry and single-flight feedback", async () => {
     const prompt = vi.spyOn(window, "prompt");
     let reject;

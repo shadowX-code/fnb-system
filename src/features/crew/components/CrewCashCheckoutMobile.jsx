@@ -59,6 +59,7 @@ export default function CrewCashCheckoutMobile({ token, management = false, outl
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [cancelOpen, setCancelOpen] = useState(false);
   const [collectionOpen, setCollectionOpen] = useState(false);
   const [detailCheckout, setDetailCheckout] = useState(null);
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -95,21 +96,23 @@ export default function CrewCashCheckoutMobile({ token, management = false, outl
   const previousCarry = Number(cashContext.previous_carry_forward ?? data?.checkout?.previous_carry_forward ?? 0);
   const expectedOpening = Number(cashContext.expected_opening_cash ?? data?.checkout?.expected_opening_cash ?? floating + previousCarry);
   const deposit = Math.max(0, counted - floating - carry);
-  const requiresReview = Boolean(data?.checkout?.is_returned || data?.checkout?.review_required && data?.checkout?.review_status === "pending") || Math.max(0, floating - counted) > 0 || (data?.settings?.require_manager_review_over_tolerance !== false && variance != null && Math.abs(variance) > Number(data?.settings?.variance_tolerance || 0));
+  const requiresReview = Boolean(data?.chain?.previous_unresolved?.length || data?.checkout?.basis_review_required || data?.checkout?.is_returned || data?.checkout?.review_required && data?.checkout?.review_status === "pending") || Math.max(0, floating - counted) > 0 || (data?.settings?.require_manager_review_over_tolerance !== false && variance != null && Math.abs(variance) > Number(data?.settings?.variance_tolerance || 0));
   const checkoutStatus = data?.checkout?.status;
+  const cancelled = checkoutStatus === "cancelled";
   const returned = Boolean(data?.checkout?.is_returned);
-  const checkoutAction = returned && data?.can_correct_checkout !== false ? t("cash.correctCheckout") : completed || checkoutStatus === "submitted" ? t("cash.viewDetails") : data?.checkout?.review_required ? t("cash.continueReview") : data?.checkout ? t("cash.continueCheckout") : t("cash.startCheckout");
+  const checkoutAction = returned && data?.can_correct_checkout !== false ? t("cash.correctCheckout") : completed || cancelled || checkoutStatus === "submitted" ? t("cash.viewDetails") : data?.checkout?.review_required ? t("cash.continueReview") : data?.checkout ? t("cash.continueCheckout") : t("cash.startCheckout");
 
-  async function save(action) {
+  async function save(action, extra = {}) {
     if (saveInFlight.current) return;
     saveInFlight.current = true; setSaving(true); setError("");
     try {
-      const payload = data?.checkout?.id ? { ...draft, checkout_id: data.checkout.id } : draft;
+      const payload = data?.checkout?.id ? { ...draft, ...extra, checkout_id: data.checkout.id } : { ...draft, ...extra };
       const result = management
         ? await crewService.saveCashCheckout(token, action, payload, outletId)
         : await crewService.saveCashCheckout(token, action, payload);
       if (["submitted", "completed"].includes(result?.checkout?.status)) setData((current) => ({ ...current, checkout: result.checkout }));
       await load();
+      if (action === "cancel") { setCancelOpen(false); setFlowOpen(false); onFlowChange?.(false); }
       setStep(action === "draft" ? "count" : action === "reconcile" ? "allocate" : "confirm");
       if (action === "draft") onNotify?.({ title: t("cash.draftSaved"), tone: "success" });
     } catch (cause) { const message = cause.message || t("cash.unableSave"); setError(message); onNotify?.({ title: t("cash.unableSave"), message, tone: "error" }); }
@@ -126,8 +129,8 @@ export default function CrewCashCheckoutMobile({ token, management = false, outl
   if (detailCheckout) return <CheckoutDetails checkout={detailCheckout} onBack={() => setDetailCheckout(null)} />;
   if (historyOpen) return <CheckoutHistory rows={data?.checkout_history || []} onBack={() => setHistoryOpen(false)} onOpen={(checkout) => setDetailCheckout(checkout)} />;
   if (ledgerOpen) return <CashLedger data={data} onBack={() => setLedgerOpen(false)} />;
-  if (flowOpen && (completed || checkoutStatus === "submitted")) return <CheckoutDetails checkout={data.checkout} onBack={closeFlow} submitted={checkoutStatus === "submitted"} />;
-  if (flowOpen) return <CheckoutFlow data={data} draft={draft} setDraft={setDraft} step={step} setStep={setStep} counted={counted} posExpected={posExpected} variance={variance} deposit={deposit} floating={floating} previousCarry={previousCarry} expectedOpening={expectedOpening} requiresReview={requiresReview} saving={saving} error={error} onBack={closeFlow} onSave={save} />;
+  if (flowOpen && (completed || checkoutStatus === "submitted" || cancelled)) return <><CheckoutDetails checkout={data.checkout} onBack={closeFlow} submitted={checkoutStatus === "submitted"} onCancel={data?.can_cancel_checkout ? () => setCancelOpen(true) : null} />{cancelOpen && <CancelCheckout saving={saving} error={error} onClose={() => setCancelOpen(false)} onCancel={(reason) => save("cancel", { reason })} />}</>;
+  if (flowOpen) return <><CheckoutFlow onCancel={data?.can_cancel_checkout ? () => setCancelOpen(true) : null} data={data} draft={draft} setDraft={setDraft} step={step} setStep={setStep} counted={counted} posExpected={posExpected} variance={variance} deposit={deposit} floating={floating} previousCarry={previousCarry} expectedOpening={expectedOpening} requiresReview={requiresReview} saving={saving} error={error} onBack={closeFlow} onSave={save} />{cancelOpen && <CancelCheckout saving={saving} error={error} onClose={() => setCancelOpen(false)} onCancel={(reason) => save("cancel", { reason })} />}</>;
 
   if (management && !data?.can_perform) return <section className="crew-cash-mobile crew-cash-summary-page">
     <CrewMobileDetailHeader title={t(data?.deposit ? "cash.cashDepositBalance" : "cash.pendingConfirmations")} onBack={onBack} variant="workflow" />
@@ -140,8 +143,9 @@ export default function CrewCashCheckoutMobile({ token, management = false, outl
   return <section className="crew-cash-mobile crew-cash-summary-page">
     <CrewMobileDetailHeader title={t("cash.title")} onBack={onBack} variant="workflow" />
     <section className="crew-cash-summary">
-      {data?.action_required_checkouts?.filter((item) => item.id !== data?.checkout?.id).map((item) => <article className="crew-cash-card" key={item.id}><strong>{t("cash.actionRequired")} · {formatCrewOperationalDate(item.business_date)}</strong><p>{item.return_reason}</p><button type="button" className="crew-mobile-primary" onClick={() => openReturned(item)}>{t("cash.correctCheckout")}</button></article>)}
-      <article className="crew-cash-today-summary"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><CalendarCheck size={22} /></span><div><small>{cashSummaryDate(data?.business_date, t)}</small><div className="crew-cash-summary-status">{returned ? <CrewStatusBadge tone="warning">{t("cash.actionRequired")}</CrewStatusBadge> : completed ? <CrewStatusBadge tone="success"><Check size={14} />{t("cash.completedWithTime", { time: completionTime(data.checkout.completed_at) })}</CrewStatusBadge> : checkoutStatus === "submitted" ? <CrewStatusBadge tone="warning">{t("cash.awaitingReview")}</CrewStatusBadge> : <><CrewStatusBadge tone={checkoutStatus === "reconciled" ? "success" : "neutral"}>{data?.checkout ? t(`cash.status.${checkoutStatus}`) : t("cash.notStarted")}</CrewStatusBadge>{data?.checkout?.review_required && !returned && <CrewStatusBadge tone="warning">{t("cash.reviewRequired")}</CrewStatusBadge>}</>}</div></div><button className="crew-mobile-ghost" type="button" aria-label={t("cash.checkoutHistory")} onClick={() => setHistoryOpen(true)}><History size={19} /></button></header>{returned && <ManagerReviewNotice><strong>{t("cash.returnedForCorrection")}</strong><p>{data.checkout.return_reason}</p></ManagerReviewNotice>}<dl><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(floating)}</dd></div><div><dt>{t("cash.previousCarryForward")}</dt><dd>{money(previousCarry)}</dd></div><div><dt>{t("cash.countedCash")}</dt><dd>{data?.checkout ? money(data.checkout.counted_cash) : "—"}</dd></div>{completed && <div><dt>{t("cash.carryForwardNextCycle")}</dt><dd>{money(data.checkout.carry_forward)}</dd></div>}<div className="is-deposit"><dt>{t("cash.forDeposit")}</dt><dd>{data?.checkout ? money(data.checkout.amount_for_deposit) : "—"}</dd></div></dl><button className="crew-mobile-primary" type="button" onClick={() => completed || returned && data?.can_correct_checkout === false ? setDetailCheckout(data.checkout) : openFlow()}>{checkoutAction}<ChevronRight size={17} /></button></article>
+      <CashChainNotice checkout={data?.checkout} chain={data?.chain} />
+      {data?.action_required_checkouts?.filter((item) => item.id !== data?.checkout?.id).map((item) => <article className="crew-cash-card" key={item.id}><strong>{t(item.business_date < today() ? "cash.previousDayAction" : "cash.actionRequired")} · {formatCrewOperationalDate(item.business_date)}</strong><p>{item.return_reason}</p><button type="button" className="crew-mobile-primary" onClick={() => openReturned(item)}>{t(item.status === "submitted" ? "cash.viewDetails" : "cash.continueCheckout")}</button></article>)}
+      <article className="crew-cash-today-summary"><header><span className="crew-ui-icon-container crew-ui-icon-container--large"><CalendarCheck size={22} /></span><div><small>{cashSummaryDate(data?.business_date, t)}</small><div className="crew-cash-summary-status">{cancelled ? <CrewStatusBadge tone="neutral">{t("cash.cancelled")}</CrewStatusBadge> : returned ? <CrewStatusBadge tone="warning">{t("cash.actionRequired")}</CrewStatusBadge> : completed ? <CrewStatusBadge tone="success"><Check size={14} />{t("cash.completedWithTime", { time: completionTime(data.checkout.completed_at) })}</CrewStatusBadge> : checkoutStatus === "submitted" ? <CrewStatusBadge tone="warning">{t("cash.awaitingReview")}</CrewStatusBadge> : <><CrewStatusBadge tone={checkoutStatus === "reconciled" ? "success" : "neutral"}>{data?.checkout ? t(`cash.status.${checkoutStatus}`) : t("cash.notStarted")}</CrewStatusBadge>{data?.checkout?.review_required && !returned && <CrewStatusBadge tone="warning">{t("cash.reviewRequired")}</CrewStatusBadge>}</>}</div></div><button className="crew-mobile-ghost" type="button" aria-label={t("cash.checkoutHistory")} onClick={() => setHistoryOpen(true)}><History size={19} /></button></header>{returned && <ManagerReviewNotice><strong>{t("cash.returnedForCorrection")}</strong><p>{data.checkout.return_reason}</p></ManagerReviewNotice>}<dl><div><dt>{t("cash.floatToKeep")}</dt><dd>{money(floating)}</dd></div><div><dt>{t("cash.previousCarryForward")}</dt><dd>{money(previousCarry)}</dd></div><div><dt>{t("cash.countedCash")}</dt><dd>{data?.checkout ? money(data.checkout.counted_cash) : "—"}</dd></div>{completed && <div><dt>{t("cash.carryForwardNextCycle")}</dt><dd>{money(data.checkout.carry_forward)}</dd></div>}<div className="is-deposit"><dt>{t("cash.forDeposit")}</dt><dd>{data?.checkout ? money(data.checkout.amount_for_deposit) : "—"}</dd></div></dl><button className="crew-mobile-primary" type="button" onClick={() => completed || cancelled || data?.can_continue_checkout === false && checkoutStatus !== "submitted" ? setDetailCheckout(data.checkout) : openFlow()}>{checkoutAction}<ChevronRight size={17} /></button></article>
       <article className="crew-cash-deposit-summary"><span className="crew-ui-icon-container crew-ui-icon-container--large"><HandCoins size={22} /></span><div><small>{t("cash.cashDepositBalance")}</small><strong>{money(data?.deposit?.current_balance)}</strong>{Number(data?.deposit?.pending_confirmation_amount) > 0 && <span className="crew-cash-deposit-pending"><CrewStatusBadge tone="warning"><Clock3 size={13} />{t("cash.pendingConfirmationAmount", { amount: money(data.deposit.pending_confirmation_amount) })}</CrewStatusBadge></span>}</div><button type="button" onClick={() => setLedgerOpen(true)}>{t("cash.viewLedger")}<ChevronRight size={17} /></button><CashHandoverAction canInitiate={data?.can_initiate_handover ?? data?.can_record_collection} balance={data?.deposit?.current_balance} onOpen={() => setCollectionOpen(true)} /></article>
     </section>
 
@@ -162,13 +166,13 @@ function RecentActivityRow({ row, onOpen, interactive = true }) {
   return <article className="crew-cash-activity-row"><span className={`crew-ui-icon-container crew-ui-icon-container--round crew-cash-activity-icon${isOut ? " is-danger" : ""}`}>{isOut ? <ArrowDown size={20} /> : <ArrowUp size={20} />}</span><div className="crew-cash-activity-copy"><strong>{activity}</strong><small>{formatCrewOperationalDateTime(row.occurred_at)}</small>{actor && <small>{formatCrewEmployee(actor)}</small>}{confirmation && <CrewStatusBadge tone={confirmation === "pending_confirmation" ? "warning" : confirmation === "confirmed" ? "success" : "neutral"}>{t(`cash.confirmation.${confirmation}`)}</CrewStatusBadge>}</div><div className="crew-cash-activity-amount"><em className={isOut ? "is-out" : "is-in"}>{isOut ? "−" : "+"}{money(Math.abs(row.signed_amount))}</em><small>{t("cash.ledgerBalance", { amount: money(row.balance_after) })}</small></div>{interactive && <button type="button" aria-label={t("cash.openLedgerEntry", { activity })} onClick={onOpen}><ChevronRight size={18} /></button>}</article>;
 }
 
-function CheckoutFlow({ data, draft, setDraft, step, setStep, counted, posExpected, variance, deposit, floating, previousCarry, expectedOpening, requiresReview, saving, error, onBack, onSave }) {
+function CheckoutFlow({ onCancel, data, draft, setDraft, step, setStep, counted, posExpected, variance, deposit, floating, previousCarry, expectedOpening, requiresReview, saving, error, onBack, onSave }) {
   const { t } = useTranslation();
   return <section className="crew-cash-mobile crew-cash-flow">
     <CrewMobileDetailHeader title={t(`cash.steps.${step}`)} onBack={onBack} variant="workflow" />
     {!data?.can_perform ? <CrewEmptyState title={t("cash.notAssigned")} body={t("cash.notAssignedBody")} /> : <>
       {data?.checkout?.is_returned && <ManagerReviewNotice><strong>{t("cash.returnedForCorrection")}</strong><p>{data.checkout.return_reason}</p></ManagerReviewNotice>}
-      <StepBar step={step} />
+      <CashChainNotice checkout={data?.checkout} chain={data?.chain} /><StepBar step={step} />
       {step === "count" && <CountStep data={data} draft={draft} setDraft={setDraft} counted={counted} expectedOpening={expectedOpening} floating={floating} previousCarry={previousCarry} />}
       {step === "allocate" && <AllocateStep floating={floating} counted={counted} deposit={deposit} draft={draft} setDraft={setDraft} />}
       {step === "confirm" && <ConfirmStep data={data} draft={draft} setDraft={setDraft} counted={counted} variance={variance} deposit={deposit} floating={floating} />}
@@ -177,8 +181,9 @@ function CheckoutFlow({ data, draft, setDraft, step, setStep, counted, posExpect
         {step !== "count" && <button type="button" className="crew-mobile-secondary" onClick={() => setStep(step === "confirm" ? "allocate" : "count")} disabled={saving}>{t("common.back")}</button>}
         {step === "count" && <><button type="button" className="crew-mobile-secondary" onClick={() => onSave("draft")} disabled={saving}>{t("cash.saveDraft")}</button><button className="crew-mobile-primary" type="button" onClick={() => onSave("reconcile")} disabled={saving || posExpected == null}>{t("cash.next")}<ArrowRight size={16} /></button></>}
         {step === "allocate" && <button className="crew-mobile-primary" type="button" onClick={() => setStep("confirm")} disabled={saving}>{t("cash.next")}<ArrowRight size={16} /></button>}
-        {step === "confirm" && <button className="crew-mobile-primary" type="button" onClick={() => onSave(requiresReview ? "submit" : "complete")} disabled={saving || (requiresReview && data?.checkout?.status === "submitted")}>{saving ? t("common.saving") : requiresReview && data?.checkout?.status === "submitted" ? t("cash.awaitingReview") : requiresReview ? t("cash.submitReview") : t("cash.completeCheckout")}</button>}
+        {step === "confirm" && <button className="crew-mobile-primary" type="button" onClick={() => onSave(requiresReview ? "submit" : "complete")} disabled={saving || (!requiresReview && data?.chain?.previous_unresolved?.length > 0) || (requiresReview && data?.checkout?.status === "submitted")}>{saving ? t("common.saving") : requiresReview && data?.checkout?.status === "submitted" ? t("cash.awaitingReview") : requiresReview ? t("cash.submitReview") : t("cash.completeCheckout")}</button>}
       </footer>
+      {onCancel && <button type="button" className="crew-mobile-secondary" disabled={saving} onClick={onCancel}>{t("cash.cancelCheckout")}</button>}
     </>}
   </section>;
 }
@@ -234,16 +239,17 @@ function ConfirmStep({ data, draft, setDraft, counted, variance, deposit, floati
 
 function ManagerReviewNotice({ children }) { const { t } = useTranslation(); return <section className="crew-cash-warning"><span className="crew-ui-icon-container crew-ui-icon-container--small is-warning"><AlertTriangle size={15} /></span><div><CrewStatusBadge tone="warning">{t("cash.managerReview")}</CrewStatusBadge><span>{children}</span></div></section>; }
 
-function CheckoutDetails({ checkout, onBack, submitted = false }) {
+function CheckoutDetails({ checkout, onBack, submitted = false, onCancel }) {
   const { t } = useTranslation();
   const returned = Boolean(checkout.is_returned);
+  const cancelled = checkout.status === "cancelled";
   const counts = Object.entries(checkout?.denomination_counts || {}).filter(([, quantity]) => Number(quantity) > 0);
   const varianceReason = checkout.variance_reason || checkout.opening_variance_reason;
   const completedTime = checkout.completed_at ? formatCrewTime(checkout.completed_at, { hour12: true }).replace(/\b(am|pm)\b/gi, (meridiem) => meridiem.toUpperCase()) : null;
   return <section className="crew-cash-mobile crew-cash-details">
     <CrewMobileDetailHeader title={t(submitted ? "cash.checkoutSubmitted" : "cash.checkoutDetails")} onBack={submitted ? null : onBack} />
     <section className="crew-cash-detail-card crew-cash-detail-snapshot">
-      <header className="crew-cash-detail-status"><CrewStatusBadge tone={submitted || returned ? "warning" : "success"}><ShieldCheck size={16} />{t(returned ? "cash.returnedForCorrection" : submitted ? "cash.managerReview" : "status.completed")}</CrewStatusBadge><p><ShieldCheck size={18} />{t(returned ? "cash.returnedReadonly" : submitted ? "cash.submittedReadonly" : "cash.completedReadonly")}</p></header>
+      <header className="crew-cash-detail-status"><CrewStatusBadge tone={submitted || returned ? "warning" : "success"}><ShieldCheck size={16} />{t(cancelled ? "cash.cancelled" : returned ? "cash.returnedForCorrection" : submitted ? "cash.managerReview" : "status.completed")}</CrewStatusBadge><p><ShieldCheck size={18} />{t(cancelled ? "cash.cancelledReadonly" : returned ? "cash.returnedReadonly" : submitted ? "cash.submittedReadonly" : "cash.completedReadonly")}</p></header>
       <section className="crew-cash-detail-meta" aria-label={t("cash.checkoutDetails")}>
         <DetailMeta icon={CalendarCheck} label={t("cash.businessDateLabel")} value={formatCrewOperationalDate(checkout.business_date)} />
         {completedTime && <DetailMeta icon={Clock3} label={t("cash.completedAtLabel")} value={completedTime} />}
@@ -266,7 +272,9 @@ function CheckoutDetails({ checkout, onBack, submitted = false }) {
         [t("cash.forDeposit"), checkout.amount_for_deposit, "is-total"],
       ]} />
       <section className="crew-cash-detail-section crew-cash-detail-denomination-section"><DetailSectionHeader icon={ListChecks} title={t("cash.denominationCount")} />{counts.length ? <div className="crew-cash-detail-denominations">{counts.map(([denomination, quantity]) => <div key={denomination}><span>RM{Number(denomination).toFixed(Number(denomination) < 1 ? 2 : 0)} × {quantity}</span><strong>{money(Number(denomination) * Number(quantity))}</strong></div>)}</div> : <p>{t("cash.noDenominations")}</p>}<div className="crew-cash-detail-result"><span>{t("cash.countedCash")}</span><strong>{money(checkout.counted_cash)}</strong></div></section>
-      <CrewCashAllocationAudit checkout={checkout} />
+      <CashChainNotice checkout={checkout} /><CrewCashAllocationAudit checkout={checkout} />
+      {checkout.cancellation && <ManagerReviewNotice><strong>{t("cash.cancelled")}</strong><p>{checkout.cancellation.reason}</p><small>{checkout.cancellation.actor_name} · {formatCrewOperationalDateTime(checkout.cancellation.occurred_at)}</small></ManagerReviewNotice>}
+      {onCancel && <button type="button" className="crew-mobile-secondary" onClick={onCancel}>{t("cash.cancelCheckout")}</button>}
       {varianceReason && <section className="crew-cash-detail-section crew-cash-detail-reason"><DetailSectionHeader icon={AlertTriangle} tone="warning" title={t("cash.varianceReason")} /><p>{varianceReason}</p></section>}
     </section>
     {submitted && <footer className="crew-ui-sticky-actions crew-cash-actions crew-cash-submitted-actions"><button className="crew-mobile-primary" type="button" onClick={onBack}>{t("common.done")}</button></footer>}
@@ -279,7 +287,7 @@ function CheckoutHistory({ rows, onBack, onOpen }) {
     <CrewMobileDetailHeader title={t("cash.checkoutHistory")} onBack={onBack} />
     {rows.length ? <div className="crew-cash-history-list">{rows.map((checkout) => <button className="crew-cash-history-row" key={checkout.id} type="button" onClick={() => onOpen(checkout)}>
       <span className="crew-ui-icon-container crew-ui-icon-container--compact"><CalendarCheck size={18} /></span>
-      <span className="crew-cash-history-copy"><strong>{formatCrewOperationalDate(checkout.business_date)}</strong><small>{completionTime(checkout.completed_at)} · {formatCrewEmployee(checkout.checked_out_by)}</small><CrewStatusBadge tone="success">{t("status.completed")}</CrewStatusBadge></span>
+      <span className="crew-cash-history-copy"><strong>{formatCrewOperationalDate(checkout.business_date)}</strong><small>{checkout.completed_at ? completionTime(checkout.completed_at) : t("cash.cancelled")} · {formatCrewEmployee(checkout.checked_out_by)}</small><CrewStatusBadge tone={checkout.status === "cancelled" ? "neutral" : "success"}>{t(checkout.status === "cancelled" ? "cash.cancelled" : "status.completed")}</CrewStatusBadge></span>
       <span className="crew-cash-history-amount"><strong>{money(checkout.amount_for_deposit)}</strong><small>{t("cash.forDeposit")}</small>{Number(checkout.variance) !== 0 && <em>{t("cash.variance")} {Number(checkout.variance) > 0 ? "+" : ""}{money(checkout.variance)}</em>}</span>
       <ChevronRight size={18} />
     </button>)}</div> : <CrewEmptyState title={t("cash.noCheckoutHistory")} />}
@@ -316,4 +324,14 @@ function CollectionSheet({ data, token, outletId = null, onClose, onSaved }) {
     {review ? <dl className="crew-cash-handover-review"><div className="is-amount"><dt>{t("cash.amount")}</dt><dd>{money(form.amount)}</dd></div><div><dt>{t("cash.from")}</dt><dd>{safeCashActor(data.initiator_name) || "—"}</dd></div><div><dt>{t("cash.to")}</dt><dd>{receiver?.name || "—"}</dd></div>{form.note && <div><dt>{t("cash.noteOptional")}</dt><dd>{form.note}</dd></div>}</dl> : <><div className="crew-cash-handover-meta"><span>{t("cash.receiverType")}</span><strong>{outletCrew}</strong></div><CrewPersonPicker label={t("cash.receiver")} value={form.receiver_employee_id} people={data.receivers} onChange={(receiver_employee_id) => setForm({ ...form, receiver_employee_id })} placeholder={t("cash.chooseReceiver")} searchLabel={t("cash.chooseReceiver")} /><CrewMoneyField label={t("cash.amount")} value={form.amount} min="0.05" max={balance} step="0.05" required onChange={(amount) => setForm({ ...form, amount })} error={form.amount && !amountValid ? t("cash.amountUpTo", { amount: money(balance) }) : ""} /><label className="crew-ui-form-field"><span>{t("cash.noteOptional")}</span><textarea rows="3" enterKeyHint="done" value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></label></>}
     {error && <p className="crew-cash-error" role="alert">{error}</p>}
   </CrewBottomSheet>;
+}
+
+function CashChainNotice({ checkout, chain }) {
+  const { t } = useTranslation();
+  const pending = chain?.previous_unresolved || checkout?.previous_unresolved || [];
+  return <>{pending.length > 0 && <ManagerReviewNotice><strong>{t("cash.previousDayAction")}</strong><p>{t("cash.previousDayDependency")}</p>{pending.map((row) => <p key={row.id}>{formatCrewOperationalDate(row.business_date)} · {row.checked_out_by}</p>)}</ManagerReviewNotice>}{checkout?.basis_review_required && <ManagerReviewNotice><strong>{t("cash.basisReview")}</strong><p>{t("cash.basisReviewBody")}</p></ManagerReviewNotice>}</>;
+}
+function CancelCheckout({ saving, error, onClose, onCancel }) {
+ const { t } = useTranslation(); const [reason, setReason] = useState("");
+ return <CrewMobileModal title={t("cash.cancelCheckout")} description={t("cash.cancelHelp")} busy={saving} closeDisabled={saving} error={error} onClose={onClose} onSubmit={(event) => { event.preventDefault(); if (!saving && reason.trim().length >= 3) onCancel(reason.trim()); }} footer={<><button type="button" className="crew-mobile-secondary" disabled={saving} onClick={onClose}>{t("common.cancel")}</button><button className="crew-mobile-primary" type="submit" disabled={saving || reason.trim().length < 3}>{saving ? t("common.saving") : t("cash.cancelCheckout")}</button></>}><label className="crew-cash-field">{t("cash.cancelReason")}<textarea className="crew-ui-field" required minLength={3} maxLength={500} value={reason} disabled={saving} onChange={(event) => setReason(event.target.value)} /></label></CrewMobileModal>;
 }
