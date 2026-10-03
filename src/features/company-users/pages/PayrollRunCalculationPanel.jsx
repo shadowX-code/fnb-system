@@ -22,7 +22,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInf
     <PayrollMonthlyBasicBreakdown line={line} /><PayrollRecurringBreakdown line={line} /></div>);
   const statutoryRows = employer => (statutory?.lines || []).filter(line => !employer || !["pcb", "lindung"].includes(line.scheme)).map(line => row(statutoryName(line.scheme),
     line.applicable === false ? "N/A" : employer ? line.employer_amount : line.employee_amount,
-    line.applicable === false ? "Not Applicable" : line.category ? statutorySchemeLabel(line.scheme,{state:"confirmed",applicable:true,category:line.category,status:line.participation_status}) : line.method === "manual_confirmed" ? "Confirmed" : null));
+    line.scheme === "lindung" ? statutorySchemeLabel("lindung",{status:line.participation_status}) : line.applicable === false ? "Not Applicable" : line.category ? statutorySchemeLabel(line.scheme,{state:"confirmed",applicable:true,category:line.category,status:line.participation_status}) : line.method === "manual_confirmed" ? "Confirmed" : null));
   return <Modal title={result.employee_name} description={frozenPeriod ? `${frozenPeriod} · Finalized read-only Payroll statement` : "Employee Payroll statement"}
     onClose={onClose} size="xl" footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
     <div className="space-y-6">

@@ -3,6 +3,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { readFileSync } from "node:fs";
 const mocks = vi.hoisted(() => ({ readFinalizedRecord: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
+import { ResultDetail } from "../PayrollRunCalculationPanel.jsx";
 import PayrollFinalizedRecord from "../PayrollFinalizedRecord.jsx";
 afterEach(cleanup);
 it("shows frozen employee identity, earnings and contributions without editable actions", async () => {
@@ -38,4 +39,14 @@ it("keeps the canonical append-only cores and snapshot-only financial reads", ()
   expect(record).not.toContain("payroll_compensation_versions");
   expect(record).toContain("'payroll.view'");
   expect(record).toContain("from public,anon");
+});
+
+it("preserves LINDUNG non-applicability versus opt-out in read-only statements", () => {
+ const result={employee_name:"QA Employee",inputs:{},lines:[],issues:[]};
+ const view=render(<ResultDetail result={result} statutory={{lines:[{scheme:"lindung",applicable:false,participation_status:"valid_opt_out",employee_amount:0}],issues:[]}} onClose={()=>{}} />);
+ expect(screen.getByText("Valid Opt-Out")).toBeTruthy();
+ expect(screen.queryByText("Not Applicable")).toBeNull();
+ view.rerender(<ResultDetail result={result} statutory={{lines:[{scheme:"lindung",applicable:false,participation_status:"not_applicable",employee_amount:0}],issues:[]}} onClose={()=>{}} />);
+ expect(screen.getByText("Not Applicable")).toBeTruthy();
+ expect(screen.queryByText("Valid Opt-Out")).toBeNull();
 });
