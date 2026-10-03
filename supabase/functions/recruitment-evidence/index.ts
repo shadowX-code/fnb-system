@@ -76,6 +76,15 @@ Deno.serve(async (request) => {
     if (body.action === "chunk") {
       const data = await access("chunk");
       if (data.acknowledged) return json(data);
+      // An upload may have arrived while its acknowledgement response was lost.
+      const receipt = await service.storage.from(bucket).info(data.path);
+      if (
+        !receipt.error &&
+        Number(receipt.data.size) === Number(body.payload.bytes)
+      ) {
+        await access("chunk_ack");
+        return json({ ...data, acknowledged: true });
+      }
       const signed = await service.storage
         .from(bucket)
         .createSignedUploadUrl(data.path);

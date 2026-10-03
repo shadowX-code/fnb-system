@@ -1,3 +1,4 @@
+import { Blob as NodeBlob } from "node:buffer";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 vi.mock("./recruitmentService.js", () => ({
   recruitmentService: { evidence: vi.fn(), interruption: vi.fn() },
@@ -21,7 +22,10 @@ vi.mock("./interviewRecordingStore.js", () => ({
     removeUnit: vi.fn(),
   },
 }));
-import { InterviewRecording } from "./InterviewRecording.js";
+import {
+  InterviewRecording,
+  recordingTransportChunks,
+} from "./InterviewRecording.js";
 import { recruitmentService } from "./recruitmentService.js";
 import { recordingStore } from "./interviewRecordingStore.js";
 beforeEach(() => {
@@ -128,4 +132,19 @@ it("marks missing unacknowledged bytes interrupted instead of fabricating a comp
   expect(
     recruitmentService.evidence.mock.calls.map(([action]) => action),
   ).toEqual(["state", "abandon"]);
+});
+
+it("bounds delayed mobile transport blobs without changing stopped-container bytes", async () => {
+  const bytes = new Uint8Array(13 * 1024 * 1024 + 3);
+  bytes[0] = 11;
+  bytes[6 * 1024 * 1024] = 22;
+  bytes[bytes.length - 1] = 33;
+  const chunks = [...recordingTransportChunks(new NodeBlob([bytes]))];
+  expect(chunks.map((c) => c.size)).toEqual([
+    6 * 1024 * 1024,
+    6 * 1024 * 1024,
+    1024 * 1024 + 3,
+  ]);
+  const reassembled = new Uint8Array(await new NodeBlob(chunks).arrayBuffer());
+  expect(Buffer.compare(Buffer.from(reassembled), Buffer.from(bytes))).toBe(0);
 });

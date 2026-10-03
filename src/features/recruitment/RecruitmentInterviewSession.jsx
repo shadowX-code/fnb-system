@@ -196,6 +196,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     setError("");
     try {
       await recording.current?.captureStopped;
+      await recording.current?.stopPromise?.catch(() => {});
       paused.current = false;
       session.current = await recruitmentService.begin(token, clientId.current);
       const recovering = new InterviewRecording({

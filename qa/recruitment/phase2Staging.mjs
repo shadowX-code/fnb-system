@@ -7,6 +7,8 @@ if (!fixture)
   throw Error(
     "Set FEEDX_RECRUITMENT_QA_DIR to a private synthetic fixture directory.",
   );
+const candidateName =
+  process.env.FEEDX_RECRUITMENT_QA_NAME || "Synthetic Phase2 Candidate";
 const token = fs.readFileSync(`${fixture}/invitation.txt`, "utf8").trim();
 const context = await chromium.launchPersistentContext(`${fixture}/browser`, {
   viewport: { width: 390, height: 844 },
@@ -41,7 +43,7 @@ try {
   ).toBeVisible();
   if (
     await page
-      .getByRole("heading", { name: "Welcome, Synthetic Phase2 Candidate" })
+      .getByRole("heading", { name: `Welcome, ${candidateName}` })
       .isVisible()
   ) {
     await page.getByRole("button", { name: "Continue", exact: true }).click();

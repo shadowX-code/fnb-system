@@ -4,6 +4,11 @@ import {
   recordingStore,
   interviewLocalKey,
 } from "./interviewRecordingStore.js";
+// Browser timeslice events may be delayed and much larger than the requested interval.
+export function* recordingTransportChunks(blob) {
+  for (let offset = 0; offset < blob.size; offset += 6 * 1024 * 1024)
+    yield blob.slice(offset, offset + 6 * 1024 * 1024);
+}
 export async function checkRecordingVideo(blob) {
   return new Promise((resolve, reject) => {
     const video = document.createElement("video"),
@@ -81,17 +86,19 @@ export class InterviewRecording {
     this.recorder.ondataavailable = (event) => {
       if (!event.data.size) return;
       totalBytes += event.data.size;
+      for (const blob of recordingTransportChunks(event.data)) {
+        const chunk = {
+          key: `${this.unit.id}:${index}`,
+          unitId: this.unit.id,
+          index: index++,
+          blob,
+          ack: false,
+          elapsedEndMs: Math.max(0, Date.now() - this.startedAt),
+        };
+        this.writing = this.writing.then(() => recordingStore.chunk(chunk));
+      }
       if (totalBytes > 100 * 1024 * 1024 && !this.stopping)
         this.onLost("unit_size_limit");
-      const chunk = {
-        key: `${this.unit.id}:${index}`,
-        unitId: this.unit.id,
-        index: index++,
-        blob: event.data,
-        ack: false,
-        elapsedEndMs: Math.max(0, Date.now() - this.startedAt),
-      };
-      this.writing = this.writing.then(() => recordingStore.chunk(chunk));
       this.writing
         .then(() => this.drainChunks())
         .catch(() => this.onLost("local_storage_failed"));
@@ -119,7 +126,7 @@ export class InterviewRecording {
     }
   }
   async drainChunks(unitId = this.unit?.id) {
-    if (this.drainPromise) {
+    while (this.drainPromise) {
       await this.drainPromise;
     }
     this.drainPromise = (async () => {
@@ -201,7 +208,7 @@ export class InterviewRecording {
       chunks.map((c) => c.blob),
       { type: "video/mp4" },
     );
-    if (!unit.closed || !blob.size) {
+    if (!unit.closed || !blob.size || blob.size > 128 * 1024 * 1024) {
       await recruitmentService.evidence("invalid", this.token, this.clientId, {
         unit_id: unit.id,
       });
