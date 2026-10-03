@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Modal from "../../../components/feedback/Modal.jsx";
 import AdminFormField from "../../../components/forms/AdminFormField.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -32,7 +32,7 @@ const fileBase64 = file => new Promise((resolve, reject) => {
 });
 
 // This is source preparation/review only. Publication delegates to Annual Calendar.
-export default function PayrollHolidayImport({ year, geography = "", calendarPublished = false, onPublished, onCandidateChanged, advancedContent, operational = false, onCandidatesChanged }) {
+export default function PayrollHolidayImport({ year, geography = "", outletId = null, calendarPublished = false, onPublished, onCandidateChanged, advancedContent, operational = false, onCandidatesChanged }) {
   const [candidates, setCandidates] = useState(null);
   const [includeQa, setIncludeQa] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -43,6 +43,9 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
   const [source, setSource] = useState({ url: "", reference: "", file: null, requestId: crypto.randomUUID() });
   const [transcription, setTranscription] = useState("");
   const [verifiedRows, setVerifiedRows] = useState([]);
+  const [dateReview, setDateReview] = useState(false);
+  const [dateDrafts, setDateDrafts] = useState({});
+  const dateRequests = useRef({});
   const [lastCheck, setLastCheck] = useState(null);
   const [checking, setChecking] = useState(false);
   const [decisions, setDecisions] = useState({});
@@ -66,11 +69,11 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     let active = true;
     payrollService.readHolidayCandidates(year, includeQa).then(rows => {
       if (!active) return;
-      setCandidates(rows); setSelected(old => rows.find(c => c.id === old?.id) || null);
+      setCandidates(rows); setSelected(old => { const next = rows.find(c => c.id === old?.id) || null; if (next) setDecisions(next.decisions || {}); return next; });
     }).catch(e => { if (active) setError(e.message); });
     return () => { active = false; };
   }, [refresh, year, includeQa]);
-  const open = (c, advanced = false) => { setAdvancedReview(advanced); setSelected(c); setDecisions(c.decisions || {}); setAttested(false); setTranscription(""); setVerifiedRows([]); setError(""); };
+  const open = (c, advanced = false) => { setAdvancedReview(advanced); setSelected(c); setDateReview(false); setDateDrafts({}); dateRequests.current = {}; setDecisions(c.decisions || {}); setAttested(false); setTranscription(""); setVerifiedRows([]); setError(""); };
   const checkUpdates = async () => {
     setChecking(true); setError("");
     try { await payrollService.checkOfficialHolidayUpdates(year, geography, crypto.randomUUID()); setRefresh(n => n + 1); }
@@ -83,6 +86,15 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     catch (e) { setError(e.message || "Unable to update import. The published calendar has not changed."); }
     finally { setBusy(false); }
   };
+  const confirmDate = r => perform(async () => {
+    const draft = dateDrafts[r.key] || { date: r.row.date, reference: "" };
+    const intent = { candidate_id: selected.id, candidate_revision: selected.revision, source_sha256: selected.source_sha256,
+      row_key: r.key, row_identity: r.source_row_identity, row_fingerprint: r.source_row_fingerprint,
+      confirmed_date: draft.date, official_reference: draft.reference.trim(), outlet_id: outletId };
+    const fingerprint = JSON.stringify(intent);
+    if (dateRequests.current[r.key]?.fingerprint !== fingerprint) dateRequests.current[r.key] = { fingerprint, requestId: crypto.randomUUID() };
+    await payrollService.confirmHolidayDate({ ...intent, request_id: dateRequests.current[r.key].requestId });
+  });
   const captureSource = () => perform(async () => {
     if (!source.file || source.file.size > 5 * 1024 * 1024) throw new Error("Choose a PDF up to 5 MB.");
     await payrollService.captureHolidaySource({ ...source, year, filename: source.file.name, base64: await fileBase64(source.file) });
@@ -151,14 +163,28 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
       <p className="mb-3 font-semibold">Official source: {title(selected)}</p>{scopedReview && <button type="button" className="btn-secondary mb-3" disabled={busy} onClick={()=>viewSource()}>View Official Source</button>}
       <p className="mb-3 text-sm text-text-secondary">{selected.status === "fetched" ? "Official document captured · Extraction review required" : scopedReview ? "Review uncertain or conflicting applicable dates against the official source." : `Imported ${selected.created_at?.slice(0, 10)} · ${summary.imported} holidays · ${summary.review + summary.blocked} needing review`}</p>
       {selected.is_qa && <p role="status" className="mb-3 text-sm text-amber-800">Synthetic Staging QA evidence. Not an official Malaysian calendar.</p>}
-      {selected.status === "fetched" || verifiedRows.length > 0 ? <div className="space-y-3"><p className="text-sm text-text-secondary">{selected.status === "fetched" ? "Review the source and enter the missing dates or jurisdiction." : "Resolve the uncertain rows against official evidence. Unchanged verified rows are retained."} The published calendar is unchanged.</p>
+      {dateReview && scopedReview ? <section aria-label="Confirm official holiday dates" className="space-y-4">
+        <p className="text-sm text-text-secondary">Confirm each applicable date against official evidence. The original source warning is retained.</p>
+        {selected.rows.filter(r => r.date_confirmable && (r.row.scope === "national" || r.row.state_code === geography)).map(r => {
+          const draft = dateDrafts[r.key] || { date: r.row.date, reference: "" };
+          const patch = value => setDateDrafts(old => ({ ...old, [r.key]: { ...draft, ...value } }));
+          return <div key={r.key} className="space-y-3 border-b border-border pb-4"><div className="flex flex-wrap justify-between gap-2"><strong>{r.row.name} · {jurisdiction(r.row)}</strong><Badge tone={r.date_resolution ? "success" : "warning"}>{r.date_resolution ? "Confirmed" : "Review Required"}</Badge></div>
+            <p className="text-sm text-text-secondary">Original source warning: {r.source_issue || r.issue}</p>
+            {r.date_resolution ? <div className="text-sm"><p>{r.row.date} · {r.date_resolution.official_reference}</p>{r.state === "blocked" && <p role="status" className="text-amber-800">Date confirmed. Additional review required: {r.issue}</p>}</div> : <>
+              <DatePickerField label={`Confirmed date — ${r.row.name}`} value={draft.date} onChange={date => patch({ date })} />
+              <AdminFormField label={`Official confirmation reference — ${r.row.name}`} required><input className="control" value={draft.reference} onChange={e => patch({ reference: e.target.value })} /></AdminFormField>
+              <button type="button" className="btn-primary" disabled={busy || !draft.date || !draft.reference.trim()} onClick={() => confirmDate(r)}>Confirm Date</button>
+            </>}
+          </div>;
+        })}
+      </section> : selected.status === "fetched" || verifiedRows.length > 0 ? <div className="space-y-3"><p className="text-sm text-text-secondary">{selected.status === "fetched" ? "Review the source and enter the missing dates or jurisdiction." : "Resolve the uncertain rows against official evidence. Unchanged verified rows are retained."} The published calendar is unchanged.</p>
         <button type="button" className="btn-secondary" disabled={busy} onClick={() => viewSource()}>View Official Document</button>
         {verifiedRows.map((r, index) => ((scopedReview && r.state_code !== "national" && r.state_code !== geography) || !r.uncertainty && r.preserve_verified ? null : <div key={index} className="grid gap-3 border-b border-border py-3 sm:grid-cols-2">
           {scopedReview ? <div className="font-semibold">{r.name}<p className="text-sm text-text-secondary">{jurisdiction(r)}</p></div> : <AdminFormField label="Holiday name" required><input className="control" value={r.name} onChange={e => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, name: e.target.value } : v))} /></AdminFormField>}
           <DatePickerField label="Holiday date" value={r.date} onChange={date => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, date } : v))} />
           {!scopedReview && <SelectField label="Applies to" value={r.state_code} options={[{ value: "national", label: "National" }, ...MALAYSIA_STATES.map(([value, label]) => ({ value, label }))]} onChange={state_code => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, state_code } : v))} />}
           <AdminFormField label={scopedReview ? "Official confirmation reference" : "Document page / row"} required><input className="control" value={r.source_locator} onChange={e => setVerifiedRows(old => old.map((v, i) => i === index ? { ...v, source_locator: e.target.value } : v))} /></AdminFormField>
-          {r.uncertainty != null && <AdminFormField label="Unresolved condition / correction evidence"><input className="control" value={r.uncertainty} onChange={e=>setVerifiedRows(old=>old.map((v,i)=>i===index?{...v,uncertainty:e.target.value}:v))} /><p className="text-xs text-text-secondary">Resolve against official evidence, then clear the condition. Include the reference in Document page / row. Remove alternatives that do not apply.</p></AdminFormField>}
+          {!scopedReview && r.uncertainty != null && <AdminFormField label="Unresolved condition / correction evidence"><input className="control" value={r.uncertainty} onChange={e=>setVerifiedRows(old=>old.map((v,i)=>i===index?{...v,uncertainty:e.target.value}:v))} /><p className="text-xs text-text-secondary">Resolve against official evidence, then clear the condition. Include the reference in Document page / row. Remove alternatives that do not apply.</p></AdminFormField>}
           <button type="button" className="text-primary text-sm justify-self-start" onClick={() => setVerifiedRows(old => old.filter((_, i) => i !== index))}>Remove unsaved row</button>
         </div>))}
         <button type="button" className="btn-secondary" onClick={() => setVerifiedRows(old => [...old, { name: "", date: "", state_code: geography || "national", source_locator: "", kind: "gazetted" }])}>Add Verified Holiday</button>
@@ -176,7 +202,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
            ]} /></details></section>}
         {entitlementResolved(selected) && <p role="status" className="mb-3 text-sm text-text-secondary">Additional mandatory paid entitlement confirmed separately. The annual calendar remains unchanged; this supplementary source is not an annual replacement.</p>}
         {!scopedReview && <dl className="mb-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">{[["Imported", summary.imported], ["Matched", summary.matched], ["Needs Review", summary.review], ["Blocked", summary.blocked]].map(([label, value]) => <div key={label}><dt className="text-text-secondary">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>}
-        {summary.blocked > 0 && !entitlementResolved(selected) && <div className="mb-3"><p role="alert" className="text-sm text-rose-700">Resolve uncertain dates or conditional alternatives against the source. Prior extraction remains in audit history; the published calendar is unchanged.</p><button className="btn-secondary mt-2" disabled={busy || !reviewable} onClick={()=>setVerifiedRows(selected.rows.filter(r=>r.row).map(r=>({...r.row,kind:r.row.kind==='required'?'gazetted':r.row.kind,state_code:r.row.state_code || 'national',source_locator:r.row.source_locator || r.row.source_reference,uncertainty:r.issue || '',preserve_verified:r.state!=='blocked'})))}>{scopedReview ? "Review uncertain dates" : "Correct Proposed Rows"}</button></div>}
+        {summary.blocked > 0 && !entitlementResolved(selected) && <div className="mb-3"><p role="alert" className="text-sm text-rose-700">Resolve uncertain dates or conditional alternatives against the source. Prior extraction remains in audit history; the published calendar is unchanged.</p><button className="btn-secondary mt-2" disabled={busy || !reviewable || (scopedReview && !selected.rows.some(r=>r.date_confirmable && (r.row.scope === "national" || r.row.state_code === geography)))} onClick={()=> scopedReview ? setDateReview(true) : setVerifiedRows(selected.rows.filter(r=>r.row).map(r=>({...r.row,kind:r.row.kind==='required'?'gazetted':r.row.kind,state_code:r.row.state_code || 'national',source_locator:r.row.source_locator || r.row.source_reference,uncertainty:r.issue || '',preserve_verified:r.state!=='blocked'})))}>{scopedReview ? "Review uncertain dates" : "Correct Proposed Rows"}</button></div>}
         <div className="divide-y divide-border">{exceptions.map(r => { const h = r.row || r.previous?.holiday || {}; return <div key={r.key} className="space-y-2 py-3">
           <div className="flex flex-wrap items-start justify-between gap-3"><div><strong>{h.name}</strong><p className="text-sm text-text-secondary">{h.date || h.holiday_date} · {jurisdiction(h)} · {r.state === "new" ? "New" : r.state === "changed" ? "Changed" : r.state === "missing" ? "Missing from source" : scopedReview ? "Review Required" : "Blocked"}</p>
           {r.state === "changed" && <p className="text-xs text-text-secondary">Previously: {r.previous.holiday.name} · {r.previous.holiday.holiday_date} · {jurisdiction(r.previous.holiday)}</p>}{r.issue && <p className="text-sm text-text-secondary">{r.issue}</p>}</div>
@@ -201,7 +227,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
       <details className="mt-4 border-t border-border pt-3 text-sm"><summary className="cursor-pointer text-primary">Source Details / History</summary>
         <p className="my-2 break-all">{selected.source_url || "QA source"}</p><button className="btn-secondary" disabled={busy} onClick={() => viewSource()}>Download Source PDF</button>
         <p className="my-2 break-all text-xs text-text-secondary">SHA-256: {selected.source_sha256} · {selected.parser_version || "Awaiting verified transcription"}</p>
-        {(selected.history || []).map(e => <p key={e.id} className="py-1 text-xs text-text-secondary">{e.occurred_at} · {e.event_type.replaceAll("_", " ")}</p>)}
+        {(selected.history || []).map(e => <div key={e.id} className="py-2 text-xs text-text-secondary"><p>{e.occurred_at} · {e.event_type.replaceAll("_", " ")}</p>{e.event_type === "date_confirmed" && <div className="mt-1"><p>Confirmed date: {e.details.confirmed_date} · {e.details.official_reference}</p><p>Original source warning: {e.details.source_row?.issue}</p><details><summary>Audit evidence</summary><p className="break-all">Source hash: {e.details.source_sha256}</p><p className="break-all">Admin actor: {e.actor_employee_id}</p></details></div>}</div>)}
       </details>
       {error && <p role="alert" className="mt-4 text-sm text-rose-700">{error}<button className="ml-3 text-primary" disabled={busy} onClick={() => setRefresh(n => n + 1)}>Refresh Review</button></p>}
     </Modal>}

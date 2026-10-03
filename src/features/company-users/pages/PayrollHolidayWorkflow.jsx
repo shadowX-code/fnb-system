@@ -11,9 +11,9 @@ export function operationHolidayRows(candidate, calendar, geography, decisions =
     key: r.key, date: r.row?.date || r.previous?.holiday?.holiday_date, name: r.row?.name || r.previous?.holiday?.name,
     scope: r.row?.scope || r.previous?.holiday?.scope, state_code: r.row?.state_code || r.previous?.holiday?.state_code,
     kind: decisions[r.key]?.kind || r.previous?.kind || r.row?.kind, state: r.state,
-    uncertain: r.state === "blocked" || r.state === "changed" || r.state === "missing", issue: r.issue,
+    uncertain: r.state === "blocked" || (r.state === "changed" && (decisions[r.key]?.action !== "accept" || !decisions[r.key]?.remark?.trim())) || (r.state === "missing" && decisions[r.key]?.action !== "retain"), issue: r.issue,
     classification: r.classification_review && !decisions[r.key]?.kind,
-    suggestedKind: r.row?.suggested_kind,
+    suggestedKind: r.row?.suggested_kind, confirmed: !!r.date_resolution,
   }));
   return (calendar?.entries || []).filter(e => holidayApplies(e.holiday, geography)).map(e => ({
     key: e.holiday_id, date: e.holiday.holiday_date, name: e.holiday.name, scope: e.holiday.scope, state_code: e.holiday.state_code, kind: e.kind, state: "matched",
@@ -85,10 +85,10 @@ export default function PayrollHolidayWorkflow({ year, annual, editable, advance
     </div>
     {context && !geographyReady && <p role="status" className="mb-4 text-sm text-amber-800">{context.unverified_count ? "Statutory geography is missing for this operation. Confirm workplace state in outlet settings before publishing." : "Workplaces span states. Select one workplace to prepare its applicable calendar."}</p>}
     <nav aria-label="Holiday setup steps" className="mb-4 flex flex-wrap gap-2">{["Official Calendar","Select Company Holidays","Review & Publish"].map((name,index) => <button type="button" key={name} className={step === index+1 ? "btn-primary" : "btn-secondary"} disabled={!geography || index>0 && !rows.length} onClick={() => setStep(index+1)} aria-current={step === index+1 ? "step" : undefined}>{index+1}. {name}</button>)}</nav>
-    {editable && <div hidden={step !== 1}><PayrollHolidayImport year={year} geography={geography} operational calendarPublished={!!calendar} onCandidateChanged={setCandidate} onCandidatesChanged={setAllCandidates} onPublished={onPublished} advancedContent={advancedContent} /></div>}
+    {editable && <div hidden={step !== 1}><PayrollHolidayImport year={year} geography={geography} outletId={operation || null} operational calendarPublished={!!calendar} onCandidateChanged={setCandidate} onCandidatesChanged={setAllCandidates} onPublished={onPublished} advancedContent={advancedContent} /></div>}
     {step === 1 && <>
       <h4 className="mt-4 font-bold">Official Calendar</h4><p className="my-2 text-sm text-text-secondary">Official source: {proposal?.source_reference || calendar?.source_reference || "JPM / BKPP annual calendar"}</p><p className="mb-3 text-sm text-text-secondary">JPM / BKPP · National and {geography ? malaysiaStateName(geography) : "verified workplace"} holidays only. Source-verified dates need no action.</p>
-      {rows.length > 0 && <DataTable density="compact" tableClassName="table-fixed !min-w-[640px]" rows={rows} getRowKey={r=>r.key} columns={[...columns,{key:"state",header:"Status",width:200,className:"!whitespace-normal break-words",render:r => sourceExceptions.some(e=>e.key===r.key) ? <span className="text-amber-800">Review Required · {r.issue || "Source change"}</span> : "Source verified"}]} />}
+      {rows.length > 0 && <DataTable density="compact" tableClassName="table-fixed !min-w-[640px]" rows={rows} getRowKey={r=>r.key} columns={[...columns,{key:"state",header:"Status",width:200,className:"!whitespace-normal break-words",render:r => sourceExceptions.some(e=>e.key===r.key) ? <span className="text-amber-800">Review Required · {r.issue || "Source change"}</span> : r.confirmed ? "Confirmed" : "Source verified"}]} />}
       {!rows.length && <p className="my-4 text-sm text-text-secondary">Check official updates to prepare the applicable calendar. Unsupported documents can be reviewed in Advanced &amp; History.</p>}
       {rows.length > 0 && <button type="button" className="btn-primary mt-4" onClick={()=>setStep(2)}>Select Company Holidays</button>}
     </>}

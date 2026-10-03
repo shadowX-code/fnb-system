@@ -664,3 +664,7 @@ The official BKPP checker now extracts supported annual PDF tables into the exis
 ### 2026-10-03 — Scoped operational Public Holiday setup
 
 Public Holidays now presents Official Calendar, Select Company Holidays and Review & Publish. Canonical outlet-state evidence scopes the normal workflow; missing geography stays explicit. An atomic operational adapter delegates to existing source review/import/calendar/company policy authorities, retaining unrelated source evidence and finalized Payroll. Source diagnostics and full-source maintenance remain in Advanced & History. Staging publication contracts use rollback-only synthetic Perak evidence.
+
+## 2026-10-03 — Public Holiday explicit date resolution
+
+Added audited date confirmation bound to captured source and row evidence. Effective proposal/read/publication consumers share one overlay; extraction/transcription history is retained, independent blockers remain enforced, and old saves are not promoted. Normal review collects date/reference and shows Confirmed.
