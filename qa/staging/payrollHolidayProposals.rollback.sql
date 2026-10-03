@@ -11,15 +11,15 @@ begin
  chk:=(public.payroll_holiday_update_check_begin(2096,'MY-08',gen_random_uuid())->>'id')::uuid;
  c:=(public.payroll_holiday_discovered_source_capture(2096,'https://www.kabinet.gov.my/storage/2096/QA.pdf','QA ONLY extraction rollback','qa.pdf',pdf,gen_random_uuid())->>'id')::uuid;
  select source_sha256 into hash from payroll_holiday_import_candidates where id=c;
- denied:=false;begin perform public.payroll_holiday_candidate_propose(c,chk,'wrong',rows,'{"parser":"bkpp_proposal_v1","document_role":"annual"}');exception when others then denied:=true;end;
+ denied:=false;begin perform public.payroll_holiday_candidate_propose(c,chk,'wrong',rows,'{"parser":"bkpp_proposal_v2","document_role":"annual"}');exception when others then denied:=true;end;
  if not denied then raise exception 'wrong source hash accepted';end if;
- perform public.payroll_holiday_candidate_propose(c,chk,hash,rows,'{"parser":"bkpp_proposal_v1","document_role":"annual"}');
+ perform public.payroll_holiday_candidate_propose(c,chk,hash,rows,'{"parser":"bkpp_proposal_v2","document_role":"annual"}');
  select ic.revision,ic.decisions into rev,decisions from payroll_holiday_import_candidates ic where id=c;
  if decisions->'1'->>'action' is distinct from 'accept' or decisions ? '2' or decisions ? '3' then raise exception 'exception-only source review failed';end if;
  denied:=false;begin perform public.payroll_holiday_candidate_review(c,rev,decisions,true);exception when others then denied:=true;end;
  if not denied then raise exception 'uncertain evidence approved';end if;
  events:=(select count(*) from payroll_holiday_import_events where candidate_id=c);
- perform public.payroll_holiday_candidate_propose(c,chk,hash,rows,'{"parser":"bkpp_proposal_v1","document_role":"annual"}');
+ perform public.payroll_holiday_candidate_propose(c,chk,hash,rows,'{"parser":"bkpp_proposal_v2","document_role":"annual"}');
  if events<>(select count(*) from payroll_holiday_import_events where candidate_id=c) then raise exception 'proposal retry duplicated audit';end if;
  rows:=jsonb_set(rows,'{2,uncertainty}','""');
  perform public.payroll_holiday_candidate_parse(c,rows);

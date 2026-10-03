@@ -13,6 +13,7 @@ it('extracts all 49 official rows with explicit jurisdictions and references, ra
  expect(rows.some(r=>r.name==='Hari Deepavali' && r.state_code==='MY-13')).toBe(false);
  expect(rows.filter(r=>r.name==='Hari Raya Qurban (Hari Kedua)').map(r=>r.state_code).sort()).toEqual(['MY-02','MY-03','MY-09','MY-11']);
  expect(rows.every(r=>r.source_locator)).toBe(true);
+ expect(rows.some(r=>r.uncertainty?.includes('weekday disagree'))).toBe(false);
  expect(rows.find(r=>r.name==='Hari Raya Puasa').uncertainty).toMatch(/subject to change/);
 });
 it('extracts the rotated Gazette and corroborates the annual dates/jurisdictions',()=>{

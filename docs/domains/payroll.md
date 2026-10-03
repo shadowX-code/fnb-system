@@ -193,7 +193,7 @@ and captures exact bytes through the existing controlled-import authority.
 Content-hash locks reuse existing candidates; private update-check evidence records
 the authorized actor, check time, sources and result. A partial fetch never claims
 No updates. The trusted checker extracts supported BKPP PDF tables into a Proposed
-Holiday Calendar through the existing candidate authority (`bkpp_proposal_v1`).
+Holiday Calendar through the existing candidate authority (`bkpp_proposal_v2`).
 Text, dates, weekday consistency, complete row order and State-column markers are
 validated; image headings require an exact, visually verified source hash. Unsupported
 layouts fail closed with a specific manual-review reason. Exact source bytes/hash and

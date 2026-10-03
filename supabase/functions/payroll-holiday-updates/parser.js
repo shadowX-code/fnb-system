@@ -1,6 +1,6 @@
 // Layout evidence, not a date seed. BKPP's 2026 annual PDF embeds its state
 // headings as images. The exact source hash pins the visually verified order.
-export const parserVersion = 'bkpp_proposal_v1';
+export const parserVersion = 'bkpp_proposal_v2';
 const annualHash = '415023261014e30880b0fbb7a40c47a9655605183ef976204489d760fed769a3';
 const stateOrder = ['MY-14','MY-15','MY-16','MY-01','MY-02','MY-03','MY-04','MY-05','MY-06','MY-08','MY-09','MY-07','MY-12','MY-13','MY-10','MY-11'];
 const headings = ['W.P. K. LUMPUR','W.P. LABUAN','W.P. PUTRAJAYA','JOHOR','KEDAH','KELANTAN','MELAKA','N. SEMBILAN','PAHANG','PERAK','PERLIS','P. PINANG','SABAH','SARAWAK','SELANGOR','TERENGGANU'];
@@ -67,7 +67,7 @@ export function parseOfficialPages(pages, year, hash) {
         if (mark.text!=='-') applicable.push(nearest.code);
       }
       if (!applicable.length || new Set(applicable).size!==applicable.length) throw new Error('Holiday jurisdiction is missing or duplicated.');
-      const weekday=line.items.find(i=>i.x>dayX-10 && i.x<columns[0].x-5 && weekdays.includes(i.text))?.text;
+      const weekday=joinItems(line.items.filter(i=>i.x>dayX-10 && i.x<columns[0].x-5));
       const issue=weekday!==weekdays[new Date(`${date}T00:00:00Z`).getUTCDay()]?'Source date and weekday disagree. Verify against the document.':provisionalDates.has(date)?'Official source marks this date subject to change. Confirm the observed date against official evidence.':null;
       for (const code of applicable.length===16?[null]:applicable) {
         const scope=code?'state':'national',key=[date,name,code].join('|');

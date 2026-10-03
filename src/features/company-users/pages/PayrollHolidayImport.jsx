@@ -96,8 +96,9 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
   const changeDecision = (r, patch) => setDecisions(old => ({ ...old, [r.key]: { ...old[r.key], ...patch } }));
   const rawSummary = holidayDiffSummary(selected?.rows, decisions);
   const summary = selected && entitlementResolved(selected) ? { ...rawSummary, matched: rawSummary.imported, review: 0, blocked: 0 } : rawSummary;
-  const available = candidates?.filter(c => c.status !== "published" && c.status !== "fetched" && c.proposal_metadata?.document_role !== "supplement" && !entitlementResolved(c)).sort((a,b) => Number(/^Hari Kelepasan Am Tahun/.test(b.source_reference))-Number(/^Hari Kelepasan Am Tahun/.test(a.source_reference)))[0];
-  const pending = candidates?.filter(c => c.status !== "published" && !entitlementResolved(c)) || [];
+  const available = candidates?.filter(c => c.status !== "published" && c.status !== "fetched" && !candidates.some(next=>next.id!==c.id && next.source_sha256 && next.source_sha256===c.source_sha256 && next.created_at>c.created_at) && c.proposal_metadata?.document_role !== "supplement" && !entitlementResolved(c)).sort((a,b) => Number(/^Hari Kelepasan Am Tahun/.test(b.source_reference))-Number(/^Hari Kelepasan Am Tahun/.test(a.source_reference)))[0];
+  const isLatestSource = c => !candidates?.some(next=>next.id!==c.id && next.source_sha256 && next.source_sha256===c.source_sha256 && next.created_at>c.created_at);
+  const pending = candidates?.filter(c => c.status !== "published" && isLatestSource(c) && !entitlementResolved(c)) || [];
   useEffect(() => { onCandidateChanged?.(available || pending.find(c => c.status === "fetched") || null); }, [candidates, onCandidateChanged]);
   const exceptions = unresolvedHolidayRows(selected);
   const allReviewed = !summary.blocked && summary.review === 0;
@@ -144,7 +145,7 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
     </>}>
       <p className="mb-3 text-sm text-text-secondary">Malaysia · {geography ? geography === "national" ? "National" : malaysiaStateName(geography) : "All applicable states"}</p>
       <p className="mb-3 font-semibold">Official source: {title(selected)}</p>
-      <p className="mb-3 text-sm text-text-secondary">{selected.status === "fetched" ? "Official document captured · Extraction review required" : `Imported ${selected.created_at?.slice(0, 10)} · ${summary.imported} holidays · ${summary.review} needing review`}</p>
+      <p className="mb-3 text-sm text-text-secondary">{selected.status === "fetched" ? "Official document captured · Extraction review required" : `Imported ${selected.created_at?.slice(0, 10)} · ${summary.imported} holidays · ${summary.review + summary.blocked} needing review`}</p>
       {selected.is_qa && <p role="status" className="mb-3 text-sm text-amber-800">Synthetic Staging QA evidence. Not an official Malaysian calendar.</p>}
       {selected.status === "fetched" || verifiedRows.length > 0 ? <div className="space-y-3"><p className="text-sm text-text-secondary">The document could not produce a verified proposal. Review the source and enter the missing dates or jurisdiction. The published calendar is unchanged.</p>
         <button type="button" className="btn-secondary" disabled={busy} onClick={() => viewSource()}>View Official Document</button>
@@ -164,11 +165,11 @@ export default function PayrollHolidayImport({ year, geography = "", calendarPub
         </details>
       </div> : <>
         {selected.proposal_metadata?.parser && <section aria-label="Proposed Holiday Calendar" className="mb-4"><h4 className="font-bold">Proposed Holiday Calendar</h4><p className="text-sm text-text-secondary">Extracted from the captured official PDF. Only publication makes an annual calendar available for paid-holiday selection.</p>
-          <DataTable density="compact" rows={(selected.rows || []).filter(r=>r.row && (!geography || r.row.scope==='national' || (geography!=='national' && r.row.state_code===geography)))} getRowKey={r=>r.key} columns={[
+          <details className="mt-3"><summary className="cursor-pointer text-primary">View all proposed holidays ({summary.imported})</summary><DataTable density="compact" rows={(selected.rows || []).filter(r=>r.row && (!geography || r.row.scope==='national' || (geography!=='national' && r.row.state_code===geography)))} getRowKey={r=>r.key} columns={[
             {key:'date',header:'Date',render:r=>r.row.date},{key:'name',header:'Holiday',render:r=>r.row.name},{key:'scope',header:'Applies to',render:r=>jurisdiction(r.row)},
             {key:'status',header:'Review',render:r=>r.state==='blocked'?r.issue:r.classification_review && !selected.decisions?.[r.key]?.kind?'Paid classification needs review':r.state==='changed'?'Changed date / source':r.state==='matched' || selected.decisions?.[r.key]?.action==='accept'?'Verified source row':'Review required'},
             {key:'source',header:'Source',render:r=>r.row.source_locator || r.row.source_reference},
-          ]} /></section>}
+           ]} /></details></section>}
         {entitlementResolved(selected) && <p role="status" className="mb-3 text-sm text-text-secondary">Additional mandatory paid entitlement confirmed separately. The annual calendar remains unchanged; this supplementary source is not an annual replacement.</p>}
         <dl className="mb-4 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">{[["Imported", summary.imported], ["Matched", summary.matched], ["Needs Review", summary.review], ["Blocked", summary.blocked]].map(([label, value]) => <div key={label}><dt className="text-text-secondary">{label}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
         {summary.blocked > 0 && !entitlementResolved(selected) && <div className="mb-3"><p role="alert" className="text-sm text-rose-700">Resolve uncertain dates or conditional alternatives against the source. Prior extraction remains in audit history; the published calendar is unchanged.</p><button className="btn-secondary mt-2" disabled={busy || !reviewable} onClick={()=>setVerifiedRows(selected.rows.filter(r=>r.row).map(r=>({...r.row,kind:r.row.kind==='required'?'gazetted':r.row.kind,state_code:r.row.state_code || 'national',source_locator:r.row.source_locator || r.row.source_reference,uncertainty:r.issue || '',preserve_verified:r.state!=='blocked'})))}>Correct Proposed Rows</button></div>}
