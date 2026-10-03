@@ -40,7 +40,7 @@ it('reviews a queue, inspects a saved date with Previous, reopens unresolved dat
   const refresh = vi.fn(async () => {
     const payload = mocks.decideTime.mock.calls.at(-1)[0];
     time = time.map(item => item.id === payload.id ? {...item,id:`saved-${item.id}`,status:'approved_manual',approved_minutes:payload.approvedMinutes} : item);
-    return time;
+    return [...time].reverse();
   });
   const props = {employee:{...employee,time},month:'2026-09',canManage:true,onClose:close,onDecisionSaved:refresh};
   const view = render(<PayrollPayableTimeReview {...props} />);
