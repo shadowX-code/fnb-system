@@ -652,3 +652,7 @@ Phase 1 schedule, Act 4 wage assessment, employee-only deduction, readiness and
 shared setup/Profile/Review/Payslip presentation. Existing EPF, ordinary SOCSO,
 EIS, PCB and final evidence authorities remain independent. No employee
 participation backfill or Production changes. Canonical contract: docs/domains/payroll.md.
+
+## 2026-10-03 — Unified monthly LINDUNG setup
+
+Simplified LINDUNG coverage selection and conditional transition evidence, with one atomic Confirm Statutory Setup authority. Routine notes are optional; unchanged verified participation is retained without another notice. Calculation, history, finalized evidence and scope authorities remain intact.

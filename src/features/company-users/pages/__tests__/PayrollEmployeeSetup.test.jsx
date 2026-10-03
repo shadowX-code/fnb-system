@@ -16,6 +16,7 @@ describe('Payroll employee setup',()=>{
     const close=vi.fn();
     render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={close} />);
     await screen.findByText(/Act 4 · First Category/);
+    await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false));
     fireEvent.click(screen.getByRole('button',{name:'Confirm Statutory Setup'}));
     await screen.findByText('Statutory information was updated');
     expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(true);
@@ -37,10 +38,11 @@ describe('Payroll employee setup',()=>{
     const saved=vi.fn(),close=vi.fn();
     render(<StatutorySetup profile={{id:'p',employee_name:'QA'}} onSaved={saved} onClose={close} />);
     await screen.findByText(/Act 4 · First Category/);
+    await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false));
     expect(screen.queryByRole('textbox',{name:/Evidence \/ source/})).toBeNull();
     fireEvent.click(screen.getByRole('button',{name:'Confirm Statutory Setup'}));
     await vi.waitFor(()=>expect(close).toHaveBeenCalled());
-    expect(mocks.confirmStatutorySetup).toHaveBeenCalledWith(expect.objectContaining({profileId:'p',fingerprint:'trusted',categories:{socso:'first_category_base',eis:'standard'}}));
+    expect(mocks.confirmStatutorySetup).toHaveBeenCalledWith(expect.objectContaining({profileId:'p',fingerprint:'trusted',categories:{socso:'first_category_base',eis:'standard'},lindungIntent:expect.objectContaining({status:'unresolved',effective_month:'2026-09-01'}),lindungFingerprint:'lindung',requestId:expect.any(String)}));
     expect(screen.queryByText('EPF category')).toBeNull();
     expect(saved).toHaveBeenCalled();
   });
@@ -57,6 +59,7 @@ describe('Payroll employee setup',()=>{
   it('requires evidence only after changing a recommendation, and clears it when restored',async()=>{
     render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
     await screen.findByText(/Act 4 · First Category/);
+    await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false));
     fireEvent.click(screen.getAllByRole('button',{name:'Override',exact:true})[0]);
     expect(screen.queryByRole('textbox',{name:/Supporting evidence/})).toBeNull();
     fireEvent.click(screen.getByRole('button',{name:'SOCSO category'}));

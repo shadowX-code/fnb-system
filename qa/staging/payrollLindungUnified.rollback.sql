@@ -1,0 +1,78 @@
+-- Canonical Staging only. Disposable identities and every command roll back.
+begin;
+select set_config('request.jwt.claim.sub',(select e.auth_user_id::text from employees e join roles r on r.id=e.role_id where lower(r.name)='owner' and e.enable_system_login and e.access_state='active' limit 1),true);
+create temporary table unified_checks(check_name text);
+create function pg_temp.confirm_setup(profile uuid,month date,intent jsonb,app jsonb default '{"epf":false,"socso":true,"eis":false,"pcb":false}') returns jsonb language plpgsql as $$
+declare s jsonb; l jsonb;
+begin
+ s:=public.payroll_statutory_setup_read(profile,month,app);l:=public.payroll_lindung_setup_read(profile,month);
+ return public.payroll_statutory_setup_confirm(profile,month,app,case when app->>'socso'='true' then '{"socso":"first_category_base"}'::jsonb else '{}'::jsonb end,s->>'fingerprint',null,null,intent,l->>'fingerprint',gen_random_uuid());
+end $$;
+do $$
+declare actor uuid:=public.payroll_admin_actor();ent uuid;other uuid;outlet uuid;emp uuid;profile uuid;opt_profile uuid;foreign_profile uuid;
+ s jsonb;l jsonb;intent jsonb;result jsonb;req uuid:=gen_random_uuid();run uuid;old jsonb;fresh jsonb;before_hash text; n integer;
+ a jsonb:='{"epf":false,"socso":true,"eis":false,"pcb":false}'; none jsonb:='{"epf":false,"socso":false,"eis":false,"pcb":false}';
+begin
+ select md5(string_agg(s.result::text,'' order by s.run_id,s.employee_id)) into before_hash from payroll_run_statutory_snapshots s;
+ insert into legal_entities(legal_company_name,company_registration_no,registered_address,created_by_employee_id,updated_by_employee_id) values('QA ONLY unified LINDUNG','QA-UX-'||gen_random_uuid(),'Rollback only',actor,actor) returning id into ent;
+ insert into legal_entities(legal_company_name,company_registration_no,registered_address,created_by_employee_id,updated_by_employee_id) values('QA ONLY other unified LINDUNG','QA-UX-'||gen_random_uuid(),'Rollback only',actor,actor) returning id into other;
+ insert into outlets(name,code,state_code) values('QA ONLY unified LINDUNG workplace','QA-UX-'||substr(gen_random_uuid()::text,1,6),'MY-08') returning id into outlet;
+ perform set_config('feedx.payroll_command','yes',true);
+ insert into payroll_outlet_state_versions(outlet_id,effective_from,state_code) values(outlet,'2026-01-01','MY-08');
+ for n in 1..3 loop
+  insert into employees(full_name,employee_code,legal_entity_id,workplace,position,employment_type,employment_status,joined_date,birthday,nationality)
+   values('QA ONLY unified LINDUNG '||n,'QA-UX-'||substr(gen_random_uuid()::text,1,8),ent,'QA ONLY unified LINDUNG workplace','Service Crew','full_time','active','2026-01-01','1990-01-01',case when n=3 then 'Myanmar' else 'Malaysia' end) returning id into emp;
+  perform employee_employment_assignment_save(emp,'2026-01-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace','QA ONLY unified LINDUNG workplace','legal_entity_id',ent),'QA explicit assignment',null,'QA rollback evidence');
+  s:=payroll_initial_setup_read(emp,'2026-01-01',case when n=3 then none else a end,'2026-01-01');
+  s:=payroll_initial_setup_confirm(emp,'2026-01-01','monthly',3250,'MYR',case when n=3 then none else a end,s->>'fingerprint','2026-01-01');
+  if n=1 then profile:=(s->>'profile_id')::uuid;elsif n=2 then opt_profile:=(s->>'profile_id')::uuid;else foreign_profile:=(s->>'profile_id')::uuid;end if;
+ end loop;
+ intent:='{"status":"participating","source_reference":"","worker_category":"foreign"}';
+ s:=payroll_statutory_setup_read(profile,'2026-09-01',a);l:=payroll_lindung_setup_read(profile,'2026-09-01');
+ result:=payroll_statutory_setup_confirm(profile,'2026-09-01',a,'{"socso":"first_category_base"}',s->>'fingerprint',null,null,intent,l->>'fingerprint',req);
+ if result->'schemes'->'lindung'->>'status'<>'participating' then raise exception 'Monthly participating readback failed';end if;
+ if not exists(select 1 from payroll_lindung_participation_versions where profile_id=profile and worker_category='local' and coverage_from='2026-09-01T00:00:00+08:00' and source_reference='' and confirmed_by_employee_id=actor and reason='Admin confirmed LINDUNG payroll-month setup') then raise exception 'Derived evidence/audit missing';end if;
+ perform payroll_statutory_setup_confirm(profile,'2026-09-01',a,'{"socso":"first_category_base"}','retry stale',null,null,intent,'retry stale',req);
+ if (select count(*) from payroll_lindung_participation_versions where profile_id=profile)<>1 then raise exception 'Retry duplicated audit';end if;
+ begin perform payroll_statutory_setup_confirm(profile,'2026-09-01',none,'{}','retry',null,null,intent,'retry',req);raise exception 'Changed retry accepted';exception when invalid_parameter_value then null;end;
+ insert into unified_checks values('Participating, derived worker/employer/month, optional notes, audit and retry');
+ begin
+  perform pg_temp.confirm_setup(opt_profile,'2026-07-01','{"status":"valid_opt_out","coverage_from":"2026-07-15T00:00:00+08:00","not_receiving_lindung_benefit":true}');
+  raise exception 'Opt-out missing evidence accepted';
+ exception when invalid_parameter_value then null;end;
+ if exists(select 1 from payroll_statutory_profile_versions where profile_id=opt_profile and effective_from='2026-07-01') then raise exception 'Partial ordinary write survived failure';end if;
+ insert into unified_checks values('Atomic rollback of ordinary setup when LINDUNG transition fails');
+ perform pg_temp.confirm_setup(opt_profile,'2026-07-01','{"status":"valid_opt_out","coverage_from":"2026-07-15T00:00:00+08:00","not_receiving_lindung_benefit":true,"source_reference":"QA PERKESO notice"}');
+ if payroll_lindung_resolve(opt_profile,'2026-07-01',ent)->>'status'<>'valid_opt_out' then raise exception 'Opt-out failed';end if;
+ perform pg_temp.confirm_setup(opt_profile,'2026-09-01','{"status":"participating","participation_basis":"rejoin","coverage_from":"2026-09-10T10:15:00+08:00","submission_at":"2026-09-10T10:15:00+08:00","source_reference":"QA PERKESO rejoin"}');
+ if not exists(select 1 from payroll_lindung_participation_versions where profile_id=opt_profile and participation_basis='rejoin' and coverage_from='2026-09-10T10:15:00+08:00') then raise exception 'Rejoin time lost';end if;
+ l:=payroll_lindung_setup_read(opt_profile,'2026-08-01');
+ select count(*) into n from payroll_lindung_participation_versions where profile_id=opt_profile;
+ perform pg_temp.confirm_setup(opt_profile,'2026-08-01',jsonb_build_object('status','valid_opt_out','retained_version_id',l->'current'->'evidence'->>'id'));
+ if (select count(*) from payroll_lindung_participation_versions where profile_id=opt_profile)<>n then raise exception 'Retained opt-out created another notice';end if;
+ insert into unified_checks values('Local opt-out and rejoin retain required notice and submission evidence');
+ perform pg_temp.confirm_setup(profile,'2026-06-01','{"status":"mandatory"}');
+ if payroll_lindung_resolve(profile,'2026-06-01',ent)->>'status'<>'mandatory' then raise exception 'June failed';end if;
+ if payroll_lindung_resolve(profile,'2026-05-01',ent)->>'state'<>'not_applicable' then raise exception 'Pre-June not applicable failed';end if;
+ insert into unified_checks values('June mandatory and historical monthly confirmation');
+ begin perform pg_temp.confirm_setup(foreign_profile,'2026-09-01','{"status":"valid_opt_out","act4_covered":true,"coverage_from":"2026-09-15T00:00:00+08:00","source_reference":"QA invalid foreign notice"}',none);raise exception 'Foreign opt-out accepted';exception when invalid_parameter_value then null;end;
+ perform pg_temp.confirm_setup(foreign_profile,'2026-09-01','{"status":"mandatory","act4_covered":true}',none);
+ if payroll_lindung_resolve(foreign_profile,'2026-09-01',ent)->>'status'<>'mandatory' or payroll_lindung_resolve(foreign_profile,'2026-08-01',ent)->>'status'<>'unresolved' then raise exception 'Foreign/historical evidence failed';end if;
+ insert into unified_checks values('Foreign mandatory, canonical nationality enforcement, earlier history unresolved');
+ perform pg_temp.confirm_setup(profile,'2026-10-01',jsonb_build_object('status','another_designated_employer','designated_legal_entity_id',other,'designation_change_reason','higher_salary','source_reference','QA PERKESO designation'));
+ if payroll_lindung_resolve(profile,'2026-10-01',ent)->>'applicable'<>'false' then raise exception 'Other employer double charged';end if;
+ perform pg_temp.confirm_setup(foreign_profile,'2026-10-01','{"status":"unresolved"}',none);
+ if payroll_lindung_resolve(foreign_profile,'2026-10-01',ent)->>'status'<>'unresolved' then raise exception 'Unresolved state not retained';end if;
+ insert into unified_checks values('Another employer and explicit Not Confirmed');
+ run:=payroll_run_create(ent,'2026-09-01','2026-09-30','QA ONLY unified setup calculation');perform payroll_run_calculate(run);
+ select employee_id into emp from payroll_profiles where id=profile;
+ fresh:=payroll_statutory_project(run,emp);old:=payroll_statutory_project_pre_lindung(run,emp);
+ if (select jsonb_agg(value) from jsonb_array_elements(fresh->'lines') where value->>'scheme'<>'lindung') is distinct from old->'lines' then raise exception 'Ordinary statutory regression';end if;
+ if not exists(select 1 from jsonb_array_elements(fresh->'lines') where value->>'scheme'='lindung' and value->>'employee_amount'='24.35' and value->>'employer_amount'='0') then raise exception 'Official LINDUNG amount changed: %',fresh;end if;
+ if before_hash is distinct from (select md5(string_agg(s.result::text,'' order by s.run_id,s.employee_id)) from payroll_run_statutory_snapshots s) then raise exception 'Finalized snapshots changed';end if;
+ insert into unified_checks values('Calculation/readiness, ordinary statutory and existing Final snapshots preserved');
+ if has_function_privilege('anon','public.payroll_statutory_setup_confirm(uuid,date,jsonb,jsonb,text,text,text,jsonb,text,uuid)','EXECUTE') then raise exception 'Anonymous combined authority exposed';end if;
+ insert into unified_checks values('Combined authority permissions retained');
+end $$;
+select * from unified_checks;
+rollback;

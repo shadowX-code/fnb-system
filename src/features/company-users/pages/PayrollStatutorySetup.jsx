@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from '../../../components/feedback/Modal.jsx';
 import AdminFormField from '../../../components/forms/AdminFormField.jsx';
 import SelectField from '../../../components/forms/SelectField.jsx';
@@ -38,6 +38,9 @@ export function statutorySetupHelp(issue, evidence = {}) {
 
 export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
   const [draft,setDraft]=useState(null);
+  const [lindung,setLindung]=useState(null);
+  const [refreshKey,setRefreshKey]=useState(0);
+  const request=useRef(null);
   const [review,setReview]=useState(null);
   const [history,setHistory]=useState(null);
   const [overrides,setOverrides]=useState({});
@@ -69,12 +72,18 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
   const invalidDate=false; // Month revisions append evidence; concurrency is fingerprint-checked server-side.
   const allowed=review && !stale && !refreshing && draft.effectiveFrom && !invalidDate && schemes.every(s=>draft.applicability[s]!=null)
     && applicable.every(s=>chosen[s])
+    && (draft.effectiveFrom<'2026-06-01' || (lindung?.month===draft.effectiveFrom && lindung.allowed))
     && (!manual || (sourceNote.trim().length>=8 && reason.trim().length>=3));
   async function save() {
     setBusy(true);setError('');
     try {
-      await payrollService.confirmStatutorySetup({profileId:profile.id,...draft,categories:chosen,
-        fingerprint:review.fingerprint,sourceNote,reason});
+      const payload={profileId:profile.id,...draft,categories:chosen,
+        fingerprint:review.fingerprint,sourceNote,reason,
+        lindungIntent:draft.effectiveFrom<'2026-06-01'?null:lindung.intent,
+        lindungFingerprint:draft.effectiveFrom<'2026-06-01'?null:lindung.fingerprint};
+      const key=JSON.stringify(payload);
+      if(request.current?.key!==key) request.current={key,id:crypto.randomUUID()};
+      await payrollService.confirmStatutorySetup({...payload,requestId:request.current.id});
       await onSaved();onClose();
     } catch(e) {
       if(e.cause?.details==='payroll_statutory_setup_stale' || e.cause?.code==='40001' || e.code==='40001' || e.cause?.code==='PT409') {setStale(true);setError('Statutory information was updated');}
@@ -87,14 +96,14 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
     setRefreshing(true);setError('');setReview(null);
     try {
       const r=await payrollService.readStatutorySetup(profile.id,draft.effectiveFrom,draft.applicability);
-      setHistory(r.history);setReview(r);setOverrides({});setExpanded({});setSourceNote('');setReason('');setStale(false);
+      setHistory(r.history);setReview(r);setOverrides({});setExpanded({});setSourceNote('');setReason('');setStale(false);setRefreshKey(v=>v+1);
     } catch(e) {setError(e.message || 'Unable to refresh setup.');}
     finally {setRefreshing(false);}
   }
   return <Modal title={`Manage Statutory Setup · ${profile.employee_name}`} size="lg" onClose={onClose}
-    description="Confirm one setup for the payroll month. Salary/rate dates remain separate; historical evidence is retained."
+    description="Confirm coverage for one payroll month."
     footer={<><button className="btn-secondary" onClick={onClose} disabled={busy}>Cancel</button><button className="btn-primary" onClick={save} disabled={!allowed || busy}>{busy?'Saving…':'Confirm Statutory Setup'}</button></>}>
-    <div className="space-y-5">
+    <div className="space-y-3">
       {!draft && !error && <p>Loading employee evidence…</p>}
       {draft && <>
         <section aria-label="Statutory schemes" className="divide-y divide-border">{schemes.map(s=>{
@@ -127,8 +136,9 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
         })}</section>
         <MonthPickerField label="Effective Payroll Month" value={draft.effectiveFrom.slice(0,7)} disabled={busy}
           onChange={v=>{setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:`${v}-01`}));}} />
-        <p className="text-sm text-text-secondary">To resolve a historical Payroll Run, explicitly select its Effective Payroll Month and confirm the known applicability and categories. This appends historical evidence; later confirmed setup and finalized records are preserved. Refresh the open Payroll Run after confirmation. PCB amount confirmation remains separate for each Run.</p>
-        <PayrollLindungSetup profile={profile} month={draft.effectiveFrom} onSaved={onSaved} disabled={busy} />
+        <p className="text-sm text-text-secondary">For historical setup, select the month being confirmed. Later setup and finalized records stay unchanged.</p>
+        <PayrollLindungSetup profile={profile} month={draft.effectiveFrom} onChange={setLindung} disabled={busy} refreshKey={refreshKey}
+          act4Covered={draft.applicability.socso===true && Boolean(chosen.socso)} />
         {!review && !error && <p role="status">Resolving setup…</p>}
         {review && manual && <div className="space-y-3"><p className="text-sm text-text-secondary">Explain the change from FeedX's recommendation. The server still validates the selected category against employee evidence.</p>
           <AdminFormField label="Supporting evidence / source" required><input className="control" value={sourceNote} onChange={e=>setSourceNote(e.target.value)} /></AdminFormField>
