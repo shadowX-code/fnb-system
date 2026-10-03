@@ -79,7 +79,7 @@ describe('Payroll employee setup',()=>{
     fireEvent.click(screen.getByRole('button',{name:'EPF applicability'}));
     fireEvent.click(screen.getByRole('button',{name:'Applicable',exact:true}));
     await screen.findByText(/Malaysian · under 60/);
-    expect(mocks.readStatutorySetup).toHaveBeenLastCalledWith('p','2026-09-01',expect.objectContaining({epf:true}));
+    expect(mocks.readStatutorySetup).toHaveBeenCalledWith('p','2026-09-01',expect.objectContaining({epf:true}));
     expect(screen.queryByRole('textbox',{name:'Override reason'})).toBeNull();
     expect(screen.queryByRole('button',{name:'PCB category'})).toBeNull();
   });
@@ -114,3 +114,26 @@ describe('Payroll employee setup',()=>{
     expect(screen.getByText(/scheduled changes cannot overlap/)).not.toBeNull();
   });
 });
+
+ it('one effective month governs all five components and one atomic future save',async()=>{
+  mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:false,socso:false,eis:false,pcb:false},schemes:{},complete:true,next_effective_from:'2026-10-03',fingerprint:'trusted'});
+  render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()}/>);
+  await screen.findByRole('button',{name:'Effective Payroll Month'});
+  expect(screen.getAllByRole('button',{name:'Effective Payroll Month'})).toHaveLength(1);
+  expect(screen.getByRole('region',{name:'Statutory Coverage'}).textContent).toContain('EPF');
+  expect(screen.queryByText(/Historical confirmation:/)).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Effective Payroll Month'}));
+  fireEvent.click(screen.getByRole('gridcell',{name:'Nov',exact:true}));
+  await vi.waitFor(()=>expect(mocks.readLindungSetup).toHaveBeenCalledWith('p','2026-11-01'));
+  await vi.waitFor(()=>expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(false));
+  fireEvent.click(screen.getByRole('button',{name:'Confirm Statutory Setup'}));
+  await vi.waitFor(()=>expect(mocks.confirmStatutorySetup).toHaveBeenCalledWith(expect.objectContaining({effectiveFrom:'2026-11-01',applicability:{epf:false,socso:false,eis:false,pcb:false},lindungIntent:expect.objectContaining({effective_month:'2026-11-01'}),lindungFingerprint:'lindung'})));
+ });
+ it('historical guidance appears only after intentional selection with missing coverage',async()=>{
+  mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:false,socso:false,eis:false,pcb:false},schemes:{},complete:false,next_effective_from:'2026-10-03',fingerprint:'trusted'});
+  render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()}/>);
+  await screen.findByRole('button',{name:'Effective Payroll Month'});
+  expect(screen.queryByText(/Historical confirmation:/)).toBeNull();
+  fireEvent.click(screen.getByRole('button',{name:'Effective Payroll Month'}));fireEvent.click(screen.getByRole('gridcell',{name:'Sept',exact:true}));
+  await screen.findByText(/Historical confirmation:/);
+ });
