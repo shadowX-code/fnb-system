@@ -12,7 +12,7 @@ begin
  insert into public.crew_sessions(employee_id,token_hash,expires_at) values(employee,encode(extensions.digest(token,'sha256'),'hex'),now()+interval '1 hour');
  insert into public.crew_cash_checkouts(id,outlet_id,business_date,checked_out_by_employee_id,status,floating_cash,previous_carry_forward,expected_opening_cash,denomination_counts,counted_cash,pos_expected_cash,variance,carry_forward,amount_for_deposit,review_required,review_status)
  values(a,outlet,day-2,employee,'draft',300,0,300,'{"100":7,"10":4,"1":6}',746,746,0,46,400,false,'not_required'),
- (b,outlet,day-1,employee,'submitted',300,0,300,'{"100":3}',300,350,-50,0,0,true,'pending'),
+ (b,outlet,day-1,employee,'submitted',300,0,300,'{"100":8,"10":1,"5":1,"1":3,"0.10":3,"0.05":1}',818.35,752.20,66.15,0,0,false,'not_required'),
  (cancelled_draft,outlet,day-3,employee,'draft',300,0,300,'{"100":1}',100,100,0,0,0,false,'not_required');
  perform set_config('request.jwt.claim.sub','',true);
  result:=public.crew_management_cash_mobile(token,outlet,day);
@@ -45,8 +45,11 @@ begin
  perform public.crew_cash_review_checkout(b,'reject','Correct previous day POS amount');
  perform set_config('request.jwt.claim.sub','',true);
  result:=public.crew_management_cash_mobile(token,outlet,day-1); assert result#>>'{checkout,is_returned}'='true','Returned remains distinct';
- perform public.crew_management_cash_save_checkout(token,outlet,'reconcile',jsonb_build_object('checkout_id',b,'pos_expected_cash',300));
- perform public.crew_management_cash_save_checkout(token,outlet,'submit',jsonb_build_object('checkout_id',b));
+ perform public.crew_management_cash_save_checkout(token,outlet,'reconcile',jsonb_build_object('checkout_id',b,'pos_expected_cash',823.20,'variance_reason','Correct the recorded POS closing amount'));
+ result:=public.crew_management_cash_save_checkout(token,outlet,'submit',jsonb_build_object('checkout_id',b));
+ assert result#>>'{checkout,id}'=b::text and (result#>>'{checkout,business_date}')::date=day-1,'Same original day and checkout';
+ assert (select counted_cash=818.35 and pos_expected_cash=823.20 and variance=-4.85 and review_required and review_status='pending' from public.crew_cash_checkouts where id=b),'Happiness pattern resubmission';
+ assert exists(select 1 from public.crew_cash_checkout_review_events where checkout_id=b and event='submitted' and (snapshot->>'pos_expected_cash')::numeric=752.20 and (snapshot->>'variance')::numeric=66.15),'Original submitted evidence preserved';
  perform set_config('request.jwt.claim.sub',owner_auth::text,true);
  perform public.crew_cash_review_checkout(b,'cancel','No closing obligation; preserve the submitted evidence');
  assert (public.crew_cash_checkout_allocation(b)->>'amount_for_deposit')::numeric=0 and (public.crew_cash_checkout_allocation(b)->>'carry_forward')::numeric=0;
