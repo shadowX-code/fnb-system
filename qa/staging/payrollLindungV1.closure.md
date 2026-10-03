@@ -22,8 +22,10 @@ The existing People Payroll period cutover gate still rejects periods beginning 
 - Before/after result hash: **5999e593aa3a5d9beacfe458d8525d0f**.
 - Persisted LINDUNG participation rows after migration and rollback QA: **0** (no backfill).
 - Existing September members therefore require explicit September participation evidence.
-- Focused UI/contracts: **43 tests passed** across seven files; production build passed (existing bundle-size warning).
+- Focused UI/contracts: **45 tests passed** across seven files; production build passed (existing bundle-size warning).
 - Actual Staging Draft/Final fixture manifests rendered through the shared PDF implementation: separate employee LINDUNG line, no employer line, Unicode, parseable PDF and deterministic retry bytes passed.
 - Only `payroll-payslips` Edge function deployed to Staging.
 
 Documentation Impact: Updated `docs/domains/payroll.md` and the development log.
+
+Authenticated canonical Staging QA confirmed Profile current-versus-historical coverage, September draft reset to Unresolved, conditional participation fields, disabled evidence confirmation without proof, and unchanged legacy finalized run amounts. Finalized Review renders LINDUNG only when present in the frozen snapshot, with its retained participation status; legacy finals acquire no pending LINDUNG row.
