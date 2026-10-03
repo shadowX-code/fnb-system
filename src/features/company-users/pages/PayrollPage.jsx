@@ -268,13 +268,14 @@ export function ProfilesTab({ data, canManage, reload }) {
           <p className="text-sm text-text-secondary">{current ? `${label(current.pay_basis)}${current.pay_basis === "hourly" ? " / hour" : ""} · from ${current.effective_from}` : "—"}</p>
           <p className="mt-2 text-xs text-text-secondary">Joined {registryDate(selectedEmployee.joined_date)} · Last Pay Change {registryDate(lastPayChange(versions, today()))}</p>
           {upcoming[0] && <p className="mt-2 text-sm text-text-secondary">Next change: {money(upcoming[0].basic_salary || upcoming[0].hourly_rate)} from {upcoming[0].effective_from}</p>}</section>
-        <section><h4 className="font-bold">Statutory</h4>
+        <section><h4 className="font-bold">Statutory · Current Setup</h4>
           <div className="mt-2 flex flex-wrap gap-2">{["epf", "socso", "eis", "pcb"].map((key) =>
             <Badge key={key} tone={["setup_required","confirmation_required"].includes(statutory?.display_schemes?.[key]?.state) ? "warning" : "neutral"}>
               {key.toUpperCase()} — {statutorySchemeLabel(key,statutory?.display_schemes?.[key])}
               {statutory?.display_schemes?.[key]?.state === "scheduled" && <> · Effective {statutory.display_schemes[key].effective_from} · Scheduled</>}
             </Badge>)}</div>
           <p className="mt-2 text-xs text-text-secondary">{statutory?.status || "Setup Required"}</p>
+          <p className="mt-2 text-xs text-text-secondary">Current setup as of {statutory?.effective_from || today()}. Historical Payroll Runs require statutory confirmation effective for their own payroll month.</p>
           {["epf","socso","eis"].filter(key=>statutory?.display_schemes?.[key]?.state === "setup_required").map(key=>
             <p key={key} className="mt-2 text-xs text-amber-700">{key.toUpperCase()} · {statutorySetupHelp(statutory.display_schemes[key].issue,statutory.evidence)}</p>)}
         </section>

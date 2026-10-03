@@ -716,3 +716,15 @@ PCB compatibility fields and live `pre_*` lifecycle helpers remain intentional
 compatibility debt; they are not permission to expose those features in V1.
 
 Payment/Settlement, bank transfers/payment files and Finance projections remain deferred.
+
+### Historical statutory setup presentation
+
+Profile readiness describes current setup only; it does not establish historical
+Payroll readiness. Review distinguishes absent applicability coverage from an
+effective legacy record whose scheme applicability is still null. Unconfirmed
+applicability directs Admin to the existing Manage Statutory Setup command and
+the historical Effective Payroll Month. Explicit confirmation appends paired
+monthly evidence, preserves later setup and audit history, and remains subject
+to the existing finalized-period guard. Refresh an open Run afterward; PCB
+amount confirmation remains independent. Never infer an earlier month from
+current confirmed categories or silently backdate a record.

@@ -67,6 +67,11 @@ export function payrollIssueLabel(issue, context = {}) {
   if ((code === "statutory_applicability_missing" || code.endsWith("_applicability_unreviewed")) && coverage?.missing_through) {
     return `${code === "statutory_applicability_missing" ? "Statutory" : code.split("_")[0].toUpperCase()} applicability missing · ${coverage.start} – ${coverage.missing_through}`;
   }
+  if (code.endsWith("_applicability_unreviewed")) {
+    const scheme = code.split("_")[0].toUpperCase();
+    const date = context.statutory?.inputs?.setup_effective_date;
+    return `${scheme} applicability is not confirmed${date ? ` for the payroll period starting ${date}` : " for this payroll period"}. Open Payroll Profiles → Manage Statutory Setup and explicitly confirm the historical Effective Payroll Month; current setup does not establish earlier coverage.`;
+  }
   const labels = {
     employment_joined_date_missing: "Joined Date is required to resolve period employment",
     employment_assignment_requires_review: "Period employment assignment requires review",
