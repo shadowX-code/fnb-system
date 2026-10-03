@@ -27,6 +27,21 @@ begin
   s:=payroll_initial_setup_confirm(emp,'2026-01-01','monthly',3250,'MYR',case when n=3 then none else a end,s->>'fingerprint','2026-01-01');
   if n=1 then profile:=(s->>'profile_id')::uuid;elsif n=2 then opt_profile:=(s->>'profile_id')::uuid;else foreign_profile:=(s->>'profile_id')::uuid;end if;
  end loop;
+ select count(*) into n from payroll_lindung_participation_versions;
+ if payroll_lindung_setup_preview(profile,'2026-09-01','{"status":"participating"}',true)->>'valid'<>'true' then raise exception 'Routine preview failed';end if;
+ if payroll_lindung_setup_preview(foreign_profile,'2026-09-01','{"status":"mandatory"}',true)->>'valid'<>'true' then raise exception 'Mandatory preview failed';end if;
+ if payroll_lindung_setup_preview(profile,'2026-06-01','{"status":"mandatory"}',true)->>'valid'<>'true' then raise exception 'June preview failed';end if;
+ if payroll_lindung_setup_preview(profile,'2026-08-01','{"status":"unresolved"}',false)->>'valid'<>'true' then raise exception 'Unresolved preview failed';end if;
+ l:=payroll_lindung_setup_preview(opt_profile,'2026-07-01','{"status":"valid_opt_out","coverage_from":"2026-07-15T00:00:00+08:00"}',true);
+ if l->'fields'<>'["source_reference"]'::jsonb then raise exception 'Targeted reference disclosure failed: %',l;end if;
+ l:=payroll_lindung_setup_preview(opt_profile,'2026-07-01','{"status":"valid_opt_out","coverage_from":"2026-07-15T00:00:00+08:00","source_reference":"QA PERKESO notice"}',true);
+ if l->'fields'<>'["not_receiving_lindung_benefit"]'::jsonb then raise exception 'Targeted benefit disclosure failed: %',l;end if;
+ l:=payroll_lindung_setup_preview(opt_profile,'2026-09-01','{"status":"valid_opt_out","coverage_from":"2026-09-15T00:00:00+08:00","source_reference":"QA PERKESO notice"}',true);
+ if l->'fields'<>'["registration_date","before_first_deduction"]'::jsonb then raise exception 'Targeted registration disclosure failed: %',l;end if;
+ if payroll_lindung_setup_preview(opt_profile,'2026-07-01','{"status":"valid_opt_out","coverage_from":"2026-07-15T00:00:00+08:00","source_reference":"QA PERKESO notice","not_receiving_lindung_benefit":true}',true)->>'valid'<>'true' then raise exception 'Valid historical optout preview failed';end if;
+ if payroll_lindung_setup_preview(opt_profile,'2026-09-01','{"status":"another_designated_employer","designated_employer_name":"QA other employer","source_reference":"QA PERKESO designation"}',true)->>'valid'<>'true' then raise exception 'Other employer preview failed';end if;
+ if (select count(*) from payroll_lindung_participation_versions)<>n then raise exception 'Preview wrote evidence';end if;
+ insert into unified_checks values('Read-only shared validation: simple states and targeted opt-out requirements');
  intent:='{"status":"participating","source_reference":"","worker_category":"foreign"}';
  s:=payroll_statutory_setup_read(profile,'2026-09-01',a);l:=payroll_lindung_setup_read(profile,'2026-09-01');
  result:=payroll_statutory_setup_confirm(profile,'2026-09-01',a,'{"socso":"first_category_base"}',s->>'fingerprint',null,null,intent,l->>'fingerprint',req);
@@ -35,6 +50,8 @@ begin
  perform payroll_statutory_setup_confirm(profile,'2026-09-01',a,'{"socso":"first_category_base"}','retry stale',null,null,intent,'retry stale',req);
  if (select count(*) from payroll_lindung_participation_versions where profile_id=profile)<>1 then raise exception 'Retry duplicated audit';end if;
  begin perform payroll_statutory_setup_confirm(profile,'2026-09-01',none,'{}','retry',null,null,intent,'retry',req);raise exception 'Changed retry accepted';exception when invalid_parameter_value then null;end;
+ l:=payroll_lindung_setup_preview(profile,'2026-09-01','{"status":"valid_opt_out","coverage_from":"2026-09-15T00:00:00+08:00"}',true);
+ if l->>'message' not like 'Once In, Always In:%' or l->'fields'<>'[]'::jsonb then raise exception 'Illegal optout questionnaire shown: %',l;end if;
  insert into unified_checks values('Participating, derived worker/employer/month, optional notes, audit and retry');
  begin
   perform pg_temp.confirm_setup(opt_profile,'2026-07-01','{"status":"valid_opt_out","coverage_from":"2026-07-15T00:00:00+08:00","not_receiving_lindung_benefit":true}');

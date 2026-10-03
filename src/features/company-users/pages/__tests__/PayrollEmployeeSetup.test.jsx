@@ -1,11 +1,12 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-const mocks=vi.hoisted(()=>({ readStatutorySetup:vi.fn(),confirmStatutorySetup:vi.fn(),adjustRecurring:vi.fn(),readLindungSetup:vi.fn() }));
+const mocks=vi.hoisted(()=>({ readStatutorySetup:vi.fn(),confirmStatutorySetup:vi.fn(),adjustRecurring:vi.fn(),readLindungSetup:vi.fn(),previewLindungSetup:vi.fn() }));
 vi.mock('../../../../services/payrollService.js',()=>({ payrollService:mocks }));
 import StatutorySetup, { statutorySchemeLabel, statutorySetupHelp } from '../PayrollStatutorySetup.jsx';
 import Components, { componentTimeline } from '../PayrollEmployeeComponents.jsx';
 beforeEach(()=>{
   vi.clearAllMocks();
+  mocks.previewLindungSetup.mockResolvedValue({valid:true,fields:[]});
   mocks.readLindungSetup.mockResolvedValue({employee:{},legal_entities:[],history:[],current:{status:"unresolved"},fingerprint:"lindung"});
   mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:false,socso:true,eis:true,pcb:false},schemes:{epf:{state:'not_applicable'},socso:{recommendation:'first_category_base'},eis:{recommendation:'standard'},pcb:{state:'not_applicable'}},next_effective_from:'2026-09-28',fingerprint:'trusted'});
 });

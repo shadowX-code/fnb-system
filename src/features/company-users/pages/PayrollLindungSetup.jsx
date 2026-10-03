@@ -10,9 +10,11 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
   const [read, setRead] = useState(null);
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState('');
+  const [validation, setValidation] = useState(null);
+  const [required, setRequired] = useState([]);
   useEffect(() => {
     let active = true;
-    setRead(null); setDraft(null); setError('');
+    setRead(null); setDraft(null); setError(''); setValidation(null); setRequired([]);
     payrollService.readLindungSetup(profile.id, month).then(result => {
       if (!active) return;
       setRead(result);
@@ -24,13 +26,12 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
         worker_category: worker, date: month, time: '00:00',
         designated_legal_entity_id: verified ? evidence.designated_legal_entity_id || '' : result.employee.dated_legal_entity_id || result.employee.legal_entity_id || '',
         designated_employer_name: verified ? evidence.designated_employer_name || '' : '',
-        act4_covered: verified && Boolean(evidence.supporting_evidence?.act4_covered), retain: verified && !result.current.issue, residency_verified: verified && worker === 'local_resident',
-        registration_date: '', before_first_deduction: false, not_receiving_lindung_benefit: false,
+        retain: verified && !result.current.issue, residency_verified: verified && worker === 'local_resident',
         designation_change_reason: '', source_reference: '', participation_basis: 'default_enrolment' });
     }).catch(cause => { if (active) setError(cause.message); });
     return () => { active = false; };
   }, [profile.id, month, refreshKey]);
-  const patch = (key, value) => setDraft(current => ({ ...current, retain: false, [key]: value }));
+  const patch = (key, value) => { setValidation(null); setDraft(current => ({ ...current, retain: false, [key]: value })); };
   const mandatory = draft?.worker_category === 'foreign' || month === '2026-06-01';
   const another = draft?.status === 'another_designated_employer';
   const optOut = draft?.status === 'valid_opt_out';
@@ -40,29 +41,35 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
   const rejoin = !retained && participating && draft?.participation_basis === 'rejoin';
   const newOptOut = !retained && optOut && draft.date > '2026-08-31';
   const employer = read?.employee.dated_legal_entity_id || read?.employee.legal_entity_id;
-  const employerMissing = (participating || draft?.status === 'mandatory') && !draft.designated_legal_entity_id;
-  const designationChange = read?.current.evidence?.designated_legal_entity_id && (another || participating || draft?.status === 'mandatory')
-    && read.current.evidence.designated_legal_entity_id !== draft.designated_legal_entity_id;
-  const evidenceRequired = !retained && (optOut || rejoin || another || Boolean(designationChange));
-  const allowed = Boolean(read && draft && !error && (!resolved || (draft.worker_category !== 'unresolved' && (act4Covered || draft.act4_covered)))
-    && !employerMissing && (!another || draft.designated_legal_entity_id || draft.designated_employer_name.trim())
-    && (retained || !optOut || (draft.date >= '2026-07-08' && draft.not_receiving_lindung_benefit))
-    && (!rejoin || (draft.date && draft.time))
-    && (!newOptOut || (draft.registration_date && draft.before_first_deduction))
-    && (!designationChange || draft.designation_change_reason)
-    && (!evidenceRequired || draft.source_reference.trim().length >= 8));
+  const intent = draft && read ? { ...draft,
+    retained_version_id: retained ? read.current.evidence.id : null, effective_month: month,
+    coverage_from: optOut || rejoin ? `${draft.date}T${draft.time}:00+08:00` : null,
+    submission_at: rejoin ? `${draft.date}T${draft.time}:00+08:00` : null,
+    first_contribution_month: newOptOut ? month : null,
+    ...(act4Covered ? { act4_covered: true } : {}),
+    designated_legal_entity_id: optOut || !resolved ? null : draft.designated_legal_entity_id || null,
+    designated_employer_name: another ? draft.designated_employer_name : null } : null;
+  const intentKey = JSON.stringify(intent);
   useEffect(() => {
-    if (!draft || !read || error) { onChange(null); return; }
-    const coverage = `${draft.date}T${draft.time}:00+08:00`;
-    onChange({ month, allowed, fingerprint: read.fingerprint, intent: { ...draft,
-      retained_version_id: retained ? read.current.evidence.id : null, effective_month: month, coverage_from: optOut || rejoin ? coverage : null,
-      submission_at: rejoin ? coverage : null, first_contribution_month: newOptOut ? month : null,
-      act4_covered: act4Covered || draft.act4_covered,
-      designated_legal_entity_id: optOut || !resolved ? null : draft.designated_legal_entity_id || null,
-      designated_employer_name: another ? draft.designated_employer_name : null } });
-  }, [draft, read, error, month, allowed, onChange, act4Covered, optOut, rejoin, newOptOut, another, resolved, retained]);
+    let active = true;
+    setValidation(null);
+    if (!intent || month < '2026-06-01') return;
+    const timer = setTimeout(() => {
+      payrollService.previewLindungSetup(profile.id, month, intent, act4Covered).then(result => {
+        if (!active) return;
+        setValidation({ ...result, intentKey });
+        setRequired(previous => [...new Set([...previous, ...result.fields])]);
+      }).catch(cause => { if (active) setError(cause.message); });
+    }, 200);
+    return () => { active = false; clearTimeout(timer); };
+  }, [profile.id, month, intentKey, act4Covered]);
+  const allowed = Boolean(read && draft && !error && validation?.valid && validation.intentKey === intentKey);
+  useEffect(() => {
+    onChange(intent && read && !error ? { month, allowed, fingerprint: read.fingerprint, intent } : null);
+  }, [intentKey, read, error, month, allowed, onChange]);
+  const needs = key => required.includes(key);
   const options = [
-    ...(mandatory ? [{ value: 'mandatory', label: 'Mandatory' }] : [{ value: 'participating', label: 'Participating' }, { value: 'valid_opt_out', label: 'Opted Out' }]),
+    ...(mandatory ? [{ value: 'mandatory', label: 'This employer pays' }] : [{ value: 'participating', label: 'Participating' }, { value: 'valid_opt_out', label: 'Opted Out' }]),
     { value: 'another_designated_employer', label: 'Another Employer Pays' }, { value: 'unresolved', label: 'Not Confirmed' },
   ];
   return <section aria-label="LINDUNG 24 Jam setup" className="space-y-3 border-t border-border pt-3">
@@ -71,33 +78,38 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
     {month < '2026-06-01' ? <p className="text-sm">Not applicable before June 2026.</p> : <>
       {!draft && !error && <p role="status">Loading coverage…</p>}
       {draft && <fieldset disabled={disabled} className="space-y-3">
-        <SelectField label="Coverage status" ariaLabel="LINDUNG coverage status" value={draft.status} options={options}
-          onChange={value => setDraft(current => ({ ...current, retain: value === read.current.status && Boolean(read.current.evidence) && !read.current.issue, status: value,
+        <p className="text-sm text-text-secondary">Select the employee's LINDUNG status for this payroll month.</p>
+        {mandatory && <p className="text-sm font-semibold">Mandatory · {month === '2026-06-01' ? 'June 2026 coverage' : 'Foreign employee coverage'}</p>}
+        <div className={mandatory ? 'text-sm' : ''}>
+        {mandatory && <p className="text-xs text-text-secondary">Contributing employer / evidence</p>}
+        <SelectField label={mandatory ? 'Contribution handling' : 'Coverage Status'} ariaLabel="LINDUNG coverage status" value={draft.status} options={options}
+          onChange={value => { setRequired([]); setValidation(null); setDraft(current => ({ ...current, retain: value === read.current.status && Boolean(read.current.evidence) && !read.current.issue, status: value,
             participation_basis: value === 'participating' && read.current.status === 'valid_opt_out' ? 'rejoin' : 'default_enrolment',
-            designated_legal_entity_id: value === 'another_designated_employer' ? '' : employer || '' }))} />
-        {mandatory && <p className="text-sm text-text-secondary">{month === '2026-06-01' ? 'June 2026 participation is mandatory.' : 'Foreign employees require mandatory coverage.'}</p>}
+            designated_legal_entity_id: value === 'another_designated_employer' ? '' : employer || '' })); }} />
+        </div>
+        {!resolved && <p className="text-sm text-text-secondary">LINDUNG status has not been confirmed for this month.</p>}
         {read && <p className="text-xs text-text-secondary">Recorded: {lindungStatusLabel(read.current.status)} · This confirmation applies to the selected payroll month.</p>}
         {['foreign','local_resident'].includes(draft.worker_category) && !retained && <details className="text-sm"><summary className="cursor-pointer">Resident coverage evidence</summary>
           <ToggleField label="Verified permanent / temporary resident" checked={draft.residency_verified} onChange={value => setDraft(current => ({ ...current, retain:false, residency_verified:value, worker_category:value?'local_resident':'foreign', status:'unresolved' }))} /></details>}
-        {resolved && !act4Covered && <ToggleField label="Act 4-covered employment verified" checked={draft.act4_covered} onChange={value => patch('act4_covered', value)} />}
-        {participating && !retained && <details className="text-sm"><summary className="cursor-pointer">Participation transition</summary>
-          <SelectField label="Participation evidence" ariaLabel="Participation evidence" value={draft.participation_basis} onChange={value => patch('participation_basis', value)} options={[
-            { value: 'default_enrolment', label: 'Continuing / default enrollment' }, { value: 'new_registration', label: 'New registration' }, { value: 'rejoin', label: 'Rejoin after opt-out' }]} /></details>}
         {((optOut && !retained) || rejoin) && <DatePickerField label={rejoin ? 'PERKESO rejoin submission date' : 'PERKESO opt-out notice date'} value={draft.date} onChange={value => patch('date', value)} />}
         {rejoin && <AdminFormField label="Submission time (Malaysia)" required><input type="time" className="control" value={draft.time} onChange={event => patch('time', event.target.value)} /></AdminFormField>}
-        {((another && !retained) || employerMissing) && <SelectField label="Contributing employer" ariaLabel="Contributing employer" value={draft.designated_legal_entity_id} onChange={value => patch('designated_legal_entity_id', value)}
+        {((another && !retained) || needs('designated_legal_entity_id')) && <SelectField label="Contributing employer" ariaLabel="Contributing employer" value={draft.designated_legal_entity_id} onChange={value => patch('designated_legal_entity_id', value)}
           options={[{ value: '', label: another ? 'Employer outside FeedX' : 'Choose employer' }, ...read.legal_entities.filter(entity => !another || entity.id !== employer).map(entity => ({ value: entity.id, label: entity.name }))]} />}
         {another && !retained && !draft.designated_legal_entity_id && <AdminFormField label="Other employer name" required><input className="control" value={draft.designated_employer_name} onChange={event => patch('designated_employer_name', event.target.value)} /></AdminFormField>}
-        {designationChange && <SelectField label="Employer change reason" ariaLabel="Employer change reason" value={draft.designation_change_reason} onChange={value => patch('designation_change_reason', value)} options={[
+        {needs('designation_change_reason') && <SelectField label="Employer change reason" ariaLabel="Employer change reason" value={draft.designation_change_reason} onChange={value => patch('designation_change_reason', value)} options={[
           { value: '', label: 'Choose PERKESO reason' }, { value: 'resignation', label: 'Resignation' }, { value: 'business_ceased', label: 'Business ceased' },
           { value: 'dormant_no_salary', label: 'Dormant employment without salary' }, { value: 'higher_salary', label: 'Higher salary' }]} />}
-        {optOut && !retained && <ToggleField label="Employee is not receiving LINDUNG benefits" checked={draft.not_receiving_lindung_benefit} onChange={value => patch('not_receiving_lindung_benefit', value)} />}
-        {newOptOut && <><DatePickerField label="New PERKESO registration date" value={draft.registration_date} onChange={value => patch('registration_date', value)} />
-          <ToggleField label="Notice submitted before the first deduction" checked={draft.before_first_deduction} onChange={value => patch('before_first_deduction', value)} /></>}
-        {optOut && <p className="text-xs text-text-secondary">Record a valid PERKESO notice. Confirmed continuing participation or rejoin cannot be cancelled.</p>}
-        {!retained && <AdminFormField label={evidenceRequired ? 'PERKESO evidence / reference' : 'Reference / Notes (optional)'} required={evidenceRequired}><input className="control" maxLength={1000} value={draft.source_reference} onChange={event => patch('source_reference', event.target.value)} /></AdminFormField>}
+        {!retained && resolved && <AdminFormField label="Reference / Notes" required={needs('source_reference')} hint={needs('source_reference') ? 'PERKESO evidence/reference is required for this transition.' : 'Optional'}><input className="control" maxLength={1000} value={draft.source_reference} onChange={event => patch('source_reference', event.target.value)} /></AdminFormField>}
+        {required.some(key => ['act4_covered','not_receiving_lindung_benefit','registration_date','before_first_deduction'].includes(key)) && <section aria-label="Additional information required" className="space-y-3 rounded-lg border border-border p-3">
+          <h4 className="text-sm font-semibold">Additional information required</h4>
+          {needs('act4_covered') && !act4Covered && <ToggleField label="Act 4-covered employment verified" checked={Boolean(draft.act4_covered)} onChange={value => patch('act4_covered',value)} />}
+          {needs('not_receiving_lindung_benefit') && <ToggleField label="Employee is not receiving LINDUNG benefits" checked={Boolean(draft.not_receiving_lindung_benefit)} onChange={value => patch('not_receiving_lindung_benefit',value)} />}
+          {needs('registration_date') && <DatePickerField label="New PERKESO registration date" value={draft.registration_date || ''} onChange={value => patch('registration_date', value)} />}
+          {needs('before_first_deduction') && <ToggleField label="Notice submitted before the first deduction" checked={Boolean(draft.before_first_deduction)} onChange={value => patch('before_first_deduction',value)} />}
+        </section>}
+        {validation && !validation.valid && <p role="alert" className="text-sm text-rose-700">{validation.message}</p>}
+        {!validation && <p role="status" className="text-xs text-text-secondary">Checking coverage…</p>}
         {retained && <p className="text-xs text-text-secondary">Existing verified coverage will be retained. Choose a different status to record a change.</p>}
-        {employerMissing && <p role="alert" className="text-sm text-rose-700">Designated contributing employer is missing.</p>}
         {resolved && draft.worker_category === 'unresolved' && <p role="alert" className="text-sm text-rose-700">Complete employee nationality to verify worker coverage.</p>}
       </fieldset>}
     </>}
