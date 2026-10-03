@@ -118,10 +118,10 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const financialLine = (line, index) => {
     const saved = selected.adjustments.find(item => item.id === line.source?.run_adjustment_id);
     return <div key={`${line.code}-${index}`} className="py-2"><div className="flex justify-between gap-3"><span>{line.label}
-      <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)} · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
-      <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsCurrent ? `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
+      <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)}${line.rate != null ? ` · ${money(line.rate)}/hour` : ""}${line.multiplier != null ? ` · ${line.multiplier}×` : ""}` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
+      <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsAvailable ? `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
         {saved && adjustmentActions(saved)}</span></div>
-      {selected.result.earningsCurrent && <PayrollMonthlyBasicBreakdown line={line} />}
+      {selected.result.earningsAvailable && <PayrollMonthlyBasicBreakdown line={line} />}
       <PayrollRecurringBreakdown line={line} /></div>;
   };
   const refresh = async () => {
@@ -176,8 +176,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     finally { setBusy(false); }
   };
   const timeDecisionSaved = async () => {
-    try { await updateCalculation(selected.id); }
-    finally { await refresh(); }
+    await refresh();
     const time = await payrollService.readTime(entityId, `${month}-01`, periodEnd(month));
     return time.filter(row => row.employee_id === selected.id);
   };
@@ -258,9 +257,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <section className="border-b border-border pb-4"><div className="flex items-center justify-between gap-3"><h4 className="text-lg font-bold">Earnings</h4>
           {active && <button className="font-semibold text-primary" type="button" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), componentId: "", amount: "", reason: "" })}>Add Adjustment</button>}</div>
           <p className="mt-1 text-xs text-text-secondary">{selected.pay ? `${human(selected.pay.pay_basis)} · Pay effective ${selected.pay.effective_from}` : "Complete Employee pay setup"}</p>
-          <div className="mt-2 divide-y divide-border">{(selected.calculation?.lines || []).filter((line) => line.kind === "earning").map(financialLine)}
+          <div className="mt-2 divide-y divide-border">{(selected.calculation?.earning_groups || []).map(financialLine)}
             {!selected.calculation?.lines?.some((line) => line.kind === "earning") && <p className="py-2 text-text-secondary">Calculate Payroll to see earning lines.</p>}
           </div>
+          <details className="mt-3 text-xs text-text-secondary"><summary>Calculation details</summary>{(selected.calculation?.lines || []).filter(line => line.kind === "earning").map((line,index) => <div key={`daily-${index}`}><p className="mt-2 font-semibold">{line.source?.work_date || "Period evidence"}</p>{financialLine(line,index)}</div>)}</details>
+          {selected.calculation?.status !== "ready" && <p className="mt-2 text-xs text-amber-800">Resolved earning lines are shown. Gross and Net remain pending until independent blockers are resolved.</p>}
         </section>
         <div className="flex justify-between border-t border-border pt-3 font-bold"><span>Gross Earnings</span><span className="tabular-nums">{money(selected.result.gross)}</span></div>
         {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map(financialLine)}</div></section>}
@@ -302,7 +303,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         {active && calculationErrors[selected.id] && <div role="alert" className="text-rose-700">{calculationErrors[selected.id]} <button className="btn-secondary" type="button" disabled={busy} onClick={() => retryCalculation(selected.id)}>Retry Calculation</button></div>}
         {error && <p role="alert" className="text-rose-700">{error}</p>}
       </div></Modal>}
-    {selected && reviewHours && <PayrollPayableTimeReview employee={selected} month={month} canManage={active} onClose={()=>setReviewHours(false)} onDecisionSaved={timeDecisionSaved} />}
+    {selected && reviewHours && <PayrollPayableTimeReview employee={selected} runId={run.id} month={month} canManage={active} onClose={()=>setReviewHours(false)} onDecisionSaved={timeDecisionSaved} />}
     {pcbDraft && <Modal title="Confirm PCB / MTD" description="The confirmed amount is statutory evidence for this employee and period." onClose={() => !busy && setPcbDraft(null)}
       footer={<><button className="btn-secondary" type="button" onClick={() => setPcbDraft(null)}>Cancel</button><button className="btn-primary" type="button" disabled={busy || pcbDraft.amount === "" || Number(pcbDraft.amount) < 0 || !pcbDraft.reason.trim()} onClick={savePcb}>Confirm PCB</button></>}>
       <div className="space-y-3"><AdminFormField label="Confirmed PCB (RM)" required><input className="control" type="number" min="0" step="0.01" value={pcbDraft.amount} onChange={(event) => setPcbDraft((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField>

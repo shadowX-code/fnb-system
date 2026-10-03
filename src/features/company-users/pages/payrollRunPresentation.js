@@ -7,6 +7,7 @@ export function payrollEmployeeResult(calculation, statutory) {
   const statutoryCurrent = earningsCurrent && statutory?.status === "ready" && !statutory.is_stale;
   return {
     earningsCurrent,
+    earningsAvailable: !!calculation && !calculation.is_stale,
     statutoryCurrent,
     gross: earningsCurrent ? calculation.gross_earnings : null,
     deductions: statutoryCurrent ? Number(statutory.non_statutory_deductions || 0)
@@ -78,6 +79,10 @@ export function payrollIssueLabel(issue, context = {}) {
   }
   if (code === "lindung_wage_treatment_unresolved") return `LINDUNG Act 4 wage treatment is unresolved for ${detail || "an earning component"}. Review the component's Act 4 wage treatment.`;
   const labels = {
+    ph_payable_classification_requires_review: "Published paid-holiday work requires an explicit PH classification review; a Regular decision cannot bypass holiday entitlement.",
+    ph_statutory_rule_unverified: `Public Holiday Allowance requires a verified Malaysia ${(detail || "employee").split(":")[0]} PH calculation rule, statutory eligibility, ordinary-day wage basis and normal contractual hours. Company Additional Pay does not resolve this.`,
+    ph_ot_statutory_rule_unverified: `PH overtime requires a verified Malaysia ${(detail || "employee").split(":")[0]} PH-OT calculation rule and approved overtime beyond contractual normal hours.`,
+    ph_paid_day_entitlement_unverified: "Hourly paid holiday without work requires verified holiday-pay eligibility and ordinary-day wage evidence; roster hours are not a holiday-pay formula.",
     lindung_designated_employer_missing: "Designated contributing employer is missing for LINDUNG.",
     lindung_designated_employer_mismatch: "LINDUNG designated employer does not match this Payroll employer. Review the designation evidence.",
     lindung_rate_pack_unavailable: "LINDUNG rate pack unavailable for this payroll period.",

@@ -114,3 +114,18 @@ it('retains a real zero proposal and requires canonical read-back before advanci
   expect(screen.getByRole('button',{name:'Refresh Review'})).toBeTruthy();
   expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({approvedMinutes:0}));
 });
+
+it('corrects a reviewed date with a new mandatory reason and preserves the review screen',async()=>{
+ mocks.decideTime.mockClear().mockResolvedValue({});
+ const saved={...row,status:'approved_manual',approved_minutes:390,history:[{id:'time',revision:2,status:'approved_manual',approved_minutes:390,reason:'Original approved reason'}]};
+ const close=vi.fn(); const refreshed=vi.fn(async()=>[{...saved,id:'corrected',approved_minutes:300}]);
+ render(<PayrollPayableTimeReview employee={{...employee,time:[saved]}} runId="run" month="2026-09" canManage onClose={close} onDecisionSaved={refreshed}/>);
+ fireEvent.click(screen.getByRole('button',{name:'Correct Decision'}));
+ expect(screen.getByRole('textbox',{name:'Correction reason *'}).value).toBe('');
+ expect(screen.getByRole('button',{name:'Save Correction'}).disabled).toBe(true);
+ fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'300'}});
+ fireEvent.change(screen.getByRole('textbox',{name:/Correction reason/}),{target:{value:'Corrected after evidence review'}});
+ fireEvent.click(screen.getByRole('button',{name:'Save Correction'}));
+ await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({runId:'run',correction:true,approvedMinutes:300,reason:'Corrected after evidence review'})));
+ await screen.findByRole('button',{name:'Correct Decision'}); expect(close).not.toHaveBeenCalled();
+});
