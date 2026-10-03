@@ -18,7 +18,7 @@ it('derives Malaysian coverage and emits one routine monthly intent without a se
  expect(screen.queryByRole('button', {name:'Confirm LINDUNG Evidence'})).toBeNull();
  expect(screen.queryByLabelText('Confirmation reason')).toBeNull();
  expect(screen.queryByRole('button', {name:'Verified effective date'})).toBeNull();
- expect(screen.getByLabelText('Reference / Notes')).toBeTruthy();
+ expect(screen.getByLabelText(/Reference \/ Notes/)).toBeTruthy();
  await waitFor(()=>expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({allowed:true,month:'2026-09-01',intent:expect.objectContaining({status:'participating',coverage_from:null,worker_category:'local'})})));
 });
 it('does not copy later evidence into a historical month', async () => {
@@ -47,7 +47,7 @@ it('opt-out initially hides the questionnaire and reveals only server-requested 
 });
 it('Not Confirmed asks for no reference or compliance evidence', async () => {
  render(<PayrollLindungSetup {...props} />);await screen.findByText('LINDUNG status has not been confirmed for this month.');
- expect(screen.queryByLabelText('Reference / Notes')).toBeNull();
+ expect(screen.queryByLabelText(/Reference \/ Notes/)).toBeNull();
  await waitFor(()=>expect(changed.mock.calls.at(-1)[0].allowed).toBe(true));
 });
 it('another employer requires a designated employer and reference', async () => {
