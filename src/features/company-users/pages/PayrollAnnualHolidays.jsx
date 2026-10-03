@@ -11,8 +11,8 @@ import PayrollHolidayImport from "./PayrollHolidayImport.jsx";
 
 const kinds = [
   { value: "", label: "Review classification" },
-  { value: "required", label: "Required paid holiday" },
-  { value: "gazetted", label: "Other gazetted holiday" },
+  { value: "required", label: "Mandatory paid holiday" },
+  { value: "gazetted", label: "Available for company paid selection" },
   { value: "special", label: "Specially declared" },
   { value: "substitute", label: "Substituted holiday" },
 ];
@@ -158,29 +158,29 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
     {error && !editing && <div role="alert" className="p-4 text-sm text-rose-700">{error}<button type="button" className="ml-3 text-primary" onClick={() => setRefresh(n => n + 1)}>Retry</button></div>}
     {!annual && !error ? <p className="p-4 text-sm text-text-secondary">Loading annual calendar…</p> : annual && <>
       <section className="border-b border-border p-4"><div className="flex flex-wrap items-center justify-between gap-3"><div><h4 className="font-bold">Holiday Calendar</h4>
-        <p className="text-sm text-text-secondary">{latest ? "Review holidays, then confirm the company selection." : "Import a reviewed official annual calendar. No dates have been generated."}</p></div>
+        <p className="text-sm text-text-secondary">{latest ? "Review holidays, then confirm the company selection." : "Check official sources to generate a proposed holiday calendar, then review and publish."}</p></div>
         </div>
         {editable && <PayrollHolidayImport key={refresh} year={year} geography={geography} calendarPublished={!!published} onCandidateChanged={setCandidate} onPublished={() => setRefresh(n => n + 1)} advancedContent={advancedContent} />}
         <dl className="my-4 grid gap-3 text-sm sm:grid-cols-5">
-          <div><dt className="text-text-secondary">Required</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind === "required" && paidSelection.includes(e.holiday_id)).length} / 5</dd></div>
-          <div><dt className="text-text-secondary">Company Selected</dt><dd className="font-semibold">{selectedBase} selected · {selectedBase >= 6 ? "Minimum 6 met" : `${6 - selectedBase} more needed`}</dd></div>
-          <div><dt className="text-text-secondary">Additional Gazetted</dt><dd className="font-semibold">{additionalEntries.length}</dd></div>
+          <div><dt className="text-text-secondary">Mandatory paid holidays</dt><dd className="font-semibold">{publishedEntries.filter(e => e.kind === "required" && paidSelection.includes(e.holiday_id)).length} confirmed · 5 mandatory holidays</dd></div>
+          <div><dt className="text-text-secondary">Company-selected paid holidays</dt><dd className="font-semibold">{selectedBase} selected · {selectedBase >= 6 ? "Minimum 6 met" : `${6 - selectedBase} more needed`}</dd></div>
+          <div><dt className="text-text-secondary">Additional gazetted holidays</dt><dd className="font-semibold">{additionalEntries.length}</dd></div>
           <div><dt className="text-text-secondary">Total Paid Holidays</dt><dd className="font-semibold">{paidSelection.length + additionalEntries.length}</dd></div>
           <div><dt className="text-text-secondary">Calendar Status</dt><dd>{published ? "Published" : candidate ? "Review Required" : "Not available"}</dd></div>
         </dl>
         {defaultPolicy && published && defaultPolicy.calendar_version_id !== published.id && <p role="status" className="mb-3 text-sm text-amber-800">Calendar updated. Review and publish the company selection; the existing policy has not changed.</p>}
-        {candidate?.rows?.some(r => r.state !== "missing" && r.state !== "matched" && !candidate.additional_confirmations?.[r.key] && candidate.decisions?.[r.key]?.action !== "accept") && <DataTable density="compact" rows={(candidate.rows || []).filter(r => r.state !== "missing" && r.state !== "matched" && !candidate.additional_confirmations?.[r.key] && candidate.decisions?.[r.key]?.action !== "accept").map(r => ({ ...r.row, key: r.key, state: r.state })).filter(h => !geography || (geography === "national" ? h.scope === "national" : h.scope === "national" || h.state_code === geography))} getRowKey={r => r.key} columns={[
+        {candidate?.rows?.some(r => r.row) && <DataTable density="compact" rows={(candidate.rows || []).filter(r => r.row && !candidate.additional_confirmations?.[r.key]).map(r => ({ ...r.row, key: r.key, state: r.state })).filter(h => !geography || (geography === "national" ? h.scope === "national" : h.scope === "national" || h.state_code === geography))} getRowKey={r => r.key} columns={[
           { key: "date", header: "Date", render: r => r.date }, { key: "name", header: "Holiday", render: r => r.name }, { key: "scope", header: "Scope", render: scopeLabel },
-          { key: "status", header: "Status", render: r => candidate.additional_confirmations?.[r.key] ? "Additional Gazetted — confirmed" : r.state === "matched" || candidate.decisions?.[r.key]?.action === "accept" ? r.kind === "required" ? "Required" : "Available" : "Review Required" },
+          { key: "status", header: "Status", render: r => candidate.additional_confirmations?.[r.key] ? "Additional gazetted holidays — confirmed" : r.state === "matched" || candidate.decisions?.[r.key]?.action === "accept" ? r.kind === "required" ? "Mandatory paid" : "Available" : "Review Required" },
           { key: "review", header: "Action", render: r => editable && r.kind === "special" && !candidate.additional_confirmations?.[r.key] ? <button type="button" className="text-primary" onClick={() => setAdditionalReview({ candidateId: candidate.id, rowKey: r.key, name: r.name, date: r.date, reference: "", attested: false, requestId: crypto.randomUUID() })}>Review Additional Entitlement</button> : null },
         ]} />}
         {latest?.source_reference?.startsWith("QA ONLY") && <p role="status" className="mt-3 text-sm text-amber-800">QA ONLY · Synthetic demonstration dates, not an official Malaysian calendar.</p>}
-        {published && <div className="mt-4 mb-3"><h4 className="font-bold">{year} Paid Holidays</h4><p className="text-sm text-text-secondary">{company === "all" ? "Applies to all applicable companies." : `Company exception: ${entityName((data.legal_entities || []).find(e => e.id === company) || {})}.`} Required holidays stay locked.</p></div>}
+        {published && <div className="mt-4 mb-3"><h4 className="font-bold">{year} Paid Holidays</h4><p className="text-sm text-text-secondary">{company === "all" ? "Applies to all applicable companies." : `Company exception: ${entityName((data.legal_entities || []).find(e => e.id === company) || {})}.`} Mandatory paid holidays stay locked.</p></div>}
         {visibleEntries.length > 0 && <div className="mt-3"><DataTable density="compact" rows={visibleEntries} getRowKey={e => e.holiday_id} columns={[
           { key: "date", header: "Date", render: e => e.holiday.holiday_date },
           { key: "name", header: "Holiday", render: e => <strong>{e.holiday.name}</strong> },
           { key: "scope", header: "Scope", render: e => scopeLabel(e.holiday) },
-          { key: "kind", header: "Company Status", render: e => <label className="flex items-center gap-2"><input type="checkbox" className="accent-primary" aria-label={`Select ${e.holiday.name}`} disabled={!editable || busy || ["required", "additional_mandatory"].includes(e.kind)} checked={e.kind === "additional_mandatory" || paidSelection.includes(e.holiday_id)} onChange={event => setSelectionDraft(event.target.checked ? [...paidSelection, e.holiday_id] : paidSelection.filter(id => id !== e.holiday_id))} />{e.kind === "additional_mandatory" ? "Additional Gazetted — locked" : e.kind === "required" ? "Required — locked" : paidSelection.includes(e.holiday_id) ? "Selected" : "Not Selected"}</label> },
+          { key: "kind", header: "Company Status", render: e => <label className="flex items-center gap-2"><input type="checkbox" className="accent-primary" aria-label={`Select ${e.holiday.name}`} disabled={!editable || busy || ["required", "additional_mandatory"].includes(e.kind)} checked={e.kind === "additional_mandatory" || paidSelection.includes(e.holiday_id)} onChange={event => setSelectionDraft(event.target.checked ? [...paidSelection, e.holiday_id] : paidSelection.filter(id => id !== e.holiday_id))} />{e.kind === "additional_mandatory" ? "Additional gazetted holidays — locked" : e.kind === "required" ? "Mandatory paid — locked" : paidSelection.includes(e.holiday_id) ? "Selected" : "Not Selected"}</label> },
           { key: "view", header: "Action", render: e => <button type="button" className="text-primary" onClick={() => e.kind === "additional_mandatory" ? setAdditionalEvidence(e) : onViewHoliday(e.holiday_id)}>View</button> },
         ]} /></div>}
         {published && editable && <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-sm text-text-secondary">{selectionPublished ? "Paid holiday selection published" : remaining ? `Select ${remaining} more paid holidays` : "Paid holiday selection ready to publish"}</p>{!selectionPublished && <button className="btn-primary" disabled={busy || remaining > 0} onClick={publishSelection}>{busy ? "Publishing…" : "Publish Paid Holiday Selection"}</button>}</div>}
@@ -206,7 +206,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
       <label className="mt-3 flex items-start gap-2 text-sm"><input type="checkbox" checked={additionalReview.attested} onChange={e => setAdditionalReview(old => ({ ...old, attested: e.target.checked }))} />I verified the additional paid entitlement, date and jurisdiction against authoritative evidence.</label>
       {error && <p role="alert" className="mt-3 text-sm text-rose-700">{error}</p>}
     </Modal>}
-    {additionalEvidence && <Modal title={additionalEvidence.holiday.name} description={`${additionalEvidence.holiday.holiday_date} · Additional Gazetted`} onClose={() => setAdditionalEvidence(null)} footer={<button className="btn-secondary" onClick={() => setAdditionalEvidence(null)}>Close</button>}>
+    {additionalEvidence && <Modal title={additionalEvidence.holiday.name} description={`${additionalEvidence.holiday.holiday_date} · Additional gazetted holidays`} onClose={() => setAdditionalEvidence(null)} footer={<button className="btn-secondary" onClick={() => setAdditionalEvidence(null)}>Close</button>}>
       <p className="text-sm">{scopeLabel(additionalEvidence.holiday)} · Mandatory paid entitlement · No company selection slot</p>
       <h4 className="mt-4 font-bold">Authoritative evidence</h4><p className="mt-2 whitespace-pre-wrap break-words text-sm">{additionalEvidence.entitlement_reference}</p>
       <details className="mt-4 text-sm"><summary className="cursor-pointer text-text-secondary">Source / Confirmation history</summary><p className="my-2 break-words">{additionalEvidence.source_reference}</p><p>Confirmed {additionalEvidence.confirmed_at}</p><p className="mt-2 break-all text-xs">SHA-256: {additionalEvidence.source_sha256}</p></details>
@@ -232,7 +232,7 @@ export default function PayrollAnnualHolidays({ data, canManage, onAddHoliday, o
         {draft.exception && <AdminFormField label="Exception name" required><input className="control" value={draft.name} onChange={e => patch("name", e.target.value)} /></AdminFormField>}
         {draft.exception && <SelectField label="Published calendar" value={draft.calendarId} options={calendars.filter(c => c.status === "published").map(c => ({ value: c.id, label: `Version ${c.revision} · ${c.source_reference}` }))}
           onChange={id => { const c = calendars.find(x => x.id === id); patch("calendarId", id); patch("selected", (c?.entries || []).filter(e => e.kind === "required").map(e => e.holiday_id)); }} />}
-        <p className="text-sm text-text-secondary">Required holidays cannot be deselected.</p>
+        <p className="text-sm text-text-secondary">Mandatory paid holidays cannot be deselected.</p>
         {draft.exception && <fieldset><legend className="mb-2 font-semibold">Applicable Legal Entities</legend><div className="flex flex-wrap gap-4">{(data.legal_entities || []).map(e => <label key={e.id} className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" disabled={draft.fixedScope} checked={draft.entities.includes(e.id)} onChange={event => select("entities", e.id, event.target.checked)} />{entityName(e)}</label>)}</div></fieldset>}
         {draft.exception && <details><summary className="cursor-pointer text-sm text-text-secondary">Explicit outlet calendar override</summary><p className="my-2 text-xs text-text-secondary">Leave empty to share this policy across all company outlets. Use only for a genuinely different calendar.</p>
           <div className="flex flex-wrap gap-4">{(data.outlets || []).map(o => <label key={o.id} className="flex items-center gap-2 text-sm"><input type="checkbox" className="accent-primary" disabled={draft.fixedScope} checked={draft.outlets.includes(o.id)} onChange={e => select("outlets", o.id, e.target.checked)} />{o.name}</label>)}</div>

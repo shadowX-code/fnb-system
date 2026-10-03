@@ -620,3 +620,7 @@ participation backfill or Production changes. Canonical contract: docs/domains/p
 ## 2026-10-03 — Unified monthly LINDUNG setup
 
 Simplified LINDUNG coverage selection and conditional transition evidence, with one atomic Confirm Statutory Setup authority. Routine notes are optional; unchanged verified participation is retained without another notice. Calculation, history, finalized evidence and scope authorities remain intact.
+
+## Public Holiday official proposals
+
+The official BKPP checker now extracts supported annual PDF tables into the existing controlled-import candidates, with source hash/page evidence and explicit exception review. Conditional gazettes cannot replace an annual calendar. Admin publication and company paid selection remain separate; finalized Payroll is unchanged.

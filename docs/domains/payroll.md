@@ -192,15 +192,23 @@ same official storage host, rejects redirects and bounded-response violations,
 and captures exact bytes through the existing controlled-import authority.
 Content-hash locks reuse existing candidates; private update-check evidence records
 the authorized actor, check time, sources and result. A partial fetch never claims
-No updates. New PDF dates/jurisdictions require verified review; discovery is not
-automatic PDF interpretation, publication or company-policy mutation. No scheduled
+No updates. The trusted checker extracts supported BKPP PDF tables into a Proposed
+Holiday Calendar through the existing candidate authority (`bkpp_proposal_v1`).
+Text, dates, weekday consistency, complete row order and State-column markers are
+validated; image headings require an exact, visually verified source hash. Unsupported
+layouts fail closed with a specific manual-review reason. Exact source bytes/hash and
+page/row references remain retained. Source dates marked subject to change, conditional
+alternatives, changed/missing entries and mandatory paid classification require
+explicit review. Clean new source rows are pre-reviewed as source facts only; this
+neither publishes the calendar nor confirms paid status. Publication and company-policy
+mutation remain separate. No scheduled
 job exists. Secondary controls share one Advanced & History entry: Official Sources
 owns source evidence/import history and Add Official Source Manually; Calendar
 Maintenance owns Override Classification and Add Sourced Holiday; History shows
 calendar/company-policy versions, publication evidence and historical definitions.
 Normal update review and publication remain outside this entry. Manage Exceptions
-remains a separate company/outlet business workflow. Operational selection shows five Required base holidays and six
-Company Selected base holidays and locks
+remains a separate company/outlet business workflow. Operational selection shows five Mandatory paid holidays and six
+Company-selected paid holidays and locks
 explicitly reviewed required entries; names/jurisdictions never establish required
 classification. This operational completeness presentation does not claim
 statutory compliance or replace work-date-effective calculation authority.
@@ -213,8 +221,8 @@ revisions pin these `additional_entries` outside the six optional slots. Confirm
 an addition atomically advances existing published assignments with unchanged base
 selection/scope/calendar; previous revisions and finalized payroll stay immutable.
 The work-date resolver applies the pinned addition only in its jurisdiction.
-The annual source calendar is not rewritten. Summary separates Required,
-Company Selected, Additional Gazetted and Total Paid Holidays; eleven is the base,
+The annual source calendar is not rewritten. Summary separates Mandatory paid holidays,
+Company-selected paid holidays, Additional gazetted holidays and Total Paid Holidays; eleven is the base,
 not an annual cap. Company Selected displays the selection count and minimum met,
 not an x/6 maximum. Corrections need separate reviewed evidence, never source edits.
 Manage exceptions can focus one company selection/benefit while default actions
@@ -249,7 +257,8 @@ required classification is preserved, not created by the importer.
 Capture → Parsed evidence → Needs Review → Approved → Published is backed by
 append-only `payroll_holiday_import_events`, server actor/time, payload-bound
 capture retries and revision-locked review. Matched records need no repetitive
-row review. New/changed entries require explicit acceptance; corrections require
+row review. Machine-verified clean new entries need no repetitive acceptance; manually entered
+new entries and changed entries require explicit acceptance. Corrections require
 a remark. Missing previous entries must be explicitly retained, never deleted.
 Operational classification review shows only unresolved candidate rows, with the
 captured source classification, geography and source viewer. Confirm Classification
@@ -260,8 +269,13 @@ separate controlled-import gates. Published classifications display Calendar ver
 not a full-year reclassification form. Individual manual classification maintenance
 is under Advanced, requires evidence and a reason retained in the new calendar
 revision, and preserves untouched entries and existing required-holiday guards.
-Conflicts/uncertainty block approval; corrected transcription requires a new
-candidate, preserving the original. Complete-source review precedes explicit
+Conflicts/uncertainty block approval. Unpublished source rows may be corrected through
+the existing parse command; prior extraction/decisions are retained in append-only
+events and clean unchanged decisions carry forward by evidence identity. Published
+candidates cannot be corrected. A parser upgrade creates a new source interpretation
+instead of changing an earlier approved/published interpretation. Supplementary
+gazettes cannot replace the annual calendar; their conditional alternatives must be
+resolved against official evidence before the existing additional-entitlement command. Complete-source review precedes explicit
 publication through the existing `payroll_holiday_calendar_save` authority.
 Stale calendar baselines block publication rather than overwriting newer sources.
 The source import never advances company assignments or rewrites Payroll/Leave.
