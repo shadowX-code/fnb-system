@@ -1,3 +1,4 @@
+import PayrollPhStatutory from "./PayrollPhStatutory.jsx";
 import FoundationForm from "./PayrollCompensationForm.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Card from "../../../components/ui/Card.jsx";
@@ -118,7 +119,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const financialLine = (line, index) => {
     const saved = selected.adjustments.find(item => item.id === line.source?.run_adjustment_id);
     return <div key={`${line.code}-${index}`} className="py-2"><div className="flex justify-between gap-3"><span>{line.label}
-      <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)}${line.rate != null ? ` · ${money(line.rate)}/hour` : ""}${line.multiplier != null ? ` · ${line.multiplier}×` : ""}` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
+      <small className="block text-text-secondary">{saved ? `This period adjustment · ${saved.reason}` : line.minutes != null ? `${hours(line.minutes)}${line.rate != null ? ` · ${money(line.rate)}/hour` : ""}${line.multiplier != null ? ` · ${line.multiplier}×` : ""}` : line.units ? line.units : line.source?.effective_from ? `Effective ${line.source.effective_from}` : "Approved period evidence"}</small></span>
       <span className="shrink-0 text-right"><strong className="tabular-nums">{selected.result.earningsAvailable ? `${line.kind === "deduction" ? "−" : ""}${money(line.amount)}` : "Pending review"}</strong>
         {saved && adjustmentActions(saved)}</span></div>
       {selected.result.earningsAvailable && <PayrollMonthlyBasicBreakdown line={line} />}
@@ -267,6 +268,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         {selected.calculation?.lines?.some(line => line.kind === "reimbursement") && <section><h4 className="font-semibold">Business Reimbursements</h4><p className="text-xs text-text-secondary">Outside Gross Earnings; added to employee payment.</p><div className="divide-y divide-border">{selected.calculation.lines.filter(line => line.kind === "reimbursement").map(financialLine)}</div></section>}
         {selected.adjustments.some(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)) && <section><h4 className="font-semibold">Awaiting Calculation</h4>{selected.adjustments.filter(item => !selected.calculation?.lines?.some(line => line.source?.run_adjustment_id === item.id)).map(item => <div key={item.id} className="flex justify-between py-2"><span>{item.component_name}<small className="block text-text-secondary">Saved adjustment · {item.reason}</small></span>{adjustmentActions(item)}</div>)}</section>}
         {selected.timeRelevant && <section className="border-t border-border pt-4"><div className="flex items-center justify-between"><h4 className="font-bold">Time & Attendance</h4><button type="button" className="font-semibold text-primary" onClick={()=>setReviewHours(true)}>Review Hours</button></div><p className="mt-1 text-text-secondary">{selected.time.length} recorded days · {selected.time.filter(item=>item.status === 'review_required').length} exceptions. Review Hours compares roster, clock evidence and approved payable time.</p></section>}
+        <PayrollPhStatutory runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
         <PayrollPhWork runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>

@@ -18,7 +18,7 @@ export function ResultDetail({ result, statutory, frozenPeriod, onClose, bankInf
   const amount = value => value == null ? "—" : rm(value);
   const row = (name, value, note, key = name) => <div key={key} className="flex justify-between gap-4 py-2 text-sm"><span>{name}{note && <small className="block text-text-secondary">{note}</small>}</span><strong className="shrink-0 tabular-nums">{typeof value === "string" ? value : amount(value)}</strong></div>;
   const financialLines = kind => (kind === "earning" ? result.earning_groups || [] : (result.lines || []).filter(line => line.kind === kind)).map((line, index) => <div key={`${kind}-${index}`}>
-    {row(line.label, line.amount, line.minutes != null ? `${(line.minutes / 60).toFixed(2)} h · ${line.multiplier}×` : line.source?.effective_from ? `Effective ${line.source.effective_from}` : line.source?.run_adjustment_id ? "This period adjustment" : null)}
+    {row(line.label, line.amount, line.minutes != null ? `${(line.minutes / 60).toFixed(2)} h · ${line.multiplier}×` : line.units ? line.units : line.source?.effective_from ? `Effective ${line.source.effective_from}` : line.source?.run_adjustment_id ? "This period adjustment" : null)}
     <PayrollMonthlyBasicBreakdown line={line} /><PayrollRecurringBreakdown line={line} /></div>);
   const statutoryRows = employer => (statutory?.lines || []).filter(line => !employer || !["pcb", "lindung"].includes(line.scheme)).map(line => row(statutoryName(line.scheme),
     line.applicable === false ? "N/A" : employer ? line.employer_amount : line.employee_amount,

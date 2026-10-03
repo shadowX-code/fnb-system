@@ -226,6 +226,8 @@ export const payrollService = {
     p_note: input.note || null,
     p_reason: input.reason,
   }),
+  readPhStatutory: (runId, employeeId) => command("payroll_ph_statutory_read", { p_run: runId, p_employee: employeeId }),
+  confirmPhStatutory: (input) => command("payroll_ph_statutory_confirm", { p_input: input }),
   readRules: () => command("payroll_rule_read", {}),
   confirmMonthlyRule: () => command("payroll_monthly_rule_confirm", {}),
   publishRule: (input) => command("payroll_rule_publish", {
