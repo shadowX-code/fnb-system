@@ -1,0 +1,22 @@
+import { afterEach, expect, it, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import CrewMeMobile from "../CrewMeMobile.jsx";
+afterEach(cleanup);
+it("keeps the canonical uploaded photo across Me, Profile Information, and reopen", async () => {
+  const props = { session: { employee: { full_name: "Photo Crew" } }, context: {}, profile: { profile_photo_url: "https://photo.test/original.webp" }, attendance: [], navigate: vi.fn(), onUpdateProfilePhoto: vi.fn().mockResolvedValue(true) };
+  const view = render(<CrewMeMobile {...props} />);
+  const photo = () => view.container.querySelector(".crew-me-profile-avatar img");
+  expect(photo().src).toBe(props.profile.profile_photo_url);
+  fireEvent.click(screen.getByRole("button", { name: "Profile Information" }));
+  expect(photo().src).toBe(props.profile.profile_photo_url);
+  const file = new File(["photo"], "replacement.webp", { type: "image/webp" });
+  fireEvent.change(view.container.querySelector('input[type="file"]'), { target: { files: [file] } });
+  expect(props.onUpdateProfilePhoto).toHaveBeenCalledWith(file);
+  const updated = { ...props, profile: { profile_photo_url: "https://photo.test/replacement.webp" } };
+  view.rerender(<CrewMeMobile {...updated} />);
+  expect(photo().src).toBe(updated.profile.profile_photo_url);
+  fireEvent.click(screen.getByRole("button", { name: "Back" }));
+  expect(photo().src).toBe(updated.profile.profile_photo_url);
+  fireEvent.click(screen.getByRole("button", { name: "Profile Information" }));
+  expect(photo().src).toBe(updated.profile.profile_photo_url);
+});
