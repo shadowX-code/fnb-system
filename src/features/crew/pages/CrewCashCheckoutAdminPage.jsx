@@ -96,7 +96,7 @@ export default function CrewCashCheckoutAdminPage({ auth, ui, store }) {
   }
 
   async function review(checkout, decision, note = "Reviewed and approved") {
-    try { await crewService.reviewCashCheckout(checkout.id, decision, note); setSelected(null); await refresh(); ui.notify({ title: `Cash Checkout ${decision === "approve" ? "completed" : decision === "cancel" ? "cancelled" : "returned"}`, message: "The audit trail and deposit ledger remain server-controlled." }); }
+    try { await crewService.reviewCashCheckout(checkout.id, decision, note); setSelected(null); await Promise.all([refresh(), crewService.cashCheckoutAdminContext(outletId).then((payload) => setContext(normalizeData(payload)))]); ui.notify({ title: `Cash Checkout ${decision === "approve" ? "completed" : decision === "cancel" ? "cancelled" : "returned"}`, message: "The audit trail and deposit ledger remain server-controlled." }); }
     catch (cause) { ui.notify({ title: "Unable to review Cash Checkout", message: cause.message, tone: "error" }); throw cause; }
   }
 
