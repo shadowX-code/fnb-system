@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const mocks = vi.hoisted(() => ({ readFinalizedRecord: vi.fn() }));
 vi.mock("../../../../services/payrollService.js", () => ({ payrollService: mocks }));
 import { ResultDetail } from "../PayrollRunCalculationPanel.jsx";
+vi.mock("../../../../services/employeeService.js",()=>({employeeService:{readBankInfo:vi.fn().mockResolvedValue([])}}));
 import PayrollFinalizedRecord from "../PayrollFinalizedRecord.jsx";
 afterEach(cleanup);
 it("shows frozen employee identity, earnings and contributions without editable actions", async () => {
