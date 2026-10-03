@@ -123,6 +123,7 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
         })}</section>
         <MonthPickerField label="Effective Payroll Month" value={draft.effectiveFrom.slice(0,7)} disabled={busy}
           onChange={v=>{setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:`${v}-01`}));}} />
+        <p className="text-sm text-text-secondary">To resolve a historical Payroll Run, explicitly select its Effective Payroll Month and confirm the known applicability and categories. This appends historical evidence; later confirmed setup and finalized records are preserved. Refresh the open Payroll Run after confirmation. PCB amount confirmation remains separate for each Run.</p>
         {!review && !error && <p role="status">Resolving setup…</p>}
         {review && manual && <div className="space-y-3"><p className="text-sm text-text-secondary">Explain the change from FeedX's recommendation. The server still validates the selected category against employee evidence.</p>
           <AdminFormField label="Supporting evidence / source" required><input className="control" value={sourceNote} onChange={e=>setSourceNote(e.target.value)} /></AdminFormField>
