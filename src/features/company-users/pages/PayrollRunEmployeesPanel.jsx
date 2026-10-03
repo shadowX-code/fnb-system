@@ -1,3 +1,4 @@
+import FoundationForm from "./PayrollCompensationForm.jsx";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -36,6 +37,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const [busy, setBusy] = useState(false);
   const [employeeId, setEmployeeId] = useState("");
   const [reviewHours, setReviewHours] = useState(false);
+  const [paySetup, setPaySetup] = useState(null);
   const [pcbDraft, setPcbDraft] = useState(null);
   const [adjustment, setAdjustment] = useState(null);
   const [statusFilter, setStatusFilter] = useState("all");
@@ -60,7 +62,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       return time;
     } catch (cause) { if (requests.current === request) setError(cause.message || "Unable to load employee payroll evidence."); throw cause; }
   }, [entityId, month, run.id, runRead?.data]);
-  useEffect(() => { setEvidence(null); setEmployeeId(""); setReviewHours(false); setCalculationFailures({}); }, [scope]);
+  useEffect(() => { setEvidence(null); setEmployeeId(""); setReviewHours(false); setPaySetup(null); setCalculationFailures({}); }, [scope]);
   useEffect(() => { if (!runRead || runRead.data) load().catch(() => {}); return () => { ++requests.current; }; }, [load]);
   useEffect(() => { if (focusEmployeeId) setEmployeeId(focusEmployeeId); }, [focusEmployeeId]);
   const rows = useMemo(() => (evidence?.scope === scope ? payrollReviewRows(evidence) : []).map((member) => {
@@ -234,7 +236,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     <Card>{!evidence && !error ? <p className="p-6 text-sm text-text-secondary">Loading monthly employee evidence…</p>
       : visible.length ? <DataTable columns={columns} rows={visible} getRowKey={(row) => row.id} density="compact" onRowClick={(row) => setEmployeeId(row.id)} />
         : <p className="p-6 text-sm text-text-secondary">{rows.length ? "No employees match these review filters." : evidence?.preparation?.employment_issue ? "Employment evidence is unresolved; no employee list is authoritative yet." : "No employees included in this payroll revision."}</p>}</Card>
-    {selected && !reviewHours && !pcbDraft && !adjustment && <Modal title={selected.name} description={`${month} · Monthly Payroll review. Permanent compensation changes belong in Employees.`}
+    {selected && !reviewHours && !pcbDraft && !adjustment && !paySetup && <Modal title={selected.name} description={`${month} · Monthly Payroll review. Pay changes use effective-dated Payroll compensation history.`}
       size="xl" onClose={() => setEmployeeId("")} footer={<button className="btn-secondary" type="button" onClick={() => setEmployeeId("")}>Close</button>}>
       <div className="space-y-5 text-sm">
         <div className="flex items-center justify-between border-b border-border pb-3">
@@ -250,7 +252,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
           {[["Gross Earnings", selected.result.gross], ["Total Deductions", selected.result.deductions], ["Net Pay", selected.result.net]].map(([label, value]) =>
             <div key={label}><dt className="text-xs text-text-secondary">{label}</dt><dd className="mt-1 text-lg font-bold tabular-nums">{value == null ? "Pending" : money(value)}</dd></div>)}
         </dl>
-        <section className="border-b border-border pb-4"><h4 className="font-bold">Compensation</h4><dl className="mt-2 grid gap-3 sm:grid-cols-3">{[["Pay Basis", selected.pay ? human(selected.pay.pay_basis) : "Setup required"], [selected.pay?.pay_basis === "hourly" ? "Hourly Rate" : "Basic Salary", money(selected.pay?.pay_basis === "hourly" ? selected.pay?.hourly_rate : selected.pay?.basic_salary)], ["Effective From", selected.pay?.effective_from || "—"]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
+        <section className="border-b border-border pb-4"><div className="flex items-center justify-between gap-3"><h4 className="font-bold">Compensation</h4>{active && (!selected.pay?.id || selected.projection?.issues?.some(issue=>issue.startsWith("compensation_history_missing") || issue === "missing_effective_compensation_or_proration_policy")) && <button type="button" className="btn-secondary" onClick={()=>setPaySetup({ employeeId: selected.id, profile: selected.profile, effectiveFrom: selected.joined_date && selected.joined_date > `${month}-01` && selected.joined_date <= periodEnd(month) ? selected.joined_date : `${month}-01` })}>Set up pay</button>}</div><dl className="mt-2 grid gap-3 sm:grid-cols-3">{[["Pay Basis", selected.pay ? human(selected.pay.pay_basis) : "Setup required"], [selected.pay?.pay_basis === "hourly" ? "Hourly Rate" : "Basic Salary", money(selected.pay?.pay_basis === "hourly" ? selected.pay?.hourly_rate : selected.pay?.basic_salary)], ["Effective From", selected.pay?.effective_from || "—"]].map(([name, value]) => <div key={name}><dt className="text-xs text-text-secondary">{name}</dt><dd className="font-semibold">{value}</dd></div>)}</dl>
           <p className="mt-3 text-xs text-text-secondary">Recurring components</p><p>{(selected.projection?.lines || selected.calculation?.lines || []).filter(line => line.source?.recurring_period).map(line => line.label).join(" · ") || "None resolved for this period"}</p></section>
         <section className="border-b border-border pb-4"><div className="flex items-center justify-between gap-3"><h4 className="text-lg font-bold">Earnings</h4>
           {active && <button className="font-semibold text-primary" type="button" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), componentId: "", amount: "", reason: "" })}>Add Adjustment</button>}</div>
@@ -313,5 +315,6 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <AdminFormField label="Amount (RM)" required><input className="control" type="number" min="0.01" step="0.01" value={adjustment.amount} onChange={(event) => setAdjustment((old) => ({ ...old, amount: event.target.value }))} /></AdminFormField></>}
         {adjustment.action === "remove" && <p>Remove this adjustment from the current Draft? Its history will be retained.</p>}
         <AdminFormField label="Remark (Optional)"><input className="control" value={adjustment.reason} onChange={(event) => setAdjustment((old) => ({ ...old, reason: event.target.value }))} /></AdminFormField>{error && <p role="alert" className="text-rose-700">{error}</p>}</div></Modal>}
+    {paySetup && <FoundationForm mode={paySetup.profile ? "compensation" : "pay"} profile={paySetup.profile} initialEmployeeId={paySetup.employeeId} initialEffectiveFrom={paySetup.effectiveFrom} payrollMonth={month} data={data} onClose={()=>setPaySetup(null)} onSaved={async ()=>{await onChanged?.(); if (runRead) { if (!await runRead.refresh({retryEmployeeId: paySetup.employeeId})) throw new Error("Pay was saved, but Payroll could not reload. Reopen this employee to retry calculation."); } else { await updateCalculation(paySetup.employeeId); await load(); }}} />}
   </div>;
 }
