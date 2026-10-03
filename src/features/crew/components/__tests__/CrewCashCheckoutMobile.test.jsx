@@ -24,6 +24,24 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("Crew Cash Checkout mobile", () => {
+  it.each([false, true])("opens a new checkout when continuation is false and handover is pending (Management=%s)", async (management) => {
+    vi.setSystemTime(new Date("2026-10-03T17:00:00+08:00"));
+    const result = { ...payload, business_date: "2026-10-03", checkout: null, can_continue_checkout: false,
+      cash_context: { floating_cash: 400, previous_carry_forward: 9.30, expected_opening_cash: 409.30 },
+      chain: { previous_unresolved: [], basis_review_required: false },
+      deposit: { ...payload.deposit, current_balance: 0, pending_confirmation_amount: 650 } };
+    crewService.cashCheckoutMobile.mockResolvedValue(result);
+    crewService.managementCashMobile.mockResolvedValue(result);
+    const onFlowChange = vi.fn();
+    render(<CrewCashCheckoutMobile token="crew-session" management={management} outletId={management ? "outlet-1" : null} onBack={() => {}} onFlowChange={onFlowChange} />);
+    expect(await screen.findByText(/650\.00 pending confirmation/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start", exact: true }));
+    expect(screen.getByText("Count Outlet Cash")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Save Draft" })).not.toBeNull();
+    expect(onFlowChange).toHaveBeenCalledWith(true);
+    expect(crewService.saveCashCheckout).not.toHaveBeenCalled();
+    expect(screen.queryByText("This checkout is completed and cannot be edited.")).toBeNull();
+  });
   it("continues a prior-day run on its original date and requires a reasoned cancellation inside the workflow", async () => {
     const previous = { id: "old-run", business_date: "2026-08-20", status: "draft" };
     crewService.cashCheckoutMobile.mockImplementation(async (_token, day) => day === previous.business_date ? { ...payload, business_date: day, can_continue_checkout: true, can_cancel_checkout: true, checkout: { ...previous, denomination_counts: { "100": 4 }, pos_expected_cash: 400 } } : { ...payload, action_required_checkouts: [previous] });
