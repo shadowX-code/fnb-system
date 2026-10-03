@@ -643,3 +643,12 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added a People-owned Recruitment workspace for single-workplace Job Openings, reusable Applicants, Applications, versioned interview configuration, and secure invitations. Candidates remain separate from Employee/Auth/Crew until a future Hire transition.
 - Added the token-bound `interview.feedx.my/i/<token>` candidate preparation surface with minimal job/profile disclosure, provisional versioned consent, and browser camera/microphone readiness. AI voice, video recording, transcript and hiring decisions remain outside Phase 1.
+
+
+### 2026-10-03 — Payroll LINDUNG 24 Jam V1
+
+Added independent evidence-backed monthly participation authority, exact PERKESO
+Phase 1 schedule, Act 4 wage assessment, employee-only deduction, readiness and
+shared setup/Profile/Review/Payslip presentation. Existing EPF, ordinary SOCSO,
+EIS, PCB and final evidence authorities remain independent. No employee
+participation backfill or Production changes. Canonical contract: docs/domains/payroll.md.
