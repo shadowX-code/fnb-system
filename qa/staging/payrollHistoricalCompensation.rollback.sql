@@ -35,7 +35,7 @@ begin
  if exists(select 1 from payroll_run_employee_ids(october) where employee_id=emp) then raise exception 'October membership broadened'; end if;
  if not exists(select 1 from payroll_events where profile_id=profile and details->>'supersedes_same_date_version_id'=historical::text and actor_employee_id=actor) then raise exception 'Correction audit missing'; end if;
  if not exists(select 1 from jsonb_array_elements(payroll_foundation_read()->'employees') e where e->>'id'=emp::text and e->>'employment_status'='resigned' and e->>'employment_end_date'='2026-10-01') then raise exception 'Former employee not available in Profiles'; end if;
- select s.profile_id,p.period_start into final_profile,final_date from payroll_run_profile_snapshots s join payroll_runs r on r.id=s.run_id join payroll_periods p on p.id=r.period_id where r.status in ('finalized','paid') limit 1;
+ select s.profile_id,p.period_start into final_profile,final_date from payroll_run_profile_snapshots s join payroll_runs r on r.id=s.run_id join payroll_periods p on p.id=r.period_id where r.status in ('finalized','paid') and exists(select 1 from payroll_profiles pr join employees e on e.id=pr.employee_id join legal_entities le on le.id=coalesce((employee_employment_assignment_at(e.id,p.period_start)).legal_entity_id,e.legal_entity_id) where pr.id=s.profile_id and le.is_active) limit 1;
  if final_profile is not null then
   begin perform payroll_compensation_adjust(final_profile,final_date,'monthly',3100,'MYR','QA finalized protection'); raise exception 'Finalized pay accepted'; exception when sqlstate '55000' then null; end;
  end if;
