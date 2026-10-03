@@ -6,9 +6,9 @@ declare actor uuid:=payroll_admin_actor(); ent uuid; emp uuid; profile uuid; sep
 begin
  select md5(coalesce(string_agg(to_jsonb(s)::text,'|' order by run_id,employee_id),'')) into final_hash from payroll_run_statutory_snapshots s;
  insert into legal_entities(legal_company_name,company_registration_no,registered_address,created_by_employee_id,updated_by_employee_id)
- values('QA ONLY Historical Pay','QA-HIST-PAY','STAGING ONLY',actor,actor) returning id into ent;
+ values('QA ONLY Historical Pay','QA-HIST-PAY-'||substr(gen_random_uuid()::text,1,8),'STAGING ONLY',actor,actor) returning id into ent;
  insert into employees(full_name,employee_code,legal_entity_id,workplace,position,employment_type,employment_status,joined_date,resigned_date,birthday,nationality,enable_system_login,access_state)
- values('QA ONLY Historical Pay Employee','QA-HIST-PAY',null,'QA ONLY Sequential Review Workplace','Service Crew','full_time','resigned','2026-09-01','2026-10-01','1990-01-01','Malaysia',false,'no_access') returning id into emp;
+ values('QA ONLY Historical Pay Employee','QA-HIST-PAY-'||substr(gen_random_uuid()::text,1,8),null,'QA ONLY Sequential Review Workplace','Service Crew','full_time','resigned','2026-09-01','2026-10-01','1990-01-01','Malaysia',false,'no_access') returning id into emp;
  assignment:=jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace','QA ONLY Sequential Review Workplace','legal_entity_id',ent);
  perform employee_employment_assignment_save(emp,'2026-09-01',assignment,'QA explicit September employment',null,'QA historical pay contract');
  profile:=payroll_profile_create(emp,'2026-10-01','monthly',3400,'MYR','QA later pay must remain unchanged');

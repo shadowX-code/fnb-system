@@ -38,6 +38,6 @@ it('Run Set up pay saves through shared authority, refreshes the same employee a
  await screen.findByText('Former Employee');fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));fireEvent.click(screen.getByRole('button',{name:'Set up pay',exact:true}));
  fireEvent.change(screen.getByRole('spinbutton'),{target:{value:'3000'}});fireEvent.change(screen.getByRole('textbox',{name:/Reason/}),{target:{value:'Verified historical pay'}});fireEvent.click(screen.getByRole('button',{name:'Save',exact:true}));
  await waitFor(()=>expect(refresh).toHaveBeenCalledWith({retryEmployeeId:'emp'}));
- expect(changed).toHaveBeenCalled();await waitFor(()=>expect(screen.queryByRole('heading',{name:'Edit Pay'})).toBeNull());
+ expect(changed).toHaveBeenCalled();expect(refresh.mock.invocationCallOrder[0]).toBeLessThan(changed.mock.invocationCallOrder[0]);await waitFor(()=>expect(screen.queryByRole('heading',{name:'Edit Pay'})).toBeNull());
  expect(screen.getByRole('heading',{name:'Compensation'})).toBeTruthy();expect(screen.getByRole('heading',{name:'Former Employee'})).toBeTruthy();
 });
