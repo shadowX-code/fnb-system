@@ -96,7 +96,7 @@ it("keeps a failed confirmation visible and never publishes as a fallback", asyn
   fireEvent.click(screen.getByRole("button", { name: "Confirm Classification" }));
   await screen.findByRole("alert");
   expect(screen.getByRole("button", { name: "Confirm Classification" }).disabled).toBe(false);
-  expect(screen.getByText("Source classification: Other gazetted holiday")).toBeTruthy();
+  expect(screen.getByText("Source classification: Available for company paid selection")).toBeTruthy();
   expect(service.publishHolidayCandidate).not.toHaveBeenCalled();
 });
 it("parsing is separate from approval/publication and invalid transcription reports a real error", async () => {
@@ -137,4 +137,21 @@ it("defaults QA off and clears stale year/outlet-independent candidate state", a
   expect(service.readHolidayCandidates).toHaveBeenCalledWith("2027", false);
   view.rerender(<PayrollHolidayImport year="2026" />);
   await waitFor(() => expect(service.readHolidayCandidates).toHaveBeenCalledWith("2026", false));
+});
+it("keeps pre-reviewed source dates visible and requests only exceptional classification", async () => {
+ const required={...row,key:'2',classification_review:true,row:{...row.row,name:'Mandatory candidate',suggested_kind:'required'}};
+ service.readHolidayCandidates.mockResolvedValue([{...candidate,proposal_metadata:{parser:'bkpp_proposal_v1',document_role:'annual'},rows:[row,required],decisions:{1:{action:'accept'}}}]);
+ render(<PayrollHolidayImport year="2027" />);
+ fireEvent.click(await screen.findByRole('button',{name:'Review Calendar Exceptions'}));
+ expect(screen.getByRole('region',{name:'Proposed Holiday Calendar'})).toBeTruthy();
+ expect(screen.getAllByText('QA ONLY holiday')).toHaveLength(1);
+ expect(screen.getAllByRole('button',{name:'Confirm Classification'})).toHaveLength(1);
+ expect(holidayDiffSummary([required],{2:{action:'accept'}}).review).toBe(1);
+ expect(service.publishHolidayCandidate).not.toHaveBeenCalled();
+});
+it("never offers annual publication for a supplementary gazette", async () => {
+ service.readHolidayCandidates.mockResolvedValue([{...candidate,status:'approved',proposal_metadata:{document_role:'supplement'},decisions:{1:{action:'accept'}}}]);
+ render(<PayrollHolidayImport year="2027" />);
+ fireEvent.click(await screen.findByRole('button',{name:'Review Update',exact:true}));
+ expect(screen.queryByRole('button',{name:'Publish Holiday Calendar'})).toBeNull();
 });

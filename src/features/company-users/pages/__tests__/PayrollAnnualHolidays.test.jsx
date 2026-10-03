@@ -92,7 +92,7 @@ it("counts additional mandatory holidays separately without consuming six choice
   const extra = { holiday_id: "additional", kind: "additional_mandatory", holiday: { id: "additional", name: "Additional declaration", holiday_date: `${year}-03-20`, scope: "state", state_code: "MY-08" } };
   service.readAnnualHolidays.mockResolvedValue({ calendars: [calendar], policies: [], additional_entries: [extra], can_manage: true });
   render(<PayrollAnnualHolidays data={data} canManage />);
-  expect(await screen.findByText("Additional Gazetted — locked")).toBeTruthy();
+  expect(await screen.findByText("Additional gazetted holidays — locked")).toBeTruthy();
   expect(screen.getByLabelText("Select Additional declaration").checked).toBe(true);
   expect(screen.getByLabelText("Select Additional declaration").disabled).toBe(true);
   expect(screen.getAllByText("Select 6 more paid holidays")).toHaveLength(2);
