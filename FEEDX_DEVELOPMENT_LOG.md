@@ -660,3 +660,7 @@ Simplified LINDUNG coverage selection and conditional transition evidence, with 
 ## Public Holiday official proposals
 
 The official BKPP checker now extracts supported annual PDF tables into the existing controlled-import candidates, with source hash/page evidence and explicit exception review. Conditional gazettes cannot replace an annual calendar. Admin publication and company paid selection remain separate; finalized Payroll is unchanged.
+
+### 2026-10-03 — Scoped operational Public Holiday setup
+
+Public Holidays now presents Official Calendar, Select Company Holidays and Review & Publish. Canonical outlet-state evidence scopes the normal workflow; missing geography stays explicit. An atomic operational adapter delegates to existing source review/import/calendar/company policy authorities, retaining unrelated source evidence and finalized Payroll. Source diagnostics and full-source maintenance remain in Advanced & History. Staging publication contracts use rollback-only synthetic Perak evidence.
