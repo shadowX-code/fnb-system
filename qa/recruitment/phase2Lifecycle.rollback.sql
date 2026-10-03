@@ -24,15 +24,18 @@ begin
   perform pg_temp.assert(result->>'generation'='1','Provider generation must be server allocated');
   perform recruitment_public_provider_connected(token,client,1);
   -- Provider finalization arrival is intentionally reversed.
-  perform recruitment_public_transcript_turn(token,client,1,2,'ai-item','ai','Tell me how you resolved it.',null,2000);
+  perform recruitment_public_transcript_turn(token,client,1,2,'ai-item','ai','Imagine a customer says their takeaway order is missing. How would you handle it?',null,2000);
   perform recruitment_public_transcript_turn(token,client,1,1,'candidate-item','candidate','Saya checked the order and 联系厨房.',0,1000);
   perform recruitment_public_transcript_turn(token,client,1,1,'candidate-item','candidate','Saya checked the order and 联系厨房.',0,1000);
-  perform pg_temp.assert((select count(*)=2 from recruitment_transcript_turns where attempt_id=attempt),'Transcript retry duplicated evidence');
+  perform recruitment_public_transcript_turn(token,client,1,3,'scenario-answer','candidate','I would check the receipt and resolve the missing order.',2000,3000);
+  perform pg_temp.assert((select count(*)=3 from recruitment_transcript_turns where attempt_id=attempt),'Transcript retry duplicated evidence');
   begin perform recruitment_public_transcript_turn(token,client,1,1,'candidate-item','candidate','Changed words',0,1000); raise exception 'Evidence mutation accepted'; exception when object_not_in_prerequisite_state then null; end;
   result:=recruitment_apply_coverage(token,client,'{"topics":[{"index":0,"turn_number":2}],"scenarios":[]}');
   perform pg_temp.assert(result->>'coverage_complete'='false','AI words cannot cover candidate evidence');
   begin perform recruitment_public_finish(token,client,'coverage'); raise exception 'Premature completion accepted'; exception when object_not_in_prerequisite_state then null; end;
-  result:=recruitment_apply_coverage(token,client,'{"topics":[{"index":0,"turn_number":1}],"scenarios":[{"index":0,"turn_number":1,"state":"answered"}]}');
+  result:=recruitment_apply_coverage(token,client,'{"topics":[],"scenarios":[{"index":0,"turn_number":1,"state":"answered"}]}');
+  perform pg_temp.assert((select state='pending' from recruitment_scenario_progress where attempt_id=attempt),'Scenario answer accepted before an AI scenario');
+  result:=recruitment_apply_coverage(token,client,'{"topics":[{"index":0,"turn_number":1}],"scenarios":[{"index":0,"turn_number":2,"state":"asked"},{"index":0,"turn_number":3,"state":"answered"}]}');
   perform pg_temp.assert(result->>'coverage_complete'='true','Cited coverage not retained');
   perform recruitment_recording_access(token,client,'chunk',jsonb_build_object('unit_id',unit,'index',0,'bytes',100));
   perform recruitment_recording_access(token,client,'chunk_ack',jsonb_build_object('unit_id',unit,'index',0,'bytes',100));

@@ -67,7 +67,7 @@ try {
   );
   // Reload/background/reconnect variants can be selected separately to retain a baseline.
   const variant = process.env.FEEDX_RECRUITMENT_QA_VARIANT || "baseline";
-  if (variant === "reconnect") {
+  if (["reconnect", "recovery"].includes(variant)) {
     await page.waitForTimeout(35000);
     await page
       .getByRole("button", { name: "Reconnect AI", exact: true })
@@ -77,7 +77,58 @@ try {
     });
     console.log("AI reconnected; recording stayed active.");
   }
-  await page.waitForTimeout(130000);
+  if (variant === "recovery") {
+    await context.setOffline(true);
+    await page.waitForTimeout(18000);
+    await expect(page.getByText(/Recording/).first()).toBeVisible();
+    await context.setOffline(false);
+    console.log(
+      "Upload offline/retry exercised with camera capture still running.",
+    );
+    // Simulate the visibility signal; this verifies app recovery, not physical background behavior.
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => true,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect(
+      page.getByRole("heading", { name: "Interview interrupted" }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", {
+        configurable: true,
+        get: () => false,
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await page
+      .getByRole("button", { name: "Resume with camera and microphone" })
+      .click();
+    await expect(page.getByText(/AI connected/)).toBeVisible({
+      timeout: 45000,
+    });
+    console.log(
+      "Explicit gap and fresh recording unit resumed in the same attempt.",
+    );
+    await page.waitForTimeout(20000);
+    await page.reload();
+    await page.waitForTimeout(50000);
+    await page
+      .getByRole("button", { name: "Start interview", exact: true })
+      .click();
+    await expect(page.getByText(/AI connected/)).toBeVisible({
+      timeout: 45000,
+    });
+    console.log(
+      "Reload recovered acknowledged evidence, same attempt and durable coverage.",
+    );
+    await page.waitForTimeout(20000);
+    await page
+      .getByRole("button", { name: "Stop and save partial interview" })
+      .click();
+  } else await page.waitForTimeout(130000);
   if (
     await page
       .getByRole("button", { name: "Finish interview", exact: true })

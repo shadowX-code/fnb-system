@@ -84,13 +84,16 @@ export default function RecruitmentEvidenceReview({ application, onClose }) {
                 {topic.state === "covered" ? "Covered" : "Unresolved"} ·{" "}
                 {topic.topic}
                 {topic.evidence_turn_id
-                  ? ` · transcript evidence ${data.turns.find((t) => t.id === topic.evidence_turn_id)?.turn_number}`
+                  ? ` · transcript evidence ${data.turns.findIndex((t) => t.id === topic.evidence_turn_id) + 1}`
                   : ""}
               </p>
             ))}
             {data.scenarios.map((s) => (
               <p key={s.scenario_index}>
                 Scenario {s.scenario_index + 1}: {s.state} · {s.brief}
+                {s.evidence_turn_id
+                  ? ` · transcript evidence ${data.turns.findIndex((t) => t.id === s.evidence_turn_id) + 1}`
+                  : ""}
               </p>
             ))}
           </div>

@@ -214,9 +214,13 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
           audioElement: audio.current,
         });
       ai.current.attemptKey = recovering.attemptKey;
-      await ai.current.flush();
+      const pendingTurns = await ai.current.flush();
       if (session.current.status === "finalizing") {
         setStatus("finalizing");
+        if (pendingTurns)
+          throw Error(
+            "Transcript save is still pending. Retry with a stable connection.",
+          );
         const result = await recruitmentService.evidence(
           "finalize",
           token,
@@ -268,7 +272,15 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
         onStatus: setRecordingStatus,
       });
       await recovery.recover();
-      const pending = await ai.current?.flush();
+      if (!ai.current)
+        ai.current = new RecruitmentRealtimeSession({
+          token,
+          clientId: clientId.current,
+          startedAt: session.current.started_at,
+          audioElement: audio.current,
+        });
+      ai.current.attemptKey = recovery.attemptKey;
+      const pending = await ai.current.flush();
       if (pending)
         throw Error(
           "Transcript save is still pending. Retry with a stable connection.",
