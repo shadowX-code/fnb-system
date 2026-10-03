@@ -455,8 +455,9 @@ function RunsTab({ data, canManage, canFinalize, reload, entityId, setEntityId, 
 
 export function Overview({ data, canManage, entityId, month, run, readiness, onOpenRun, onOpenEmployees, runRead }) {
   const [history, setHistory] = useState(null);
-  const localRead = usePayrollRunRead(run, data, !runRead);
-  const details = (runRead || localRead).data;
+  const localRead = usePayrollRunRead(run, data, !runRead, canManage);
+  const sharedRead = runRead || localRead;
+  const details = sharedRead.data;
   const detailError = (runRead || localRead).error;
   const [historyError, setHistoryError] = useState(false);
   useEffect(() => {
@@ -502,6 +503,7 @@ export function Overview({ data, canManage, entityId, month, run, readiness, onO
         {!employmentIssue && employeeCount > 0 && readyCount != null && <progress className="mt-2 h-1.5 w-full accent-primary" aria-label="Payroll employee readiness" value={readyCount} max={employeeCount} />}</div>
       <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border pt-4 sm:grid-cols-4">{metrics.map(([name, value]) => <div key={name} className="min-w-0"><dt className="text-xs text-text-secondary">{name}</dt><dd className="mt-1 break-words text-lg font-bold tabular-nums">{value}</dd></div>)}</dl>
     </Card>
+    {canManage && Object.entries(sharedRead.calculationErrors || {}).map(([id, message]) => <div key={id} role="alert" className="text-sm text-rose-700">{data.employees?.find(employee => employee.id === id)?.name || 'Employee'}: {message} <button className="btn-secondary" type="button" disabled={sharedRead.calculating} onClick={() => sharedRead.retryCalculation(id)}>Retry Calculation</button></div>)}
     <Card title="Needs Attention"><div className="divide-y divide-border px-4">{attention.length ? attention.map(item => <div key={item.group} className="flex items-center justify-between gap-4 py-3 text-sm"><div className="min-w-0"><h3 className="font-semibold">{item.group}</h3><p className="mt-0.5 text-text-secondary">{item.label}</p></div><button className="btn-secondary shrink-0" type="button" aria-label={`Review ${item.group}`} onClick={item.open}>Review <ChevronRight size={14} /></button></div>) : <p className="py-4 text-sm text-text-secondary">{finalized ? "Payroll finalized. The current revision is read-only; any correction creates a new revision." : detailError || readiness?.error ? "Unable to check readiness. Open Payroll to review." : run && !rows ? "Checking items needing attention…" : run ? "No known blockers for this period. Review the run before finalization." : "Start a run to assess payable time, calculations and statutory readiness."}</p>}</div></Card>
     <Card title="Recent Payroll Runs">{historyError ? <p role="alert" className="p-4 text-sm">Unable to load recent Payroll Runs.</p> : history === null ? <p className="p-4 text-sm text-text-secondary">Loading recent runs…</p> : recent.length ? <DataTable density="compact" columns={[
       { key: "period", header: "Period", render: item => <strong>{new Intl.DateTimeFormat("en-MY", {month:"long",year:"numeric",timeZone:"UTC"}).format(new Date(`${item.period_start}T00:00:00Z`))}</strong> },
@@ -718,7 +720,7 @@ export default function PayrollPage({ auth }) {
       .catch(() => { if (active) setReadiness({ runId: activeRun.id, error: true }); });
     return () => { active = false; };
   }, [activeRun?.id, activeRun?.foundation_only, data]);
-  const runRead = usePayrollRunRead(activeRun, data, tab === "overview" || (tab === "runs" && Boolean(openRunId)));
+  const runRead = usePayrollRunRead(activeRun, data, tab === "overview" || (tab === "runs" && Boolean(openRunId)), canManage);
   const openRun = (step = 0, targetPeriod, runId) => {
     if (targetPeriod) { setEntityId(targetPeriod.legal_entity_id); setMonth(targetPeriod.period_start.slice(0, 7)); }
     setOpenRunId(runId || activeRun?.id || "new"); setRunStep(step); setTab("runs");

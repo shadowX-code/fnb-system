@@ -12,7 +12,7 @@ export function payrollEmployeeResult(calculation, statutory) {
     deductions: statutoryCurrent ? Number(statutory.non_statutory_deductions || 0)
       + (statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null,
     net: statutoryCurrent ? statutory.net_pay : null,
-    status: calculation?.is_stale || statutory?.is_stale ? "Refresh Payroll"
+    status: calculation?.is_stale || statutory?.is_stale ? "Pending Calculation"
       : !earningsCurrent ? calculation ? "Needs Attention" : "Complete Calculation"
         : !statutory ? "Complete Calculation" : statutoryCurrent ? "Ready" : "Needs Attention",
   };
@@ -126,4 +126,19 @@ export function payrollIssueLabel(issue, context = {}) {
   };
   const text = labels[code] || code.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   return /^\d{4}-\d{2}-\d{2}$/.test(detail || "") ? `${text} · ${detail}` : text;
+}
+
+
+// Scheme cells consume persisted contribution lines and period-resolved setup.
+// Overall totals stay unavailable until every required component is ready.
+export function payrollStatutoryCell(row, scheme) {
+  const setup = row.preparation?.statutory_setup?.schemes?.[scheme];
+  const line = row.statutory?.lines?.find(item => item.scheme === scheme);
+  if (!setup || !['confirmed', 'not_applicable'].includes(setup.state)) return { state: 'Review' };
+  if (setup.applicable === false) return { state: 'N/A' };
+  if (scheme === 'pcb' && !row.pcb?.confirmation) return { state: 'Review' };
+  if (!row.result.earningsCurrent || !row.statutory || row.statutory.is_stale) return { state: 'Pending' };
+  if ((row.statutory.issues || []).some(issue => String(issue).startsWith(`${scheme}_`) || issue === 'statutory_applicability_missing')) return { state: 'Review' };
+  if (!line || line.employee_amount == null || (scheme !== 'pcb' && line.employer_amount == null)) return { state: 'Pending' };
+  return { state: 'calculated', employee: line.employee_amount, employer: scheme === 'pcb' ? null : line.employer_amount };
 }
