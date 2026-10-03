@@ -26,6 +26,15 @@ beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Pr
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
+  it("maps every submitted checkout to Needs Review and permits Return despite legacy exception flags", async () => {
+    const row = { ...fixture.checkouts[0], review_required: false, review_status: "not_required", is_previous_day: true };
+    mocks.data.mockResolvedValue({ rows: [row], total_count: 1, page: 1, page_size: 20, summary: fixture.summary });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("Previous Day · Action Required · Needs Review")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View checkout 20/08/2026" }));
+    expect(screen.getByRole("button", { name: "Return", exact: true })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Approve & Complete" })).not.toBeNull();
+  });
   it("offers cancellation only inside unresolved detail and sends a required reason", async () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByRole("button", { name: "View checkout 20/08/2026" });
