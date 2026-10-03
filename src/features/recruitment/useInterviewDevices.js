@@ -33,7 +33,7 @@ export function useInterviewDevices() {
     setState((current) => ({ ...current, status: "checking", error: "" }));
     let stream;
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user" }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } });
+      stream = await navigator.mediaDevices.getUserMedia({ video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } });
       if (generation !== generationRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
       streamRef.current?.getTracks().forEach((track) => { track.onended = null; track.stop(); });
       audioRef.current?.close?.().catch(() => {});
@@ -51,6 +51,7 @@ export function useInterviewDevices() {
         update();
       }
       setState((current) => ({ ...current, status: "ready", error: "", cameras: devices.filter((x) => x.kind === "videoinput"), microphones: devices.filter((x) => x.kind === "audioinput"), cameraId: stream.getVideoTracks()[0]?.getSettings().deviceId || cameraId, microphoneId: stream.getAudioTracks()[0]?.getSettings().deviceId || microphoneId }));
+      return stream;
     } catch (error) {
       if (stream) stream.getTracks().forEach((track) => track.stop());
       if (generation === generationRef.current) setState((current) => ({ ...current, status: "error", error: deviceError(error) }));

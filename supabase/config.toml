@@ -7,3 +7,7 @@ verify_jwt = false
 [functions.recruitment-realtime]
 # The candidate has no Auth account. The function validates the invitation and active lease through a service-only RPC.
 verify_jwt = false
+
+[functions.recruitment-evidence]
+# Invitation lease or canonical Admin Auth/scope is validated within the function.
+verify_jwt = false

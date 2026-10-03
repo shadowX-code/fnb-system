@@ -32,6 +32,6 @@ try {
   await page.getByRole("button", { name: "Check devices" }).click();
   await expect(page.getByRole("button", { name: "Devices ready" })).toBeEnabled();
   await page.getByRole("button", { name: "Devices ready" }).click();
-  await expect(page.getByRole("heading", { name: "You’re ready for the interview" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Your interview" })).toBeVisible();
   process.stdout.write(`Candidate mobile preparation flow passed (${status}).\n`);
 } finally { await browser.close(); }

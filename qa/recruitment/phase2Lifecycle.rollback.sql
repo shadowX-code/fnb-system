@@ -1,0 +1,68 @@
+-- Disposable/local or rollback-only Staging contract verification. No durable fixtures.
+begin;
+create function pg_temp.assert(ok boolean, message text) returns void language plpgsql as $$ begin if ok is distinct from true then raise exception '%',message; end if; end $$;
+do $$
+declare opening uuid:=gen_random_uuid(); config uuid:=gen_random_uuid(); applicant uuid:=gen_random_uuid(); application uuid:=gen_random_uuid(); invitation uuid:=gen_random_uuid(); attempt uuid:=gen_random_uuid(); actor uuid:=gen_random_uuid(); client uuid:=gen_random_uuid(); unit uuid:=gen_random_uuid(); lost uuid:=gen_random_uuid(); token text:=repeat('a',64); result jsonb;
+begin
+  -- Canonical master references are placeholders ONLY inside this rolled-back fixture.
+  set local session_replication_role=replica;
+  insert into employees(id,full_name) values(actor,'Synthetic rollback QA');
+  insert into recruitment_openings(id,title,position_id,workplace,legal_entity_id,status,created_by,updated_by) values(opening,'QA Phase 2 rollback',gen_random_uuid(),'Management',gen_random_uuid(),'open',actor,actor);
+  insert into recruitment_interview_configs(id,opening_id,version,required_topics,scenario_briefs,target_minutes,max_minutes,created_by) values(config,opening,1,'["Customer service evidence"]','["Handle a missing order"]',5,5,actor);
+  insert into recruitment_applicants(id,full_name,contact,created_by) values(applicant,'Synthetic QA','00000',actor);
+  insert into recruitment_applications(id,applicant_id,opening_id,opening_title_snapshot,opening_description_snapshot,position_snapshot,workplace_snapshot,legal_entity_snapshot,created_by) values(application,applicant,opening,'QA','','QA','Management','QA',actor);
+  insert into recruitment_invitations(id,application_id,token_hash,expires_at,issued_by) values(invitation,application,encode(extensions.digest(token,'sha256'),'hex'),clock_timestamp()+interval '1 hour',actor);
+  insert into recruitment_interview_attempts(id,invitation_id,application_id,opening_id,config_version_id,status) values(attempt,invitation,application,opening,config,'ready');
+  insert into recruitment_consents(attempt_id,application_id,copy_version,copy_snapshot,accepted_purposes) values(attempt,application,'qa','{}','{}');
+  set local session_replication_role=origin;
+  result:=recruitment_public_begin(token,client);
+  perform pg_temp.assert(result->>'status'='starting','Ready must start');
+  begin perform recruitment_public_begin(token,gen_random_uuid()); raise exception 'Duplicate lease was accepted'; exception when lock_not_available then null; end;
+  begin perform recruitment_realtime_context(token,client); raise exception 'AI accepted without recording'; exception when object_not_in_prerequisite_state then null; end;
+  perform recruitment_recording_access(token,client,'open',jsonb_build_object('unit_id',unit));
+  result:=recruitment_realtime_context(token,client);
+  perform pg_temp.assert(result->>'generation'='1','Provider generation must be server allocated');
+  perform recruitment_public_provider_connected(token,client,1);
+  -- Provider finalization arrival is intentionally reversed.
+  perform recruitment_public_transcript_turn(token,client,1,2,'ai-item','ai','Tell me how you resolved it.',null,2000);
+  perform recruitment_public_transcript_turn(token,client,1,1,'candidate-item','candidate','Saya checked the order and 联系厨房.',0,1000);
+  perform recruitment_public_transcript_turn(token,client,1,1,'candidate-item','candidate','Saya checked the order and 联系厨房.',0,1000);
+  perform pg_temp.assert((select count(*)=2 from recruitment_transcript_turns where attempt_id=attempt),'Transcript retry duplicated evidence');
+  begin perform recruitment_public_transcript_turn(token,client,1,1,'candidate-item','candidate','Changed words',0,1000); raise exception 'Evidence mutation accepted'; exception when object_not_in_prerequisite_state then null; end;
+  result:=recruitment_apply_coverage(token,client,'{"topics":[{"index":0,"turn_number":2}],"scenarios":[]}');
+  perform pg_temp.assert(result->>'coverage_complete'='false','AI words cannot cover candidate evidence');
+  begin perform recruitment_public_finish(token,client,'coverage'); raise exception 'Premature completion accepted'; exception when object_not_in_prerequisite_state then null; end;
+  result:=recruitment_apply_coverage(token,client,'{"topics":[{"index":0,"turn_number":1}],"scenarios":[{"index":0,"turn_number":1,"state":"answered"}]}');
+  perform pg_temp.assert(result->>'coverage_complete'='true','Cited coverage not retained');
+  perform recruitment_recording_access(token,client,'chunk',jsonb_build_object('unit_id',unit,'index',0,'bytes',100));
+  perform recruitment_recording_access(token,client,'chunk_ack',jsonb_build_object('unit_id',unit,'index',0,'bytes',100));
+  begin perform recruitment_recording_access(token,client,'chunk',jsonb_build_object('unit_id',unit,'index',0,'bytes',101)); raise exception 'Chunk identity changed'; exception when object_not_in_prerequisite_state then null; end;
+  perform recruitment_recording_access(token,client,'upload',jsonb_build_object('unit_id',unit,'bytes',100,'elapsed_end_ms',1000,'reason','completed'));
+  perform recruitment_public_finish(token,client,'coverage');
+  result:=recruitment_finalize(token,client);
+  perform pg_temp.assert(result->>'status'='finalizing','Pending upload was falsely finalized');
+  -- This calls the service-only receipt authority; media bytes are tested separately.
+  perform recruitment_recording_access(token,client,'verified',jsonb_build_object('unit_id',unit,'bytes',100,'width',480,'height',640));
+  result:=recruitment_finalize(token,client);
+  perform pg_temp.assert(result->>'status'='completed' and result->>'recording_state'='complete','Verified uninterrupted evidence must complete');
+  update recruitment_interview_attempts set status='interviewing',lease_expires_at=clock_timestamp()+interval '45 seconds' where id=attempt;
+  perform recruitment_public_interruption(token,client,'device_lost');
+  perform recruitment_public_finish(token,client,'candidate_stop');
+  result:=recruitment_finalize(token,client);
+  perform pg_temp.assert(result->>'status'='partial' and result->>'recording_state'='partial','Recording gap must remain partial');
+  update recruitment_interview_attempts set status='interviewing',lease_expires_at=clock_timestamp()+interval '45 seconds' where id=attempt;
+  perform recruitment_recording_access(token,client,'open',jsonb_build_object('unit_id',lost));
+  perform recruitment_recording_access(token,client,'abandon',jsonb_build_object('unit_id',lost));
+  perform pg_temp.assert((select status='interrupted' from recruitment_recording_units where id=lost),'Lost local recording must not block forever');
+  perform pg_temp.assert((select acknowledged_at is not null from recruitment_recording_chunks where unit_id=unit),'Acknowledged evidence was lost');
+  update recruitment_invitations set revoked_at=clock_timestamp() where id=invitation;
+  begin perform recruitment_public_heartbeat(token,client); raise exception 'Revoked token accepted'; exception when insufficient_privilege then null; end;
+  update recruitment_invitations set revoked_at=null,expires_at=clock_timestamp()-interval '1 second' where id=invitation;
+  begin perform recruitment_public_begin(token,client); raise exception 'Expired token accepted'; exception when insufficient_privilege then null; end;
+  perform pg_temp.assert(not has_function_privilege('anon','recruitment_recording_access(text,uuid,text,jsonb)','execute'),'Candidate has verification authority');
+  perform pg_temp.assert(not has_function_privilege('authenticated','recruitment_apply_coverage(text,uuid,jsonb)','execute'),'Client has coverage authority');
+  perform pg_temp.assert(not has_function_privilege('anon','recruitment_admin_evidence(uuid)','execute'),'Anonymous manager evidence access');
+  perform pg_temp.assert(not has_table_privilege('authenticated','recruitment_recording_units','select'),'Direct evidence table access');
+  raise notice 'Phase 2 lifecycle, evidence immutability, lease, coverage, gap, expiry/revocation and grant contracts passed';
+end $$;
+rollback;

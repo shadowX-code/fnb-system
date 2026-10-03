@@ -52,10 +52,12 @@ Deno.serve(async (request) => {
   const safetyHash = await crypto.subtle.digest("SHA-256", safetyData);
   const safetyId = [...new Uint8Array(safetyHash)].map((part) => part.toString(16).padStart(2, "0")).join("");
   const session = {
+    expires_after: { anchor: "created_at", seconds: 60 },
     session: {
       type: "realtime",
       model: "gpt-realtime-2.1",
       output_modalities: ["audio"],
+      tools: [{ type: "function", name: "request_completion", description: "Request server permission to conclude after collecting required topics and scenario answers. If declined, follow up on the unresolved evidence.", parameters: { type: "object", properties: {}, required: [], additionalProperties: false } }],
       instructions: interviewInstructions(context),
       audio: {
         input: {
