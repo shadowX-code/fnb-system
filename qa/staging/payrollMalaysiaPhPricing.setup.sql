@@ -17,8 +17,8 @@ begin
  perform payroll_ph_policy_save(ent,'2026-08-01','additional_pay','QA ONLY benefit interaction requires explicit evidence');
  foreach basis in array array['monthly','hourly'] loop
   insert into employees(full_name,employee_code,legal_entity_id,workplace,position,employment_type,employment_status,joined_date,birthday,nationality,enable_system_login,access_state)
-  values('QA ONLY PH '||initcap(basis),'QA-PH-'||basis||'-1004',ent,'QA ONLY Malaysia PH Workplace','QA verified full-time contract','full_time','active','2026-08-01','1990-01-01','Malaysia',false,'no_access') returning id into emp;
-  perform employee_employment_assignment_save(emp,'2026-08-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','QA verified full-time contract','workplace','QA ONLY Malaysia PH Workplace','legal_entity_id',ent),'QA explicit August assignment',null,'QA synthetic legal evidence');
+  values('QA ONLY PH '||initcap(basis),'QA-PH-'||basis||'-1004',ent,'QA ONLY Malaysia PH Workplace','Service Crew','full_time','active','2026-08-01','1990-01-01','Malaysia',false,'no_access') returning id into emp;
+  perform employee_employment_assignment_save(emp,'2026-08-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace','QA ONLY Malaysia PH Workplace','legal_entity_id',ent),'QA explicit August assignment',null,'QA synthetic legal evidence');
   profile:=payroll_profile_create(emp,'2026-08-01',basis,case when basis='monthly' then 2600 else 9 end,'MYR','QA ONLY verified compensation',null,outlet,false,false,false,false);
  end loop;
  run:=payroll_run_create(ent,'2026-09-01','2026-09-30','QA ONLY Malaysia PH - no finalization/payment');
