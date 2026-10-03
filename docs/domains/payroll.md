@@ -192,6 +192,18 @@ missing state evidence blocks operational publication with a setup reason.
 Only applicable National/State rows enter the normal date-review and selection
 workflow. Source-verified dates need no row action. Applicable uncertain,
 conditional, changed or missing source entries remain explicit review exceptions.
+Explicit date review uses `payroll_holiday_date_confirm`, never a transcription save.
+The existing append-only import events record the confirmed date, official reference,
+actor/time, canonical geography evidence, captured source hash, stable row identity
+and full row-evidence fingerprint. Raw source rows, PDF bytes and prior transcription
+history remain unchanged. `payroll_holiday_effective_rows` overlays only matching
+confirmations for candidate reads, review, annual/scoped publication and additional
+entitlement review. A changed source hash or revised row evidence invalidates the
+overlay; old transcription saves never become confirmations. Source warnings remain
+in Advanced & History, while normal review shows date/reference and Confirm Date.
+Independent jurisdiction, duplicates, paid classification, baseline correction and
+additional-entitlement blockers remain enforced after a date confirmation.
+
 Mandatory paid classification remains an explicit employment-law confirmation,
 separate from source-date verification. Five mandatory paid holidays and at least
 six company choices are shown separately; additional gazetted entitlements remain
