@@ -65,31 +65,32 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
   }, [profile.id, month, intentKey, act4Covered]);
   const allowed = Boolean(read && draft && !error && validation?.valid && validation.intentKey === intentKey);
   useEffect(() => {
-    onChange(intent && read && !error ? { month, allowed, fingerprint: read.fingerprint, intent } : null);
+    onChange(intent && read && !error ? { month, allowed, fingerprint: read.fingerprint, intent, current: read.current } : null);
   }, [intentKey, read, error, month, allowed, onChange]);
   const needs = key => required.includes(key);
   const options = [
     ...(mandatory ? [{ value: 'mandatory', label: 'This employer pays' }] : [{ value: 'participating', label: 'Participating' }, { value: 'valid_opt_out', label: 'Opted Out' }, { value: 'not_applicable', label: 'Not Applicable' }]),
     { value: 'another_designated_employer', label: 'Another Employer Pays' }, { value: 'unresolved', label: 'Not Confirmed' },
   ];
-  return <section aria-label="LINDUNG 24 Jam setup" className="space-y-3 border-t border-border pt-3">
-    <div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="font-bold">LINDUNG 24 Jam</h3>
-      {draft && <span className="text-sm text-text-secondary">{draft.worker_category === 'local' ? 'Malaysian employee' : draft.worker_category === 'local_resident' ? 'Verified resident' : draft.worker_category === 'foreign' ? 'Foreign employee' : 'Worker coverage not verified'}</span>}</div>
-    {month < '2026-06-01' ? <p className="text-sm">Not applicable before June 2026.</p> : <>
-      {!draft && !error && <p role="status">Loading coverage…</p>}
+  const context = draft?.worker_category === 'local' ? 'Malaysian employee' : draft?.worker_category === 'local_resident' ? 'Verified resident' : draft?.worker_category === 'foreign' ? 'Foreign employee' : 'Worker coverage not verified';
+  return <div aria-label="LINDUNG 24 Jam setup" className="py-3">
+    {month < '2026-06-01' ? <div className="grid gap-3 sm:grid-cols-[11rem_1fr]"><span className="text-sm font-semibold">LINDUNG 24 Jam</span><p className="text-sm">Not applicable before June 2026.</p></div> : <>
+      {!draft && !error && <p role="status">Loading LINDUNG coverage…</p>}
       {draft && <fieldset disabled={disabled} className="space-y-3">
-        <p className="text-sm text-text-secondary">Select the employee's LINDUNG status for this payroll month.</p>
-        {mandatory && <p className="text-sm font-semibold">Mandatory · {month === '2026-06-01' ? 'June 2026 coverage' : 'Foreign employee coverage'}</p>}
-        <div className={mandatory ? 'text-sm' : ''}>
-        {mandatory && <p className="text-xs text-text-secondary">Contributing employer / evidence</p>}
-        <SelectField label={mandatory ? 'Contribution handling' : 'Coverage Status'} ariaLabel="LINDUNG coverage status" value={draft.status} options={options}
-          onChange={value => { setRequired([]); setValidation(null); setDraft(current => ({ ...current, retain: value === read.current.status && Boolean(read.current.evidence) && !read.current.issue, status: value,
-            participation_basis: value === 'participating' && read.current.status === 'valid_opt_out' ? 'rejoin' : 'default_enrolment',
-            designated_legal_entity_id: value === 'another_designated_employer' ? '' : employer || '' })); }} />
+        <div className="grid gap-3 sm:grid-cols-[11rem_1fr]">
+          <SelectField label="LINDUNG 24 Jam" ariaLabel="LINDUNG coverage status" value={draft.status} options={options}
+            onChange={value => { setRequired([]); setValidation(null); setDraft(current => ({ ...current, retain: value === read.current.status && Boolean(read.current.evidence) && !read.current.issue, status: value,
+              participation_basis: value === 'participating' && read.current.status === 'valid_opt_out' ? 'rejoin' : 'default_enrolment',
+              designated_legal_entity_id: value === 'another_designated_employer' ? '' : employer || '' })); }} />
+          <div className="self-center space-y-1 text-sm text-text-secondary">
+            <p>{context}</p>
+            {mandatory && <p className="font-semibold text-text-primary">Mandatory · {month === '2026-06-01' ? 'June 2026 coverage' : 'Foreign employee coverage'}</p>}
+            {draft.status === 'not_applicable' && <p>No LINDUNG deduction.</p>}
+            {draft.status === 'unresolved' && <p>LINDUNG status has not been confirmed for this month.</p>}
+            {retained && <p className="text-xs">Verified coverage retained from {read.current.evidence.effective_month}.</p>}
+          </div>
         </div>
-        {draft.status === 'not_applicable' && <p className="text-sm text-text-secondary">LINDUNG does not apply for this payroll month.</p>}
-        {draft.status === 'unresolved' && <p className="text-sm text-text-secondary">LINDUNG status has not been confirmed for this month.</p>}
-        {read && <p className="text-xs text-text-secondary">Recorded: {lindungStatusLabel(read.current.status)} · This confirmation applies to the selected payroll month.</p>}
+        <div className="space-y-3 sm:pl-[11.75rem]">
         {resolved && ['foreign','local_resident'].includes(draft.worker_category) && !retained && <details className="text-sm"><summary className="cursor-pointer">Resident coverage evidence</summary>
           <ToggleField label="Verified permanent / temporary resident" checked={draft.residency_verified} onChange={value => setDraft(current => ({ ...current, retain:false, residency_verified:value, worker_category:value?'local_resident':'foreign', status:'unresolved' }))} /></details>}
         {((optOut && !retained) || rejoin) && <DatePickerField label={rejoin ? 'PERKESO rejoin submission date' : 'PERKESO opt-out notice date'} value={draft.date} onChange={value => patch('date', value)} />}
@@ -110,12 +111,11 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
         </section>}
         {validation && !validation.valid && <p role="alert" className="text-sm text-rose-700">{validation.message}</p>}
         {!validation && <p role="status" className="text-xs text-text-secondary">Checking coverage…</p>}
-        {retained && <p className="text-xs text-text-secondary">Existing verified coverage will be retained. Choose a different status to record a change.</p>}
+
         {resolved && draft.worker_category === 'unresolved' && <p role="alert" className="text-sm text-rose-700">Complete employee nationality to verify worker coverage.</p>}
+        </div>
       </fieldset>}
     </>}
     {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
-    {read?.history.length > 0 && <details className="text-sm"><summary className="cursor-pointer">LINDUNG history</summary>
-      {read.history.map(row => <p key={row.id} className="mt-2">{row.effective_month} · {lindungStatusLabel(row.status)} · revision {row.revision}{row.source_reference && ` · ${row.source_reference}`}</p>)}</details>}
-  </section>;
+  </div>;
 }

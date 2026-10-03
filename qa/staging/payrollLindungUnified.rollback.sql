@@ -9,7 +9,7 @@ begin
  return public.payroll_statutory_setup_confirm(profile,month,app,case when app->>'socso'='true' then '{"socso":"first_category_base"}'::jsonb else '{}'::jsonb end,s->>'fingerprint',null,null,intent,l->>'fingerprint',gen_random_uuid());
 end $$;
 do $$
-declare actor uuid:=public.payroll_admin_actor();ent uuid;other uuid;outlet uuid;emp uuid;profile uuid;opt_profile uuid;foreign_profile uuid;
+declare actor uuid:=public.payroll_admin_actor();ent uuid;other uuid;outlet uuid;emp uuid;profile uuid;opt_profile uuid;foreign_profile uuid;historical_profile uuid;
  s jsonb;l jsonb;intent jsonb;result jsonb;req uuid:=gen_random_uuid();run uuid;old jsonb;fresh jsonb;before_hash text; n integer;
  a jsonb:='{"epf":false,"socso":true,"eis":false,"pcb":false}'; none jsonb:='{"epf":false,"socso":false,"eis":false,"pcb":false}';
 begin
@@ -19,14 +19,40 @@ begin
  insert into outlets(name,code,state_code) values('QA ONLY unified LINDUNG workplace','QA-UX-'||substr(gen_random_uuid()::text,1,6),'MY-08') returning id into outlet;
  perform set_config('feedx.payroll_command','yes',true);
  insert into payroll_outlet_state_versions(outlet_id,effective_from,state_code) values(outlet,'2026-01-01','MY-08');
- for n in 1..3 loop
+ for n in 1..4 loop
   insert into employees(full_name,employee_code,legal_entity_id,workplace,position,employment_type,employment_status,joined_date,birthday,nationality)
    values('QA ONLY unified LINDUNG '||n,'QA-UX-'||substr(gen_random_uuid()::text,1,8),ent,'QA ONLY unified LINDUNG workplace','Service Crew','full_time','active','2026-01-01','1990-01-01',case when n=3 then 'Myanmar' else 'Malaysia' end) returning id into emp;
   perform employee_employment_assignment_save(emp,'2026-01-01',jsonb_build_object('employment_type','full_time','employment_status','active','position','Service Crew','workplace','QA ONLY unified LINDUNG workplace','legal_entity_id',ent),'QA explicit assignment',null,'QA rollback evidence');
   s:=payroll_initial_setup_read(emp,'2026-01-01',case when n=3 then none else a end,'2026-01-01');
   s:=payroll_initial_setup_confirm(emp,'2026-01-01','monthly',3250,'MYR',case when n=3 then none else a end,s->>'fingerprint','2026-01-01');
-  if n=1 then profile:=(s->>'profile_id')::uuid;elsif n=2 then opt_profile:=(s->>'profile_id')::uuid;else foreign_profile:=(s->>'profile_id')::uuid;end if;
+  if n=1 then profile:=(s->>'profile_id')::uuid;elsif n=2 then opt_profile:=(s->>'profile_id')::uuid;elsif n=3 then foreign_profile:=(s->>'profile_id')::uuid;else historical_profile:=(s->>'profile_id')::uuid;end if;
  end loop;
+
+ -- Real failure chronology: ordinary October setup defaults to Unresolved;
+ -- Admin subsequently explicitly verifies historical July Not Applicable.
+ perform pg_temp.confirm_setup(historical_profile,'2026-10-01','{"status":"unresolved"}');
+ perform pg_temp.confirm_setup(historical_profile,'2026-07-01','{"status":"not_applicable"}');
+ if payroll_lindung_resolve(historical_profile,'2026-09-01',ent)->>'status'<>'not_applicable' or payroll_lindung_resolve(historical_profile,'2026-10-01',ent)->>'status'<>'not_applicable' or payroll_lindung_resolve(historical_profile,'2026-06-01',ent)->>'status'<>'unresolved' then raise exception 'Real historical correction chronology failed';end if;
+insert into public.audit_logs(action,module,user_name,description,metadata)
+select 'payroll_lindung_unresolved_observation_reclassified','payroll','Governed migration',
+ 'Unconfirmed LINDUNG observation retained as audit evidence; earlier verified coverage continues.',
+ jsonb_build_object('migration','20261003101135_payroll_lindung_verified_carry_forward',
+  'profile_id',u.profile_id,'observation_version_id',u.id,'observation_month',u.effective_month,
+  'governing_version_id',v.id,'governing_effective_month',v.effective_month,'governing_status',v.status,
+  'original_actor_employee_id',u.confirmed_by_employee_id,'correction_kind','resolution_only',
+  'original_evidence_preserved',true,'finalized_evidence_changed',false)
+from public.payroll_lindung_participation_versions u
+cross join lateral (select * from public.payroll_lindung_participation_versions v
+ where v.profile_id=u.profile_id and v.effective_month<=u.effective_month and v.status<>'unresolved'
+ order by v.effective_month desc,v.revision desc limit 1) v
+where u.status='unresolved' and v.created_at>u.created_at
+ and not exists(select 1 from public.audit_logs a
+  where a.action='payroll_lindung_unresolved_observation_reclassified'
+   and a.metadata->>'observation_version_id'=u.id::text);
+
+ if not exists(select 1 from audit_logs where action='payroll_lindung_unresolved_observation_reclassified' and metadata->>'profile_id'=historical_profile::text and user_id is null and metadata->>'correction_kind'='resolution_only') then raise exception 'Truthful system correction audit missing';end if;
+ if (select count(*) from payroll_lindung_participation_versions where profile_id=historical_profile)<>2 then raise exception 'Audit correction mutated statutory evidence';end if;
+ insert into unified_checks values('Real July verification after October observation: continuing coverage, non-destructive system audit');
  select count(*) into n from payroll_lindung_participation_versions;
  if payroll_lindung_setup_preview(profile,'2026-09-01','{"status":"participating"}',true)->>'valid'<>'true' then raise exception 'Routine preview failed';end if;
  if payroll_lindung_setup_preview(foreign_profile,'2026-09-01','{"status":"mandatory"}',true)->>'valid'<>'true' then raise exception 'Mandatory preview failed';end if;
@@ -78,8 +104,8 @@ begin
  insert into unified_checks values('Foreign mandatory, canonical nationality enforcement, earlier history unresolved');
  perform pg_temp.confirm_setup(profile,'2026-10-01',jsonb_build_object('status','another_designated_employer','designated_legal_entity_id',other,'designation_change_reason','higher_salary','source_reference','QA PERKESO designation'));
  if payroll_lindung_resolve(profile,'2026-10-01',ent)->>'applicable'<>'false' then raise exception 'Other employer double charged';end if;
- perform pg_temp.confirm_setup(foreign_profile,'2026-10-01','{"status":"unresolved"}',none);
- if payroll_lindung_resolve(foreign_profile,'2026-10-01',ent)->>'status'<>'unresolved' then raise exception 'Unresolved state not retained';end if;
+ if payroll_lindung_setup_preview(foreign_profile,'2026-10-01','{"status":"unresolved"}',false)->>'valid'<>'false' then raise exception 'Unresolved replaced foreign mandatory';end if;
+ if payroll_lindung_resolve(foreign_profile,'2026-10-01',ent)->>'status'<>'mandatory' then raise exception 'Verified other employer did not carry forward';end if;
  insert into unified_checks values('Another employer and explicit Not Confirmed');
  run:=payroll_run_create(ent,'2026-09-01','2026-09-30','QA ONLY unified setup calculation');perform payroll_run_calculate(run);
  select employee_id into emp from payroll_profiles where id=profile;
@@ -92,7 +118,7 @@ begin
  if result->'schemes'->'lindung'->>'status'<>'not_applicable' or result->'schemes'->'lindung'->>'issue' is not null then raise exception 'NA readiness/readback failed: %',result;end if;
  if (select count(*) from payroll_lindung_participation_versions where profile_id=opt_profile)<>n+1 then raise exception 'NA rewrote timeline';end if;
  if not exists(select 1 from payroll_lindung_participation_versions where profile_id=opt_profile and status='not_applicable' and participation_basis='not_applicable' and effective_month='2026-09-01' and source_reference='' and confirmed_by_employee_id=actor and designated_legal_entity_id is null) then raise exception 'NA explicit audit missing';end if;
- if payroll_lindung_resolve(opt_profile,'2026-08-01',ent)->>'status'<>'valid_opt_out' or payroll_lindung_resolve(opt_profile,'2026-10-01',ent)->>'status'<>'unresolved' then raise exception 'NA historical distinction/month scope failed';end if;
+ if payroll_lindung_resolve(opt_profile,'2026-08-01',ent)->>'status'<>'valid_opt_out' or payroll_lindung_resolve(opt_profile,'2026-10-01',ent)->>'status'<>'not_applicable' then raise exception 'NA historical distinction/month scope failed';end if;
  select employee_id into emp from payroll_profiles where id=opt_profile;
  fresh:=payroll_statutory_project(run,emp);old:=payroll_statutory_project_pre_lindung(run,emp);
  if fresh->'issues' ? 'lindung_participation_unconfirmed:2026-09-01' then raise exception 'NA readiness unresolved';end if;
@@ -103,7 +129,31 @@ begin
  begin perform payroll_lindung_setup_confirm(foreign_profile,'{"status":"not_applicable","worker_category":"local","effective_month":"2026-09-01","coverage_from":"2026-09-01T00:00:00+08:00","participation_basis":"not_applicable"}',l->>'fingerprint',gen_random_uuid());raise exception 'Direct caller bypassed foreign mandatory';exception when invalid_parameter_value then null;end;
  l:=payroll_lindung_setup_read(opt_profile,'2026-09-01');
  begin perform payroll_lindung_setup_confirm(opt_profile,jsonb_build_object('status','not_applicable','worker_category','local','effective_month','2026-09-01','coverage_from','2026-09-01T00:00:00+08:00','participation_basis','not_applicable','designated_legal_entity_id',other),l->>'fingerprint',gen_random_uuid());raise exception 'NA accepted irrelevant employer association';exception when invalid_parameter_value then null;end;
- insert into unified_checks values('Explicit Malaysian Not Applicable, historical audit, zero deduction, readiness and opt-out/mandatory distinction');
+
+ if payroll_lindung_setup_preview(opt_profile,'2026-10-01','{"status":"unresolved"}',false)->>'valid'<>'false' then raise exception 'Unresolved replaced verified NA';end if;
+ if payroll_lindung_resolve(opt_profile,'2027-01-01',ent)->>'status'<>'not_applicable' or payroll_lindung_resolve(opt_profile,'2026-07-01',ent)->>'status'<>'valid_opt_out' then raise exception 'NA future/past coverage failed';end if;
+ l:=payroll_lindung_setup_read(opt_profile,'2026-10-01');
+ result:=pg_temp.confirm_setup(opt_profile,'2026-10-01',jsonb_build_object('status','not_applicable','retained_version_id',l->'current'->'evidence'->>'id'));
+ if result->'lindung'->'current'->>'status'<>'not_applicable' then raise exception 'NA retention readback failed';end if;
+ if (select count(*) from payroll_lindung_participation_versions where profile_id=opt_profile)<>n+1 then raise exception 'Routine next-month setup duplicated NA evidence';end if;
+
+ l:=payroll_lindung_setup_read(opt_profile,'2026-12-01');
+ result:=pg_temp.confirm_setup(opt_profile,'2026-12-01',jsonb_build_object('status','not_applicable','retained_version_id',l->'current'->'evidence'->>'id'));
+ if result->'lindung'->'current'->>'status'<>'not_applicable' or not exists(select 1 from payroll_statutory_profile_versions where profile_id=opt_profile and effective_from='2026-12-01') then raise exception 'Shared future month failed';end if;
+ if (select count(*) from payroll_lindung_participation_versions where profile_id=opt_profile)<>n+1 then raise exception 'Future month requires invented NA evidence';end if;
+ -- Reproduce the real chronology: October absence recorded first, July evidence supplied later.
+ perform pg_temp.confirm_setup(profile,'2026-08-01','{"status":"unresolved"}');
+ -- Above is before September participation, so must remain genuinely unresolved in August.
+ if payroll_lindung_resolve(profile,'2026-08-01',ent)->>'status'<>'unresolved' then raise exception 'Later evidence borrowed into earlier month';end if;
+ -- Simulate an old client observation after verified coverage through disposable evidence only.
+ perform set_config('feedx.payroll_command','yes',true);
+ insert into payroll_lindung_participation_versions(profile_id,effective_month,coverage_from,status,worker_category,participation_basis,employee_evidence,supporting_evidence,source_reference,reason,revision,request_id,payload_fingerprint,confirmed_by_employee_id)
+ values(opt_profile,'2026-11-01','2026-11-01T00:00:00+08:00','unresolved','local','unresolved','{}','{}','','QA old unresolved observation',1,gen_random_uuid(),'QA rollback',actor);
+ if payroll_lindung_resolve(opt_profile,'2026-11-01',ent)->>'status'<>'not_applicable' then raise exception 'Legacy unresolved interrupted NA';end if;
+ if not exists(select 1 from jsonb_array_elements(payroll_lindung_setup_read(opt_profile,'2026-11-01')->'history') h where h->>'status'='unresolved' and h->>'resolution_role'='unconfirmed_observation') then raise exception 'Observation lost from audit read';end if;
+ perform pg_temp.confirm_setup(opt_profile,'2026-10-01','{"status":"participating"}');
+ if payroll_lindung_resolve(opt_profile,'2026-11-01',ent)->>'status'<>'participating' or payroll_lindung_resolve(opt_profile,'2026-09-01',ent)->>'status'<>'not_applicable' then raise exception 'Genuine later change not preserved';end if;
+ insert into unified_checks values('Verified NA carry-forward, historical non-extrapolation, retained atomic save, unresolved audit-only and genuine later change');
  if before_hash is distinct from (select md5(string_agg(s.result::text,'' order by s.run_id,s.employee_id)) from payroll_run_statutory_snapshots s) then raise exception 'Finalized snapshots changed';end if;
  insert into unified_checks values('Calculation/readiness, ordinary statutory and existing Final snapshots preserved');
  if has_function_privilege('anon','public.payroll_statutory_setup_confirm(uuid,date,jsonb,jsonb,text,text,text,jsonb,text,uuid)','EXECUTE') then raise exception 'Anonymous combined authority exposed';end if;

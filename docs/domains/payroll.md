@@ -798,7 +798,7 @@ records or PDFs; setup affecting finalized periods requires an open governed
 correction. Corrections freeze new evidence while preserving the previous revision.
 The separate People employment-history/cutover gate is unchanged.
 
-### Unified monthly LINDUNG setup
+### Unified effective-dated statutory setup
 
 Manage Statutory Setup confirms ordinary statutory setup and LINDUNG atomically through the extended `payroll_statutory_setup_confirm` authority. Existing initialization callers retain their seven-argument contract. Worker coverage derives from canonical nationality when known; verified resident evidence remains explicit. Coverage status is the primary LINDUNG input. Routine coverage inherits Effective Payroll Month and the dated employment employer; opt-out/rejoin retain their legally required notice/submission date and time. Optional notes do not replace required PERKESO transition evidence. The server records actor, timestamp, month and transition reason automatically.
 
@@ -810,4 +810,10 @@ Manage Statutory Setup uses a read-only, manage-scoped `payroll_lindung_setup_pr
 
 ### Explicit monthly non-applicability
 
-Admin may explicitly confirm LINDUNG Not Applicable for a local employee/month through the existing atomic statutory setup authority. It is distinct from regulated opt-out, requires no participation, notice or designated-employer evidence, and resolves readiness with zero deduction. It is not derived from ordinary statutory applicability and does not prove another month. Existing June/foreign mandatory restrictions, participation transitions, audit history, finalized correction guard and rate packs remain unchanged.
+Admin may explicitly confirm LINDUNG Not Applicable for a local employee/month through the existing atomic statutory setup authority. It is distinct from regulated opt-out, requires no participation, notice or designated-employer evidence, and resolves readiness with zero deduction. It is not derived from ordinary statutory applicability. The verified state carries forward from its effective month until a genuine later status change; it cannot establish earlier coverage. Existing June/foreign mandatory restrictions, participation transitions, audit history, finalized correction guard and rate packs remain unchanged.
+
+### Continuing coverage and unified Statutory History
+
+Verified LINDUNG revisions, including Not Applicable, remain effective until superseded by a genuine verified revision. Unresolved is absence-of-confirmation evidence: it remains immutable and audit-visible but is excluded from effective resolution and prior-transition validation. New Unresolved submissions cannot replace currently valid verified coverage. June mandatory local coverage still does not prove a July election, and identity/employer/pack validation can still require review. A historical verification cannot establish earlier months. Legacy unresolved interruptions covered by a subsequently recorded historical verification receive a system audit annotation; their original rows and all finalized evidence remain unchanged.
+
+Manage Statutory Setup presents one shared Effective Payroll Month above five Statutory Coverage rows and one Confirm Statutory Setup action. LINDUNG worker context and status-specific disclosures live in its row; there is no second month/save/history workflow. Historical guidance appears only after an intentional earlier-month selection with missing coverage. Statutory History composes the existing authorized statutory and LINDUNG reads at relevant revision/boundary dates; all five resolved states are chronological, with separate backend evidence available only under Audit details. This read model does not recalculate or rewrite finalized Payroll.
