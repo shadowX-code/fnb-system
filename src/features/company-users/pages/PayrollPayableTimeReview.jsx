@@ -16,11 +16,13 @@ const differences = {
   extra_time: 'Extra time / OT candidate',
 };
 
-export default function PayrollPayableTimeReview({ employee, month, canManage, onClose, onDecisionSaved }) {
+export default function PayrollPayableTimeReview({ employee, month, canManage, onClose, onDecisionSaved, runId }) {
   const [decisionDate, setDecisionDate] = useState(null);
+  const [correcting, setCorrecting] = useState(false);
   const [queue, setQueue] = useState([]);
   const [latestRows, setLatestRows] = useState(null);
   const startReview = row => {
+    setCorrecting(false);
     setLatestRows(rows);
     setQueue(exceptions.map(item => item.work_date));
     setDecisionDate(row.work_date);
@@ -45,6 +47,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
       <small className="block text-text-secondary">Proposed {hours(row.proposed_minutes)}</small><small className="block text-text-secondary">{human(row.classification)}</small></div> },
     { key:'status',header:'Status',render:row => <div><Badge tone={row.status === 'review_required' ? 'warning' : 'success'}>{row.status === 'review_required' ? 'Review Required' : row.status === 'approved_auto' ? 'Approved automatically' : human(row.status)}</Badge>
       {canManage && row.status === 'review_required' && <button type="button" className="mt-1 block font-semibold text-primary" onClick={()=>startReview(row)}>Review exception</button>}
+      {canManage && row.status !== 'review_required' && <button type="button" className="mt-1 block font-semibold text-primary" onClick={() => { setCorrecting(true); setLatestRows(rows); setDecisionDate(row.work_date); }}>Correct Decision</button>}
       {!!row.history?.length && <details className="mt-1 text-xs text-text-secondary"><summary>Evidence / history</summary>{row.history.map(version => <p key={version.id} className="mt-1">{human(version.status)} · {hours(version.approved_minutes)}{version.reason ? ` · ${version.reason}` : ''}{version.at ? ` · ${new Date(version.at).toLocaleString()}` : ''}</p>)}</details>}</div> },
   ];
   const decision = rows.find(row => row.work_date === decisionDate);
@@ -57,10 +60,10 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
       setDecisionDate(next.work_date);
     } else onClose();
   };
-  if (decision && canManage) return <DecisionModal key={decision.id} row={decision}
-    progress={`${index + 1} of ${queue.length} exceptions`}
-    saveLabel={exceptions.some(row => row.work_date !== decisionDate) ? 'Save & Next' : 'Save & Finish'}
-    onPrevious={index > 0 ? () => setDecisionDate(queue[index - 1]) : null}
+  if (decision && canManage) return <DecisionModal key={decision.id} row={decision} runId={runId} correction={correcting}
+    progress={correcting ? "Correct reviewed payable time" : `${index + 1} of ${queue.length} exceptions`}
+    saveLabel={correcting ? 'Save Correction' : exceptions.some(row => row.work_date !== decisionDate) ? 'Save & Next' : 'Save & Finish'}
+    onPrevious={!correcting && index > 0 ? () => setDecisionDate(queue[index - 1]) : null}
     onNext={() => advance(rows, decisionDate)}
     onClose={onClose}
     onSaved={async () => {
@@ -69,7 +72,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
       if (updated.some(row => row.work_date === decisionDate && row.status === 'review_required'))
         throw new Error('This date still requires review. Refresh the evidence before continuing.');
       setLatestRows(updated);
-      advance(updated, decisionDate);
+      if (correcting) { setDecisionDate(null); setCorrecting(false); } else advance(updated, decisionDate);
     }} />;
   return <Modal title={`Payable Time Review · ${employee.name}`} description={`${month} · Published roster and original clock evidence. Only Payroll payable time can be changed.`}
     size="xl" onClose={onClose} footer={<><button type="button" className="btn-secondary" onClick={onClose}>Back to Employee Review</button>{canManage && exceptions.length > 0 && <button type="button" className="btn-primary" onClick={() => startReview(exceptions[0])}>Continue Review</button>}</>}>
@@ -78,7 +81,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
         {[["Scheduled Hours",total('scheduled_minutes')],["Actual Hours",total('actual_minutes')],
           ["Approved Payable Hours",`${hours(sum('approved_minutes') + sum('approved_extra_minutes'))}${exceptions.length ? ' · review pending' : ''}`],
           ["Hourly Rate",employee.pay?.pay_basis === 'hourly' ? `${rate}${rates.length > 1 ? ' · Date-effective rates' : ' / hour'}` : 'Monthly pay rules'],
-          ["Calculated Regular Earnings",employee.pay?.pay_basis !== 'hourly' ? 'Included in monthly salary' : employee.result.earningsCurrent ? money(regular.reduce((total,line)=>total+Number(line.amount),0)) : 'Pending calculation']].map(([label,value])=>
+          ["Calculated Regular Earnings",employee.pay?.pay_basis !== 'hourly' ? 'Included in monthly salary' : (employee.result.earningsAvailable ?? employee.result.earningsCurrent) ? money(regular.reduce((total,line)=>total+Number(line.amount),0)) : 'Pending calculation']].map(([label,value])=>
           <div key={label}><dt className="text-xs text-text-secondary">{label}</dt><dd className="mt-1 font-bold tabular-nums">{value}</dd></div>)}
       </dl>
       <p className="text-xs text-text-secondary">Totals cover recorded time results; missing durations are not assumed. {exceptions.length} exception{exceptions.length === 1 ? '' : 's'} require review. Clean days are approved automatically.</p>

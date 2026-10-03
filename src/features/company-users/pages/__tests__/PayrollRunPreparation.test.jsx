@@ -112,7 +112,8 @@ it("shows calculated adjustment provenance once and derives the chosen component
   fireEvent.click(screen.getByRole("button",{name:"QA Deduction · Deduction"}));
   expect(screen.getByText("Deduction")).toBeTruthy();
 });
-it("records a time decision before employee-only recalculation and projection refresh", async () => {
+it("saves time and canonical calculation atomically before projection refresh", async () => {
+  mocks.recalculateEmployee.mockClear();
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15.5}}}}]});
   mocks.readTime.mockResolvedValue([{id:'time',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-25',status:'review_required',classification:'regular',issue_codes:['missing_punch'],proposed_minutes:null,evidence:{}}]);
   mocks.decideTime.mockResolvedValue({});
@@ -126,9 +127,9 @@ it("records a time decision before employee-only recalculation and projection re
   fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Verified QA evidence'}});
   fireEvent.click(screen.getByRole('button',{name:'Save & Finish'}));
   await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalled());
-  await waitFor(()=>expect(mocks.recalculateEmployee).toHaveBeenLastCalledWith('run','employee'));
-  expect(mocks.decideTime.mock.invocationCallOrder.at(-1)).toBeLessThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1));
-  await waitFor(()=>expect(mocks.readPreparation.mock.invocationCallOrder.at(-1)).toBeGreaterThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1)));
+  expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({runId:'run',requestId:expect.any(String),correction:false}));
+  expect(mocks.recalculateEmployee).not.toHaveBeenCalled();
+  await waitFor(()=>expect(mocks.readPreparation.mock.invocationCallOrder.at(-1)).toBeGreaterThan(mocks.decideTime.mock.invocationCallOrder.at(-1)));
 });
 
 it("uses a compact processing table and keeps bank absence informational", async () => {
@@ -204,4 +205,14 @@ it('preserves employee and active exception when the shared run projection refre
   view.rerender(<PayrollRunEmployeesPanel {...props} runRead={{data:{...snapshot},refresh:vi.fn()}} />);
   await waitFor(()=>expect(screen.getByRole('textbox',{name:/Decision reason/}).value).toBe('Keep this unsaved draft'));
   expect(screen.getByText('1 of 2 exceptions')).toBeTruthy();
+});
+
+it('shows resolved Regular aggregate while an independent PH blocker keeps overall readiness pending',async()=>{
+ const daily={kind:'earning',code:'regular',label:'Regular',amount:40,minutes:300,multiplier:1,source:{work_date:'2026-09-22'}};
+ mocks.readCalculation.mockResolvedValue({results:[{employee_id:'employee',pay_basis:'hourly',status:'review_required',is_stale:false,issues:['ph_statutory_rule_unverified:hourly:2026-09-16'],gross_earnings:80,lines:[daily,{...daily,source:{work_date:'2026-09-23'}}],earning_groups:[{...daily,label:'Regular Pay',amount:80,minutes:600,rate:8,day_count:2}]}],adjustments:[]});
+ render(<PayrollRunEmployeesPanel {...props}/>); await screen.findByText('QA Employee');
+ fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
+ expect(screen.getByText('Regular Pay')).toBeTruthy(); expect(screen.getAllByText(/RM\s*80\.00/).length).toBeGreaterThan(0);
+ expect(screen.getByText('Calculation details')).toBeTruthy();
+ expect(screen.getByText(/requires a verified Malaysia hourly PH/)).toBeTruthy();
 });

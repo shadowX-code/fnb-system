@@ -186,7 +186,11 @@ export const payrollService = {
   reconcileTime: (legalEntityId, from, to) => command("payroll_time_reconcile", {
     p_legal_entity_id: legalEntityId, p_from: from, p_to: to,
   }),
-  decideTime: ({ id, action, approvedMinutes, extraMinutes, classification, reason }) =>
+  decideTime: ({ id, runId, requestId, correction = false, action, approvedMinutes, extraMinutes, classification, reason }) =>
+    runId ? command("payroll_time_decision_save", { p_input: {
+      run_id: runId, request_id: requestId, time_version_id: id, correction, action,
+      approved_minutes: approvedMinutes, extra_minutes: extraMinutes, classification, reason,
+    } }) :
     command("payroll_time_decide", {
       p_time_version_id: id, p_action: action, p_approved_minutes: approvedMinutes,
       p_extra_minutes: extraMinutes, p_classification: classification, p_reason: reason,

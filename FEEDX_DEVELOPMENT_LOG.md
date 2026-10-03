@@ -641,3 +641,16 @@ Added audited date confirmation bound to captured source and row evidence. Effec
   effective consumers retain later pay, original history and finalized guards.
 - Open Run employee review shares the canonical pay setup form and existing
   automatic stale/recalculation flow without resetting employee/month navigation.
+
+## 2026-10-04 — Payroll time corrections and priced earning presentation
+
+Run-scoped time decisions append audited, retry-safe correction versions and
+recalculate earnings/statutory results atomically. Sequential review preserves its
+queue. Review and both payslip modes share server aggregation of already-priced
+lines, preserve per-day evidence and split incompatible rates/rules. Independent
+blockers no longer hide resolved Regular earnings.
+
+Read-only Production PH forensic established that company Additional Pay is not
+statutory PH authority. Staging calculations fail closed for missing Malaysia PH,
+PH-OT and Hourly no-work entitlement authority; no multiplier was configured and no
+Production data/deployment was changed. Canonical owner: docs/domains/payroll.md.

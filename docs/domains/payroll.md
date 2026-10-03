@@ -12,19 +12,25 @@ Replacement Leave. No statutory baseline/premium is inferred from this policy.
 `payroll_ph_work_confirm` locks the Draft/Correction Run and employee Leave scope,
 rechecks the source fingerprint, appends a request-bound decision, reconciles the
 source-linked Leave grant and recalculates only that employee in one transaction.
-Monthly Basic continues: the separate company benefit is effective Monthly Basic
-/ 26 × 1 day. Hourly ordinary earnings reuse Regular pricing for approved PH hours;
-the additional company benefit is effective Hourly Rate × those approved hours.
-Raw clocks never price wages. PH OT remains blocked. A missing policy, confirmation,
-or stale decision blocks calculation readiness, rather than guessing a premium.
+The company policy's historical Additional Pay recommendation uses Monthly Basic
+/ 26 × one benefit day or Hourly Rate × approved hours. This is a company benefit,
+not the statutory Malaysia PH entitlement. The current calculation boundary does
+not emit company PH money or treat it as a substitute for missing statutory PH
+rules. Approved PH work remains explicitly blocked pending a verified statutory
+ordinary-day/eligibility/normal-hours authority; PH OT has its own blocker. Hourly
+paid holidays without work also require verified eligibility and ordinary-day wage
+evidence. Rejecting a shift does not itself prove forfeiture of paid-holiday rights.
+Monthly Basic remains separately resolved. Published holiday, time and company
+benefit evidence are pinned; changed no-work holiday evidence also invalidates the
+open calculation fingerprint. No PH multiplier or normal-day duration is inferred.
 
-The distinguishable `company_ph_benefit` line excludes EPF under KWSP's additional
-PH-work/overtime definition and includes ordinary Act 4/800 PH-work wage treatment;
-ordinary Monthly Basic / Hourly Regular retains its existing inclusion. Sources and
-formula/policy/time/compensation/decision identities are pinned with the calculation.
-PCB remains manual-confirmed. Finalization freezes PH evidence inside existing
-calculation snapshots; finalized statements never resolve it from live policies.
-Post-finalization monetary changes require the existing Correction Revision.
+The statutory design must account for Employment Act sections 60D/60I and First
+Schedule coverage, and the applicable Part-Time Regulations (including separate
+part-time/full-time normal-hours thresholds). Employment Type/pay basis alone is
+not proof of legal coverage. See the official [Employment Act](https://jtksm.mohr.gov.my/sites/default/files/2023-11/Akta%20Kerja%201955%20(Akta%20265).pdf)
+and [Part-Time Regulations](https://jtksm.mohr.gov.my/sites/default/files/2023-03/10.%20Employment%20-%20Part-time%20Employees%20-%20Regulations%202010%20%20%281%29.pdf).
+Existing finalized calculations and company-benefit evidence remain immutable;
+post-finalization monetary changes require the existing Correction Revision.
 
 Replacement Leave belongs to canonical Crew Leave, not a Payroll balance. Draft
 Pay ↔ Leave changes append decisions and signed Leave adjustments. A used source
@@ -54,7 +60,24 @@ Older foundation revisions without financial snapshots explicitly show unavailab
 evidence rather than inventing values. Corrections remain separate revisions;
 this presentation does not create a payslip or payment authority.
 
-Employee monthly review exposes **Review Hours** only for time-dependent employees (all Hourly employees, and Monthly employees whose canonical preparation projection identifies relevant time). The centered review reads `payroll_time_read` snapshots, displays roster/clock/proposed/approved evidence and exception-first rows, and uses `payroll_time_decide` for unresolved exceptions. Clean days require no repeated confirmation. Exception review keeps employee/period navigation across refreshes and uses an explicit per-date queue with progress, Previous, Save & Next/Finish and Continue Review at the first unresolved date. Saved dates remain inspectable without resubmitting a decision. Missing-punch dates with published working-shift evidence offer roster-minute prefill through the existing adjustment decision; roster evidence does not prove attendance. Null proposed minutes cannot be approved as a proposal. Reason shortcuts remain editable and require explicit save. A successful decision runs `payroll_employee_recalculate` (earnings and statutory core together) then refreshes employee, preparation and review projections. If refresh fails after persistence, retry refresh only—not the decision. Regular earnings and effective rates shown here come from persisted calculation lines, not a second UI wage calculator. Original work evidence and finalized snapshots remain under their existing immutable authorities.
+Employee monthly review exposes **Review Hours** only for time-dependent employees (all Hourly employees, and Monthly employees whose canonical preparation projection identifies relevant time). The centered review reads `payroll_time_read` snapshots, displays roster/clock/proposed/approved evidence and exception-first rows, and uses the Run-scoped `payroll_time_decision_save` adapter over the existing `payroll_time_decide` append authority. Clean days require no repeated confirmation. Exception review keeps employee/period navigation across refreshes and uses an explicit per-date queue with progress, Previous, Save & Next/Finish and Continue Review at the first unresolved date. Saved dates remain inspectable. Authorized open-run reviewers may Correct Decision with a new mandatory reason; the new version supersedes rather than edits the previous decision. Run/employee/date scope, latest version, current source fingerprint, request/payload-bound retry and finalized-period correction gates are enforced server-side. Correction audit pins the Run, actor, prior/new time versions and reason. Missing-punch dates with published working-shift evidence offer roster-minute prefill through the existing adjustment decision; roster evidence does not prove attendance. Null proposed minutes cannot be approved as a proposal. Reason shortcuts remain editable and require explicit save. A successful Run decision and `payroll_employee_recalculate` (earnings and statutory core together) commit atomically, then the UI refreshes employee, preparation and review projections without resetting the active queue. Calculation failure rolls the decision back; unresolved evidence remains Pending Review. If refresh fails after persistence, retry refresh only—not the decision. Regular earnings and effective rates shown here come from persisted calculation lines, not a second UI wage calculator. Original work evidence and finalized snapshots remain under their existing immutable authorities.
+
+### Priced earning presentation
+
+`payroll_earning_groups` is the private server read projection shared by open and
+finalized Review and Draft/Final payslip documents. It sums already-priced daily
+amounts; it never reprices summed hours. Compatible code/rate/multiplier/rule,
+compensation and other priced basis must match. Mid-period rate/rule changes remain
+separate groups. Lines without a time basis remain individual. Gross reconciles
+exactly, including original daily rounding. Statutory PH lines use Public Holiday
+Allowance; company benefit evidence retains its distinct label. Original lines and
+group details remain available under Calculation details. Existing finalized
+snapshots and existing PDF artifacts are not rewritten. Newly rendered documents
+consume the same server groups with the unchanged Unicode renderer/font assets.
+
+Resolved, non-stale earning lines display even when an independent PH/OT/statutory
+issue prevents Run readiness. Pending Gross/Net and finalization gates remain; a
+partial earning projection is never represented as final payable totals.
 
 ## Ownership and Phase
 

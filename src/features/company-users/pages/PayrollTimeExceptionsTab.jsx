@@ -10,25 +10,28 @@ const time = (value) => value ? new Intl.DateTimeFormat("en-MY", {
   timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit", hour12: false,
 }).format(new Date(value)) : "—";
 
-export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Record Decision', onPrevious, onNext }) {
+export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Record Decision', onPrevious, onNext, runId, correction = false }) {
   const evidence = row.evidence || {};
   const hasProposal = row.proposed_minutes != null;
+  const rosterClassification = evidence.classification || row.classification;
   const rosterAvailable = row.issue_codes?.some(code => ['missing_punch', 'missing_clock_in', 'missing_clock_out'].includes(code))
     && evidence.roster_publication_id && evidence.roster_entry_id && evidence.roster_entry_type === 'working'
-    && row.scheduled_minutes != null && ['regular', 'rest_day', 'public_holiday'].includes(row.classification);
+    && row.scheduled_minutes != null && ['regular', 'rest_day', 'public_holiday'].includes(rosterClassification);
   const reviewed = row.status !== 'review_required';
-  const [action, setAction] = useState(hasProposal ? "approve" : "adjust");
-  const [minutes, setMinutes] = useState(row.proposed_minutes ?? "");
-  const [extra, setExtra] = useState(0);
+  const editing = !reviewed || correction;
+  const [requestId] = useState(() => crypto.randomUUID());
+  const [action, setAction] = useState(correction ? "adjust" : hasProposal ? "approve" : "adjust");
+  const [minutes, setMinutes] = useState(correction ? row.approved_minutes ?? "" : row.proposed_minutes ?? "");
+  const [extra, setExtra] = useState(correction ? row.approved_extra_minutes || 0 : 0);
   const [classification, setClassification] = useState(row.classification);
-  const [reason, setReason] = useState(reviewed ? row.history?.find(item => item.id === row.id)?.reason || "" : "");
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [recorded, setRecorded] = useState(false);
   const save = async () => {
     setBusy(true); setError("");
     try {
-      if (!recorded) { await payrollService.decideTime({ id: row.id, action: action === "roster" ? "adjust" : action,
+      if (!recorded) { await payrollService.decideTime({ id: row.id, runId, requestId, correction, action: action === "roster" ? "adjust" : action,
         approvedMinutes: action === "reject" ? 0 : Number(minutes),
         extraMinutes: action === "reject" ? 0 : Number(extra),
         classification: action === "reject" ? "non_payable" : classification, reason });
@@ -42,7 +45,7 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
     setAction(value);
     setExtra(0);
     setClassification(row.classification);
-    if (value === 'roster') setMinutes(row.scheduled_minutes);
+    if (value === 'roster') { setMinutes(row.scheduled_minutes); setClassification(rosterClassification); }
     else if (value === 'approve') setMinutes(row.proposed_minutes);
     else if (value === 'reject') setMinutes(0);
   };
@@ -56,10 +59,11 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
     size="lg" onClose={() => !busy && onClose()}
     footer={<><button className="btn-secondary" type="button" onClick={onClose} disabled={busy}>{progress ? 'Back to Employee Review' : 'Cancel'}</button>
       {onPrevious && <button className="btn-secondary" type="button" disabled={busy || recorded} onClick={onPrevious}>Previous</button>}
-      {reviewed ? <button className="btn-primary" type="button" onClick={onNext}>Next unresolved exception</button> :
+      {!editing ? <button className="btn-primary" type="button" onClick={onNext}>Next unresolved exception</button> :
       <button className="btn-primary" type="button" onClick={save} disabled={busy || (!recorded && (!reason.trim() || (action !== "reject" && (minutes === "" || !Number.isInteger(Number(minutes)) || !Number.isInteger(Number(extra)) || Number(minutes) < 0 || Number(extra) < 0 || Number(minutes) + Number(extra) > 1440))))}>{busy ? "Saving..." : recorded ? "Refresh Review" : saveLabel}</button>}</>}>
     <div className="space-y-4 text-sm">
       {progress && <p role="status" className="font-semibold">{progress}</p>}
+      {correction && <p role="status">Correct Decision · The prior decision is retained. A new reason is required.</p>}
       {reviewed && <p role="status">Decision already recorded · {duration(row.approved_minutes)} · {titleCase(row.classification)}</p>}
       {recorded && <p role="status">Decision recorded. Refresh the review to restore the latest payroll result; this will not submit another decision.</p>}
       <div className="grid gap-3 rounded-xl border border-border p-4 sm:grid-cols-2">
@@ -69,7 +73,7 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
         <div><strong>Proposed Payable</strong><p>{duration(row.proposed_minutes)} · extra candidate {duration(evidence.extra_candidate_minutes)}</p></div>
       </div>
       <div><strong>Issues requiring review</strong><p className="text-text-secondary">{row.issue_codes?.map(titleCase).join(" · ") || "—"}</p></div>
-      <fieldset disabled={busy || recorded || reviewed} className="grid gap-3 sm:grid-cols-2">
+      <fieldset disabled={busy || recorded || !editing} className="grid gap-3 sm:grid-cols-2">
         <SelectField label="Decision" value={action} onChange={chooseAction} options={[
           ...(hasProposal ? [{ value: "approve", label: "Approve proposed time" }] : []), ...(rosterAvailable ? [{ value: "roster", label: "Approve Roster Hours" }] : []), { value: "adjust", label: "Adjust Payable Time" }, { value: "reject", label: "Reject / Non-payable" },
         ]} />
@@ -79,8 +83,8 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
         {action !== "reject" && <AdminFormField label="Approved extra / OT minutes"><input className="control" type="number" min="0" max="1440" step="1" value={extra} onChange={(event) => setExtra(event.target.value)} /></AdminFormField>}
       </fieldset>
       {action === 'roster' && <p className="text-xs text-text-secondary">Roster hours are a schedule, not proof of attendance. Confirm supporting evidence before saving.</p>}
-      {!reviewed && <div className="flex flex-wrap gap-2" aria-label="Reason shortcuts">{shortcuts.map(([label, text]) => <button key={label} type="button" className="btn-secondary text-xs" disabled={busy || recorded} onClick={() => setReason(text)}>{label}</button>)}</div>}
-      <AdminFormField label="Decision reason" required><textarea disabled={busy || recorded || reviewed} className="control min-h-20" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence and any manual adjustment" /></AdminFormField>
+      {editing && <div className="flex flex-wrap gap-2" aria-label="Reason shortcuts">{shortcuts.map(([label, text]) => <button key={label} type="button" className="btn-secondary text-xs" disabled={busy || recorded} onClick={() => setReason(text)}>{label}</button>)}</div>}
+      <AdminFormField label={correction ? "Correction reason" : "Decision reason"} required><textarea disabled={busy || recorded || !editing} className="control min-h-20" value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence and any manual adjustment" /></AdminFormField>
       {!!row.history?.length && <details><summary className="font-semibold">Decision history ({row.history.length})</summary>
         <div className="mt-2 divide-y divide-border rounded-xl border border-border">{row.history.map((item) => <p key={item.id} className="p-2">v{item.revision} · {titleCase(item.status)} · {duration(item.approved_minutes)} · {item.reason || "Automatic reconciliation"}</p>)}</div>
       </details>}
