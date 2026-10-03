@@ -258,7 +258,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
           {active && <button className="font-semibold text-primary" type="button" disabled={busy} onClick={() => setAdjustment({ requestId: crypto.randomUUID(), componentId: "", amount: "", reason: "" })}>Add Adjustment</button>}</div>
           <p className="mt-1 text-xs text-text-secondary">{selected.pay ? `${human(selected.pay.pay_basis)} · Pay effective ${selected.pay.effective_from}` : "Complete Employee pay setup"}</p>
           <div className="mt-2 divide-y divide-border">{(selected.calculation?.earning_groups || []).map(financialLine)}
-            {!selected.calculation?.lines?.some((line) => line.kind === "earning") && <p className="py-2 text-text-secondary">Calculate Payroll to see earning lines.</p>}
+            {!selected.calculation?.lines?.some((line) => line.kind === "earning") && <p className="py-2 text-text-secondary">No earning lines are resolved yet. Review the blockers above.</p>}
           </div>
           <details className="mt-3 text-xs text-text-secondary"><summary>Calculation details</summary>{(selected.calculation?.lines || []).filter(line => line.kind === "earning").map((line,index) => <div key={`daily-${index}`}><p className="mt-2 font-semibold">{line.source?.work_date || "Period evidence"}</p>{financialLine(line,index)}</div>)}</details>
           {selected.calculation?.status !== "ready" && <p className="mt-2 text-xs text-amber-800">Resolved earning lines are shown. Gross and Net remain pending until independent blockers are resolved.</p>}

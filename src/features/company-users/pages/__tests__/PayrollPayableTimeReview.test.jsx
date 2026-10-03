@@ -129,3 +129,20 @@ it('corrects a reviewed date with a new mandatory reason and preserves the revie
  await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({runId:'run',correction:true,approvedMinutes:300,reason:'Corrected after evidence review'})));
  await screen.findByRole('button',{name:'Correct Decision'}); expect(close).not.toHaveBeenCalled();
 });
+
+it('shows recorded hours and reason on Previous without making the decision editable', async () => {
+  mocks.decideTime.mockClear().mockResolvedValue({});
+  const next={...row,id:'next',work_date:'2026-09-26'};
+  render(<PayrollPayableTimeReview employee={{...employee,time:[row,next]}} month="2026-09" canManage onClose={()=>{}} onDecisionSaved={async()=>[{...row,id:'saved',status:'approved_manual',approved_minutes:420,approved_extra_minutes:30,decision_reason:'Original verified evidence'},next]} />);
+  fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
+  fireEvent.click(screen.getByRole('button',{name:'Clock evidence reviewed'}));
+  fireEvent.click(screen.getByRole('button',{name:'Save & Next'}));
+  await screen.findByRole('button',{name:'Save & Finish'});
+  fireEvent.click(screen.getByRole('button',{name:'Previous'}));
+  expect(screen.getByRole('spinbutton',{name:/Approved payable minutes/}).value).toBe('420');
+  expect(screen.getByRole('spinbutton',{name:/Approved extra/}).value).toBe('30');
+  const reason=screen.getByRole('textbox',{name:/Decision reason/});
+  expect(reason.value).toBe('Original verified evidence');
+  expect(reason.disabled).toBe(true);
+  expect(mocks.decideTime).toHaveBeenCalledTimes(1);
+});

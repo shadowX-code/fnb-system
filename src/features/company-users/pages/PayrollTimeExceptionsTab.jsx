@@ -21,10 +21,10 @@ export function DecisionModal({ row, onClose, onSaved, progress, saveLabel = 'Re
   const editing = !reviewed || correction;
   const [requestId] = useState(() => crypto.randomUUID());
   const [action, setAction] = useState(correction ? "adjust" : hasProposal ? "approve" : "adjust");
-  const [minutes, setMinutes] = useState(correction ? row.approved_minutes ?? "" : row.proposed_minutes ?? "");
-  const [extra, setExtra] = useState(correction ? row.approved_extra_minutes || 0 : 0);
+  const [minutes, setMinutes] = useState(reviewed ? row.approved_minutes ?? "" : row.proposed_minutes ?? "");
+  const [extra, setExtra] = useState(reviewed ? row.approved_extra_minutes || 0 : 0);
   const [classification, setClassification] = useState(row.classification);
-  const [reason, setReason] = useState("");
+  const [reason, setReason] = useState(reviewed && !correction ? row.decision_reason || "" : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [recorded, setRecorded] = useState(false);
