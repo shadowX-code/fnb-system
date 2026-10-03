@@ -58,3 +58,8 @@ it("shows additional gazetted entitlements separately from six company choices",
  fireEvent.click(screen.getByRole("button",{name:"Review Calendar",exact:true}));
  expect(screen.getByText("Total Paid Holidays").parentElement.textContent).toContain("12");
 });
+
+it("does not borrow one known workplace state for other unverified workplaces",async()=>{
+ service.readHolidayOperation.mockResolvedValue({outlets:[],geographies:["MY-08"],unverified_count:4});show();
+ await screen.findByText(/Statutory geography is missing/);expect(screen.queryByText("Perak · 2026")).toBeNull();expect(screen.queryByText("Applicable holiday 1")).toBeNull();
+});

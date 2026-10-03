@@ -38,7 +38,7 @@ export default function PayrollHolidayWorkflow({ year, annual, editable, advance
     let active = true;
     payrollService.readHolidayOperation(operation || null).then(value => {
       if (!active) return;
-      setContext(value); if (!operation) setOperations(value.outlets); setGeography(value.geographies.length === 1 ? value.geographies[0] : "");
+      setContext(value); if (!operation) setOperations(value.outlets); setGeography(value.unverified_count === 0 && value.geographies.length === 1 ? value.geographies[0] : "");
     }).catch(e => active && setError(e.message));
     return () => { active = false; };
   }, [operation]);
