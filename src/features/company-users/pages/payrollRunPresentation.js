@@ -58,6 +58,26 @@ export function payrollReviewSummary(rows = []) {
 export function payrollIssueLabel(issue, context = {}) {
   const [code, detail] = String(issue).split(":");
   const range = value => value?.replaceAll("..", " – ");
+  const phReasons = {
+    ph_eligibility_review_required: "Verify PH entitlement: statutory coverage, contractual hours, wage basis and holiday eligibility.",
+    ph_eligibility_evidence_changed: "PH evidence changed. Review the current employment, time, pay and holiday evidence.",
+    ph_preceding_wage_period_evidence_required: "PH pay needs verified qualifying wages and worked days from the preceding wage period with this employer.",
+    ph_monthly_ordinary_wages_required: "Verify the ordinary monthly wage basis for PH pay.",
+    ph_contract_hours_required: "Verify contractual normal daily hours for PH pay and overtime.",
+    ph_normal_ot_boundary_requires_review: "Review approved PH normal hours and overtime against the contractual boundary.",
+    ph_statutory_category_requires_review: "Verify the employee's applicable PH statutory category.",
+    ph_part_time_contract_category_required: "Verify part-time category and comparable contractual working hours.",
+    ph_part_time_partial_day_requires_review: "Partial part-time PH work needs a verified pricing rule.",
+    ph_over_4000_contract_work_rule_required: "PH work pay requires verified contractual/category authority at this wage level.",
+    ph_absence_or_substitution_requires_review: "Review holiday eligibility, adjacent absence and substitute-day evidence.",
+    ph_company_overlap_review_required: "Verify whether the company PH benefit is additional to statutory pay or an inclusive top-up.",
+    ph_company_treatment_confirmation_required: "Confirm the separate company PH benefit and its overlap with statutory pay.",
+    ph_age_category_requires_review: "Verify age and applicable working-hours coverage for PH pay.",
+    ph_territory_requires_review: "Verify the applicable territory's PH pricing authority.",
+    ph_wage_period_requires_review: "PH pricing requires a supported monthly wage period.",
+    ph_official_pack_required: "The applicable official PH formula pack requires review.",
+  };
+  if (phReasons[code]) return `${phReasons[code]}${detail ? ` · ${detail}` : ""}`;
   if (code === "pay_history_missing") return `Pay history missing · ${range(detail)}`;
   if (code === "employment_history_unresolved") return `Employment assignment history unresolved · ${range(detail)}`;
   if (code === "component_proration_policy_required" || code === "component_multiple_amounts_requires_review") {

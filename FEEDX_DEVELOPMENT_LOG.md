@@ -690,3 +690,14 @@ Read-only Production PH forensic established that company Additional Pay is not
 statutory PH authority. Staging calculations fail closed for missing Malaysia PH,
 PH-OT and Hourly no-work entitlement authority; no multiplier was configured and no
 Production data/deployment was changed. Canonical owner: docs/domains/payroll.md.
+
+## 2026-10-04 — Verified Malaysia PH pricing authority
+
+The existing pay-rule registry now versions an official Employment Act PH formula
+pack with explicit employee/day legal coverage, contractual hours, ordinary wage
+and paid-day eligibility evidence. Scoped audited confirmation recalculates open
+Payroll atomically. Monthly/hourly and verified part-time PH OT use their statutory
+bases; unknown exclusions/historical wages/substitutions remain Review Required.
+Company benefit overlap requires contract evidence, preserving statutory cash and
+preventing an inclusive benefit from being paid twice. Day/hour earning groups and
+Draft/Final presentation share priced lines; finalized evidence is unchanged.
