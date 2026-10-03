@@ -33,12 +33,14 @@ it("resolves period-effective categories and PCB N/A beside current amounts", as
   mocks.readStatutory.mockResolvedValue({ results: [{ employee_id:"employee",status:"ready", net_pay:1766.35, non_statutory_deductions:0, lines:[
     {scheme:"epf",applicable:true,employee_amount:220,employer_amount:260},
     {scheme:"socso",applicable:true,employee_amount:9.75,employer_amount:34.15},
+    {scheme:"lindung",applicable:false,employee_amount:0,employer_amount:0},
     {scheme:"eis",applicable:true,employee_amount:3.9,employer_amount:3.9},
     {scheme:"pcb",applicable:false,employee_amount:0,employer_amount:0},
   ] }] });
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee",statutory_setup:{complete:true,schemes:{
     epf:{state:"confirmed",applicable:true,category:"malaysian_under_60"},
     socso:{state:"confirmed",applicable:true,category:"first_category_base"},
+    lindung:{state:"not_applicable",applicable:false,status:"valid_opt_out"},
     eis:{state:"confirmed",applicable:true,category:"standard"},
     pcb:{state:"not_applicable",applicable:false},
   }},projection:{status:"ready",inputs:{compensation_start:{id:"pay",pay_basis:"monthly",basic_salary:2000,effective_from:"2026-01-01"}}}}]});
@@ -172,4 +174,17 @@ it("puts human-readable blockers first and hides unresolved Net Pay", async () =
   const blockers=screen.getByRole("region",{name:"Review blockers"});
   expect(blockers.textContent).toContain("Pay history missing · 2026-09-01 – 2026-09-25");
   expect(blockers.compareDocumentPosition(screen.getByRole("heading",{name:"Earnings"})) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it.each([false, true])("uses only frozen LINDUNG evidence in finalized Review (present=%s)", async present => {
+  mocks.readCalculation.mockResolvedValue({results:[{employee_id:"employee",status:"ready",gross_earnings:2000,lines:[]}],adjustments:[]});
+  mocks.readStatutory.mockResolvedValue({results:[{employee_id:"employee",status:"ready",net_pay:1900,lines: present ? [{scheme:"lindung",applicable:true,participation_status:"participating",employee_amount:14.65,employer_amount:0}] : []}]});
+  render(<PayrollRunEmployeesPanel {...props} run={{...props.run,status:"finalized"}} stage="review" />);
+  await screen.findByText("QA Employee");
+  fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+  if(present) {
+    expect(screen.getByText("LINDUNG 24 Jam")).toBeTruthy();
+    expect(screen.getByText("Participating")).toBeTruthy();
+    expect(screen.getAllByText(/14.65/).length).toBeGreaterThan(0);
+  } else expect(screen.queryByText("LINDUNG 24 Jam")).toBeNull();
 });

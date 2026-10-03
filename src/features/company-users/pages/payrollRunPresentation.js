@@ -67,7 +67,24 @@ export function payrollIssueLabel(issue, context = {}) {
   if ((code === "statutory_applicability_missing" || code.endsWith("_applicability_unreviewed")) && coverage?.missing_through) {
     return `${code === "statutory_applicability_missing" ? "Statutory" : code.split("_")[0].toUpperCase()} applicability missing · ${coverage.start} – ${coverage.missing_through}`;
   }
+  if (code.endsWith("_applicability_unreviewed")) {
+    const scheme = code.split("_")[0].toUpperCase();
+    const date = context.statutory?.inputs?.setup_effective_date;
+    return `${scheme} applicability is not confirmed${date ? ` for the payroll period starting ${date}` : " for this payroll period"}. Open Payroll Profiles → Manage Statutory Setup and explicitly confirm the historical Effective Payroll Month; current setup does not establish earlier coverage.`;
+  }
+  if (code === "lindung_participation_unconfirmed") {
+    const month = detail ? new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${detail}T00:00:00Z`)) : "This period's";
+    return `${month} LINDUNG participation is unconfirmed. Open Manage Statutory Setup and confirm evidence for that contribution month.`;
+  }
+  if (code === "lindung_wage_treatment_unresolved") return `LINDUNG Act 4 wage treatment is unresolved for ${detail || "an earning component"}. Review the component's Act 4 wage treatment.`;
   const labels = {
+    lindung_designated_employer_missing: "Designated contributing employer is missing for LINDUNG.",
+    lindung_designated_employer_mismatch: "LINDUNG designated employer does not match this Payroll employer. Review the designation evidence.",
+    lindung_rate_pack_unavailable: "LINDUNG rate pack unavailable for this payroll period.",
+    lindung_official_band_unavailable: "Official LINDUNG wage band unavailable; contribution has not been assumed.",
+    lindung_june_mandatory_evidence_required: "June 2026 LINDUNG contributions are mandatory. Confirm June evidence; later opt-out does not cancel June.",
+    lindung_employee_evidence_changed: "Employee nationality changed since LINDUNG confirmation. Reverify worker coverage evidence.",
+    lindung_negative_wage_base: "LINDUNG contributable wages are negative; review earning and unpaid-time evidence.",
     employment_joined_date_missing: "Joined Date is required to resolve period employment",
     employment_assignment_requires_review: "Period employment assignment requires review",
     legal_employer_unresolved: "Legal Employer is unresolved for this period",

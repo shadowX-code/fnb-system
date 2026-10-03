@@ -5,6 +5,9 @@ import SelectField from '../../../components/forms/SelectField.jsx';
 import MonthPickerField from '../../../components/forms/MonthPickerField.jsx';
 import { payrollService } from '../../../services/payrollService.js';
 
+import PayrollLindungSetup from './PayrollLindungSetup.jsx';
+import { lindungStatusLabel } from './payrollStatutoryLabels.js';
+
 const schemes = ['epf', 'socso', 'eis', 'pcb'];
 export const statutoryCategories = {
   epf: [{value:'malaysian_under_60',label:'Malaysian · under 60'},{value:'malaysian_60_to_74',label:'Malaysian · 60–74'}],
@@ -13,6 +16,7 @@ export const statutoryCategories = {
 };
 const categories = statutoryCategories;
 export const statutorySchemeLabel = (scheme, state) => {
+  if (scheme === 'lindung') return state?.issue ? 'Evidence Required' : lindungStatusLabel(state?.status);
   if (state?.state === 'confirmation_required') return 'Confirmation Required';
   if (state?.state === 'not_applicable') return 'Not Applicable';
   if (state?.state !== 'confirmed' && state?.state !== 'scheduled') return 'Setup Required';
@@ -123,6 +127,8 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
         })}</section>
         <MonthPickerField label="Effective Payroll Month" value={draft.effectiveFrom.slice(0,7)} disabled={busy}
           onChange={v=>{setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:`${v}-01`}));}} />
+        <p className="text-sm text-text-secondary">To resolve a historical Payroll Run, explicitly select its Effective Payroll Month and confirm the known applicability and categories. This appends historical evidence; later confirmed setup and finalized records are preserved. Refresh the open Payroll Run after confirmation. PCB amount confirmation remains separate for each Run.</p>
+        <PayrollLindungSetup profile={profile} month={draft.effectiveFrom} onSaved={onSaved} disabled={busy} />
         {!review && !error && <p role="status">Resolving setup…</p>}
         {review && manual && <div className="space-y-3"><p className="text-sm text-text-secondary">Explain the change from FeedX's recommendation. The server still validates the selected category against employee evidence.</p>
           <AdminFormField label="Supporting evidence / source" required><input className="control" value={sourceNote} onChange={e=>setSourceNote(e.target.value)} /></AdminFormField>

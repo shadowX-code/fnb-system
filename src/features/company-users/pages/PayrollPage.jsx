@@ -26,6 +26,7 @@ import PayrollPayRulesPanel from "./PayrollPayRulesPanel.jsx";
 import PayrollAnnualHolidays from "./PayrollAnnualHolidays.jsx";
 import { PayrollPhPolicy } from "./PayrollPhWork.jsx";
 import PayrollEmployeeComponents, { ComponentSummary, componentTimeline } from "./PayrollEmployeeComponents.jsx";
+import { statutoryName } from "./payrollStatutoryLabels.js";
 import PayrollStatutorySetup, { statutorySchemeLabel, statutorySetupHelp, statutoryCategories } from "./PayrollStatutorySetup.jsx";
 import { MALAYSIA_STATES, malaysiaStateName } from "../../../constants/malaysiaStates.js";
 
@@ -198,7 +199,7 @@ function RegistryScheme({ scheme, state }) {
   const resolved = state?.state === "confirmed";
   const notApplicable = state?.state === "not_applicable" || (!scheduled && state?.applicable === false);
   const Icon = scheduled ? Clock : notApplicable ? Minus : resolved ? Check : TriangleAlert;
-  const description = `${scheme.toUpperCase()} — ${statutorySchemeLabel(scheme, state)}${scheduled ? ` · Scheduled · Effective ${registryDate(state.effective_from)}` : ""}`;
+  const description = `${statutoryName(scheme)} — ${statutorySchemeLabel(scheme, state)}${scheduled ? ` · Scheduled · Effective ${registryDate(state.effective_from)}` : ""}`;
   return <InfoTooltip label={description}><Icon size={16} aria-hidden="true" className={scheduled ? "text-primary" : notApplicable ? "text-text-secondary" : resolved ? "text-emerald-700" : "text-amber-700"} /></InfoTooltip>;
 }
 
@@ -226,7 +227,7 @@ export function ProfilesTab({ data, canManage, reload }) {
     { key: "joined", header: "Joined", className: "hidden 2xl:table-cell whitespace-nowrap", headerClassName: "hidden 2xl:table-cell", render: row => registryDate(row.joined_date) },
     { key: "basis", header: "Pay Basis", className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell", render: (row) => effective(row.profile?.compensation) ? label(effective(row.profile.compensation).pay_basis) : "Not set" },
     { key: "rate", header: "Current Pay", align: "right", render: (row) => { const c = effective(row.profile?.compensation); return c ? <strong className="tabular-nums">{money(c.basic_salary || c.hourly_rate, c.currency)}{c.pay_basis === "hourly" ? " / hour" : ""}</strong> : "—"; } },
-    ...["epf", "socso", "eis", "pcb"].map(scheme => ({ key: scheme, header: scheme.toUpperCase(), className: "hidden xl:table-cell text-center", headerClassName: "hidden xl:table-cell text-center",
+    ...["epf", "socso", "lindung", "eis", "pcb"].map(scheme => ({ key: scheme, header: statutoryName(scheme), className: "hidden xl:table-cell text-center", headerClassName: "hidden xl:table-cell text-center",
       render: row => <RegistryScheme scheme={scheme} state={row.profile?.statutory_setup?.display_schemes?.[scheme]} /> })),
     { key: "components", header: "Components", className: "hidden xl:table-cell", headerClassName: "hidden xl:table-cell", render: row => {
       const active = [...new Set((row.profile?.recurring || []).map(v => v.component_id))].map(id => ({
@@ -268,15 +269,17 @@ export function ProfilesTab({ data, canManage, reload }) {
           <p className="text-sm text-text-secondary">{current ? `${label(current.pay_basis)}${current.pay_basis === "hourly" ? " / hour" : ""} · from ${current.effective_from}` : "—"}</p>
           <p className="mt-2 text-xs text-text-secondary">Joined {registryDate(selectedEmployee.joined_date)} · Last Pay Change {registryDate(lastPayChange(versions, today()))}</p>
           {upcoming[0] && <p className="mt-2 text-sm text-text-secondary">Next change: {money(upcoming[0].basic_salary || upcoming[0].hourly_rate)} from {upcoming[0].effective_from}</p>}</section>
-        <section><h4 className="font-bold">Statutory</h4>
-          <div className="mt-2 flex flex-wrap gap-2">{["epf", "socso", "eis", "pcb"].map((key) =>
+        <section><h4 className="font-bold">Statutory · Current Setup</h4>
+          <div className="mt-2 flex flex-wrap gap-2">{["epf", "socso", "lindung", "eis", "pcb"].map((key) =>
             <Badge key={key} tone={["setup_required","confirmation_required"].includes(statutory?.display_schemes?.[key]?.state) ? "warning" : "neutral"}>
-              {key.toUpperCase()} — {statutorySchemeLabel(key,statutory?.display_schemes?.[key])}
+              {statutoryName(key)} — {statutorySchemeLabel(key,statutory?.display_schemes?.[key])}
               {statutory?.display_schemes?.[key]?.state === "scheduled" && <> · Effective {statutory.display_schemes[key].effective_from} · Scheduled</>}
             </Badge>)}</div>
           <p className="mt-2 text-xs text-text-secondary">{statutory?.status || "Setup Required"}</p>
+          <p className="mt-2 text-xs text-text-secondary">Current setup as of {statutory?.effective_from || today()}. Historical Payroll Runs require statutory confirmation effective for their own payroll month.</p>
+          {statutory?.display_schemes?.lindung?.issue && <p className="mt-2 text-xs text-amber-700">{payrollIssueLabel(statutory.display_schemes.lindung.issue)}</p>}
           {["epf","socso","eis"].filter(key=>statutory?.display_schemes?.[key]?.state === "setup_required").map(key=>
-            <p key={key} className="mt-2 text-xs text-amber-700">{key.toUpperCase()} · {statutorySetupHelp(statutory.display_schemes[key].issue,statutory.evidence)}</p>)}
+            <p key={key} className="mt-2 text-xs text-amber-700">{statutoryName(key)} · {statutorySetupHelp(statutory.display_schemes[key].issue,statutory.evidence)}</p>)}
         </section>
       </div>
       <div className="grid gap-5 lg:grid-cols-2">

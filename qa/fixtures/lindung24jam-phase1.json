@@ -1,0 +1,464 @@
+{
+  "source_url": "https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf",
+  "source_version": "PERKESO Act 4 SKBBK Phase 1 official table, rows 1\u201365",
+  "effective_from": "2026-06-01",
+  "effective_to": "2028-05-31",
+  "ceiling": 6000,
+  "bands": [
+    {
+      "row": 1,
+      "wage_above": 0,
+      "wage_through": 30,
+      "employee_amount": "0.20",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 2,
+      "wage_above": 30,
+      "wage_through": 50,
+      "employee_amount": "0.30",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 3,
+      "wage_above": 50,
+      "wage_through": 70,
+      "employee_amount": "0.50",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 4,
+      "wage_above": 70,
+      "wage_through": 100,
+      "employee_amount": "0.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 5,
+      "wage_above": 100,
+      "wage_through": 140,
+      "employee_amount": "0.90",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 6,
+      "wage_above": 140,
+      "wage_through": 200,
+      "employee_amount": "1.25",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 7,
+      "wage_above": 200,
+      "wage_through": 300,
+      "employee_amount": "1.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 8,
+      "wage_above": 300,
+      "wage_through": 400,
+      "employee_amount": "2.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 9,
+      "wage_above": 400,
+      "wage_through": 500,
+      "employee_amount": "3.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 10,
+      "wage_above": 500,
+      "wage_through": 600,
+      "employee_amount": "4.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 11,
+      "wage_above": 600,
+      "wage_through": 700,
+      "employee_amount": "4.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 12,
+      "wage_above": 700,
+      "wage_through": 800,
+      "employee_amount": "5.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 13,
+      "wage_above": 800,
+      "wage_through": 900,
+      "employee_amount": "6.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 14,
+      "wage_above": 900,
+      "wage_through": 1000,
+      "employee_amount": "7.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 15,
+      "wage_above": 1000,
+      "wage_through": 1100,
+      "employee_amount": "7.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 16,
+      "wage_above": 1100,
+      "wage_through": 1200,
+      "employee_amount": "8.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 17,
+      "wage_above": 1200,
+      "wage_through": 1300,
+      "employee_amount": "9.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 18,
+      "wage_above": 1300,
+      "wage_through": 1400,
+      "employee_amount": "10.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 19,
+      "wage_above": 1400,
+      "wage_through": 1500,
+      "employee_amount": "10.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 20,
+      "wage_above": 1500,
+      "wage_through": 1600,
+      "employee_amount": "11.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 21,
+      "wage_above": 1600,
+      "wage_through": 1700,
+      "employee_amount": "12.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 22,
+      "wage_above": 1700,
+      "wage_through": 1800,
+      "employee_amount": "13.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 23,
+      "wage_above": 1800,
+      "wage_through": 1900,
+      "employee_amount": "13.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 24,
+      "wage_above": 1900,
+      "wage_through": 2000,
+      "employee_amount": "14.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 25,
+      "wage_above": 2000,
+      "wage_through": 2100,
+      "employee_amount": "15.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 26,
+      "wage_above": 2100,
+      "wage_through": 2200,
+      "employee_amount": "16.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 27,
+      "wage_above": 2200,
+      "wage_through": 2300,
+      "employee_amount": "16.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 28,
+      "wage_above": 2300,
+      "wage_through": 2400,
+      "employee_amount": "17.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 29,
+      "wage_above": 2400,
+      "wage_through": 2500,
+      "employee_amount": "18.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 30,
+      "wage_above": 2500,
+      "wage_through": 2600,
+      "employee_amount": "19.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 31,
+      "wage_above": 2600,
+      "wage_through": 2700,
+      "employee_amount": "19.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 32,
+      "wage_above": 2700,
+      "wage_through": 2800,
+      "employee_amount": "20.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 33,
+      "wage_above": 2800,
+      "wage_through": 2900,
+      "employee_amount": "21.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 34,
+      "wage_above": 2900,
+      "wage_through": 3000,
+      "employee_amount": "22.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 35,
+      "wage_above": 3000,
+      "wage_through": 3100,
+      "employee_amount": "22.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 36,
+      "wage_above": 3100,
+      "wage_through": 3200,
+      "employee_amount": "23.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 37,
+      "wage_above": 3200,
+      "wage_through": 3300,
+      "employee_amount": "24.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 38,
+      "wage_above": 3300,
+      "wage_through": 3400,
+      "employee_amount": "25.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 39,
+      "wage_above": 3400,
+      "wage_through": 3500,
+      "employee_amount": "25.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 40,
+      "wage_above": 3500,
+      "wage_through": 3600,
+      "employee_amount": "26.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 41,
+      "wage_above": 3600,
+      "wage_through": 3700,
+      "employee_amount": "27.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 42,
+      "wage_above": 3700,
+      "wage_through": 3800,
+      "employee_amount": "28.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 43,
+      "wage_above": 3800,
+      "wage_through": 3900,
+      "employee_amount": "28.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 44,
+      "wage_above": 3900,
+      "wage_through": 4000,
+      "employee_amount": "29.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 45,
+      "wage_above": 4000,
+      "wage_through": 4100,
+      "employee_amount": "30.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 46,
+      "wage_above": 4100,
+      "wage_through": 4200,
+      "employee_amount": "31.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 47,
+      "wage_above": 4200,
+      "wage_through": 4300,
+      "employee_amount": "31.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 48,
+      "wage_above": 4300,
+      "wage_through": 4400,
+      "employee_amount": "32.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 49,
+      "wage_above": 4400,
+      "wage_through": 4500,
+      "employee_amount": "33.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 50,
+      "wage_above": 4500,
+      "wage_through": 4600,
+      "employee_amount": "34.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 51,
+      "wage_above": 4600,
+      "wage_through": 4700,
+      "employee_amount": "34.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 52,
+      "wage_above": 4700,
+      "wage_through": 4800,
+      "employee_amount": "35.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 53,
+      "wage_above": 4800,
+      "wage_through": 4900,
+      "employee_amount": "36.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 54,
+      "wage_above": 4900,
+      "wage_through": 5000,
+      "employee_amount": "37.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 55,
+      "wage_above": 5000,
+      "wage_through": 5100,
+      "employee_amount": "37.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 56,
+      "wage_above": 5100,
+      "wage_through": 5200,
+      "employee_amount": "38.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 57,
+      "wage_above": 5200,
+      "wage_through": 5300,
+      "employee_amount": "39.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 58,
+      "wage_above": 5300,
+      "wage_through": 5400,
+      "employee_amount": "40.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 59,
+      "wage_above": 5400,
+      "wage_through": 5500,
+      "employee_amount": "40.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 60,
+      "wage_above": 5500,
+      "wage_through": 5600,
+      "employee_amount": "41.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 61,
+      "wage_above": 5600,
+      "wage_through": 5700,
+      "employee_amount": "42.35",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 62,
+      "wage_above": 5700,
+      "wage_through": 5800,
+      "employee_amount": "43.15",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 63,
+      "wage_above": 5800,
+      "wage_through": 5900,
+      "employee_amount": "43.85",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 64,
+      "wage_above": 5900,
+      "wage_through": 6000,
+      "employee_amount": "44.65",
+      "employer_amount": "0.00"
+    },
+    {
+      "row": 65,
+      "wage_above": 6000,
+      "wage_through": null,
+      "employee_amount": "44.65",
+      "employer_amount": "0.00"
+    }
+  ]
+}

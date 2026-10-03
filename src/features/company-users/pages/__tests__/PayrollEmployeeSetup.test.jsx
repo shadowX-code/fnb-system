@@ -1,11 +1,12 @@
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
-const mocks=vi.hoisted(()=>({ readStatutorySetup:vi.fn(),confirmStatutorySetup:vi.fn(),adjustRecurring:vi.fn() }));
+const mocks=vi.hoisted(()=>({ readStatutorySetup:vi.fn(),confirmStatutorySetup:vi.fn(),adjustRecurring:vi.fn(),readLindungSetup:vi.fn() }));
 vi.mock('../../../../services/payrollService.js',()=>({ payrollService:mocks }));
 import StatutorySetup, { statutorySchemeLabel, statutorySetupHelp } from '../PayrollStatutorySetup.jsx';
 import Components, { componentTimeline } from '../PayrollEmployeeComponents.jsx';
 beforeEach(()=>{
   vi.clearAllMocks();
+  mocks.readLindungSetup.mockResolvedValue({employee:{},legal_entities:[],history:[],current:{status:"unresolved"},fingerprint:"lindung"});
   mocks.readStatutorySetup.mockResolvedValue({history:{applicability:[],categories:[]},applicability:{epf:false,socso:true,eis:true,pcb:false},schemes:{epf:{state:'not_applicable'},socso:{recommendation:'first_category_base'},eis:{recommendation:'standard'},pcb:{state:'not_applicable'}},next_effective_from:'2026-09-28',fingerprint:'trusted'});
 });
 afterEach(cleanup);
@@ -48,7 +49,7 @@ describe('Payroll employee setup',()=>{
     render(<StatutorySetup profile={{id:'p'}} onSaved={vi.fn()} onClose={vi.fn()} />);
     await screen.findByText(/Confirm a valid date of birth/);
     expect(screen.getByRole('button',{name:'Confirm Statutory Setup'}).disabled).toBe(true);
-    expect(screen.queryByRole('textbox',{name:/evidence|reason/i})).toBeNull();
+    expect(screen.queryByRole('textbox',{name:'Override reason'})).toBeNull();
     expect(screen.queryByRole('button',{name:'Override'})).toBeNull();
     fireEvent.click(screen.getByRole('button',{name:'Complete Setup'}));
     expect(screen.getByText(/Correct missing or inaccurate identity information/)).not.toBeNull();
@@ -75,7 +76,7 @@ describe('Payroll employee setup',()=>{
     fireEvent.click(screen.getByRole('button',{name:'Applicable',exact:true}));
     await screen.findByText(/Malaysian · under 60/);
     expect(mocks.readStatutorySetup).toHaveBeenLastCalledWith('p','2026-09-01',expect.objectContaining({epf:true}));
-    expect(screen.queryByRole('textbox',{name:/evidence|reason/i})).toBeNull();
+    expect(screen.queryByRole('textbox',{name:'Override reason'})).toBeNull();
     expect(screen.queryByRole('button',{name:'PCB category'})).toBeNull();
   });
   it('distinguishes unsupported existing evidence from missing evidence',()=>{

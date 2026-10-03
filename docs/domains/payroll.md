@@ -511,7 +511,8 @@ Phase 4A's conservative reconciliation boundary:
   2026 Act 4 projection therefore does not require a LINDUNG election. It
   remains bounded by reviewed applicability, supported age/citizenship and
   contribution-history categories, and resolved component wage treatment.
-  Optional LINDUNG collection is outside the current Payroll calculation.
+  LINDUNG has its own participation and collection authority below; its election
+  never changes ordinary SOCSO applicability or contribution amounts.
 - PERKESO Act 800 EIS, effective October 2024: 65 independent bands with an
   RM6,000 ceiling. The supported automatic category is a Malaysian employee
   age 18–56 with reviewed applicability; ages 57–59 require prior-contribution
@@ -716,3 +717,83 @@ PCB compatibility fields and live `pre_*` lifecycle helpers remain intentional
 compatibility debt; they are not permission to expose those features in V1.
 
 Payment/Settlement, bank transfers/payment files and Finance projections remain deferred.
+
+### Historical statutory setup presentation
+
+Profile readiness describes current setup only; it does not establish historical
+Payroll readiness. Review distinguishes absent applicability coverage from an
+effective legacy record whose scheme applicability is still null. Unconfirmed
+applicability directs Admin to the existing Manage Statutory Setup command and
+the historical Effective Payroll Month. Explicit confirmation appends paired
+monthly evidence, preserves later setup and audit history, and remains subject
+to the existing finalized-period guard. Refresh an open Run afterward; PCB
+amount confirmation remains independent. Never infer an earlier month from
+current confirmed categories or silently backdate a record.
+
+
+## LINDUNG 24 Jam V1 (SKBBK)
+
+Payroll owns LINDUNG as an independent effective-dated statutory component. It
+is not inferred from SOCSO applicability and is never merged into SOCSO Employee.
+The regulatory basis is PERKESO's August 2026 FAQ and official Act 4 contribution
+schedule including SKBBK:
+
+- https://www.perkeso.gov.my/images/lindung/lindung-24-jam/130826-FAQ%20_LINDUNG24Jam_EN_version.pdf
+- https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf
+
+`payroll_lindung_participation_versions` is append-only, RLS protected and has no
+client table grants. `payroll_lindung_setup_read/confirm` enforce the existing
+Payroll identity, permission, employee and designated-employer scope authorities.
+Confirm locks the Profile, checks an evidence fingerprint, derives the Admin and
+records a retry-safe request, superseded monthly revision, source/reference,
+reason, covered worker facts, designated employer and effective date/time.
+
+Participation statuses are Mandatory, Participating, Valid Opt-Out, Another
+Designated Employer and Unresolved. Covered foreign workers require Mandatory
+participation (or another designated employer), with explicit covered-employment /
+passport/work-pass evidence. Permanent/temporary residents require explicit
+resident evidence. No employee histories are seeded or inferred. Evidence starting
+in September does not establish June–August participation.
+
+June 2026 requires its own mandatory-period evidence; a later opt-out does not
+cancel it. June local mandatory evidence does not prove local participation from
+July onward. Local opt-out records a valid PERKESO notice; July–August transition
+notices and newly registered locals before their first deduction are supported.
+Opt-out requires confirmation that the employee is not receiving LINDUNG benefits.
+Confirmed continuing participation after August and rejoin follow Once In, Always
+In. Rejoin requires prior recorded opt-out and the exact PERKESO submission time;
+that salary month's full contributable wages apply without day proration.
+Designated-employer changes require one of the official grounds and sourced
+PERKESO evidence. Another designated employer resolves to no deduction here,
+without asserting that the worker is exempt from the scheme.
+
+The official Phase 1 pack is effective 1 June 2026–31 May 2028, with 65 exact wage
+bands and RM6,000 ceiling (maximum employee amount RM44.65). The corresponding
+First/Second Category SKBBK employee columns agree. No percentage approximation is
+used. No Phase 2/3 table is installed; a required deduction outside a verified
+pack fails closed. Later effective-dated packs can be added to the same schedule
+authority without modifying earlier reference rows.
+
+LINDUNG independently evaluates pinned earning lines under Act 4 section 2(24),
+including overtime/rest-day/holiday pay and subtracting unpaid-time wage reductions.
+The existing component `socso_treatment` is the shared Act 4 wage-inclusion policy,
+not a SOCSO deduction output; its resolved treatment and component evidence are
+pinned separately for LINDUNG. Annual bonuses, travel allowances, employment
+expense reimbursements and termination/retirement gratuities must be excluded
+under that policy. Unknown component treatment blocks readiness. Zero payable
+wages yield zero contribution; positive wages use exact official schedule bands.
+Employer LINDUNG amount is zero; only the employee deduction reduces Net Pay.
+
+Manage Statutory Setup has a distinct LINDUNG evidence section for the selected
+contribution month. Current Profile readiness is distinct from historical coverage.
+Run preparation and statutory readiness consume the same resolver, with actionable
+missing-participation, designated-employer, wage-treatment and pack reasons. Review
+and Draft/Final Payslips show a separate LINDUNG 24 Jam employee deduction and no
+employer LINDUNG line. Existing Unicode/PDF rendering remains shared.
+
+Finalize pins the full participation revision, designated employer, assessed wage
+lines/base, official pack/version, band and amount in the existing statutory
+snapshot. Finalized reads consume that snapshot. Later setup cannot rewrite final
+records or PDFs; setup affecting finalized periods requires an open governed
+correction. Corrections freeze new evidence while preserving the previous revision.
+The separate People employment-history/cutover gate is unchanged.
