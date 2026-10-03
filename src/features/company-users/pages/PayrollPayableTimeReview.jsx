@@ -50,7 +50,7 @@ export default function PayrollPayableTimeReview({ employee, month, canManage, o
   const decision = rows.find(row => row.work_date === decisionDate);
   const index = queue.indexOf(decisionDate);
   const advance = (updated, savedDate) => {
-    const unresolved = updated.filter(row => row.status === 'review_required');
+    const unresolved = updated.filter(row => row.status === 'review_required').sort((a, b) => a.work_date.localeCompare(b.work_date));
     const next = unresolved.find(row => row.work_date > savedDate) || unresolved[0];
     if (next) {
       setQueue(previous => [...new Set([...previous, ...unresolved.map(row => row.work_date)])].sort());
