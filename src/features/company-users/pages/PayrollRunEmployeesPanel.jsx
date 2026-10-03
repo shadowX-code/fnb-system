@@ -242,9 +242,9 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <PayrollPhWork runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
-          <div className="mt-2 divide-y divide-border">{["epf", "socso", "lindung", "eis", "pcb"].map((scheme) => {
+          <div className="mt-2 divide-y divide-border">{["epf", "socso", "lindung", "eis", "pcb"].filter(scheme => active || scheme !== "lindung" || selected.statutory?.lines?.some(line => line.scheme === scheme)).map((scheme) => {
             const line = selected.statutory?.lines?.find((item) => item.scheme === scheme);
-            const setup = selected.preparation?.statutory_setup?.schemes?.[scheme];
+            const setup = scheme === "lindung" && !active ? line && { ...line, state: line.applicable ? "confirmed" : "not_applicable", status: line.participation_status } : selected.preparation?.statutory_setup?.schemes?.[scheme];
             const notApplicable = setup?.applicable === false;
             return <div key={scheme} className="flex items-center justify-between gap-4 py-2"><span><strong>{scheme === "pcb" ? "PCB / MTD" : statutoryName(scheme)}</strong>
               <small className="block text-text-secondary">{notApplicable ? "Not Applicable" : scheme === "pcb" ? selected.pcb?.confirmation ? "Confirmed" : "Confirmation required"
