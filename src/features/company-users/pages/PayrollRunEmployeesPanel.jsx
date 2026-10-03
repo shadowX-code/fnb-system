@@ -77,7 +77,8 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     const periodAssignment = preparation?.employment?.identity;
     const projection = preparation?.projection;
     const adjustments = (evidence?.calculation?.adjustments || []).filter((item) => item.employee_id === employee.id);
-    const pay = projection?.inputs?.compensation_start?.id ? projection.inputs.compensation_start : projection?.inputs?.compensation_end;
+    const periodPay = projection?.inputs?.compensation_start?.id ? projection.inputs.compensation_start : projection?.inputs?.compensation_end;
+    const pay = periodPay?.id ? periodPay : null;
     const timeRelevant = preparation?.time_relevant === true;
     const timeNeedsReview = timeRelevant && time.some((item) => item.status === "review_required");
     const needsReview = member.needsReview;
