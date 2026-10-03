@@ -93,6 +93,7 @@ export const payrollService = {
     p_default_cost_outlet_id: input.defaultCostOutletId || null,
   }),
   readLindungSetup: (profileId, month) => command("payroll_lindung_setup_read", { p_profile_id: profileId, p_month: month }),
+  previewLindungSetup: (profileId, month, intent, act4Covered) => command("payroll_lindung_setup_preview", { p_profile_id: profileId, p_month: month, p_intent: intent, p_act4_covered: act4Covered }),
   confirmLindungSetup: (input) => command("payroll_lindung_setup_confirm", {
     p_profile_id: input.profileId, p_intent: input.intent, p_fingerprint: input.fingerprint, p_request_id: input.requestId,
   }),
