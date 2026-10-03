@@ -124,7 +124,7 @@ it("records a time decision before employee-only recalculation and projection re
   fireEvent.click(screen.getByRole('button',{name:'Review exception'}));
   fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'120'}});
   fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Verified QA evidence'}});
-  fireEvent.click(screen.getByRole('button',{name:'Record Decision'}));
+  fireEvent.click(screen.getByRole('button',{name:'Save & Finish'}));
   await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalled());
   await waitFor(()=>expect(mocks.recalculateEmployee).toHaveBeenLastCalledWith('run','employee'));
   expect(mocks.decideTime.mock.invocationCallOrder.at(-1)).toBeLessThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1));
@@ -187,4 +187,19 @@ it.each([false, true])("uses only frozen LINDUNG evidence in finalized Review (p
     expect(screen.getByText("Participating")).toBeTruthy();
     expect(screen.getAllByText(/14.65/).length).toBeGreaterThan(0);
   } else expect(screen.queryByText("LINDUNG 24 Jam")).toBeNull();
+});
+
+it('preserves employee and active exception when the shared run projection refreshes',async()=>{
+  const time=[{id:'t1',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-25',status:'review_required',classification:'regular',proposed_minutes:120,evidence:{}}, {id:'t2',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-26',status:'review_required',classification:'regular',proposed_minutes:180,evidence:{}}];
+  mocks.readTime.mockResolvedValue(time);
+  const snapshot={preparation:{results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15}}}}]},calculation:{results:[],adjustments:[]},statutory:{results:[]}};
+  const view=render(<PayrollRunEmployeesPanel {...props} runRead={{data:snapshot,refresh:vi.fn()}} />);
+  await screen.findByText('QA Employee');
+  fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Review Hours'}));
+  fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
+  fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Keep this unsaved draft'}});
+  view.rerender(<PayrollRunEmployeesPanel {...props} runRead={{data:{...snapshot},refresh:vi.fn()}} />);
+  await waitFor(()=>expect(screen.getByRole('textbox',{name:/Decision reason/}).value).toBe('Keep this unsaved draft'));
+  expect(screen.getByText('1 of 2 exceptions')).toBeTruthy();
 });
