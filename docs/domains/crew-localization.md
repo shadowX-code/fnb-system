@@ -34,7 +34,7 @@ Provider output is a draft translation, not a replacement for source authority.
 Manual edits and reviewed translations are protected from accidental regeneration through the current confirmation and lifecycle rules.
 
 Runtime presentation resolves the requested locale, then applies the defined fallback to available content and ultimately the canonical source.
-Missing translation must never hide required operational or learning content.
+Missing translation must never hide required operational or learning content. Crew Home and Task active/history lists resolve title unit `task.name` through the existing token-bound localized-content authority using the frozen Task definition identifier, with the same fallback as Task detail; changing locale does not translate or rewrite authored content.
 Published/assigned workflows freeze the localized values needed to preserve what Crew saw at that version.
 
 ## Permissions, Versions, And Audit
@@ -60,3 +60,5 @@ Crew Workforce supplies the Crew session and preference context where applicable
 Localization is cross-feature but remains a bounded domain because it has independent data, authority, lifecycle, and provider integration.
 It does not own general Admin-interface translation.
 Additional locales, human translation marketplaces, glossary management, and translation memory are deferred unless introduced explicitly.
+
+Crew system date labels remain localized. Home separates date and weekday with a middle dot. Operational Crew times and shift ranges use the shared 12-hour English `am` / `pm` convention across English, Chinese and Malay; time formatting does not translate authored Task names or response options.

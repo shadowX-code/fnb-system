@@ -643,3 +643,50 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Added a People-owned Recruitment workspace for single-workplace Job Openings, reusable Applicants, Applications, versioned interview configuration, and secure invitations. Candidates remain separate from Employee/Auth/Crew until a future Hire transition.
 - Added the token-bound `interview.feedx.my/i/<token>` candidate preparation surface with minimal job/profile disclosure, provisional versioned consent, and browser camera/microphone readiness. AI voice, video recording, transcript and hiring decisions remain outside Phase 1.
+
+
+### 2026-10-03 — Payroll LINDUNG 24 Jam V1
+
+Added independent evidence-backed monthly participation authority, exact PERKESO
+Phase 1 schedule, Act 4 wage assessment, employee-only deduction, readiness and
+shared setup/Profile/Review/Payslip presentation. Existing EPF, ordinary SOCSO,
+EIS, PCB and final evidence authorities remain independent. No employee
+participation backfill or Production changes. Canonical contract: docs/domains/payroll.md.
+
+## 2026-10-03 — Unified monthly LINDUNG setup
+
+Simplified LINDUNG coverage selection and conditional transition evidence, with one atomic Confirm Statutory Setup authority. Routine notes are optional; unchanged verified participation is retained without another notice. Calculation, history, finalized evidence and scope authorities remain intact.
+
+## Public Holiday official proposals
+
+The official BKPP checker now extracts supported annual PDF tables into the existing controlled-import candidates, with source hash/page evidence and explicit exception review. Conditional gazettes cannot replace an annual calendar. Admin publication and company paid selection remain separate; finalized Payroll is unchanged.
+
+### 2026-10-03 — Scoped operational Public Holiday setup
+
+Public Holidays now presents Official Calendar, Select Company Holidays and Review & Publish. Canonical outlet-state evidence scopes the normal workflow; missing geography stays explicit. An atomic operational adapter delegates to existing source review/import/calendar/company policy authorities, retaining unrelated source evidence and finalized Payroll. Source diagnostics and full-source maintenance remain in Advanced & History. Staging publication contracts use rollback-only synthetic Perak evidence.
+
+## 2026-10-03 — Public Holiday explicit date resolution
+
+Added audited date confirmation bound to captured source and row evidence. Effective proposal/read/publication consumers share one overlay; extraction/transcription history is retained, independent blockers remain enforced, and old saves are not promoted. Normal review collects date/reference and shows Confirmed.
+
+## 2026-10-04 — Payroll historical compensation for former employees
+
+- Payroll Profiles exposes scoped historical employer associations and employment
+  status/end-date filtering without changing Payroll period membership.
+- Compensation authority supports audited historical and same-date revisions;
+  effective consumers retain later pay, original history and finalized guards.
+- Open Run employee review shares the canonical pay setup form and existing
+  automatic stale/recalculation flow without resetting employee/month navigation.
+
+## 2026-10-04 — Payroll time corrections and priced earning presentation
+
+Run-scoped time decisions append audited, retry-safe correction versions and
+recalculate earnings/statutory results atomically. Sequential review preserves its
+queue. Review and both payslip modes share server aggregation of already-priced
+lines, preserve per-day evidence and split incompatible rates/rules. Independent
+blockers no longer hide resolved Regular earnings.
+
+Read-only Production PH forensic established that company Additional Pay is not
+statutory PH authority. Staging calculations fail closed for missing Malaysia PH,
+PH-OT and Hourly no-work entitlement authority; no multiplier was configured and no
+Production data/deployment was changed. Canonical owner: docs/domains/payroll.md.

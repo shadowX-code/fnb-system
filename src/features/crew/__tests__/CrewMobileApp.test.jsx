@@ -111,6 +111,14 @@ beforeEach(() => {
 afterEach(async () => { cleanup(); document.documentElement.removeAttribute("data-crew-theme"); document.documentElement.removeAttribute("data-crew-theme-transition"); await i18n.changeLanguage("en"); });
 
 describe("Crew Mobile redesign", () => {
+  it.each([true, false])("shows Management cash entry for configured receiver=%s independently of initiation", async (receiver) => {
+    mocks.outletScope.mockResolvedValue({ employee_id: "employee-a", management: true, outlets: [{ id: "outlet-1", name: "JYMT", special_access: { can_initiate_handover: false }, is_cash_handover_receiver: receiver }], default_outlet_id: "outlet-1" });
+    renderCrewApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Me" }));
+    await screen.findByRole("heading", { name: "Me" });
+    await waitFor(() => expect(Boolean(screen.queryByRole("button", { name: /Cash Checkout/ }))).toBe(receiver));
+  });
+
   it("switches Management's read-only Home context without granting clock or task execution", async () => {
     mocks.outletScope.mockResolvedValue({ employee_id: "employee-a", management: true, outlets: [{ id: "outlet-1", name: "JYMT" }, { id: "outlet-2", name: "Other" }], default_outlet_id: "outlet-1" });
     mocks.attendanceContext.mockResolvedValue({ outlet_id: null, clock_eligible: false, location_enabled: false });
@@ -561,12 +569,13 @@ describe("Crew Mobile redesign", () => {
       id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "completed", completed_at: "2026-08-31T09:42:00Z",
       assignment: { kind: "group", label: "Kitchen" },
       completion_audit: { employee_id: "employee-b", employee_name: "Ahmad", completed_at: "2026-08-31T09:42:00Z" },
+      completion_contributors: [{employee_id:"employee-a",employee_name:"Alex"},{employee_id:"employee-b",employee_name:"Ahmad"}],
       blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "confirmation", required: true, status: "completed", response: { value: true } }],
     });
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open task: Opening Checklist" }));
     expect(await screen.findByText("Kitchen team")).not.toBeNull();
-    expect(screen.getByText("Ahmad")).not.toBeNull();
+    expect(screen.getByText("Alex, Ahmad")).not.toBeNull();
     expect(screen.getByText(/31 Aug 2026/)).not.toBeNull();
     expect(screen.queryByText("1 of 1 completed")).toBeNull();
   });
@@ -669,7 +678,7 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationDetail.mockResolvedValueOnce({ id: "ops-1", name: "Opening Checklist", task_type: "checklist", status: "not_started", assignment: { kind: "individual", employee_id: "employee-a", employee_name: "Alex Tan", is_current_employee: true }, blocks: [{ id: "item-1", title: "Unlock guest entrance", block_type: "checklist_item", required: true, status: "pending" }] });
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open task: Opening Checklist" }));
     expect(await screen.findByRole("button", { name: /Unlock guest entrance/ })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Opening Checklist" }).closest(".crew-mobile-detail-header")).not.toBeNull();
     expect(screen.getByText("You")).not.toBeNull();
@@ -683,7 +692,7 @@ describe("Crew Mobile redesign", () => {
     let resolveDetail;
     mocks.operationDetail.mockImplementationOnce(() => new Promise((resolve) => { resolveDetail = resolve; }));
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open task: Opening Checklist" }));
 
     expect(await screen.findByRole("heading", { name: "Opening Checklist" })).not.toBeNull();
     expect(screen.queryByRole("heading", { name: "All Tasks" })).toBeNull();
@@ -701,13 +710,13 @@ describe("Crew Mobile redesign", () => {
     mocks.updateTaskBlock.mockResolvedValueOnce({ block_id: "item-1", status: "completed", task_status: "completed", task_completed_at: "2026-08-16T02:30:00Z" });
 
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open task: Opening Checklist" }));
     fireEvent.click(await screen.findByRole("button", { name: "Confirm Unlock guest entrance" }));
 
     await waitFor(() => expect(mocks.updateTaskBlock).toHaveBeenCalledWith("crew-token", "item-1", "completed", { value: true }, null, null));
     expect(await screen.findByText("Alex Tan")).not.toBeNull();
     expect(screen.queryByText("1 of 1 completed")).toBeNull();
-    expect(screen.queryByText("Confirmed")).toBeNull();
+    expect(screen.getAllByText("Confirmed")).toHaveLength(1);
     expect(screen.queryByRole("button", { name: "Complete Task" })).toBeNull();
   });
 
@@ -858,24 +867,77 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("button", { name: "Working off-site" })).not.toBeNull();
   });
 
+  it("refreshes a stale disabled outlet before Clock In and keeps verification pending until the server responds", async () => {
+    const enabled = { outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100, accuracy_limit_meters: 50 };
+    mocks.attendanceContext.mockResolvedValueOnce({ outlet_name: "Friends Corner", location_enabled: false }).mockResolvedValue(enabled);
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 8 } }) } });
+    renderCrewApp();
+    expect(await screen.findByText("Location check not configured")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clock In" }));
+    expect(await screen.findByText("Within clock-in area · confirm to verify")).not.toBeNull();
+    expect(screen.queryByText("Location verified")).toBeNull();
+    expect(mocks.attendanceContext.mock.calls.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("requires an exception for poor GPS accuracy despite an in-range position", async () => {
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100, accuracy_limit_meters: 50 });
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 90 } }) } });
+    renderCrewApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
+    expect(await screen.findByText(/GPS accuracy is too low/)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm" }).disabled).toBe(true);
+    expect(screen.getByRole("button", { name: "Retry location" })).not.toBeNull();
+    expect(mocks.clock).not.toHaveBeenCalled();
+  });
+
+  it("distinguishes a GPS timeout and retries with fresh context", async () => {
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100, accuracy_limit_meters: 50 });
+    let attempts = 0;
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success, failure) => {
+      attempts += 1;
+      if (attempts === 1) failure({ code: 3 });
+      else success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 8 } });
+    } } });
+    renderCrewApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
+    expect(await screen.findByText(/Location request timed out/)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Confirm" }).disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: "Retry location" }));
+    expect(await screen.findByText("Within clock-in area · confirm to verify")).not.toBeNull();
+    expect(attempts).toBe(2);
+    expect(mocks.attendanceContext.mock.calls.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("uses the live clock-out context and a separate pre-submit label", async () => {
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Scheduled Outlet", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100, accuracy_limit_meters: 50 });
+    mocks.myAttendance.mockResolvedValue([{ id: "open-1", status: "open", clock_in_at: "2026-08-14T02:00:00Z", outlet_id: "outlet-1" }]);
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 8 } }) } });
+    renderCrewApp();
+    fireEvent.click(await screen.findByRole("button", { name: "Clock Out" }));
+    expect(await screen.findByText("Within clock-out area · confirm to verify")).not.toBeNull();
+    expect(screen.queryByText("Location verified")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Clock Out" }).at(-1));
+    await waitFor(() => expect(mocks.clock).toHaveBeenCalledWith("crew-token", "out", expect.objectContaining({ accuracy_meters: 8 }), ""));
+  });
+
   it("shows every true task inline, exposes the canonical reminder badge, and keeps an honest empty state", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "a", source: "instance", name: "Opening", task_type: "checklist", status: "completed", block_count: 1, completed_count: 1, due_at: "2026-08-13T02:00:00Z" }, { id: "b", source: "instance", name: "Cleaning", task_type: "checklist", status: "in_progress", block_count: 3, completed_count: 1, due_at: "2026-08-13T10:00:00Z" }, { id: "c", source: "legacy_daily", name: "Stock shelves", status: "pending" }, { id: "d", source: "legacy_daily", name: "Late check", status: "overdue", due_at: "2026-08-13T02:00:00Z" }, { id: "e", source: "legacy_daily", name: "Close register", status: "pending" }] });
     const first = render(<CrewMobileApp />);
-    expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Open Stock shelves" })).not.toBeNull();
-    expect(screen.getByRole("button", { name: "Open Late check" })).not.toBeNull();
+    expect(await screen.findByRole("button", { name: "Open task: Opening" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Open task: Stock shelves" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Open task: Late check" })).not.toBeNull();
     expect(document.querySelector(".crew-home-task-count.is-alert")?.textContent).toBe("5");
     expect(document.querySelector(".crew-home-task-activity")).toBeNull();
     expect(screen.queryByRole("button", { name: /Show remaining/ })).toBeNull();
-    const cleaningDue = screen.getByRole("button", { name: "Open Cleaning" }).querySelector(".crew-home-task-due");
-    const lateCheckDue = screen.getByRole("button", { name: "Open Late check" }).querySelector(".crew-home-task-due");
-    expect(screen.getByRole("button", { name: "Open Cleaning" }).querySelector(".crew-home-task-progress")?.textContent).toMatch(/\d of 3 completed/i);
+    const cleaningDue = screen.getByRole("button", { name: "Open task: Cleaning" }).querySelector(".crew-home-task-due");
+    const lateCheckDue = screen.getByRole("button", { name: "Open task: Late check" }).querySelector(".crew-home-task-due");
+    expect(screen.getByRole("button", { name: "Open task: Cleaning" }).querySelector(".crew-home-task-progress")?.textContent).toMatch(/\d of 3 completed/i);
     expect(cleaningDue?.textContent).toMatch(/^Due06:00 pm$/i);
     expect(cleaningDue?.classList.contains("is-overdue")).toBe(false);
     expect(lateCheckDue?.textContent).toMatch(/^Due10:00 am$/i);
     expect(lateCheckDue?.classList.contains("is-overdue")).toBe(true);
-    expect(screen.getByRole("button", { name: "Open Stock shelves" }).querySelector(".crew-home-task-meta")).toBeNull();
+    expect(screen.getByRole("button", { name: "Open task: Stock shelves" }).querySelector(".crew-home-task-meta")).toBeNull();
     first.unmount();
     mocks.operationsToday.mockResolvedValue({ tasks: [] });
     render(<CrewMobileApp />);
@@ -887,7 +949,7 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "complete", source: "instance", name: "Opening", status: "completed", block_count: 1, completed_count: 1 }] });
     render(<CrewMobileApp />);
-    expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
+    expect(await screen.findByRole("button", { name: "Open task: Opening" })).not.toBeNull();
     expect(document.querySelector(".crew-home-task-count.is-complete")?.textContent).toBe("1");
     expect(document.querySelector(".crew-home-task-count.is-alert")).toBeNull();
   });
@@ -896,7 +958,7 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.operationsToday.mockResolvedValueOnce({ tasks: [{ id: "pending", source: "instance", name: "Cleaning", status: "in_progress", block_count: 3, completed_count: 1 }] });
     render(<CrewMobileApp />);
-    expect(await screen.findByRole("button", { name: "Open Cleaning" })).not.toBeNull();
+    expect(await screen.findByRole("button", { name: "Open task: Cleaning" })).not.toBeNull();
     expect(document.querySelector(".crew-home-task-count.is-alert")?.textContent).toBe("1");
   });
 

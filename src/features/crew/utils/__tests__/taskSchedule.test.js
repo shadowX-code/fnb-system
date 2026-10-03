@@ -18,8 +18,8 @@ describe("Crew Task schedule formatter", () => {
   it("uses localized schedule labels and keeps semantic status filtering separate", async () => {
     await i18n.changeLanguage("zh-CN");
     expect(formatTaskSchedule({ schedule_type: "recurring", schedule_config: { frequency: "every_day" }, business_date: "2026-08-24" }, t)).toContain("每天");
-    expect(taskMatchesStatus({ status: "pending" }, "not_started")).toBe(true);
-    expect(taskMatchesStatus({ status: "completed" }, "not_started")).toBe(false);
+    expect(taskMatchesStatus({ status: "pending" }, "start_now")).toBe(true);
+    expect(taskMatchesStatus({ status: "completed" }, "start_now")).toBe(false);
   });
 
   it("does not expose an untimed task's all-day availability window as a fake appointment", () => {
@@ -44,7 +44,7 @@ describe("Crew Task schedule formatter", () => {
       business_date: "2026-08-22",
       start_time: "15:00:00",
       due_time: "16:00:00",
-    }, t)).toBe("Today · Daily · 3:00 pm–4:00 pm");
+    }, t)).toBe("Today · Daily · 3:00 pm – 4:00 pm");
   });
 
   it("shows a recurring responsibility once while retaining immutable instances for history", () => {
@@ -75,3 +75,11 @@ describe("Crew Task schedule formatter", () => {
     expect(historyTasks(tasks, "exception").map((task) => task.id)).toEqual(["exception"]);
   });
 });
+
+ it("keeps a started historical run visible with its canonical In Progress status", () => {
+    const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kuala_Lumpur" });
+    const rows = [{ id: "started", business_date: today, status: "in_progress", completed_count: 1, block_count: 12 }];
+    expect(historyTasks(rows, "all").map((row) => row.id)).toContain("started");
+    expect(historyTasks(rows, "in_progress").map((row) => row.id)).toContain("started");
+    expect(historyTasks(rows, "completed")).toHaveLength(0);
+ });

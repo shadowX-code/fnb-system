@@ -15,6 +15,30 @@ const payload = {
 };
 
 describe("Crew Assets Mobile", () => {
+  it("locks an edit save, retains draft on failure, and retries", async () => {
+    crewService.assetsMobile.mockResolvedValue({ ...payload, can_manage_asset_details: true });
+    let reject;
+    crewService.prepareAssetMasterPhoto.mockResolvedValue({ bundle: {}, previewUrl: "blob:retained-photo" });
+    crewService.updateAssetDetails.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; })).mockResolvedValueOnce({});
+    render(<CrewAssetsMobile token="token" onBack={() => {}} />);
+    fireEvent.click(await screen.findByText("Staging QA Blender"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit", exact: true }));
+    fireEvent.change(screen.getByLabelText("Asset name"), { target: { value: "Draft preserved" } });
+    fireEvent.change(screen.getByLabelText("Choose from Library"), { target: { files: [new File(["photo"], "asset.jpg", { type: "image/jpeg" })] } });
+    await screen.findByAltText("Asset photo crop preview");
+    const save = screen.getByRole("button", { name: "Save changes" });
+    fireEvent.click(save); fireEvent.click(save);
+    expect(screen.getByRole("button", { name: /Saving/ }).disabled).toBe(true);
+    await waitFor(() => expect(crewService.updateAssetDetails).toHaveBeenCalledTimes(1));
+    reject(new Error("Network unavailable"));
+    await screen.findByRole("alert");
+    expect(screen.getByLabelText("Asset name").value).toBe("Draft preserved");
+    expect(screen.getByAltText("Asset photo crop preview")).not.toBeNull();
+    expect(screen.getByRole("alert").closest(".crew-ui-bottom-sheet-content")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Save changes" }));
+    await waitFor(() => expect(crewService.updateAssetDetails).toHaveBeenCalledTimes(2));
+  });
+
   it("drops Management Asset actions when the selected outlet has no grant", async () => {
     crewService.managementAssets.mockImplementation(async (_token, outletId) => ({ ...payload, outlet: { id: outletId, name: outletId }, can_add_assets: outletId === "outlet-1", can_adjust_assets: outletId === "outlet-1", can_perform_asset_inspections: outletId === "outlet-1", can_manage_asset_details: outletId === "outlet-1" }));
     const view = render(<CrewAssetsMobile key="outlet-1" token="token" management outletId="outlet-1" onBack={() => {}} />);

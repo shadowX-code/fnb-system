@@ -60,3 +60,9 @@ Factory Production SOP is separate factory-owned master data unless deliberately
 Legacy Crew Onboarding routes resolve to the canonical Crew Learning owner.
 SOP Library and Onboarding stay grouped because they share versioned learning content and progress rules.
 External LMS synchronization, live training sessions, and generalized course commerce are deferred.
+
+## SOP Library permissions and retired Journeys navigation
+
+Admin Crew workspace SOP Library uses only the catalog's `crew_sop_library.*` permission family, including its route/sidebar guard, RPCs, table RLS, localization and private media access. View is required for navigation and scoped reads; Create permits new SOP drafts and scoped cloning; Edit permits existing draft changes and new versions; Manage additionally owns publishing, draft deletion and category management. Published snapshots and pinned assignments remain immutable. Create-only callers may complete their own initial unpublished draft using server-attributed `crew_sops.created_by`; historical rows remain unattributed and require Edit/Manage for changes. Creator attribution cannot be supplied or changed by clients.
+
+Journeys is not an independent active module or permission group. Its legacy hash and `/crew/journeys` and `/crew/learning/journeys` links resolve to Onboarding and require Onboarding authority. Existing journey tables, versioned content, assignments, progress, quizzes, SOP references and historical permission grants remain for compatibility; retiring navigation does not delete data or migrate grants into another authority. Existing retired grants can round-trip through Role Settings but do not grant active product access. Crew mobile opaque-session SOP/learning access remains a separate employee-bound authority.

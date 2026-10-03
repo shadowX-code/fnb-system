@@ -358,6 +358,18 @@ export const crewService = {
     return data || [];
   },
 
+  async managementTaskDetail(token, outletId, instanceId, source = "instance") {
+    const { data, error } = await supabase.rpc("crew_management_task_detail", { p_token: token, p_outlet_id: outletId, p_instance_id: instanceId, p_source: source });
+    throwSupabaseError("crew.managementTaskDetail", error);
+    return data;
+  },
+
+  async managementTodayTeam(token, outletId) {
+    const { data, error } = await supabase.rpc("crew_management_today_team", { p_token: token, p_outlet_id: outletId });
+    throwSupabaseError("crew.managementTodayTeam", error);
+    return data;
+  },
+
   async operationDetail(token, instanceId) {
     const { data, error } = await supabase.rpc("crew_tasks_detail", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.operationDetail", error);
@@ -406,8 +418,8 @@ export const crewService = {
     return data || [];
   },
 
-  async saveCashCheckout(token, action, payload = {}) {
-    const { data, error } = await supabase.rpc("crew_cash_save_checkout", { p_token: token, p_action: action, p_payload: payload });
+  async saveCashCheckout(token, action, payload = {}, outletId = null) {
+    const { data, error } = await supabase.rpc(outletId ? "crew_management_cash_save_checkout" : "crew_cash_save_checkout", { p_token: token, ...(outletId ? { p_outlet_id: outletId } : {}), p_action: action, p_payload: payload });
     throwSupabaseError("crew.saveCashCheckout", error);
     return data;
   },
@@ -463,6 +475,12 @@ export const crewService = {
   async reviewCashCollection(collectionId, decision, note) {
     const { data, error } = await supabase.rpc("crew_cash_review_collection", { p_collection_id: collectionId, p_decision: decision, p_note: note });
     throwSupabaseError("crew.reviewCashCollection", error);
+    return data;
+  },
+
+  async correctCashCheckoutAllocation(checkoutId, carryForward, expectedCorrectionId, requestId, reason) {
+    const { data, error } = await supabase.rpc("crew_cash_correct_checkout_allocation", { p_checkout_id: checkoutId, p_carry_forward: carryForward, p_expected_correction_id: expectedCorrectionId, p_request_id: requestId, p_reason: reason });
+    throwSupabaseError("crew.correctCashCheckoutAllocation", error);
     return data;
   },
 
@@ -1641,9 +1659,9 @@ export const crewService = {
     if (outletId) body.append("outlet_id", outletId);
     body.append("request_id", payload.requestId || crypto.randomUUID());
     body.append("asset", JSON.stringify(payload.asset));
-    body.append("original", preparedPhoto.bundle.original.blob, "original.webp");
-    body.append("display", preparedPhoto.bundle.display.blob, "display.webp");
-    body.append("thumbnail", preparedPhoto.bundle.thumbnail.blob, "thumbnail.webp");
+    body.append("original", preparedPhoto.bundle.original.blob, `original.${preparedPhoto.bundle.original.extension}`);
+    body.append("display", preparedPhoto.bundle.display.blob, `display.${preparedPhoto.bundle.display.extension}`);
+    body.append("thumbnail", preparedPhoto.bundle.thumbnail.blob, `thumbnail.${preparedPhoto.bundle.thumbnail.extension}`);
     const { data, error } = await supabase.functions.invoke("crew-asset-create", { body });
     throwSupabaseError("crew.createAssetWithPhoto", error);
     return data;
@@ -1657,9 +1675,9 @@ export const crewService = {
     body.append("asset_id", payload.assetId);
     body.append("details", JSON.stringify(payload.details || {}));
     if (payload.preparedPhoto?.bundle) {
-      body.append("original", payload.preparedPhoto.bundle.original.blob, "original.webp");
-      body.append("display", payload.preparedPhoto.bundle.display.blob, "display.webp");
-      body.append("thumbnail", payload.preparedPhoto.bundle.thumbnail.blob, "thumbnail.webp");
+      body.append("original", payload.preparedPhoto.bundle.original.blob, `original.${payload.preparedPhoto.bundle.original.extension}`);
+      body.append("display", payload.preparedPhoto.bundle.display.blob, `display.${payload.preparedPhoto.bundle.display.extension}`);
+      body.append("thumbnail", payload.preparedPhoto.bundle.thumbnail.blob, `thumbnail.${payload.preparedPhoto.bundle.thumbnail.extension}`);
     }
     const { data, error } = await supabase.functions.invoke("crew-asset-details", { body });
     throwSupabaseError("crew.updateAssetDetails", error);
@@ -1675,8 +1693,8 @@ export const crewService = {
     body.append("asset_id", assetId);
     body.append("request_id", requestId);
     body.append("original", bundle.original.blob, file.name || `asset.${bundle.original.extension}`);
-    body.append("display", bundle.display.blob, "display.webp");
-    body.append("thumbnail", bundle.thumbnail.blob, "thumbnail.webp");
+    body.append("display", bundle.display.blob, `display.${bundle.display.extension}`);
+    body.append("thumbnail", bundle.thumbnail.blob, `thumbnail.${bundle.thumbnail.extension}`);
     const { data, error } = await supabase.functions.invoke("crew-asset-photo", { body });
     throwSupabaseError("crew.uploadInitialAssetPhoto", error);
     return data;

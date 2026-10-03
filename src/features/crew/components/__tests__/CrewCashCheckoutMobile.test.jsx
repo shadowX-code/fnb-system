@@ -4,7 +4,7 @@ import CrewCashCheckoutMobile from "../CrewCashCheckoutMobile.jsx";
 import { crewService } from "../../../../services/crewService.js";
 
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
-  cashCheckoutMobile: vi.fn(), cashCheckoutHistory: vi.fn(), saveCashCheckout: vi.fn(), recordCashCollection: vi.fn(), confirmCashCollection: vi.fn(),
+  managementCashMobile: vi.fn(), cashCheckoutMobile: vi.fn(), cashCheckoutHistory: vi.fn(), saveCashCheckout: vi.fn(), recordCashCollection: vi.fn(), confirmCashCollection: vi.fn(),
 } }));
 
 const payload = {
@@ -24,6 +24,133 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.clearAllMocks(); });
 
 describe("Crew Cash Checkout mobile", () => {
+  it.each([false, true])("opens a new checkout when continuation is false and handover is pending (Management=%s)", async (management) => {
+    vi.setSystemTime(new Date("2026-10-03T17:00:00+08:00"));
+    const result = { ...payload, business_date: "2026-10-03", checkout: null, can_continue_checkout: false,
+      cash_context: { floating_cash: 400, previous_carry_forward: 9.30, expected_opening_cash: 409.30 },
+      chain: { previous_unresolved: [], basis_review_required: false },
+      deposit: { ...payload.deposit, current_balance: 0, pending_confirmation_amount: 650 } };
+    crewService.cashCheckoutMobile.mockResolvedValue(result);
+    crewService.managementCashMobile.mockResolvedValue(result);
+    const onFlowChange = vi.fn();
+    render(<CrewCashCheckoutMobile token="crew-session" management={management} outletId={management ? "outlet-1" : null} onBack={() => {}} onFlowChange={onFlowChange} />);
+    expect(await screen.findByText(/650\.00 pending confirmation/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start", exact: true }));
+    expect(screen.getByText("Count Outlet Cash")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Save Draft" })).not.toBeNull();
+    expect(onFlowChange).toHaveBeenCalledWith(true);
+    expect(crewService.saveCashCheckout).not.toHaveBeenCalled();
+    expect(screen.queryByText("This checkout is completed and cannot be edited.")).toBeNull();
+  });
+  it("continues a prior-day run on its original date and requires a reasoned cancellation inside the workflow", async () => {
+    const previous = { id: "old-run", business_date: "2026-08-20", status: "draft" };
+    crewService.cashCheckoutMobile.mockImplementation(async (_token, day) => day === previous.business_date ? { ...payload, business_date: day, can_continue_checkout: true, can_cancel_checkout: true, checkout: { ...previous, denomination_counts: { "100": 4 }, pos_expected_cash: 400 } } : { ...payload, action_required_checkouts: [previous] });
+    render(<CrewCashCheckoutMobile token="crew-session" onBack={() => {}} />);
+    expect(await screen.findByText(/Previous Day · Action Required/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue", exact: true }));
+    expect(await screen.findByRole("button", { name: "Cancel Checkout" })).not.toBeNull();
+    expect(crewService.cashCheckoutMobile).toHaveBeenCalledWith("crew-session", "2026-08-20");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Checkout" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel Checkout" });
+    expect(dialog.querySelector('button[type="submit"]').disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "No closing obligation" } });
+    fireEvent.submit(dialog);
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenCalledWith("crew-session", "cancel", expect.objectContaining({ checkout_id: "old-run", reason: "No closing obligation" })));
+  });
+  it("shows a changed opening basis and routes balanced cash through Manager review", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, can_continue_checkout: true, checkout: { id: "basis-run", status: "reconciled", basis_review_required: true, denomination_counts: { "100": 4 }, pos_expected_cash: 400 } });
+    render(<CrewCashCheckoutMobile token="crew-session" onBack={() => {}} />);
+    expect(await screen.findByText("Opening basis · Review Required")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.getByRole("button", { name: "Submit Review" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
+  });
+
+  it("reopens returned cash at Count with the Manager reason and resubmits the same balanced checkout", async () => {
+    let result = { ...payload, checkout: { id: "returned-run", status: "reconciled", review_status: "rejected", review_required: true, is_returned: true, return_reason: "Check the POS amount", denomination_counts: { "100": "4" }, pos_expected_cash: 400, carry_forward: 0 } };
+    crewService.cashCheckoutMobile.mockImplementation(async () => result);
+    crewService.saveCashCheckout.mockImplementation(async (_token, action, draft) => { result = { ...result, checkout: { ...result.checkout, ...draft, is_returned: action !== "submit", review_status: action === "submit" ? "pending" : "rejected", status: action === "submit" ? "submitted" : "reconciled" } }; return { checkout: result.checkout }; });
+    render(<CrewCashCheckoutMobile token="crew-session" onBack={() => {}} />);
+    expect(await screen.findByText("Action Required")).not.toBeNull();
+    expect(screen.getByText("Check the POS amount")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Correct Cash Checkout" }));
+    expect(screen.getByText("Count Outlet Cash")).not.toBeNull();
+    expect(screen.getByText("Check the POS amount")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("Carry Forward to Next Day")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Submit Review" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenLastCalledWith("crew-session", "submit", expect.objectContaining({ checkout_id: "returned-run" })));
+    expect(await screen.findByText("Cash Checkout Submitted")).not.toBeNull();
+  });
+
+  it("uses the shared checkout flow for eligible Management and keeps handover rights independent", async () => {
+    const result = { ...payload, can_initiate_handover: false, can_record_collection: false, is_cash_handover_receiver: false, checkout_history: [] };
+    crewService.managementCashMobile.mockResolvedValue(result);
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    expect(screen.getByText("Count Outlet Cash")).not.toBeNull();
+    fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "4" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenCalledWith("management-session", "draft", expect.objectContaining({ denomination_counts: expect.objectContaining({ "100": "4" }) }), "outlet-1"));
+    expect(screen.queryByRole("button", { name: "Hand Over Cash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Confirm Received" })).toBeNull();
+    expect(crewService.cashCheckoutMobile).not.toHaveBeenCalled();
+  });
+
+  it("does not expose Checkout when Management only has handover access", async () => {
+    crewService.managementCashMobile.mockResolvedValue({ ...payload, can_perform: false, checkout: null, read_only_checkout: true });
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    expect(await screen.findByRole("button", { name: "Hand Over Cash" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+  });
+
+  it("keeps Management on Count → Allocate → Confirm with the shared completion command", async () => {
+    let result = { ...payload, can_initiate_handover: false, can_record_collection: false, checkout_history: [] };
+    crewService.managementCashMobile.mockImplementation(async () => result);
+    crewService.saveCashCheckout.mockImplementation(async (_token, action, draft) => {
+      result = { ...result, checkout: { ...draft, id: "same-run", counted_cash: 400, status: action === "reconcile" ? "reconciled" : "completed", completed_at: "2026-08-21T04:10:00Z" } };
+      return { checkout: result.checkout };
+    });
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    fireEvent.change(screen.getByLabelText("RM 100"), { target: { value: "4" } });
+    fireEvent.change(screen.getByLabelText("POS closing cash"), { target: { value: "400" } });
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    expect(await screen.findByText("Carry Forward to Next Day")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Checkout" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenLastCalledWith("management-session", "complete", expect.any(Object), "outlet-1"));
+    expect(await screen.findByRole("heading", { name: "Checkout Details" })).not.toBeNull();
+    expect(screen.queryByText("cash.steps.complete")).toBeNull();
+    expect(screen.queryByLabelText("RM 100")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
+  });
+
+  it("shows access denial without opening a Management Checkout flow", async () => {
+    crewService.managementCashMobile.mockRejectedValue(new Error("Management Cash Checkout is disabled for this outlet."));
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    expect(await screen.findByText("Management Cash Checkout is disabled for this outlet.")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+  });
+  it("lets receiver-only Management confirm assigned cash without exposing initiation or ledger", async () => {
+    const receipt = { id: "management-receipt", amount: 100, sender: "Sender QA", outlet_name: "Friends Corner" };
+    const result = { outlet: payload.outlet, deposit: null, can_perform: false, can_initiate_handover: false, can_record_collection: false, is_cash_handover_receiver: true, pending_receipts: [receipt] };
+    crewService.managementCashMobile.mockResolvedValueOnce(result).mockResolvedValue({ ...result, pending_receipts: [] });
+    crewService.confirmCashCollection.mockResolvedValue({ status: "completed" });
+    render(<CrewCashCheckoutMobile token="management-session" management outletId="outlet-1" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Confirm Received" }));
+    expect(screen.queryByRole("button", { name: "Hand Over Cash" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "View ledger" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Confirm Received" })[1]);
+    await waitFor(() => expect(crewService.confirmCashCollection).toHaveBeenCalledWith("management-session", "management-receipt", 100));
+    expect(await screen.findByText("No cash waiting for confirmation")).not.toBeNull();
+    expect(crewService.managementCashMobile).toHaveBeenCalledWith("management-session", "outlet-1", expect.any(String));
+  });
+
   it("renders the server-scoped checkout and deposit summary", async () => {
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
@@ -89,6 +216,30 @@ describe("Crew Cash Checkout mobile", () => {
     expect(Boolean(pos.compareDocumentPosition(denominations) & Node.DOCUMENT_POSITION_FOLLOWING)).toBe(true);
   });
 
+  it("keeps Happiness closing variance at zero after float changes and omits stale opening fields", async () => {
+    crewService.cashCheckoutMobile.mockResolvedValue({
+      ...payload,
+      settings: { ...payload.settings, floating_cash: 500, variance_tolerance: 0 },
+      cash_context: { floating_cash: 500, previous_carry_forward: 0, expected_opening_cash: 500 },
+      checkout: { status: "draft", actual_opening_cash: 0, expected_opening_cash: 0, floating_cash: 0, denomination_counts: { "100": 9, "50": 1, "20": 1, "1": 1 }, pos_expected_cash: 971, carry_forward: 0 },
+    });
+    render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Allocate Closing Cash");
+    fireEvent.click(screen.getByRole("button", { name: "Next" }));
+    await screen.findByText("Review Cash Checkout");
+    expect(screen.getByText("RM 471.00")).not.toBeNull();
+    expect(document.querySelector(".crew-cash-confirm-card .is-balanced")?.textContent).toContain("0.00");
+    expect(screen.queryByLabelText("Variance reason")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Complete Checkout" }));
+    await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenCalledWith("opaque-session", "complete", expect.objectContaining({ pos_expected_cash: 971 })));
+    const sent = crewService.saveCashCheckout.mock.calls.at(-1)[2];
+    expect(sent).not.toHaveProperty("actual_opening_cash");
+    expect(sent).not.toHaveProperty("opening_variance_reason");
+    expect(sent).not.toHaveProperty("variance");
+  });
+
   it("announces a successful draft only after the server confirms it", async () => {
     const onNotify = vi.fn();
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} onNotify={onNotify} />);
@@ -148,7 +299,7 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     await screen.findByText("Allocate Closing Cash");
     expect(screen.getByRole("heading", { name: "Allocate Closing Cash" })).not.toBeNull();
-    expect(screen.getByLabelText("Carry Forward for next cycle")).not.toBeNull();
+    expect(screen.getByLabelText("Carry Forward to Next Day")).not.toBeNull();
     expect(screen.getAllByText("For deposit")).toHaveLength(1);
     expect(document.querySelector(".crew-cash-actions-allocate .crew-cash-action-total")).toBeNull();
     expect(screen.queryByText("Keep the outlet float, choose carry forward, and deposit the remainder.")).toBeNull();
@@ -159,7 +310,7 @@ describe("Crew Cash Checkout mobile", () => {
     expect(screen.getByRole("heading", { name: "Reconciliation" })).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Allocation" })).not.toBeNull();
     expect(screen.queryByText("Previous Carry Forward")).toBeNull();
-    expect(screen.getByText("Carry Forward for next cycle")).not.toBeNull();
+    expect(screen.getByText("Carry Forward to Next Day")).not.toBeNull();
     const allocation = screen.getByRole("heading", { name: "Allocation" }).closest("section");
     expect(allocation?.textContent).toContain("Floating cash");
     expect(allocation?.textContent).toMatch(/RM\s+300\.00/);
@@ -200,9 +351,11 @@ describe("Crew Cash Checkout mobile", () => {
   });
 
   it("merges completed status and time into one compact treatment and opens the current snapshot", async () => {
-    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", review_required: true, completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 0, amount_for_deposit: 500 } });
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", review_required: true, completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 25.60, amount_for_deposit: 474.40 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     const completed = await screen.findByText("Completed · 10:30 PM");
+    expect(screen.getByText("Previous Carry Forward").nextElementSibling.textContent.replace(/\s/g, " ")).toBe("RM 50.00");
+    expect(screen.getByText("Carry Forward to Next Day").nextElementSibling.textContent.replace(/\s/g, " ")).toBe("RM 25.60");
     expect(completed.closest(".crew-ui-status.is-success")).not.toBeNull();
     expect(screen.queryByText("Completed at 10:30 pm")).toBeNull();
     expect(screen.queryByText("Review Required")).toBeNull();
@@ -210,6 +363,7 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByRole("heading", { name: "Checkout Details" })).not.toBeNull();
     expect(screen.getByText("RM100 × 8")).not.toBeNull();
+    expect(screen.getByText("Carry Forward to Next Day").nextElementSibling.textContent.replace(/\s/g, " ")).toBe("RM 25.60");
     expect(screen.getByText("This checkout is completed and cannot be edited.")).not.toBeNull();
   });
 

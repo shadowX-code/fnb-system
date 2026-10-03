@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), context: vi.fn(), settings: vi.fn(), review: vi.fn(), collect: vi.fn(), saveReceivers: vi.fn(), reviewCollection: vi.fn(), adjust: vi.fn() }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), context: vi.fn(), settings: vi.fn(), review: vi.fn(), collect: vi.fn(), saveReceivers: vi.fn(), reviewCollection: vi.fn(), adjust: vi.fn(), allocation: vi.fn() }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   cashCheckoutAdminPage: mocks.data, cashCheckoutAdminContext: mocks.context, saveCashSettings: mocks.settings, reviewCashCheckout: mocks.review,
-  recordAdminCashCollection: mocks.collect, saveCashHandoverReceivers: mocks.saveReceivers, reviewCashCollection: mocks.reviewCollection, adjustCashCheckout: mocks.adjust,
+  recordAdminCashCollection: mocks.collect, saveCashHandoverReceivers: mocks.saveReceivers, reviewCashCollection: mocks.reviewCollection, adjustCashCheckout: mocks.adjust, correctCashCheckoutAllocation: mocks.allocation,
 } }));
 import CrewCashCheckoutAdminPage from "../CrewCashCheckoutAdminPage.jsx";
 
@@ -22,15 +22,128 @@ const fixture = {
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn() };
 
-beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Promise.resolve({ rows: listing === "ledger" ? fixture.ledger : fixture.checkouts, total_count: listing === "ledger" ? fixture.ledger.length : fixture.checkouts.length, page: 1, page_size: 20, summary: { ...fixture.summary, settings: fixture.settings, collections: fixture.collections } })); mocks.context.mockReset().mockResolvedValue(fixture); mocks.settings.mockReset().mockResolvedValue({}); mocks.review.mockReset().mockResolvedValue({}); mocks.collect.mockReset().mockResolvedValue({}); mocks.saveReceivers.mockReset().mockResolvedValue({}); mocks.reviewCollection.mockReset().mockResolvedValue({}); mocks.adjust.mockReset().mockResolvedValue({}); ui.notify.mockReset(); });
+beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Promise.resolve({ rows: listing === "ledger" ? fixture.ledger : fixture.checkouts, total_count: listing === "ledger" ? fixture.ledger.length : fixture.checkouts.length, page: 1, page_size: 20, summary: { ...fixture.summary, settings: fixture.settings, collections: fixture.collections } })); mocks.context.mockReset().mockResolvedValue(fixture); mocks.settings.mockReset().mockResolvedValue({}); mocks.review.mockReset().mockResolvedValue({}); mocks.collect.mockReset().mockResolvedValue({}); mocks.saveReceivers.mockReset().mockResolvedValue({}); mocks.reviewCollection.mockReset().mockResolvedValue({}); mocks.adjust.mockReset().mockResolvedValue({}); mocks.allocation.mockReset().mockResolvedValue({}); ui.notify.mockReset(); });
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
+  it("refreshes previous-day context after Return so it agrees with the row and review count", async () => {
+    const previous = { ...fixture.checkouts[0], checked_out_by: "QA Crew", is_previous_day: true };
+    mocks.context.mockResolvedValueOnce({ ...fixture, previous_unresolved: [previous] }).mockResolvedValue({ ...fixture, previous_unresolved: [{ ...previous, status: "reconciled", is_returned: true }] });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View checkout 20/08/2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return", exact: true }));
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Correct the POS closing cash" } });
+    fireEvent.click(screen.getByRole("button", { name: "Return to Crew" }));
+    expect(await screen.findByRole("button", { name: "20/08/2026 · QA Crew · Returned · Continue" })).not.toBeNull();
+    expect(mocks.context).toHaveBeenCalledTimes(2);
+  });
+  it("maps every submitted checkout to Needs Review and permits Return despite legacy exception flags", async () => {
+    const row = { ...fixture.checkouts[0], review_required: false, review_status: "not_required", is_previous_day: true };
+    mocks.data.mockResolvedValue({ rows: [row], total_count: 1, page: 1, page_size: 20, summary: fixture.summary });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("Previous Day · Action Required · Needs Review")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View checkout 20/08/2026" }));
+    expect(screen.getByRole("button", { name: "Return", exact: true })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Approve & Complete" })).not.toBeNull();
+  });
+  it("offers cancellation only inside unresolved detail and sends a required reason", async () => {
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByRole("button", { name: "View checkout 20/08/2026" });
+    expect(screen.queryByRole("button", { name: "Cancel Checkout" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View checkout 20/08/2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancel Checkout" }));
+    const dialog = screen.getByRole("dialog", { name: "Cancel Checkout" });
+    expect(within(dialog).getByRole("button", { name: "Cancel Checkout" }).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Preserve evidence; no closing obligation" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Cancel Checkout" }));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("checkout-1", "cancel", "Preserve evidence; no closing obligation"));
+  });
+  it("returns through the canonical required-reason modal with failure retry and single-flight feedback", async () => {
+    const prompt = vi.spyOn(window, "prompt");
+    let reject;
+    mocks.review.mockImplementationOnce(() => new Promise((_resolve, fail) => { reject = fail; })).mockResolvedValue({});
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View checkout 20/08/2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return", exact: true }));
+    expect(screen.getByRole("button", { name: "Return to Crew" }).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Recheck the POS amount" } });
+    fireEvent.click(screen.getByRole("button", { name: "Return to Crew" }));
+    expect(screen.getByRole("button", { name: "Returning…" }).disabled).toBe(true);
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledWith("checkout-1", "reject", "Recheck the POS amount"));
+    reject(new Error("Network unavailable"));
+    await waitFor(() => expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ tone: "error" })));
+    expect(screen.getByLabelText("Reason").value).toBe("Recheck the POS amount");
+    fireEvent.click(screen.getByRole("button", { name: "Return to Crew" }));
+    await waitFor(() => expect(mocks.review).toHaveBeenCalledTimes(2));
+    expect(prompt).not.toHaveBeenCalled(); prompt.mockRestore();
+  });
+  it("keeps Returned distinct from Needs Review and displays compact review evidence", async () => {
+    const returned = { ...fixture.checkouts[0], status: "reconciled", review_status: "rejected", is_returned: true, return_reason: "Recheck the count", review_history: [{ id: 1, event: "submitted", actor_name: "QA Crew", occurred_at: "2026-08-20T14:00:00Z" }, { id: 2, event: "returned", actor_name: "Manager", occurred_at: "2026-08-20T14:05:00Z", reason: "Recheck the count" }] };
+    mocks.data.mockResolvedValue({ rows: [returned], total_count: 1, page: 1, page_size: 20, summary: fixture.summary });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    expect(await screen.findByText("Returned · Action Required")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View checkout 20/08/2026" }));
+    expect(screen.getByRole("heading", { name: "Review History" })).not.toBeNull();
+    expect(screen.getByText("Returned to Crew")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Approve & Complete" })).toBeNull();
+  });
+
+  it("corrects allocation with a stable retry request and immediate single-flight feedback", async () => {
+    const completed = { ...fixture.checkouts[0], status: "completed", counted_cash: 746, floating_cash: 300, pos_expected_cash: 746, variance: 0, carry_forward: 0, amount_for_deposit: 446, allocation_correction_id: null };
+    mocks.data.mockResolvedValue({ rows: [completed], total_count: 1, page: 1, page_size: 20, summary: fixture.summary });
+    let rejectSave;
+    mocks.allocation.mockImplementationOnce(() => new Promise((_, reject) => { rejectSave = reject; })).mockResolvedValueOnce({});
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: /View checkout/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Record Correction" }));
+    fireEvent.change(screen.getByLabelText("Carry Forward to Next Day (RM)"), { target: { value: "46" } });
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Correct closing allocation" } });
+    expect(screen.getByText(/For Deposit: RM.*400/)).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Record Cash Correction" })).getByRole("button", { name: "Record Correction" }));
+    expect(screen.getByRole("button", { name: "Saving…" }).disabled).toBe(true);
+    await waitFor(() => expect(mocks.allocation).toHaveBeenCalledTimes(1));
+    const requestId = mocks.allocation.mock.calls[0][3];
+    rejectSave(new Error("Retry after connection failure"));
+    await waitFor(() => expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ tone: "error" })));
+    expect(screen.getByLabelText("Carry Forward to Next Day (RM)").value).toBe("46");
+    fireEvent.click(within(screen.getByRole("dialog", { name: "Record Cash Correction" })).getByRole("button", { name: "Record Correction" }));
+    await waitFor(() => expect(mocks.allocation).toHaveBeenLastCalledWith("checkout-1", "46", null, requestId, "Correct closing allocation"));
+    expect(mocks.adjust).not.toHaveBeenCalled();
+  });
+
+  it("saves Management eligibility separately from Crew positions and receiver configuration", async () => {
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Settings" }));
+    const toggle = screen.getByRole("switch", { name: /Allow authorized Management to perform Cash Checkout/ });
+    expect(toggle.getAttribute("aria-checked")).toBe("false");
+    fireEvent.click(toggle);
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ allow_authorized_management_checkout: true, required_position_ids: [cashierPositionId] })));
+    expect(mocks.saveReceivers).not.toHaveBeenCalled();
+  });
+  it("selects authorized Management through the same versioned receiver save and readback", async () => {
+    const management = { id: "management-1", name: "Manager QA", position: "Manager", workplace: "Management" };
+    const context = { ...fixture, employees: [...fixture.employees, management], receiver_configuration: { version: 3 } };
+    mocks.context.mockResolvedValueOnce(context).mockResolvedValue({ ...context, eligible_receivers: [...fixture.eligible_receivers, management], receiver_configuration: { version: 4 } });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("QA Crew");
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.click(screen.getByRole("button", { name: /Receiver QA/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Manager QA · Manager · Management" }));
+    fireEvent.click(screen.getByRole("button", { name: "Apply" }));
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+    await waitFor(() => expect(mocks.saveReceivers).toHaveBeenCalledWith("outlet-1", ["employee-2", "management-1"], 3));
+    expect(mocks.settings).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Cash Checkout Settings" })).toBeNull());
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByRole("button", { name: /Receiver QA.*Manager QA/ })).not.toBeNull();
+  });
+
   it("separates daily reconciliation from the append-only deposit ledger", async () => {
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByRole("heading", { name: "Cash Checkout" })).not.toBeNull();
     expect(screen.getByText("QA Crew")).not.toBeNull();
-    expect(screen.getByText("Review Required")).not.toBeNull();
+    expect(screen.getAllByText("Needs Review").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("tab", { name: "Cash Deposit" }));
     expect(await screen.findByText("Deposit Ledger")).not.toBeNull();
     expect(screen.getByText("Cash Checkout · QA Crew")).not.toBeNull();
@@ -64,7 +177,7 @@ describe("Crew Cash Checkout Admin", () => {
   });
 
   it("renders an unconfigured outlet without dereferencing null settings", async () => {
-    mocks.data.mockResolvedValueOnce({ rows: fixture.checkouts, total_count: fixture.checkouts.length, page: 1, page_size: 20, summary: { ...fixture.summary, settings: null, collections: [] } });
+    mocks.context.mockResolvedValueOnce({ ...fixture, settings: {} });
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     expect(await screen.findByText("Not configured")).not.toBeNull();
     expect(screen.getByText("Set this before Crew can reconcile opening cash")).not.toBeNull();
@@ -79,9 +192,10 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getAllByRole("button", { name: "Settings" })).toHaveLength(1);
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
     expect(screen.getByRole("dialog", { name: "Cash Checkout Settings" })).not.toBeNull();
-    expect(screen.getAllByText("Floating Cash")).toHaveLength(2);
+    expect(screen.getByText("Floating Cash is managed separately.", { exact: false })).not.toBeNull();
+    expect(screen.queryByText("Floating Cash History")).toBeNull();
     expect(screen.getByText("Checkout Rules")).not.toBeNull();
-    expect(screen.getByText("Eligible Crew")).not.toBeNull();
+    expect(screen.getByText("Checkout Eligibility")).not.toBeNull();
     expect(screen.getByText("Handover")).not.toBeNull();
     expect(screen.getByText("Cash Handover Receivers")).not.toBeNull();
     expect(screen.getByText(/Initiate Cash Handover access is separate/)).not.toBeNull();
@@ -96,30 +210,47 @@ describe("Crew Cash Checkout Admin", () => {
     expect(screen.getByText(/Only Admin-configured Cash Deposit Receivers/)).not.toBeNull();
   });
 
-  it("requires a reason only when the current effective Floating Cash changes", async () => {
+  it("keeps Floating Cash changes and immutable History outside Save Settings", async () => {
+    mocks.context.mockResolvedValue({ ...fixture, float_history: [{ id: "float-1", effective_date: "2026-08-01", previous_amount: 0, new_amount: 300, reason: "Opening amount", adjusted_by: "Admin" }] });
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByText("QA Crew");
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
-    expect(screen.queryByLabelText(/Reason for change/)).toBeNull();
-
+    expect(screen.queryByLabelText("Floating Cash (RM)")).toBeNull();
+    expect(screen.queryByText("Floating Cash History")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    fireEvent.click(screen.getByRole("button", { name: "Floating Cash" }));
+    expect(screen.getByText("Current effective amount:", { exact: false })).not.toBeNull();
     fireEvent.input(screen.getByLabelText("Floating Cash (RM)"), { target: { value: "350" } });
     await waitFor(() => expect(screen.getByLabelText(/Reason for change/).required).toBe(true));
     fireEvent.change(screen.getByLabelText(/Reason for change/), { target: { value: "Weekend operating float" } });
-    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
-
-    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ floating_cash: "350", reason: "Weekend operating float", required_position_ids: [cashierPositionId] })));
+    fireEvent.click(screen.getByRole("button", { name: "Record Change" }));
+    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", { floating_cash: "350", effective_date: expect.any(String), reason: "Weekend operating float" }));
+    fireEvent.click(screen.getByRole("button", { name: "Floating Cash" }));
+    fireEvent.click(screen.getByRole("button", { name: "View History" }));
+    expect(screen.getByRole("dialog", { name: "Floating Cash History" })).not.toBeNull();
+    expect(screen.getByText("Opening amount")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Save Settings" })).toBeNull();
   });
 
-  it("groups Floating Cash changes separately from Checkout Rules using the shared field grammar", async () => {
+  it("reads saved checkout rules back from the outlet context before reopening", async () => {
+    mocks.context.mockResolvedValueOnce(fixture).mockResolvedValueOnce({ ...fixture, settings: { ...fixture.settings, variance_tolerance: 7.5 } });
     render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByText("QA Crew");
     fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    fireEvent.change(screen.getByLabelText("Variance Tolerance (RM)"), { target: { value: "7.5" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
+    await waitFor(() => expect(mocks.context).toHaveBeenCalledTimes(2));
+    expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.not.objectContaining({ floating_cash: expect.anything() }));
+    fireEvent.click(screen.getByRole("button", { name: "Settings" }));
+    expect(screen.getByLabelText("Variance Tolerance (RM)").value).toBe("7.5");
+  });
 
-    expect(screen.getByText("Applies to a changed Floating Cash amount.")).not.toBeNull();
-    expect(screen.getByText("Sets the amount allowed before the review rule applies.")).not.toBeNull();
-    expect(screen.getByText("Require review when variance exceeds tolerance")).not.toBeNull();
-    expect(screen.getByLabelText("Floating Cash (RM)").closest("label").className).toContain("admin-form-field");
-    expect(screen.getByLabelText("Variance Tolerance (RM)").closest("label").className).toContain("admin-form-field");
+  it("uses the effective float when a future adjustment is stored", async () => {
+    mocks.context.mockResolvedValueOnce({ ...fixture, settings: { ...fixture.settings, floating_cash: 400, effective_floating_cash: 300 } });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    await screen.findByText("QA Crew");
+    fireEvent.click(screen.getByRole("button", { name: "Floating Cash" }));
+    expect(screen.getByLabelText("Floating Cash (RM)").value).toBe("300");
   });
 
   it("saves Checkout Positions by canonical Job Position ID", async () => {
@@ -131,7 +262,7 @@ describe("Crew Cash Checkout Admin", () => {
     fireEvent.click(screen.getByRole("button", { name: "Apply" }));
     fireEvent.click(screen.getByRole("button", { name: "Save Settings" }));
 
-    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ required_position_ids: [cashierPositionId, supervisorPositionId], reason: "" })));
+    await waitFor(() => expect(mocks.settings).toHaveBeenCalledWith("outlet-1", expect.objectContaining({ required_position_ids: [cashierPositionId, supervisorPositionId] })));
   });
 
   it("shows a recoverable error rather than an empty or crashed page", async () => {

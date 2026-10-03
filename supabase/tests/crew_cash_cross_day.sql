@@ -1,0 +1,75 @@
+-- Staging-only verification. Caller wraps BEGIN/ROLLBACK; no persistent business fixtures.
+do $$ declare outlet uuid; owner_auth uuid; employee uuid; token text:=encode(extensions.gen_random_bytes(32),'hex'); a uuid:=gen_random_uuid(); b uuid:=gen_random_uuid(); cancelled_draft uuid:=gen_random_uuid(); current_id uuid; result jsonb; original jsonb; denied boolean; day date:=timezone('Asia/Kuala_Lumpur',now())::date;
+begin
+ select id into outlet from public.outlets where name='QA Demo — Reporting Posters';
+ select e.auth_user_id into owner_auth from public.employees e join public.roles r on r.id=e.role_id where e.enable_system_login and e.access_state='active' and e.is_active and lower(r.name)='owner' limit 1;
+ select e.id into employee from public.employees e join public.crew_access ca on ca.employee_id=e.id where lower(btrim(e.workplace))='management' and ca.access_state='active' and e.is_active and outlet=any(public.crew_authorized_outlet_ids(e.id)) limit 1;
+ assert outlet is not null and employee is not null and owner_auth is not null;
+ assert not exists(select 1 from public.crew_cash_checkouts where outlet_id=outlet),'Require unused QA outlet, not live financial data';
+ perform set_config('request.jwt.claim.sub',owner_auth::text,true);
+ perform public.crew_cash_save_settings(outlet,'{"allow_authorized_management_checkout":true,"variance_tolerance":0,"require_manager_review_over_tolerance":true}');
+ perform public.crew_cash_save_settings(outlet,jsonb_build_object('floating_cash',300,'effective_date',day-10,'reason','Rolled-back cross-day authority test'));
+ insert into public.crew_sessions(employee_id,token_hash,expires_at) values(employee,encode(extensions.digest(token,'sha256'),'hex'),now()+interval '1 hour');
+ insert into public.crew_cash_checkouts(id,outlet_id,business_date,checked_out_by_employee_id,status,floating_cash,previous_carry_forward,expected_opening_cash,denomination_counts,counted_cash,pos_expected_cash,variance,carry_forward,amount_for_deposit,review_required,review_status)
+ values(a,outlet,day-2,employee,'draft',300,0,300,'{"100":7,"10":4,"1":6}',746,746,0,46,400,false,'not_required'),
+ (b,outlet,day-1,employee,'submitted',300,0,300,'{"100":8,"10":1,"5":1,"1":3,"0.10":3,"0.05":1}',818.35,752.20,66.15,0,0,false,'not_required'),
+ (cancelled_draft,outlet,day-3,employee,'draft',300,0,300,'{"100":1}',100,100,0,0,0,false,'not_required');
+ perform set_config('request.jwt.claim.sub','',true);
+ result:=public.crew_management_cash_mobile(token,outlet,day);
+ assert jsonb_array_length(result->'action_required_checkouts')=3,'All cross-day unresolved states are actionable';
+ assert public.crew_cash_previous_carry(outlet,day) is null,'Unknown previous chain cannot masquerade as verified carry';
+ denied:=false; begin perform public.crew_management_cash_save_checkout(token,outlet,'cancel',jsonb_build_object('checkout_id',cancelled_draft,'reason','')); exception when invalid_parameter_value then denied:=true; end; assert denied,'Cancellation reason required';
+ perform public.crew_management_cash_save_checkout(token,outlet,'cancel',jsonb_build_object('checkout_id',cancelled_draft,'reason','Abandoned duplicate count preparation'));
+ assert (select status='cancelled' and counted_cash=100 from public.crew_cash_checkouts where id=cancelled_draft),'Cancel preserves original count evidence';
+ assert not exists(select 1 from public.crew_cash_ledger_entries where checkout_id=cancelled_draft),'Cancellation posts no ledger';
+ result:=public.crew_management_cash_save_checkout(token,outlet,'draft','{"denomination_counts":{"100":7,"10":4,"1":6},"pos_expected_cash":746}'); current_id:=(result#>>'{checkout,id}')::uuid;
+ perform public.crew_management_cash_save_checkout(token,outlet,'reconcile',jsonb_build_object('checkout_id',current_id));
+ select to_jsonb(c) into original from public.crew_cash_checkouts c where id=current_id;
+ denied:=false; begin perform public.crew_management_cash_save_checkout(token,outlet,'complete',jsonb_build_object('checkout_id',current_id)); exception when invalid_parameter_value then denied:=true; end; assert denied,'Cannot finalize while previous unresolved';
+ perform public.crew_management_cash_save_checkout(token,outlet,'submit',jsonb_build_object('checkout_id',current_id));
+ perform set_config('request.jwt.claim.sub',owner_auth::text,true);
+ denied:=false; begin perform public.crew_cash_review_checkout(current_id,'approve','Blocked by earlier unresolved cash'); exception when invalid_parameter_value then denied:=true; end; assert denied,'Manager cannot bypass predecessor dependency';
+ perform public.crew_cash_review_checkout(current_id,'reject','Wait for earlier resolution before review');
+ perform set_config('request.jwt.claim.sub','',true);
+ -- Continue original past Draft through unchanged calculation authority.
+ result:=public.crew_management_cash_save_checkout(token,outlet,'reconcile',jsonb_build_object('checkout_id',a)); assert result#>>'{checkout,id}'=a::text and (result#>>'{checkout,business_date}')::date=day-2;
+ perform public.crew_management_cash_save_checkout(token,outlet,'complete',jsonb_build_object('checkout_id',a));
+ assert (select previous_carry_forward=0 and expected_opening_cash=300 from public.crew_cash_checkouts where id=current_id),'Later opening evidence not rewritten';
+ assert (public.crew_cash_checkout_allocation(current_id)->>'basis_review_required')::boolean,'Changed basis flags affected run';
+ denied:=false; begin perform public.crew_management_cash_save_checkout(token,outlet,'cancel',jsonb_build_object('checkout_id',a,'reason','Must fail')); exception when invalid_parameter_value then denied:=true; end; assert denied,'Finalized checkout non-cancellable';
+ perform set_config('request.jwt.claim.sub',owner_auth::text,true);
+ denied:=false; begin perform public.crew_cash_review_checkout(a,'cancel','Must fail'); exception when invalid_parameter_value then denied:=true; end; assert denied,'Admin cannot cancel finalized evidence';
+ perform public.crew_cash_correct_checkout_allocation(a,50,null,gen_random_uuid(),'Audited earlier carry correction in rollback test');
+ assert (public.crew_cash_chain_context(outlet,day,current_id)->>'resolved_carry')::numeric=50,'Allocation correction uses same canonical carry chain';
+ assert (select previous_carry_forward=0 from public.crew_cash_checkouts where id=current_id),'Allocation correction preserves started opening';
+ perform public.crew_cash_review_checkout(b,'reject','Correct previous day POS amount');
+ perform set_config('request.jwt.claim.sub','',true);
+ result:=public.crew_management_cash_mobile(token,outlet,day-1); assert result#>>'{checkout,is_returned}'='true','Returned remains distinct';
+ perform public.crew_management_cash_save_checkout(token,outlet,'reconcile',jsonb_build_object('checkout_id',b,'pos_expected_cash',823.20,'variance_reason','Correct the recorded POS closing amount'));
+ result:=public.crew_management_cash_save_checkout(token,outlet,'submit',jsonb_build_object('checkout_id',b));
+ assert result#>>'{checkout,id}'=b::text and (result#>>'{checkout,business_date}')::date=day-1,'Same original day and checkout';
+ assert (select counted_cash=818.35 and pos_expected_cash=823.20 and variance=-4.85 and review_required and review_status='pending' from public.crew_cash_checkouts where id=b),'Happiness pattern resubmission';
+ assert exists(select 1 from public.crew_cash_checkout_review_events where checkout_id=b and event='submitted' and (snapshot->>'pos_expected_cash')::numeric=752.20 and (snapshot->>'variance')::numeric=66.15),'Original submitted evidence preserved';
+ perform set_config('request.jwt.claim.sub',owner_auth::text,true);
+ perform public.crew_cash_review_checkout(b,'cancel','No closing obligation; preserve the submitted evidence');
+ assert (public.crew_cash_checkout_allocation(b)->>'amount_for_deposit')::numeric=0 and (public.crew_cash_checkout_allocation(b)->>'carry_forward')::numeric=0;
+ assert not exists(select 1 from public.crew_cash_ledger_entries where checkout_id=b),'Submitted cancellation posts no deposit';
+ denied:=false; begin perform public.crew_cash_review_checkout(b,'cancel','Repeated cancellation'); exception when invalid_parameter_value then denied:=true; end; assert denied,'Repeated cancellation denied without duplicate audit';
+ assert (select count(*)=1 from public.crew_cash_checkout_review_events where checkout_id=b and event='cancelled' and actor_user_id=owner_auth and actor_employee_id is null),'Actual cancelling Admin actor';
+ perform set_config('request.jwt.claim.sub','',true);
+ denied:=false; begin perform public.crew_management_cash_save_checkout(token,outlet,'draft',jsonb_build_object('checkout_id',b)); exception when invalid_parameter_value then denied:=true; end; assert denied,'Cancelled immutable, no replacement checkout';
+ result:=public.crew_management_cash_mobile(token,outlet,day); assert jsonb_array_length(result#>'{chain,previous_unresolved}')=0;
+ assert (result#>>'{checkout,basis_review_required}')::boolean,'Even a later restored numerical basis retains required audit review';
+ perform public.crew_management_cash_save_checkout(token,outlet,'submit',jsonb_build_object('checkout_id',current_id));
+ perform set_config('request.jwt.claim.sub',owner_auth::text,true);
+ result:=public.crew_cash_review_checkout(current_id,'approve','Reviewed unchanged recorded opening and resolved prior cash chain');
+ assert result->>'status'='completed'; assert (select count(*)=1 from public.crew_cash_ledger_entries where checkout_id=current_id),'Finalization one ledger';
+ assert (select previous_carry_forward=0 and expected_opening_cash=300 from public.crew_cash_checkouts where id=current_id),'Review preserves pinned original opening';
+ assert exists(select 1 from public.crew_cash_checkout_review_events where checkout_id=current_id and event='basis_reviewed' and actor_user_id=owner_auth);
+ result:=public.crew_cash_admin_context(outlet); assert jsonb_array_length(result->'previous_unresolved')=0;
+ perform set_config('request.jwt.claim.sub','',true); perform set_config('feedx.crew_management_cash_outlet',outlet::text,true);
+ result:=public.crew_cash_checkout_history(token,day); assert jsonb_array_length(result)=4,'History retains both completed and cancelled';
+ assert (select count(*)=4 from public.crew_cash_checkouts where outlet_id=outlet),'No duplicates';
+ assert not has_function_privilege('anon','public.crew_cash_chain_context(uuid,date,uuid)','EXECUTE'),'Private chain helper';
+end $$;
+select 'PASS cross-day continue, cancellation, dependency, return/resubmit, basis review, immutable evidence and history' result;

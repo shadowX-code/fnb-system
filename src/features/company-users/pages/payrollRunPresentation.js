@@ -7,12 +7,13 @@ export function payrollEmployeeResult(calculation, statutory) {
   const statutoryCurrent = earningsCurrent && statutory?.status === "ready" && !statutory.is_stale;
   return {
     earningsCurrent,
+    earningsAvailable: !!calculation && !calculation.is_stale,
     statutoryCurrent,
     gross: earningsCurrent ? calculation.gross_earnings : null,
     deductions: statutoryCurrent ? Number(statutory.non_statutory_deductions || 0)
       + (statutory.lines || []).reduce((sum, line) => sum + Number(line.employee_amount || 0), 0) : null,
     net: statutoryCurrent ? statutory.net_pay : null,
-    status: calculation?.is_stale || statutory?.is_stale ? "Refresh Payroll"
+    status: calculation?.is_stale || statutory?.is_stale ? "Pending Calculation"
       : !earningsCurrent ? calculation ? "Needs Attention" : "Complete Calculation"
         : !statutory ? "Complete Calculation" : statutoryCurrent ? "Ready" : "Needs Attention",
   };
@@ -67,7 +68,28 @@ export function payrollIssueLabel(issue, context = {}) {
   if ((code === "statutory_applicability_missing" || code.endsWith("_applicability_unreviewed")) && coverage?.missing_through) {
     return `${code === "statutory_applicability_missing" ? "Statutory" : code.split("_")[0].toUpperCase()} applicability missing · ${coverage.start} – ${coverage.missing_through}`;
   }
+  if (code.endsWith("_applicability_unreviewed")) {
+    const scheme = code.split("_")[0].toUpperCase();
+    const date = context.statutory?.inputs?.setup_effective_date;
+    return `${scheme} applicability is not confirmed${date ? ` for the payroll period starting ${date}` : " for this payroll period"}. Open Payroll Profiles → Manage Statutory Setup and explicitly confirm the historical Effective Payroll Month; current setup does not establish earlier coverage.`;
+  }
+  if (code === "lindung_participation_unconfirmed") {
+    const month = detail ? new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric", timeZone: "UTC" }).format(new Date(`${detail}T00:00:00Z`)) : "This period's";
+    return `${month} LINDUNG participation is unconfirmed. Open Manage Statutory Setup and confirm evidence for that contribution month.`;
+  }
+  if (code === "lindung_wage_treatment_unresolved") return `LINDUNG Act 4 wage treatment is unresolved for ${detail || "an earning component"}. Review the component's Act 4 wage treatment.`;
   const labels = {
+    ph_payable_classification_requires_review: "Published paid-holiday work requires an explicit PH classification review; a Regular decision cannot bypass holiday entitlement.",
+    ph_statutory_rule_unverified: `Public Holiday Allowance requires a verified Malaysia ${(detail || "employee").split(":")[0]} PH calculation rule, statutory eligibility, ordinary-day wage basis and normal contractual hours. Company Additional Pay does not resolve this.`,
+    ph_ot_statutory_rule_unverified: `PH overtime requires a verified Malaysia ${(detail || "employee").split(":")[0]} PH-OT calculation rule and approved overtime beyond contractual normal hours.`,
+    ph_paid_day_entitlement_unverified: "Hourly paid holiday without work requires verified holiday-pay eligibility and ordinary-day wage evidence; roster hours are not a holiday-pay formula.",
+    lindung_designated_employer_missing: "Designated contributing employer is missing for LINDUNG.",
+    lindung_designated_employer_mismatch: "LINDUNG designated employer does not match this Payroll employer. Review the designation evidence.",
+    lindung_rate_pack_unavailable: "LINDUNG rate pack unavailable for this payroll period.",
+    lindung_official_band_unavailable: "Official LINDUNG wage band unavailable; contribution has not been assumed.",
+    lindung_june_mandatory_evidence_required: "June 2026 LINDUNG contributions are mandatory. Confirm June evidence; later opt-out does not cancel June.",
+    lindung_employee_evidence_changed: "Employee nationality changed since LINDUNG confirmation. Reverify worker coverage evidence.",
+    lindung_negative_wage_base: "LINDUNG contributable wages are negative; review earning and unpaid-time evidence.",
     employment_joined_date_missing: "Joined Date is required to resolve period employment",
     employment_assignment_requires_review: "Period employment assignment requires review",
     legal_employer_unresolved: "Legal Employer is unresolved for this period",
@@ -109,4 +131,19 @@ export function payrollIssueLabel(issue, context = {}) {
   };
   const text = labels[code] || code.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
   return /^\d{4}-\d{2}-\d{2}$/.test(detail || "") ? `${text} · ${detail}` : text;
+}
+
+
+// Scheme cells consume persisted contribution lines and period-resolved setup.
+// Overall totals stay unavailable until every required component is ready.
+export function payrollStatutoryCell(row, scheme) {
+  const setup = row.preparation?.statutory_setup?.schemes?.[scheme];
+  const line = row.statutory?.lines?.find(item => item.scheme === scheme);
+  if (!setup || !['confirmed', 'not_applicable'].includes(setup.state)) return { state: 'Review' };
+  if (setup.applicable === false) return { state: 'N/A' };
+  if (scheme === 'pcb' && !row.pcb?.confirmation) return { state: 'Review' };
+  if (!row.result.earningsCurrent || !row.statutory || row.statutory.is_stale) return { state: 'Pending' };
+  if ((row.statutory.issues || []).some(issue => String(issue).startsWith(`${scheme}_`) || issue === 'statutory_applicability_missing')) return { state: 'Review' };
+  if (!line || line.employee_amount == null || (scheme !== 'pcb' && line.employer_amount == null)) return { state: 'Pending' };
+  return { state: 'calculated', employee: line.employee_amount, employer: scheme === 'pcb' ? null : line.employer_amount };
 }

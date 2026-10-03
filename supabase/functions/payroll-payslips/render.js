@@ -136,15 +136,15 @@ export async function renderPayslip(manifest, { PDFDocument, StandardFonts, rgb,
   rule(); row('Gross Earnings',manifest.gross_earnings,true);
   heading('Deductions');
   for (const line of manifest.deductions) row(line.label,line.amount);
-  for (const line of manifest.statutory) row(line.scheme==='pcb'?'PCB / MTD':`${line.scheme.toUpperCase()} Employee`,line.applicable===false?'—':line.amount);
+  for (const line of manifest.statutory.filter(line=>line.scheme!=='lindung' || line.applicable===true)) row(line.scheme==='lindung'?'LINDUNG 24 Jam':line.scheme==='pcb'?'PCB / MTD':`${line.scheme.toUpperCase()} Employee`,line.applicable===false?'—':line.amount);
   rule();row('Total Deductions',totalDeductions,true);
   if (manifest.reimbursements?.length) { heading('Reimbursements'); for (const line of manifest.reimbursements) row(line.label,line.amount); }
   ensure(45);y-=8;rule();
   drawText('NET PAY',{x:margin,y,size:12,font:bold,color:teal});
   right(money(manifest.net_pay),y,16,teal);y-=30;
-  if (manifest.statutory.some(line=>line.employer_amount != null && line.scheme!=='pcb')) {
+  if (manifest.statutory.some(line=>line.employer_amount != null && !['pcb','lindung'].includes(line.scheme))) {
     ensure(100);y-=6;text('Employer Contributions',9,regular,muted);rule();
-    for (const line of manifest.statutory.filter(line=>line.scheme!=='pcb')) row(`${line.scheme.toUpperCase()} Employer`,line.applicable===false?'—':line.employer_amount);
+    for (const line of manifest.statutory.filter(line=>!['pcb','lindung'].includes(line.scheme))) row(`${line.scheme.toUpperCase()} Employer`,line.applicable===false?'—':line.employer_amount);
     text('Employer contributions do not reduce Net Pay.',8,regular,muted);
   }
   pdf.getPages().forEach((p,index)=>{

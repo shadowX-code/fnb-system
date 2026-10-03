@@ -1,25 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Modal from '../../../components/feedback/Modal.jsx';
 import AdminFormField from '../../../components/forms/AdminFormField.jsx';
 import SelectField from '../../../components/forms/SelectField.jsx';
 import MonthPickerField from '../../../components/forms/MonthPickerField.jsx';
 import { payrollService } from '../../../services/payrollService.js';
 
+import PayrollLindungSetup from './PayrollLindungSetup.jsx';
+import PayrollStatutoryHistory from './PayrollStatutoryHistory.jsx';
+
 const schemes = ['epf', 'socso', 'eis', 'pcb'];
-export const statutoryCategories = {
-  epf: [{value:'malaysian_under_60',label:'Malaysian · under 60'},{value:'malaysian_60_to_74',label:'Malaysian · 60–74'}],
-  socso: [{value:'first_category_base',label:'Act 4 · First Category'},{value:'second_category_base',label:'Act 4 · Second Category'}],
-  eis: [{value:'standard',label:'Standard'}],
-};
+import { statutoryCategories, statutorySchemeLabel } from './payrollStatutoryLabels.js';
+export { statutoryCategories, statutorySchemeLabel } from './payrollStatutoryLabels.js';
 const categories = statutoryCategories;
-export const statutorySchemeLabel = (scheme, state) => {
-  if (state?.state === 'confirmation_required') return 'Confirmation Required';
-  if (state?.state === 'not_applicable') return 'Not Applicable';
-  if (state?.state !== 'confirmed' && state?.state !== 'scheduled') return 'Setup Required';
-  if (state.applicable === false) return 'Not Applicable';
-  if (scheme === 'pcb') return 'Applicable · monthly confirmation';
-  return categories[scheme]?.find(c=>c.value===state.category)?.label || 'Confirmed';
-};
 
 // Translate canonical eligibility reasons; never infer eligibility in the browser.
 export function statutorySetupHelp(issue, evidence = {}) {
@@ -34,8 +26,12 @@ export function statutorySetupHelp(issue, evidence = {}) {
 
 export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
   const [draft,setDraft]=useState(null);
+  const [lindung,setLindung]=useState(null);
+  const [refreshKey,setRefreshKey]=useState(0);
+  const request=useRef(null);
   const [review,setReview]=useState(null);
-  const [history,setHistory]=useState(null);
+  const [coverage,setCoverage]=useState(null);
+  const [monthEdited,setMonthEdited]=useState(false);
   const [overrides,setOverrides]=useState({});
   const [expanded,setExpanded]=useState({});
   const [sourceNote,setSourceNote]=useState('');
@@ -47,16 +43,16 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
   useEffect(()=>{
     let active=true;
     payrollService.readStatutorySetup(profile.id).then(r=>payrollService.readStatutorySetup(profile.id,r.next_effective_from,r.applicability)).then(r=>{
-      if(active) {setHistory(r.history);setDraft({effectiveFrom:`${r.next_effective_from.slice(0,7)}-01`,applicability:r.applicability});}
+      if(active) {setDraft({effectiveFrom:`${r.next_effective_from.slice(0,7)}-01`,applicability:r.applicability});}
     }).catch(e=>{if(active)setError(e.message);});
     return ()=>{active=false;};
   },[profile.id]);
   // Server resolves proposed applicability first. Ignore late responses after edits.
   useEffect(()=>{
     if(!draft) return;
-    let active=true;setReview(null);setError('');
-    payrollService.readStatutorySetup(profile.id,draft.effectiveFrom,draft.applicability)
-      .then(r=>{if(active){setReview(r);setHistory(r.history);}}).catch(e=>{if(active)setError(e.message);});
+    let active=true;setReview(null);setCoverage(null);setError('');
+    Promise.all([payrollService.readStatutorySetup(profile.id,draft.effectiveFrom,draft.applicability),payrollService.readStatutorySetup(profile.id,draft.effectiveFrom)])
+      .then(([r,c])=>{if(active){setReview(r);setCoverage(c);}}).catch(e=>{if(active)setError(e.message);});
     return ()=>{active=false;};
   },[profile.id,draft]);
   const applicable=schemes.filter(s=>s!=='pcb' && draft?.applicability[s]===true);
@@ -65,12 +61,18 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
   const invalidDate=false; // Month revisions append evidence; concurrency is fingerprint-checked server-side.
   const allowed=review && !stale && !refreshing && draft.effectiveFrom && !invalidDate && schemes.every(s=>draft.applicability[s]!=null)
     && applicable.every(s=>chosen[s])
+    && (draft.effectiveFrom<'2026-06-01' || (lindung?.month===draft.effectiveFrom && lindung.allowed))
     && (!manual || (sourceNote.trim().length>=8 && reason.trim().length>=3));
   async function save() {
     setBusy(true);setError('');
     try {
-      await payrollService.confirmStatutorySetup({profileId:profile.id,...draft,categories:chosen,
-        fingerprint:review.fingerprint,sourceNote,reason});
+      const payload={profileId:profile.id,...draft,categories:chosen,
+        fingerprint:review.fingerprint,sourceNote,reason,
+        lindungIntent:draft.effectiveFrom<'2026-06-01'?null:lindung.intent,
+        lindungFingerprint:draft.effectiveFrom<'2026-06-01'?null:lindung.fingerprint};
+      const key=JSON.stringify(payload);
+      if(request.current?.key!==key) request.current={key,id:crypto.randomUUID()};
+      await payrollService.confirmStatutorySetup({...payload,requestId:request.current.id});
       await onSaved();onClose();
     } catch(e) {
       if(e.cause?.details==='payroll_statutory_setup_stale' || e.cause?.code==='40001' || e.code==='40001' || e.cause?.code==='PT409') {setStale(true);setError('Statutory information was updated');}
@@ -83,17 +85,26 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
     setRefreshing(true);setError('');setReview(null);
     try {
       const r=await payrollService.readStatutorySetup(profile.id,draft.effectiveFrom,draft.applicability);
-      setHistory(r.history);setReview(r);setOverrides({});setExpanded({});setSourceNote('');setReason('');setStale(false);
+      setReview(r);setOverrides({});setExpanded({});setSourceNote('');setReason('');setStale(false);setRefreshKey(v=>v+1);
     } catch(e) {setError(e.message || 'Unable to refresh setup.');}
     finally {setRefreshing(false);}
   }
   return <Modal title={`Manage Statutory Setup · ${profile.employee_name}`} size="lg" onClose={onClose}
-    description="Confirm one setup for the payroll month. Salary/rate dates remain separate; historical evidence is retained."
+    description="Manage statutory coverage and effective changes."
     footer={<><button className="btn-secondary" onClick={onClose} disabled={busy}>Cancel</button><button className="btn-primary" onClick={save} disabled={!allowed || busy}>{busy?'Saving…':'Confirm Statutory Setup'}</button></>}>
-    <div className="space-y-5">
+    <div className="space-y-3">
       {!draft && !error && <p>Loading employee evidence…</p>}
       {draft && <>
-        <section aria-label="Statutory schemes" className="divide-y divide-border">{schemes.map(s=>{
+        <div className="space-y-1">
+          <MonthPickerField label="Effective Payroll Month" value={draft.effectiveFrom.slice(0,7)} disabled={busy}
+            onChange={v=>{setMonthEdited(true);setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:`${v}-01`}));}} />
+          <p className="text-sm text-text-secondary">Changes take effect from this payroll month and remain effective until changed.</p>
+          {monthEdited && draft.effectiveFrom.slice(0,7)<new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Kuala_Lumpur'}).slice(0,7) && (coverage?.complete===false || (lindung?.month===draft.effectiveFrom && lindung.current?.issue)) &&
+            <p className="text-sm text-text-secondary">Historical confirmation: confirm the coverage effective in this period. Later changes and finalized records stay unchanged.</p>}
+        </div>
+        <section aria-label="Statutory Coverage">
+          <h3 className="text-sm font-semibold">Statutory Coverage</h3>
+          <div className="divide-y divide-border">{schemes.map(s=>{
           const state=review?.schemes[s], applicable=draft.applicability[s]===true, requiresCategory=applicable && s!=='pcb';
           const editing=expanded[s] && state?.recommendation;
           return <div key={s} className="grid gap-3 py-3 sm:grid-cols-[11rem_1fr]">
@@ -120,17 +131,17 @@ export default function PayrollStatutorySetup({profile,onSaved,onClose}) {
               </>}
             </>}
           </div></div>;
-        })}</section>
-        <MonthPickerField label="Effective Payroll Month" value={draft.effectiveFrom.slice(0,7)} disabled={busy}
-          onChange={v=>{setOverrides({});setExpanded({});setSourceNote('');setReason('');setDraft(d=>({...d,effectiveFrom:`${v}-01`}));}} />
+        })}
+          <PayrollLindungSetup profile={profile} month={draft.effectiveFrom} onChange={setLindung} disabled={busy} refreshKey={refreshKey}
+            act4Covered={draft.applicability.socso===true && Boolean(chosen.socso)} />
+          </div>
+        </section>
         {!review && !error && <p role="status">Resolving setup…</p>}
         {review && manual && <div className="space-y-3"><p className="text-sm text-text-secondary">Explain the change from FeedX's recommendation. The server still validates the selected category against employee evidence.</p>
           <AdminFormField label="Supporting evidence / source" required><input className="control" value={sourceNote} onChange={e=>setSourceNote(e.target.value)} /></AdminFormField>
           <AdminFormField label="Override reason" required><input className="control" value={reason} onChange={e=>setReason(e.target.value)} /></AdminFormField></div>}
         {!manual && review && <p className="text-xs text-text-secondary">FeedX records canonical employee evidence, confirming Admin and time automatically.</p>}
-        <details className="text-sm"><summary className="cursor-pointer font-semibold">Effective-dated history</summary>
-          {history?.applicability.map(v=><p key={v.id} className="mt-2">{v.effective_from} · {schemes.map(s=>`${s.toUpperCase()}: ${v[`${s}_applicable`]==null?'Setup Required':v[`${s}_applicable`]?'Applicable':'Not Applicable'}`).join(' · ')}</p>)}
-          {history?.categories.map(v=><p key={v.id} className="mt-2 text-text-secondary">Category evidence · {v.effective_from} · {v.reason}</p>)}</details>
+        <PayrollStatutoryHistory profileId={profile.id} />
       </>}
       {error && <p role="alert" className="text-sm text-rose-700">{error}</p>}
       {stale && <button type="button" className="btn-secondary" disabled={busy || refreshing} onClick={refreshSetup}>{refreshing?'Refreshing…':'Refresh Setup'}</button>}

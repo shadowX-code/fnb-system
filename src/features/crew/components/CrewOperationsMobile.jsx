@@ -1,3 +1,5 @@
+import useCrewTaskPresentationTime from "../hooks/useCrewTaskPresentationTime.js";
+import useCrewTaskTitles from "../hooks/useCrewTaskTitles.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import "../../../i18n/index.js";
@@ -11,7 +13,7 @@ import CrewSopDocument from "./CrewSopDocument.jsx";
 import CrewTaskBlockRenderer, { isTaskBlockActionable, isTaskBlockComplete, normalizeTaskBlock } from "./CrewTaskBlockRenderer.jsx";
 import { CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 import { formatCrewDate, formatCrewTime, translateStatus } from "../utils/crewI18n.js";
-import { activeTaskResponsibilities, formatTaskSchedule, historyTasks } from "../utils/taskSchedule.js";
+import { activeTaskResponsibilities, formatTaskSchedule, historyTasks, taskPresentationStatus, taskMatchesStatus } from "../utils/taskSchedule.js";
 import { applySopLocalization, applyTaskLocalization } from "../utils/localizedContent.js";
 
 export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
@@ -33,21 +35,16 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   const [allTasksLoading, setAllTasksLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [taskView, setTaskView] = useState("active");
+  const [activeFilter, setActiveFilter] = useState("all");
   const [historyFilter, setHistoryFilter] = useState("all");
   const [detailLoading, setDetailLoading] = useState(Boolean(initialTarget));
   const [detailContext, setDetailContext] = useState(initialTarget?.context || null);
-  const [availabilityNow, setAvailabilityNow] = useState(() => Date.now());
+  const [availabilityNow, refreshAvailability] = useCrewTaskPresentationTime([detail, legacyTask, ...((allTaskData || data)?.tasks || []), ...(historyTaskData?.tasks || [])]);
   const allTaskRequest = useRef(0);
   const historyTaskRequest = useRef(0);
   const listScrollY = useRef(0);
 
-  useEffect(() => { setDetail(null); setDetailLanguage(null); setLegacyTask(null); setActiveSop(null); setActiveSopLanguage(null); setAllTaskData(null); setHistoryTaskData(null); setTaskView("active"); setHistoryFilter("all"); setDetailLoading(Boolean(initialTarget)); setDetailContext(initialTarget?.context || null); }, [token]);
-  useEffect(() => {
-    const availableAt = Date.parse(detail?.available_from || "");
-    if (!Number.isFinite(availableAt) || availableAt <= Date.now()) return undefined;
-    const timer = window.setTimeout(() => setAvailabilityNow(Date.now()), Math.max(availableAt - Date.now() + 25, 25));
-    return () => window.clearTimeout(timer);
-  }, [detail?.available_from, availabilityNow]);
+  useEffect(() => { setDetail(null); setDetailLanguage(null); setLegacyTask(null); setActiveSop(null); setActiveSopLanguage(null); setAllTaskData(null); setHistoryTaskData(null); setTaskView("active"); setActiveFilter("all"); setHistoryFilter("all"); setDetailLoading(Boolean(initialTarget)); setDetailContext(initialTarget?.context || null); }, [token]);
   async function loadAllTasks() {
     const request = ++allTaskRequest.current;
     setAllTasksLoading(true); setError("");
@@ -79,7 +76,7 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
   async function openTask(row, context = { from: "list" }) {
     setDetailContext(context);
     setDetailLoading(true);
-    setSaving(true); setError(""); setAvailabilityNow(Date.now());
+    setSaving(true); setError(""); refreshAvailability();
     try {
       const nextDetail = await crewService.operationDetail(token, row.id);
       const language = i18n.resolvedLanguage || i18n.language || "en";
@@ -180,6 +177,9 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     return () => { active = false; };
   }, [token, activeSop?.id, activeSopLanguage, i18n.resolvedLanguage, i18n.language]);
 
+  const localizedAllTasks = useCrewTaskTitles(token, (allTaskData || data)?.tasks || []);
+  const localizedHistoryTasks = useCrewTaskTitles(token, historyTaskData?.tasks || []);
+
   function returnFromDetail() {
     if (detailContext?.from === "home") { onBack?.(detailContext); return; }
     setDetail(null); setDetailLoading(false); setDetailContext(null);
@@ -210,30 +210,31 @@ export default function CrewOperationsMobile({ token, data, loading, initialTarg
     return <section className="crew-ops-mobile">
       <CrewMobileDetailHeader title={detail.name} onBack={returnFromDetail} variant="workflow" />
       <CrewTaskPriority priority={detail.priority} />
-      <TaskDetailSummary detail={detail} completed={completed} total={actionable.length} canRedo={canRedo} onRedo={() => setRedoOpen(true)} />
+      <TaskDetailSummary detail={detail} completed={completed} total={actionable.length} now={availabilityNow} canRedo={canRedo} onRedo={() => setRedoOpen(true)} />
       {unavailable ? <TaskAvailabilityNotice availableFrom={detail.available_from} /> : null}
-      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} unavailable={unavailable} saving={savingBlockId === block.id} compactCompletedResult={["completed", "completed_with_exceptions"].includes(detail.status) && actionable.length === 1 && completed === 1} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
+      <div className="crew-ops-items">{blocks.map((block, index) => <CrewTaskBlockRenderer key={block.id || index} block={block} index={index} mode={detailContext?.view === "history" || ["completed", "completed_with_exceptions", "review_required"].includes(detail.status) ? "readonly" : "interactive"} allowException={detail.allow_exception} unavailable={unavailable} saving={savingBlockId === block.id} onSubmit={submitBlock} onOpenSop={openSop} />)}</div>
       {error ? <div className="crew-v2-error">{error}</div> : null}
       {redoOpen ? <CrewMobileModal title={t("tasks.redoTitle")} closeDisabled={redoSaving} onClose={() => !redoSaving && setRedoOpen(false)}><div className="crew-ops-redo-dialog"><p>{t("tasks.redoBody")}</p><div><button type="button" className="crew-mobile-secondary" disabled={redoSaving} onClick={() => setRedoOpen(false)}>{t("common.cancel")}</button><button type="button" className="crew-mobile-secondary crew-ops-redo-confirm" disabled={redoSaving} onClick={resetTask}><RotateCcw size={16} />{redoSaving ? t("common.saving") : t("tasks.redo")}</button></div></div></CrewMobileModal> : null}
     </section>;
   }
 
   const taskData = allTaskData || data || {};
-  const activeGroups = activeTaskResponsibilities(taskData.tasks || [], t);
-  const historical = historyTasks(historyTaskData?.tasks || [], historyFilter);
+  const activeGroups = activeTaskResponsibilities(localizedAllTasks, t, availabilityNow)
+    .map(([label, tasks]) => [label, tasks.filter((task) => taskMatchesStatus(task, activeFilter, availabilityNow))]).filter(([, tasks]) => tasks.length);
+  const historical = historyTasks(localizedHistoryTasks, historyFilter, new Date(availabilityNow));
   const filterOptions = [
-    ["all", t("tasks.all")], ["completed", t("tasks.completedFilter")], ["overdue", t("tasks.overdue")], ["exception", t("tasks.exception")],
+    ["all", t("tasks.all")], ["upcoming", t("status.upcoming")], ["start_now", t("status.start_now")], ["in_progress", t("status.in_progress")], ["completed", t("tasks.completedFilter")], ["overdue", t("tasks.overdue")], ["exception", t("tasks.exception")],
   ];
   return <section className="crew-ops-mobile">
     <CrewMobileDetailHeader title={t("tasks.title")} onBack={onBack} variant="workflow" />
     <div className="crew-ops-context"><span><Store size={17} /><strong>{taskData?.outlet?.name || t("home.yourOutlet")}</strong></span><small>{(taskData?.attendance_context || data?.attendance_context)?.on_shift ? t("home.onShift") : t("tasks.outsideShift")}</small></div>
     <div className="crew-ui-tabs crew-ops-top-tabs" role="tablist" aria-label={t("tasks.title")}><button type="button" role="tab" aria-selected={taskView === "active"} className={taskView === "active" ? "is-active" : ""} onClick={() => setTaskView("active")}>{t("tasks.active")}</button><button type="button" role="tab" aria-selected={taskView === "history"} className={taskView === "history" ? "is-active" : ""} onClick={() => setTaskView("history")}>{t("tasks.history")}</button></div>
+    <div className="crew-ops-filters" role="tablist" aria-label={t(taskView === "history" ? "tasks.history" : "tasks.active")}>{filterOptions.map(([value, label]) => { const selected = (taskView === "history" ? historyFilter : activeFilter) === value; return <button key={value} type="button" role="tab" aria-selected={selected} className={selected ? "is-active" : ""} onClick={() => taskView === "history" ? setHistoryFilter(value) : setActiveFilter(value)}>{label}</button>; })}</div>
     {taskView === "history" ? <>
-      <div className="crew-ops-filters" role="tablist" aria-label={t("tasks.history")}>{filterOptions.map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={historyFilter === value} className={historyFilter === value ? "is-active" : ""} onClick={() => setHistoryFilter(value)}>{label}</button>)}</div>
-      {historyLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : historical.length ? <section className="crew-ops-group">{historical.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} history onOpen={() => openFromList(task, "history")} />)}</section> : <section className="crew-ops-group"><Empty text={t("tasks.noHistory")} /></section>}
-    </> : (loading && !allTaskData) || allTasksLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : activeGroups.length ? activeGroups.map(([label, groupTasks]) => <section className="crew-ops-group" key={label}><CrewSectionHeader density="operational" title={label} trailing={<span className="crew-ui-count">{groupTasks.length}</span>} />{groupTasks.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} onOpen={() => openFromList(task, "active")} />)}</section>) : <section className="crew-ops-group"><Empty text={t("tasks.noActiveTasks")} /></section>}
+      {historyLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : historical.length ? <section className="crew-ops-group">{historical.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} now={availabilityNow} history onOpen={() => openFromList(task, "history")} />)}</section> : <section className="crew-ops-group"><Empty text={t("tasks.noHistory")} /></section>}
+    </> : (loading && !allTaskData) || allTasksLoading ? <div className="crew-ops-loading">{t("common.loading")}</div> : activeGroups.length ? activeGroups.map(([label, groupTasks]) => <section className="crew-ops-group" key={label}><CrewSectionHeader density="operational" title={label} trailing={<span className="crew-ui-count">{groupTasks.length}</span>} />{groupTasks.map((task) => <TaskRow key={`${task.source}-${task.id}`} task={task} t={t} now={availabilityNow} onOpen={() => openFromList(task, "active")} />)}</section>) : <section className="crew-ops-group"><Empty text={t("tasks.noActiveTasks")} /></section>}
     {error ? <div className="crew-v2-error">{error}</div> : null}
-    {legacyTask ? <LegacyTaskModal item={legacyTask} reason={reason} setReason={setReason} note={note} setNote={setNote} saving={saving} onClose={() => setLegacyTask(null)} onSubmit={submitLegacy} /> : null}
+    {legacyTask ? <LegacyTaskModal item={legacyTask} now={availabilityNow} reason={reason} setReason={setReason} note={note} setNote={setNote} saving={saving} onClose={() => setLegacyTask(null)} onSubmit={submitLegacy} /> : null}
   </section>;
 }
 
@@ -279,17 +280,19 @@ function TaskCompletionState({ status, completed, total, completedAt }) {
   return <section className="crew-task-completion-state" aria-live="polite"><CheckCircle2 size={21} /><span><strong>{review ? t("tasks.submittedReview") : t("tasks.completed")}</strong><small>{t("tasks.completedCount", { completed, total })}{time ? ` · ${t("tasks.completedAt", { time })}` : ""}</small></span></section>;
 }
 
-function TaskDetailSummary({ detail, completed, total, canRedo, onRedo }) {
+export function TaskDetailSummary({ detail, completed, total, now, canRedo, onRedo }) {
   const { t } = useTranslation();
   const isFinal = ["completed", "completed_with_exceptions", "review_required"].includes(detail.status);
+  const presentationStatus = taskPresentationStatus({ ...detail, completed_count: completed }, now);
   const singleComplete = isFinal && total === 1 && completed === 1;
   const assignment = assignmentLabel(detail.assignment, t);
   const completion = detail.completion_audit;
-  const completionTime = completion?.completed_at || detail.completed_at;
+  const contributors = detail.completion_contributors;
+  const completedBy = Array.isArray(contributors) ? contributors.map((person) => person.employee_name).filter(Boolean).join(", ") : completion?.employee_name;
   return <section className="crew-ops-detail-summary" aria-label={t("tasks.summary")}>
-    <div className="crew-ops-detail-summary-status"><CrewStatusBadge tone={taskStatusTone(detail.status)}>{translateStatus(detail.status, t)}</CrewStatusBadge>{canRedo ? <button type="button" className="crew-mobile-ghost crew-ops-redo" onClick={onRedo}><RotateCcw size={15} />{t("tasks.redo")}</button> : null}</div>
+    <div className="crew-ops-detail-summary-status"><CrewStatusBadge tone={taskStatusTone(presentationStatus)}>{translateStatus(presentationStatus, t)}</CrewStatusBadge>{canRedo ? <button type="button" className="crew-mobile-ghost crew-ops-redo" onClick={onRedo}><RotateCcw size={15} />{t("tasks.redo")}</button> : null}</div>
     {assignment ? <DetailMeta label={t("tasks.assignedTo")} value={assignment} /> : null}
-    {isFinal && completion ? <DetailMeta label={t("tasks.completedBy")} value={completion.employee_name} supporting={formatTaskAuditDate(completion.completed_at)} /> : null}
+    {isFinal && completedBy ? <DetailMeta label={t("tasks.completedBy")} value={completedBy} supporting={formatTaskAuditDate(detail.completed_at || completion?.completed_at)} /> : null}
     {!singleComplete ? <><small>{t("tasks.completedCount", { completed, total })}</small><div className="crew-task-preview-progress"><span style={{ width: `${total ? (completed / total) * 100 : 100}%` }} /></div></> : null}
   </section>;
 }
@@ -333,10 +336,10 @@ function SopTaskReader({ sop, token, onBack }) {
   return <section className="crew-ops-mobile crew-learning-reader"><CrewMobileDetailHeader title={sop.title || t("learn.readerFallback")} onBack={onBack} /><div className="crew-ops-detail-head"><span>{sop.category || t("learn.readerFallback")}</span><strong>{t("learn.version", { version: sop.version })}</strong><small>{t("learn.referencedTask")}</small></div><CrewSopDocument sections={sop.sections || []} token={token} sopVersionId={sop.id} className="is-mobile" /></section>;
 }
 
-function LegacyTaskModal({ item, reason, setReason, note, setNote, saving, onClose, onSubmit }) {
+function LegacyTaskModal({ item, now, reason, setReason, note, setNote, saving, onClose, onSubmit }) {
   const { t } = useTranslation();
   const reasons = ["equipment_issue", "stock_unavailable", "area_unavailable", "manager_instruction", "other"];
-  return <CrewBottomSheet title={item.name || item.title} description={item.description || t("tasks.legacyInstruction")} onClose={onClose} closeDisabled={saving} contentClassName="crew-ops-legacy-content"><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("completed")}>{t("status.completed")}</button><button className="crew-ops-choice crew-mobile-secondary is-warning" type="button" onClick={() => setReason(reason || "equipment_issue")}><AlertTriangle size={18} /> {t("tasks.recordException")}</button>{reason ? <><label className="crew-ui-form-field">{t("tasks.chooseReason")}<select className="crew-ui-field" value={reason} onChange={(event) => setReason(event.target.value)}>{reasons.map((value) => <option key={value} value={value}>{t(`tasks.reasons.${value}`)}</option>)}</select></label><label className="crew-ui-form-field">{t("tasks.note")}<textarea className="crew-ui-field" value={note} onChange={(event) => setNote(event.target.value)} /></label><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("exception")}>{t("tasks.submitException")}</button></> : null}</CrewBottomSheet>;
+  return <CrewBottomSheet title={item.name || item.title} description={item.description || t("tasks.legacyInstruction")} onClose={onClose} closeDisabled={saving} contentClassName="crew-ops-legacy-content"><CrewStatusBadge tone={taskStatusTone(taskPresentationStatus(item, now))}>{translateStatus(taskPresentationStatus(item, now), t)}</CrewStatusBadge><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("completed")}>{t("status.completed")}</button><button className="crew-ops-choice crew-mobile-secondary is-warning" type="button" onClick={() => setReason(reason || "equipment_issue")}><AlertTriangle size={18} /> {t("tasks.recordException")}</button>{reason ? <><label className="crew-ui-form-field">{t("tasks.chooseReason")}<select className="crew-ui-field" value={reason} onChange={(event) => setReason(event.target.value)}>{reasons.map((value) => <option key={value} value={value}>{t(`tasks.reasons.${value}`)}</option>)}</select></label><label className="crew-ui-form-field">{t("tasks.note")}<textarea className="crew-ui-field" value={note} onChange={(event) => setNote(event.target.value)} /></label><button className="crew-mobile-primary" disabled={saving} onClick={() => onSubmit("exception")}>{t("tasks.submitException")}</button></> : null}</CrewBottomSheet>;
 }
 
 function Empty({ text }) { return <div className="crew-ui-functional-surface crew-ops-empty"><ClipboardCheck size={22} /><p>{text}</p></div>; }
@@ -347,19 +350,21 @@ function taskStatusTone(status) {
   return "neutral";
 }
 
-function TaskRow({ task, t, history = false, onOpen }) {
-  const hasProgress = Number(task.completed_count || 0) > 0 && Number(task.block_count || 0) > 0;
+function TaskRow({ task, t, now, history = false, onOpen }) {
+  const status = taskPresentationStatus(task, now);
+  const hasProgress = Number(task.block_count || 0) > 0;
+  const progress = hasProgress ? t("tasks.completedCount", { completed: task.completed_count || 0, total: task.block_count }) : null;
   const historyContext = [
     task.business_date ? formatCrewDate(new Date(`${task.business_date}T00:00:00+08:00`), { day: "numeric", month: "short" }) : null,
-    task.completed_at ? `${translateStatus(task.status, t)} ${formatCrewTime(task.completed_at).toLowerCase()}` : translateStatus(task.status, t),
+    task.completed_at ? `${translateStatus(status, t)} ${formatCrewTime(task.completed_at).toLowerCase()}` : translateStatus(status, t),
   ].filter(Boolean).join(" · ");
-  const tone = taskStatusTone(task.status);
-  return <button type="button" className={`crew-ops-task is-${task.status}`} onClick={onOpen}>
+  const tone = taskStatusTone(status);
+  return <button type="button" className={`crew-ops-task is-${status}`} onClick={onOpen}>
     <span className={`crew-ui-icon-container crew-ui-icon-container--compact${tone === "success" ? " is-success" : tone === "warning" ? " is-warning" : ""}`}>{task.task_type === "health_check" ? <HeartPulse size={17} /> : task.task_type === "checklist" ? <ClipboardCheck size={17} /> : <ListChecks size={17} />}</span>
     <span><CrewTaskHeading title={task.name} />
-      {history ? <small>{historyContext || task.description || String(task.task_type).replaceAll("_", " ")}</small> : hasProgress ? <small>{t("tasks.completedCount", { completed: task.completed_count, total: task.block_count })}</small> : task.description ? <small>{task.description}</small> : null}
+      {history ? <small>{[historyContext, progress].filter(Boolean).join(" · ") || task.description || String(task.task_type).replaceAll("_", " ")}</small> : hasProgress ? <small>{progress}</small> : task.description ? <small>{task.description}</small> : null}
       {!history ? <small className="crew-ops-schedule">{formatTaskSchedule(task, t)}</small> : null}
     </span>
-    <CrewTaskMetadata priority={task.priority} tone={tone}>{translateStatus(task.status, t)}</CrewTaskMetadata><ChevronRight aria-hidden="true" size={17} />
+    <CrewTaskMetadata priority={task.priority} tone={tone}>{translateStatus(status, t)}</CrewTaskMetadata><ChevronRight aria-hidden="true" size={17} />
   </button>;
 }

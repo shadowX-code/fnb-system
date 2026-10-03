@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { crewService } from "../../../services/crewService.js";
-import { distanceMeters, getLocation } from "../utils/crewMobile.js";
+import { clockLocationState, distanceMeters, getLocation } from "../utils/crewMobile.js";
 import { reasonValues } from "../utils/crewClockReasons.js";
 
 export default function useCrewAttendance({ session, attendance, context, roster, refresh, screen }) {
@@ -55,12 +55,20 @@ export default function useCrewAttendance({ session, attendance, context, roster
     setOtherReason("");
     setReasonSheetOpen(false);
     try {
-      const location = await getLocation();
+      const liveContext = await crewService.attendanceContext(session.token);
       if (!active.current) return;
-      const distance = context?.location_enabled ? distanceMeters(location.latitude, location.longitude, Number(context.latitude), Number(context.longitude)) : null;
-      setClockDraft({ action, location, distance });
+      try {
+        const location = await getLocation();
+        if (!active.current) return;
+        const distance = liveContext.location_enabled
+          ? distanceMeters(location.latitude, location.longitude, Number(liveContext.latitude), Number(liveContext.longitude))
+          : null;
+        setClockDraft({ action, context: liveContext, location, distance });
+      } catch (cause) {
+        if (active.current) setClockDraft({ action, context: liveContext, location: null, locationError: cause.locationCode || "unavailable" });
+      }
     } catch (cause) {
-      if (active.current) setClockDraft({ action, location: null, locationError: cause.message });
+      if (active.current) setError(cause.message || t("attendance.unableUpdate"));
     } finally {
       if (active.current) { setLoading(false); setClockTransition(""); }
     }
@@ -68,7 +76,7 @@ export default function useCrewAttendance({ session, attendance, context, roster
 
   async function submitClock() {
     const reason = exception === reasonValues.other ? otherReason.trim() : exception;
-    const requiresException = context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters));
+    const requiresException = ["unavailable", "outside", "inaccurate"].includes(clockLocationState(clockDraft));
     if (requiresException && !reason) return setError(t("errors.chooseExceptionReason", { action: clockDraft.action === "out" ? t("home.clockOut") : t("home.clockIn") }));
     setLoading(true);
     setClockTransition("scanning");
@@ -101,5 +109,5 @@ export default function useCrewAttendance({ session, attendance, context, roster
     }
   }
 
-  return { attendanceMonth, attendanceMonthLoading, selectedAttendanceMonth, setSelectedAttendanceMonth, loading, error, clockDraft, setClockDraft, clockSuccess, setClockSuccess, clockTransition, exception, setException, otherReason, setOtherReason, reasonSheetOpen, setReasonSheetOpen, reasonTriggerRef, nowTick, openShift, prepareClock, submitClock };
+  return { attendanceMonth, attendanceMonthLoading, selectedAttendanceMonth, setSelectedAttendanceMonth, loading, error, clockDraft, setClockDraft, retryLocation: () => clockDraft && prepareClock(clockDraft.action), clockSuccess, setClockSuccess, clockTransition, exception, setException, otherReason, setOtherReason, reasonSheetOpen, setReasonSheetOpen, reasonTriggerRef, nowTick, openShift, prepareClock, submitClock };
 }

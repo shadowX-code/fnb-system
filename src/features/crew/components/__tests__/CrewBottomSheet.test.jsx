@@ -20,6 +20,13 @@ afterEach(() => {
 });
 
 describe("CrewBottomSheet", () => {
+  it("keeps save errors outside the independently scrolling form", () => {
+    render(<CrewBottomSheet title="Edit" error="Save failed; retry" onClose={() => {}} footer={<button>Save</button>}><input aria-label="Name" /></CrewBottomSheet>);
+    const alert = screen.getByRole("alert");
+    expect(alert.closest(".crew-ui-bottom-sheet-content")).toBeNull();
+    expect(alert.nextElementSibling.className).toBe("crew-ui-bottom-sheet-footer");
+  });
+
   it("tracks the visual viewport so its footer stays inside the usable mobile viewport", async () => {
     Object.defineProperty(window, "visualViewport", { configurable: true, value: visualViewport });
     render(<CrewBottomSheet title="Adjust" onClose={() => {}} footer={<button type="button">Save</button>}><input aria-label="Quantity" /></CrewBottomSheet>);

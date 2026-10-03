@@ -31,6 +31,7 @@ export const payrollService = {
   readHolidayCandidates: (year, includeQa = false) => command("payroll_holiday_candidate_read", { p_year: Number(year), p_include_qa: includeQa }),
   confirmAdditionalHoliday: (input) => command("payroll_additional_holiday_confirm", { p_candidate_id: input.candidateId, p_row_key: input.rowKey, p_entitlement_reference: input.reference, p_request_id: input.requestId }),
   captureHolidaySource: (input) => command("payroll_holiday_candidate_capture", { p_year: Number(input.year), p_url: input.url, p_reference: input.reference, p_filename: input.filename, p_pdf_base64: input.base64, p_request_id: input.requestId, p_is_qa: false }),
+  confirmHolidayDate: input => command("payroll_holiday_date_confirm", { p_input: input }),
   parseHolidayCandidate: (id, rows) => command("payroll_holiday_candidate_parse", { p_id: id, p_rows: rows }),
   reviewHolidayCandidate: (id, revision, decisions, approve) => command("payroll_holiday_candidate_review", { p_id: id, p_revision: revision, p_decisions: decisions, p_approve: approve }),
   publishHolidayCandidate: (id, revision) => command("payroll_holiday_candidate_publish", { p_id: id, p_revision: revision }),
@@ -45,6 +46,8 @@ export const payrollService = {
   confirmPhWork: (input) => command("payroll_ph_work_confirm", { p_run_id: input.runId,
     p_employee_id: input.employeeId, p_work_date: input.workDate, p_treatment: input.treatment,
     p_source_fingerprint: input.fingerprint, p_request_id: input.requestId, p_remark: input.remark || null }),
+  readHolidayOperation: (outletId = null) => command("payroll_holiday_operation_read", { p_outlet_id: outletId }),
+  publishHolidayOperation: input => command("payroll_holiday_operation_publish", { p_input: input }),
   readAnnualHolidays: (year) => command("payroll_annual_holiday_read", { p_year: Number(year) }),
   saveAnnualCalendar: (input) => command("payroll_holiday_calendar_save", {
     p_year: Number(input.year), p_entries: input.entries, p_source_reference: input.source,
@@ -92,6 +95,11 @@ export const payrollService = {
     p_source_document_id: input.sourceDocumentId || null,
     p_default_cost_outlet_id: input.defaultCostOutletId || null,
   }),
+  readLindungSetup: (profileId, month) => command("payroll_lindung_setup_read", { p_profile_id: profileId, p_month: month }),
+  previewLindungSetup: (profileId, month, intent, act4Covered) => command("payroll_lindung_setup_preview", { p_profile_id: profileId, p_month: month, p_intent: intent, p_act4_covered: act4Covered }),
+  confirmLindungSetup: (input) => command("payroll_lindung_setup_confirm", {
+    p_profile_id: input.profileId, p_intent: input.intent, p_fingerprint: input.fingerprint, p_request_id: input.requestId,
+  }),
   readStatutoryInput: (profileId) => command("payroll_statutory_input_read", { p_profile_id: profileId }),
   readStatutorySetup: (profileId, date = null, applicability = null) => command("payroll_statutory_setup_read", {
     p_profile_id: profileId, p_date: date, p_applicability: applicability,
@@ -100,6 +108,7 @@ export const payrollService = {
     p_profile_id: input.profileId, p_effective_from: input.effectiveFrom,
     p_applicability: input.applicability, p_categories: input.categories,
     p_fingerprint: input.fingerprint, p_source_note: input.sourceNote || null, p_reason: input.reason || null,
+    p_lindung_intent: input.lindungIntent ?? null, p_lindung_fingerprint: input.lindungFingerprint ?? null, p_request_id: input.requestId,
   }),
   readStatutorySchedules: () => command("payroll_statutory_schedule_read", {}),
   adjustRecurring: (input) => command("payroll_recurring_adjust", {
@@ -177,7 +186,11 @@ export const payrollService = {
   reconcileTime: (legalEntityId, from, to) => command("payroll_time_reconcile", {
     p_legal_entity_id: legalEntityId, p_from: from, p_to: to,
   }),
-  decideTime: ({ id, action, approvedMinutes, extraMinutes, classification, reason }) =>
+  decideTime: ({ id, runId, requestId, correction = false, action, approvedMinutes, extraMinutes, classification, reason }) =>
+    runId ? command("payroll_time_decision_save", { p_input: {
+      run_id: runId, request_id: requestId, time_version_id: id, correction, action,
+      approved_minutes: approvedMinutes, extra_minutes: extraMinutes, classification, reason,
+    } }) :
     command("payroll_time_decide", {
       p_time_version_id: id, p_action: action, p_approved_minutes: approvedMinutes,
       p_extra_minutes: extraMinutes, p_classification: classification, p_reason: reason,

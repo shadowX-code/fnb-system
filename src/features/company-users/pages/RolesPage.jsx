@@ -270,7 +270,9 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
       });
       if (!confirmed) return;
     }
-    const nextPermissions = [...values.selectedPermissions].filter((code) => roleEditorPermissionCodeSet.has(code));
+    // Retired Journeys grants remain compatibility evidence, outside the active matrix.
+    const retainedJourneyPermissions = (role?.permissions ?? []).filter((code) => /^crew_journeys\.(view|create|edit|manage)$/.test(code));
+    const nextPermissions = [...new Set([...values.selectedPermissions].filter((code) => roleEditorPermissionCodeSet.has(code)).concat(retainedJourneyPermissions))];
     const modules = [...new Set(nextPermissions.map((code) => defaultPermissions.find((permission) => permission.code === code)?.module).filter(Boolean))];
     setSaving(true);
     try {
@@ -618,7 +620,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
   const [assignedUsersOpen, setAssignedUsersOpen] = useState(false);
   const [matrixTab, setMatrixTab] = useState("All");
   const [matrixSearch, setMatrixSearch] = useState("");
-  const permissions = new Set(role.permissions ?? []);
+  const permissions = new Set((role.permissions ?? []).filter((code) => !code.startsWith("crew_journeys.")));
   const isProtectedRole = isProtectedRoleName(role.name);
   const activeModuleCount = roleEditorGroups
     .flatMap((group) => group.modules)

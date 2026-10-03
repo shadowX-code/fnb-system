@@ -41,7 +41,7 @@ function mapRole(row) {
   const storedPermissions = (row.role_permissions ?? []).map((item) => item.permissions?.code).filter(Boolean);
   const permissions = isProtectedRole ? registryPermissionCodes : storedPermissions;
   const selectedOutletIds = (row.role_outlets ?? []).map((item) => item.outlet_id).filter(Boolean);
-  const storedModules = [...new Set((row.role_permissions ?? []).map((item) => item.permissions?.module).filter(Boolean))];
+  const storedModules = [...new Set((row.role_permissions ?? []).filter((item) => !item.permissions?.code?.startsWith("crew_journeys.")).map((item) => item.permissions?.module).filter(Boolean))];
   const modules = isProtectedRole ? registryModuleLabels : storedModules;
   const outletScopeApplicable = roleHasRestaurantPermissions(permissions);
   const outletAccessValue = String(row.outlet_access_type || row.outlet_access || "").toLowerCase();
@@ -132,7 +132,7 @@ export const roleService = {
 
   async saveRole(role) {
     const requestedCodes = role.permissions ?? [];
-    if (requestedCodes.some((code) => !registryPermissionCodeSet.has(code))) {
+    if (requestedCodes.some((code) => !registryPermissionCodeSet.has(code) && !/^crew_journeys\.(view|create|edit|manage)$/.test(code))) {
       throw new Error("Role includes an unavailable permission. Reload the role before trying again.");
     }
     const permissionCodes = [...new Set(requestedCodes)];

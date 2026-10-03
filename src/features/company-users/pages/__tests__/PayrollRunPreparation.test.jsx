@@ -33,12 +33,14 @@ it("resolves period-effective categories and PCB N/A beside current amounts", as
   mocks.readStatutory.mockResolvedValue({ results: [{ employee_id:"employee",status:"ready", net_pay:1766.35, non_statutory_deductions:0, lines:[
     {scheme:"epf",applicable:true,employee_amount:220,employer_amount:260},
     {scheme:"socso",applicable:true,employee_amount:9.75,employer_amount:34.15},
+    {scheme:"lindung",applicable:false,employee_amount:0,employer_amount:0},
     {scheme:"eis",applicable:true,employee_amount:3.9,employer_amount:3.9},
     {scheme:"pcb",applicable:false,employee_amount:0,employer_amount:0},
   ] }] });
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee",statutory_setup:{complete:true,schemes:{
     epf:{state:"confirmed",applicable:true,category:"malaysian_under_60"},
     socso:{state:"confirmed",applicable:true,category:"first_category_base"},
+    lindung:{state:"not_applicable",applicable:false,status:"valid_opt_out"},
     eis:{state:"confirmed",applicable:true,category:"standard"},
     pcb:{state:"not_applicable",applicable:false},
   }},projection:{status:"ready",inputs:{compensation_start:{id:"pay",pay_basis:"monthly",basic_salary:2000,effective_from:"2026-01-01"}}}}]});
@@ -110,7 +112,8 @@ it("shows calculated adjustment provenance once and derives the chosen component
   fireEvent.click(screen.getByRole("button",{name:"QA Deduction · Deduction"}));
   expect(screen.getByText("Deduction")).toBeTruthy();
 });
-it("records a time decision before employee-only recalculation and projection refresh", async () => {
+it("saves time and canonical calculation atomically before projection refresh", async () => {
+  mocks.recalculateEmployee.mockClear();
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15.5}}}}]});
   mocks.readTime.mockResolvedValue([{id:'time',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-25',status:'review_required',classification:'regular',issue_codes:['missing_punch'],proposed_minutes:null,evidence:{}}]);
   mocks.decideTime.mockResolvedValue({});
@@ -122,11 +125,11 @@ it("records a time decision before employee-only recalculation and projection re
   fireEvent.click(screen.getByRole('button',{name:'Review exception'}));
   fireEvent.change(screen.getByRole('spinbutton',{name:/Approved payable minutes/}),{target:{value:'120'}});
   fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Verified QA evidence'}});
-  fireEvent.click(screen.getByRole('button',{name:'Record Decision'}));
+  fireEvent.click(screen.getByRole('button',{name:'Save & Finish'}));
   await waitFor(()=>expect(mocks.decideTime).toHaveBeenCalled());
-  await waitFor(()=>expect(mocks.recalculateEmployee).toHaveBeenLastCalledWith('run','employee'));
-  expect(mocks.decideTime.mock.invocationCallOrder.at(-1)).toBeLessThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1));
-  await waitFor(()=>expect(mocks.readPreparation.mock.invocationCallOrder.at(-1)).toBeGreaterThan(mocks.recalculateEmployee.mock.invocationCallOrder.at(-1)));
+  expect(mocks.decideTime).toHaveBeenCalledWith(expect.objectContaining({runId:'run',requestId:expect.any(String),correction:false}));
+  expect(mocks.recalculateEmployee).not.toHaveBeenCalled();
+  await waitFor(()=>expect(mocks.readPreparation.mock.invocationCallOrder.at(-1)).toBeGreaterThan(mocks.decideTime.mock.invocationCallOrder.at(-1)));
 });
 
 it("uses a compact processing table and keeps bank absence informational", async () => {
@@ -135,9 +138,11 @@ it("uses a compact processing table and keeps bank absence informational", async
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee",time_relevant:false,statutory_setup:{complete:true,schemes:{socso:{state:"confirmed",applicable:true},epf:{state:"not_applicable",applicable:false},eis:{state:"not_applicable",applicable:false},pcb:{state:"not_applicable",applicable:false}}},projection:{status:"ready",inputs:{compensation_start:{id:"pay",pay_basis:"monthly",basic_salary:2000,effective_from:"2026-01-01"}}}}]});
   const snapshot=vi.fn();
   render(<PayrollRunEmployeesPanel {...props} stage="review" onSnapshot={snapshot} />);
-  await screen.findByText("Complete");
-  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","Deductions","Statutory","Net Pay","Bank Info","Status","Actions"]);
-  await screen.findByText("Missing");
+  await screen.findByText("QA Employee");
+  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","EPF","SOCSO","EIS","PCB","Deductions","Net Pay","Employer Cost","Status","Actions"]);
+  expect(screen.queryByText("Missing")).toBeNull();
+  expect(screen.getByText(/EE RM\s*100.00/)).toBeTruthy();
+  expect(screen.getByText(/ER RM\s*200.00/)).toBeTruthy();
   expect(screen.getByRole("region",{name:"Payroll review filters"})).toBeTruthy();
   expect(screen.getByText("Ready")).toBeTruthy();
   expect(screen.getByText(/1,900.00/)).toBeTruthy();
@@ -172,4 +177,42 @@ it("puts human-readable blockers first and hides unresolved Net Pay", async () =
   const blockers=screen.getByRole("region",{name:"Review blockers"});
   expect(blockers.textContent).toContain("Pay history missing · 2026-09-01 – 2026-09-25");
   expect(blockers.compareDocumentPosition(screen.getByRole("heading",{name:"Earnings"})) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it.each([false, true])("uses only frozen LINDUNG evidence in finalized Review (present=%s)", async present => {
+  mocks.readCalculation.mockResolvedValue({results:[{employee_id:"employee",status:"ready",gross_earnings:2000,lines:[]}],adjustments:[]});
+  mocks.readStatutory.mockResolvedValue({results:[{employee_id:"employee",status:"ready",net_pay:1900,lines: present ? [{scheme:"lindung",applicable:true,participation_status:"participating",employee_amount:14.65,employer_amount:0}] : []}]});
+  render(<PayrollRunEmployeesPanel {...props} run={{...props.run,status:"finalized"}} stage="review" />);
+  await screen.findByText("QA Employee");
+  fireEvent.click(screen.getByRole("button",{name:"View",exact:true}));
+  if(present) {
+    expect(screen.getByText("LINDUNG 24 Jam")).toBeTruthy();
+    expect(screen.getByText("Participating")).toBeTruthy();
+    expect(screen.getAllByText(/14.65/).length).toBeGreaterThan(0);
+  } else expect(screen.queryByText("LINDUNG 24 Jam")).toBeNull();
+});
+
+it('preserves employee and active exception when the shared run projection refreshes',async()=>{
+  const time=[{id:'t1',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-25',status:'review_required',classification:'regular',proposed_minutes:120,evidence:{}}, {id:'t2',employee_id:'employee',employee_name:'QA Employee',work_date:'2026-09-26',status:'review_required',classification:'regular',proposed_minutes:180,evidence:{}}];
+  mocks.readTime.mockResolvedValue(time);
+  const snapshot={preparation:{results:[{employee_id:'employee',time_relevant:true,projection:{status:'review_required',lines:[],inputs:{compensation_start:{pay_basis:'hourly',hourly_rate:15}}}}]},calculation:{results:[],adjustments:[]},statutory:{results:[]}};
+  const view=render(<PayrollRunEmployeesPanel {...props} runRead={{data:snapshot,refresh:vi.fn()}} />);
+  await screen.findByText('QA Employee');
+  fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
+  fireEvent.click(screen.getByRole('button',{name:'Review Hours'}));
+  fireEvent.click(screen.getByRole('button',{name:'Continue Review'}));
+  fireEvent.change(screen.getByRole('textbox',{name:/Decision reason/}),{target:{value:'Keep this unsaved draft'}});
+  view.rerender(<PayrollRunEmployeesPanel {...props} runRead={{data:{...snapshot},refresh:vi.fn()}} />);
+  await waitFor(()=>expect(screen.getByRole('textbox',{name:/Decision reason/}).value).toBe('Keep this unsaved draft'));
+  expect(screen.getByText('1 of 2 exceptions')).toBeTruthy();
+});
+
+it('shows resolved Regular aggregate while an independent PH blocker keeps overall readiness pending',async()=>{
+ const daily={kind:'earning',code:'regular',label:'Regular',amount:40,minutes:300,multiplier:1,source:{work_date:'2026-09-22'}};
+ mocks.readCalculation.mockResolvedValue({results:[{employee_id:'employee',pay_basis:'hourly',status:'review_required',is_stale:false,issues:['ph_statutory_rule_unverified:hourly:2026-09-16'],gross_earnings:80,lines:[daily,{...daily,source:{work_date:'2026-09-23'}}],earning_groups:[{...daily,label:'Regular Pay',amount:80,minutes:600,rate:8,day_count:2}]}],adjustments:[]});
+ render(<PayrollRunEmployeesPanel {...props}/>); await screen.findByText('QA Employee');
+ fireEvent.click(screen.getByRole('button',{name:'Review',exact:true}));
+ expect(screen.getByText('Regular Pay')).toBeTruthy(); expect(screen.getAllByText(/RM\s*80\.00/).length).toBeGreaterThan(0);
+ expect(screen.getByText('Calculation details')).toBeTruthy();
+ expect(screen.getByText(/requires a verified Malaysia hourly PH/)).toBeTruthy();
 });

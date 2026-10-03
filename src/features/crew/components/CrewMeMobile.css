@@ -351,13 +351,16 @@
   height: 64px;
   flex: 0 0 64px;
   place-items: center;
+  aspect-ratio: 1;
+  box-sizing: border-box;
+  padding: 0;
   overflow: visible;
   border: 1px solid var(--crew-color-border);
   border-radius: 50%;
   background: color-mix(in srgb, var(--crew-color-mist-mint) 38%, var(--crew-color-surface));
   color: var(--crew-color-deep-teal);
 }
-.crew-me-profile-avatar img { width: 100%; height: 100%; border-radius: inherit; object-fit: cover; }
+.crew-me-profile-avatar img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; border-radius: inherit; object-fit: cover; object-position: center; }
 .crew-me-profile-avatar-initial { font-size: 25px; font-weight: 750; }
 .crew-me-profile-avatar.has-image .crew-me-profile-avatar-initial { display: none; }
 .crew-me-profile-avatar-edit { position: absolute; right: -2px; bottom: -2px; display: grid; width: 25px; height: 25px; place-items: center; border: 2px solid var(--crew-color-surface); border-radius: 50%; background: var(--crew-color-deep-teal); color: var(--crew-color-surface); }

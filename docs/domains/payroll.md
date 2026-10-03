@@ -12,19 +12,25 @@ Replacement Leave. No statutory baseline/premium is inferred from this policy.
 `payroll_ph_work_confirm` locks the Draft/Correction Run and employee Leave scope,
 rechecks the source fingerprint, appends a request-bound decision, reconciles the
 source-linked Leave grant and recalculates only that employee in one transaction.
-Monthly Basic continues: the separate company benefit is effective Monthly Basic
-/ 26 × 1 day. Hourly ordinary earnings reuse Regular pricing for approved PH hours;
-the additional company benefit is effective Hourly Rate × those approved hours.
-Raw clocks never price wages. PH OT remains blocked. A missing policy, confirmation,
-or stale decision blocks calculation readiness, rather than guessing a premium.
+The company policy's historical Additional Pay recommendation uses Monthly Basic
+/ 26 × one benefit day or Hourly Rate × approved hours. This is a company benefit,
+not the statutory Malaysia PH entitlement. The current calculation boundary does
+not emit company PH money or treat it as a substitute for missing statutory PH
+rules. Approved PH work remains explicitly blocked pending a verified statutory
+ordinary-day/eligibility/normal-hours authority; PH OT has its own blocker. Hourly
+paid holidays without work also require verified eligibility and ordinary-day wage
+evidence. Rejecting a shift does not itself prove forfeiture of paid-holiday rights.
+Monthly Basic remains separately resolved. Published holiday, time and company
+benefit evidence are pinned; changed no-work holiday evidence also invalidates the
+open calculation fingerprint. No PH multiplier or normal-day duration is inferred.
 
-The distinguishable `company_ph_benefit` line excludes EPF under KWSP's additional
-PH-work/overtime definition and includes ordinary Act 4/800 PH-work wage treatment;
-ordinary Monthly Basic / Hourly Regular retains its existing inclusion. Sources and
-formula/policy/time/compensation/decision identities are pinned with the calculation.
-PCB remains manual-confirmed. Finalization freezes PH evidence inside existing
-calculation snapshots; finalized statements never resolve it from live policies.
-Post-finalization monetary changes require the existing Correction Revision.
+The statutory design must account for Employment Act sections 60D/60I and First
+Schedule coverage, and the applicable Part-Time Regulations (including separate
+part-time/full-time normal-hours thresholds). Employment Type/pay basis alone is
+not proof of legal coverage. See the official [Employment Act](https://jtksm.mohr.gov.my/sites/default/files/2023-11/Akta%20Kerja%201955%20(Akta%20265).pdf)
+and [Part-Time Regulations](https://jtksm.mohr.gov.my/sites/default/files/2023-03/10.%20Employment%20-%20Part-time%20Employees%20-%20Regulations%202010%20%20%281%29.pdf).
+Existing finalized calculations and company-benefit evidence remain immutable;
+post-finalization monetary changes require the existing Correction Revision.
 
 Replacement Leave belongs to canonical Crew Leave, not a Payroll balance. Draft
 Pay ↔ Leave changes append decisions and signed Leave adjustments. A used source
@@ -54,7 +60,24 @@ Older foundation revisions without financial snapshots explicitly show unavailab
 evidence rather than inventing values. Corrections remain separate revisions;
 this presentation does not create a payslip or payment authority.
 
-Employee monthly review exposes **Review Hours** only for time-dependent employees (all Hourly employees, and Monthly employees whose canonical preparation projection identifies relevant time). The centered review reads `payroll_time_read` snapshots, displays roster/clock/proposed/approved evidence and exception-first rows, and uses `payroll_time_decide` for unresolved exceptions. Clean days require no repeated confirmation. A successful decision runs `payroll_employee_recalculate` (earnings and statutory core together) then refreshes employee, preparation and review projections. If refresh fails after persistence, retry refresh only—not the decision. Regular earnings and effective rates shown here come from persisted calculation lines, not a second UI wage calculator. Original work evidence and finalized snapshots remain under their existing immutable authorities.
+Employee monthly review exposes **Review Hours** only for time-dependent employees (all Hourly employees, and Monthly employees whose canonical preparation projection identifies relevant time). The centered review reads `payroll_time_read` snapshots, displays roster/clock/proposed/approved evidence and exception-first rows, and uses the Run-scoped `payroll_time_decision_save` adapter over the existing `payroll_time_decide` append authority. Clean days require no repeated confirmation. Exception review keeps employee/period navigation across refreshes and uses an explicit per-date queue with progress, Previous, Save & Next/Finish and Continue Review at the first unresolved date. Saved dates remain inspectable. Authorized open-run reviewers may Correct Decision with a new mandatory reason; the new version supersedes rather than edits the previous decision. Run/employee/date scope, latest version, current source fingerprint, request/payload-bound retry and finalized-period correction gates are enforced server-side. Correction audit pins the Run, actor, prior/new time versions and reason. Missing-punch dates with published working-shift evidence offer roster-minute prefill through the existing adjustment decision; roster evidence does not prove attendance. Null proposed minutes cannot be approved as a proposal. Reason shortcuts remain editable and require explicit save. A successful Run decision and `payroll_employee_recalculate` (earnings and statutory core together) commit atomically, then the UI refreshes employee, preparation and review projections without resetting the active queue. Calculation failure rolls the decision back; unresolved evidence remains Pending Review. If refresh fails after persistence, retry refresh only—not the decision. Regular earnings and effective rates shown here come from persisted calculation lines, not a second UI wage calculator. Original work evidence and finalized snapshots remain under their existing immutable authorities.
+
+### Priced earning presentation
+
+`payroll_earning_groups` is the private server read projection shared by open and
+finalized Review and Draft/Final payslip documents. It sums already-priced daily
+amounts; it never reprices summed hours. Compatible code/rate/multiplier/rule,
+compensation and other priced basis must match. Mid-period rate/rule changes remain
+separate groups. Lines without a time basis remain individual. Gross reconciles
+exactly, including original daily rounding. Statutory PH lines use Public Holiday
+Allowance; company benefit evidence retains its distinct label. Original lines and
+group details remain available under Calculation details. Existing finalized
+snapshots and existing PDF artifacts are not rewritten. Newly rendered documents
+consume the same server groups with the unchanged Unicode renderer/font assets.
+
+Resolved, non-stale earning lines display even when an independent PH/OT/statutory
+issue prevents Run readiness. Pending Gross/Net and finalization gates remain; a
+partial earning projection is never represented as final payable totals.
 
 ## Ownership and Phase
 
@@ -116,7 +139,7 @@ refreshes only the affected employee through `payroll_employee_recalculate`,
 which delegates to shared earnings/statutory calculation cores under the Run
 lock. Bulk calculation uses those same cores. Changed fingerprints append
 versions/audit evidence; retries with unchanged inputs create no extra versions.
-Permanent setup changes do not trigger this refresh automatically.
+For authorized managers, the shared open-run workflow checks canonical fingerprints on entry, input/read-model refresh and window focus, and automatically recalculates only missing/stale employee results through that same RPC. Compensation, statutory setup, components, rules and work evidence use their canonical fingerprint dependencies; the client never prices contributions. Current unresolved results remain Pending Review and are not retried merely for being unresolved. Failed automatic commands wait for explicit Retry Calculation. Finalized/paid records are snapshot-only; Ready runs require the existing Return to Review transition before recalculation. The Review table presents period-resolved EPF/SOCSO/EIS employee and employer shares and PCB employee share, with N/A, Review and Pending states. Deductions remain the existing total including LINDUNG; Employer Cost uses the canonical total. Bank information remains non-blocking in employee detail.
 Settings presents operational statutory methods, shared-geography holidays,
 Pay Components and current supported Pay Calculation
 Rules; rule publication opens only from a selected append-only rule version.
@@ -183,24 +206,71 @@ Publication atomically advances assignment pointers, retaining prior versions
 and audit evidence. Required holidays cannot be deselected. Draft saving and
 publication have payload-bound retry identities and stale-version checks.
 
-Settings → Public Holidays exposes Holiday Calendar and Company Policy.
-The normal workflow is Check Official Updates → Review Update → Publish Calendar
-→ inline Paid Holiday Selection → PH Work Benefit → Ready. The Admin-triggered
+Settings → Public Holidays uses Official Calendar → Select Company Holidays →
+Review & Publish. The working geography comes from canonical effective outlet-state
+versions through `payroll_holiday_operation_read`; names/addresses and source rows
+never supply missing workplace geography. A single-state shared operation defaults
+to that state. Multiple-state operations use an explicitly selected workplace;
+missing state evidence blocks operational publication with a setup reason.
+Only applicable National/State rows enter the normal date-review and selection
+workflow. Source-verified dates need no row action. Applicable uncertain,
+conditional, changed or missing source entries remain explicit review exceptions.
+Explicit date review uses `payroll_holiday_date_confirm`, never a transcription save.
+The existing append-only import events record the confirmed date, official reference,
+actor/time, canonical geography evidence, captured source hash, stable row identity
+and full row-evidence fingerprint. Raw source rows, PDF bytes and prior transcription
+history remain unchanged. `payroll_holiday_effective_rows` overlays only matching
+confirmations for candidate reads, review, annual/scoped publication and additional
+entitlement review. A changed source hash or revised row evidence invalidates the
+overlay; old transcription saves never become confirmations. Source warnings remain
+in Advanced & History, while normal review shows date/reference and Confirm Date.
+Independent jurisdiction, duplicates, paid classification, baseline correction and
+additional-entitlement blockers remain enforced after a date confirmation.
+
+Mandatory paid classification remains an explicit employment-law confirmation,
+separate from source-date verification. Five mandatory paid holidays and at least
+six company choices are shown separately; additional gazetted entitlements remain
+outside those six choices. Review shows selected dates, classification and
+applicability, with one explicit Publish Year Calendar action.
+
+`payroll_holiday_operation_publish` is an atomic adapter over the existing candidate
+review, structured import, annual-calendar and company-policy commands. It checks
+actor/permission/outlet scope, verified geography, source revision and baseline,
+applicable exceptions, five mandatory classifications and six company choices.
+Calendar publication and company selection commit together, with payload-bound
+retry identity and an audited source hash, geography evidence and scope. Workplace
+selection uses the existing reasoned outlet-policy override; all-workplace selection
+uses the existing active-company default command. Unrelated extracted rows remain
+unchanged and unreviewed; previously published other-state entries are retained.
+The full source candidate is not claimed globally approved/published by a scoped
+operation. Its append-only scoped publication event pins the applicable manifest,
+while the existing published calendar/policy versions remain Payroll authority.
+No new holiday store or Payroll date resolver is introduced. Normal source
+maintenance, Imported/Matched/Blocked diagnostics, all-jurisdiction review and
+correction tools remain in Advanced & History. The Admin-triggered
 `payroll-holiday-updates` Edge Function checks only the approved BKPP annual-calendar
 and Act/Gazette directories. It follows actual selected-year PDF links under the
 same official storage host, rejects redirects and bounded-response violations,
 and captures exact bytes through the existing controlled-import authority.
 Content-hash locks reuse existing candidates; private update-check evidence records
 the authorized actor, check time, sources and result. A partial fetch never claims
-No updates. New PDF dates/jurisdictions require verified review; discovery is not
-automatic PDF interpretation, publication or company-policy mutation. No scheduled
+No updates. The trusted checker extracts supported BKPP PDF tables into a Proposed
+Holiday Calendar through the existing candidate authority (`bkpp_proposal_v2`).
+Text, dates, weekday consistency, complete row order and State-column markers are
+validated; image headings require an exact, visually verified source hash. Unsupported
+layouts fail closed with a specific manual-review reason. Exact source bytes/hash and
+page/row references remain retained. Source dates marked subject to change, conditional
+alternatives, changed/missing entries and mandatory paid classification require
+explicit review. Clean new source rows are pre-reviewed as source facts only; this
+neither publishes the calendar nor confirms paid status. Calendar and company-policy authorities remain separate; the operational adapter
+invokes them in one transaction. No scheduled
 job exists. Secondary controls share one Advanced & History entry: Official Sources
 owns source evidence/import history and Add Official Source Manually; Calendar
 Maintenance owns Override Classification and Add Sourced Holiday; History shows
 calendar/company-policy versions, publication evidence and historical definitions.
 Normal update review and publication remain outside this entry. Manage Exceptions
-remains a separate company/outlet business workflow. Operational selection shows five Required base holidays and six
-Company Selected base holidays and locks
+remains a separate company/outlet business workflow. Operational selection shows five Mandatory paid holidays and six
+Company-selected paid holidays and locks
 explicitly reviewed required entries; names/jurisdictions never establish required
 classification. This operational completeness presentation does not claim
 statutory compliance or replace work-date-effective calculation authority.
@@ -213,8 +283,8 @@ revisions pin these `additional_entries` outside the six optional slots. Confirm
 an addition atomically advances existing published assignments with unchanged base
 selection/scope/calendar; previous revisions and finalized payroll stay immutable.
 The work-date resolver applies the pinned addition only in its jurisdiction.
-The annual source calendar is not rewritten. Summary separates Required,
-Company Selected, Additional Gazetted and Total Paid Holidays; eleven is the base,
+The annual source calendar is not rewritten. Summary separates Mandatory paid holidays,
+Company-selected paid holidays, Additional gazetted holidays and Total Paid Holidays; eleven is the base,
 not an annual cap. Company Selected displays the selection count and minimum met,
 not an x/6 maximum. Corrections need separate reviewed evidence, never source edits.
 Manage exceptions can focus one company selection/benefit while default actions
@@ -249,7 +319,8 @@ required classification is preserved, not created by the importer.
 Capture → Parsed evidence → Needs Review → Approved → Published is backed by
 append-only `payroll_holiday_import_events`, server actor/time, payload-bound
 capture retries and revision-locked review. Matched records need no repetitive
-row review. New/changed entries require explicit acceptance; corrections require
+row review. Machine-verified clean new entries need no repetitive acceptance; manually entered
+new entries and changed entries require explicit acceptance. Corrections require
 a remark. Missing previous entries must be explicitly retained, never deleted.
 Operational classification review shows only unresolved candidate rows, with the
 captured source classification, geography and source viewer. Confirm Classification
@@ -260,8 +331,13 @@ separate controlled-import gates. Published classifications display Calendar ver
 not a full-year reclassification form. Individual manual classification maintenance
 is under Advanced, requires evidence and a reason retained in the new calendar
 revision, and preserves untouched entries and existing required-holiday guards.
-Conflicts/uncertainty block approval; corrected transcription requires a new
-candidate, preserving the original. Complete-source review precedes explicit
+Conflicts/uncertainty block approval. Unpublished source rows may be corrected through
+the existing parse command; prior extraction/decisions are retained in append-only
+events and clean unchanged decisions carry forward by evidence identity. Published
+candidates cannot be corrected. A parser upgrade creates a new source interpretation
+instead of changing an earlier approved/published interpretation. Supplementary
+gazettes cannot replace the annual calendar; their conditional alternatives must be
+resolved against official evidence before the existing additional-entitlement command. Complete-source review precedes explicit
 publication through the existing `payroll_holiday_calendar_save` authority.
 Stale calendar baselines block publication rather than overwriting newer sources.
 The source import never advances company assignments or rewrites Payroll/Leave.
@@ -511,7 +587,8 @@ Phase 4A's conservative reconciliation boundary:
   2026 Act 4 projection therefore does not require a LINDUNG election. It
   remains bounded by reviewed applicability, supported age/citizenship and
   contribution-history categories, and resolved component wage treatment.
-  Optional LINDUNG collection is outside the current Payroll calculation.
+  LINDUNG has its own participation and collection authority below; its election
+  never changes ordinary SOCSO applicability or contribution amounts.
 - PERKESO Act 800 EIS, effective October 2024: 65 independent bands with an
   RM6,000 ceiling. The supported automatic category is a Malaysian employee
   age 18–56 with reviewed applicability; ages 57–59 require prior-contribution
@@ -716,3 +793,130 @@ PCB compatibility fields and live `pre_*` lifecycle helpers remain intentional
 compatibility debt; they are not permission to expose those features in V1.
 
 Payment/Settlement, bank transfers/payment files and Finance projections remain deferred.
+
+### Historical statutory setup presentation
+
+Profile readiness describes current setup only; it does not establish historical
+Payroll readiness. Review distinguishes absent applicability coverage from an
+effective legacy record whose scheme applicability is still null. Unconfirmed
+applicability directs Admin to the existing Manage Statutory Setup command and
+the historical Effective Payroll Month. Explicit confirmation appends paired
+monthly evidence, preserves later setup and audit history, and remains subject
+to the existing finalized-period guard. Refresh an open Run afterward; PCB
+amount confirmation remains independent. Never infer an earlier month from
+current confirmed categories or silently backdate a record.
+
+
+## LINDUNG 24 Jam V1 (SKBBK)
+
+Payroll owns LINDUNG as an independent effective-dated statutory component. It
+is not inferred from SOCSO applicability and is never merged into SOCSO Employee.
+The regulatory basis is PERKESO's August 2026 FAQ and official Act 4 contribution
+schedule including SKBBK:
+
+- https://www.perkeso.gov.my/images/lindung/lindung-24-jam/130826-FAQ%20_LINDUNG24Jam_EN_version.pdf
+- https://www.perkeso.gov.my/images/lindung/lindung-24-jam/NewContributionRateIncludingSKBBK.pdf
+
+`payroll_lindung_participation_versions` is append-only, RLS protected and has no
+client table grants. `payroll_lindung_setup_read/confirm` enforce the existing
+Payroll identity, permission, employee and designated-employer scope authorities.
+Confirm locks the Profile, checks an evidence fingerprint, derives the Admin and
+records a retry-safe request, superseded monthly revision, source/reference,
+reason, covered worker facts, designated employer and effective date/time.
+
+Participation statuses are Mandatory, Participating, Valid Opt-Out, Another
+Designated Employer and Unresolved. Covered foreign workers require Mandatory
+participation (or another designated employer), with explicit covered-employment /
+passport/work-pass evidence. Permanent/temporary residents require explicit
+resident evidence. No employee histories are seeded or inferred. Evidence starting
+in September does not establish June–August participation.
+
+June 2026 requires its own mandatory-period evidence; a later opt-out does not
+cancel it. June local mandatory evidence does not prove local participation from
+July onward. Local opt-out records a valid PERKESO notice; July–August transition
+notices and newly registered locals before their first deduction are supported.
+Opt-out requires confirmation that the employee is not receiving LINDUNG benefits.
+Confirmed continuing participation after August and rejoin follow Once In, Always
+In. Rejoin requires prior recorded opt-out and the exact PERKESO submission time;
+that salary month's full contributable wages apply without day proration.
+Designated-employer changes require one of the official grounds and sourced
+PERKESO evidence. Another designated employer resolves to no deduction here,
+without asserting that the worker is exempt from the scheme.
+
+The official Phase 1 pack is effective 1 June 2026–31 May 2028, with 65 exact wage
+bands and RM6,000 ceiling (maximum employee amount RM44.65). The corresponding
+First/Second Category SKBBK employee columns agree. No percentage approximation is
+used. No Phase 2/3 table is installed; a required deduction outside a verified
+pack fails closed. Later effective-dated packs can be added to the same schedule
+authority without modifying earlier reference rows.
+
+LINDUNG independently evaluates pinned earning lines under Act 4 section 2(24),
+including overtime/rest-day/holiday pay and subtracting unpaid-time wage reductions.
+The existing component `socso_treatment` is the shared Act 4 wage-inclusion policy,
+not a SOCSO deduction output; its resolved treatment and component evidence are
+pinned separately for LINDUNG. Annual bonuses, travel allowances, employment
+expense reimbursements and termination/retirement gratuities must be excluded
+under that policy. Unknown component treatment blocks readiness. Zero payable
+wages yield zero contribution; positive wages use exact official schedule bands.
+Employer LINDUNG amount is zero; only the employee deduction reduces Net Pay.
+
+Manage Statutory Setup has a distinct LINDUNG evidence section for the selected
+contribution month. Current Profile readiness is distinct from historical coverage.
+Run preparation and statutory readiness consume the same resolver, with actionable
+missing-participation, designated-employer, wage-treatment and pack reasons. Review
+and Draft/Final Payslips show a separate LINDUNG 24 Jam employee deduction and no
+employer LINDUNG line. Existing Unicode/PDF rendering remains shared.
+
+Finalize pins the full participation revision, designated employer, assessed wage
+lines/base, official pack/version, band and amount in the existing statutory
+snapshot. Finalized reads consume that snapshot. Later setup cannot rewrite final
+records or PDFs; setup affecting finalized periods requires an open governed
+correction. Corrections freeze new evidence while preserving the previous revision.
+The separate People employment-history/cutover gate is unchanged.
+
+### Unified effective-dated statutory setup
+
+Manage Statutory Setup confirms ordinary statutory setup and LINDUNG atomically through the extended `payroll_statutory_setup_confirm` authority. Existing initialization callers retain their seven-argument contract. Worker coverage derives from canonical nationality when known; verified resident evidence remains explicit. Coverage status is the primary LINDUNG input. Routine coverage inherits Effective Payroll Month and the dated employment employer; opt-out/rejoin retain their legally required notice/submission date and time. Optional notes do not replace required PERKESO transition evidence. The server records actor, timestamp, month and transition reason automatically.
+
+An unchanged resolver-verified participation revision can be retained for the selected month without creating another notice or audit revision. Later evidence cannot prove an earlier month. New combined writes share one transaction, request identity and stale-read checks; failed LINDUNG validation leaves ordinary setup unchanged. Calculation packs, resolver semantics, finalized snapshots and the People pre-cutover finalization gate remain unchanged.
+
+### Targeted LINDUNG validation
+
+Manage Statutory Setup uses a read-only, manage-scoped `payroll_lindung_setup_preview` before the atomic Save. Preview and confirmation invoke the same private regulatory validator and intent normalization. Only missing transition facts are disclosed under Additional information required; applicable earlier recorded supporting evidence may be reused, never later evidence for an earlier month. Mandatory coverage is resolved from the worker/month rules. Preview does not write participation or audit evidence and cannot authorize Save; confirmation revalidates scope, stale evidence, chronology and finalization under its existing transaction locks.
+
+### Explicit monthly non-applicability
+
+Admin may explicitly confirm LINDUNG Not Applicable for a local employee/month through the existing atomic statutory setup authority. It is distinct from regulated opt-out, requires no participation, notice or designated-employer evidence, and resolves readiness with zero deduction. It is not derived from ordinary statutory applicability. The verified state carries forward from its effective month until a genuine later status change; it cannot establish earlier coverage. Existing June/foreign mandatory restrictions, participation transitions, audit history, finalized correction guard and rate packs remain unchanged.
+
+### Continuing coverage and unified Statutory History
+
+Verified LINDUNG revisions, including Not Applicable, remain effective until superseded by a genuine verified revision. Unresolved is absence-of-confirmation evidence: it remains immutable and audit-visible but is excluded from effective resolution and prior-transition validation. New Unresolved submissions cannot replace currently valid verified coverage. June mandatory local coverage still does not prove a July election, and identity/employer/pack validation can still require review. A historical verification cannot establish earlier months. Legacy unresolved interruptions covered by a subsequently recorded historical verification receive a system audit annotation; their original rows and all finalized evidence remain unchanged.
+
+Manage Statutory Setup presents one shared Effective Payroll Month above five Statutory Coverage rows and one Confirm Statutory Setup action. LINDUNG worker context and status-specific disclosures live in its row; there is no second month/save/history workflow. Historical guidance appears only after an intentional earlier-month selection with missing coverage. Statutory History composes the existing authorized statutory and LINDUNG reads at relevant revision/boundary dates; all five resolved states are chronological, with separate backend evidence available only under Audit details. This read model does not recalculate or rewrite finalized Payroll.
+
+### Former employees and historical compensation
+
+Payroll Profiles includes scoped employees with a current Legal Employer, a
+Payroll Profile or historical employment employer evidence. Employment status
+and the known effective end date are displayed separately from pay/statutory
+readiness. Historical employer associations support profile discovery only;
+open and finalized Run membership still use the existing canonical period
+employment and frozen membership authorities.
+
+`payroll_compensation_adjust` accepts explicit historical effective dates and
+appends corrections at the same date using a server-assigned revision. Original
+rows and later effective dates remain unchanged. Effective consumers select the
+latest revision at each date; ID-based pricing and existing finalized snapshots
+retain the original evidence. The affected interval ends at the next genuine
+pay effective date; finalized periods in that interval remain protected. Dated
+People evidence supplies employer/workplace where available without reactivating
+or editing employment. Reason, actor and revision linkage are retained in Payroll
+audit events.
+
+Open employee Run review exposes Set up pay when period compensation is missing.
+It opens the same compensation form/command as Profiles, scoped to the employee
+and payroll period with an explicit editable pay date. Saving refreshes canonical
+stale calculations through the existing automatic flow and retains the Run and
+employee review. Pay-only initialization leaves statutory applicability
+unresolved until separately confirmed; it does not infer participation or
+broaden membership.
