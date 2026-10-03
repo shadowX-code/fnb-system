@@ -26,6 +26,17 @@ beforeEach(() => { mocks.data.mockReset().mockImplementation(({ listing }) => Pr
 afterEach(cleanup);
 
 describe("Crew Cash Checkout Admin", () => {
+  it("refreshes previous-day context after Return so it agrees with the row and review count", async () => {
+    const previous = { ...fixture.checkouts[0], checked_out_by: "QA Crew", is_previous_day: true };
+    mocks.context.mockResolvedValueOnce({ ...fixture, previous_unresolved: [previous] }).mockResolvedValue({ ...fixture, previous_unresolved: [{ ...previous, status: "reconciled", is_returned: true }] });
+    render(<CrewCashCheckoutAdminPage auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "View checkout 20/08/2026" }));
+    fireEvent.click(screen.getByRole("button", { name: "Return", exact: true }));
+    fireEvent.change(screen.getByLabelText("Reason"), { target: { value: "Correct the POS closing cash" } });
+    fireEvent.click(screen.getByRole("button", { name: "Return to Crew" }));
+    expect(await screen.findByRole("button", { name: "20/08/2026 · QA Crew · Returned · Continue" })).not.toBeNull();
+    expect(mocks.context).toHaveBeenCalledTimes(2);
+  });
   it("maps every submitted checkout to Needs Review and permits Return despite legacy exception flags", async () => {
     const row = { ...fixture.checkouts[0], review_required: false, review_status: "not_required", is_previous_day: true };
     mocks.data.mockResolvedValue({ rows: [row], total_count: 1, page: 1, page_size: 20, summary: fixture.summary });
