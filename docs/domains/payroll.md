@@ -14,23 +14,72 @@ rechecks the source fingerprint, appends a request-bound decision, reconciles th
 source-linked Leave grant and recalculates only that employee in one transaction.
 The company policy's historical Additional Pay recommendation uses Monthly Basic
 / 26 × one benefit day or Hourly Rate × approved hours. This is a company benefit,
-not the statutory Malaysia PH entitlement. The current calculation boundary does
-not emit company PH money or treat it as a substitute for missing statutory PH
-rules. Approved PH work remains explicitly blocked pending a verified statutory
-ordinary-day/eligibility/normal-hours authority; PH OT has its own blocker. Hourly
-paid holidays without work also require verified eligibility and ordinary-day wage
-evidence. Rejecting a shift does not itself prove forfeiture of paid-holiday rights.
-Monthly Basic remains separately resolved. Published holiday, time and company
-benefit evidence are pinned; changed no-work holiday evidence also invalidates the
-open calculation fingerprint. No PH multiplier or normal-day duration is inferred.
+not the statutory Malaysia PH entitlement.
 
-The statutory design must account for Employment Act sections 60D/60I and First
-Schedule coverage, and the applicable Part-Time Regulations (including separate
-part-time/full-time normal-hours thresholds). Employment Type/pay basis alone is
-not proof of legal coverage. See the official [Employment Act](https://jtksm.mohr.gov.my/sites/default/files/2023-11/Akta%20Kerja%201955%20(Akta%20265).pdf)
-and [Part-Time Regulations](https://jtksm.mohr.gov.my/sites/default/files/2023-03/10.%20Employment%20-%20Part-time%20Employees%20-%20Regulations%202010%20%20%281%29.pdf).
-Existing finalized calculations and company-benefit evidence remain immutable;
-post-finalization monetary changes require the existing Correction Revision.
+## Malaysia statutory public-holiday pricing
+
+The canonical chain is published paid calendar → People employment and reviewed
+legal coverage/eligibility → current approved PH time → official statutory PH pack
+→ explicitly applicable company benefit → canonical priced earnings. No employment,
+holiday eligibility, normal hours or prior wage evidence is backfilled.
+
+`payroll_ph_eligibility_reviews` is append-only, Run/employee/day scoped evidence.
+`payroll_ph_statutory_confirm` derives actor, enforces canonical Run/employee outlet
+scope, locks the open Run, requires reference/reason, rechecks the current context,
+appends a request-bound review and recalculates that employee atomically. Changed
+request input is not a retry. Context pins People assignment, compensation, published
+calendar/geography, original time source, latest time decision, legal pack and company
+policy/decision. Changed context requires a new reviewed revision, not implicit reuse.
+History is exposed through the authorized PH read; source evidence is never rewritten.
+
+The effective `my_ph_2023_v1` formula pack extends the existing pay-rule registry;
+it is not a generic time multiplier. Generic PH rule publishing/pricing is disabled.
+For verified adult Employment Act full-time coverage, paid holiday wages are included
+in unabated Monthly Basic; Hourly paid-day wages use qualifying preceding monthly
+wage-period wages / qualifying actual worked days (s60I(1C)). Monthly ordinary-day
+wages are verified ordinary monthly wages / 26; ordinary hourly rate is ordinary-day
+wages / verified contractual normal daily hours (s60I). Covered holiday work receives
+two ordinary days in addition to holiday pay even for a shorter full-time shift;
+excess approved hours receive 3× ordinary hourly rate (s60D(3)).
+
+First Schedule premium coverage uses separately evidenced statutory monthly wages
+and qualifying category: general employees at RM4,000 or less, or qualifying manual,
+vehicle, manual-supervision or vessel categories regardless of wages. Job title/pay
+basis is not legal-category evidence. General employees above the threshold retain
+holiday-pay rights, but worked PH pay remains Review Required pending verified
+contractual authority; no unsupported zero or statutory work premium is issued.
+
+Verified regular part-time coverage requires contractual weekly/comparable hours
+and exclusion review, not merely the People `part_time` label. Normal PH work adds
+two ordinary days; approved excess between part-time and comparable full-time daily
+hours receives 2×, and excess above the full-time boundary receives 3× (reg6). Partial
+part-time normal-day work, excluded casual/home/domestic categories, unknown age or
+under-18 hours, Sabah/Sarawak, non-monthly wage periods, missing preceding wages,
+forfeiture and substitute-holiday questions remain explicitly Review Required.
+Approved annual/medical/unpaid Leave on the paid day cannot be cleared merely by
+selecting Eligible. Published substitute-day and absence evidence must be resolved.
+
+Company Additional Pay never creates statutory entitlement. Reviewed contract evidence
+must specify no applicable benefit, an inclusive top-up (only company amount exceeding
+the statutory normal-work premium), or a genuinely additional benefit. An applicable
+benefit also requires the existing company treatment/work authority. Replacement
+Leave remains an additional company entitlement and does not replace statutory cash.
+The statutory lines may resolve while an independent benefit confirmation is blocked.
+
+PH/PH-OT priced lines share `Public Holiday Allowance` presentation, with separate
+ordinary-day/hour units and compatible rate, multiplier, legal coverage, normal-hour,
+rule and compensation groups. Gross sums rounded daily amounts exactly. Original
+daily lines and review evidence remain available in Calculation details; Draft/Final
+Payslips use the same server groups. Frozen snapshots/artifacts are never recalculated.
+Ordinary statutory packs are unchanged: paid-day wages use normal contribution
+classification, PH work/OT follows the existing EPF overtime boundary and Act4 wage
+classification; PCB remains its governed confirmation authority.
+
+Primary evidence: [JTKSM Employment Act ss60D/60I and First Schedule](https://jtksm.mohr.gov.my/sites/default/files/2023-11/Akta%20Kerja%201955%20(Akta%20265).pdf),
+[JTKSM Part-Time Regulations reg6](https://jtksm.mohr.gov.my/sites/default/files/2023-03/10.%20Employment%20-%20Part-time%20Employees%20-%20Regulations%202010%20%20%281%29.pdf),
+[JTKSM 2022 amendment FAQ](https://jtksm.mohr.gov.my/ms/soalan-lazim/akta-kerja-1955-pindaan-2022),
+[KWSP contributions](https://www.kwsp.gov.my/en/employer/responsibilities/option-contribute),
+and [PERKESO wage definition](https://perkeso.gov.my/en/our-services/employer-employee/employer-registration.html).
 
 Replacement Leave belongs to canonical Crew Leave, not a Payroll balance. Draft
 Pay ↔ Leave changes append decisions and signed Leave adjustments. A used source
@@ -442,7 +491,7 @@ never awards extra payable minutes.
 
 `payroll_pay_rule_versions` is append-only and effective-dated by rule code and
 pay basis. Only arithmetic identity rules (Monthly Basic Salary, Hourly Regular,
-Non-payable) are seeded. Premium rates and Monthly ordinary-rate divisor policy are
+Non-payable) are seeded. Non-PH premium rates and Monthly ordinary-rate divisor policy are
 not guessed: a protected Owner/Admin with Payroll manage authority must publish
 a reviewed, sourced rule version. Missing or ambiguous rules leave the employee
 in Review Required. Mid-period salary/component changes still require an approved

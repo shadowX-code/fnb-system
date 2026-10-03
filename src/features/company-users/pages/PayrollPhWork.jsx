@@ -78,7 +78,7 @@ export default function PayrollPhWork({ runId, employeeId, canManage, onChanged 
   };
   if (rows?.length === 0 && !error) return null;
   return <section className="space-y-3 border-t border-border pt-4"><h4 className="font-bold">Public Holiday Work</h4>
-    <p className="text-xs text-text-secondary">Company benefit only. Statutory PH obligations remain separate; PH overtime is unsupported.</p>
+    <p className="text-xs text-text-secondary">Company benefit only. Statutory PH pay is calculated separately from verified entitlement evidence.</p>
     {rows === null && !error && <p role="status">Loading PH work…</p>}
     {rows?.map(row => { const decision = row.decision; const treatment = decision?.treatment || row.recommended_treatment;
       const unresolved = !!row.issue; const edit = editing?.date === row.work_date;
