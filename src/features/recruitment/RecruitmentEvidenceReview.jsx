@@ -52,7 +52,9 @@ export default function RecruitmentEvidenceReview({ application, onClose }) {
                   Recording {unit.sequence} · {unit.status} ·{" "}
                   {Math.round(unit.elapsed_start_ms / 1000)}s –{" "}
                   {unit.elapsed_end_ms == null
-                    ? "interrupted"
+                    ? unit.status === "capturing"
+                      ? "in progress"
+                      : "end time unavailable"
                     : `${Math.round(unit.elapsed_end_ms / 1000)}s`}{" "}
                   {unit.end_reason && unit.end_reason !== "completed"
                     ? `· ${unit.end_reason.replaceAll("_", " ")}`

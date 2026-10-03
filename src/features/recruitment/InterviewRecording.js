@@ -1,4 +1,3 @@
-import { Upload } from "tus-js-client";
 import { supabase } from "../../lib/supabase.ts";
 import { recruitmentService } from "./recruitmentService.js";
 import {
@@ -119,45 +118,52 @@ export class InterviewRecording {
       this.remoteSource.connect(this.destination);
     }
   }
-  async drainChunks() {
-    if (this.draining) return;
-    this.draining = true;
-    try {
-      for (const chunk of await recordingStore.chunks(this.unit.id)) {
-        if (chunk.ack) continue;
-        const payload = {
-          unit_id: chunk.unitId,
-          index: chunk.index,
-          bytes: chunk.blob.size,
-        };
-        const access = await recruitmentService.evidence(
-          "chunk",
-          this.token,
-          this.clientId,
-          payload,
-        );
-        if (!access.acknowledged) {
-          const { error } = await supabase.storage
-            .from("recruitment-evidence")
-            .uploadToSignedUrl(access.path, access.upload_token, chunk.blob, {
-              contentType: "application/octet-stream",
-            });
-          if (error && !/already exists|duplicate/i.test(error.message))
-            throw error;
-          await recruitmentService.evidence(
-            "chunk_ack",
+  async drainChunks(unitId = this.unit?.id) {
+    if (this.drainPromise) {
+      await this.drainPromise;
+    }
+    this.drainPromise = (async () => {
+      try {
+        for (const chunk of await recordingStore.chunks(unitId)) {
+          if (chunk.ack) continue;
+          const payload = {
+            unit_id: chunk.unitId,
+            index: chunk.index,
+            bytes: chunk.blob.size,
+          };
+          const access = await recruitmentService.evidence(
+            "chunk",
             this.token,
             this.clientId,
             payload,
           );
+          if (!access.acknowledged) {
+            const { error } = await supabase.storage
+              .from("recruitment-evidence")
+              .uploadToSignedUrl(access.path, access.upload_token, chunk.blob, {
+                contentType: "application/octet-stream",
+              });
+            if (error && !/already exists|duplicate/i.test(error.message))
+              throw error;
+            await recruitmentService.evidence(
+              "chunk_ack",
+              this.token,
+              this.clientId,
+              payload,
+            );
+          }
+          await recordingStore.chunk({ ...chunk, ack: true });
         }
-        await recordingStore.chunk({ ...chunk, ack: true });
+        return true;
+      } catch {
+        this.onStatus("upload-pending");
+        return false;
       }
-      this.onStatus(this.stopping ? "uploading" : "recording");
-    } catch {
-      this.onStatus("upload-pending");
+    })();
+    try {
+      return await this.drainPromise;
     } finally {
-      this.draining = false;
+      this.drainPromise = null;
     }
   }
   async stop(reason = "completed") {
@@ -225,33 +231,13 @@ export class InterviewRecording {
     );
     if (!access.verified) {
       this.onStatus("uploading");
-      if (!access.received)
-        await new Promise((resolve, reject) => {
-          const upload = new Upload(blob, {
-            endpoint: access.endpoint,
-            headers: { "x-signature": access.upload_token },
-            chunkSize: 6 * 1024 * 1024,
-            uploadDataDuringCreation: true,
-            removeFingerprintOnSuccess: true,
-            retryDelays: [0, 3000, 5000, 10000, 20000],
-            metadata: {
-              bucketName: "recruitment-evidence",
-              objectName: access.path,
-              contentType: "video/mp4",
-              cacheControl: "0",
-            },
-            fingerprint: async () => `recruitment:${unit.id}:${blob.size}`,
-            onError: reject,
-            onSuccess: resolve,
-          });
-          upload
-            .findPreviousUploads()
-            .then((previous) => {
-              if (previous.length) upload.resumeFromPreviousUpload(previous[0]);
-              upload.start();
-            })
-            .catch(reject);
-        });
+      if (!(await this.drainChunks(unit.id)))
+        throw Error(
+          "Recording upload is pending. Retry with a stable connection.",
+        );
+      await recruitmentService.evidence("assemble", this.token, this.clientId, {
+        unit_id: unit.id,
+      });
       await recruitmentService.evidence("verify", this.token, this.clientId, {
         unit_id: unit.id,
       });
@@ -272,13 +258,35 @@ export class InterviewRecording {
       if (
         ["capturing", "pending"].includes(unit.status) &&
         !units.some((local) => local.id === unit.id)
-      )
-        await recruitmentService.evidence(
-          "abandon",
-          this.token,
-          this.clientId,
-          { unit_id: unit.id },
-        );
+      ) {
+        const chunks = state.chunks.filter((c) => c.unit_id === unit.id);
+        if (
+          unit.expected_bytes &&
+          chunks.length &&
+          chunks.every((c) => c.acknowledged_at) &&
+          chunks.reduce((sum, c) => sum + Number(c.expected_bytes), 0) ===
+            Number(unit.expected_bytes)
+        ) {
+          await recruitmentService.evidence(
+            "assemble",
+            this.token,
+            this.clientId,
+            { unit_id: unit.id },
+          );
+          await recruitmentService.evidence(
+            "verify",
+            this.token,
+            this.clientId,
+            { unit_id: unit.id },
+          );
+        } else
+          await recruitmentService.evidence(
+            "abandon",
+            this.token,
+            this.clientId,
+            { unit_id: unit.id },
+          );
+      }
     }
     for (const unit of units) {
       if (unit.closed) await this.uploadUnit(unit);

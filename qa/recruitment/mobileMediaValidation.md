@@ -12,7 +12,7 @@ MediaRecorder and MP4 H.264/AAC were supported. These are short local probe resu
 
 ## Implemented strategy
 
-One foreground MediaRecorder per recording unit, stopped and finalized as one complete MP4 container. Five-second blobs are locally queued/uploaded transport bytes. Playback requires the assembled unit, nonzero browser video metadata and server MP4 structural verification. AI reconnect leaves the recording running. Background/device/reload interruptions create gaps, then fresh device capture and a new unit in the same attempt. Uncertain units remain partial or failed; acknowledged bytes remain private evidence.
+One foreground MediaRecorder per recording unit, stopped and finalized as one complete MP4 container. Five-second blobs are locally queued/uploaded transport bytes with immutable receipts. Server assembly streams the ordered acknowledged bytes into one stopped-unit file. Playback requires the assembled unit, nonzero browser video metadata and server MP4 structural verification. AI reconnect leaves the recording running. Background/device/reload interruptions create gaps, then fresh device capture and a new unit in the same attempt. Uncertain units remain partial or failed; acknowledged bytes remain private evidence.
 
 Safari's second-unit failure means a resumed Safari recording can still fail verification. The first acknowledged valid unit is retained. Full codec decode is verified through playback, not inferred from server box parsing. Background continuity and trailer finalization cannot be guaranteed by the browser.
 

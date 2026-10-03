@@ -92,20 +92,87 @@ Deno.serve(async (request) => {
     if (body.action === "upload") {
       const data = await access("upload");
       if (data.verified) return json(data);
-      const existing = await service.storage.from(bucket).info(data.path);
-      if (!existing.error && Number(existing.data.size) === Number(data.bytes))
-        return json({ ...data, received: true });
-      const signed = await service.storage
+      return json(data);
+    }
+    if (body.action === "assemble") {
+      const state = await rpc("recruitment_assessment_context", base);
+      const unit = state.units.find((u: any) => u.id === body.payload.unit_id);
+      if (!unit?.expected_bytes)
+        throw Error("Recording has not been finalized.");
+      if (unit.status === "verified") return json(unit);
+      const existing = await service.storage
         .from(bucket)
-        .createSignedUploadUrl(data.path);
-      if (signed.error) throw Error("Recording upload unavailable.");
-      return json({
-        ...data,
-        upload_token: signed.data.token,
-        endpoint:
-          url.replace(".supabase.co", ".storage.supabase.co") +
-          "/storage/v1/upload/resumable",
+        .info(unit.object_path);
+      if (
+        !existing.error &&
+        Number(existing.data.size) === Number(unit.expected_bytes)
+      )
+        return json({ received: true });
+      const chunks = state.chunks.filter((c: any) => c.unit_id === unit.id);
+      if (
+        !chunks.length ||
+        chunks.some(
+          (c: any, index: number) =>
+            c.chunk_index !== index || !c.acknowledged_at,
+        ) ||
+        chunks.reduce(
+          (sum: number, c: any) => sum + Number(c.expected_bytes),
+          0,
+        ) !== Number(unit.expected_bytes)
+      )
+        throw Error(
+          "Recording chunks are still waiting to upload. Retry with a stable connection.",
+        );
+      // Reassemble one stopped container, never reinterpret chunks as playable segments.
+      // Streaming keeps memory bounded to one acknowledged transport chunk.
+      let next = 0;
+      const stream = new ReadableStream<Uint8Array>({
+        async pull(controller) {
+          if (next === chunks.length) {
+            controller.close();
+            return;
+          }
+          const chunk = chunks[next++];
+          const { data, error } = await service.storage
+            .from(bucket)
+            .download(chunk.object_path);
+          if (error || !data || data.size !== Number(chunk.expected_bytes)) {
+            controller.error(
+              Error("Acknowledged recording bytes are unavailable."),
+            );
+            return;
+          }
+          controller.enqueue(new Uint8Array(await data.arrayBuffer()));
+        },
       });
+      const upload = await fetch(
+        `${url}/storage/v1/object/${bucket}/${unit.object_path}`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            apikey: key,
+            "Content-Type": "video/mp4",
+            "Content-Length": String(unit.expected_bytes),
+            "x-upsert": "false",
+          },
+          body: stream,
+          signal: AbortSignal.timeout(100000),
+        },
+      );
+      if (!upload.ok) {
+        await upload.body?.cancel();
+        // Concurrent retries can race; an existing complete receipt is authoritative.
+        const receipt = await service.storage
+          .from(bucket)
+          .info(unit.object_path);
+        if (
+          receipt.error ||
+          Number(receipt.data.size) !== Number(unit.expected_bytes)
+        )
+          throw Error("Recording assembly is still pending. Please retry.");
+      } else await upload.body?.cancel();
+      return json({ received: true });
     }
     if (body.action === "verify") {
       const state = await rpc("recruitment_assessment_context", base),
@@ -152,13 +219,11 @@ Deno.serve(async (request) => {
       });
       const apiKey = Deno.env.get("OPENAI_API_KEY");
       if (!apiKey) throw Error("Coverage service unavailable.");
-      const turns = context.turns
-        .slice(-120)
-        .map((t: any) => ({
-          turn_number: t.turn_number,
-          speaker: t.speaker,
-          transcript: t.transcript.slice(0, 2500),
-        }));
+      const turns = context.turns.slice(-120).map((t: any) => ({
+        turn_number: t.turn_number,
+        speaker: t.speaker,
+        transcript: t.transcript.slice(0, 2500),
+      }));
       const response = await fetch("https://api.openai.com/v1/responses", {
         method: "POST",
         headers: {
