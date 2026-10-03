@@ -608,3 +608,11 @@ Purpose: milestone changelog for meaningful FeedX development sessions. This fil
 
 - Draft Roster employee eligibility and identity now resolve the People Employment Assignment Timeline for each roster date. The picker, week save/copy commands and legacy direct-table policies reject unavailable, inactive or cross-outlet dated assignments rather than using today's Employee fields.
 - Future transfers change scheduling eligibility only on their effective date; current Crew Access remains unchanged until People activates the revision. Existing published roster snapshots remain immutable, while new publication revisions pin dated position evidence.
+
+### 2026-10-03 — Payroll LINDUNG 24 Jam V1
+
+Added independent evidence-backed monthly participation authority, exact PERKESO
+Phase 1 schedule, Act 4 wage assessment, employee-only deduction, readiness and
+shared setup/Profile/Review/Payslip presentation. Existing EPF, ordinary SOCSO,
+EIS, PCB and final evidence authorities remain independent. No employee
+participation backfill or Production changes. Canonical contract: docs/domains/payroll.md.

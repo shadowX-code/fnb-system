@@ -92,6 +92,10 @@ export const payrollService = {
     p_source_document_id: input.sourceDocumentId || null,
     p_default_cost_outlet_id: input.defaultCostOutletId || null,
   }),
+  readLindungSetup: (profileId, month) => command("payroll_lindung_setup_read", { p_profile_id: profileId, p_month: month }),
+  confirmLindungSetup: (input) => command("payroll_lindung_setup_confirm", {
+    p_profile_id: input.profileId, p_intent: input.intent, p_fingerprint: input.fingerprint, p_request_id: input.requestId,
+  }),
   readStatutoryInput: (profileId) => command("payroll_statutory_input_read", { p_profile_id: profileId }),
   readStatutorySetup: (profileId, date = null, applicability = null) => command("payroll_statutory_setup_read", {
     p_profile_id: profileId, p_date: date, p_applicability: applicability,

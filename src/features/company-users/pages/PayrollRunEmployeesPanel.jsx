@@ -15,6 +15,7 @@ import PayrollMonthlyBasicBreakdown, { PayrollRecurringBreakdown } from "./Payro
 import PayrollPhWork from "./PayrollPhWork.jsx";
 import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 import { Eye } from 'lucide-react';
+import { statutoryName } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel } from "./payrollRunPresentation.js";
 
@@ -158,7 +159,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const statutorySummary = row => {
     if (row.result.statutoryCurrent) return "Complete";
     const schemes = row.preparation?.statutory_setup?.schemes || {};
-    const pending = ["epf", "socso", "eis", "pcb"].filter(scheme => !schemes[scheme] || !["confirmed", "not_applicable"].includes(schemes[scheme].state)
+    const pending = ["epf", "socso", "lindung", "eis", "pcb"].filter(scheme => !schemes[scheme] || !["confirmed", "not_applicable"].includes(schemes[scheme].state)
       || (scheme === "pcb" && schemes.pcb.applicable && !row.pcb?.confirmation));
     return pending.length ? `${pending.length} pending` : "Review";
   };
@@ -181,12 +182,13 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     { key: "adjustments", header: "Adjustments", render: (row) => row.adjustments.length ? `${row.adjustments.length} adjustment${row.adjustments.length === 1 ? "" : "s"} · ${signedAdjustments(row.adjustments)}` : "None" },
     { key: "statutory", header: "Statutory", render: (row) => {
       const schemes = row.preparation?.statutory_setup?.schemes || {};
-      const issues = ["epf", "socso", "eis", "pcb"].filter((scheme) =>
+      const issues = ["epf", "socso", "lindung", "eis", "pcb"].filter((scheme) =>
         !schemes[scheme] || !["confirmed", "not_applicable"].includes(schemes[scheme].state)
         || (scheme === "pcb" && schemes.pcb.applicable && !row.pcb?.confirmation));
-      const applicable = ["epf", "socso", "eis"].filter((scheme) => schemes[scheme]?.applicable).map((scheme) => scheme.toUpperCase());
+      const applicable = ["epf", "socso", "lindung", "eis"].filter((scheme) => schemes[scheme]?.applicable).map((scheme) => statutoryName(scheme));
       return <div className="text-xs"><strong>{issues.length ? `${issues.length} statutory issue${issues.length === 1 ? "" : "s"}` : `Ready${applicable.length ? ` · ${applicable.join(" / ")}` : ""}`}</strong>
         <small className="block text-text-secondary">{schemes.pcb?.applicable === false ? "PCB N/A" : row.pcb?.confirmation ? "PCB confirmed" : "PCB confirmation required"}</small>
+        {schemes.lindung?.issue && <small className="block text-amber-700">{payrollIssueLabel(schemes.lindung.issue)}</small>}
         {row.statutory?.is_stale && <small className="block text-text-secondary">Calculation needs refresh</small>}</div>;
     } },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Review" : "Ready"}</Badge> },
@@ -215,7 +217,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
           <span>{month}-01 – {periodEnd(month)}</span><Badge tone={selected.needsReview ? "warning" : "success"}>{selected.needsReview ? "Need Attention" : "Ready"}</Badge>
         </div>
         {selected.needsReview && <section aria-label="Review blockers" className="rounded-lg border border-border bg-surface-muted p-3"><h4 className="font-semibold">Needs Attention</h4>
-          <ul className="mt-2 list-disc space-y-1 pl-5">{[...new Set([...(selected.projection?.issues || []), ...(selected.calculation?.issues || []), ...(selected.statutory?.issues || [])])].map(issue => <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}</li>)}</ul>
+          <ul className="mt-2 list-disc space-y-1 pl-5">{[...new Set([...(selected.projection?.issues || []), ...(selected.calculation?.issues || []), ...(selected.statutory?.issues || []), ...(selected.preparation?.statutory_setup?.schemes?.lindung?.issue ? [selected.preparation.statutory_setup.schemes.lindung.issue] : [])])].map(issue => <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}</li>)}</ul>
           {selected.pcb?.applicable && !selected.pcb?.confirmation && <p className="mt-2">PCB amount required</p>}
           {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p className="mt-2">Inputs changed. Refresh this employee's calculation.</p>}
           {!selected.calculation && <p className="mt-2">Calculate Payroll after completing employee setup.</p>}
@@ -240,11 +242,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         <PayrollPhWork runId={run.id} employeeId={selected.id} canManage={active} onChanged={refresh} />
         <section className="border-t border-border pt-4"><div className="flex justify-between gap-3"><h4 className="text-base font-bold">Employee Deductions</h4>{active && selected.pcb?.applicable && <button className="font-semibold text-primary" type="button"
           onClick={() => setPcbDraft({ requestId: crypto.randomUUID(), employeeId: selected.id, amount: selected.pcb?.confirmation?.amount == null ? "" : String(selected.pcb.confirmation.amount), sourceReference: "", note: "", reason: "" })}>{selected.pcb.confirmation ? "Correct PCB" : "Confirm PCB"}</button>}</div>
-          <div className="mt-2 divide-y divide-border">{["epf", "socso", "eis", "pcb"].map((scheme) => {
+          <div className="mt-2 divide-y divide-border">{["epf", "socso", "lindung", "eis", "pcb"].map((scheme) => {
             const line = selected.statutory?.lines?.find((item) => item.scheme === scheme);
             const setup = selected.preparation?.statutory_setup?.schemes?.[scheme];
             const notApplicable = setup?.applicable === false;
-            return <div key={scheme} className="flex items-center justify-between gap-4 py-2"><span><strong>{scheme === "pcb" ? "PCB / MTD" : scheme.toUpperCase()}</strong>
+            return <div key={scheme} className="flex items-center justify-between gap-4 py-2"><span><strong>{scheme === "pcb" ? "PCB / MTD" : statutoryName(scheme)}</strong>
               <small className="block text-text-secondary">{notApplicable ? "Not Applicable" : scheme === "pcb" ? selected.pcb?.confirmation ? "Confirmed" : "Confirmation required"
                 : setup ? statutorySchemeLabel(scheme, setup) : "Period setup required"}</small></span>
               <strong className="tabular-nums">{notApplicable ? "N/A" : selected.result.statutoryCurrent && line?.employee_amount != null ? money(line.employee_amount) : "Pending review"}</strong></div>;
@@ -260,7 +262,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         </div></section>
         <section className="border-t border-border pt-4 text-text-secondary"><h4 className="font-semibold">Employer Contributions</h4><div className="mt-2 divide-y divide-border">
           {["epf", "socso", "eis"].map((scheme) => { const line = selected.statutory?.lines?.find((item) => item.scheme === scheme);
-            return <div key={scheme} className="flex justify-between gap-3 py-2"><span>{scheme.toUpperCase()}</span><strong className="tabular-nums">
+            return <div key={scheme} className="flex justify-between gap-3 py-2"><span>{statutoryName(scheme)}</span><strong className="tabular-nums">
               {selected.preparation?.statutory_setup?.schemes?.[scheme]?.applicable === false ? "N/A" : selected.result.statutoryCurrent ? money(line?.employer_amount) : "Pending review"}</strong></div>;
           })}
           {selected.result.statutoryCurrent && selected.statutory?.lines?.some((line) => Number(line.remittance_rounding) > 0) &&
@@ -269,7 +271,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
           <div className="flex justify-between py-2 font-semibold"><span>Total Employer Cost</span><span className="tabular-nums">{selected.result.statutoryCurrent ? money(selected.statutory.total_employer_cost) : "Pending review"}</span></div>
         </div><p className="text-xs text-text-secondary">Employer contributions do not reduce employee Net Pay.</p></section>
         <section className="border-t border-border pt-4"><h4 className="font-bold">Bank Information</h4><PayrollEmployeeBankInfo inline result={bankFor(selected)} employeeName={selected.name} onRetry={() => setBankRetry(value => value + 1)} /><p className="mt-1 text-xs text-text-secondary">Missing details do not block Payroll finalization or change Net Pay.</p></section>
-        <details className="border-t border-border pt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Calculation basis & source evidence</summary><p className="mt-2">Pay effective {selected.pay?.effective_from || "not established"} · Calculation {selected.calculation?.revision || "not available"}</p>{(selected.statutory?.lines || []).map(line => <p className="mt-2" key={line.scheme}>{line.scheme.toUpperCase()} · {line.applicable === false ? "Not Applicable" : line.source_row || line.source_version || line.method || "Source review required"}{line.wage_base != null ? ` · Wage base ${money(line.wage_base)}` : ""}</p>)}</details>
+        <details className="border-t border-border pt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Calculation basis & source evidence</summary><p className="mt-2">Pay effective {selected.pay?.effective_from || "not established"} · Calculation {selected.calculation?.revision || "not available"}</p>{(selected.statutory?.lines || []).map(line => <p className="mt-2" key={line.scheme}>{statutoryName(line.scheme)} · {line.applicable === false ? "Not Applicable" : line.source_row || line.source_version || line.method || "Source review required"}{line.wage_base != null ? ` · Wage base ${money(line.wage_base)}` : ""}</p>)}</details>
         {active && <button className="btn-secondary" type="button" disabled={busy} onClick={async () => {
           setBusy(true); setError(""); try { await payrollService.recalculateEmployee(run.id, selected.id); await refresh(); }
           catch (cause) { setError(cause.message); } finally { setBusy(false); }
