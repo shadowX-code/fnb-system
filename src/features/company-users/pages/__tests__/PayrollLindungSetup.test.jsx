@@ -71,3 +71,15 @@ it('retains an existing valid opt-out without asking for a new monthly notice', 
  expect(screen.queryByRole('textbox',{name:'PERKESO opt-out notice date'})).toBeNull();
  await waitFor(()=>expect(changed).toHaveBeenLastCalledWith(expect.objectContaining({allowed:true,intent:expect.objectContaining({retained_version_id:'verified-notice',status:'valid_opt_out'})})));
 });
+
+it('explicit Not Applicable has no participation fields and stays distinct from Opted Out', async () => {
+ render(<PayrollLindungSetup {...props} />);await screen.findByRole('button',{name:'LINDUNG coverage status'});
+ await choose('LINDUNG coverage status','Not Applicable');
+ expect(screen.getByText('LINDUNG does not apply for this payroll month.')).toBeTruthy();
+ expect(screen.queryByLabelText(/Reference \/ Notes/)).toBeNull();
+ expect(screen.queryByRole('textbox',{name:'PERKESO opt-out notice date'})).toBeNull();
+ expect(screen.queryByRole('button',{name:'Contributing employer'})).toBeNull();
+ await waitFor(()=>expect(changed.mock.calls.at(-1)[0]).toEqual(expect.objectContaining({allowed:true,intent:expect.objectContaining({status:'not_applicable',designated_legal_entity_id:null,coverage_from:null})})));
+ await choose('LINDUNG coverage status','Opted Out');
+ expect(screen.getByRole('textbox',{name:'PERKESO opt-out notice date'})).toBeTruthy();
+});

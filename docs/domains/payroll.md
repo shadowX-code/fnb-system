@@ -807,3 +807,7 @@ An unchanged resolver-verified participation revision can be retained for the se
 ### Targeted LINDUNG validation
 
 Manage Statutory Setup uses a read-only, manage-scoped `payroll_lindung_setup_preview` before the atomic Save. Preview and confirmation invoke the same private regulatory validator and intent normalization. Only missing transition facts are disclosed under Additional information required; applicable earlier recorded supporting evidence may be reused, never later evidence for an earlier month. Mandatory coverage is resolved from the worker/month rules. Preview does not write participation or audit evidence and cannot authorize Save; confirmation revalidates scope, stale evidence, chronology and finalization under its existing transaction locks.
+
+### Explicit monthly non-applicability
+
+Admin may explicitly confirm LINDUNG Not Applicable for a local employee/month through the existing atomic statutory setup authority. It is distinct from regulated opt-out, requires no participation, notice or designated-employer evidence, and resolves readiness with zero deduction. It is not derived from ordinary statutory applicability and does not prove another month. Existing June/foreign mandatory restrictions, participation transitions, audit history, finalized correction guard and rate packs remain unchanged.
