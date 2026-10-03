@@ -167,4 +167,3 @@ begin
   'issue',issue,'evidence',case when v.id is null then null else to_jsonb(v) end);
 end $$;
 revoke all on function public.payroll_lindung_resolve(uuid,date,uuid) from public,anon,authenticated;
-
