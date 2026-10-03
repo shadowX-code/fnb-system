@@ -104,6 +104,7 @@ export const payrollService = {
     p_profile_id: input.profileId, p_effective_from: input.effectiveFrom,
     p_applicability: input.applicability, p_categories: input.categories,
     p_fingerprint: input.fingerprint, p_source_note: input.sourceNote || null, p_reason: input.reason || null,
+    p_lindung_intent: input.lindungIntent ?? null, p_lindung_fingerprint: input.lindungFingerprint ?? null, p_request_id: input.requestId,
   }),
   readStatutorySchedules: () => command("payroll_statutory_schedule_read", {}),
   adjustRecurring: (input) => command("payroll_recurring_adjust", {
