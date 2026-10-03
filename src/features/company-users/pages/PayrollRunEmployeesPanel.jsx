@@ -56,9 +56,11 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       ]);
       if (requests.current !== request) return;
       setEvidence({ scope, time, calculation, statutory, pcb, preparation }); setError("");
-    } catch (cause) { if (requests.current === request) setError(cause.message || "Unable to load employee payroll evidence."); }
+      return time;
+    } catch (cause) { if (requests.current === request) setError(cause.message || "Unable to load employee payroll evidence."); throw cause; }
   }, [entityId, month, run.id, runRead?.data]);
-  useEffect(() => { setEvidence(null); setEmployeeId(""); if (!runRead || runRead.data) load(); return () => { ++requests.current; }; }, [load]);
+  useEffect(() => { setEvidence(null); setEmployeeId(""); setReviewHours(false); }, [scope]);
+  useEffect(() => { if (!runRead || runRead.data) load().catch(() => {}); return () => { ++requests.current; }; }, [load]);
   useEffect(() => { if (focusEmployeeId) setEmployeeId(focusEmployeeId); }, [focusEmployeeId]);
   const rows = useMemo(() => (evidence?.scope === scope ? payrollReviewRows(evidence) : []).map((member) => {
     const employee = (data.employees || []).find((item) => item.id === member.employee_id)
@@ -149,6 +151,8 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   const timeDecisionSaved = async () => {
     try { await payrollService.recalculateEmployee(run.id, selected.id); }
     finally { await refresh(); }
+    const time = await payrollService.readTime(entityId, `${month}-01`, periodEnd(month));
+    return time.filter(row => row.employee_id === selected.id);
   };
   const calculate = async () => {
     setBusy(true); setError("");

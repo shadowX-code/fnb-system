@@ -727,8 +727,8 @@ export default function PayrollPage({ auth }) {
     <PageHeader section="People" title="Payroll Control Center" description="Prepare, review and finalize each pay period with clear evidence and resolution steps." />
     {!canView ? <Card className="p-8 text-center text-sm text-text-secondary">Payroll permission is required. Employee access alone does not reveal compensation.</Card>
       : loading && !data ? <Card className="p-8 text-center text-sm text-text-secondary">Loading Payroll...</Card>
-        : error ? <Card className="p-8 text-sm font-semibold text-rose-700" role="alert">{error}<button className="btn-secondary ml-3" type="button" onClick={reload}>Retry</button></Card>
-          : <><AdminUnderlineTabs ariaLabel="Payroll sections" value={tab} onChange={key => { if (key === "runs") setOpenRunId(""); setTab(key); }}
+        : error && !data ? <Card className="p-8 text-sm font-semibold text-rose-700" role="alert">{error}<button className="btn-secondary ml-3" type="button" onClick={reload}>Retry</button></Card>
+          : <>{error && <p role="alert" className="text-rose-700">{error}<button className="btn-secondary ml-3" type="button" onClick={reload}>Retry</button></p>}<AdminUnderlineTabs ariaLabel="Payroll sections" value={tab} onChange={key => { if (key === "runs") setOpenRunId(""); setTab(key); }}
             tabs={[["overview","Overview"],["employees","Payroll Profiles"],["runs","Payroll Runs"],["settings","Settings"]].map(([value,text]) => ({value,label:text}))} />
           {tab === "overview" && <AdminFilterToolbar compact ariaLabel="Payroll context"
             outlet={<SelectField label="Legal Entity" value={entityId} onChange={(value) => { setEntityId(value); setOpenRunId(""); }} options={(data.legal_entities || []).map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
