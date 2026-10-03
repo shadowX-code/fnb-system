@@ -35,7 +35,7 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
   const mandatory = draft?.worker_category === 'foreign' || month === '2026-06-01';
   const another = draft?.status === 'another_designated_employer';
   const optOut = draft?.status === 'valid_opt_out';
-  const resolved = draft && draft.status !== 'unresolved';
+  const resolved = draft && !['unresolved','not_applicable'].includes(draft.status);
   const participating = draft?.status === 'participating';
   const retained = Boolean(draft?.retain);
   const rejoin = !retained && participating && draft?.participation_basis === 'rejoin';
@@ -69,7 +69,7 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
   }, [intentKey, read, error, month, allowed, onChange]);
   const needs = key => required.includes(key);
   const options = [
-    ...(mandatory ? [{ value: 'mandatory', label: 'This employer pays' }] : [{ value: 'participating', label: 'Participating' }, { value: 'valid_opt_out', label: 'Opted Out' }]),
+    ...(mandatory ? [{ value: 'mandatory', label: 'This employer pays' }] : [{ value: 'participating', label: 'Participating' }, { value: 'valid_opt_out', label: 'Opted Out' }, { value: 'not_applicable', label: 'Not Applicable' }]),
     { value: 'another_designated_employer', label: 'Another Employer Pays' }, { value: 'unresolved', label: 'Not Confirmed' },
   ];
   return <section aria-label="LINDUNG 24 Jam setup" className="space-y-3 border-t border-border pt-3">
@@ -87,9 +87,10 @@ export default function PayrollLindungSetup({ profile, month, onChange, act4Cove
             participation_basis: value === 'participating' && read.current.status === 'valid_opt_out' ? 'rejoin' : 'default_enrolment',
             designated_legal_entity_id: value === 'another_designated_employer' ? '' : employer || '' })); }} />
         </div>
-        {!resolved && <p className="text-sm text-text-secondary">LINDUNG status has not been confirmed for this month.</p>}
+        {draft.status === 'not_applicable' && <p className="text-sm text-text-secondary">LINDUNG does not apply for this payroll month.</p>}
+        {draft.status === 'unresolved' && <p className="text-sm text-text-secondary">LINDUNG status has not been confirmed for this month.</p>}
         {read && <p className="text-xs text-text-secondary">Recorded: {lindungStatusLabel(read.current.status)} · This confirmation applies to the selected payroll month.</p>}
-        {['foreign','local_resident'].includes(draft.worker_category) && !retained && <details className="text-sm"><summary className="cursor-pointer">Resident coverage evidence</summary>
+        {resolved && ['foreign','local_resident'].includes(draft.worker_category) && !retained && <details className="text-sm"><summary className="cursor-pointer">Resident coverage evidence</summary>
           <ToggleField label="Verified permanent / temporary resident" checked={draft.residency_verified} onChange={value => setDraft(current => ({ ...current, retain:false, residency_verified:value, worker_category:value?'local_resident':'foreign', status:'unresolved' }))} /></details>}
         {((optOut && !retained) || rejoin) && <DatePickerField label={rejoin ? 'PERKESO rejoin submission date' : 'PERKESO opt-out notice date'} value={draft.date} onChange={value => patch('date', value)} />}
         {rejoin && <AdminFormField label="Submission time (Malaysia)" required><input type="time" className="control" value={draft.time} onChange={event => patch('time', event.target.value)} /></AdminFormField>}

@@ -86,6 +86,20 @@ begin
  fresh:=payroll_statutory_project(run,emp);old:=payroll_statutory_project_pre_lindung(run,emp);
  if (select jsonb_agg(value) from jsonb_array_elements(fresh->'lines') where value->>'scheme'<>'lindung') is distinct from old->'lines' then raise exception 'Ordinary statutory regression';end if;
  if not exists(select 1 from jsonb_array_elements(fresh->'lines') where value->>'scheme'='lindung' and value->>'employee_amount'='24.35' and value->>'employer_amount'='0') then raise exception 'Official LINDUNG amount changed: %',fresh;end if;
+ -- Explicit historical non-applicability is an append-only assertion, not an opt-out.
+ select count(*) into n from payroll_lindung_participation_versions where profile_id=opt_profile;
+ result:=pg_temp.confirm_setup(opt_profile,'2026-09-01','{"status":"not_applicable"}');
+ if result->'schemes'->'lindung'->>'status'<>'not_applicable' or result->'schemes'->'lindung'->>'issue' is not null then raise exception 'NA readiness/readback failed: %',result;end if;
+ if (select count(*) from payroll_lindung_participation_versions where profile_id=opt_profile)<>n+1 then raise exception 'NA rewrote timeline';end if;
+ if not exists(select 1 from payroll_lindung_participation_versions where profile_id=opt_profile and status='not_applicable' and participation_basis='not_applicable' and effective_month='2026-09-01' and source_reference='' and confirmed_by_employee_id=actor and designated_legal_entity_id is null) then raise exception 'NA explicit audit missing';end if;
+ if payroll_lindung_resolve(opt_profile,'2026-08-01',ent)->>'status'<>'valid_opt_out' or payroll_lindung_resolve(opt_profile,'2026-10-01',ent)->>'status'<>'unresolved' then raise exception 'NA historical distinction/month scope failed';end if;
+ select employee_id into emp from payroll_profiles where id=opt_profile;
+ fresh:=payroll_statutory_project(run,emp);old:=payroll_statutory_project_pre_lindung(run,emp);
+ if fresh->'issues' ? 'lindung_participation_unconfirmed:2026-09-01' then raise exception 'NA readiness unresolved';end if;
+ if not exists(select 1 from jsonb_array_elements(fresh->'lines') where value->>'scheme'='lindung' and (value->>'employee_amount')::numeric=0 and (value->>'employer_amount')::numeric=0 and value->>'participation_status'='not_applicable') then raise exception 'NA zero deduction failed: %',fresh;end if;
+ if (select jsonb_agg(value) from jsonb_array_elements(fresh->'lines') where value->>'scheme'<>'lindung') is distinct from old->'lines' then raise exception 'NA changed ordinary statutory';end if;
+ if payroll_lindung_setup_preview(opt_profile,'2026-06-01','{"status":"not_applicable"}',false)->>'valid'<>'false' or payroll_lindung_setup_preview(foreign_profile,'2026-09-01','{"status":"not_applicable"}',false)->>'valid'<>'false' then raise exception 'NA bypassed mandatory restrictions';end if;
+ insert into unified_checks values('Explicit Malaysian Not Applicable, historical audit, zero deduction, readiness and opt-out/mandatory distinction');
  if before_hash is distinct from (select md5(string_agg(s.result::text,'' order by s.run_id,s.employee_id)) from payroll_run_statutory_snapshots s) then raise exception 'Finalized snapshots changed';end if;
  insert into unified_checks values('Calculation/readiness, ordinary statutory and existing Final snapshots preserved');
  if has_function_privilege('anon','public.payroll_statutory_setup_confirm(uuid,date,jsonb,jsonb,text,text,text,jsonb,text,uuid)','EXECUTE') then raise exception 'Anonymous combined authority exposed';end if;
