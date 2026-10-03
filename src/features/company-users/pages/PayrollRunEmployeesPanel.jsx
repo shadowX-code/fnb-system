@@ -17,7 +17,7 @@ import PayrollPayslipAction from './PayrollPayslipAction.jsx';
 import { Eye } from 'lucide-react';
 import { statutoryName } from "./payrollStatutoryLabels.js";
 import { statutorySchemeLabel } from "./PayrollStatutorySetup.jsx";
-import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel } from "./payrollRunPresentation.js";
+import { payComponentIsConfigured, payrollEmployeeResult, payrollReviewRows, payrollIssueLabel, payrollStatutoryCell } from "./payrollRunPresentation.js";
 
 const money = (value) => value == null ? "—" : new Intl.NumberFormat("en-MY", {
   style: "currency", currency: "MYR", minimumFractionDigits: 2, maximumFractionDigits: 2,
@@ -32,6 +32,7 @@ const signedAdjustments = (items) => signedMoney(items.reduce((sum, item) => sum
 export default function PayrollRunEmployeesPanel({ run, data, entityId, month, canManage, onChanged, focusEmployeeId = "", stage = "prepare", onSnapshot, runRead }) {
   const [evidence, setEvidence] = useState(null);
   const [error, setError] = useState("");
+  const [calculationFailures, setCalculationFailures] = useState({});
   const [busy, setBusy] = useState(false);
   const [employeeId, setEmployeeId] = useState("");
   const [reviewHours, setReviewHours] = useState(false);
@@ -59,7 +60,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       return time;
     } catch (cause) { if (requests.current === request) setError(cause.message || "Unable to load employee payroll evidence."); throw cause; }
   }, [entityId, month, run.id, runRead?.data]);
-  useEffect(() => { setEvidence(null); setEmployeeId(""); setReviewHours(false); }, [scope]);
+  useEffect(() => { setEvidence(null); setEmployeeId(""); setReviewHours(false); setCalculationFailures({}); }, [scope]);
   useEffect(() => { if (!runRead || runRead.data) load().catch(() => {}); return () => { ++requests.current; }; }, [load]);
   useEffect(() => { if (focusEmployeeId) setEmployeeId(focusEmployeeId); }, [focusEmployeeId]);
   const rows = useMemo(() => (evidence?.scope === scope ? payrollReviewRows(evidence) : []).map((member) => {
@@ -120,7 +121,30 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       {selected.result.earningsCurrent && <PayrollMonthlyBasicBreakdown line={line} />}
       <PayrollRecurringBreakdown line={line} /></div>;
   };
-  const refresh = async () => { if (runRead) await runRead.refresh(); else await load(); await onChanged?.(); };
+  const refresh = async () => {
+    if (runRead) { if (!await runRead.refresh()) throw new Error('Unable to refresh Payroll evidence.'); }
+    else await load();
+    await onChanged?.();
+  };
+  const updateCalculation = async id => {
+    try {
+      if (runRead?.recalculateEmployee) await runRead.recalculateEmployee(id);
+      else await payrollService.recalculateEmployee(run.id, id);
+      setCalculationFailures(previous => { const next = {...previous}; delete next[id]; return next; });
+    } catch (cause) {
+      setCalculationFailures(previous => ({...previous, [id]: cause.message || 'Unable to calculate Payroll.'}));
+      throw cause;
+    }
+  };
+  const calculationErrors = {...runRead?.calculationErrors, ...calculationFailures};
+  const retryCalculation = async id => {
+    setBusy(true);
+    try {
+      if (calculationFailures[id]) { await updateCalculation(id); await refresh(); }
+      else { await runRead.retryCalculation(id); }
+    } catch (cause) { setError(cause.message); }
+    finally { setBusy(false); }
+  };
   const reconcile = async () => {
     setBusy(true); setError("");
     try {
@@ -134,7 +158,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     setBusy(true); setError("");
     try { await payrollService.confirmPcb({ ...pcbDraft, runId: run.id, reason: pcbDraft.reason.trim() });
       setPcbDraft(null);
-      await payrollService.recalculateEmployee(run.id, pcbDraft.employeeId);
+      await updateCalculation(pcbDraft.employeeId);
       await refresh(); }
     catch (cause) { await refresh(); setError(cause.message || "Unable to confirm PCB / MTD."); }
     finally { setBusy(false); }
@@ -143,40 +167,34 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
     setBusy(true); setError("");
     try { await payrollService.saveDraftAdjustment({ ...adjustment, runId: run.id, employeeId: selected.id, reason: adjustment.reason.trim() });
       setAdjustment(null);
-      await payrollService.recalculateEmployee(run.id, selected.id);
+      await updateCalculation(selected.id);
       await refresh(); }
-    catch (cause) { await refresh(); setError(cause.message || "Unable to save adjustment or refresh payroll. Review saved evidence and retry Refresh Employee Calculation."); }
+    catch (cause) { await refresh(); setError(cause.message || "Unable to save adjustment or refresh payroll. Review saved evidence and retry the failed calculation."); }
     finally { setBusy(false); }
   };
   const timeDecisionSaved = async () => {
-    try { await payrollService.recalculateEmployee(run.id, selected.id); }
+    try { await updateCalculation(selected.id); }
     finally { await refresh(); }
     const time = await payrollService.readTime(entityId, `${month}-01`, periodEnd(month));
     return time.filter(row => row.employee_id === selected.id);
   };
-  const calculate = async () => {
-    setBusy(true); setError("");
-    try { await payrollService.recalculateRun(run.id); await refresh(); }
-    catch (cause) { setError(cause.message || "Unable to refresh Payroll calculation."); }
-    finally { setBusy(false); }
-  };
-  const statutorySummary = row => {
-    if (row.result.statutoryCurrent) return "Complete";
-    const schemes = row.preparation?.statutory_setup?.schemes || {};
-    const pending = ["epf", "socso", "lindung", "eis", "pcb"].filter(scheme => !schemes[scheme] || !["confirmed", "not_applicable"].includes(schemes[scheme].state)
-      || (scheme === "pcb" && schemes.pcb.applicable && !row.pcb?.confirmation));
-    return pending.length ? `${pending.length} pending` : "Review";
+  const statutoryCell = (row, scheme) => {
+    const value = payrollStatutoryCell(row, scheme);
+    return value.state === 'calculated' ? <div className="whitespace-nowrap tabular-nums">
+      <div>{scheme !== 'pcb' && 'EE '}{money(value.employee)}</div>
+      {scheme !== 'pcb' && <small className="block text-text-secondary">ER {money(value.employer)}</small>}
+    </div> : value.state;
   };
   const reviewColumns = [
     { key: "employee", header: "Employee", sticky: true, render: row => <div className="min-w-28 max-w-48"><strong>{row.name}</strong><small className="block text-text-secondary">{row.workplace || "Workplace not set"}</small></div> },
     { key: "basis", header: "Pay Basis", render: row => row.pay ? human(row.pay.pay_basis) : "—" },
     { key: "basic", header: "Basic / Hours", render: row => row.pay?.pay_basis === "monthly" ? money(row.pay.basic_salary) : <span>{row.calculation?.basic_or_hours || "—"}<small className="block text-text-secondary">{row.pay ? `${money(row.pay.hourly_rate)} / hour` : "Pay setup required"}</small></span> },
     { key: "gross", header: "Gross", align: "right", render: row => <span className="tabular-nums">{money(row.result.gross)}</span> },
+    ...["epf", "socso", "eis", "pcb"].map(scheme => ({key:scheme,header:scheme.toUpperCase(),align:"right",render:row=>statutoryCell(row,scheme)})),
     { key: "deductions", header: "Deductions", align: "right", render: row => <span className="tabular-nums">{money(row.result.deductions)}</span> },
-    { key: "statutory", header: "Statutory", render: statutorySummary },
     { key: "net", header: "Net Pay", align: "right", render: row => <strong className="tabular-nums">{money(row.result.net)}</strong> },
-    { key: "bank", header: "Bank Info", render: row => <PayrollEmployeeBankInfo result={bankFor(row)} employeeName={row.name} onRetry={() => setBankRetry(value => value + 1)} /> },
-    { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Attention" : "Ready"}</Badge> },
+    { key: "employer", header: "Employer Cost", align: "right", render: row => <span className="tabular-nums">{row.result.statutoryCurrent ? money(row.statutory.total_employer_cost) : 'Pending'}</span> },
+    { key: "status", header: "Status", render: row => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Pending Review" : "Ready"}</Badge> },
     { key: "action", header: "Actions", render: row => <div className="inline-flex gap-1"><button type="button" className="btn-secondary" onClick={() => setEmployeeId(row.id)}><Eye size={16} aria-hidden="true" />View</button><PayrollPayslipAction runId={run.id} employeeId={row.id} draft /></div> },
   ];
   const columns = stage === "review" ? reviewColumns : [
@@ -193,7 +211,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
       return <div className="text-xs"><strong>{issues.length ? `${issues.length} statutory issue${issues.length === 1 ? "" : "s"}` : `Ready${applicable.length ? ` · ${applicable.join(" / ")}` : ""}`}</strong>
         <small className="block text-text-secondary">{schemes.pcb?.applicable === false ? "PCB N/A" : row.pcb?.confirmation ? "PCB confirmed" : "PCB confirmation required"}</small>
         {schemes.lindung?.issue && <small className="block text-amber-700">{payrollIssueLabel(schemes.lindung.issue)}</small>}
-        {row.statutory?.is_stale && <small className="block text-text-secondary">Calculation needs refresh</small>}</div>;
+        {row.statutory?.is_stale && <small className="block text-text-secondary">Calculation pending</small>}</div>;
     } },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.needsReview ? "warning" : "success"}>{row.needsReview ? "Need Review" : "Ready"}</Badge> },
     { key: "action", header: "Action", render: (row) => <button type="button" className="font-semibold text-primary" onClick={() => setEmployeeId(row.id)}>Review</button> },
@@ -201,12 +219,14 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
   return <div className="space-y-4">
     <Card className="flex flex-wrap items-center justify-between gap-3 p-4"><div><h3 className="text-lg font-bold">{stage === "review" ? "Review Payroll" : "Prepare Payroll"}</h3>
       <p className="text-sm text-text-secondary">{rows.length} included · {rows.filter((row) => row.needsReview).length} need attention. Resolve only exceptions; clean evidence needs no manual approval.</p></div>
-      {active && (stage === "review" ? <button className="btn-secondary" type="button" disabled={busy} onClick={calculate}>{busy ? "Updating…" : "Recalculate Payroll"}</button> : <button type="button" className="btn-secondary" disabled={busy} onClick={reconcile}>{busy ? "Reconciling…" : "Refresh time evidence"}</button>)}</Card>
+      {active && stage !== "review" && <button type="button" className="btn-secondary" disabled={busy} onClick={reconcile}>{busy ? "Reconciling…" : "Refresh time evidence"}</button>}</Card>
     {stage === "review" && <AdminFilterToolbar ariaLabel="Payroll review filters" compact denseFields searchAfterFilters
       filters={<><SelectField label="Status" ariaLabel="Review status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, { value: "ready", label: "Ready" }, { value: "attention", label: "Need Attention" }]} />
         <SelectField label="Pay Basis" ariaLabel="Review pay basis" value={basisFilter} onChange={setBasisFilter} options={[{ value: "all", label: "All" }, { value: "monthly", label: "Monthly" }, { value: "hourly", label: "Hourly" }]} />
         <SelectField label="Workplace" ariaLabel="Review workplace" value={workplaceFilter} onChange={setWorkplaceFilter} options={[{ value: "all", label: "All" }, ...[...new Set(rows.map(row => row.workplace).filter(Boolean))].sort().map(value => ({ value, label: value }))]} /></>}
       search={<AdminSearchField label="Search Employee" value={search} onChange={setSearch} placeholder="Name or employee code" />} />}
+    {runRead?.calculating && <p role="status" className="text-sm text-text-secondary">Updating changed calculations…</p>}
+    {active && Object.entries(calculationErrors).map(([id, message]) => <div role="alert" key={id} className="text-sm text-rose-700">{rows.find(row => row.id === id)?.name || 'Employee'}: {message} <button type="button" className="btn-secondary" disabled={busy} onClick={() => retryCalculation(id)}>Retry Calculation</button></div>)}
     {error && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
     {evidence?.preparation?.employment_issue && <p role="alert" className="text-sm font-semibold text-amber-800">
       {`${payrollIssueLabel(evidence.preparation.employment_issue)}. This open period cannot be finalized until verified People employment history is available.`}
@@ -223,7 +243,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         {selected.needsReview && <section aria-label="Review blockers" className="rounded-lg border border-border bg-surface-muted p-3"><h4 className="font-semibold">Needs Attention</h4>
           <ul className="mt-2 list-disc space-y-1 pl-5">{[...new Set([...(selected.projection?.issues || []), ...(selected.calculation?.issues || []), ...(selected.statutory?.issues || []), ...(selected.preparation?.statutory_setup?.schemes?.lindung?.issue ? [selected.preparation.statutory_setup.schemes.lindung.issue] : [])])].map(issue => <li key={issue}>{payrollIssueLabel(issue, { components: data.components, statutory: selected.statutory })}</li>)}</ul>
           {selected.pcb?.applicable && !selected.pcb?.confirmation && <p className="mt-2">PCB amount required</p>}
-          {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p className="mt-2">Inputs changed. Refresh this employee's calculation.</p>}
+          {(selected.calculation?.is_stale || selected.statutory?.is_stale) && <p className="mt-2">Inputs changed. Calculation is updating from current evidence.</p>}
           {!selected.calculation && <p className="mt-2">Calculate Payroll after completing employee setup.</p>}
         </section>}
         <dl className="grid grid-cols-3 gap-3 rounded-xl bg-surface-muted p-4">
@@ -276,10 +296,7 @@ export default function PayrollRunEmployeesPanel({ run, data, entityId, month, c
         </div><p className="text-xs text-text-secondary">Employer contributions do not reduce employee Net Pay.</p></section>
         <section className="border-t border-border pt-4"><h4 className="font-bold">Bank Information</h4><PayrollEmployeeBankInfo inline result={bankFor(selected)} employeeName={selected.name} onRetry={() => setBankRetry(value => value + 1)} /><p className="mt-1 text-xs text-text-secondary">Missing details do not block Payroll finalization or change Net Pay.</p></section>
         <details className="border-t border-border pt-3 text-xs text-text-secondary"><summary className="cursor-pointer">Calculation basis & source evidence</summary><p className="mt-2">Pay effective {selected.pay?.effective_from || "not established"} · Calculation {selected.calculation?.revision || "not available"}</p>{(selected.statutory?.lines || []).map(line => <p className="mt-2" key={line.scheme}>{statutoryName(line.scheme)} · {line.applicable === false ? "Not Applicable" : line.source_row || line.source_version || line.method || "Source review required"}{line.wage_base != null ? ` · Wage base ${money(line.wage_base)}` : ""}</p>)}</details>
-        {active && <button className="btn-secondary" type="button" disabled={busy} onClick={async () => {
-          setBusy(true); setError(""); try { await payrollService.recalculateEmployee(run.id, selected.id); await refresh(); }
-          catch (cause) { setError(cause.message); } finally { setBusy(false); }
-        }}>{busy ? "Updating payroll…" : "Refresh Employee Calculation"}</button>}
+        {active && calculationErrors[selected.id] && <div role="alert" className="text-rose-700">{calculationErrors[selected.id]} <button className="btn-secondary" type="button" disabled={busy} onClick={() => retryCalculation(selected.id)}>Retry Calculation</button></div>}
         {error && <p role="alert" className="text-rose-700">{error}</p>}
       </div></Modal>}
     {selected && reviewHours && <PayrollPayableTimeReview employee={selected} month={month} canManage={active} onClose={()=>setReviewHours(false)} onDecisionSaved={timeDecisionSaved} />}

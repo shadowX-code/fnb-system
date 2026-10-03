@@ -137,9 +137,11 @@ it("uses a compact processing table and keeps bank absence informational", async
   mocks.readPreparation.mockResolvedValue({results:[{employee_id:"employee",time_relevant:false,statutory_setup:{complete:true,schemes:{socso:{state:"confirmed",applicable:true},epf:{state:"not_applicable",applicable:false},eis:{state:"not_applicable",applicable:false},pcb:{state:"not_applicable",applicable:false}}},projection:{status:"ready",inputs:{compensation_start:{id:"pay",pay_basis:"monthly",basic_salary:2000,effective_from:"2026-01-01"}}}}]});
   const snapshot=vi.fn();
   render(<PayrollRunEmployeesPanel {...props} stage="review" onSnapshot={snapshot} />);
-  await screen.findByText("Complete");
-  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","Deductions","Statutory","Net Pay","Bank Info","Status","Actions"]);
-  await screen.findByText("Missing");
+  await screen.findByText("QA Employee");
+  expect(screen.getAllByRole("columnheader").map(item=>item.textContent)).toEqual(["Employee","Pay Basis","Basic / Hours","Gross","EPF","SOCSO","EIS","PCB","Deductions","Net Pay","Employer Cost","Status","Actions"]);
+  expect(screen.queryByText("Missing")).toBeNull();
+  expect(screen.getByText(/EE RM\s*100.00/)).toBeTruthy();
+  expect(screen.getByText(/ER RM\s*200.00/)).toBeTruthy();
   expect(screen.getByRole("region",{name:"Payroll review filters"})).toBeTruthy();
   expect(screen.getByText("Ready")).toBeTruthy();
   expect(screen.getByText(/1,900.00/)).toBeTruthy();
