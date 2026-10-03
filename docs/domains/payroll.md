@@ -870,3 +870,30 @@ Admin may explicitly confirm LINDUNG Not Applicable for a local employee/month t
 Verified LINDUNG revisions, including Not Applicable, remain effective until superseded by a genuine verified revision. Unresolved is absence-of-confirmation evidence: it remains immutable and audit-visible but is excluded from effective resolution and prior-transition validation. New Unresolved submissions cannot replace currently valid verified coverage. June mandatory local coverage still does not prove a July election, and identity/employer/pack validation can still require review. A historical verification cannot establish earlier months. Legacy unresolved interruptions covered by a subsequently recorded historical verification receive a system audit annotation; their original rows and all finalized evidence remain unchanged.
 
 Manage Statutory Setup presents one shared Effective Payroll Month above five Statutory Coverage rows and one Confirm Statutory Setup action. LINDUNG worker context and status-specific disclosures live in its row; there is no second month/save/history workflow. Historical guidance appears only after an intentional earlier-month selection with missing coverage. Statutory History composes the existing authorized statutory and LINDUNG reads at relevant revision/boundary dates; all five resolved states are chronological, with separate backend evidence available only under Audit details. This read model does not recalculate or rewrite finalized Payroll.
+
+### Former employees and historical compensation
+
+Payroll Profiles includes scoped employees with a current Legal Employer, a
+Payroll Profile or historical employment employer evidence. Employment status
+and the known effective end date are displayed separately from pay/statutory
+readiness. Historical employer associations support profile discovery only;
+open and finalized Run membership still use the existing canonical period
+employment and frozen membership authorities.
+
+`payroll_compensation_adjust` accepts explicit historical effective dates and
+appends corrections at the same date using a server-assigned revision. Original
+rows and later effective dates remain unchanged. Effective consumers select the
+latest revision at each date; ID-based pricing and existing finalized snapshots
+retain the original evidence. The affected interval ends at the next genuine
+pay effective date; finalized periods in that interval remain protected. Dated
+People evidence supplies employer/workplace where available without reactivating
+or editing employment. Reason, actor and revision linkage are retained in Payroll
+audit events.
+
+Open employee Run review exposes Set up pay when period compensation is missing.
+It opens the same compensation form/command as Profiles, scoped to the employee
+and payroll period with an explicit editable pay date. Saving refreshes canonical
+stale calculations through the existing automatic flow and retains the Run and
+employee review. Pay-only initialization leaves statutory applicability
+unresolved until separately confirmed; it does not infer participation or
+broaden membership.

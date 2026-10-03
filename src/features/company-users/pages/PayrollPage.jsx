@@ -18,6 +18,9 @@ import Drawer from "../../../components/ui/Drawer.jsx";
 import AdminUnderlineTabs from "../../../components/navigation/AdminUnderlineTabs.jsx";
 import { hasPermission } from "../../../utils/accessControl.js";
 import { payrollService } from "../../../services/payrollService.js";
+import FoundationForm from "./PayrollCompensationForm.jsx";
+export { default as FoundationForm } from "./PayrollCompensationForm.jsx";
+import { effectivePay, effectivePayVersions } from "./payrollCompensationPresentation.js";
 import PayrollRunEmployeesPanel from "./PayrollRunEmployeesPanel.jsx";
 import PayrollFinalizedRecord from "./PayrollFinalizedRecord.jsx";
 import { payComponentIsConfigured, payrollEmployeeResult, payrollIssueLabel, payrollRunSummary, payrollReviewRows, payrollReviewSummary } from "./payrollRunPresentation.js";
@@ -38,8 +41,7 @@ const money = (value, currency = "MYR") => new Intl.NumberFormat("en-MY", {
   style: "currency", currency, minimumFractionDigits: 2, maximumFractionDigits: 2,
 }).format(Number(value || 0));
 const effective = (versions, date = today()) =>
-  [...(versions || [])].filter((item) => item.effective_from <= date)
-    .sort((a, b) => b.effective_from.localeCompare(a.effective_from))[0] || null;
+  effectivePay(versions, date);
 const label = (value) => String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 const entityName = (entities, id) => entities.find((item) => item.id === id)?.display_name
   || entities.find((item) => item.id === id)?.name || "Legal Entity";
@@ -58,140 +60,9 @@ function WageTreatment({ scheme, value, onChange }) {
   return <AdminFormField as="div" label={`${scheme.toUpperCase()} wage base`}><AdminSegmentedControl className="w-fit" label={`${scheme.toUpperCase()} wage base`} value={value} onChange={onChange} options={treatmentOptions} />{!["included", "excluded"].includes(value) && <p className="text-xs text-amber-700">Choose Included or Excluded.</p>}</AdminFormField>;
 }
 
-function StatutoryChecks({ value, onChange, review, loading }) {
-  return <div>
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-      {["epf", "socso", "eis", "pcb"].map((key) => <div key={key}><SelectField label={key.toUpperCase()} ariaLabel={key.toUpperCase()}
-        value={value[key]==null?'':String(value[key])} onChange={(v)=>onChange({...value,[key]:v===''?null:v==='true'})}
-        options={[{value:'',label:'Choose applicability'},{value:'true',label:'Applicable'},{value:'false',label:'Not Applicable'}]} />
-        {value[key] === false && <p className="mt-2 text-xs text-text-secondary">Not Applicable</p>}
-        {value[key] === true && (key === "pcb" ? <p className="mt-2 text-xs text-text-secondary">Confirm the amount in each Payroll Run.</p>
-          : loading ? <p className="mt-2 text-xs text-text-secondary">Checking Employee evidence…</p>
-          : review?.schemes?.[key]?.recommendation ? <p className="mt-2 text-xs text-teal-700">{statutoryCategories[key].find(c=>c.value===review.schemes[key].recommendation)?.label} · Recommended</p>
-          : review && <div className="mt-2 text-xs text-amber-700"><p className="font-semibold">Additional information required</p><p>{statutorySetupHelp(review.schemes?.[key]?.issue, review.evidence)}</p></div>)}
-      </div>)}
-    </div>
-  </div>;
-}
-
-export function FoundationForm({ mode, profile, initialEmployeeId = "", data, onClose, onSaved }) {
-  const current = effective(profile?.compensation);
-  const currentStatutory = effective(profile?.statutory);
-  const [draft, setDraft] = useState(() => ({
-    employeeId: initialEmployeeId,
-    profileId: profile?.id,
-    payBasis: current?.pay_basis || "monthly",
-    rate: current?.basic_salary || current?.hourly_rate || "",
-    currency: current?.currency || "MYR",
-    effectiveFrom: mode === "create" ? data.employees?.find(e => e.id === initialEmployeeId)?.joined_date || "" : today(),
-    statutoryMonth: [currentMonth(), data.employees?.find(e => e.id === initialEmployeeId)?.joined_date?.slice(0, 7) || ""].sort().at(-1),
-    reason: "",
-    epf: currentStatutory?.epf_applicable ?? null,
-    socso: currentStatutory?.socso_applicable ?? null,
-    eis: currentStatutory?.eis_applicable ?? null,
-    pcb: currentStatutory?.pcb_applicable ?? null,
-  }));
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [setup, setSetup] = useState(null);
-  const [setupLoading, setSetupLoading] = useState(false);
-  const [setupError, setSetupError] = useState("");
-  const [refresh, setRefresh] = useState(0);
-  const { employeeId, effectiveFrom, statutoryMonth, epf, socso, eis, pcb } = draft;
-  const joinedDate = data.employees?.find(e => e.id === employeeId)?.joined_date;
-  useEffect(() => {
-    if (mode !== "create") return;
-    let active = true;
-    setSetup(null); setSetupError("");
-    if (!employeeId || !effectiveFrom) { setSetupLoading(false); return; }
-    setSetupLoading(true);
-    payrollService.readInitialSetup(employeeId, effectiveFrom, { epf, socso, eis, pcb }, `${statutoryMonth}-01`)
-      .then(result => { if (active) setSetup(result); })
-      .catch(cause => { if (active) setSetupError(cause.message || "Unable to check statutory setup."); })
-      .finally(() => { if (active) setSetupLoading(false); });
-    return () => { active = false; };
-  }, [mode, employeeId, effectiveFrom, statutoryMonth, epf, socso, eis, pcb, refresh]);
-  const patch = (key, value) => setDraft((previous) => ({ ...previous, [key]: value }));
-  const isProfile = mode === "create" || mode === "compensation";
-  const title = {
-    create: "Set Up Employee",
-    compensation: "Adjust Compensation",
-  }[mode];
-
-  async function save() {
-    setBusy(true);
-    setError("");
-    try {
-      const input = { ...draft, rate: Number(draft.rate) };
-      if (mode === "create") await payrollService.confirmInitialSetup({
-        ...input, statutoryMonth: `${statutoryMonth}-01`, applicability: { epf, socso, eis, pcb }, fingerprint: setup.fingerprint,
-      });
-      if (mode === "compensation") await payrollService.adjustCompensation(input);
-      await onSaved(mode === "create" ? draft.employeeId : undefined);
-      onClose();
-    } catch (cause) {
-      setError(cause.message || "Unable to save Payroll change.");
-      if (mode === "create") setSetup(null);
-    } finally {
-      setBusy(false);
-    }
-  }
-  const candidates = (data.employees || []).filter((employee) =>
-    !(data.profiles || []).some((item) => item.employee_id === employee.id));
-  const allowed = draft.effectiveFrom && (
-    mode === "create" ? draft.employeeId && Number(draft.rate) > 0 && setup && !setupLoading && [epf,socso,eis,pcb].every(v=>v != null)
-      : mode === "compensation" ? Number(draft.rate) > 0
-        : true) && (mode === "create" || draft.reason.trim());
-
-  return <Modal title={title} description={mode === "create" ? "Set pay from a specific date and statutory setup from a payroll month." : "Changes apply from the selected date. Previous pay records remain available in history."}
-    onClose={onClose} size="lg"
-    footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={!allowed || busy} onClick={save}>{busy ? "Saving..." : mode === "create" ? "Confirm Employee Setup" : "Save"}</button></>}>
-    <div className="space-y-4">
-      <fieldset className="min-w-0 space-y-4">
-      {mode === "create" && <legend className="mb-3 text-sm font-bold text-text-primary">Pay Setup</legend>}
-      {mode === "create" && <AdminFormField label="Employee" required>
-        <SelectField value={draft.employeeId} onChange={(value) => setDraft(previous => ({ ...previous,
-          employeeId: value, effectiveFrom: candidates.find(e => e.id === value)?.joined_date || "",
-          statutoryMonth: [currentMonth(), candidates.find(e => e.id === value)?.joined_date?.slice(0, 7) || ""].sort().at(-1) }))} searchable
-          options={[{ value: "", label: "Select employee with Legal Employer" },
-            ...candidates.map((item) => ({ value: item.id, label: `${item.name} · ${entityName(data.legal_entities || [], item.legal_entity_id)}` }))]} />
-      </AdminFormField>}
-      {isProfile && <div className="grid gap-4 sm:grid-cols-2">
-        <AdminFormField label="Pay Basis" required><SelectField value={draft.payBasis} onChange={(value) => setDraft((previous) => ({
-          ...previous, payBasis: value, rate: previous.payBasis === value ? previous.rate : "",
-        }))}
-          options={[{ value: "monthly", label: "Monthly" }, { value: "hourly", label: "Hourly" }]} /></AdminFormField>
-        <AdminFormField label={draft.payBasis === "monthly" ? "Basic Salary (MYR)" : "Hourly Rate (MYR)"} required>
-          <input className="control" type="number" min="0.01" step={draft.payBasis === "monthly" ? "0.01" : "0.0001"}
-            value={draft.rate} onChange={(event) => patch("rate", event.target.value)} />
-        </AdminFormField>
-      </div>}
-      <div className="grid gap-4 sm:grid-cols-2">
-        <DatePickerField label="Pay Effective From" required value={draft.effectiveFrom} onChange={(value) => patch("effectiveFrom", value)}
-          helper={mode === "create" && joinedDate ? `Recommended: Joined Date · ${joinedDate}. Confirm when this salary/rate actually started.` : null} />
-        {mode !== "create" && <AdminFormField label="Reason / provenance" required><input className="control" value={draft.reason}
-          onChange={(event) => patch("reason", event.target.value)} placeholder="Reviewed compensation change" /></AdminFormField>
-        }
-      </div>
-      {mode === "create" && joinedDate && draft.effectiveFrom > joinedDate && <p role="status" className="text-sm text-amber-700">Current pay starts after employment date. Earlier payroll periods may require previous pay history.</p>}
-      </fieldset>
-      {mode === "create" && <fieldset className="min-w-0 space-y-3 border-t border-border pt-4">
-        <legend className="px-0 text-sm font-bold text-text-primary">Statutory Setup</legend>
-        <div className="space-y-1"><MonthPickerField label="Statutory Effective Month" value={draft.statutoryMonth} onChange={value => patch("statutoryMonth", value)} />
-          <p className="text-xs text-text-secondary">Applies to payroll for this month and later, until changed.</p></div>
-        <StatutoryChecks value={draft} onChange={setDraft} review={setup} loading={setupLoading} />
-        <p className="text-xs text-text-secondary">Confirm recommended categories with this setup. Unresolved schemes remain Setup Required. Applicable PCB / MTD amounts are confirmed in each Payroll Run.</p>
-        {(setupError || (error && !setup)) && <div role="alert"><p>{setupError || error}</p><button type="button" className="btn-secondary" onClick={()=>{setError("");setRefresh(v=>v+1);}}>Refresh Setup</button></div>}
-      </fieldset>}
-      {mode === "compensation" && <p className="text-xs text-text-secondary">The new version applies from this date. It does not update an Employment Contract or rewrite earlier versions.</p>}
-      {error && mode !== "create" && <p role="alert" className="text-sm font-semibold text-rose-700">{error}</p>}
-    </div>
-  </Modal>;
-}
-
 const registryDate = value => value ? new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short", year: "numeric" }).format(new Date(`${value.slice(0,10)}T12:00:00`)) : "—";
 export function lastPayChange(versions, date) {
-  const history = [...(versions || [])].filter(v => v.effective_from <= date).sort((a,b) => a.effective_from.localeCompare(b.effective_from));
+  const history = effectivePayVersions(versions).filter(v => v.effective_from <= date).sort((a,b) => a.effective_from.localeCompare(b.effective_from));
   return history.filter((v,i) => !i || ["pay_basis", "basic_salary", "hourly_rate", "currency"].some(key => v[key] !== history[i-1][key])).at(-1)?.effective_from;
 }
 function RegistryScheme({ scheme, state }) {
@@ -210,6 +81,7 @@ export function ProfilesTab({ data, canManage, reload }) {
   const [entityFilter, setEntityFilter] = useState(data.legal_entities?.[0]?.id || "");
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [employmentFilter, setEmploymentFilter] = useState("all");
   const selected = data.profiles?.find((profile) => profile.employee_id === selectedId);
   const selectedEmployee = data.employees?.find((employee) => employee.id === selectedId);
   const entities = data.legal_entities || [];
@@ -219,11 +91,13 @@ export function ProfilesTab({ data, canManage, reload }) {
     if (!row.profile || !effective(row.profile.compensation)) return "Setup Required";
     return row.profile.statutory_setup?.status === "Complete" ? "Ready" : row.profile.statutory_setup?.status || "Setup Required";
   };
-  const visibleRows = rows.filter((row) => row.legal_entity_id === entityFilter
+  const visibleRows = rows.filter((row) => (row.legal_entity_id === entityFilter || row.legal_entity_ids?.includes(entityFilter))
+    && (employmentFilter === "all" || row.employment_status === employmentFilter)
     && (statusFilter === "all" || setupState(row) === statusFilter)
     && (!search.trim() || `${row.name} ${row.employee_code || ""}`.toLowerCase().includes(search.trim().toLowerCase())));
   const columns = [
     { key: "employee", header: "Employee", render: (row) => <div className="min-w-28 max-w-48"><strong>{row.name}</strong><div className="text-xs text-text-secondary">{[row.employee_code, row.workplace].filter(Boolean).join(" · ") || "—"}</div></div> },
+    { key: "employment", header: "Employment Status", render: row => <div><Badge tone="neutral">{label(row.employment_status || "active")}</Badge>{["resigned", "terminated"].includes(row.employment_status) && <small className="block text-text-secondary">{row.employment_end_date ? `Ended ${registryDate(row.employment_end_date)}` : "End date unverified"}</small>}</div> },
     { key: "joined", header: "Joined", className: "hidden 2xl:table-cell whitespace-nowrap", headerClassName: "hidden 2xl:table-cell", render: row => registryDate(row.joined_date) },
     { key: "basis", header: "Pay Basis", className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell", render: (row) => effective(row.profile?.compensation) ? label(effective(row.profile.compensation).pay_basis) : "Not set" },
     { key: "rate", header: "Current Pay", align: "right", render: (row) => { const c = effective(row.profile?.compensation); return c ? <strong className="tabular-nums">{money(c.basic_salary || c.hourly_rate, c.currency)}{c.pay_basis === "hourly" ? " / hour" : ""}</strong> : "—"; } },
@@ -253,7 +127,7 @@ export function ProfilesTab({ data, canManage, reload }) {
     <AdminFilterToolbar ariaLabel="Payroll employee filters"
       outlet={<SelectField label="Legal Entity" value={entityFilter} onChange={(value) => { setEntityFilter(value); setSelectedId(""); }} options={entities.map((item) => ({ value: item.id, label: item.display_name || item.name }))} />}
       search={<AdminSearchField label="Search" value={search} onChange={setSearch} placeholder="Employee name or code" />}
-      filters={<SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, ...["Ready", "Scheduled Change", "Confirmation Required", "Setup Required"].map((value) => ({ value, label: value }))]} />}
+      filters={<><SelectField label="Employment Status" value={employmentFilter} onChange={setEmploymentFilter} options={[{value:"all",label:"All employment"}, ...["active", "resigned", "terminated"].map(value=>({value,label:label(value)}))]} /><SelectField label="Status" value={statusFilter} onChange={setStatusFilter} options={[{ value: "all", label: "All" }, ...["Ready", "Scheduled Change", "Confirmation Required", "Setup Required"].map((value) => ({ value, label: value }))]} /></>}
       primaryActions={canManage && rows.some((row) => !row.profile) ? <button className="btn-primary" type="button" onClick={() => { setSetupEmployeeId(""); setForm("create"); }}><Plus size={16} /> Set Up Employee</button> : null} />
     <Card>{visibleRows.length ? <DataTable columns={columns} rows={visibleRows} getRowKey={(row) => row.id}
       density="compact" tableClassName="!min-w-0" onRowClick={(row) => setSelectedId(row.id)} /> : <div className="p-8 text-center text-sm text-text-secondary">No employees match these filters.</div>}</Card>

@@ -668,3 +668,12 @@ Public Holidays now presents Official Calendar, Select Company Holidays and Revi
 ## 2026-10-03 — Public Holiday explicit date resolution
 
 Added audited date confirmation bound to captured source and row evidence. Effective proposal/read/publication consumers share one overlay; extraction/transcription history is retained, independent blockers remain enforced, and old saves are not promoted. Normal review collects date/reference and shows Confirmed.
+
+## 2026-10-04 — Payroll historical compensation for former employees
+
+- Payroll Profiles exposes scoped historical employer associations and employment
+  status/end-date filtering without changing Payroll period membership.
+- Compensation authority supports audited historical and same-date revisions;
+  effective consumers retain later pay, original history and finalized guards.
+- Open Run employee review shares the canonical pay setup form and existing
+  automatic stale/recalculation flow without resetting employee/month navigation.
