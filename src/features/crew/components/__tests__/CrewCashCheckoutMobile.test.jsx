@@ -80,6 +80,10 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next" }));
     fireEvent.click(screen.getByRole("button", { name: "Complete Checkout" }));
     await waitFor(() => expect(crewService.saveCashCheckout).toHaveBeenLastCalledWith("management-session", "complete", expect.any(Object), "outlet-1"));
+    expect(await screen.findByRole("heading", { name: "Checkout Details" })).not.toBeNull();
+    expect(screen.queryByText("cash.steps.complete")).toBeNull();
+    expect(screen.queryByLabelText("RM 100")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Complete Checkout" })).toBeNull();
   });
 
   it("shows access denial without opening a Management Checkout flow", async () => {
@@ -304,9 +308,11 @@ describe("Crew Cash Checkout mobile", () => {
   });
 
   it("merges completed status and time into one compact treatment and opens the current snapshot", async () => {
-    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", review_required: true, completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 0, amount_for_deposit: 500 } });
+    crewService.cashCheckoutMobile.mockResolvedValue({ ...payload, checkout: { status: "completed", review_required: true, completed_at: "2026-08-21T22:30:00+08:00", business_date: "2026-08-21", checked_out_by: "QA Crew", position: "Service Crew", floating_cash: 300, previous_carry_forward: 50, expected_opening_cash: 350, denomination_counts: { 100: 8, 50: 1 }, counted_cash: 850, pos_expected_cash: 850, variance: 0, carry_forward: 25.60, amount_for_deposit: 474.40 } });
     render(<CrewCashCheckoutMobile token="opaque-session" onBack={() => {}} />);
     const completed = await screen.findByText("Completed · 10:30 PM");
+    expect(screen.getByText("Previous Carry Forward").nextElementSibling.textContent.replace(/\s/g, " ")).toBe("RM 50.00");
+    expect(screen.getByText("Carry Forward to Next Day").nextElementSibling.textContent.replace(/\s/g, " ")).toBe("RM 25.60");
     expect(completed.closest(".crew-ui-status.is-success")).not.toBeNull();
     expect(screen.queryByText("Completed at 10:30 pm")).toBeNull();
     expect(screen.queryByText("Review Required")).toBeNull();
@@ -314,6 +320,7 @@ describe("Crew Cash Checkout mobile", () => {
     fireEvent.click(screen.getByRole("button", { name: "View details" }));
     expect(screen.getByRole("heading", { name: "Checkout Details" })).not.toBeNull();
     expect(screen.getByText("RM100 × 8")).not.toBeNull();
+    expect(screen.getByText("Carry Forward to Next Day").nextElementSibling.textContent.replace(/\s/g, " ")).toBe("RM 25.60");
     expect(screen.getByText("This checkout is completed and cannot be edited.")).not.toBeNull();
   });
 
