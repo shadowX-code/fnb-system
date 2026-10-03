@@ -183,9 +183,36 @@ Publication atomically advances assignment pointers, retaining prior versions
 and audit evidence. Required holidays cannot be deselected. Draft saving and
 publication have payload-bound retry identities and stale-version checks.
 
-Settings → Public Holidays exposes Holiday Calendar and Company Policy.
-The normal workflow is Check Official Updates → Review Update → Publish Calendar
-→ inline Paid Holiday Selection → PH Work Benefit → Ready. The Admin-triggered
+Settings → Public Holidays uses Official Calendar → Select Company Holidays →
+Review & Publish. The working geography comes from canonical effective outlet-state
+versions through `payroll_holiday_operation_read`; names/addresses and source rows
+never supply missing workplace geography. A single-state shared operation defaults
+to that state. Multiple-state operations use an explicitly selected workplace;
+missing state evidence blocks operational publication with a setup reason.
+Only applicable National/State rows enter the normal date-review and selection
+workflow. Source-verified dates need no row action. Applicable uncertain,
+conditional, changed or missing source entries remain explicit review exceptions.
+Mandatory paid classification remains an explicit employment-law confirmation,
+separate from source-date verification. Five mandatory paid holidays and at least
+six company choices are shown separately; additional gazetted entitlements remain
+outside those six choices. Review shows selected dates, classification and
+applicability, with one explicit Publish Year Calendar action.
+
+`payroll_holiday_operation_publish` is an atomic adapter over the existing candidate
+review, structured import, annual-calendar and company-policy commands. It checks
+actor/permission/outlet scope, verified geography, source revision and baseline,
+applicable exceptions, five mandatory classifications and six company choices.
+Calendar publication and company selection commit together, with payload-bound
+retry identity and an audited source hash, geography evidence and scope. Workplace
+selection uses the existing reasoned outlet-policy override; all-workplace selection
+uses the existing active-company default command. Unrelated extracted rows remain
+unchanged and unreviewed; previously published other-state entries are retained.
+The full source candidate is not claimed globally approved/published by a scoped
+operation. Its append-only scoped publication event pins the applicable manifest,
+while the existing published calendar/policy versions remain Payroll authority.
+No new holiday store or Payroll date resolver is introduced. Normal source
+maintenance, Imported/Matched/Blocked diagnostics, all-jurisdiction review and
+correction tools remain in Advanced & History. The Admin-triggered
 `payroll-holiday-updates` Edge Function checks only the approved BKPP annual-calendar
 and Act/Gazette directories. It follows actual selected-year PDF links under the
 same official storage host, rejects redirects and bounded-response violations,
@@ -200,8 +227,8 @@ layouts fail closed with a specific manual-review reason. Exact source bytes/has
 page/row references remain retained. Source dates marked subject to change, conditional
 alternatives, changed/missing entries and mandatory paid classification require
 explicit review. Clean new source rows are pre-reviewed as source facts only; this
-neither publishes the calendar nor confirms paid status. Publication and company-policy
-mutation remain separate. No scheduled
+neither publishes the calendar nor confirms paid status. Calendar and company-policy authorities remain separate; the operational adapter
+invokes them in one transaction. No scheduled
 job exists. Secondary controls share one Advanced & History entry: Official Sources
 owns source evidence/import history and Add Official Source Manually; Calendar
 Maintenance owns Override Classification and Add Sourced Holiday; History shows
