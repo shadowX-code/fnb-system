@@ -116,7 +116,6 @@ describe("Recruitment realtime transcript and recording boundary", () => {
         item: { id: "candidate-1", type: "message", role: "user" },
       }),
     );
-    session.responses.request("test");
     await session.consume(JSON.stringify({type:"response.created",response:{id:"response-1",metadata:{owner:"test"}}}));
     await session.consume(
       JSON.stringify({
@@ -141,6 +140,7 @@ describe("Recruitment realtime transcript and recording boundary", () => {
       }),
     );
     await session.consume(JSON.stringify({type:"output_audio_buffer.stopped",response_id:"response-1"}));
+    await session.persistence;
     const turns = interviewTranscriptQueue.put.mock.calls.map(([turn]) => turn).filter(turn=>!turn.kind);
     expect(turns.map((t) => t.providerOrder)).toEqual([1, 2]);
     expect(turns[0].transcript).toBe("Saya worked at 前台.");
@@ -173,4 +173,32 @@ describe("Recruitment realtime transcript and recording boundary", () => {
     expect(stop).not.toHaveBeenCalled();
     expect(session.peer).toBeNull();
   });
+});
+
+it("hung transcript storage cannot gate provider events or create candidate responses",()=>{
+ interviewTranscriptQueue.put.mockImplementationOnce(()=>new Promise(()=>{}));
+ const seen=vi.fn();const session=new RecruitmentRealtimeSession({token:"a".repeat(64),clientId:"client",startedAt:new Date().toISOString(),audioElement:{},onEvent:seen});
+ session.attemptKey="pending";session.generation=1;
+ session.consume(JSON.stringify({type:"input_audio_buffer.speech_started",item_id:"c"}));
+ session.consume(JSON.stringify({type:"input_audio_buffer.speech_stopped",item_id:"c"}));
+ session.consume(JSON.stringify({type:"input_audio_buffer.committed",item_id:"c"}));
+ session.consume(JSON.stringify({type:"conversation.item.input_audio_transcription.completed",item_id:"c",transcript:"Boleh"}));
+ session.consume(JSON.stringify({type:"response.created",response:{id:"r"}}));
+ expect(seen).toHaveBeenCalledTimes(5);expect(session.conversation.turns.get("c").responded).toBe(true);session.close();
+});
+it("playback receipt before transcript final still saves evidence without replay",async()=>{
+ const session=new RecruitmentRealtimeSession({token:"a".repeat(64),clientId:"client",startedAt:new Date().toISOString(),audioElement:{}});session.attemptKey="p";session.generation=1;
+ session.consume(JSON.stringify({type:"response.created",response:{id:"r"}}));
+ session.consume(JSON.stringify({type:"response.output_item.added",response_id:"r",item:{id:"a",type:"message",role:"assistant"}}));
+ session.consume(JSON.stringify({type:"output_audio_buffer.stopped",response_id:"r"}));
+ session.consume(JSON.stringify({type:"response.output_audio_transcript.done",response_id:"r",item_id:"a",transcript:"Next useful question"}));
+ await session.persistence;expect(interviewTranscriptQueue.put.mock.calls.some(([t])=>t.itemId==="a" && t.transcript==="Next useful question")).toBe(true);session.close();
+});
+it("provider-cleared audio is annotated even if text final arrives afterwards",async()=>{
+ const session=new RecruitmentRealtimeSession({token:"a".repeat(64),clientId:"client",startedAt:new Date().toISOString(),audioElement:{}});session.attemptKey="p";session.generation=1;
+ session.consume(JSON.stringify({type:"response.created",response:{id:"r"}}));
+ session.consume(JSON.stringify({type:"response.output_item.added",response_id:"r",item:{id:"a",type:"message",role:"assistant"}}));
+ session.consume(JSON.stringify({type:"output_audio_buffer.cleared",response_id:"r"}));
+ session.consume(JSON.stringify({type:"response.output_audio_transcript.done",response_id:"r",item_id:"a",transcript:"Unfinished question"}));
+ await session.persistence;expect(interviewTranscriptQueue.put.mock.calls.some(([t])=>t.itemId==="a" && t.kind==="truncated")).toBe(true);session.close();
 });

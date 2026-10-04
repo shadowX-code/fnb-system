@@ -4,7 +4,8 @@ import { RecruitmentRealtimeSession } from "./RecruitmentRealtimeSession.js";
 import { acquireInterviewClient } from "./interviewClient.js";
 import { interviewLocalKey as acquirePartition } from "./interviewRecordingStore.js";
 import { InterviewRecording } from "./InterviewRecording.js";
-import { bounded, InterviewRecovery, readyInterviewMedia } from "./interviewRecovery.js";
+import { InterviewTransportGeneration } from "./InterviewTransportGeneration.js";
+import { bounded, readyInterviewMedia } from "./interviewRecovery.js";
 
 const recoveryLabels = {
   preparing: "Preparing to continue", "tab ownership": "Checking this browser tab",
@@ -22,7 +23,6 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [elapsed, setElapsed] = useState(0),
-    [coverage, setCoverage] = useState(null),
     [recoveryView, setRecoveryView] = useState({state:"RECOVERY_REQUIRED",stage:""}),
     [terminalReason, setTerminalReason] = useState(""),
     [recoveryNotice,setRecoveryNotice] = useState("");
@@ -33,12 +33,8 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     session = useRef(null),
     finishing = useRef(false),
     paused = useRef(false),
-    finishTimer = useRef(null),
     maxTimer = useRef(null),
-    finishReason = useRef("coverage"),
-    finishApproved = useRef(false),
-    statusRef = useRef(status),
-    assessing = useRef(false);
+    statusRef = useRef(status);
   statusRef.current = status;
   const alive = useRef(true), starting = useRef(false), releaseClient = useRef(null), recovery = useRef(null);
   const clientClaim = useRef(null);
@@ -50,7 +46,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     for (const event of observations.current.splice(0, 40))
       bounded(recruitmentService.observeRecovery(token,clientId.current,event.key,event.record), "Saving recovery observation", {timeoutMs:5000}).catch(() => {});
   }
-  if (!machine.current) machine.current = new InterviewRecovery(view => {
+  if (!machine.current) machine.current = new InterviewTransportGeneration(view => {
     if (!alive.current) return;
     setRecoveryView(view);
     setBusy(view.state === "RECOVERING");
@@ -69,20 +65,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     await bounded(clientClaim.current,"Interview tab ownership",{signal});
   }
   async function assess() {
-    if (assessing.current) return null;
-    assessing.current = true;
-    try {
-      await ai.current?.flush();
-      const result = await recruitmentService.evidence(
-        "coverage",
-        token,
-        clientId.current,
-      );
-      setCoverage(result);
-      return result;
-    } finally {
-      assessing.current = false;
-    }
+    return machine.current.assess?.();
   }
   async function finalize(reason) {
     if (finishing.current) return;
@@ -92,10 +75,9 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     try {
       await bounded(recruitmentService.finish(token, clientId.current, reason),"Saving interview outcome",{timeoutMs:15000});
       setStatus("finalizing");
-        clearTimeout(finishTimer.current);
       clearTimeout(maxTimer.current);
       ai.current?.close();
-      const pending = await bounded(ai.current?.flush(),"Saving transcript",{timeoutMs:8000});
+      const pending = await bounded((ai.current || machine.current.transport)?.flush(),"Saving transcript",{timeoutMs:8000});
       await bounded(recording.current?.stop("completed"),"Saving recording evidence",{timeoutMs:30000});
       devices.stop();
       if (pending)
@@ -126,8 +108,6 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     setStatus("interrupted");
     setAiStatus("paused");
     clearTimeout(maxTimer.current);
-    clearTimeout(finishTimer.current);
-    finishApproved.current = false;
     ai.current?.close();
     ai.current = null;
     const prior = recording.current;
@@ -145,66 +125,21 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
     setError("The interview paused. Tap Continue interview to reacquire camera and microphone. Saved answers remain; the recording gap will be visible to your recruiter.");
   }
   async function createFreshInterviewer(signal) {
-    if (paused.current || finishing.current || !alive.current || document.hidden) return;
-    finishApproved.current = false;
-    clearTimeout(finishTimer.current);
-    setAiStatus("connecting");
-    const transport = new RecruitmentRealtimeSession({
-      token,
-      clientId: clientId.current,
-      mediaStream: devices.streamRef.current,
-      recoveryId: recoveryId.current,
-      startedAt: session.current.started_at,
-      audioElement: audio.current,
-      onRemote: (stream) => { if (ai.current === transport && !paused.current) recording.current?.remote(stream); },
-      onStatus: (state) => {
-        if (!alive.current || ai.current !== transport || paused.current) return;
-        setAiStatus(state);
-
-        if (["disconnected", "audio-blocked"].includes(state) && !finishing.current) {
-          pause(state === "audio-blocked" ? "interviewer_audio_unavailable" : "interviewer_connection_lost");
-          setError(state === "audio-blocked" ? "Interviewer audio could not start. Tap Continue interview to try again." : "The interviewer connection was interrupted. Tap Continue interview; your saved answers are retained.");
-        }
+    const generation = recoveryId.current;
+    const transport = await machine.current.connectInterviewer({
+      token, clientId:clientId.current, recoveryId:generation,
+      mediaStream:devices.streamRef.current, startedAt:session.current.started_at,
+      audioElement:audio.current, signal,
+      onRemote:stream=>recording.current?.remote(stream),
+      onStatus:state=>{if(alive.current && !paused.current && recoveryId.current===generation)setAiStatus(state);},
+      onRecovery:state=>{
+        if(!alive.current || paused.current || recoveryId.current!==generation)return;
+        pause(state==="audio-blocked"?"interviewer_audio_unavailable":"interviewer_connection_lost");
+        setError("The interviewer was interrupted. Tap Continue interview; your saved answers are retained.");
       },
-      onEvent: (event) => {
-        if (!alive.current || ai.current !== transport || paused.current) return;
-        if (event.type === "input_audio_buffer.speech_started") {
-          finishApproved.current = false; clearTimeout(finishTimer.current);
-        }
-        if (
-          event.type === "conversation.item.input_audio_transcription.completed"
-        )
-          setTimeout(() => { if (ai.current === transport && !paused.current && alive.current) assess().catch(() => {}); }, 1000);
-        if (
-          event.type === "response.function_call_arguments.done" &&
-          event.name === "request_completion"
-        ) {
-          const owner = transport.responses.owner;
-          assess().then((result) => {
-            if (ai.current !== transport || paused.current) return;
-            const output = result || { can_finish: false, reason: "Coverage check pending; continue the interview." };
-            if (result?.can_finish && transport.responses.owner === owner) {
-              finishApproved.current = true;
-              finishReason.current = result.max_reached ? "max_duration" : "coverage";
-              finishTimer.current = setTimeout(() => finalize(finishReason.current), 30000);
-            }
-            transport.completeTool(event, output, owner);
-          }).catch(() => {
-            if (ai.current === transport && !paused.current)
-              transport.completeTool(event, {can_finish:false,reason:"Coverage check unavailable. Continue with the remaining evidence."}, owner);
-          });
-        }
-        if (
-          event.type === "output_audio_buffer.stopped" &&
-          finishApproved.current && event.response_id === transport.closingResponseId
-        )
-          finalize(finishReason.current);
-      },
+      onCompletion:reason=>{if(alive.current && !paused.current && recoveryId.current===generation)finalize(reason);},
     });
-    if (paused.current || finishing.current || !alive.current || document.hidden) { transport.close(); return; }
-    ai.current = transport;
-    await bounded(transport.connect({signal}), "AI connection", {signal,timeoutMs:25000});
-    if (ai.current === transport && !paused.current) setError("");
+    if(recoveryId.current===generation && !paused.current) {ai.current=transport;setError("");}
   }
   async function start() {
     if (document.hidden) { setError("Return to this page before resuming."); return; }
@@ -425,7 +360,6 @@ export default function RecruitmentInterviewSession({ token, entry, devices, ren
       if (ownsCapture) devices.stop();
       clearInterval(clock);
       clearInterval(tick);
-        clearTimeout(finishTimer.current);
       clearTimeout(maxTimer.current);
       document.removeEventListener("visibilitychange", hidden);
       window.removeEventListener("pagehide", pagehide);

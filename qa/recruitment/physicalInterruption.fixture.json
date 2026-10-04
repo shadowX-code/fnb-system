@@ -1,0 +1,127 @@
+{
+  "source": "Saved physical Staging generation 2, 104075–124838 ms. IDs normalized; no interview content.",
+  "events": [
+    {
+      "at": 104075,
+      "type": "response.created",
+      "response_id": "response-1",
+      "status": "in_progress"
+    },
+    {
+      "at": 104491,
+      "type": "output_audio_buffer.started",
+      "response_id": "response-1"
+    },
+    {
+      "at": 105532,
+      "type": "input_audio_buffer.speech_started",
+      "item_id": "candidate-2"
+    },
+    {
+      "at": 105532,
+      "type": "output_audio_buffer.cleared",
+      "response_id": "response-1"
+    },
+    {
+      "at": 105743,
+      "type": "response.done",
+      "response_id": "response-1",
+      "status": "cancelled"
+    },
+    {
+      "at": 108336,
+      "type": "input_audio_buffer.speech_stopped",
+      "item_id": "candidate-2"
+    },
+    {
+      "at": 108338,
+      "type": "input_audio_buffer.committed",
+      "item_id": "candidate-2"
+    },
+    {
+      "at": 108531,
+      "type": "response.created",
+      "response_id": "response-3",
+      "status": "in_progress"
+    },
+    {
+      "at": 109067,
+      "type": "output_audio_buffer.started",
+      "response_id": "response-3"
+    },
+    {
+      "at": 111591,
+      "type": "response.done",
+      "response_id": "response-3",
+      "status": "completed"
+    },
+    {
+      "at": 116020,
+      "type": "input_audio_buffer.speech_started",
+      "item_id": "candidate-4"
+    },
+    {
+      "at": 116021,
+      "type": "output_audio_buffer.cleared",
+      "response_id": "response-3"
+    },
+    {
+      "at": 117252,
+      "type": "input_audio_buffer.speech_stopped",
+      "item_id": "candidate-4"
+    },
+    {
+      "at": 117252,
+      "type": "input_audio_buffer.committed",
+      "item_id": "candidate-4"
+    },
+    {
+      "at": 117444,
+      "type": "response.created",
+      "response_id": "response-5",
+      "status": "in_progress"
+    },
+    {
+      "at": 118032,
+      "type": "output_audio_buffer.started",
+      "response_id": "response-5"
+    },
+    {
+      "at": 120430,
+      "type": "response.done",
+      "response_id": "response-5",
+      "status": "completed"
+    },
+    {
+      "at": 122058,
+      "type": "output_audio_buffer.cleared",
+      "response_id": "response-5"
+    },
+    {
+      "at": 122058,
+      "type": "input_audio_buffer.speech_started",
+      "item_id": "candidate-6"
+    },
+    {
+      "at": 124102,
+      "type": "input_audio_buffer.speech_stopped",
+      "item_id": "candidate-6"
+    },
+    {
+      "at": 124103,
+      "type": "input_audio_buffer.committed",
+      "item_id": "candidate-6"
+    },
+    {
+      "at": 124301,
+      "type": "response.created",
+      "response_id": "response-7",
+      "status": "in_progress"
+    },
+    {
+      "at": 124838,
+      "type": "output_audio_buffer.started",
+      "response_id": "response-7"
+    }
+  ]
+}

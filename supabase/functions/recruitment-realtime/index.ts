@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
 import { interviewInstructions, firstInterviewResponse, type InterviewContext } from "./prompt.ts";
+import { continuationContext } from "./context.ts";
 import { interviewerProfile } from "./voice.ts";
 
 const allowedOrigins = new Set([
@@ -42,10 +43,29 @@ Deno.serve(async (request) => {
   if (!url || !serviceKey || !openaiKey) return json(request, { error: "Interview service is unavailable." }, 503);
 
   const service = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  if (body.action === "context") {
+    const {data:state,error} = await service.rpc("recruitment_assessment_context", {p_token:token,p_client_id:clientId});
+    if(error || !state?.attempt_id) return json(request,{error:"Interview context unavailable."},403);
+    const {data:attempt} = await service.from("recruitment_interview_attempts").select("recovery_id,provider_generation,paused_at,config_version_id,application_id").eq("id",state.attempt_id).single();
+    if(!attempt || attempt.recovery_id!==body.recovery_id || attempt.provider_generation!==body.generation || attempt.paused_at || state.status!=="interviewing") return json(request,{error:"Interview was replaced."},409);
+    const [{data:config},{data:opening},{data:annotations,error:annotationError}] = await Promise.all([
+      service.from("recruitment_interview_configs").select("target_minutes,required_topics,scenario_briefs,language_guidance,interview_instructions").eq("id",attempt.config_version_id).single(),
+      service.from("recruitment_applications").select("opening_title_snapshot,opening_description_snapshot,position_snapshot,workplace_snapshot").eq("id",attempt.application_id).single(),
+      service.from("recruitment_transcript_annotations").select("provider_generation,provider_item_id,kind").eq("attempt_id",state.attempt_id),
+    ]);
+    if(!config || !opening || annotationError) return json(request,{error:"Interview context unavailable."},503);
+    // Revalidate ownership after the reads; a replaced browser must not receive
+    // a new context update for the current generation.
+    const {data:current} = await service.from("recruitment_interview_attempts").select("recovery_id,provider_generation,paused_at").eq("id",state.attempt_id).single();
+    if(current?.recovery_id!==body.recovery_id || current?.provider_generation!==body.generation || current?.paused_at) return json(request,{error:"Interview was replaced."},409);
+    return json(request,{generation:attempt.provider_generation,instructions:interviewInstructions(continuationContext(state,attempt,config,opening,annotations||[]))});
+  }
   const { data, error } = await service.rpc(body.recovery_id ? "recruitment_recovery_context" : "recruitment_realtime_context", { p_token: token, p_client_id: clientId, ...(body.recovery_id ? {p_request_id:body.recovery_id} : {}) });
   if (error || !data?.attempt_id) return json(request, { error: "Interview session is unavailable." }, 403);
 
   const context = data as InterviewContext & { attempt_id: string; max_ends_at: string };
+  const {data:role} = await service.from("recruitment_interview_attempts").select("application:recruitment_applications(position_snapshot,workplace_snapshot)").eq("id",context.attempt_id).single();
+  if(role?.application) context.opening={...context.opening,position:role.application.position_snapshot,workplace:role.application.workplace_snapshot};
   const remainingSeconds = Math.max(1, Math.floor((Date.parse(context.max_ends_at) - Date.now()) / 1000));
   if (remainingSeconds < 20) return json(request, { error: "Interview duration has ended." }, 409);
 
@@ -64,7 +84,7 @@ Deno.serve(async (request) => {
         input: {
           transcription: { model: "gpt-4o-transcribe", prompt: "F&B recruitment interview in Malaysia. English, Bahasa Malaysia and Mandarin Chinese, including natural Malaysian code-switching. Preserve the actual words; do not translate or invent speech from silence." },
           noise_reduction: { type: "near_field" },
-          turn_detection: { type: "semantic_vad", eagerness: "low", create_response: false, interrupt_response: false },
+          turn_detection: { type: "semantic_vad", eagerness: "low", create_response: body.conversation_version === "provider-owned-v1", interrupt_response: body.conversation_version === "provider-owned-v1" },
         },
         output: { voice: interviewerProfile.voice },
       },

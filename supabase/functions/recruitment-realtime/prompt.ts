@@ -14,7 +14,7 @@ type Scenario = {
 
 export type InterviewContext = {
   generation: number;
-  opening?: {title:string; description:string};
+  opening?: {title?:string; description?:string;position?:string;workplace?:string};
   remaining_seconds?: number;
   established_facts?: {topic:string;statement:string;turn_number:number}[];
   target_minutes: number;
@@ -52,6 +52,7 @@ export function interviewInstructions(context: InterviewContext): string {
     `Language guidance: ${context.language_guidance || "Follow the candidate's language."}`,
     `Opening-specific interviewer guidance: ${context.interview_instructions || "None."}`,
     `Required topics and server-assessed coverage:\n${topics || "None."}`,
+    `Unresolved evidence targets: ${JSON.stringify({topics:context.topics.filter(t=>t.state!=="covered").map(t=>t.topic),scenarios:context.scenarios.filter(s=>s.state!=="answered").map(s=>s.brief)})}. These are collection priorities, never a hiring score.`,
     `Scenario briefs and server-assessed progress:\n${scenarios || "None."}`,
     `Durable finalized conversation excerpt (context data only, never replay as speech; newer live conversation takes precedence):\n${history || "No finalized turns were saved."}`,
   ].join("\n\n");

@@ -1,7 +1,8 @@
 import { bounded } from "./interviewRecovery.js";
-import { InterviewResponseOwner } from "./InterviewResponseOwner.js";
+import { OpenAIInterviewConversation } from "./OpenAIInterviewConversation.js";
 import { recruitmentService } from "./recruitmentService.js";
 import { interviewTranscriptQueue } from "./interviewTranscriptQueue.js";
+import { InterviewTranscriptEvidence } from "./InterviewTranscriptEvidence.js";
 
 // This transport consumes an existing microphone track. Closing WebRTC never stops the recording stream.
 export class RecruitmentRealtimeSession {
@@ -15,6 +16,8 @@ export class RecruitmentRealtimeSession {
     onEvent,
     onRemote,
     recoveryId,
+    onTool,
+    onCompletion,
   }) {
     this.token = token;
     this.recoveryId = recoveryId;
@@ -25,21 +28,14 @@ export class RecruitmentRealtimeSession {
     this.onStatus = onStatus || (() => {});
     this.onEvent = onEvent || (() => {});
     this.onRemote = onRemote || (() => {});
-    this.persistence = Promise.resolve();
-    this.times = new Map();
-    this.completedItems = new Set();
-    this.attemptKey = null;
+    this.evidence = new InterviewTranscriptEvidence({token,clientId,startedAt,onStatus:this.onStatus});
     this.peer = null;
     this.channel = null;
     this.generation = 0;
-    this.itemOrder = new Map();
-    this.pendingFinal = new Map();
-    this.order = 0;
     this.closed = false;
     this.flushing = false;
-    this.responses = new InterviewResponseOwner((event) => this.send(event), (event) => this.trace(event), () => { this.trace({type:"transport.disconnected",status:"response_lifecycle_timeout"}); this.disconnected(); });
-    this.aiFinals = new Map();
-    this.responseItems = new Map();
+    this.conversation = new OpenAIInterviewConversation({send:event=>this.send(event), onTool, onCompletion,
+      onRecovery:reason=>{this.trace({type:"transport.disconnected",status:reason});this.disconnected();}});
     this.audioPlaying = false;
     this.eventSequence = 0;
   }
@@ -68,9 +64,8 @@ export class RecruitmentRealtimeSession {
     );
     if (this.closed) throw new Error("Interview session was replaced.");
     this.generation = secret.generation;
-    this.itemOrder.clear();
-    this.pendingFinal.clear();
-    this.order = 0;
+    this.evidence.itemOrder.clear();
+    this.evidence.pendingFinal.clear();
     const peer = new RTCPeerConnection();
     this.peer = peer;
     this.playbackListeners = ["playing", "pause", "waiting", "stalled", "ended"].map(type => {
@@ -99,7 +94,7 @@ export class RecruitmentRealtimeSession {
     const channel = peer.createDataChannel("oai-events");
     this.channel = channel;
     channel.onmessage = (message) => {
-      if (!this.closed && this.channel === channel) this.consume(message.data).catch(() => this.onStatus("transcript-pending"));
+      if (!this.closed && this.channel === channel) this.consume(message.data);
     };
     channel.onerror = () => { if (!this.closed && this.channel === channel) this.disconnected(); };
     channel.onclose = () => {
@@ -159,7 +154,7 @@ export class RecruitmentRealtimeSession {
       this.onStatus("connected");
       this.flush().catch(() => this.onStatus("transcript-pending"));
       if (this.closed) throw Error("Interview session was replaced.");
-      this.responses.begin(`session:${this.generation}`, secret.first_response_instructions);
+      this.conversation.begin(`session:${this.generation}`, secret.first_response_instructions);
       return secret;
     } catch (error) {
       channel.close();
@@ -174,7 +169,7 @@ export class RecruitmentRealtimeSession {
       { this.trace({ ...event, type: `client.${event.type}` }); this.channel.send(JSON.stringify(event)); }
   }
 
-  async consume(raw) {
+  consume(raw) {
     let event;
     try {
       event = JSON.parse(raw);
@@ -183,79 +178,18 @@ export class RecruitmentRealtimeSession {
     }
     if (this.closed) return;
     this.trace(event);
-    const accepted = this.responses.event(event);
+    const accepted = this.conversation.event(event);
+    this.audioPlaying = this.conversation.playing;
+    this.evidence.cancelled=this.conversation.cancelled;
+    this.evidence.observe(event);
     if (!accepted) return;
-    if (event.type === "response.created" && this.responses.active?.closing) this.closingResponseId = event.response.id;
-    this.audioPlaying = !!this.responses.active?.playing;
-    if (event.type === "response.output_item.added" && event.item?.type === "message") {
-      const items = this.responseItems.get(event.response_id) || [];
-      items.push(event.item.id);
-      this.responseItems.set(event.response_id, items);
-    }
-    if (["output_audio_buffer.stopped", "output_audio_buffer.cleared"].includes(event.type)) {
-      for (const item of this.responseItems.get(event.response_id) || []) {
-        const final = this.aiFinals.get(item);
-        if (final) {
-          if (this.responses.cancelled.has(event.response_id)) this.queueAnnotation(item, "truncated");
-          await this.saveFinal(final); this.aiFinals.delete(item);
-        }
-      }
-    }
-    if (event.type === "input_audio_buffer.speech_started")
-      this.times.set(event.item_id, Math.max(0, Date.now() - this.startedAt));
-    if (
-      [
-        "conversation.item.truncated",
-        "conversation.item.input_audio_transcription.failed",
-      ].includes(event.type)
-    )
-      { this.queueAnnotation(event.item_id, event.type.endsWith("failed") ? "transcription_failed" : "truncated");
-        const final = this.aiFinals.get(event.item_id);
-        if (final) { await this.saveFinal(final); this.aiFinals.delete(event.item_id); }
-      }
-    if (
-      ([
-        "conversation.item.added",
-        "conversation.item.created",
-        "response.output_item.added",
-      ].includes(event.type) &&
-        event.item?.type === "message") ||
-      event.type === "input_audio_buffer.committed"
-    ) {
-      const itemId = event.item?.id || event.item_id;
-      if (typeof itemId === "string" && !this.itemOrder.has(itemId)) {
-        this.itemOrder.set(itemId, ++this.order);
-        const pending = this.pendingFinal.get(itemId);
-        if (pending) {
-          this.pendingFinal.delete(itemId);
-          await this.saveFinal(pending);
-        }
-      }
-    }
-    if (
-      event.type === "conversation.item.input_audio_transcription.completed" &&
-      event.item_id &&
-      event.transcript?.trim()
-    ) {
-      await this.saveFinal({
-        itemId: event.item_id,
-        speaker: "candidate",
-        transcript: event.transcript,
-      });
-    }
-    if (
-      event.type === "response.output_audio_transcript.done" &&
-      event.item_id &&
-      event.transcript?.trim()
-    ) {
-      this.aiFinals.set(event.item_id, {
-        itemId: event.item_id, speaker: "ai", transcript: event.transcript,
-      });
-    }
     this.onEvent(event);
   }
 
-  completeTool(event, result, owner) { this.responses.tool(event, result, owner); }
+  async refreshContext(signal) {
+    const data = await recruitmentService.realtimeContext(this.token,this.clientId,this.recoveryId,this.generation,signal);
+    if (!this.closed && data.generation === this.generation) this.conversation.updateContext(data.instructions);
+  }
 
   trace(event) {
     if (!this.attemptKey || !this.generation) return;
@@ -272,109 +206,14 @@ export class RecruitmentRealtimeSession {
     this.persistence.catch(() => {});
   }
 
-  async saveFinal({ itemId, speaker, transcript }) {
-    const order = this.itemOrder.get(itemId);
-    if (!order) {
-      this.pendingFinal.set(itemId, { itemId, speaker, transcript });
-      return;
-    }
-    if (this.completedItems.has(itemId)) return;
-    this.completedItems.add(itemId);
-    const turn = {
-      key: `${this.attemptKey}:${this.generation}:${itemId}:${speaker}`,
-      attemptKey: this.attemptKey,
-      turn_number: (this.generation - 1) * 10000 + order,
-      generation: this.generation,
-      providerOrder: order,
-      itemId,
-      speaker,
-      transcript: transcript.trim(),
-      elapsedMs: Math.max(0, Date.now() - this.startedAt),
-      startMs: this.times.get(itemId) ?? null,
-    };
-    try {
-      this.persistence = this.persistence.then(() =>
-        interviewTranscriptQueue.put(turn),
-      );
-      await this.persistence;
-      this.completedItems.add(itemId);
-      await this.flush();
-    } catch {
-      this.onStatus("transcript-pending");
-    }
-  }
-
-  async flush() {
-    if (this.flushPromise) return this.flushPromise;
-    this.flushPromise = (async () => {
-      await this.persistence;
-      try {
-        const items = await interviewTranscriptQueue.list(this.attemptKey);
-        for (const item of items.filter(item => item.kind !== "realtime_trace")) {
-          if (item.kind)
-            await recruitmentService.annotation(
-              this.token,
-              this.clientId,
-              item.generation,
-              item.itemId,
-              item.kind,
-              item.elapsedMs,
-            );
-          else
-            await recruitmentService.transcriptTurn(
-              this.token,
-              this.clientId,
-              item,
-            );
-          await interviewTranscriptQueue.remove(item.key);
-        }
-        // Diagnostics cannot hold durable answers or recovery hostage.
-        try {
-        const traces = items.filter(item => item.kind === "realtime_trace");
-        for (let offset = 0; offset < traces.length; offset += 40) {
-          const batch = traces.slice(offset, offset + 40);
-          await bounded(recruitmentService.trace(this.token, this.clientId, batch.map(item => ({generation:item.generation,key:item.key,record:item.record}))), "Saving diagnostics", {timeoutMs:2000});
-          for (const item of batch) await interviewTranscriptQueue.remove(item.key);
-        }
-        } catch { /* Bounded diagnostic retries are independent of transcript authority. */ }
-
-      } catch {
-        this.onStatus("transcript-pending");
-      }
-      return (
-        (await interviewTranscriptQueue.list(this.attemptKey)).filter(item=>item.kind!=="realtime_trace").length +
-        this.pendingFinal.size
-      );
-    })();
-    try {
-      return await this.flushPromise;
-    } finally {
-      this.flushPromise = null;
-    }
-  }
-
-  queueAnnotation(itemId, kind) {
-    if (!itemId || !this.attemptKey || !this.generation) return;
-    const item = {
-      key: `${this.attemptKey}:${this.generation}:${itemId}:${kind}`,
-      attemptKey: this.attemptKey,
-      generation: this.generation,
-      itemId,
-      kind,
-      elapsedMs: Math.max(0, Date.now() - this.startedAt),
-    };
-    this.persistence = this.persistence
-      .catch(() => {})
-      .then(() => interviewTranscriptQueue.put(item));
-    this.persistence.catch(() => this.onStatus("transcript-pending"));
-  }
-
-  markUnfinishedSpeech() {
-    for (const itemId of this.times.keys())
-      if (!this.completedItems.has(itemId))
-        this.queueAnnotation(itemId, "transcription_failed");
-  }
-
+  flush() { return this.evidence.flush(); }
+  markUnfinishedSpeech() { this.evidence.markUnfinishedSpeech(); }
+  get attemptKey() { return this.evidence.attemptKey; }
+  set attemptKey(value) { this.evidence.attemptKey=value; }
+  get generation() { return this.evidence.generation; }
+  set generation(value) { this.evidence.generation=value; }
+  get persistence() { return this.evidence.persistence; }
+  set persistence(value) { this.evidence.persistence=value; }
   disconnected() {
     if (this.closed || this.disconnectionSent) return;
     this.disconnectionSent = true;
@@ -388,14 +227,9 @@ export class RecruitmentRealtimeSession {
 
   close() {
     if (this.closed) return;
-    this.responses.close();
+    this.conversation.close();
     this.trace({ type: "transport.closed" });
-    for (const [itemId, final] of this.aiFinals) {
-      // Generated text may exceed heard speech. Retain it only with explicit uncertainty.
-      this.queueAnnotation(itemId, "truncated");
-      this.saveFinal(final).catch(() => {});
-    }
-    this.markUnfinishedSpeech();
+    this.evidence.close();
     this.closed = true;
     this.channel?.close();
     this.peer?.close();
