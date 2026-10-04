@@ -15,7 +15,7 @@ const recoveryLabels = {
   "device readiness": "Waiting for camera and microphone",
 };
 
-export default function RecruitmentInterviewSession({ token, entry, devices }) {
+export default function RecruitmentInterviewSession({ token, entry, devices, renderPreparation }) {
   const [status, setStatus] = useState(["starting", "interviewing", "interrupted"].includes(entry.status) ? "interrupted" : entry.status),
     [recordingStatus, setRecordingStatus] = useState("idle"),
     [aiStatus, setAiStatus] = useState("idle"),
@@ -168,6 +168,9 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       },
       onEvent: (event) => {
         if (!alive.current || ai.current !== transport || paused.current) return;
+        if (event.type === "input_audio_buffer.speech_started") {
+          finishApproved.current = false; clearTimeout(finishTimer.current);
+        }
         if (
           event.type === "conversation.item.input_audio_transcription.completed"
         )
@@ -417,8 +420,9 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     window.addEventListener("pagehide", pagehide);
     return () => {
       alive.current = false;
+      const ownsCapture = machine.current.operation || session.current || recording.current;
       machine.current.cancel();
-      devices.stop();
+      if (ownsCapture) devices.stop();
       clearInterval(clock);
       clearInterval(tick);
         clearTimeout(finishTimer.current);
@@ -432,9 +436,9 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     };
   }, [token]);
   const terminal = ["completed", "partial", "failed"].includes(status) || !!terminalReason;
+  if (renderPreparation && status === "ready" && recoveryView.state !== "RECOVERING") return renderPreparation({start});
   return (
     <section>
-      <p className="recruitment-eyebrow">AI voice interview</p>
       <h1>
         {terminal
           ? terminalReason ? "Interview cannot continue" : "Interview saved"
@@ -452,8 +456,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
               : "Your available interview evidence has been saved. Your recruiter can see any missing or interrupted evidence.")}
           </p>
           <p className="recruitment-notice">
-            The AI does not make the hiring decision. Your manager reviews the
-            interview evidence.
+            Your hiring team will review your interview and make the hiring decision.
           </p>
         </>
       ) : (
@@ -483,7 +486,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
                       ? "Uploading recording"
                       : status === "finalizing"
                         ? "Finalizing evidence"
-                        : "Camera recording will start before AI voice"}
+                        : "Preparing your interview"}
             </strong>{" "}
             · {Math.floor(elapsed / 60)}:{String(elapsed % 60).padStart(2, "0")}{" "}
             {recoveryView.state === "RESUMED" ? " · Interview in progress" : ""}
@@ -562,12 +565,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
               Retry saving evidence
             </button>
           ) : null}
-          {coverage ? (
-            <p>
-              {coverage.unresolved_topics.length} required topics remaining ·{" "}
-              {coverage.pending_scenarios.length} scenarios remaining
-            </p>
-          ) : null}
+
         </>
       )}
       {recoveryView.state === "RECOVERING" ? <p role="status">{recoveryLabels[recoveryView.stage] || "Restoring your interview"}</p> : null}

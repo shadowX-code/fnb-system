@@ -33,11 +33,16 @@ export function useInterviewDevices() {
     const generation = ++generationRef.current;
     signal?.addEventListener("abort", () => { if (generation === generationRef.current) { generationRef.current += 1; stream?.getTracks().forEach(track => track.stop()); } }, {once:true});
     setState((current) => ({ ...current, status: "checking", error: "" }));
-    let stream;
+    let stream, meterContext, meterActivation;
     try {
       // Native request is the first hardware operation in the Resume gesture.
       // Recovery avoids optional device/processing constraints on WebKit reacquisition.
       const request = navigator.mediaDevices.getUserMedia(meter ? { video: cameraId ? { deviceId: { exact: cameraId } } : { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 }, frameRate: { ideal: 24 } }, audio: microphoneId ? { deviceId: { exact: microphoneId }, echoCancellation: true, noiseSuppression: true } : { echoCancellation: true, noiseSuppression: true } } : {video: {facingMode:"user"}, audio:true});
+      if (meter && (window.AudioContext || window.webkitAudioContext)) {
+        meterContext = new (window.AudioContext || window.webkitAudioContext)();
+        meterActivation = bounded(meterContext.resume(), "Microphone check", {signal,timeoutMs:5000});
+        meterActivation.catch(() => {});
+      }
       onNative({stage:"getUserMedia.requested"});
       if (!meter && navigator.permissions?.query) for (const name of ["camera", "microphone"]) {
         bounded(navigator.permissions.query({name}), "Permission observation", {signal, timeoutMs:2000})
@@ -45,17 +50,20 @@ export function useInterviewDevices() {
       }
       stream = await bounded(request, "Camera and microphone", {signal,timeoutMs:15000,onLate:value=>value.getTracks().forEach(track=>track.stop())});
       onNative({stage:"getUserMedia.resolved",tracks:stream.getTracks().map(t=>({kind:t.kind,state:t.readyState,muted:t.muted}))});
-      if (generation !== generationRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
+      if (generation !== generationRef.current) { stream.getTracks().forEach((track) => track.stop()); meterContext?.close().catch(() => {}); return; }
       streamRef.current?.getTracks().forEach((track) => { track.onended = null; track.stop(); });
       if (meter) audioRef.current?.close?.().catch(() => {});
       streamRef.current = stream;
       if (previewRef.current) { previewRef.current.srcObject = stream; previewRef.current.play?.().catch(() => {}); }
       stream.getTracks().forEach((track) => { track.onended = () => { if (generation === generationRef.current) setState((current) => ({ ...current, status: "lost", error: `${track.kind === "video" ? "Camera" : "Microphone"} disconnected. Recheck both devices.` })); }; });
       const devices = meter ? await bounded(navigator.mediaDevices.enumerateDevices?.() || Promise.resolve([]), "Device list", {signal,timeoutMs:3000}).catch(() => []) : [];
-      if (generation !== generationRef.current) { stream.getTracks().forEach(track=>track.stop()); return; }
+      if (generation !== generationRef.current) { stream.getTracks().forEach(track=>track.stop()); meterContext?.close().catch(() => {}); return; }
       const AudioContextClass = window.AudioContext || window.webkitAudioContext;
       if (meter && AudioContextClass) {
-        const context = new AudioContextClass(); audioRef.current = context;
+        const context = meterContext;
+        await meterActivation;
+        if (generation !== generationRef.current) { context.close().catch(() => {}); return; }
+        audioRef.current = context;
         const source = context.createMediaStreamSource(stream);
         const analyser = context.createAnalyser(); analyser.fftSize = 512; source.connect(analyser);
         const values = new Uint8Array(analyser.fftSize);
@@ -65,6 +73,7 @@ export function useInterviewDevices() {
       setState((current) => ({ ...current, status: "ready", error: "", cameras: devices.filter((x) => x.kind === "videoinput"), microphones: devices.filter((x) => x.kind === "audioinput"), cameraId: stream.getVideoTracks()[0]?.getSettings().deviceId || cameraId, microphoneId: stream.getAudioTracks()[0]?.getSettings().deviceId || microphoneId }));
       return stream;
     } catch (error) {
+      meterContext?.close().catch(() => {});
       if (stream) stream.getTracks().forEach((track) => track.stop());
       onNative({stage:"getUserMedia.error",code:error.code || error.name || "native_media_failed"});
       if (generation === generationRef.current) setState((current) => ({ ...current, status: "error", error: deviceError(error) }));

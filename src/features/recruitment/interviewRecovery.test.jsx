@@ -212,3 +212,12 @@ it("interviewer audio failure uses the same Continue action rather than separate
  expect(screen.getByRole("button",{name:"Continue interview"})).toBeTruthy();expect(screen.queryByRole("button",{name:"Enable interviewer audio"})).toBeNull();
  expect(screen.queryByText("● Recording")).toBeNull();
 });
+it("pre-start preparation remount preserves checked devices and Start invokes native capture in that tap",async()=>{
+  const {StrictMode}=await import("react");
+  const devices={start:vi.fn().mockResolvedValue({getTracks:()=>["audio","video"].map(kind=>({kind,readyState:"live",muted:false,addEventListener:vi.fn(),removeEventListener:vi.fn(),stop:vi.fn()}))}),stop:vi.fn(),streamRef:{current:{}},previewRef:{current:null}};
+  render(<StrictMode><RecruitmentInterviewSession token={"a".repeat(64)} entry={{status:"ready"}} devices={devices} renderPreparation={({start})=><button onClick={start}>Start interview</button>}/></StrictMode>);
+  expect(devices.stop).not.toHaveBeenCalled();
+  fireEvent.click(screen.getByRole("button",{name:"Start interview"}));
+  expect(devices.start).toHaveBeenCalledOnce();expect(qa.activation).toHaveBeenCalledOnce();
+  await screen.findByText(/Interview in progress/);
+});
