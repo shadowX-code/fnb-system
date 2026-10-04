@@ -42,6 +42,7 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     assessing = useRef(false);
   statusRef.current = status;
   const alive = useRef(true), connecting = useRef(null), starting = useRef(false), releaseClient = useRef(null), recovery = useRef(null);
+  const clientClaim = useRef(null);
   const machine = useRef(null), recoveryId = useRef(null), observations = useRef([]);
   function observe(type, details = {}) {
     const item = {key:crypto.randomUUID(), record:{type,at:Date.now(),hidden:document.hidden,...details}};
@@ -57,11 +58,16 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
     observe("recovery.transition",{...view,request_id:machine.current?.operation?.id || recoveryId.current});
   });
   async function claimClient(signal) {
-    if (!releaseClient.current) {
-      const claim = await bounded(acquireInterviewClient(token), "Interview tab ownership", {signal,onLate: value=>value.release()});
-      clientId.current = claim.clientId;
-      releaseClient.current = claim.release;
+    if (releaseClient.current) return;
+    if (!clientClaim.current) {
+      clientClaim.current = bounded(acquireInterviewClient(token), "Interview tab ownership", {onLate:value=>value.release()})
+        .then(claim=>{
+          if (!alive.current) { claim.release(); throw Error("Interview page was closed."); }
+          clientId.current = claim.clientId; releaseClient.current = claim.release;
+          observe("recovery.bootstrap",{stage:"tab.identity"});
+        }).finally(()=>{clientClaim.current=null;});
     }
+    await bounded(clientClaim.current,"Interview tab ownership",{signal});
   }
   async function assess() {
     if (assessing.current) return null;
@@ -263,11 +269,13 @@ export default function RecruitmentInterviewSession({ token, entry, devices }) {
       clearTimeout(maxTimer.current);
       const oldCapture = recording.current;
       oldCapture?.stop("recovery_replaced").catch(() => {});
+      // Identity loads concurrently with the already-invoked native acquisition.
+      // This also flushes cold-bootstrap diagnostics if native acquisition hangs.
+      await step("tab ownership",signal=>claimClient(signal));
       const stream = freshStream = await step("camera and microphone",()=>media);
       if (!stream) throw Object.assign(Error("Camera and microphone could not start. Tap Resume to reacquire them."),{code:"native_media_failed"});
       await step("device readiness",signal=>readyInterviewMedia(stream,signal),{timeoutMs:5000});
       observe("recovery.media",{request_id:operation.id,stage:"tracks.validated",tracks:stream.getTracks().map(t=>({kind:t.kind,state:t.readyState,muted:t.muted})),audio_state:activation.context.state});
-      await step("tab ownership",signal=>claimClient(signal));
       observe("recovery.bootstrap",{request_id:operation.id});
       const durable = await step("server state",signal=>recruitmentService.recoveryState(token,clientId.current,signal));
       if (durable.state === "TERMINAL" && durable.status !== "finalizing") {
