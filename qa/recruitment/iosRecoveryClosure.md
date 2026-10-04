@@ -20,3 +20,11 @@ Original evidence remains untouched: one verified recording, 19 durable turns, p
 ## Verification
 
 Focused consumer/native tests and canonical real-provider fault checks are recorded in the handoff. Technical fault injections do not certify physical WebKit recovery. Production remains blocked pending physical acceptance; voice unchanged.
+
+### Canonical verification completion
+
+- 40 focused tests / six files passed, production build and diff check passed. Native DOMException rejection is preserved without mutating its read-only message. Shared pending tab identity prevents replacement Resume from competing with its own browser lock.
+- Existing Staging rollback contracts passed: idempotent recovery, stale recording/provider ownership, active budget, durable transcript/coverage and gap integrity. No schema/function/voice changes were required.
+- Canonical Git-integrated runtime `45a52a72c3a89d5b22c0f381e934430fd074bdd8` READY, then current `3a71efab025c1bee146397409eebfe74ad72df84` READY (unrelated Payroll commit preserved). Recruitment source unchanged between those runtime SHAs.
+- Isolated real-provider fault run `739c50e0-0572-4eec-88c9-126950639d07`: foreground native getUserMedia hang, NotReadableError retry, independent cold-refresh hang/retry, pending stale native close and private uploads all exercised. Same attempt, one tab comparison identity, three RESUMED transitions / three connected provider generations. Native error codes now persist as recovery_timeout / NotReadableError. Both recovery paths connected. Final Partial: four gaps, units 1 and 3 verified 640×480, reload unit 2 retained Invalid. No candidate answers invented for this synthetic run.
+- Private request/status log and screenshots: `/private/tmp/feedx-ios-native`. Original physical attempt/evidence remains retained. This is technical fault verification, not physical iOS success. One fresh human invitation was prepared only after these checks, for **V1 iPhone Native Recovery Acceptance Tester** (`0000000105`), same Service Crew opening/config. No Hire/Employee action.
